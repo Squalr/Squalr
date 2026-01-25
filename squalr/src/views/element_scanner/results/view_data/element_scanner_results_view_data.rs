@@ -5,11 +5,11 @@ use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_reque
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
 use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
-use squalr_engine_api::structures::data_values::display_value::DisplayValue;
-use squalr_engine_api::structures::data_values::display_value_type::DisplayValueType;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use squalr_engine_api::structures::data_values::data_value_interpreter::DataValueInterpreter;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
-use squalr_engine_api::structures::structs::container_type::ContainerType;
 use squalr_engine_api::{
     commands::{
         privileged_command_request::PrivilegedCommandRequest,
@@ -40,7 +40,7 @@ pub struct ElementScannerResultsViewData {
     pub selection_index_end: Option<i32>,
     pub result_count: u64,
     pub stats_string: String,
-    pub edit_value: DisplayValue,
+    pub edit_value: DataValueInterpreter,
     pub is_querying_scan_results: bool,
     pub is_refreshing_scan_results: bool,
     pub is_setting_properties: bool,
@@ -62,7 +62,7 @@ impl ElementScannerResultsViewData {
             selection_index_end: None,
             result_count: 0,
             stats_string: String::new(),
-            edit_value: DisplayValue::new(String::new(), DisplayValueType::Decimal, ContainerType::None),
+            edit_value: DataValueInterpreter::new(String::new(), DataValueInterpretationFormat::Decimal, ContainerType::None),
             is_querying_scan_results: false,
             is_refreshing_scan_results: false,
             is_setting_properties: false,

@@ -84,13 +84,13 @@ impl SnapshotRegionScanResults {
                     .saturating_add(adjusted_scan_result_index * memory_alignment as u64);
                 let current_value = snapshot_region.get_current_value(scan_result_address, data_type_ref);
                 let previous_value = snapshot_region.get_previous_value(scan_result_address, data_type_ref);
-                let current_display_values = if let Some(data_value) = current_value.as_ref() {
-                    Some(symbol_registry.create_display_values(data_type_ref, data_value.get_value_bytes()))
+                let current_data_value_interpreters = if let Some(data_value) = current_value.as_ref() {
+                    Some(symbol_registry.create_data_value_interpreters(data_type_ref, data_value.get_value_bytes()))
                 } else {
                     None
                 };
-                let previous_display_values = if let Some(data_value) = previous_value.as_ref() {
-                    Some(symbol_registry.create_display_values(data_type_ref, data_value.get_value_bytes()))
+                let previous_data_value_interpreters = if let Some(data_value) = previous_value.as_ref() {
+                    Some(symbol_registry.create_data_value_interpreters(data_type_ref, data_value.get_value_bytes()))
                 } else {
                     None
                 };
@@ -101,9 +101,9 @@ impl SnapshotRegionScanResults {
                     data_type_ref.clone(),
                     icon_id,
                     current_value,
-                    current_display_values,
+                    current_data_value_interpreters,
                     previous_value,
-                    previous_display_values,
+                    previous_data_value_interpreters,
                     ScanResultRef::new(global_scan_result_index),
                 ));
             }

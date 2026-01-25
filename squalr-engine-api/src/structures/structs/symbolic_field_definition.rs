@@ -1,11 +1,12 @@
 use crate::{
     registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
-        data_types::data_type_ref::DataTypeRef,
-        structs::{
-            container_type::ContainerType,
-            valued_struct_field::{ValuedStructField, ValuedStructFieldData},
+        data_types::{
+            built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64},
+            data_type_ref::DataTypeRef,
         },
+        data_values::container_type::ContainerType,
+        structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -48,8 +49,18 @@ impl SymbolicFieldDefinition {
                     .unwrap_or_default();
                 ValuedStructFieldData::Value(default_value)
             }
-            ContainerType::Pointer32 => ValuedStructFieldData::Pointer32(0),
-            ContainerType::Pointer64 => ValuedStructFieldData::Pointer64(0),
+            ContainerType::Pointer32 => {
+                let default_value = symbol_registry_guard
+                    .get_default_value(&DataTypeRef::new(DataTypeU32::get_data_type_id()))
+                    .unwrap_or_default();
+                ValuedStructFieldData::Value(default_value)
+            }
+            ContainerType::Pointer64 => {
+                let default_value = symbol_registry_guard
+                    .get_default_value(&DataTypeRef::new(DataTypeU64::get_data_type_id()))
+                    .unwrap_or_default();
+                ValuedStructFieldData::Value(default_value)
+            }
             ContainerType::Array(length) => {
                 let mut array_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
@@ -59,7 +70,7 @@ impl SymbolicFieldDefinition {
 
                 array_value.copy_from_bytes(&repeated_bytes);
 
-                ValuedStructFieldData::Array(array_value)
+                ValuedStructFieldData::Value(array_value)
             }
         };
 

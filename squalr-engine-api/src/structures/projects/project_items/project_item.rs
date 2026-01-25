@@ -27,7 +27,7 @@ pub struct ProjectItem {
     has_unsaved_changes: bool,
 
     #[serde(skip)]
-    current_display_value: String,
+    current_data_value_interpreter: String,
 }
 
 impl ProjectItem {
@@ -44,7 +44,7 @@ impl ProjectItem {
             properties: ValuedStruct::new_anonymous(vec![]),
             is_activated: false,
             has_unsaved_changes: true,
-            current_display_value: String::new(),
+            current_data_value_interpreter: String::new(),
         };
 
         project_item.set_field_name(name);
@@ -100,7 +100,7 @@ impl ProjectItem {
     }
 
     pub fn get_display_string(&self) -> &str {
-        &self.current_display_value
+        &self.current_data_value_interpreter
     }
 
     pub fn get_field_name(&self) -> String {

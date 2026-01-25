@@ -4,8 +4,8 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::memory::endian::Endian;
 use std::fmt::Debug;
 
@@ -33,16 +33,16 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     ) -> Result<DataValue, DataTypeError>;
 
     /// Creates all supported display values for this data types (ie bin/dec/hex).
-    fn create_display_values(
+    fn create_data_value_interpreters(
         &self,
         value_bytes: &[u8],
-    ) -> Result<DisplayValues, DataTypeError>;
+    ) -> Result<DataValueInterpreters, DataTypeError>;
 
     /// Gets all supported display types that this data type can be shown as.
-    fn get_supported_display_types(&self) -> Vec<DisplayValueType>;
+    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat>;
 
     /// Gets the default display type that this data type can be shown as.
-    fn get_default_display_type(&self) -> DisplayValueType;
+    fn get_default_display_type(&self) -> DataValueInterpretationFormat;
 
     /// Gets the endianness of this data type.
     fn get_endian(&self) -> Endian;

@@ -2,11 +2,11 @@ use crate::structures::data_types::built_in_types::primitive_data_type::Primitiv
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::data_values::container_type::ContainerType;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::data_value_interpreter::DataValueInterpreter;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::memory::endian::Endian;
-use crate::structures::structs::container_type::ContainerType;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
 
@@ -67,10 +67,10 @@ impl DataType for DataTypeStringUtf8 {
         Ok(DataValue::new(data_type_ref, decoded_bytes))
     }
 
-    fn create_display_values(
+    fn create_data_value_interpreters(
         &self,
         value_bytes: &[u8],
-    ) -> Result<DisplayValues, DataTypeError> {
+    ) -> Result<DataValueInterpreters, DataTypeError> {
         if value_bytes.is_empty() {
             return Err(DataTypeError::NoBytes);
         }
@@ -79,22 +79,22 @@ impl DataType for DataTypeStringUtf8 {
             .map_err(|_err| DataTypeError::DecodingError)?
             .to_string();
 
-        Ok(DisplayValues::new(
-            vec![DisplayValue::new(
+        Ok(DataValueInterpreters::new(
+            vec![DataValueInterpreter::new(
                 decoded_string,
-                DisplayValueType::String,
+                DataValueInterpretationFormat::String,
                 ContainerType::None,
             )],
-            DisplayValueType::String,
+            DataValueInterpretationFormat::String,
         ))
     }
 
-    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::String]
+    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
+        vec![DataValueInterpretationFormat::String]
     }
 
-    fn get_default_display_type(&self) -> DisplayValueType {
-        DisplayValueType::String
+    fn get_default_display_type(&self) -> DataValueInterpretationFormat {
+        DataValueInterpretationFormat::String
     }
 
     fn is_floating_point(&self) -> bool {

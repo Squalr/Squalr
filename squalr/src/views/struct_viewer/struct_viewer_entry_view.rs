@@ -134,9 +134,9 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 self.app_context.clone(),
                 &mut self
                     .valued_struct_field
-                    .get_display_values()
+                    .get_data_value_interpreters()
                     .unwrap()
-                    .get_default_display_value()
+                    .get_default_data_value_interpreter()
                     .unwrap(),
                 &self
                     .valued_struct_field

@@ -2,8 +2,8 @@ use crate::structures::data_types::built_in_types::primitive_data_type::Primitiv
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -66,21 +66,21 @@ impl DataType for DataTypeI32be {
         Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
     }
 
-    fn create_display_values(
+    fn create_data_value_interpreters(
         &self,
         value_bytes: &[u8],
-    ) -> Result<DisplayValues, DataTypeError> {
-        PrimitiveDataType::create_display_values(value_bytes, |value_bytes| {
+    ) -> Result<DataValueInterpreters, DataTypeError> {
+        PrimitiveDataType::create_data_value_interpreters(value_bytes, |value_bytes| {
             PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]])
         })
     }
 
-    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
+    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
         PrimitiveDataType::get_supported_display_types()
     }
 
-    fn get_default_display_type(&self) -> DisplayValueType {
-        DisplayValueType::Decimal
+    fn get_default_display_type(&self) -> DataValueInterpretationFormat {
+        DataValueInterpretationFormat::Decimal
     }
 
     fn get_endian(&self) -> Endian {

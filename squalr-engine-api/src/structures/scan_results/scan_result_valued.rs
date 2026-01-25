@@ -1,4 +1,4 @@
-use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 pub struct ScanResultValued {
     scan_result_base: ScanResultBase,
     current_value: Option<DataValue>,
-    current_display_values: Option<DisplayValues>,
+    current_data_value_interpreters: Option<DataValueInterpreters>,
     previous_value: Option<DataValue>,
-    previous_display_values: Option<DisplayValues>,
+    previous_data_value_interpreters: Option<DataValueInterpreters>,
 }
 
 impl ScanResultValued {
@@ -21,17 +21,17 @@ impl ScanResultValued {
         data_type_ref: DataTypeRef,
         icon_id: String,
         current_value: Option<DataValue>,
-        current_display_values: Option<DisplayValues>,
+        current_data_value_interpreters: Option<DataValueInterpreters>,
         previous_value: Option<DataValue>,
-        previous_display_values: Option<DisplayValues>,
+        previous_data_value_interpreters: Option<DataValueInterpreters>,
         handle: ScanResultRef,
     ) -> Self {
         Self {
             scan_result_base: ScanResultBase::new(address, data_type_ref, icon_id, handle),
             current_value,
-            current_display_values,
+            current_data_value_interpreters,
             previous_value,
-            previous_display_values,
+            previous_data_value_interpreters,
         }
     }
 
@@ -55,15 +55,15 @@ impl ScanResultValued {
         &self.current_value
     }
 
-    pub fn get_current_display_values(&self) -> &Option<DisplayValues> {
-        &self.current_display_values
+    pub fn get_current_data_value_interpreters(&self) -> &Option<DataValueInterpreters> {
+        &self.current_data_value_interpreters
     }
 
     pub fn get_previous_value(&self) -> &Option<DataValue> {
         &self.previous_value
     }
 
-    pub fn get_previous_display_values(&self) -> &Option<DisplayValues> {
-        &self.previous_display_values
+    pub fn get_previous_data_value_interpreters(&self) -> &Option<DataValueInterpreters> {
+        &self.previous_data_value_interpreters
     }
 }

@@ -6,14 +6,14 @@ use squalr_engine_api::{
     registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         data_types::data_type_ref::DataTypeRef,
-        data_values::{anonymous_value::AnonymousValue, display_value::DisplayValue, display_value_type::DisplayValueType},
+        data_values::{anonymous_value::AnonymousValue, data_value_interpreter::DataValueInterpreter, data_value_interpretation_format::DataValueInterpretationFormat},
     },
 };
 use std::sync::Arc;
 
 pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
-    display_value: &'lifetime mut DisplayValue,
+    data_value_interpreter: &'lifetime mut DataValueInterpreter,
     validation_data_type: &'lifetime DataTypeRef,
     is_read_only: bool,
     is_value_owned: bool,
@@ -33,7 +33,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
 
     pub fn new(
         app_context: Arc<AppContext>,
-        display_value: &'lifetime mut DisplayValue,
+        data_value_interpreter: &'lifetime mut DataValueInterpreter,
         validation_data_type: &'lifetime DataTypeRef,
         is_read_only: bool,
         is_value_owned: bool,
@@ -42,7 +42,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
     ) -> Self {
         Self {
             app_context,
-            display_value,
+            data_value_interpreter,
             validation_data_type,
             is_read_only,
             is_value_owned,
@@ -92,19 +92,19 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
-        let anonymous_value = AnonymousValue::new(&self.display_value);
+        let anonymous_value = AnonymousValue::new(&self.data_value_interpreter);
         let symbol_registry = SymbolRegistry::get_instance();
         let is_valid = symbol_registry.validate_value(&self.validation_data_type, &anonymous_value);
         let text_color = match is_valid {
-            true => match self.display_value.get_display_value_type() {
-                DisplayValueType::Bool => theme.foreground,
-                DisplayValueType::String => theme.foreground,
-                DisplayValueType::Binary => theme.binary_blue,
-                DisplayValueType::Decimal => theme.foreground,
-                DisplayValueType::Hexadecimal => theme.hexadecimal_green,
-                DisplayValueType::Address => theme.hexadecimal_green,
-                DisplayValueType::DataTypeRef => theme.foreground,
-                DisplayValueType::Enumeration => theme.foreground,
+            true => match self.data_value_interpreter.get_data_value_interpretation_format() {
+                DataValueInterpretationFormat::Bool => theme.foreground,
+                DataValueInterpretationFormat::String => theme.foreground,
+                DataValueInterpretationFormat::Binary => theme.binary_blue,
+                DataValueInterpretationFormat::Decimal => theme.foreground,
+                DataValueInterpretationFormat::Hexadecimal => theme.hexadecimal_green,
+                DataValueInterpretationFormat::Address => theme.hexadecimal_green,
+                DataValueInterpretationFormat::DataTypeRef => theme.foreground,
+                DataValueInterpretationFormat::Enumeration => theme.foreground,
             },
             false => theme.error_red,
         };
@@ -164,7 +164,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
 
         let text_edit_rectangle_inner = text_edit_rectangle.shrink2(vec2(4.0, 4.0));
 
-        let mut text_value = self.display_value.get_display_string().to_string();
+        let mut text_value = self.data_value_interpreter.get_display_string().to_string();
         let mut text_edit_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(text_edit_rectangle_inner)
@@ -204,7 +204,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
 
         // If the user changed text, update the display value
         if text_edit_response.changed() {
-            self.display_value.set_display_string(text_value);
+            self.data_value_interpreter.set_display_string(text_value);
         }
 
         // Popup logic.
@@ -246,14 +246,14 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
                         popup_user_interface.set_min_width(Self::MIN_POPUP_WIDTH);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
-                            let display_value_types = symbol_registry.get_supported_display_value_types(&self.validation_data_type);
+                            let data_value_interpretation_formats = symbol_registry.get_supported_data_value_interpretation_formats(&self.validation_data_type);
 
-                            for display_value_type in &display_value_types {
+                            for data_value_interpretation_format in &data_value_interpretation_formats {
                                 if inner_user_interface
                                     .add(DataValueBoxConvertItemView::new(
                                         self.app_context.clone(),
-                                        self.display_value,
-                                        display_value_type,
+                                        self.data_value_interpreter,
+                                        data_value_interpretation_format,
                                         false,
                                         self.is_value_owned,
                                         self.width.max(Self::MIN_POPUP_WIDTH),
@@ -267,12 +267,12 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                             if self.is_value_owned && !self.is_read_only {
                                 inner_user_interface.separator();
 
-                                for display_value_type in &display_value_types {
+                                for data_value_interpretation_format in &data_value_interpretation_formats {
                                     if inner_user_interface
                                         .add(DataValueBoxConvertItemView::new(
                                             self.app_context.clone(),
-                                            self.display_value,
-                                            display_value_type,
+                                            self.data_value_interpreter,
+                                            data_value_interpretation_format,
                                             true,
                                             self.is_value_owned,
                                             self.width,

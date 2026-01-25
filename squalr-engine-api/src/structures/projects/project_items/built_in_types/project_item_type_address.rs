@@ -88,7 +88,7 @@ impl ProjectItemTypeAddress {
     pub const PROPERTY_ADDRESS: &str = "address";
     pub const PROPERTY_MODULE: &str = "module";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
-    pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_display_value";
+    pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
 
     pub fn new_project_item(
         name: &str,
@@ -167,7 +167,7 @@ impl ProjectItemTypeAddress {
             .set_field_data(Self::PROPERTY_MODULE, field_data, false);
     }
 
-    pub fn get_field_freeze_display_value(project_item: &mut ProjectItem) -> String {
+    pub fn get_field_freeze_data_value_interpreter(project_item: &mut ProjectItem) -> String {
         if let Some(name_field) = project_item
             .get_properties()
             .get_fields()
@@ -180,12 +180,12 @@ impl ProjectItemTypeAddress {
         }
     }
 
-    pub fn set_field_freeze_display_value(
+    pub fn set_field_freeze_data_value_interpreter(
         project_item: &mut ProjectItem,
-        display_value: &str,
+        data_value_interpreter: &str,
     ) {
-        let display_value_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&display_value);
-        let field_data = ValuedStructFieldData::Value(display_value_data_value);
+        let data_value_interpreter_data_value = DataTypeStringUtf8::get_value_from_primitive_string(&data_value_interpreter);
+        let field_data = ValuedStructFieldData::Value(data_value_interpreter_data_value);
 
         project_item
             .get_properties_mut()

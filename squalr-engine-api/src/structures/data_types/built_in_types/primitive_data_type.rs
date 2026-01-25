@@ -1,10 +1,10 @@
 use crate::conversions::conversions::Conversions;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
-use crate::structures::structs::container_type::ContainerType;
+use crate::structures::data_values::container_type::ContainerType;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::data_value_interpreter::DataValueInterpreter;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use std::fmt;
 use std::{any::type_name, mem::size_of, str::FromStr};
 
@@ -169,10 +169,10 @@ impl PrimitiveDataType {
         Ok(bytes)
     }
 
-    pub fn create_display_values<T, F>(
+    pub fn create_data_value_interpreters<T, F>(
         value_bytes: &[u8],
         convert_bytes_unchecked: F,
-    ) -> Result<DisplayValues, DataTypeError>
+    ) -> Result<DataValueInterpreters, DataTypeError>
     where
         F: Fn(&[u8]) -> T,
         T: AsBits + ToString + fmt::Display,
@@ -198,22 +198,34 @@ impl PrimitiveDataType {
 
         for supported_display_type in Self::get_supported_display_types() {
             match supported_display_type {
-                DisplayValueType::Binary => results.push(DisplayValue::new(value_string_binary.clone(), supported_display_type, ContainerType::None)),
-                DisplayValueType::Decimal => results.push(DisplayValue::new(value_string_decimal.clone(), supported_display_type, ContainerType::None)),
-                DisplayValueType::Hexadecimal => results.push(DisplayValue::new(value_string_hexadecimal.clone(), supported_display_type, ContainerType::None)),
+                DataValueInterpretationFormat::Binary => results.push(DataValueInterpreter::new(
+                    value_string_binary.clone(),
+                    supported_display_type,
+                    ContainerType::None,
+                )),
+                DataValueInterpretationFormat::Decimal => results.push(DataValueInterpreter::new(
+                    value_string_decimal.clone(),
+                    supported_display_type,
+                    ContainerType::None,
+                )),
+                DataValueInterpretationFormat::Hexadecimal => results.push(DataValueInterpreter::new(
+                    value_string_hexadecimal.clone(),
+                    supported_display_type,
+                    ContainerType::None,
+                )),
                 _ => {
                     log::error!("Unhandled supported primitive display type!")
                 }
             };
         }
 
-        Ok(DisplayValues::new(results, DisplayValueType::Decimal))
+        Ok(DataValueInterpreters::new(results, DataValueInterpretationFormat::Decimal))
     }
 
-    pub fn create_display_values_bool(
+    pub fn create_data_value_interpreters_bool(
         value_bytes: &[u8],
         bool_primitive_size: u64,
-    ) -> Result<DisplayValues, DataTypeError> {
+    ) -> Result<DataValueInterpreters, DataTypeError> {
         let element_size = bool_primitive_size as usize;
         let mut bool_strings = vec![];
 
@@ -225,21 +237,21 @@ impl PrimitiveDataType {
 
         let value_string_bool = bool_strings.join(", ");
 
-        Ok(DisplayValues::new(
-            vec![DisplayValue::new(
+        Ok(DataValueInterpreters::new(
+            vec![DataValueInterpreter::new(
                 value_string_bool,
-                DisplayValueType::Bool,
+                DataValueInterpretationFormat::Bool,
                 ContainerType::None,
             )],
-            DisplayValueType::Bool,
+            DataValueInterpretationFormat::Bool,
         ))
     }
 
-    pub fn get_supported_display_types() -> Vec<DisplayValueType> {
+    pub fn get_supported_display_types() -> Vec<DataValueInterpretationFormat> {
         vec![
-            DisplayValueType::Binary,
-            DisplayValueType::Decimal,
-            DisplayValueType::Hexadecimal,
+            DataValueInterpretationFormat::Binary,
+            DataValueInterpretationFormat::Decimal,
+            DataValueInterpretationFormat::Hexadecimal,
         ]
     }
 }

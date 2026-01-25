@@ -1,13 +1,15 @@
 use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
-use squalr_engine_api::structures::data_values::{display_value::DisplayValue, display_value_type::DisplayValueType};
+use squalr_engine_api::structures::data_values::{
+    data_value_interpretation_format::DataValueInterpretationFormat, data_value_interpreter::DataValueInterpreter,
+};
 use std::sync::Arc;
 
 pub struct DataValueBoxConvertItemView<'lifetime> {
     app_context: Arc<AppContext>,
-    display_value: &'lifetime mut DisplayValue,
-    target_display_value_type: &'lifetime DisplayValueType,
+    data_value_interpreter: &'lifetime mut DataValueInterpreter,
+    target_data_value_interpretation_format: &'lifetime DataValueInterpretationFormat,
     is_conversion_available: bool,
     is_value_owned: bool,
     combo_box_width: f32,
@@ -16,16 +18,16 @@ pub struct DataValueBoxConvertItemView<'lifetime> {
 impl<'lifetime> DataValueBoxConvertItemView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        display_value: &'lifetime mut DisplayValue,
-        target_display_value_type: &'lifetime DisplayValueType,
+        data_value_interpreter: &'lifetime mut DataValueInterpreter,
+        target_data_value_interpretation_format: &'lifetime DataValueInterpretationFormat,
         is_conversion_available: bool,
         is_value_owned: bool,
         width: f32,
     ) -> Self {
         Self {
             app_context: app_context,
-            display_value,
-            target_display_value_type,
+            data_value_interpreter,
+            target_data_value_interpretation_format,
             is_conversion_available,
             is_value_owned,
             combo_box_width: width,
@@ -101,7 +103,7 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
             }
 
             // Draw checkmark if checked.
-            if self.display_value.get_display_value_type() == self.target_display_value_type {
+            if self.data_value_interpreter.get_data_value_interpretation_format() == self.target_data_value_interpretation_format {
                 let icon = &theme.icon_library.icon_handle_common_check_mark;
                 let texture_size = icon.size_vec2();
                 let icon_position = checkbox_rectangle.center() - texture_size * 0.5;
@@ -120,11 +122,11 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
         );
 
         let text = if self.is_conversion_available {
-            format!("Convert to {}", self.target_display_value_type)
+            format!("Convert to {}", self.target_data_value_interpretation_format)
         } else if self.is_value_owned {
-            format!("Interpret as {}", self.target_display_value_type)
+            format!("Interpret as {}", self.target_data_value_interpretation_format)
         } else {
-            format!("Display as {}", self.target_display_value_type)
+            format!("Display as {}", self.target_data_value_interpretation_format)
         };
 
         user_interface.painter().text(
@@ -137,11 +139,11 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
 
         if response.clicked() {
             if self.is_conversion_available {
-                self.display_value
-                    .set_display_value_type(*self.target_display_value_type);
+                self.data_value_interpreter
+                    .set_data_value_interpretation_format(*self.target_data_value_interpretation_format);
             } else {
-                self.display_value
-                    .set_display_value_type(*self.target_display_value_type);
+                self.data_value_interpreter
+                    .set_data_value_interpretation_format(*self.target_data_value_interpretation_format);
             }
         }
 

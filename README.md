@@ -204,3 +204,12 @@ The "address item" project type should ideally support complex types like struct
 Now, raw data types are different, but this is perhaps solved by ensuring that ALL data types are also registered into the symbol registry as a single field struct.
 
 This would solve a lot of the headache of trying to operate in these two domains, as we could just use the symbol registry as that field.
+
+===
+
+Valued Structs are particularly obnoxious. Supporting nesting seems strange and perhaps stupid, but it may be necessary (basically a JSON editor GUI). The ValuedStructField feels pretty much the same as a data value, with just a small amount of extra metadata like readonly, and nesting support (which *maybe* can be done with DataValues themselves but thats complicated).
+
+Additionally, the concept of DataValueInterpreters is jarring.
+
+Really, this should perhaps be a DataValueInterpreter for clarity (ie it takes a data type ref, bytes, and figures out how to interpret them for display). Seems a bit clearer.
+

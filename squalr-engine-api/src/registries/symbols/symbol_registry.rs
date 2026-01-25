@@ -1,7 +1,7 @@
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::scanning::comparisons::scan_function_vector::{VectorCompareFnDelta, VectorCompareFnImmediate, VectorCompareFnRelative};
 use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
-use crate::structures::structs::container_type::ContainerType;
 use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use crate::structures::{
@@ -19,8 +19,8 @@ use crate::structures::{
         generics::vector_comparer::VectorComparer,
     },
     data_values::{
-        anonymous_value::AnonymousValue, anonymous_value_container::AnonymousValueContainer, data_value::DataValue, display_value_type::DisplayValueType,
-        display_values::DisplayValues,
+        anonymous_value::AnonymousValue, anonymous_value_container::AnonymousValueContainer, data_value::DataValue,
+        data_value_interpretation_format::DataValueInterpretationFormat, data_value_interpreters::DataValueInterpreters,
     },
     scanning::comparisons::{
         scan_compare_type_delta::ScanCompareTypeDelta,
@@ -180,10 +180,10 @@ impl SymbolRegistry {
         }
     }
 
-    pub fn get_supported_display_value_types(
+    pub fn get_supported_data_value_interpretation_formats(
         &self,
         data_type_ref: &DataTypeRef,
-    ) -> Vec<DisplayValueType> {
+    ) -> Vec<DataValueInterpretationFormat> {
         self.get_data_type(data_type_ref.get_data_type_id())
             .map(|data_type| data_type.get_supported_display_types())
             .unwrap_or_default()
@@ -192,20 +192,20 @@ impl SymbolRegistry {
     pub fn get_default_display_type(
         &self,
         data_type_ref: &DataTypeRef,
-    ) -> DisplayValueType {
+    ) -> DataValueInterpretationFormat {
         self.get_data_type(data_type_ref.get_data_type_id())
             .map(|data_type| data_type.get_default_display_type())
             .unwrap_or_default()
     }
 
-    pub fn create_display_values(
+    pub fn create_data_value_interpreters(
         &self,
         data_type_ref: &DataTypeRef,
         value_bytes: &[u8],
-    ) -> DisplayValues {
+    ) -> DataValueInterpreters {
         self.get_data_type(data_type_ref.get_data_type_id())
-            .and_then(|data_type| data_type.create_display_values(value_bytes).ok())
-            .unwrap_or_else(|| DisplayValues::new(vec![], DisplayValueType::String))
+            .and_then(|data_type| data_type.create_data_value_interpreters(value_bytes).ok())
+            .unwrap_or_else(|| DataValueInterpreters::new(vec![], DataValueInterpretationFormat::String))
     }
 
     /// Gets a value indicating whether this value is signed, ie can be negative.

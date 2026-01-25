@@ -2,9 +2,9 @@ use crate::registries::registries::Registries;
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::data_value_interpreter::DataValueInterpreter;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
@@ -23,7 +23,7 @@ pub struct DataValue {
     value_bytes: Vec<u8>,
 
     /// The display values for this data value.
-    display_values: DisplayValues,
+    data_value_interpreters: DataValueInterpreters,
 }
 
 impl DataValue {
@@ -32,17 +32,17 @@ impl DataValue {
         value_bytes: Vec<u8>,
     ) -> Self {
         let symbol_registry = SymbolRegistry::get_instance();
-        let display_values = symbol_registry.create_display_values(&data_type_ref, &value_bytes);
+        let data_value_interpreters = symbol_registry.create_data_value_interpreters(&data_type_ref, &value_bytes);
 
         Self {
             data_type_ref,
             value_bytes,
-            display_values,
+            data_value_interpreters,
         }
     }
 
-    pub fn get_display_values(&self) -> &DisplayValues {
-        &self.display_values
+    pub fn get_data_value_interpreters(&self) -> &DataValueInterpreters {
+        &self.data_value_interpreters
     }
 
     pub fn copy_from_bytes(
@@ -55,7 +55,7 @@ impl DataValue {
         }
 
         let symbol_registry = SymbolRegistry::get_instance();
-        self.display_values = symbol_registry.create_display_values(&self.data_type_ref, &value_bytes);
+        self.data_value_interpreters = symbol_registry.create_data_value_interpreters(&self.data_type_ref, &value_bytes);
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -70,7 +70,7 @@ impl DataValue {
         self.data_type_ref = data_type_ref;
 
         let symbol_registry = SymbolRegistry::get_instance();
-        self.display_values = symbol_registry.create_display_values(&self.data_type_ref, &self.value_bytes);
+        self.data_value_interpreters = symbol_registry.create_data_value_interpreters(&self.data_type_ref, &self.value_bytes);
     }
 
     pub fn get_data_type_id(&self) -> &str {
@@ -86,29 +86,31 @@ impl DataValue {
     }
 
     pub fn take_value_bytes(&mut self) -> Vec<u8> {
-        self.display_values = DisplayValues::default();
+        self.data_value_interpreters = DataValueInterpreters::default();
 
         mem::take(&mut self.value_bytes)
     }
 
-    pub fn set_active_display_value_type(
+    pub fn set_active_data_value_interpretation_format(
         &mut self,
-        active_display_value_type: DisplayValueType,
+        active_data_value_interpretation_format: DataValueInterpretationFormat,
     ) {
-        self.display_values
-            .set_active_display_value_type(active_display_value_type);
+        self.data_value_interpreters
+            .set_active_data_value_interpretation_format(active_data_value_interpretation_format);
     }
 
-    pub fn get_active_display_value_type(&self) -> DisplayValueType {
-        self.display_values.get_active_display_value_type()
+    pub fn get_active_data_value_interpretation_format(&self) -> DataValueInterpretationFormat {
+        self.data_value_interpreters
+            .get_active_data_value_interpretation_format()
     }
 
-    pub fn get_active_display_value(&self) -> Option<&DisplayValue> {
-        self.display_values.get_active_display_value()
+    pub fn get_active_data_value_interpreter(&self) -> Option<&DataValueInterpreter> {
+        self.data_value_interpreters.get_active_data_value_interpreter()
     }
 
-    pub fn get_default_display_value(&self) -> Option<&DisplayValue> {
-        self.display_values.get_default_display_value()
+    pub fn get_default_data_value_interpreter(&self) -> Option<&DataValueInterpreter> {
+        self.data_value_interpreters
+            .get_default_data_value_interpreter()
     }
 
     pub fn as_ptr(&self) -> *const u8 {

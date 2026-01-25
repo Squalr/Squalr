@@ -2,7 +2,7 @@ use crate::conversions::conversion_error::ConversionError;
 use crate::conversions::conversions_from_binary::ConversionsFromBinary;
 use crate::conversions::conversions_from_decimal::ConversionsFromDecimal;
 use crate::conversions::conversions_from_hexadecimal::ConversionsFromHexadecimal;
-use crate::structures::data_values::display_value_type::DisplayValueType;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
 use std::num::ParseIntError;
 use std::{fmt, mem};
 
@@ -11,14 +11,14 @@ pub struct Conversions {}
 impl Conversions {
     pub fn convert_data_value(
         data_value: &str,
-        from_display_value_type: DisplayValueType,
-        to_display_value_type: DisplayValueType,
+        from_data_value_interpretation_format: DataValueInterpretationFormat,
+        to_data_value_interpretation_format: DataValueInterpretationFormat,
     ) -> Result<String, ConversionError> {
-        match from_display_value_type {
-            DisplayValueType::Binary => ConversionsFromBinary::convert_to_display_value(data_value, to_display_value_type),
-            DisplayValueType::Decimal => ConversionsFromDecimal::convert_to_display_value(data_value, to_display_value_type),
-            DisplayValueType::Hexadecimal => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
-            DisplayValueType::Address => ConversionsFromHexadecimal::convert_to_display_value(data_value, to_display_value_type),
+        match from_data_value_interpretation_format {
+            DataValueInterpretationFormat::Binary => ConversionsFromBinary::convert_to_data_value_interpreter(data_value, to_data_value_interpretation_format),
+            DataValueInterpretationFormat::Decimal => ConversionsFromDecimal::convert_to_data_value_interpreter(data_value, to_data_value_interpretation_format),
+            DataValueInterpretationFormat::Hexadecimal => ConversionsFromHexadecimal::convert_to_data_value_interpreter(data_value, to_data_value_interpretation_format),
+            DataValueInterpretationFormat::Address => ConversionsFromHexadecimal::convert_to_data_value_interpreter(data_value, to_data_value_interpretation_format),
             _ => Ok(data_value.to_string()),
         }
     }

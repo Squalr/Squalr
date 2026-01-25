@@ -3,9 +3,9 @@ use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
-use crate::structures::data_values::display_value::DisplayValue;
-use crate::structures::data_values::display_value_type::DisplayValueType;
-use crate::structures::data_values::display_values::DisplayValues;
+use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
+use crate::structures::data_values::data_value_interpreter::DisplayValue;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use encoding::all::{HZ, ISO_8859_1};
@@ -161,11 +161,11 @@ impl DataType for DataTypeString {
         }
     }
 
-    fn create_display_values(
+    fn create_data_value_interpreters(
         &self,
         value_bytes: &[u8],
         data_type_meta_data: &DataTypeMetaData,
-    ) -> Result<DisplayValues, DataTypeError> {
+    ) -> Result<DataValueInterpreters, DataTypeError> {
         if value_bytes.is_empty() {
             return Err(DataTypeError::NoBytes);
         }
@@ -462,21 +462,21 @@ impl DataType for DataTypeString {
                     }
                 };
 
-                Ok(DisplayValues::new(
+                Ok(DataValueInterpreters::new(
                     vec![DisplayValue::new(
                         decoded_string,
-                        DisplayValueType::String,
+                        DataValueInterpretationFormat::String,
                         ContainerType::None,
                     )],
-                    DisplayValueType::String(ContainerType::None),
+                    DataValueInterpretationFormat::String(ContainerType::None),
                 ))
             }
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
 
-    fn get_supported_display_types(&self) -> Vec<DisplayValueType> {
-        vec![DisplayValueType::String(ContainerType::None)]
+    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
+        vec![DataValueInterpretationFormat::String(ContainerType::None)]
     }
 
     fn is_floating_point(&self) -> bool {
