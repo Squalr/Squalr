@@ -8,14 +8,41 @@ use std::sync::Arc;
 pub struct StructViewerViewData {
     pub struct_under_view: Arc<Option<ValuedStruct>>,
     pub struct_field_modified_callback: Arc<Option<Box<dyn FnOnce(ValuedStructField) + Send + Sync>>>,
+    pub selected_field_name: Arc<Option<String>>,
+    pub value_splitter_ratio: f32,
 }
 
 impl StructViewerViewData {
+    pub const DEFAULT_NAME_SPLITTER_RATIO: f32 = 0.5;
+
     pub fn new() -> Self {
         Self {
             struct_under_view: Arc::new(None),
             struct_field_modified_callback: Arc::new(None),
+            selected_field_name: Arc::new(None),
+            value_splitter_ratio: Self::DEFAULT_NAME_SPLITTER_RATIO,
         }
+    }
+
+    pub fn set_selected_field(
+        struct_viewer_view_data: Dependency<Self>,
+        valued_struct_field_name: String,
+    ) {
+        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Set selected field") {
+            Some(struct_viewer_view_data) => struct_viewer_view_data,
+            None => return,
+        };
+
+        struct_viewer_view_data.selected_field_name = Arc::new(Some(valued_struct_field_name));
+    }
+
+    pub fn clear_selected_field(struct_viewer_view_data: Dependency<Self>) {
+        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Clear selected field") {
+            Some(struct_viewer_view_data) => struct_viewer_view_data,
+            None => return,
+        };
+
+        struct_viewer_view_data.selected_field_name = Arc::new(None);
     }
 
     pub fn focus_valued_struct(
@@ -59,5 +86,6 @@ impl StructViewerViewData {
     ) {
         self.struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = Arc::new(valued_struct_field_edited_callback);
+        self.selected_field_name = Arc::new(None);
     }
 }

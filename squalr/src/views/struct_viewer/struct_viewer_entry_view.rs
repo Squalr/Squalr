@@ -1,27 +1,38 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction,
 };
-use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
-use epaint::CornerRadius;
+use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
+use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
+use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructField;
 use std::sync::Arc;
 
 pub struct StructViewerEntryView<'lifetime> {
     app_context: Arc<AppContext>,
-    label: &'lifetime str,
-    icon: Option<TextureHandle>,
+    valued_struct_field: &'lifetime ValuedStructField,
+    is_selected: bool,
+    struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
+    icon_column_width: f32,
+    value_splitter_x: f32,
 }
 
 impl<'lifetime> StructViewerEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        label: &'lifetime str,
-        icon: Option<TextureHandle>,
+        valued_struct_field: &'lifetime ValuedStructField,
+        is_selected: bool,
+        struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
+        icon_column_width: f32,
+        value_splitter_x: f32,
     ) -> Self {
         Self {
             app_context: app_context,
-            label,
-            icon,
+            valued_struct_field,
+            is_selected,
+            struct_viewer_frame_action,
+            icon_column_width,
+            value_splitter_x,
         }
     }
 }
@@ -34,13 +45,29 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         let theme = &self.app_context.theme;
         let icon_size = vec2(16.0, 16.0);
         let text_left_padding = 4.0;
-        let row_height = 28.0;
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
+        let row_height = 32.0;
 
-        // Background and state overlay.
+        let desired_size = vec2(user_interface.available_width(), row_height);
+        let (available_size_id, available_size_rect) = user_interface.allocate_space(desired_size);
+        let response = user_interface.interact(available_size_rect, available_size_id, Sense::click());
+
+        // Selected background.
+        if self.is_selected {
+            user_interface
+                .painter()
+                .rect_filled(available_size_rect, CornerRadius::ZERO, theme.selected_background);
+            user_interface.painter().rect_stroke(
+                available_size_rect,
+                CornerRadius::ZERO,
+                Stroke::new(1.0, theme.selected_border),
+                StrokeKind::Inside,
+            );
+        }
+
+        // State overlay.
         StateLayer {
-            bounds_min: allocated_size_rectangle.min,
-            bounds_max: allocated_size_rectangle.max,
+            bounds_min: available_size_rect.min,
+            bounds_max: available_size_rect.max,
             enabled: true,
             pressed: response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
@@ -54,20 +81,39 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         }
         .ui(user_interface);
 
-        // Draw icon and label inside layout.
-        let icon_pos_x = allocated_size_rectangle.min.x;
-        let icon_pos_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
-        let icon_rect = Rect::from_min_size(pos2(icon_pos_x, icon_pos_y), icon_size);
-        let text_pos = pos2(icon_rect.max.x + text_left_padding, allocated_size_rectangle.center().y);
-
-        if let Some(icon) = &self.icon {
-            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
+        // Click handling
+        if response.double_clicked() {
+            *self.struct_viewer_frame_action = StructViewerFrameAction::None;
+        } else if response.clicked() {
+            *self.struct_viewer_frame_action = StructViewerFrameAction::SelectField(self.valued_struct_field.get_name().to_string());
+        } else if response.secondary_clicked() {
+            *self.struct_viewer_frame_action = StructViewerFrameAction::None;
         }
+
+        let row_min_x = available_size_rect.min.x;
+        let row_max_x = available_size_rect.max.x;
+        let icon_min_x = row_min_x;
+        let icon_max_x = row_min_x + self.icon_column_width;
+        let name_min_x = icon_max_x;
+        let name_max_x = self.value_splitter_x.min(row_max_x);
+
+        // Icon column.
+        let icon_rect = Rect::from_min_max(pos2(icon_min_x, available_size_rect.min.y), pos2(icon_max_x, available_size_rect.max.y));
+
+        // Draw icon
+        let icon_center = icon_rect.center();
+        let icon = DataTypeToIconConverter::convert_data_type_to_icon(self.valued_struct_field.get_icon_id(), &theme.icon_library);
+        IconDraw::draw_sized(user_interface, icon_center, icon_size, &icon);
+
+        // Value column.
+        let value_rect = Rect::from_min_max(pos2(name_min_x, available_size_rect.min.y), pos2(name_max_x, available_size_rect.max.y));
+
+        let text_pos = pos2(value_rect.min.x + text_left_padding, value_rect.center().y);
 
         user_interface.painter().text(
             text_pos,
             Align2::LEFT_CENTER,
-            self.label,
+            self.valued_struct_field.get_name(),
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
