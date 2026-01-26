@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Eq, Serialize, Deserialize)]
 pub enum DataValueInterpretationFormat {
     Bool,
     #[default]

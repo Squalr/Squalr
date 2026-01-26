@@ -7,7 +7,6 @@ pub struct DataValueInterpreters {
     data_value_interpreters: Vec<DataValueInterpreter>,
     default_data_value_interpretation_format: DataValueInterpretationFormat,
     active_data_value_interpretation_format: DataValueInterpretationFormat,
-    active_data_value_interpreter_index: u64,
 }
 
 impl DataValueInterpreters {
@@ -16,15 +15,11 @@ impl DataValueInterpreters {
         default_data_value_interpretation_format: DataValueInterpretationFormat,
     ) -> Self {
         let active_data_value_interpretation_format = default_data_value_interpretation_format.clone();
-        let active_data_value_interpreter_index = data_value_interpreters
-            .iter()
-            .position(|data_value_interpreter| *data_value_interpreter.get_data_value_interpretation_format() == default_data_value_interpretation_format)
-            .unwrap_or(0) as u64;
+
         Self {
             data_value_interpreters,
             default_data_value_interpretation_format,
             active_data_value_interpretation_format,
-            active_data_value_interpreter_index,
         }
     }
 
@@ -41,17 +36,6 @@ impl DataValueInterpreters {
 
     pub fn get_default_data_value_interpretation_format(&self) -> DataValueInterpretationFormat {
         self.default_data_value_interpretation_format
-    }
-
-    pub fn set_active_data_value_interpreter_index(
-        &mut self,
-        active_data_value_interpreter_index: u64,
-    ) {
-        self.active_data_value_interpreter_index = active_data_value_interpreter_index
-    }
-
-    pub fn get_active_data_value_interpreter_index(&self) -> u64 {
-        self.active_data_value_interpreter_index
     }
 
     pub fn get_data_value_interpreters(&self) -> &Vec<DataValueInterpreter> {

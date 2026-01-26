@@ -185,7 +185,7 @@ impl SymbolRegistry {
         data_type_ref: &DataTypeRef,
     ) -> Vec<DataValueInterpretationFormat> {
         self.get_data_type(data_type_ref.get_data_type_id())
-            .map(|data_type| data_type.get_supported_display_types())
+            .map(|data_type| data_type.get_supported_data_value_interpretation_formats())
             .unwrap_or_default()
     }
 

@@ -74,8 +74,8 @@ impl DataType for DataTypeU16be {
         PrimitiveDataType::create_data_value_interpreters(value_bytes, |value_bytes| PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1]]))
     }
 
-    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
-        PrimitiveDataType::get_supported_display_types()
+    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
+        PrimitiveDataType::get_supported_data_value_interpretation_formats()
     }
 
     fn get_default_display_type(&self) -> DataValueInterpretationFormat {

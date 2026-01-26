@@ -164,7 +164,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 ),
                 DataValueBoxView::new(
                     self.app_context.clone(),
-                    &mut element_scanner_results_view_data.edit_value,
+                    &mut element_scanner_results_view_data.edit_data_value_interpreter,
                     &element_scanner_view_data.selected_data_type,
                     false,
                     true,
@@ -184,8 +184,9 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
             IconDraw::draw(user_interface, commit_value_response.rect, &theme.icon_library.icon_handle_common_check_mark);
 
             if commit_value_response.clicked() {
-                *self.element_sanner_result_frame_action =
-                    ElementScannerResultFrameAction::CommitValueToSelection(AnonymousValue::new(&element_scanner_results_view_data.edit_value));
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::CommitValueToSelection(AnonymousValue::new(
+                    &element_scanner_results_view_data.edit_data_value_interpreter,
+                ));
             }
         });
 

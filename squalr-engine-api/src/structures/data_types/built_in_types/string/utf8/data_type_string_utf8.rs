@@ -89,7 +89,7 @@ impl DataType for DataTypeStringUtf8 {
         ))
     }
 
-    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
+    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
         vec![DataValueInterpretationFormat::String]
     }
 

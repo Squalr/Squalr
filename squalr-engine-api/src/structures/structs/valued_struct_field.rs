@@ -72,12 +72,13 @@ impl ValuedStructField {
         self.is_read_only
     }
 
+    /*
     pub fn get_data_value_interpreters(&self) -> Option<&DataValueInterpreters> {
         match &self.field_data {
             ValuedStructFieldData::NestedStruct(_nested_struct) => None,
             ValuedStructFieldData::Value(data_value) => Some(data_value.get_data_value_interpreters()),
         }
-    }
+    }*/
 
     pub fn get_size_in_bytes(&self) -> u64 {
         match &self.field_data {
@@ -127,22 +128,23 @@ impl ValuedStructField {
                     format!("{{{}}}", nested_str)
                 }
             }
-            ValuedStructFieldData::Value(data_value) => match data_value.get_active_data_value_interpreter() {
-                Some(data_value_interpreter) => {
-                    if pretty_print {
-                        format!("{}{}\n", indent, data_value_interpreter.get_display_string())
-                    } else {
-                        format!("{}{}", indent, data_value_interpreter.get_display_string())
-                    }
-                }
-                None => {
-                    if pretty_print {
-                        format!("{}\n", indent)
-                    } else {
-                        indent
-                    }
-                }
-            },
+            ValuedStructFieldData::Value(data_value) => "TODO".to_string(), /*
+                                                                            ValuedStructFieldData::Value(data_value) => match data_value.get_active_display_value() {
+                                                                                Some(display_value) => {
+                                                                                    if pretty_print {
+                                                                                        format!("{}{}\n", indent, display_value.get_display_string())
+                                                                                    } else {
+                                                                                        format!("{}{}", indent, display_value.get_display_string())
+                                                                                    }
+                                                                                }
+                                                                                None => {
+                                                                                    if pretty_print {
+                                                                                        format!("{}\n", indent)
+                                                                                    } else {
+                                                                                        indent
+                                                                                    }
+                                                                                }
+                                                                            }, */
         }
     }
 }

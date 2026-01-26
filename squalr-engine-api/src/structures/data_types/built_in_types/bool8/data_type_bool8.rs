@@ -76,7 +76,7 @@ impl DataType for DataTypeBool8 {
         PrimitiveDataType::create_data_value_interpreters_bool(value_bytes, self.get_unit_size_in_bytes())
     }
 
-    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
+    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
         vec![DataValueInterpretationFormat::Bool]
     }
 

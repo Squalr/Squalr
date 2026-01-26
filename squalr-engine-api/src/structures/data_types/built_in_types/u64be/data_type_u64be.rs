@@ -85,8 +85,8 @@ impl DataType for DataTypeU64be {
         })
     }
 
-    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
-        PrimitiveDataType::get_supported_display_types()
+    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
+        PrimitiveDataType::get_supported_data_value_interpretation_formats()
     }
 
     fn get_default_display_type(&self) -> DataValueInterpretationFormat {

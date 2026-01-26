@@ -1,10 +1,6 @@
 use crate::registries::registries::Registries;
-use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
-use crate::structures::data_values::data_value_interpreter::DataValueInterpreter;
-use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
@@ -21,9 +17,6 @@ pub struct DataValue {
     /// The raw bytes of the data value. This could be a large number of underlying values, such as an int, string,
     /// or even a serialized bitfield and mask. It is the responsibility of the `DataType` object to interpret the bytes.
     value_bytes: Vec<u8>,
-
-    /// The display values for this data value.
-    data_value_interpreters: DataValueInterpreters,
 }
 
 impl DataValue {
@@ -31,18 +24,7 @@ impl DataValue {
         data_type_ref: DataTypeRef,
         value_bytes: Vec<u8>,
     ) -> Self {
-        let symbol_registry = SymbolRegistry::get_instance();
-        let data_value_interpreters = symbol_registry.create_data_value_interpreters(&data_type_ref, &value_bytes);
-
-        Self {
-            data_type_ref,
-            value_bytes,
-            data_value_interpreters,
-        }
-    }
-
-    pub fn get_data_value_interpreters(&self) -> &DataValueInterpreters {
-        &self.data_value_interpreters
+        Self { data_type_ref, value_bytes }
     }
 
     pub fn copy_from_bytes(
@@ -53,9 +35,6 @@ impl DataValue {
         if self.value_bytes != value_bytes {
             self.value_bytes = value_bytes.to_vec();
         }
-
-        let symbol_registry = SymbolRegistry::get_instance();
-        self.data_value_interpreters = symbol_registry.create_data_value_interpreters(&self.data_type_ref, &value_bytes);
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -68,9 +47,6 @@ impl DataValue {
         data_type_ref: DataTypeRef,
     ) {
         self.data_type_ref = data_type_ref;
-
-        let symbol_registry = SymbolRegistry::get_instance();
-        self.data_value_interpreters = symbol_registry.create_data_value_interpreters(&self.data_type_ref, &self.value_bytes);
     }
 
     pub fn get_data_type_id(&self) -> &str {
@@ -86,31 +62,7 @@ impl DataValue {
     }
 
     pub fn take_value_bytes(&mut self) -> Vec<u8> {
-        self.data_value_interpreters = DataValueInterpreters::default();
-
         mem::take(&mut self.value_bytes)
-    }
-
-    pub fn set_active_data_value_interpretation_format(
-        &mut self,
-        active_data_value_interpretation_format: DataValueInterpretationFormat,
-    ) {
-        self.data_value_interpreters
-            .set_active_data_value_interpretation_format(active_data_value_interpretation_format);
-    }
-
-    pub fn get_active_data_value_interpretation_format(&self) -> DataValueInterpretationFormat {
-        self.data_value_interpreters
-            .get_active_data_value_interpretation_format()
-    }
-
-    pub fn get_active_data_value_interpreter(&self) -> Option<&DataValueInterpreter> {
-        self.data_value_interpreters.get_active_data_value_interpreter()
-    }
-
-    pub fn get_default_data_value_interpreter(&self) -> Option<&DataValueInterpreter> {
-        self.data_value_interpreters
-            .get_default_data_value_interpreter()
     }
 
     pub fn as_ptr(&self) -> *const u8 {

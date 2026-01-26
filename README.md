@@ -211,5 +211,8 @@ Valued Structs are particularly obnoxious. Supporting nesting seems strange and 
 
 Additionally, the concept of DataValueInterpreters is jarring.
 
-Really, this should perhaps be a DataValueInterpreter for clarity (ie it takes a data type ref, bytes, and figures out how to interpret them for display). Seems a bit clearer.
+I think we may be able to scrap the concept and just operate on Anonymous Values, and each DataType supports deanonymize values and supported interpretation types.
 
+We then only really need to pass a string ref and format type into the DataType and get a Result<DataValue>. Possibly even support update-in-place to avoid reallocing a bunch of data values.
+
+I think we may also be able to simplify how Anonymous Values work. In reality, its a string + a format + an optional flag for arrays.

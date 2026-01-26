@@ -196,7 +196,7 @@ impl PrimitiveDataType {
         let value_string_hexadecimal = hexadecimal_strings.join(", ");
         let mut results = vec![];
 
-        for supported_display_type in Self::get_supported_display_types() {
+        for supported_display_type in Self::get_supported_data_value_interpretation_formats() {
             match supported_display_type {
                 DataValueInterpretationFormat::Binary => results.push(DataValueInterpreter::new(
                     value_string_binary.clone(),
@@ -247,7 +247,7 @@ impl PrimitiveDataType {
         ))
     }
 
-    pub fn get_supported_display_types() -> Vec<DataValueInterpretationFormat> {
+    pub fn get_supported_data_value_interpretation_formats() -> Vec<DataValueInterpretationFormat> {
         vec![
             DataValueInterpretationFormat::Binary,
             DataValueInterpretationFormat::Decimal,

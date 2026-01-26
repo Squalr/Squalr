@@ -39,7 +39,7 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     ) -> Result<DataValueInterpreters, DataTypeError>;
 
     /// Gets all supported display types that this data type can be shown as.
-    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat>;
+    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat>;
 
     /// Gets the default display type that this data type can be shown as.
     fn get_default_display_type(&self) -> DataValueInterpretationFormat;
@@ -52,10 +52,6 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
 
     /// Gets a value indicating whether this value is unsigned.
     fn is_signed(&self) -> bool;
-
-    /// Gets a value indicating whether this scan should use byte array scans internally.
-    /// For complex data types, this is almost always the case.
-    // fn is_scan_remapped_to_byte_array(&self) -> bool;
 
     fn get_default_value(
         &self,

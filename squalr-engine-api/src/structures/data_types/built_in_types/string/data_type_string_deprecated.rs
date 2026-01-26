@@ -4,8 +4,8 @@ use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
 use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
-use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::data_values::data_value_interpreter::DisplayValue;
+use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use encoding::all::{HZ, ISO_8859_1};
@@ -475,7 +475,7 @@ impl DataType for DataTypeString {
         }
     }
 
-    fn get_supported_display_types(&self) -> Vec<DataValueInterpretationFormat> {
+    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
         vec![DataValueInterpretationFormat::String(ContainerType::None)]
     }
 
