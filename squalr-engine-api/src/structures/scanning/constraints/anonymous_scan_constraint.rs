@@ -1,7 +1,7 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
@@ -15,17 +15,17 @@ use std::str::FromStr;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnonymousScanConstraint {
     scan_compare_type: ScanCompareType,
-    anonymous_value: Option<AnonymousValue>,
+    anonymous_value_string: Option<AnonymousValueString>,
 }
 
 impl AnonymousScanConstraint {
     pub fn new(
         scan_compare_type: ScanCompareType,
-        anonymous_value: Option<AnonymousValue>,
+        anonymous_value_string: Option<AnonymousValueString>,
     ) -> Self {
         Self {
             scan_compare_type,
-            anonymous_value,
+            anonymous_value_string,
         }
     }
 
@@ -33,8 +33,8 @@ impl AnonymousScanConstraint {
         self.scan_compare_type
     }
 
-    pub fn get_anonymous_value(&self) -> &Option<AnonymousValue> {
-        &self.anonymous_value
+    pub fn get_anonymous_value_string(&self) -> &Option<AnonymousValueString> {
+        &self.anonymous_value_string
     }
 
     pub fn deanonymize_constraint(
@@ -44,8 +44,8 @@ impl AnonymousScanConstraint {
     ) -> Option<ScanConstraint> {
         let symbol_registry = SymbolRegistry::get_instance();
 
-        if let Some(anonymous_value) = &self.anonymous_value {
-            match symbol_registry.deanonymize_value(&data_type_ref, &anonymous_value.get_value()) {
+        if let Some(anonymous_value_string) = &self.anonymous_value_string {
+            match symbol_registry.deanonymize_value_string(&data_type_ref, &anonymous_value_string) {
                 Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance)),
                 Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
             }
@@ -88,11 +88,11 @@ impl FromStr for AnonymousScanConstraint {
                     continue; // Skip to next prefix instead of err, but actually in logic, we err only if no match at end.
                 }
 
-                let anonymous_value = if rest.is_empty() {
+                let anonymous_value_string = if rest.is_empty() {
                     None
                 } else {
-                    match rest.parse::<AnonymousValue>() {
-                        Ok(anonymous_value) => Some(anonymous_value),
+                    match rest.parse::<AnonymousValueString>() {
+                        Ok(anonymous_value_string) => Some(anonymous_value_string),
                         Err(error) => {
                             log::error!("Failed to parse scan constraint: {}", error);
                             continue;
@@ -100,13 +100,13 @@ impl FromStr for AnonymousScanConstraint {
                     }
                 };
 
-                if needs_value && anonymous_value.is_none() {
+                if needs_value && anonymous_value_string.is_none() {
                     continue;
                 }
 
                 return Ok(AnonymousScanConstraint {
                     scan_compare_type,
-                    anonymous_value,
+                    anonymous_value_string,
                 });
             }
         }

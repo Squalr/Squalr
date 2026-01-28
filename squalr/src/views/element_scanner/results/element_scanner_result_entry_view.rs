@@ -5,7 +5,7 @@ use crate::{
 };
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
-use squalr_engine_api::structures::{data_values::data_value_interpretation_format::DataValueInterpretationFormat, scan_results::scan_result::ScanResult};
+use squalr_engine_api::structures::{data_values::anonymous_value_string_format::AnonymousValueStringFormat, scan_results::scan_result::ScanResult};
 use std::sync::Arc;
 
 pub struct ElementScannerResultEntryView<'lifetime> {
@@ -170,9 +170,9 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         // Value.
         let current_value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
         let current_value_string = match self.scan_result.get_recently_read_data_value_interpreters() {
-            Some(recently_read_value) => recently_read_value.get_data_value_interpreter_string(&DataValueInterpretationFormat::Decimal),
+            Some(recently_read_value) => recently_read_value.get_data_value_interpreter_string(&AnonymousValueStringFormat::Decimal),
             None => match self.scan_result.get_current_data_value_interpreters() {
-                Some(current_value) => current_value.get_data_value_interpreter_string(&DataValueInterpretationFormat::Decimal),
+                Some(current_value) => current_value.get_data_value_interpreter_string(&AnonymousValueStringFormat::Decimal),
                 None => "??",
             },
         };
@@ -188,7 +188,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         // Previous value.
         let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
         let previous_value_string = match self.scan_result.get_previous_data_value_interpreters() {
-            Some(previous_value) => previous_value.get_data_value_interpreter_string(&DataValueInterpretationFormat::Decimal),
+            Some(previous_value) => previous_value.get_data_value_interpreter_string(&AnonymousValueStringFormat::Decimal),
             None => "??",
         };
 

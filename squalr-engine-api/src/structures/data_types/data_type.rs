@@ -2,10 +2,10 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompara
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
+use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
+use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value::DataValue;
-use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
-use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::memory::endian::Endian;
 use std::fmt::Debug;
 
@@ -21,28 +21,28 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
     fn get_unit_size_in_bytes(&self) -> u64;
 
     /// Determines if an anonymous value can be interpreted as this data type.
-    fn validate_value(
+    fn validate_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> bool;
 
     /// Attempts to interpret an anonymous value as this data type, returning a `DataValue` on success.
-    fn deanonymize_value(
+    fn deanonymize_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError>;
 
-    /// Creates all supported display values for this data types (ie bin/dec/hex).
-    fn create_data_value_interpreters(
+    /// Attempts to interpret raw bytes as this data type, returning a `DataValue` on success.
+    fn deanonymize_value_bytes(
         &self,
-        value_bytes: &[u8],
-    ) -> Result<DataValueInterpreters, DataTypeError>;
+        anonymous_value_bytes: &AnonymousValueBytes,
+    ) -> Result<DataValue, DataTypeError>;
 
-    /// Gets all supported display types that this data type can be shown as.
-    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat>;
+    /// Gets all supported display formats that this data type can be shown as.
+    fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat>;
 
-    /// Gets the default display type that this data type can be shown as.
-    fn get_default_display_type(&self) -> DataValueInterpretationFormat;
+    /// Gets the default display format that this data type can be shown as.
+    fn get_default_anonymous_value_string_format(&self) -> AnonymousValueStringFormat;
 
     /// Gets the endianness of this data type.
     fn get_endian(&self) -> Endian;

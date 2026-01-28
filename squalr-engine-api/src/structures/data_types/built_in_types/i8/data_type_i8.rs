@@ -1,9 +1,9 @@
 use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
-use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
+use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
+use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -48,38 +48,40 @@ impl DataType for DataTypeI8 {
         size_of::<PrimitiveType>() as u64
     }
 
-    fn validate_value(
+    fn validate_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> bool {
-        match PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value_container, false) {
+        match self.deanonymize_value_string(anonymous_value_string) {
             Ok(_) => true,
             Err(_) => false,
         }
     }
 
-    fn deanonymize_value(
+    fn deanonymize_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError> {
-        let value_bytes = PrimitiveDataType::deanonymize_primitive::<PrimitiveType>(anonymous_value_container, false)?;
+        let value_bytes = PrimitiveDataType::deanonymize_primitive_value_string::<PrimitiveType>(anonymous_value_string, false)?;
 
         Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
     }
 
-    fn create_data_value_interpreters(
+    fn deanonymize_value_bytes(
         &self,
-        value_bytes: &[u8],
-    ) -> Result<DataValueInterpreters, DataTypeError> {
-        PrimitiveDataType::create_data_value_interpreters(value_bytes, |value_bytes| PrimitiveType::from_le_bytes([value_bytes[0]]))
+        anonymous_value_bytes: &AnonymousValueBytes,
+    ) -> Result<DataValue, DataTypeError> {
+        let value_bytes = PrimitiveDataType::deanonymize_primitive_value_bytes::<PrimitiveType>(anonymous_value_bytes, false)?;
+
+        Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
     }
 
-    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
-        PrimitiveDataType::get_supported_data_value_interpretation_formats()
+    fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
+        PrimitiveDataType::get_supported_anonymous_value_string_formats()
     }
 
-    fn get_default_display_type(&self) -> DataValueInterpretationFormat {
-        DataValueInterpretationFormat::Decimal
+    fn get_default_anonymous_value_string_format(&self) -> AnonymousValueStringFormat {
+        AnonymousValueStringFormat::Decimal
     }
 
     fn get_endian(&self) -> Endian {

@@ -18,10 +18,7 @@ use crate::structures::{
         data_type_ref::DataTypeRef,
         generics::vector_comparer::VectorComparer,
     },
-    data_values::{
-        anonymous_value::AnonymousValue, anonymous_value_container::AnonymousValueContainer, data_value::DataValue,
-        data_value_interpretation_format::DataValueInterpretationFormat, data_value_interpreters::DataValueInterpreters,
-    },
+    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
     scanning::comparisons::{
         scan_compare_type_delta::ScanCompareTypeDelta,
         scan_compare_type_immediate::ScanCompareTypeImmediate,
@@ -143,16 +140,14 @@ impl SymbolRegistry {
         }
     }
 
-    pub fn validate_value(
+    pub fn validate_value_string(
         &self,
         data_type_ref: &DataTypeRef,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_string: &AnonymousValueString,
     ) -> bool {
-        let anonymous_value_container = anonymous_value.get_value();
-
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
-                if !data_type.validate_value(anonymous_value_container) {
+                if !data_type.validate_value_string(anonymous_value_string) {
                     return false;
                 }
             }
@@ -162,14 +157,14 @@ impl SymbolRegistry {
         true
     }
 
-    pub fn deanonymize_value(
+    pub fn deanonymize_value_string(
         &self,
         data_type_ref: &DataTypeRef,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, String> {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => {
-                let deanonymized_value = data_type.deanonymize_value(anonymous_value_container);
+                let deanonymized_value = data_type.deanonymize_value_string(anonymous_value_string);
 
                 match deanonymized_value {
                     Ok(value) => Ok(value),
@@ -180,32 +175,22 @@ impl SymbolRegistry {
         }
     }
 
-    pub fn get_supported_data_value_interpretation_formats(
+    pub fn get_supported_anonymous_value_string_formats(
         &self,
         data_type_ref: &DataTypeRef,
-    ) -> Vec<DataValueInterpretationFormat> {
+    ) -> Vec<AnonymousValueStringFormat> {
         self.get_data_type(data_type_ref.get_data_type_id())
-            .map(|data_type| data_type.get_supported_data_value_interpretation_formats())
+            .map(|data_type| data_type.get_supported_anonymous_value_string_formats())
             .unwrap_or_default()
     }
 
-    pub fn get_default_display_type(
+    pub fn get_default_anonymous_value_string_format(
         &self,
         data_type_ref: &DataTypeRef,
-    ) -> DataValueInterpretationFormat {
+    ) -> AnonymousValueStringFormat {
         self.get_data_type(data_type_ref.get_data_type_id())
-            .map(|data_type| data_type.get_default_display_type())
+            .map(|data_type| data_type.get_default_anonymous_value_string_format())
             .unwrap_or_default()
-    }
-
-    pub fn create_data_value_interpreters(
-        &self,
-        data_type_ref: &DataTypeRef,
-        value_bytes: &[u8],
-    ) -> DataValueInterpreters {
-        self.get_data_type(data_type_ref.get_data_type_id())
-            .and_then(|data_type| data_type.create_data_value_interpreters(value_bytes).ok())
-            .unwrap_or_else(|| DataValueInterpreters::new(vec![], DataValueInterpretationFormat::String))
     }
 
     /// Gets a value indicating whether this value is signed, ie can be negative.

@@ -1,11 +1,9 @@
 use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
-use crate::structures::data_values::container_type::ContainerType;
-use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
-use crate::structures::data_values::data_value_interpreter::DataValueInterpreter;
-use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
+use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
+use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::memory::endian::Endian;
 use crate::structures::{data_types::data_type::DataType, data_values::data_value::DataValue};
 use serde::{Deserialize, Serialize};
@@ -46,55 +44,45 @@ impl DataType for DataTypeStringUtf8 {
         1
     }
 
-    fn validate_value(
+    fn validate_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> bool {
-        match anonymous_value_container {
-            AnonymousValueContainer::BinaryValue(value_string) => !value_string.is_empty(),
-            AnonymousValueContainer::HexadecimalValue(value_string) => !value_string.is_empty(),
-            AnonymousValueContainer::String(value_string) => !value_string.is_empty(),
+        match self.deanonymize_value_string(anonymous_value_string) {
+            Ok(_) => true,
+            Err(_) => false,
         }
     }
 
-    fn deanonymize_value(
+    fn deanonymize_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError> {
         let data_type_ref = DataTypeRef::new(Self::get_data_type_id());
-        let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_container, |value_string| value_string.as_bytes().to_vec())?;
+        let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_string, |value_string| value_string.as_bytes().to_vec())?;
 
         Ok(DataValue::new(data_type_ref, decoded_bytes))
     }
 
-    fn create_data_value_interpreters(
+    fn deanonymize_value_bytes(
         &self,
-        value_bytes: &[u8],
-    ) -> Result<DataValueInterpreters, DataTypeError> {
-        if value_bytes.is_empty() {
-            return Err(DataTypeError::NoBytes);
-        }
+        anonymous_value_bytes: &AnonymousValueBytes,
+    ) -> Result<DataValue, DataTypeError> {
+        let string_value = String::from_utf8(anonymous_value_bytes.get_value().to_vec()).map_err(|from_utf8_error| DataTypeError::DecodingError {
+            error: from_utf8_error.to_string(),
+        })?;
+        let anonymous_value = AnonymousValueString::new(string_value, AnonymousValueStringFormat::String, anonymous_value_bytes.get_container_type());
+        let decoded_bytes = PrimitiveDataType::decode_string(&anonymous_value, |value_string| value_string.as_bytes().to_vec())?;
 
-        let decoded_string = std::str::from_utf8(value_bytes)
-            .map_err(|_err| DataTypeError::DecodingError)?
-            .to_string();
-
-        Ok(DataValueInterpreters::new(
-            vec![DataValueInterpreter::new(
-                decoded_string,
-                DataValueInterpretationFormat::String,
-                ContainerType::None,
-            )],
-            DataValueInterpretationFormat::String,
-        ))
+        Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), decoded_bytes))
     }
 
-    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
-        vec![DataValueInterpretationFormat::String]
+    fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
+        vec![AnonymousValueStringFormat::String]
     }
 
-    fn get_default_display_type(&self) -> DataValueInterpretationFormat {
-        DataValueInterpretationFormat::String
+    fn get_default_anonymous_value_string_format(&self) -> AnonymousValueStringFormat {
+        AnonymousValueStringFormat::String
     }
 
     fn is_floating_point(&self) -> bool {

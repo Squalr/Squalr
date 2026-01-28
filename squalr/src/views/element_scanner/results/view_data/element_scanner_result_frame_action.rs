@@ -1,4 +1,4 @@
-use squalr_engine_api::structures::data_values::anonymous_value::AnonymousValue;
+use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 
 #[derive(Clone, PartialEq)]
 pub enum ElementScannerResultFrameAction {
@@ -9,5 +9,5 @@ pub enum ElementScannerResultFrameAction {
     ToggleFreezeSelection(bool),
     AddSelection,
     DeleteSelection,
-    CommitValueToSelection(AnonymousValue),
+    CommitValueToSelection(AnonymousValueString),
 }

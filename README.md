@@ -193,17 +193,21 @@ Post-launch Features:
 
 ## Unsolved architectural challenges
 - Should we allow engine event hooking? If we support plugins later, this might prove valuable. But lambdas are stored almost exclusively as FnOnce for easier stack capture. It also muddies the command/response architecture a bit.
-- How should we allow plugins to register custom windows? Slint supports an interpreter, but unclear if we can fully register a dockable window without serious changes to Slint.
+- How should we allow plugins to register custom windows? We would probably need to expose supported egui controls in some way, or expose this over some sort of gui-only API.
 - How would we allow plugins to register custom editors for custom data types? Similar challenges to custom windows.
 
 ## BRAIN DUMP
-So currently the difficult bits of releasing this around around projects, symbols, data types, etc.
+Project Items can be future proofed to a large degree by basically inheriting a basic trait for hooking into get/set activated, and storing arbitrary key value pairs.
 
-The "address item" project type should ideally support complex types like structs. This requires holding a symbolic struct definition.
+Each project just has its set of keys it cares about (ie for AddressItem, its the address, any module info, etc).
 
-Now, raw data types are different, but this is perhaps solved by ensuring that ALL data types are also registered into the symbol registry as a single field struct.
+Some care must be taken to support storing structs in an AddressItem, ie this would mean that its not really a DataValue that is stored, but a ValuedStruct, which may have a single DataValue in most cases (for single value storage). Probably an anonymous struct, although it should support registered symbols as well.
 
-This would solve a lot of the headache of trying to operate in these two domains, as we could just use the symbol registry as that field.
+Now, making this not agonizing from a UX perspective is key. All data types are already in the symbol registry, so thats fine. If we just stored a single symbol ref for address items, that would generally solve all cases except for the anonymous case, in which case the struct would need to be fully serialized into the item. Kinda shitty.
+
+Forcing the user to make new struct types isn't necessarily bad either (again, how often are people scanning for structs anyways?).
+
+Needs some thinking, but this can be deferred to quite some time after release probably.
 
 ===
 
@@ -216,3 +220,17 @@ I think we may be able to scrap the concept and just operate on Anonymous Values
 We then only really need to pass a string ref and format type into the DataType and get a Result<DataValue>. Possibly even support update-in-place to avoid reallocing a bunch of data values.
 
 I think we may also be able to simplify how Anonymous Values work. In reality, its a string + a format + an optional flag for arrays.
+
+Okay yeah this is the right path but now theres this AnonymousValueBytes concept which may be entirely useless (especially since we go through primitive conversions for all actual data reading?)
+
+And now we have the remaining problem of DataValue -> Display String and all we have for display is this AnonymousStringValueFormat. Is DataValue -> AnonymousString even correct? Should we bundle the format into the string? Is re-anonymizing a thing? And presumably it just maps to a generic string format type (ie not decimal, but leave it vague).
+
+At least if we re-anonymize we get to keep the current display format, which conversions can use to say "actually take this anonymous string as type x, convert to data value, then back to a an anonymous string of type y"
+
+Seems like no real downsides from a comprehension point of view.
+
+===
+
+Struct scans will be very challenging. Imagine scanning for {float} {float} {float}, ie XYZ coordinates as a struct. You can't just serialize to bytes and scan for them, due to floating point tolerance. Even worse, if you did X > 2000, Y < 500, Z > 0, this necessitates per-field handling.
+
+Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.

@@ -5,8 +5,8 @@ use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_reque
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
 use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
-use squalr_engine_api::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
 use squalr_engine_api::structures::data_values::data_value_interpreter::DataValueInterpreter;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
@@ -18,9 +18,9 @@ use squalr_engine_api::{
             set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest,
         },
     },
-    conversions::conversions::Conversions,
+    conversions::conversions_from_primitives::Conversions,
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
-    structures::{data_values::anonymous_value::AnonymousValue, scan_results::scan_result::ScanResult},
+    structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult},
 };
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -62,7 +62,7 @@ impl ElementScannerResultsViewData {
             selection_index_end: None,
             result_count: 0,
             stats_string: String::new(),
-            edit_data_value_interpreter: DataValueInterpreter::new(String::new(), DataValueInterpretationFormat::Decimal, ContainerType::None),
+            edit_data_value_interpreter: DataValueInterpreter::new(String::new(), AnonymousValueStringFormat::Decimal, ContainerType::None),
             is_querying_scan_results: false,
             is_refreshing_scan_results: false,
             is_setting_properties: false,
@@ -163,7 +163,7 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         field_namespace: &str,
-        anonymous_value: AnonymousValue,
+        anonymous_value_string: AnonymousValueString,
     ) {
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set selected scan results") {
@@ -179,7 +179,7 @@ impl ElementScannerResultsViewData {
         let scan_results_set_property_request = ScanResultsSetPropertyRequest {
             scan_result_refs,
             field_namespace: field_namespace.to_string(),
-            anonymous_value,
+            anonymous_value_string,
         };
 
         element_scanner_results_view_data.is_setting_properties = true;

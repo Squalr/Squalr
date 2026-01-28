@@ -1,10 +1,12 @@
-use crate::conversions::conversions::Conversions;
+use crate::conversions::conversion_error::ConversionError;
+use crate::conversions::conversions_from_binary::ConversionsFromBinary;
+use crate::conversions::conversions_from_hexadecimal::ConversionsFromHexadecimal;
 use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
+use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
+use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::container_type::ContainerType;
-use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
-use crate::structures::data_values::data_value_interpreter::DataValueInterpreter;
-use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
+use num_traits::{Bounded, ToBytes, ToPrimitive};
 use std::fmt;
 use std::{any::type_name, mem::size_of, str::FromStr};
 
@@ -48,32 +50,63 @@ pub struct PrimitiveDataType {}
 
 impl PrimitiveDataType {
     pub fn deanonymize_bool<T: Copy + num_traits::ToBytes + From<u8>>(
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
         is_big_endian: bool,
+        bool_data_type_size_bytes: u64,
     ) -> Result<Vec<u8>, DataTypeError>
     where
         Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
     {
-        // Generally this is one iteration, but in the case where doing an array scan, we concat all the values together.
-        let boolean = match anonymous_value_container {
-            AnonymousValueContainer::BinaryValue(value_string) | AnonymousValueContainer::HexadecimalValue(value_string) => {
-                let normalized = value_string.trim().to_ascii_lowercase();
-                // For binary and hex, we only support '0'/'1' as the proper encoding for a bool.
-                match normalized.as_str() {
-                    "1" => true,
-                    "0" => false,
-                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
-                }
+        let original_string = anonymous_value_string.get_anonymous_value_string();
+        let normalized = original_string.trim().to_ascii_lowercase();
+        let max_leading_zeros = (bool_data_type_size_bytes * 8) - 1;
+        let is_valid = |string: &str| -> bool {
+            if string == "0" || string == "1" {
+                return true;
             }
-            AnonymousValueContainer::String(value_string) => {
-                let normalized = value_string.trim().to_ascii_lowercase();
-                match normalized.to_lowercase().as_str() {
-                    "true" | "1" => true,
-                    "false" | "0" => false,
-                    _ => return Err(DataTypeError::ParseError(format!("Invalid boolean string '{}'", value_string))),
-                }
+            if string.starts_with('0') && string.len() - 1 <= max_leading_zeros as usize {
+                return string[1..].chars().all(|char| char == '0' || char == '1');
             }
+            false
         };
+        let boolean = match anonymous_value_string.get_anonymous_value_string_format() {
+            AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::String => {
+                if is_valid(&normalized) {
+                    Ok(normalized
+                        .trim_start_matches('0')
+                        .parse::<bool>()
+                        .unwrap_or(false))
+                } else {
+                    Err(DataTypeError::ParseError(format!(
+                        "Invalid boolean string '{}' for format {:?}",
+                        original_string,
+                        anonymous_value_string.get_anonymous_value_string_format()
+                    )))
+                }
+            }
+            AnonymousValueStringFormat::Binary
+            | AnonymousValueStringFormat::Decimal
+            | AnonymousValueStringFormat::Hexadecimal
+            | AnonymousValueStringFormat::Address => {
+                if is_valid(&normalized) {
+                    Ok(normalized
+                        .trim_start_matches('0')
+                        .parse::<bool>()
+                        .unwrap_or(false))
+                } else {
+                    Err(DataTypeError::ParseError(format!(
+                        "Invalid boolean string '{}' for format {:?}",
+                        original_string,
+                        anonymous_value_string.get_anonymous_value_string_format()
+                    )))
+                }
+            }
+            _ => Err(DataTypeError::ParseError(format!(
+                "Invalid boolean string '{}' for format {:?}",
+                original_string,
+                anonymous_value_string.get_anonymous_value_string_format()
+            ))),
+        }?;
 
         let primitive: T = if boolean { T::from(1) } else { T::from(0) };
         let bytes = if is_big_endian { primitive.to_be_bytes() } else { primitive.to_le_bytes() };
@@ -81,50 +114,52 @@ impl PrimitiveDataType {
         Ok(bytes.into())
     }
 
-    pub fn deanonymize_primitive<T: std::str::FromStr + Copy + num_traits::ToBytes>(
-        anonymous_value_container: &AnonymousValueContainer,
+    pub fn deanonymize_primitive_value_string<T: Copy + FromStr + ToBytes + Bounded + ToPrimitive>(
+        anonymous_value_string: &AnonymousValueString,
         is_big_endian: bool,
     ) -> Result<Vec<u8>, DataTypeError>
     where
         T::Bytes: Into<Vec<u8>>,
         <T as FromStr>::Err: std::fmt::Display,
     {
-        let bytes = match anonymous_value_container {
-            AnonymousValueContainer::BinaryValue(value_string) => match Conversions::binary_to_primitive_bytes::<T>(&value_string, is_big_endian) {
-                Ok(val_bytes) => {
-                    if val_bytes.len() < size_of::<T>() {
+        let primitive_size = size_of::<T>();
+        let value_string = anonymous_value_string.get_anonymous_value_string();
+        let value_bytes = match anonymous_value_string.get_anonymous_value_string_format() {
+            AnonymousValueStringFormat::Binary => match ConversionsFromBinary::binary_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
+                Ok(value_bytes) => {
+                    if value_bytes.len() < primitive_size {
                         return Err(DataTypeError::ParseError(format!(
                             "Failed to decode binary bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
                             value_string,
-                            val_bytes.len(),
-                            size_of::<T>(),
+                            value_bytes.len(),
+                            primitive_size,
                             type_name::<T>()
                         )));
                     }
-                    val_bytes
+                    value_bytes
                 }
                 Err(error) => {
                     return Err(DataTypeError::ParseError(format!("Failed to parse binary value '{}': {}", value_string, error)));
                 }
             },
-            AnonymousValueContainer::HexadecimalValue(value_string) => match Conversions::hex_to_primitive_bytes::<T>(&value_string, is_big_endian) {
-                Ok(val_bytes) => {
-                    if val_bytes.len() < size_of::<T>() {
+            AnonymousValueStringFormat::Hexadecimal => match ConversionsFromHexadecimal::hex_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
+                Ok(value_bytes) => {
+                    if value_bytes.len() < primitive_size {
                         return Err(DataTypeError::ParseError(format!(
                             "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
                             value_string,
-                            val_bytes.len(),
-                            size_of::<T>(),
+                            value_bytes.len(),
+                            primitive_size,
                             type_name::<T>()
                         )));
                     }
-                    val_bytes
+                    value_bytes
                 }
                 Err(error) => {
                     return Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, error)));
                 }
             },
-            AnonymousValueContainer::String(value_string) => match value_string.parse::<T>() {
+            _ => match value_string.parse::<T>() {
                 Ok(value) => {
                     if is_big_endian {
                         value.to_be_bytes().into()
@@ -143,32 +178,91 @@ impl PrimitiveDataType {
             },
         };
 
-        Ok(bytes)
+        Ok(value_bytes)
+    }
+
+    pub fn deanonymize_primitive_value_bytes<T: std::str::FromStr + Copy + num_traits::ToBytes>(
+        anonymous_value_bytes: &AnonymousValueBytes,
+        is_big_endian: bool,
+    ) -> Result<Vec<u8>, DataTypeError>
+    where
+        T::Bytes: Into<Vec<u8>>,
+        <T as FromStr>::Err: std::fmt::Display,
+    {
+        let primitive_size = size_of::<T>();
+
+        match anonymous_value_bytes.get_container_type() {
+            ContainerType::None => {
+                let mut result_bytes = anonymous_value_bytes.get_value().to_vec();
+
+                if is_big_endian {
+                    result_bytes.reverse();
+                }
+
+                Ok(result_bytes)
+            }
+            ContainerType::Array => {
+                let bytes = anonymous_value_bytes.get_value();
+                let mut result_bytes = bytes.to_vec();
+
+                if is_big_endian {
+                    for chunk in result_bytes.chunks_exact_mut(primitive_size) {
+                        chunk.reverse();
+                    }
+                }
+
+                Ok(result_bytes)
+            }
+            ContainerType::ArrayFixed(array_length) => {
+                let value_bytes = anonymous_value_bytes.get_value();
+
+                if value_bytes.len() != array_length as usize * primitive_size {
+                    return Err(DataTypeError::ParseError(format!(
+                        "Fixed array length mismatch: expected {} bytes, got {} bytes",
+                        array_length as usize * primitive_size,
+                        value_bytes.len()
+                    )));
+                }
+
+                let mut result_bytes = value_bytes.to_vec();
+
+                if is_big_endian {
+                    for chunk in result_bytes.chunks_exact_mut(primitive_size) {
+                        chunk.reverse();
+                    }
+                }
+
+                Ok(result_bytes)
+            }
+            ContainerType::Pointer32 | ContainerType::Pointer64 => Err(DataTypeError::UnsupportedContainerType {
+                container_type: anonymous_value_bytes.get_container_type(),
+            }),
+        }
     }
 
     pub fn decode_string<F>(
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
         decode_string_func: F,
     ) -> Result<Vec<u8>, DataTypeError>
     where
-        F: Fn(&String) -> Vec<u8>,
+        F: Fn(&str) -> Vec<u8>,
     {
-        let bytes = match anonymous_value_container {
+        let bytes = match anonymous_value_string.get_anonymous_value_string_format() {
             // For binary strings, we directly map the binary to bytes.
-            AnonymousValueContainer::BinaryValue(value_string_utf8) => {
-                Conversions::binary_to_bytes(&value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?
-            }
+            AnonymousValueStringFormat::Binary => ConversionsFromBinary::binary_to_bytes(&anonymous_value_string.get_anonymous_value_string())
+                .map_err(|error: ConversionError| DataTypeError::ParseError(error.to_string()))?,
             // For hex strings, we directly map the hex to bytes.
-            AnonymousValueContainer::HexadecimalValue(value_string_utf8) => {
-                Conversions::hex_to_bytes(&value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?
-            }
+            AnonymousValueStringFormat::Hexadecimal => ConversionsFromHexadecimal::hex_to_bytes(&anonymous_value_string.get_anonymous_value_string())
+                .map_err(|error: ConversionError| DataTypeError::ParseError(error.to_string()))?,
             // For normal strings, we decode into the appropriate provided encoding.
-            AnonymousValueContainer::String(value_string_utf8) => decode_string_func(value_string_utf8),
+            AnonymousValueStringFormat::String => decode_string_func(anonymous_value_string.get_anonymous_value_string()),
+            _ => return Err(DataTypeError::ParseError("Unsupported data value format".to_string())),
         };
 
         Ok(bytes)
     }
 
+    /*
     pub fn create_data_value_interpreters<T, F>(
         value_bytes: &[u8],
         convert_bytes_unchecked: F,
@@ -196,19 +290,19 @@ impl PrimitiveDataType {
         let value_string_hexadecimal = hexadecimal_strings.join(", ");
         let mut results = vec![];
 
-        for supported_display_type in Self::get_supported_data_value_interpretation_formats() {
+        for supported_display_type in Self::get_supported_anonymous_value_string_formats() {
             match supported_display_type {
-                DataValueInterpretationFormat::Binary => results.push(DataValueInterpreter::new(
+                AnonymousValueStringFormat::Binary => results.push(DataValueInterpreter::new(
                     value_string_binary.clone(),
                     supported_display_type,
                     ContainerType::None,
                 )),
-                DataValueInterpretationFormat::Decimal => results.push(DataValueInterpreter::new(
+                AnonymousValueStringFormat::Decimal => results.push(DataValueInterpreter::new(
                     value_string_decimal.clone(),
                     supported_display_type,
                     ContainerType::None,
                 )),
-                DataValueInterpretationFormat::Hexadecimal => results.push(DataValueInterpreter::new(
+                AnonymousValueStringFormat::Hexadecimal => results.push(DataValueInterpreter::new(
                     value_string_hexadecimal.clone(),
                     supported_display_type,
                     ContainerType::None,
@@ -219,7 +313,7 @@ impl PrimitiveDataType {
             };
         }
 
-        Ok(DataValueInterpreters::new(results, DataValueInterpretationFormat::Decimal))
+        Ok(DataValueInterpreters::new(results, AnonymousValueStringFormat::Decimal))
     }
 
     pub fn create_data_value_interpreters_bool(
@@ -240,18 +334,27 @@ impl PrimitiveDataType {
         Ok(DataValueInterpreters::new(
             vec![DataValueInterpreter::new(
                 value_string_bool,
-                DataValueInterpretationFormat::Bool,
+                AnonymousValueStringFormat::Bool,
                 ContainerType::None,
             )],
-            DataValueInterpretationFormat::Bool,
+            AnonymousValueStringFormat::Bool,
         ))
+    } */
+
+    pub fn get_supported_anonymous_value_string_formats_bool() -> Vec<AnonymousValueStringFormat> {
+        vec![
+            AnonymousValueStringFormat::Bool,
+            AnonymousValueStringFormat::Binary,
+            AnonymousValueStringFormat::Decimal,
+            AnonymousValueStringFormat::Hexadecimal,
+        ]
     }
 
-    pub fn get_supported_data_value_interpretation_formats() -> Vec<DataValueInterpretationFormat> {
+    pub fn get_supported_anonymous_value_string_formats() -> Vec<AnonymousValueStringFormat> {
         vec![
-            DataValueInterpretationFormat::Binary,
-            DataValueInterpretationFormat::Decimal,
-            DataValueInterpretationFormat::Hexadecimal,
+            AnonymousValueStringFormat::Binary,
+            AnonymousValueStringFormat::Decimal,
+            AnonymousValueStringFormat::Hexadecimal,
         ]
     }
 }

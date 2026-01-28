@@ -2,7 +2,7 @@ use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan::pointer_scan::pointer_scan_response::PointerScanResponse;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::{commands::privileged_command::PrivilegedCommand, structures::data_types::data_type_ref::DataTypeRef};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -10,7 +10,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct PointerScanRequest {
     #[structopt(short = "a", long)]
-    pub target_address: AnonymousValue,
+    pub target_address: AnonymousValueString,
     #[structopt(short = "d", long)]
     pub pointer_data_type_ref: DataTypeRef,
     #[structopt(short = "d", long)]

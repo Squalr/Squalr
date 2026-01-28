@@ -3,7 +3,7 @@ use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::scan::scan_command::ScanCommand;
 use crate::commands::scan::scan_response::ScanResponse;
 use crate::commands::scan::struct_scan::struct_scan_response::StructScanResponse;
-use crate::structures::data_values::anonymous_value::AnonymousValue;
+use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -11,7 +11,7 @@ use structopt::StructOpt;
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct StructScanRequest {
     #[structopt(short = "v", long)]
-    pub scan_value: Option<AnonymousValue>,
+    pub scan_value: Option<AnonymousValueString>,
     #[structopt(short = "d", long)]
     pub data_type_ids: Vec<String>,
     #[structopt(short = "c", long)]

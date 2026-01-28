@@ -47,21 +47,31 @@ impl SymbolicFieldDefinition {
                 let default_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
+
                 ValuedStructFieldData::Value(default_value)
             }
             ContainerType::Pointer32 => {
                 let default_value = symbol_registry_guard
                     .get_default_value(&DataTypeRef::new(DataTypeU32::get_data_type_id()))
                     .unwrap_or_default();
+
                 ValuedStructFieldData::Value(default_value)
             }
             ContainerType::Pointer64 => {
                 let default_value = symbol_registry_guard
                     .get_default_value(&DataTypeRef::new(DataTypeU64::get_data_type_id()))
                     .unwrap_or_default();
+
                 ValuedStructFieldData::Value(default_value)
             }
-            ContainerType::Array(length) => {
+            ContainerType::Array => {
+                let array_value = symbol_registry_guard
+                    .get_default_value(&self.data_type_ref)
+                    .unwrap_or_default();
+
+                ValuedStructFieldData::Value(array_value)
+            }
+            ContainerType::ArrayFixed(length) => {
                 let mut array_value = symbol_registry_guard
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
@@ -107,11 +117,17 @@ impl FromStr for SymbolicFieldDefinition {
                 let type_part = string[..open_idx].trim();
                 let len_part = string[open_idx + 1..close_idx].trim();
 
-                let len = len_part
-                    .parse::<u64>()
-                    .map_err(|error| format!("Invalid array length '{}': {}", len_part, error))?;
+                if len_part.is_empty() {
+                    // Arbitrary array: [].
+                    (type_part, ContainerType::Array)
+                } else {
+                    // Fixed array: [length].
+                    let array_length = len_part
+                        .parse::<u64>()
+                        .map_err(|error| format!("Invalid array length '{}': {}", len_part, error))?;
 
-                (type_part, ContainerType::Array(len))
+                    (type_part, ContainerType::ArrayFixed(array_length))
+                }
             } else {
                 return Err("Missing closing ']' in array type".into());
             }

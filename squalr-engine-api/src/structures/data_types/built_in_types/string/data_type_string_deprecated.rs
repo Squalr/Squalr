@@ -2,8 +2,8 @@ use crate::conversions::conversions::Conversions;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_meta_data::DataTypeMetaData;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value::{AnonymousValue, AnonymousValueContainer};
-use crate::structures::data_values::data_value_interpretation_format::DataValueInterpretationFormat;
+use crate::structures::data_values::anonymous_value_string::{AnonymousValueString, AnonymousValueStringContainer};
+use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value_interpreter::DisplayValue;
 use crate::structures::data_values::data_value_interpreters::DataValueInterpreters;
 use crate::structures::memory::endian::Endian;
@@ -52,22 +52,22 @@ impl DataType for DataTypeString {
         1
     }
 
-    fn validate_value(
+    fn validate_value_string(
         &self,
-        anonymous_value_container: &AnonymousValueContainer,
+        anonymous_value_string: &AnonymousValueString,
     ) -> bool {
-        let data_type_ref = DataTypeRef::new_from_anonymous_value(self.get_data_type_id(), anonymous_value);
+        let data_type_ref = DataTypeRef::new_from_anonymous_value_string(self.get_data_type_id(), anonymous_value_string);
 
         // Validating a UTF string really just boils down to "can we parse the anonymous value as a string".
-        match self.deanonymize_value(anonymous_value, data_type_ref) {
+        match self.deanonymize_value_string(anonymous_value_string, data_type_ref) {
             Ok(_) => true,
             Err(_) => false,
         }
     }
 
-    fn deanonymize_value(
+    fn deanonymize_value_string(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_string: &AnonymousValueString,
         data_type_ref: DataTypeRef,
     ) -> Result<DataValue, DataTypeError> {
         if data_type_ref.get_data_type_id() != Self::get_data_type_id() {
@@ -77,18 +77,18 @@ impl DataType for DataTypeString {
         }
 
         match data_type_ref.get_meta_data() {
-            DataTypeMetaData::EncodedString(size, string_encoding) => match anonymous_value.get_value() {
-                AnonymousValueContainer::BinaryValue(value_string_utf8, container_type) => {
+            DataTypeMetaData::EncodedString(size, string_encoding) => match anonymous_value_string.get_value() {
+                AnonymousValueStringContainer::BinaryValue(value_string_utf8, container_type) => {
                     let value_bytes = Conversions::binary_to_bytes(value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }
-                AnonymousValueContainer::HexadecimalValue(value_string_utf8, container_type) => {
+                AnonymousValueStringContainer::HexadecimalValue(value_string_utf8, container_type) => {
                     let value_bytes = Conversions::hex_to_bytes(value_string_utf8).map_err(|error: &str| DataTypeError::ParseError(error.to_string()))?;
 
                     return Ok(DataValue::new(data_type_ref, value_bytes));
                 }
-                AnonymousValueContainer::String(value_string_utf8, container_type) => {
+                AnonymousValueStringContainer::String(value_string_utf8, container_type) => {
                     let mut string_bytes = match string_encoding {
                         StringEncoding::Utf8 => value_string_utf8.as_bytes().to_vec(),
                         StringEncoding::Utf16 => {
@@ -155,7 +155,7 @@ impl DataType for DataTypeString {
 
                     Ok(DataValue::new(data_type_ref, string_bytes))
                 }
-                AnonymousValueContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
+                AnonymousValueStringContainer::ByteArray(value_bytes) => Ok(DataValue::new(data_type_ref, value_bytes.clone())),
             },
             _ => Err(DataTypeError::InvalidMetaData),
         }
@@ -465,18 +465,18 @@ impl DataType for DataTypeString {
                 Ok(DataValueInterpreters::new(
                     vec![DisplayValue::new(
                         decoded_string,
-                        DataValueInterpretationFormat::String,
+                        AnonymousValueStringFormat::String,
                         ContainerType::None,
                     )],
-                    DataValueInterpretationFormat::String(ContainerType::None),
+                    AnonymousValueStringFormat::String(ContainerType::None),
                 ))
             }
             _ => Err(DataTypeError::InvalidMetaData),
         }
     }
 
-    fn get_supported_data_value_interpretation_formats(&self) -> Vec<DataValueInterpretationFormat> {
-        vec![DataValueInterpretationFormat::String(ContainerType::None)]
+    fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
+        vec![AnonymousValueStringFormat::String(ContainerType::None)]
     }
 
     fn is_floating_point(&self) -> bool {
@@ -498,16 +498,16 @@ impl DataType for DataTypeString {
         DataTypeMetaData::EncodedString(1, StringEncoding::Utf8)
     }
 
-    fn get_meta_data_for_anonymous_value(
+    fn get_meta_data_for_anonymous_value_string(
         &self,
-        anonymous_value: &AnonymousValue,
+        anonymous_value_string: &AnonymousValueString,
     ) -> DataTypeMetaData {
         // When parsing meta data from an anonymous value, we don't really have any context, so we just validate it against UTF-8.
         // If the value is passes as hex, we actually just validate whether we successfully can parse the hex string and re-encode it as a string.
-        let string_length = match anonymous_value.get_value() {
-            AnonymousValueContainer::String(string) => string.as_bytes().len(),
-            AnonymousValueContainer::BinaryValue(string) => Conversions::binary_to_bytes(string).unwrap_or_default().len(),
-            AnonymousValueContainer::HexadecimalValue(string) => Conversions::hex_to_bytes(string).unwrap_or_default().len(),
+        let string_length = match anonymous_value_string.get_value() {
+            AnonymousValueStringContainer::String(string) => string.as_bytes().len(),
+            AnonymousValueStringContainer::BinaryValue(string) => Conversions::binary_to_bytes(string).unwrap_or_default().len(),
+            AnonymousValueStringContainer::HexadecimalValue(string) => Conversions::hex_to_bytes(string).unwrap_or_default().len(),
         } as u64;
 
         DataTypeMetaData::EncodedString(string_length, StringEncoding::Utf8)

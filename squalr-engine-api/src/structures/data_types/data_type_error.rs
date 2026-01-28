@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::structures::data_values::container_type::ContainerType;
+
 #[derive(Debug, Error)]
 pub enum DataTypeError {
     #[error("Failed to parse value: {0}")]
@@ -14,6 +16,9 @@ pub enum DataTypeError {
     #[error("Invalid data type reference provided")]
     InvalidDataTypeRef { data_type_ref: String },
 
+    #[error("Invalid data type reference provided")]
+    UnsupportedContainerType { container_type: ContainerType },
+
     #[error("Invalid meta data")]
     InvalidMetaData,
 
@@ -21,7 +26,7 @@ pub enum DataTypeError {
     UnsupportedDisplayType,
 
     #[error("Decoding error")]
-    DecodingError,
+    DecodingError { error: String },
 
     #[error("Data value merge error")]
     DataValueMergeError { error: String },

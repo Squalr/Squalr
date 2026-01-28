@@ -1,7 +1,7 @@
 use crate::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_api::conversions::conversions::Conversions;
+use squalr_engine_api::conversions::conversions_from_primitives::Conversions;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;

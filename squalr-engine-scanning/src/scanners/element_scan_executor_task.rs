@@ -2,7 +2,7 @@ use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollectorTask;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_api::conversions::conversions::Conversions;
+use squalr_engine_api::conversions::conversions_from_primitives::Conversions;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;

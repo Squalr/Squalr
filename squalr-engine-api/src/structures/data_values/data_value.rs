@@ -1,6 +1,5 @@
 use crate::registries::registries::Registries;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_container::AnonymousValueContainer;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use crate::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
@@ -97,7 +96,7 @@ impl FromStringPrivileged for DataValue {
 
     fn from_string_privileged(
         string: &str,
-        registries: &Registries,
+        _registries: &Registries,
     ) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = string.split('=').collect();
 
@@ -106,15 +105,8 @@ impl FromStringPrivileged for DataValue {
         }
 
         let data_type_ref = DataTypeRef::from_str(parts[0])?;
-        let anonymous_value_container = AnonymousValueContainer::from_str(parts[1])?;
-        let symbol_registry = registries.get_symbol_registry();
-        let symbol_registry_guard = symbol_registry
-            .read()
-            .map_err(|error| format!("Failed to acquire read lock on SymbolRegistry: {}", error))?;
+        let value_bytes = Vec::new();
 
-        match symbol_registry_guard.deanonymize_value(&data_type_ref, &anonymous_value_container) {
-            Ok(value) => Ok(value),
-            Err(error) => Err(format!("Unable to parse value: {}", error)),
-        }
+        Ok(DataValue::new(data_type_ref, value_bytes))
     }
 }

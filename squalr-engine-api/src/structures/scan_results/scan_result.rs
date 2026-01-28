@@ -1,3 +1,4 @@
+use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
 use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -5,7 +6,6 @@ use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::structs::valued_struct::ValuedStruct;
-use crate::structures::{data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8, data_values::data_value_interpreters::DataValueInterpreters};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

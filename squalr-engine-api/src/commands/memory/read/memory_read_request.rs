@@ -1,9 +1,9 @@
-use crate::commands::privileged_command::PrivilegedCommand;
-use crate::commands::privileged_command_request::PrivilegedCommandRequest;
 use crate::commands::memory::memory_command::MemoryCommand;
 use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::memory::read::memory_read_response::MemoryReadResponse;
-use crate::conversions::conversions::Conversions;
+use crate::commands::privileged_command::PrivilegedCommand;
+use crate::commands::privileged_command_request::PrivilegedCommandRequest;
+use crate::conversions::conversions_from_primitives::Conversions;
 use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use serde::Deserialize;
 use serde::Serialize;
