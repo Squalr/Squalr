@@ -85,18 +85,21 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
                     false
                 };
 
-                let recently_read_display_value = if let Some(data_value) = recently_read_value.as_ref() {
-                    Some(symbol_registry.create_data_value_interpreters(data_value.get_data_type_ref(), data_value.get_value_bytes()))
-                } else {
-                    None
-                };
+                let recently_read_display_values = recently_read_value
+                    .as_ref()
+                    .and_then(|data_value| {
+                        symbol_registry
+                            .anonymize_value_to_supported_formats(data_value)
+                            .ok()
+                    })
+                    .unwrap_or_default();
 
                 scan_results_list.push(ScanResult::new(
                     scan_result_base,
                     module_name,
                     module_offset,
                     recently_read_value,
-                    recently_read_display_value,
+                    recently_read_display_values,
                     is_frozen,
                 ));
             }

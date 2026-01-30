@@ -1,7 +1,7 @@
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
-use squalr_engine_api::conversions::conversions_from_primitives::Conversions;
+use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -91,7 +91,11 @@ impl ValueCollectorTask {
             let byte_count = snapshot.get_byte_count();
 
             log::info!("Values collected in: {:?}", duration);
-            log::info!("{} bytes read ({})", byte_count, Conversions::value_to_metric_size(byte_count));
+            log::info!(
+                "{} bytes read ({})",
+                byte_count,
+                StorageSizeConversions::value_to_metric_size(byte_count as u128)
+            );
         }
     }
 }

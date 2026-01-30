@@ -29,7 +29,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanRequest {
                     return PointerScanResponse::default();
                 }
             };
-            let target_address = match symbol_registry_guard.deanonymize_value_string(&self.pointer_data_type_ref, self.target_address.get_value()) {
+            let target_address = match symbol_registry_guard.deanonymize_value_string(&self.pointer_data_type_ref, &self.target_address) {
                 Ok(data_value) => data_value,
                 Err(error) => {
                     log::error!("Failed to deanonimize pointer target address: {}", error);

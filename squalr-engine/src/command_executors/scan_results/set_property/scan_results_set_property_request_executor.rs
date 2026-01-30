@@ -33,7 +33,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsSetPropertyRequest {
             ScanResult::PROPERTY_NAME_VALUE => {
                 for scan_result_ref in &self.scan_result_refs {
                     if let Some(scan_result) = snapshot_guard.get_scan_result(scan_result_ref.get_scan_result_global_index()) {
-                        if let Ok(data_value) = symbol_registry.deanonymize_value_string(scan_result.get_data_type_ref(), self.anonymous_value_string.get_value()) {
+                        if let Ok(data_value) = symbol_registry.deanonymize_value_string(scan_result.get_data_type_ref(), &self.anonymous_value_string) {
                             let value_bytes = data_value.get_value_bytes();
                             let address = scan_result.get_address();
                             if let Some(opened_process_info) = engine_privileged_state
@@ -49,7 +49,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsSetPropertyRequest {
             }
             ScanResult::PROPERTY_NAME_IS_FROZEN => {
                 let data_type = DataTypeBool32 {};
-                if let Ok(data_value) = data_type.deanonymize_value_string(self.anonymous_value_string.get_value()) {
+                if let Ok(data_value) = data_type.deanonymize_value_string(&self.anonymous_value_string) {
                     let is_frozen = data_value.get_value_bytes().iter().any(|&byte| byte != 0);
 
                     // Fire an internal request to freeze.

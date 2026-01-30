@@ -279,6 +279,7 @@ impl Widget for ElementScannerResultsView {
                                 let entry_widget = ElementScannerResultEntryView::new(
                                     self.app_context.clone(),
                                     &scan_result,
+                                    element_scanner_view_data.active_display_format,
                                     index,
                                     is_selected,
                                     &mut element_sanner_result_frame_action,

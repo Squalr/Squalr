@@ -84,16 +84,22 @@ impl SnapshotRegionScanResults {
                     .saturating_add(adjusted_scan_result_index * memory_alignment as u64);
                 let current_value = snapshot_region.get_current_value(scan_result_address, data_type_ref);
                 let previous_value = snapshot_region.get_previous_value(scan_result_address, data_type_ref);
-                let current_data_value_interpreters = if let Some(data_value) = current_value.as_ref() {
-                    Some(symbol_registry.create_data_value_interpreters(data_type_ref, data_value.get_value_bytes()))
-                } else {
-                    None
-                };
-                let previous_data_value_interpreters = if let Some(data_value) = previous_value.as_ref() {
-                    Some(symbol_registry.create_data_value_interpreters(data_type_ref, data_value.get_value_bytes()))
-                } else {
-                    None
-                };
+                let current_display_values = current_value
+                    .as_ref()
+                    .and_then(|data_value| {
+                        symbol_registry
+                            .anonymize_value_to_supported_formats(data_value)
+                            .ok()
+                    })
+                    .unwrap_or_default();
+                let previous_display_values = previous_value
+                    .as_ref()
+                    .and_then(|data_value| {
+                        symbol_registry
+                            .anonymize_value_to_supported_formats(data_value)
+                            .ok()
+                    })
+                    .unwrap_or_default();
                 let icon_id = symbol_registry.get_icon_id(data_type_ref);
 
                 return Some(ScanResultValued::new(
@@ -101,9 +107,9 @@ impl SnapshotRegionScanResults {
                     data_type_ref.clone(),
                     icon_id,
                     current_value,
-                    current_data_value_interpreters,
+                    current_display_values,
                     previous_value,
-                    previous_data_value_interpreters,
+                    previous_display_values,
                     ScanResultRef::new(global_scan_result_index),
                 ));
             }

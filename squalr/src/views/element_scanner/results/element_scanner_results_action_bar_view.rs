@@ -13,7 +13,7 @@ use crate::{
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind, pos2, vec2};
-use squalr_engine_api::{dependency_injection::dependency::Dependency, structures::data_values::anonymous_value_string::AnonymousValueString};
+use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
 pub struct ElementScannerResultsActionBarView<'lifetime> {
@@ -164,7 +164,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 ),
                 DataValueBoxView::new(
                     self.app_context.clone(),
-                    &mut element_scanner_results_view_data.edit_data_value_interpreter,
+                    &mut element_scanner_results_view_data.current_display_string,
                     &element_scanner_view_data.selected_data_type,
                     false,
                     true,
@@ -184,9 +184,8 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
             IconDraw::draw(user_interface, commit_value_response.rect, &theme.icon_library.icon_handle_common_check_mark);
 
             if commit_value_response.clicked() {
-                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::CommitValueToSelection(AnonymousValueString::new(
-                    &element_scanner_results_view_data.edit_data_value_interpreter,
-                ));
+                *self.element_sanner_result_frame_action =
+                    ElementScannerResultFrameAction::CommitValueToSelection(element_scanner_results_view_data.current_display_string.clone());
             }
         });
 

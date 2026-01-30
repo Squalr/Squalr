@@ -1,12 +1,12 @@
 use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
 use eframe::egui::{Align2, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
-use squalr_engine_api::structures::data_values::{anonymous_value_string_format::AnonymousValueStringFormat, data_value_interpreter::DataValueInterpreter};
+use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat};
 use std::sync::Arc;
 
 pub struct DataValueBoxConvertItemView<'lifetime> {
     app_context: Arc<AppContext>,
-    data_value_interpreter: &'lifetime mut DataValueInterpreter,
+    anonymous_value_string: &'lifetime mut AnonymousValueString,
     target_anonymous_value_string_format: &'lifetime AnonymousValueStringFormat,
     is_conversion_available: bool,
     is_value_owned: bool,
@@ -16,7 +16,7 @@ pub struct DataValueBoxConvertItemView<'lifetime> {
 impl<'lifetime> DataValueBoxConvertItemView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        data_value_interpreter: &'lifetime mut DataValueInterpreter,
+        anonymous_value_string: &'lifetime mut AnonymousValueString,
         target_anonymous_value_string_format: &'lifetime AnonymousValueStringFormat,
         is_conversion_available: bool,
         is_value_owned: bool,
@@ -24,7 +24,7 @@ impl<'lifetime> DataValueBoxConvertItemView<'lifetime> {
     ) -> Self {
         Self {
             app_context: app_context,
-            data_value_interpreter,
+            anonymous_value_string,
             target_anonymous_value_string_format,
             is_conversion_available,
             is_value_owned,
@@ -101,7 +101,7 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
             }
 
             // Draw checkmark if checked.
-            if self.data_value_interpreter.get_anonymous_value_string_format() == self.target_anonymous_value_string_format {
+            if self.anonymous_value_string.get_anonymous_value_string_format() == *self.target_anonymous_value_string_format {
                 let icon = &theme.icon_library.icon_handle_common_check_mark;
                 let texture_size = icon.size_vec2();
                 let icon_position = checkbox_rectangle.center() - texture_size * 0.5;
@@ -137,10 +137,10 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
 
         if response.clicked() {
             if self.is_conversion_available {
-                self.data_value_interpreter
+                self.anonymous_value_string
                     .set_anonymous_value_string_format(*self.target_anonymous_value_string_format);
             } else {
-                self.data_value_interpreter
+                self.anonymous_value_string
                     .set_anonymous_value_string_format(*self.target_anonymous_value_string_format);
             }
         }

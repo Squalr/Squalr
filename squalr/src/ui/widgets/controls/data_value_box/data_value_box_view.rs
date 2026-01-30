@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
-    data_value_interpreter: &'lifetime mut DataValueInterpreter,
+    anonymous_value_string: &'lifetime mut AnonymousValueString,
     validation_data_type: &'lifetime DataTypeRef,
     is_read_only: bool,
     is_value_owned: bool,
@@ -33,7 +33,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
 
     pub fn new(
         app_context: Arc<AppContext>,
-        data_value_interpreter: &'lifetime mut DataValueInterpreter,
+        anonymous_value_string: &'lifetime mut AnonymousValueString,
         validation_data_type: &'lifetime DataTypeRef,
         is_read_only: bool,
         is_value_owned: bool,
@@ -42,7 +42,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
     ) -> Self {
         Self {
             app_context,
-            data_value_interpreter,
+            anonymous_value_string,
             validation_data_type,
             is_read_only,
             is_value_owned,
@@ -92,11 +92,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
     ) -> Response {
         let theme = &self.app_context.theme;
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
-        let anonymous_value_string = AnonymousValueString::new(&self.data_value_interpreter);
         let symbol_registry = SymbolRegistry::get_instance();
-        let is_valid = symbol_registry.validate_value_string(&self.validation_data_type, &anonymous_value_string);
+        let is_valid = symbol_registry.validate_value_string(&self.validation_data_type, &self.anonymous_value_string);
         let text_color = match is_valid {
-            true => match self.data_value_interpreter.get_anonymous_value_string_format() {
+            true => match self.anonymous_value_string.get_anonymous_value_string_format() {
                 AnonymousValueStringFormat::Bool => theme.foreground,
                 AnonymousValueStringFormat::String => theme.foreground,
                 AnonymousValueStringFormat::Binary => theme.binary_blue,
@@ -164,7 +163,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
 
         let text_edit_rectangle_inner = text_edit_rectangle.shrink2(vec2(4.0, 4.0));
 
-        let mut text_value = self.data_value_interpreter.get_display_string().to_string();
+        let mut text_value = self
+            .anonymous_value_string
+            .get_anonymous_value_string()
+            .to_string();
         let mut text_edit_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(text_edit_rectangle_inner)
@@ -204,7 +206,8 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
 
         // If the user changed text, update the display value
         if text_edit_response.changed() {
-            self.data_value_interpreter.set_display_string(text_value);
+            self.anonymous_value_string
+                .set_anonymous_value_string(text_value);
         }
 
         // Popup logic.
@@ -252,7 +255,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                                 if inner_user_interface
                                     .add(DataValueBoxConvertItemView::new(
                                         self.app_context.clone(),
-                                        self.data_value_interpreter,
+                                        self.anonymous_value_string,
                                         anonymous_value_string_format,
                                         false,
                                         self.is_value_owned,
@@ -271,7 +274,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                                     if inner_user_interface
                                         .add(DataValueBoxConvertItemView::new(
                                             self.app_context.clone(),
-                                            self.data_value_interpreter,
+                                            self.anonymous_value_string,
                                             anonymous_value_string_format,
                                             true,
                                             self.is_value_owned,

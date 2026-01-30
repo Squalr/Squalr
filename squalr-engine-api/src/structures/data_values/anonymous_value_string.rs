@@ -31,12 +31,33 @@ impl AnonymousValueString {
         &self.anonymous_value_string
     }
 
+    pub fn set_anonymous_value_string(
+        &mut self,
+        new_string: String,
+    ) {
+        self.anonymous_value_string = new_string
+    }
+
     pub fn get_anonymous_value_string_format(&self) -> AnonymousValueStringFormat {
         self.anonymous_value_string_format
     }
 
+    pub fn set_anonymous_value_string_format(
+        &mut self,
+        new_format: AnonymousValueStringFormat,
+    ) {
+        self.anonymous_value_string_format = new_format
+    }
+
     pub fn get_container_type(&self) -> ContainerType {
         self.container_type
+    }
+
+    pub fn set_container_type(
+        &mut self,
+        new_container_type: ContainerType,
+    ) {
+        self.container_type = new_container_type
     }
 }
 

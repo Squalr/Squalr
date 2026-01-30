@@ -167,9 +167,52 @@ impl SymbolRegistry {
                 let deanonymized_value = data_type.deanonymize_value_string(anonymous_value_string);
 
                 match deanonymized_value {
-                    Ok(value) => Ok(value),
+                    Ok(data_value) => Ok(data_value),
                     Err(error) => Err(error.to_string()),
                 }
+            }
+            None => Err("Cannot deanonymize value: data type is not registered.".into()),
+        }
+    }
+
+    pub fn anonymize_value(
+        &self,
+        data_value: &DataValue,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, String> {
+        match self.get_data_type(data_value.get_data_type_id()) {
+            Some(data_type) => {
+                let anonymized_value = data_type.anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format);
+
+                match anonymized_value {
+                    Ok(anonymous_value_string) => Ok(anonymous_value_string),
+                    Err(error) => Err(error.to_string()),
+                }
+            }
+            None => Err("Cannot deanonymize value: data type is not registered.".into()),
+        }
+    }
+
+    pub fn anonymize_value_to_supported_formats(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Vec<AnonymousValueString>, String> {
+        match self.get_data_type(data_value.get_data_type_id()) {
+            Some(data_type) => {
+                let mut anonymized_values = Vec::new();
+
+                for anonymous_value_string_format in data_type.get_supported_anonymous_value_string_formats() {
+                    let anonymized_value = data_type.anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format);
+
+                    let anonymous_value_string = match anonymized_value {
+                        Ok(anonymous_value_string) => anonymous_value_string,
+                        Err(error) => return Err(error.to_string()),
+                    };
+
+                    anonymized_values.push(anonymous_value_string);
+                }
+
+                Ok(anonymized_values)
             }
             None => Err("Cannot deanonymize value: data type is not registered.".into()),
         }

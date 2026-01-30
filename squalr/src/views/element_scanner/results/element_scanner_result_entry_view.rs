@@ -11,6 +11,7 @@ use std::sync::Arc;
 pub struct ElementScannerResultEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     scan_result: &'lifetime ScanResult,
+    active_display_format: AnonymousValueStringFormat,
     index: usize,
     is_selected: bool,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
@@ -23,6 +24,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         scan_result: &'lifetime ScanResult,
+        active_display_format: AnonymousValueStringFormat,
         index: usize,
         is_selected: bool,
         element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
@@ -33,6 +35,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         Self {
             app_context,
             scan_result,
+            active_display_format,
             index,
             is_selected,
             element_sanner_result_frame_action,
@@ -169,10 +172,16 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         // Value.
         let current_value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
-        let current_value_string = match self.scan_result.get_recently_read_display_value() {
-            Some(recently_read_value) => recently_read_value.get_data_value_interpreter_string(&AnonymousValueStringFormat::Decimal),
-            None => match self.scan_result.get_current_display_value() {
-                Some(current_value) => current_value.get_data_value_interpreter_string(&AnonymousValueStringFormat::Decimal),
+        let current_value_string = match self
+            .scan_result
+            .get_recently_read_display_value(self.active_display_format)
+        {
+            Some(recently_read_value) => recently_read_value.get_anonymous_value_string(),
+            None => match self
+                .scan_result
+                .get_current_display_value(self.active_display_format)
+            {
+                Some(current_value) => current_value.get_anonymous_value_string(),
                 None => "??",
             },
         };
@@ -187,8 +196,11 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         // Previous value.
         let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
-        let previous_value_string = match self.scan_result.get_previous_display_value() {
-            Some(previous_value) => previous_value.get_data_value_interpreter_string(&AnonymousValueStringFormat::Decimal),
+        let previous_value_string = match self
+            .scan_result
+            .get_previous_display_value(self.active_display_format)
+        {
+            Some(previous_value) => previous_value.get_anonymous_value_string(),
             None => "??",
         };
 

@@ -1,6 +1,6 @@
-pub struct MiscConversions {}
+pub struct StorageSizeConversions {}
 
-impl MiscConversions {
+impl StorageSizeConversions {
     /// Converts a given value into a metric information storage size (ie KB, MB, GB, TB, etc.).
     pub fn value_to_metric_size(value: u128) -> String {
         // Note: u128 runs out in the Quettabytes, which uh, is larger than we should ever need in any context.

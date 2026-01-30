@@ -2,12 +2,12 @@ use arc_swap::Guard;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
 use squalr_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
+use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
 use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
-use squalr_engine_api::structures::data_values::data_value_interpreter::DataValueInterpreter;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::{
@@ -18,7 +18,6 @@ use squalr_engine_api::{
             set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest,
         },
     },
-    conversions::conversions_from_primitives::Conversions,
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
     structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult},
 };
@@ -40,7 +39,7 @@ pub struct ElementScannerResultsViewData {
     pub selection_index_end: Option<i32>,
     pub result_count: u64,
     pub stats_string: String,
-    pub edit_data_value_interpreter: DataValueInterpreter,
+    pub current_display_string: AnonymousValueString,
     pub is_querying_scan_results: bool,
     pub is_refreshing_scan_results: bool,
     pub is_setting_properties: bool,
@@ -62,7 +61,7 @@ impl ElementScannerResultsViewData {
             selection_index_end: None,
             result_count: 0,
             stats_string: String::new(),
-            edit_data_value_interpreter: DataValueInterpreter::new(String::new(), AnonymousValueStringFormat::Decimal, ContainerType::None),
+            current_display_string: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Decimal, ContainerType::None),
             is_querying_scan_results: false,
             is_refreshing_scan_results: false,
             is_setting_properties: false,
@@ -231,7 +230,7 @@ impl ElementScannerResultsViewData {
 
         scan_results_query_request.send(&engine_unprivileged_state, move |scan_results_query_response| {
             // let audio_player = &self.audio_player;
-            let byte_size_in_metric = Conversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes);
+            let byte_size_in_metric = StorageSizeConversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes as u128);
             let result_count = scan_results_query_response.result_count;
 
             if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Query scan results response") {

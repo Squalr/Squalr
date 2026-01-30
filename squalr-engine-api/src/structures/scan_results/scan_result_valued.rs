@@ -1,4 +1,5 @@
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
+use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::data_value::DataValue};
@@ -10,9 +11,9 @@ use serde::{Deserialize, Serialize};
 pub struct ScanResultValued {
     scan_result_base: ScanResultBase,
     current_value: Option<DataValue>,
-    current_display_value: Option<AnonymousValueString>,
+    current_display_values: Vec<AnonymousValueString>,
     previous_value: Option<DataValue>,
-    previous_display_value: Option<AnonymousValueString>,
+    previous_display_values: Vec<AnonymousValueString>,
 }
 
 impl ScanResultValued {
@@ -21,17 +22,17 @@ impl ScanResultValued {
         data_type_ref: DataTypeRef,
         icon_id: String,
         current_value: Option<DataValue>,
-        current_display_value: Option<AnonymousValueString>,
+        current_display_values: Vec<AnonymousValueString>,
         previous_value: Option<DataValue>,
-        previous_display_value: Option<AnonymousValueString>,
+        previous_display_values: Vec<AnonymousValueString>,
         handle: ScanResultRef,
     ) -> Self {
         Self {
             scan_result_base: ScanResultBase::new(address, data_type_ref, icon_id, handle),
             current_value,
-            current_display_value,
+            current_display_values,
             previous_value,
-            previous_display_value,
+            previous_display_values,
         }
     }
 
@@ -55,15 +56,41 @@ impl ScanResultValued {
         &self.current_value
     }
 
-    pub fn get_current_display_value(&self) -> &Option<AnonymousValueString> {
-        &self.current_display_value
+    pub fn get_current_display_values(&self) -> &Vec<AnonymousValueString> {
+        &self.current_display_values
+    }
+
+    pub fn get_current_display_value(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Option<&AnonymousValueString> {
+        for current_display_value in &self.current_display_values {
+            if current_display_value.get_anonymous_value_string_format() == anonymous_value_string_format {
+                return Some(current_display_value);
+            }
+        }
+
+        None
     }
 
     pub fn get_previous_value(&self) -> &Option<DataValue> {
         &self.previous_value
     }
 
-    pub fn get_previous_display_value(&self) -> &Option<AnonymousValueString> {
-        &self.previous_display_value
+    pub fn get_previous_display_values(&self) -> &Vec<AnonymousValueString> {
+        &self.previous_display_values
+    }
+
+    pub fn get_previous_display_value(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Option<&AnonymousValueString> {
+        for previous_display_value in &self.previous_display_values {
+            if previous_display_value.get_anonymous_value_string_format() == anonymous_value_string_format {
+                return Some(previous_display_value);
+            }
+        }
+
+        None
     }
 }
