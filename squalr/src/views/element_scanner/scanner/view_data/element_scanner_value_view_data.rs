@@ -1,5 +1,5 @@
 use squalr_engine_api::structures::{
-    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType, data_value_interpreter::DataValueInterpreter},
+    data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     scanning::comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
 };
 

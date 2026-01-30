@@ -82,7 +82,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsQueryRequest {
                     false
                 };
 
-                let recently_read_data_value_interpreters = if let Some(data_value) = recently_read_value.as_ref() {
+                let recently_read_display_value = if let Some(data_value) = recently_read_value.as_ref() {
                     Some(symbol_registry.create_data_value_interpreters(data_value.get_data_type_ref(), data_value.get_value_bytes()))
                 } else {
                     None
@@ -93,7 +93,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsQueryRequest {
                     module_name,
                     module_offset,
                     recently_read_value,
-                    recently_read_data_value_interpreters,
+                    recently_read_display_value,
                     is_frozen,
                 ));
             }

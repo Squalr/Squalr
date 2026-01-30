@@ -6,10 +6,7 @@ use squalr_engine_api::{
     registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         data_types::data_type_ref::DataTypeRef,
-        data_values::{
-            anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat,
-            data_value_interpreter::DataValueInterpreter,
-        },
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
     },
 };
 use std::sync::Arc;

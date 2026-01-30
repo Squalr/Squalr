@@ -1,7 +1,6 @@
-use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
+use crate::structures::data_types::built_in_types::primitive_data_type_string::PrimitiveDataTypeString;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::memory::endian::Endian;
@@ -59,26 +58,23 @@ impl DataType for DataTypeStringUtf8 {
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError> {
         let data_type_ref = DataTypeRef::new(Self::get_data_type_id());
-        let decoded_bytes = PrimitiveDataType::decode_string(anonymous_value_string, |value_string| value_string.as_bytes().to_vec())?;
+        let decoded_bytes = PrimitiveDataTypeString::deanonymize_string(anonymous_value_string, |value_string| value_string.as_bytes().to_vec())?;
 
         Ok(DataValue::new(data_type_ref, decoded_bytes))
     }
 
-    fn deanonymize_value_bytes(
+    fn anonymize_value_bytes(
         &self,
-        anonymous_value_bytes: &AnonymousValueBytes,
-    ) -> Result<DataValue, DataTypeError> {
-        let string_value = String::from_utf8(anonymous_value_bytes.get_value().to_vec()).map_err(|from_utf8_error| DataTypeError::DecodingError {
-            error: from_utf8_error.to_string(),
-        })?;
-        let anonymous_value = AnonymousValueString::new(string_value, AnonymousValueStringFormat::String, anonymous_value_bytes.get_container_type());
-        let decoded_bytes = PrimitiveDataType::decode_string(&anonymous_value, |value_string| value_string.as_bytes().to_vec())?;
-
-        Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), decoded_bytes))
+        value_bytes: &[u8],
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, DataTypeError> {
+        Err(DataTypeError::DecodingError {
+            error: "Not implemented".to_string(),
+        })
     }
 
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
-        vec![AnonymousValueStringFormat::String]
+        PrimitiveDataTypeString::get_supported_anonymous_value_string_formats()
     }
 
     fn get_default_anonymous_value_string_format(&self) -> AnonymousValueStringFormat {

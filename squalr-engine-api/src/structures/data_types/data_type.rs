@@ -2,7 +2,6 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompara
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value::DataValue;
@@ -32,11 +31,13 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError>;
 
-    /// Attempts to interpret raw bytes as this data type, returning a `DataValue` on success.
-    fn deanonymize_value_bytes(
+    /// Attempts to interpret raw bytes as this data type in the specified format, returning an `AnonymousValueString` on success.
+    /// In other words, this converts bytes in this data type to a plaintext string representation.
+    fn anonymize_value_bytes(
         &self,
-        anonymous_value_bytes: &AnonymousValueBytes,
-    ) -> Result<DataValue, DataTypeError>;
+        value_bytes: &[u8],
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, DataTypeError>;
 
     /// Gets all supported display formats that this data type can be shown as.
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat>;

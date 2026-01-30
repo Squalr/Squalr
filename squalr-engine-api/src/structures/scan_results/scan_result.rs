@@ -1,4 +1,3 @@
-use crate::structures::data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8;
 use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -6,6 +5,7 @@ use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::structs::valued_struct::ValuedStruct;
+use crate::structures::{data_types::built_in_types::bool8::data_type_bool8::DataTypeBool8, data_values::anonymous_value_string::AnonymousValueString};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -15,7 +15,7 @@ pub struct ScanResult {
     module: String,
     module_offset: u64,
     recently_read_value: Option<DataValue>,
-    recently_read_data_value_interpreters: Option<DataValueInterpreters>,
+    recently_read_display_value: Option<AnonymousValueString>,
     is_frozen: bool,
 }
 
@@ -31,7 +31,7 @@ impl ScanResult {
         module: String,
         module_offset: u64,
         recently_read_value: Option<DataValue>,
-        recently_read_data_value_interpreters: Option<DataValueInterpreters>,
+        recently_read_display_value: Option<AnonymousValueString>,
         is_frozen: bool,
     ) -> Self {
         Self {
@@ -39,7 +39,7 @@ impl ScanResult {
             module,
             module_offset,
             recently_read_value,
-            recently_read_data_value_interpreters,
+            recently_read_display_value,
             is_frozen,
         }
     }
@@ -106,24 +106,24 @@ impl ScanResult {
         &self.recently_read_value
     }
 
-    pub fn get_recently_read_data_value_interpreters(&self) -> &Option<DataValueInterpreters> {
-        &self.recently_read_data_value_interpreters
+    pub fn get_recently_read_display_value(&self) -> &Option<AnonymousValueString> {
+        &self.recently_read_display_value
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {
         &self.valued_result.get_current_value()
     }
 
-    pub fn get_current_data_value_interpreters(&self) -> &Option<DataValueInterpreters> {
-        &self.valued_result.get_current_data_value_interpreters()
+    pub fn get_current_display_value(&self) -> &Option<AnonymousValueString> {
+        &self.valued_result.get_current_display_value()
     }
 
     pub fn get_previous_value(&self) -> &Option<DataValue> {
         &self.valued_result.get_previous_value()
     }
 
-    pub fn get_previous_data_value_interpreters(&self) -> &Option<DataValueInterpreters> {
-        &self.valued_result.get_previous_data_value_interpreters()
+    pub fn get_previous_display_value(&self) -> &Option<AnonymousValueString> {
+        &self.valued_result.get_previous_display_value()
     }
 
     pub fn get_is_frozen(&self) -> bool {

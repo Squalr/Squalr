@@ -221,8 +221,6 @@ We then only really need to pass a string ref and format type into the DataType 
 
 I think we may also be able to simplify how Anonymous Values work. In reality, its a string + a format + an optional flag for arrays.
 
-Okay yeah this is the right path but now theres this AnonymousValueBytes concept which may be entirely useless (especially since we go through primitive conversions for all actual data reading?)
-
 And now we have the remaining problem of DataValue -> Display String and all we have for display is this AnonymousStringValueFormat. Is DataValue -> AnonymousString even correct? Should we bundle the format into the string? Is re-anonymizing a thing? And presumably it just maps to a generic string format type (ie not decimal, but leave it vague).
 
 At least if we re-anonymize we get to keep the current display format, which conversions can use to say "actually take this anonymous string as type x, convert to data value, then back to a an anonymous string of type y"

@@ -1,7 +1,6 @@
-use crate::structures::data_types::built_in_types::primitive_data_type::PrimitiveDataType;
+use crate::structures::data_types::built_in_types::primitive_data_type_numeric::PrimitiveDataTypeNumeric;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_bytes::AnonymousValueBytes;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::memory::endian::Endian;
@@ -62,22 +61,27 @@ impl DataType for DataTypeF32be {
         &self,
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError> {
-        let value_bytes = PrimitiveDataType::deanonymize_primitive_value_string::<PrimitiveType>(anonymous_value_string, true)?;
+        let value_bytes = PrimitiveDataTypeNumeric::deanonymize::<PrimitiveType>(anonymous_value_string, true)?;
 
         Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
     }
 
-    fn deanonymize_value_bytes(
+    fn anonymize_value_bytes(
         &self,
-        anonymous_value_bytes: &AnonymousValueBytes,
-    ) -> Result<DataValue, DataTypeError> {
-        let value_bytes = PrimitiveDataType::deanonymize_primitive_value_bytes::<PrimitiveType>(anonymous_value_bytes, true)?;
+        value_bytes: &[u8],
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Result<AnonymousValueString, DataTypeError> {
+        let anonymous_value_string = PrimitiveDataTypeNumeric::anonymize(
+            value_bytes,
+            |value_bytes| PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1], value_bytes[2], value_bytes[3]]),
+            anonymous_value_string_format,
+        )?;
 
-        Ok(DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
+        Ok(anonymous_value_string)
     }
 
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
-        PrimitiveDataType::get_supported_anonymous_value_string_formats()
+        PrimitiveDataTypeNumeric::get_supported_anonymous_value_string_formats()
     }
 
     fn get_default_anonymous_value_string_format(&self) -> AnonymousValueStringFormat {
