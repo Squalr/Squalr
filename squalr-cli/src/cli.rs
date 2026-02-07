@@ -1,5 +1,6 @@
 use crate::response_handlers::handle_engine_response;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
@@ -77,7 +78,7 @@ impl Cli {
             }
         };
 
-        engine_unprivileged_state.dispatch_privileged_command(engine_command, |engine_command| {
+        engine_unprivileged_state.dispatch_command(engine_command, |engine_command| {
             handle_engine_response(engine_command);
         });
 

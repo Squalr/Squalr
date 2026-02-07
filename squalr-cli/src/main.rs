@@ -2,7 +2,6 @@ mod cli;
 mod logging;
 mod response_handlers;
 
-use crate::logging::cli_log_listener::CliLogListener;
 use cli::Cli;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
@@ -16,26 +15,10 @@ fn main() {
     };
 
     // Start Squalr engine.
-    let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
+    let mut squalr_engine = match SqualrEngine::new(engine_mode) {
         Ok(squalr_engine) => squalr_engine,
         Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
     };
-
-    // Hook into engine logging for the cli to display.
-    let _cli_log_listener = CliLogListener::new(
-        match squalr_engine
-            .get_engine_unprivileged_state()
-            .as_ref()
-            .unwrap_or_else(|| panic!("Engine context failed to initialize."))
-            .get_logger()
-            .subscribe_to_logs()
-        {
-            Ok(listener) => listener,
-            Err(error) => {
-                panic!("Fatal error hooking into engine log events: {}", error);
-            }
-        },
-    );
 
     // Start the log event sending now that both the CLI and engine are ready to receive log messages.
     squalr_engine.initialize();

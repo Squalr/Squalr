@@ -20,7 +20,12 @@ pub fn handle_engine_response(response: PrivilegedCommandResponse) {
         PrivilegedCommandResponse::Process(response) => handle_process_response(response),
         PrivilegedCommandResponse::Results(response) => handle_scan_results_response(response),
         PrivilegedCommandResponse::Project(response) => handle_project_response(response),
-        PrivilegedCommandResponse::Scan(response) => handle_scan_response(response),
         PrivilegedCommandResponse::Settings(response) => handle_settings_response(response),
+        PrivilegedCommandResponse::ProjectItems(response) => {
+            log::debug!("Unhandled project items response: {:?}", response);
+        }
+        PrivilegedCommandResponse::TrackableTasks(response) => {
+            log::debug!("Unhandled trackable tasks response: {:?}", response);
+        }
     }
 }

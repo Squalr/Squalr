@@ -1,3 +1,4 @@
+use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use arc_swap::Guard;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
 use squalr_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
@@ -24,8 +25,6 @@ use squalr_engine_api::{
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{thread, time::Duration};
-
-use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 
 #[derive(Clone)]
 pub struct ElementScannerResultsViewData {

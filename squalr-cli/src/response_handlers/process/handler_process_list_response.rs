@@ -10,7 +10,11 @@ pub fn handle_process_list_response(process_response: ProcessResponse) {
         }
 
         for process_info in processes {
-            log::info!("process_id: {}, name: {}", process_info.process_id, process_info.name);
+            log::info!(
+                "process_id: {}, name: {}",
+                process_info.get_process_id_raw(),
+                process_info.get_name()
+            );
         }
     }
 }
