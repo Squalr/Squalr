@@ -1,11 +1,12 @@
+use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_api::structures::processes::{opened_process_info::OpenedProcessInfo, process_info::ProcessInfo};
 
 pub(crate) trait ProcessQueryer {
-    fn start_monitoring() -> Result<(), String>;
-    fn stop_monitoring() -> Result<(), String>;
-    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String>;
-    fn close_process(handle: u64) -> Result<(), String>;
+    fn start_monitoring() -> Result<(), ProcessQueryError>;
+    fn stop_monitoring() -> Result<(), ProcessQueryError>;
+    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError>;
+    fn close_process(handle: u64) -> Result<(), ProcessQueryError>;
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo>;
 }
 
@@ -24,19 +25,19 @@ use crate::process_query::windows::windows_process_query::WindowsProcessQuery as
 pub struct ProcessQuery;
 
 impl ProcessQuery {
-    pub fn start_monitoring() -> Result<(), String> {
+    pub fn start_monitoring() -> Result<(), ProcessQueryError> {
         ProcessQueryImpl::start_monitoring()
     }
 
-    pub fn stop_monitoring() -> Result<(), String> {
+    pub fn stop_monitoring() -> Result<(), ProcessQueryError> {
         ProcessQueryImpl::stop_monitoring()
     }
 
-    pub fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
+    pub fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
         ProcessQueryImpl::open_process(process_info)
     }
 
-    pub fn close_process(handle: u64) -> Result<(), String> {
+    pub fn close_process(handle: u64) -> Result<(), ProcessQueryError> {
         ProcessQueryImpl::close_process(handle)
     }
 

@@ -1,3 +1,4 @@
+use crate::registries::symbols::symbol_registry_error::SymbolRegistryError;
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
 use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::scanning::comparisons::scan_function_vector::{VectorCompareFnDelta, VectorCompareFnImmediate, VectorCompareFnRelative};
@@ -72,14 +73,14 @@ impl SymbolRegistry {
 
     fn register_data_type(
         &mut self,
-        data_type: Arc<dyn DataType>,
+        _data_type: Arc<dyn DataType>,
     ) {
         // JIRA
     }
 
     fn unregister_data_type(
         &mut self,
-        data_type: Arc<dyn DataType>,
+        _data_type: Arc<dyn DataType>,
     ) {
         // JIRA
     }
@@ -161,17 +162,15 @@ impl SymbolRegistry {
         &self,
         data_type_ref: &DataTypeRef,
         anonymous_value_string: &AnonymousValueString,
-    ) -> Result<DataValue, String> {
+    ) -> Result<DataValue, SymbolRegistryError> {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
-            Some(data_type) => {
-                let deanonymized_value = data_type.deanonymize_value_string(anonymous_value_string);
-
-                match deanonymized_value {
-                    Ok(data_value) => Ok(data_value),
-                    Err(error) => Err(error.to_string()),
-                }
-            }
-            None => Err("Cannot deanonymize value: data type is not registered.".into()),
+            Some(data_type) => data_type
+                .deanonymize_value_string(anonymous_value_string)
+                .map_err(|error| SymbolRegistryError::data_type_operation_failed("deanonymize value string", error)),
+            None => Err(SymbolRegistryError::data_type_not_registered(
+                "deanonymize value string",
+                data_type_ref.get_data_type_id(),
+            )),
         }
     }
 
@@ -179,42 +178,34 @@ impl SymbolRegistry {
         &self,
         data_value: &DataValue,
         anonymous_value_string_format: AnonymousValueStringFormat,
-    ) -> Result<AnonymousValueString, String> {
+    ) -> Result<AnonymousValueString, SymbolRegistryError> {
         match self.get_data_type(data_value.get_data_type_id()) {
-            Some(data_type) => {
-                let anonymized_value = data_type.anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format);
-
-                match anonymized_value {
-                    Ok(anonymous_value_string) => Ok(anonymous_value_string),
-                    Err(error) => Err(error.to_string()),
-                }
-            }
-            None => Err("Cannot deanonymize value: data type is not registered.".into()),
+            Some(data_type) => data_type
+                .anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format)
+                .map_err(|error| SymbolRegistryError::data_type_operation_failed("anonymize value", error)),
+            None => Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())),
         }
     }
 
     pub fn anonymize_value_to_supported_formats(
         &self,
         data_value: &DataValue,
-    ) -> Result<Vec<AnonymousValueString>, String> {
+    ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
         match self.get_data_type(data_value.get_data_type_id()) {
             Some(data_type) => {
                 let mut anonymized_values = Vec::new();
 
                 for anonymous_value_string_format in data_type.get_supported_anonymous_value_string_formats() {
-                    let anonymized_value = data_type.anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format);
-
-                    let anonymous_value_string = match anonymized_value {
-                        Ok(anonymous_value_string) => anonymous_value_string,
-                        Err(error) => return Err(error.to_string()),
-                    };
+                    let anonymous_value_string = data_type
+                        .anonymize_value_bytes(data_value.get_value_bytes(), anonymous_value_string_format)
+                        .map_err(|error| SymbolRegistryError::data_type_operation_failed("anonymize value", error))?;
 
                     anonymized_values.push(anonymous_value_string);
                 }
 
                 Ok(anonymized_values)
             }
-            None => Err("Cannot deanonymize value: data type is not registered.".into()),
+            None => Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())),
         }
     }
 

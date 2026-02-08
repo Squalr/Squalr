@@ -69,7 +69,13 @@ impl SnapshotRegionScanResults {
         // Edit: Actually, we want to track scan results for each data type separate, and show these as tabs or something in the GUI.
         while let Some(Reverse((collection_index, filter_index))) = heap.pop() {
             let iterator = &mut iterators[collection_index];
-            let filter = iterator.next().unwrap(); // JIRA: Should be always safe, although I'd prefer to eliminate this.
+            let filter = match iterator.next() {
+                Some(snapshot_filter) => snapshot_filter,
+                None => {
+                    // Iterator was exhausted between peek and pop due to stale heap state.
+                    continue;
+                }
+            };
             let collection = &self.snapshot_region_filter_collections[collection_index];
             let memory_alignment = collection.get_memory_alignment();
             let data_type_ref = collection.get_data_type_ref();

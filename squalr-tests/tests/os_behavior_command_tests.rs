@@ -35,7 +35,11 @@ use squalr_tests::mocks::mock_os::MockEngineOs;
 fn create_test_state() -> (MockEngineOs, std::sync::Arc<EnginePrivilegedState>) {
     let mock_engine_os = MockEngineOs::new();
     let engine_os_providers = mock_engine_os.create_providers();
-    let engine_privileged_state = EnginePrivilegedState::new_with_os_providers(EngineMode::Standalone, engine_os_providers);
+    let engine_privileged_state_result = EnginePrivilegedState::new_with_os_providers(EngineMode::Standalone, engine_os_providers);
+    let engine_privileged_state = match engine_privileged_state_result {
+        Ok(engine_privileged_state) => engine_privileged_state,
+        Err(error) => panic!("failed to create engine privileged state in test: {}", error),
+    };
 
     (mock_engine_os, engine_privileged_state)
 }

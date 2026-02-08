@@ -3,6 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use crate::general_settings_config::GeneralSettingsConfig;
 use squalr_engine_api::commands::settings::general::list::general_settings_list_request::GeneralSettingsListRequest;
 use squalr_engine_api::commands::settings::general::list::general_settings_list_response::GeneralSettingsListResponse;
+use squalr_engine_api::commands::settings::settings_error::SettingsError;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for GeneralSettingsListRequest {
@@ -18,7 +19,7 @@ impl PrivilegedCommandRequestExecutor for GeneralSettingsListRequest {
             }
         } else {
             GeneralSettingsListResponse {
-                general_settings: Err("Failed to read settings".to_string()),
+                general_settings: Err(SettingsError::read_failure("general")),
             }
         }
     }

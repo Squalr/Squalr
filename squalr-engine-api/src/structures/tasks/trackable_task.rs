@@ -117,7 +117,13 @@ impl TrackableTask {
         };
 
         while !self.is_completed() {
-            lock = self.completed_cv.wait(lock).unwrap();
+            lock = match self.completed_cv.wait(lock) {
+                Ok(updated_lock) => updated_lock,
+                Err(error) => {
+                    log::error!("Error waiting for event completion: {}", error);
+                    return;
+                }
+            };
         }
     }
 }

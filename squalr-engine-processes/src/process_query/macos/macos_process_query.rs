@@ -1,3 +1,4 @@
+use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use once_cell::sync::Lazy;
@@ -42,15 +43,15 @@ impl MacOsProcessQuery {
 }
 
 impl ProcessQueryer for MacOsProcessQuery {
-    fn start_monitoring() -> Result<(), String> {
+    fn start_monitoring() -> Result<(), ProcessQueryError> {
         Ok(())
     }
 
-    fn stop_monitoring() -> Result<(), String> {
+    fn stop_monitoring() -> Result<(), ProcessQueryError> {
         Ok(())
     }
 
-    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
+    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
         Ok(OpenedProcessInfo::new(
             process_info.get_process_id_raw(),
             process_info.get_name().to_string(),
@@ -60,7 +61,7 @@ impl ProcessQueryer for MacOsProcessQuery {
         ))
     }
 
-    fn close_process(_handle: u64) -> Result<(), String> {
+    fn close_process(_handle: u64) -> Result<(), ProcessQueryError> {
         Ok(())
     }
 

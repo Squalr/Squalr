@@ -1,24 +1,10 @@
-use crate::scanners::element_scan_executor_task::ElementScanExecutorTask;
 use crate::scanners::value_collector_task::ValueCollectorTask;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use squalr_engine_api::conversions::conversions_from_primitives::Conversions;
-use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
-use squalr_engine_api::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
-use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
-use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
-use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
-use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::Instant;
 
 pub struct PointerScanExecutorTask {}
 
@@ -54,15 +40,13 @@ impl PointerScanExecutorTask {
     }
 
     fn scan_task(
-        trackable_task: &Arc<TrackableTask>,
+        _trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
-        pointer_scan_parameters: PointerScanParameters,
+        _pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
     ) {
-        let total_start_time = Instant::now();
-
         if with_logging {
             log::info!("Performing pointer scan...");
         }

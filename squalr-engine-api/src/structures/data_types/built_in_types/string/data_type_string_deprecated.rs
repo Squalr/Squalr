@@ -516,17 +516,19 @@ impl DataType for DataTypeString {
     fn get_meta_data_from_string(
         &self,
         string: &str,
-    ) -> Result<DataTypeMetaData, String> {
+    ) -> Result<DataTypeMetaData, DataTypeError> {
         let parts: Vec<&str> = string.splitn(2, ';').collect();
 
-        if parts.len() < 1 {
-            return Err("Invalid string data type format, expected string;{byte_count};{optional_encoding_or_utf8_default}".into());
+        if parts.len() < 2 {
+            return Err(DataTypeError::ParseError(
+                "Invalid string data type format, expected string;{byte_count};{optional_encoding_or_utf8_default}".to_string(),
+            ));
         }
 
         let string_size = match parts[1].trim().parse::<u64>() {
             Ok(string_size) => string_size,
             Err(error) => {
-                return Err(format!("Failed to parse string size: {}", error));
+                return Err(DataTypeError::ParseError(format!("Failed to parse string size: {}", error)));
             }
         };
         let encoding_string = if parts.len() >= 2 { parts[2].trim() } else { "" };

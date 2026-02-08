@@ -6,6 +6,7 @@ use squalr_engine_api::structures::processes::opened_process_info::OpenedProcess
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
+use squalr_engine_processes::process_query::process_query_error::ProcessQueryError;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use std::sync::{Arc, Mutex};
 
@@ -124,7 +125,7 @@ struct MockProcessQueryProvider {
 }
 
 impl ProcessQueryProvider for MockProcessQueryProvider {
-    fn start_monitoring(&self) -> Result<(), String> {
+    fn start_monitoring(&self) -> Result<(), ProcessQueryError> {
         Ok(())
     }
 
@@ -156,7 +157,7 @@ impl ProcessQueryProvider for MockProcessQueryProvider {
     fn open_process(
         &self,
         process_info: &ProcessInfo,
-    ) -> Result<OpenedProcessInfo, String> {
+    ) -> Result<OpenedProcessInfo, ProcessQueryError> {
         match self.state.lock() {
             Ok(mut state_guard) => {
                 state_guard
@@ -165,23 +166,29 @@ impl ProcessQueryProvider for MockProcessQueryProvider {
 
                 match state_guard.opened_process_result.clone() {
                     Some(opened_process_info) => Ok(opened_process_info),
-                    None => Err("No mocked opened process result configured.".to_string()),
+                    None => Err(ProcessQueryError::internal("open_process", "No mocked opened process result configured.")),
                 }
             }
-            Err(error) => Err(format!("Failed to lock mock process query provider: {}", error)),
+            Err(error) => Err(ProcessQueryError::internal(
+                "open_process",
+                format!("Failed to lock mock process query provider: {}", error),
+            )),
         }
     }
 
     fn close_process(
         &self,
         handle: u64,
-    ) -> Result<(), String> {
+    ) -> Result<(), ProcessQueryError> {
         match self.state.lock() {
             Ok(mut state_guard) => {
                 state_guard.close_process_handles.push(handle);
                 Ok(())
             }
-            Err(error) => Err(format!("Failed to lock mock process query provider: {}", error)),
+            Err(error) => Err(ProcessQueryError::internal(
+                "close_process",
+                format!("Failed to lock mock process query provider: {}", error),
+            )),
         }
     }
 }

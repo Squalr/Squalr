@@ -5839,6 +5839,7 @@ dependencies = [
 name = "squalr"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "arc-swap",
  "bus",
  "crossbeam-channel",
@@ -5879,6 +5880,7 @@ dependencies = [
 name = "squalr-cli"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "crossbeam-channel",
  "futures",
  "log",
@@ -5919,6 +5921,7 @@ dependencies = [
  "structopt",
  "sysinfo",
  "tempfile",
+ "thiserror 2.0.16",
  "ureq",
  "url",
  "urlencoding",
@@ -5994,6 +5997,7 @@ dependencies = [
  "serde",
  "squalr-engine-api",
  "sysinfo",
+ "thiserror 2.0.16",
  "windows-sys 0.59.0",
  "zip",
 ]
@@ -6026,6 +6030,7 @@ dependencies = [
  "squalr-engine-api",
  "squalr-engine-memory",
  "sysinfo",
+ "thiserror 2.0.16",
 ]
 
 [[package]]
@@ -6043,6 +6048,7 @@ dependencies = [
 name = "squalr-installer"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "eframe",
  "epaint",
  "image",
@@ -6067,6 +6073,7 @@ dependencies = [
 name = "squalr-tui"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "crossbeam-channel",
  "futures",
  "log",

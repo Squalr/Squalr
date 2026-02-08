@@ -1,10 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::{
-        converters::data_type_to_icon_converter::DataTypeToIconConverter,
-        draw::icon_draw::IconDraw,
-        widgets::controls::{data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer},
-    },
+    ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
     views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction,
 };
 use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
@@ -124,32 +120,6 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
-
-        // Draw value.
-        /*
-        user_interface.put(
-            Rect::from_min_size(pos2(value_position_x, available_size_rect.min.y), vec2(row_max_x, available_size_rect.max.y)),
-
-            DataValueBoxView::new(
-                self.app_context.clone(),
-                &mut self
-                    .valued_struct_field
-                    .get_data_value_interpreters()
-                    .unwrap()
-                    .get_default_data_value_interpreter()
-                    .unwrap(),
-                &self
-                    .valued_struct_field
-                    .get_data_value()
-                    .unwrap()
-                    .get_data_type_ref(),
-                false,
-                true,
-                "Edit selected values...",
-                "data_value_box_edit_value",
-            )
-            .width(row_max_x - value_position_x),
-        );*/
 
         response
     }

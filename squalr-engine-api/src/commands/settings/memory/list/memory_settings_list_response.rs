@@ -1,13 +1,14 @@
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::settings::memory::memory_settings_response::MemorySettingsResponse;
+use crate::commands::settings::settings_error::SettingsError;
 use crate::commands::settings::settings_response::SettingsResponse;
 use crate::structures::settings::memory_settings::MemorySettings;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemorySettingsListResponse {
-    pub memory_settings: Result<MemorySettings, String>,
+    pub memory_settings: Result<MemorySettings, SettingsError>,
 }
 
 impl TypedPrivilegedCommandResponse for MemorySettingsListResponse {

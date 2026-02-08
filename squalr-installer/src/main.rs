@@ -12,11 +12,12 @@ use crate::app::InstallerApp;
 use crate::logging::initialize_logger;
 use crate::ui_assets::{APP_NAME, load_app_icon_data};
 use crate::ui_state::InstallerUiState;
+use anyhow::{Context, Result, anyhow};
 use eframe::NativeOptions;
 use eframe::egui::ViewportBuilder;
 use std::sync::{Arc, Mutex};
 
-pub fn main() {
+fn main() -> Result<()> {
     let ui_state = Arc::new(Mutex::new(InstallerUiState::new()));
 
     let mut viewport_builder = ViewportBuilder::default()
@@ -34,19 +35,18 @@ pub fn main() {
         ..NativeOptions::default()
     };
 
-    let run_result = eframe::run_native(
+    // Run the gui.
+    eframe::run_native(
         APP_NAME,
         native_options,
         Box::new(move |creation_context| {
-            if let Err(error) = initialize_logger(ui_state.clone(), creation_context.egui_ctx.clone()) {
-                eprintln!("Failed to initialize installer logger: {error}");
-            }
+            initialize_logger(ui_state.clone(), creation_context.egui_ctx.clone()).context("Failed to initialize installer logger")?;
 
             Ok(Box::new(InstallerApp::new(&creation_context.egui_ctx, ui_state.clone())))
         }),
-    );
+    )
+    .map_err(|error| anyhow!(error.to_string()))
+    .context("Fatal error starting installer GUI")?;
 
-    if let Err(error) = run_result {
-        eprintln!("Fatal error starting installer GUI: {error}");
-    }
+    Ok(())
 }

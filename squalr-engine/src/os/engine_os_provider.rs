@@ -11,12 +11,13 @@ use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use squalr_engine_memory::memory_writer::MemoryWriter;
 use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
+use squalr_engine_processes::process_query::process_query_error::ProcessQueryError;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::Arc;
 
 pub trait ProcessQueryProvider: Send + Sync {
-    fn start_monitoring(&self) -> Result<(), String>;
+    fn start_monitoring(&self) -> Result<(), ProcessQueryError>;
     fn get_processes(
         &self,
         process_query_options: ProcessQueryOptions,
@@ -24,11 +25,11 @@ pub trait ProcessQueryProvider: Send + Sync {
     fn open_process(
         &self,
         process_info: &ProcessInfo,
-    ) -> Result<OpenedProcessInfo, String>;
+    ) -> Result<OpenedProcessInfo, ProcessQueryError>;
     fn close_process(
         &self,
         handle: u64,
-    ) -> Result<(), String>;
+    ) -> Result<(), ProcessQueryError>;
 }
 
 pub trait MemoryQueryProvider: Send + Sync {
@@ -121,7 +122,7 @@ impl Default for EngineOsProviders {
 struct DefaultProcessQueryProvider;
 
 impl ProcessQueryProvider for DefaultProcessQueryProvider {
-    fn start_monitoring(&self) -> Result<(), String> {
+    fn start_monitoring(&self) -> Result<(), ProcessQueryError> {
         ProcessQuery::start_monitoring()
     }
 
@@ -135,14 +136,14 @@ impl ProcessQueryProvider for DefaultProcessQueryProvider {
     fn open_process(
         &self,
         process_info: &ProcessInfo,
-    ) -> Result<OpenedProcessInfo, String> {
+    ) -> Result<OpenedProcessInfo, ProcessQueryError> {
         ProcessQuery::open_process(process_info)
     }
 
     fn close_process(
         &self,
         handle: u64,
-    ) -> Result<(), String> {
+    ) -> Result<(), ProcessQueryError> {
         ProcessQuery::close_process(handle)
     }
 }

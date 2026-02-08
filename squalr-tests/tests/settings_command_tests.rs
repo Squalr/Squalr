@@ -18,6 +18,7 @@ use squalr_engine_api::commands::settings::scan::scan_settings_command::ScanSett
 use squalr_engine_api::commands::settings::scan::set::scan_settings_set_request::ScanSettingsSetRequest;
 use squalr_engine_api::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use squalr_engine_api::commands::settings::settings_command::SettingsCommand;
+use squalr_engine_api::commands::settings::settings_error::SettingsError;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
@@ -70,7 +71,7 @@ fn general_settings_set_request_dispatches_set_command_and_invokes_typed_callbac
 fn general_settings_set_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
         GeneralSettingsListResponse {
-            general_settings: Err("settings unavailable".to_string()),
+            general_settings: Err(SettingsError::read_failure("general")),
         }
         .to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
@@ -111,7 +112,7 @@ fn general_settings_set_request_does_not_invoke_callback_when_response_variant_i
 fn general_settings_list_request_dispatches_list_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
         GeneralSettingsListResponse {
-            general_settings: Err("general settings unavailable".to_string()),
+            general_settings: Err(SettingsError::read_failure("general")),
         }
         .to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
@@ -147,7 +148,7 @@ fn general_settings_list_request_dispatches_list_command_and_invokes_typed_callb
 fn memory_settings_list_request_dispatches_list_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
         MemorySettingsListResponse {
-            memory_settings: Err("memory settings unavailable".to_string()),
+            memory_settings: Err(SettingsError::read_failure("memory")),
         }
         .to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
@@ -283,7 +284,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
 fn scan_settings_list_request_dispatches_list_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
         ScanSettingsListResponse {
-            scan_settings: Err("scan settings unavailable".to_string()),
+            scan_settings: Err(SettingsError::read_failure("scan")),
         }
         .to_engine_response(),
         ProjectListResponse::default().to_engine_response(),

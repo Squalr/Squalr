@@ -1,3 +1,4 @@
+use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use crate::process_query::windows::windows_icon_handle::{DcHandle, IconHandle};
@@ -192,31 +193,33 @@ impl WindowsProcessQuery {
 }
 
 impl ProcessQueryer for WindowsProcessQuery {
-    fn start_monitoring() -> Result<(), String> {
+    fn start_monitoring() -> Result<(), ProcessQueryError> {
         let mut monitor = PROCESS_MONITOR
             .lock()
-            .map_err(|error| format!("Failed to acquire process monitor lock: {}", error))?;
+            .map_err(|error| ProcessQueryError::process_monitor_lock_poisoned("start_monitoring", error.to_string()))?;
 
         monitor.start_monitoring();
 
         Ok(())
     }
 
-    fn stop_monitoring() -> Result<(), String> {
+    fn stop_monitoring() -> Result<(), ProcessQueryError> {
         let mut monitor = PROCESS_MONITOR
             .lock()
-            .map_err(|error| format!("Failed to acquire process monitor lock: {}", error))?;
+            .map_err(|error| ProcessQueryError::process_monitor_lock_poisoned("stop_monitoring", error.to_string()))?;
 
         monitor.stop_monitoring();
 
         Ok(())
     }
 
-    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, String> {
+    fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
         unsafe {
             let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.get_process_id_raw());
             if handle == std::ptr::null_mut() {
-                Err("Failed to open process".to_string())
+                Err(ProcessQueryError::OpenProcessFailed {
+                    process_id: process_info.get_process_id_raw(),
+                })
             } else {
                 let opened_process_info = OpenedProcessInfo::new(
                     process_info.get_process_id_raw(),
@@ -231,10 +234,10 @@ impl ProcessQueryer for WindowsProcessQuery {
         }
     }
 
-    fn close_process(handle: u64) -> Result<(), String> {
+    fn close_process(handle: u64) -> Result<(), ProcessQueryError> {
         unsafe {
             if CloseHandle(handle as HANDLE) == 0 {
-                Err("Failed to close process handle".to_string())
+                Err(ProcessQueryError::CloseProcessFailed { handle })
             } else {
                 Ok(())
             }

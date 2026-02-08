@@ -8,27 +8,22 @@ use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandR
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::Arc;
 
 pub struct StandaloneEngineApiUnprivilegedBindings {
     // The instance of the engine privileged state. Since this is an intra-process implementation, we invoke commands using this state directly.
-    engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
+    engine_privileged_state: Arc<EnginePrivilegedState>,
 }
 
 impl StandaloneEngineApiUnprivilegedBindings {
     /// Initialize unprivileged bindings. For standalone builds, the privileged engine state is passed to allow direct communcation.
-    pub fn new(engine_privileged_state: &Option<Arc<EnginePrivilegedState>>) -> Self {
-        let engine_privileged_state = if let Some(engine_privileged_state) = engine_privileged_state {
-            Some(engine_privileged_state.clone())
-        } else {
-            log::error!("No privileged state provided! Engine command dispatching will be non-functional without this.");
-
-            None
-        };
-
-        Self { engine_privileged_state }
+    pub fn new(engine_privileged_state: &Arc<EnginePrivilegedState>) -> Self {
+        Self {
+            engine_privileged_state: engine_privileged_state.clone(),
+        }
     }
 }
 
@@ -38,27 +33,23 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         &self,
         privileged_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EngineBindingError> {
         let engine_request_delay = GeneralSettingsConfig::get_engine_request_delay_ms();
 
-        if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            // Execute the request either immediately, or on an artificial delay if a debug request delay is set.
-            if engine_request_delay <= 0 {
-                callback(privileged_command.execute(&engine_privileged_state));
-            } else {
-                let engine_privileged_state = engine_privileged_state.clone();
-
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(engine_request_delay as u64));
-                    let response = privileged_command.execute(&engine_privileged_state);
-                    callback(response);
-                });
-            }
-
-            Ok(())
+        // Execute the request either immediately, or on an artificial delay if a debug request delay is set.
+        if engine_request_delay <= 0 {
+            callback(privileged_command.execute(&self.engine_privileged_state));
         } else {
-            Err("No privileged state available for command execution.".to_string())
+            let engine_privileged_state = self.engine_privileged_state.clone();
+
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(engine_request_delay as u64));
+                let response = privileged_command.execute(&engine_privileged_state);
+                callback(response);
+            });
         }
+
+        Ok(())
     }
 
     /// Dispatches an unprivileged command to be immediately handled on the client side.
@@ -67,7 +58,7 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         unprivileged_command: UnprivilegedCommand,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EngineBindingError> {
         let response = unprivileged_command.execute(engine_unprivileged_state);
 
         callback(response);
@@ -76,12 +67,7 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
     }
 
     /// Requests to listen to all engine events.
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
-        // If we are in standalone mode, then we can just directly subscribe to the engine events.
-        if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            engine_privileged_state.subscribe_to_engine_events()
-        } else {
-            Err("Failed to subscribe to engine events.".to_string())
-        }
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+        self.engine_privileged_state.subscribe_to_engine_events()
     }
 }

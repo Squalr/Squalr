@@ -1,10 +1,12 @@
 use crate::engine_bindings::interprocess::interprocess_engine_api_privileged_bindings::InterprocessEngineApiPrivilegedBindings;
 use crate::engine_bindings::standalone::standalone_engine_api_privileged_bindings::StandalonePrivilegedEngine;
+use crate::engine_initialization_error::EngineInitializationError;
 use crate::engine_mode::EngineMode;
 use crate::os::engine_os_provider::EngineOsProviders;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
+use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use squalr_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
@@ -38,14 +40,14 @@ pub struct EnginePrivilegedState {
 }
 
 impl EnginePrivilegedState {
-    pub fn new(engine_mode: EngineMode) -> Arc<Self> {
+    pub fn new(engine_mode: EngineMode) -> Result<Arc<Self>, EngineInitializationError> {
         Self::new_with_os_providers(engine_mode, EngineOsProviders::default())
     }
 
     pub fn new_with_os_providers(
         engine_mode: EngineMode,
         os_providers: EngineOsProviders,
-    ) -> Arc<Self> {
+    ) -> Result<Arc<Self>, EngineInitializationError> {
         let engine_bindings_standalone = match engine_mode {
             EngineMode::Standalone => Some(Arc::new(RwLock::new(StandalonePrivilegedEngine::new()))),
             _ => None,
@@ -56,8 +58,12 @@ impl EnginePrivilegedState {
         };
 
         let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => unsafe { engine_bindings_standalone.clone().unwrap_unchecked() },
-            EngineMode::PrivilegedShell => unsafe { engine_bindings_interprocess.clone().unwrap_unchecked() },
+            EngineMode::Standalone => engine_bindings_standalone
+                .clone()
+                .expect("Standalone engine mode must always provide standalone privileged bindings."),
+            EngineMode::PrivilegedShell => engine_bindings_interprocess
+                .clone()
+                .expect("Privileged shell mode must always provide interprocess privileged bindings."),
             EngineMode::UnprivilegedHost => unreachable!("Privileged state should never be created on an unprivileged host."),
         };
 
@@ -83,11 +89,17 @@ impl EnginePrivilegedState {
             match engine_bindings_standalone.write() {
                 Ok(mut engine_bindings_standalone) => {
                     if let Err(error) = engine_bindings_standalone.initialize(&engine_privileged_state) {
-                        log::error!("Error initializing standalone privileged engine bindings: {}", error);
+                        return Err(EngineInitializationError::privileged_bindings_initialize_failed(
+                            "initializing standalone privileged bindings",
+                            error,
+                        ));
                     }
                 }
                 Err(error) => {
-                    log::error!("Failed to acquire standalone privileged engine bindings write lock: {}", error);
+                    return Err(EngineInitializationError::privileged_bindings_lock_failed(
+                        "initializing standalone privileged bindings",
+                        error.to_string(),
+                    ));
                 }
             }
         }
@@ -97,11 +109,17 @@ impl EnginePrivilegedState {
             match engine_bindings_interprocess.write() {
                 Ok(mut engine_bindings_interprocess) => {
                     if let Err(error) = engine_bindings_interprocess.initialize(&engine_privileged_state) {
-                        log::error!("Error initializing interprocess privileged engine bindings: {}", error);
+                        return Err(EngineInitializationError::privileged_bindings_initialize_failed(
+                            "initializing interprocess privileged bindings",
+                            error,
+                        ));
                     }
                 }
                 Err(error) => {
-                    log::error!("Failed to acquire interprocess privileged engine bindings write lock: {}", error);
+                    return Err(EngineInitializationError::privileged_bindings_lock_failed(
+                        "initializing interprocess privileged bindings",
+                        error.to_string(),
+                    ));
                 }
             }
         }
@@ -111,10 +129,10 @@ impl EnginePrivilegedState {
             .process_query
             .start_monitoring()
         {
-            log::error!("Failed to monitor system processes: {}", error);
+            return Err(EngineInitializationError::process_monitoring_start_failed(error));
         }
 
-        engine_privileged_state
+        Ok(engine_privileged_state)
     }
 
     /// Gets the process manager for this session.
@@ -162,10 +180,13 @@ impl EnginePrivilegedState {
     }
 
     /// Dispatches an event from the engine.
-    pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
+    pub fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
         match self.engine_bindings.read() {
             Ok(engine_bindings) => engine_bindings.subscribe_to_engine_events(),
-            Err(error) => Err(format!("Failed to acquire privileged engine bindings read lock: {}", error)),
+            Err(error) => Err(EngineBindingError::lock_failure(
+                "subscribing to engine events from privileged state",
+                error.to_string(),
+            )),
         }
     }
 
@@ -201,5 +222,64 @@ impl EnginePrivilegedState {
                 }
             }
         }) as Arc<dyn Fn(EngineEvent) + Send + Sync>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EnginePrivilegedState;
+    use crate::engine_mode::EngineMode;
+    use crate::os::engine_os_provider::{EngineOsProviders, ProcessQueryProvider};
+    use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+    use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+    use squalr_engine_processes::process_query::process_query_error::ProcessQueryError;
+    use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
+    use std::sync::Arc;
+
+    struct FailingProcessQueryProvider;
+
+    impl ProcessQueryProvider for FailingProcessQueryProvider {
+        fn start_monitoring(&self) -> Result<(), ProcessQueryError> {
+            Err(ProcessQueryError::internal("start_monitoring", "simulated startup failure"))
+        }
+
+        fn get_processes(
+            &self,
+            _process_query_options: ProcessQueryOptions,
+        ) -> Vec<ProcessInfo> {
+            vec![]
+        }
+
+        fn open_process(
+            &self,
+            _process_info: &ProcessInfo,
+        ) -> Result<OpenedProcessInfo, ProcessQueryError> {
+            Err(ProcessQueryError::internal("open_process", "not implemented in test provider"))
+        }
+
+        fn close_process(
+            &self,
+            _handle: u64,
+        ) -> Result<(), ProcessQueryError> {
+            Err(ProcessQueryError::internal("close_process", "not implemented in test provider"))
+        }
+    }
+
+    #[test]
+    fn new_with_os_providers_fails_fast_when_process_monitoring_fails() {
+        let mut os_providers = EngineOsProviders::default();
+        os_providers.process_query = Arc::new(FailingProcessQueryProvider);
+
+        let initialization_result = EnginePrivilegedState::new_with_os_providers(EngineMode::Standalone, os_providers);
+
+        assert!(initialization_result.is_err());
+
+        if let Err(error) = initialization_result {
+            assert!(
+                error
+                    .to_string()
+                    .contains("Failed to start process monitoring during privileged engine bootstrap")
+            );
+        }
     }
 }

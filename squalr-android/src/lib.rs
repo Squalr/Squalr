@@ -7,38 +7,22 @@ static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../sq
 
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
-    if let Err(error) = slint::android::init(app) {
-        log::error!("Failed to initialize Slint Android: {}", error);
-        return;
-    }
-
-    if let Err(error) = unpack_cli() {
-        log::error!("Fatal error unpacking privileged cli: {}", error);
-        return;
-    }
+    slint::android::init(app).unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while initializing Slint: {}", error));
+    unpack_cli().unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while unpacking privileged CLI: {}", error));
 
     // Create an unprivileged engine host (on android, the privileged engine is spawned as a new process).
-    let mut squalr_engine = match SqualrEngine::new(EngineMode::UnprivilegedHost) {
-        Ok(squalr_engine) => squalr_engine,
-        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
-    };
+    let mut squalr_engine = SqualrEngine::new(EngineMode::UnprivilegedHost)
+        .unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while initializing Squalr engine: {}", error));
 
     // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = match MainWindowViewModel::new(squalr_engine.get_dependency_container_mut()) {
-        Ok(main_window_view) => main_window_view,
-        Err(error) => panic!("Fatal error creating Squalr GUI: {}", error),
-    };
+    let _main_window_view = MainWindowViewModel::new(squalr_engine.get_dependency_container_mut())
+        .unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while creating Squalr GUI: {}", error));
 
     // Now that gui dependencies are registered, start the engine fully.
     squalr_engine.initialize();
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
-    match slint::run_event_loop() {
-        Ok(_) => {}
-        Err(error) => {
-            log::error!("Fatal error starting Squalr: {}", error);
-        }
-    }
+    slint::run_event_loop().unwrap_or_else(|error| panic!("Fatal Android runtime failure while starting event loop: {}", error));
 }
 
 fn unpack_cli() -> std::io::Result<()> {

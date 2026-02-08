@@ -6,6 +6,7 @@ pub mod models;
 pub mod ui;
 pub mod views;
 
+use anyhow::{Context, Result, anyhow};
 use app::App;
 use eframe::NativeOptions;
 use eframe::egui::{IconData, ViewportBuilder};
@@ -15,12 +16,9 @@ use squalr_engine::squalr_engine::SqualrEngine;
 static ICON_APP: &[u8] = include_bytes!("../images/app/app_icon.png");
 static APP_NAME: &str = "Squalr";
 
-pub fn main() {
+pub fn main() -> Result<()> {
     // Create a standalone engine (same process for gui and engine).
-    let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
-        Ok(squalr_engine) => squalr_engine,
-        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
-    };
+    let mut squalr_engine = SqualrEngine::new(EngineMode::Standalone).context("Fatal error initializing Squalr engine.")?;
 
     let icon = image::load_from_memory(ICON_APP)
         .unwrap_or_default()
@@ -44,7 +42,7 @@ pub fn main() {
     };
 
     // Run the gui.
-    match eframe::run_native(
+    eframe::run_native(
         APP_NAME,
         native_options,
         Box::new(|creation_context| {
@@ -64,10 +62,9 @@ pub fn main() {
                 Err("Failed to start Squalr engine!".into())
             }
         }),
-    ) {
-        Ok(_) => {}
-        Err(error) => {
-            panic!("Fatal error in Squalr event loop: {}", error);
-        }
-    }
+    )
+    .map_err(|error| anyhow!(error.to_string()))
+    .context("Fatal error in Squalr event loop.")?;
+
+    Ok(())
 }

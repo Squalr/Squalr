@@ -4,6 +4,7 @@ use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandR
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, Mutex};
@@ -42,13 +43,16 @@ impl EngineApiUnprivilegedBindings for MockEngineBindings {
         &self,
         engine_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EngineBindingError> {
         match self.dispatched_commands.lock() {
             Ok(mut dispatched_commands) => {
                 dispatched_commands.push(engine_command);
             }
             Err(error) => {
-                return Err(format!("Failed to capture dispatched command: {}", error));
+                return Err(EngineBindingError::lock_failure(
+                    "capturing dispatched privileged command in test mock",
+                    error.to_string(),
+                ));
             }
         }
 
@@ -62,13 +66,16 @@ impl EngineApiUnprivilegedBindings for MockEngineBindings {
         engine_command: UnprivilegedCommand,
         _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EngineBindingError> {
         match self.dispatched_unprivileged_commands.lock() {
             Ok(mut dispatched_unprivileged_commands) => {
                 dispatched_unprivileged_commands.push(engine_command);
             }
             Err(error) => {
-                return Err(format!("Failed to capture dispatched unprivileged command: {}", error));
+                return Err(EngineBindingError::lock_failure(
+                    "capturing dispatched unprivileged command in test mock",
+                    error.to_string(),
+                ));
             }
         }
 
@@ -77,7 +84,7 @@ impl EngineApiUnprivilegedBindings for MockEngineBindings {
         Ok(())
     }
 
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
         let (_event_sender, event_receiver) = unbounded();
 
         Ok(event_receiver)

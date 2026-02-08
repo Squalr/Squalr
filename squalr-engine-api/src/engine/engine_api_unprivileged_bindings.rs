@@ -3,6 +3,7 @@ use crate::{
         privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse, unprivileged_command::UnprivilegedCommand,
         unprivileged_command_response::UnprivilegedCommandResponse,
     },
+    engine::engine_binding_error::EngineBindingError,
     engine::engine_unprivileged_state::EngineUnprivilegedState,
     events::engine_event::EngineEvent,
 };
@@ -16,7 +17,7 @@ pub trait EngineApiUnprivilegedBindings: Send + Sync {
         &self,
         engine_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String>;
+    ) -> Result<(), EngineBindingError>;
 
     /// Dispatches an unprivileged command to be immediately handled on the client side.
     fn dispatch_unprivileged_command(
@@ -24,8 +25,8 @@ pub trait EngineApiUnprivilegedBindings: Send + Sync {
         engine_command: UnprivilegedCommand,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String>;
+    ) -> Result<(), EngineBindingError>;
 
     /// Requests to listen to all engine events.
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String>;
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError>;
 }

@@ -1,7 +1,8 @@
+use anyhow::{Context, Result, bail};
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
 
-fn main() {
+fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let engine_mode = if args.contains(&"--ipc-mode".to_string()) {
         EngineMode::PrivilegedShell
@@ -10,19 +11,21 @@ fn main() {
     };
 
     // Start Squalr engine.
-    let mut squalr_engine = match SqualrEngine::new(EngineMode::Standalone) {
-        Ok(squalr_engine) => squalr_engine,
-        Err(error) => panic!("Fatal error initializing Squalr engine: {}", error),
-    };
+    let mut squalr_engine = SqualrEngine::new(engine_mode).context("Fatal error initializing Squalr engine.")?;
 
     // Start the log event sending now that both the CLI and engine are ready to receive log messages.
     squalr_engine.initialize();
 
     if engine_mode == EngineMode::Standalone {
-        let engine_unprivileged_state = squalr_engine.get_engine_unprivileged_state().as_ref().unwrap();
+        squalr_engine
+            .get_engine_unprivileged_state()
+            .as_ref()
+            .context("Engine unprivileged state was unavailable in standalone mode.")?;
     } else if engine_mode == EngineMode::PrivilegedShell {
         log::info!("TUI running as a privileged IPC shell.");
     } else {
-        unreachable!("Unsupported TUI state.")
+        bail!("Unsupported TUI state.");
     }
+
+    Ok(())
 }

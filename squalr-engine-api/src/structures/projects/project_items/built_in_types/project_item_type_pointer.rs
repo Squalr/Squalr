@@ -2,7 +2,7 @@ use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registries::Registries;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
-use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType};
+use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 

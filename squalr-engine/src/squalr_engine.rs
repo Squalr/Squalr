@@ -31,18 +31,22 @@ impl SqualrEngine {
 
         match engine_mode {
             EngineMode::Standalone => {
-                engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode));
+                engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode)?);
             }
             EngineMode::PrivilegedShell => {
-                engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode));
+                engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode)?);
             }
             EngineMode::UnprivilegedHost => {}
         }
 
         let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = match engine_mode {
-            EngineMode::Standalone => Arc::new(RwLock::new(StandaloneEngineApiUnprivilegedBindings::new(&engine_privileged_state))),
+            EngineMode::Standalone => Arc::new(RwLock::new(StandaloneEngineApiUnprivilegedBindings::new(
+                engine_privileged_state
+                    .as_ref()
+                    .expect("Standalone mode must always initialize privileged state before creating bindings."),
+            ))),
             EngineMode::PrivilegedShell => unreachable!("Unprivileged execution context should never be created from a privileged shell."),
-            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterprocessEngineApiUnprivilegedBindings::new())),
+            EngineMode::UnprivilegedHost => Arc::new(RwLock::new(InterprocessEngineApiUnprivilegedBindings::new()?)),
         };
 
         match engine_mode {

@@ -5,8 +5,6 @@ use crate::scanners::scanner_null::ScannerNull;
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::vector::scanner_vector_aligned::ScannerVectorAligned;
 use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlapping;
-use crate::scanners::vector::scanner_vector_overlapping_bytewise_periodic::ScannerVectorOverlappingBytewisePeriodic;
-use crate::scanners::vector::scanner_vector_overlapping_bytewise_staggered::ScannerVectorOverlappingBytewiseStaggered;
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;

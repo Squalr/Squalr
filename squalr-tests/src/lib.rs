@@ -10,6 +10,7 @@ use squalr_engine_api::commands::project::list::project_list_response::ProjectLi
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -40,7 +41,7 @@ impl EngineApiUnprivilegedBindings for NoOpEngineBindings {
         &self,
         _engine_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EngineBindingError> {
         callback(self.privileged_response.clone());
         Ok(())
     }
@@ -50,12 +51,12 @@ impl EngineApiUnprivilegedBindings for NoOpEngineBindings {
         _engine_command: UnprivilegedCommand,
         _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
-    ) -> Result<(), String> {
+    ) -> Result<(), EngineBindingError> {
         callback(self.unprivileged_response.clone());
         Ok(())
     }
 
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, String> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
         let (_event_sender, event_receiver) = unbounded();
         Ok(event_receiver)
     }

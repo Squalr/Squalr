@@ -117,7 +117,7 @@ impl ProjectManager {
                         },
                         _ => {}
                     },
-                    Err(error) => eprintln!("Watch error: {:?}", error),
+                    Err(error) => log::error!("Watch error: {:?}", error),
                 }
             }
         });

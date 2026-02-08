@@ -1,13 +1,14 @@
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::settings::scan::scan_settings_response::ScanSettingsResponse;
+use crate::commands::settings::settings_error::SettingsError;
 use crate::commands::settings::settings_response::SettingsResponse;
 use crate::structures::settings::scan_settings::ScanSettings;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScanSettingsListResponse {
-    pub scan_settings: Result<ScanSettings, String>,
+    pub scan_settings: Result<ScanSettings, SettingsError>,
 }
 
 impl TypedPrivilegedCommandResponse for ScanSettingsListResponse {
