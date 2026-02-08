@@ -44,7 +44,7 @@ impl<'lifetime> Widget for TabItemView<'lifetime> {
         let text_color = theme.foreground;
         let header_galley = user_interface
             .ctx()
-            .fonts(|fonts| fonts.layout_no_wrap(self.header.clone(), font_id.clone(), text_color));
+            .fonts_mut(|fonts| fonts.layout_no_wrap(self.header.clone(), font_id.clone(), text_color));
         let text_size = header_galley.size();
         let style = user_interface.style().clone();
         let padding_vertical = style.spacing.button_padding.y.max(4.0);

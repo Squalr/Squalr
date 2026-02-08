@@ -1,4 +1,4 @@
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
+use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink};
 use std::{collections::HashMap, io::Cursor};
 
 static SUCCESS_WAV: &[u8] = include_bytes!("../../audio/Success.wav");
@@ -13,23 +13,14 @@ pub enum SoundType {
 }
 
 pub struct AudioPlayer {
-    stream_handle: Option<OutputStreamHandle>,
+    output_stream: Option<OutputStream>,
     sounds: HashMap<SoundType, &'static [u8]>,
 }
 
-static mut INSTANCE: Option<OutputStream> = None;
-
 impl AudioPlayer {
     pub fn new() -> Self {
-        let stream_handle = match OutputStream::try_default() {
-            Ok((stream, stream_handle)) => {
-                // Keep the stream alive without tying it to the audio player instance, as it does not implement Send + Sync.
-                unsafe {
-                    INSTANCE = Some(stream);
-                }
-
-                Some(stream_handle)
-            }
+        let output_stream = match OutputStreamBuilder::open_default_stream() {
+            Ok(stream) => Some(stream),
             Err(error) => {
                 log::error!("Failed to initialize audio player: {}", error);
                 None
@@ -38,7 +29,7 @@ impl AudioPlayer {
 
         let sounds = Self::load_sounds();
 
-        Self { stream_handle, sounds }
+        Self { output_stream, sounds }
     }
 
     pub fn play_sound(
@@ -49,16 +40,10 @@ impl AudioPlayer {
             let cursor = Cursor::new(*data);
             match Decoder::new(cursor) {
                 Ok(source) => {
-                    if let Some(stream_handle) = &self.stream_handle {
-                        match Sink::try_new(stream_handle) {
-                            Ok(sink) => {
-                                sink.append(source);
-                                sink.detach();
-                            }
-                            Err(error) => {
-                                log::error!("Error creating audio sink: {}", error);
-                            }
-                        }
+                    if let Some(output_stream) = &self.output_stream {
+                        let sink = Sink::connect_new(output_stream.mixer());
+                        sink.append(source);
+                        sink.detach();
                     }
                 }
                 Err(error) => {

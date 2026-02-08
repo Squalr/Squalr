@@ -49,7 +49,7 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         let text_color = theme.foreground;
         let header_galley = user_interface
             .ctx()
-            .fonts(|fonts| fonts.layout_no_wrap(self.header.clone(), font_id.clone(), text_color));
+            .fonts_mut(|fonts| fonts.layout_no_wrap(self.header.clone(), font_id.clone(), text_color));
         let text_size = header_galley.size();
         let style = user_interface.style().clone();
         let padding_v = style.spacing.button_padding.y.max(4.0);
@@ -115,7 +115,7 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         // Compute popup width.
         let mut widest = allocated_size_rectangle.width();
 
-        user_interface.ctx().fonts(|fonts| {
+        user_interface.ctx().fonts_mut(|fonts| {
             for item in self.items.iter() {
                 let galley = fonts.layout_no_wrap(
                     item.text.clone(),

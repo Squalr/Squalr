@@ -2,7 +2,6 @@ use crate::{
     app_context::AppContext,
     views::project_explorer::project_hierarchy::{
         project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
-        project_item_entry_view::ProjectItemEntryView,
         view_data::{project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_view_data::ProjectHierarchyViewData},
     },
 };

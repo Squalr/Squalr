@@ -13,7 +13,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::{Mutex, RwLock};
 use sysinfo::Pid;
-use windows_sys::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND, LPARAM};
+use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE, HWND, LPARAM, TRUE};
 use windows_sys::Win32::Graphics::Gdi::{BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, GetDC, GetDIBits};
 use windows_sys::Win32::System::ProcessStatus::K32GetModuleFileNameExW;
 use windows_sys::Win32::System::Threading::{IsWow64Process, IsWow64Process2};
@@ -22,6 +22,7 @@ use windows_sys::Win32::UI::Shell::ExtractIconW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{EnumWindows, IsWindowVisible};
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetIconInfo, ICONINFO};
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowThreadProcessId, HICON};
+use windows_sys::core::BOOL;
 
 pub(crate) static PROCESS_MONITOR: Lazy<Mutex<WindowsProcessMonitor>> = Lazy::new(|| Mutex::new(WindowsProcessMonitor::new()));
 static PROCESS_CACHE: Lazy<RwLock<HashMap<Pid, ProcessInfo>>> = Lazy::new(|| RwLock::new(HashMap::new()));
@@ -45,17 +46,17 @@ impl WindowsProcessQuery {
 
             if process_id == finder.process_id {
                 // Only count the window if visible.
-                if unsafe { IsWindowVisible(hwnd) } == BOOL::from(true) {
+                if unsafe { IsWindowVisible(hwnd) } == TRUE {
                     finder.found.store(true, Ordering::SeqCst);
                     // Stop enumeration.
-                    BOOL::from(false)
+                    FALSE
                 } else {
                     // Continue enumeration.
-                    BOOL::from(true)
+                    TRUE
                 }
             } else {
                 // Continue enumeration.
-                BOOL::from(true)
+                TRUE
             }
         }
 

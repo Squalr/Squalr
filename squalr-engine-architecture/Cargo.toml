@@ -6,6 +6,6 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
-log = ">=0.4.27"
+log = "0.4.29"
 
 [build-dependencies]

@@ -96,7 +96,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         // Text label.
         let galley = user_interface
             .ctx()
-            .fonts(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
+            .fonts_mut(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
         let base_x = allocated_size_rectangle.min.x + self.icon_padding_left;
         let text_pos = pos2(
             if self.icon.is_some() {

@@ -166,7 +166,8 @@ impl InterprocessPipeUnidirectional {
         request_id: Uuid,
     ) -> Result<(), InterprocessPipeError> {
         // Serialize the data.
-        let serialized_data = bincode::serialize(&value).map_err(|error| InterprocessPipeError::PayloadSerializationFailed { source: error })?;
+        let serialized_data = bincode::serde::encode_to_vec(&value, bincode::config::standard())
+            .map_err(|error| InterprocessPipeError::PayloadSerializationFailed { source: error })?;
 
         // Acquire write lock on the connection to send in a thread-safe manner.
         if let Ok(socket_stream_lock) = self.socket_stream.lock() {
@@ -260,7 +261,8 @@ impl InterprocessPipeUnidirectional {
                     })?;
 
                 // Deserialize the data into T
-                let value = bincode::deserialize::<T>(&data_buf).map_err(|error| InterprocessPipeError::PayloadDeserializationFailed { source: error })?;
+                let (value, _bytes_read) = bincode::serde::decode_from_slice::<T, _>(&data_buf, bincode::config::standard())
+                    .map_err(|error| InterprocessPipeError::PayloadDeserializationFailed { source: error })?;
 
                 Ok((value, request_id))
             } else {

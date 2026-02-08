@@ -7,10 +7,10 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../squalr-engine-api" }
-anyhow = ">=1.0.98"
-log = { version = ">=0.4.26" }
-serde = { version = ">=1.0.219", features = ["derive"] }
-serde_json = ">=1.0.140"
+anyhow = "1.0.101"
+log = { version = "0.4.29" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
 
 [build-dependencies]
 

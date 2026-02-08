@@ -6,27 +6,27 @@ edition = "2024"
 # build = "build.rs"
 
 [dependencies]
-anyhow = ">=1.0.98"
-arc-swap = ">=1.8.0"
-bus = ">=2.4.1"
-crossbeam-channel = ">=0.5.15"
-dirs = ">=6.0.0"
-directories = ">=6.0.0"
-encoding = ">=0.2.33"
-encoding_rs = ">=0.8.35"
-log = ">=0.4.27"
-log4rs = ">=1.4.0"
+anyhow = "1.0.101"
+arc-swap = "1.8.1"
+bus = "2.4.1"
+crossbeam-channel = "0.5.15"
+dirs = "6.0.0"
+directories = "6.0.0"
+encoding = "0.2.33"
+encoding_rs = "0.8.35"
+log = "0.4.29"
+log4rs = "1.4.0"
 rayon = "1.10.0"
-notify = ">=8.0.0"
-num-traits = { version = ">=0.2.19" }
-serde = { version = ">=1.0.139", features = ["derive"] }
-serde_json = ">=1.0.140"
-slab = ">=0.4.9"
-smallvec = ">=1.15.1"
-structopt = ">=0.3.26"
-sysinfo = "=0.34.2"
-thiserror = ">=2.0.12"
-typetag = ">=0.2.20"
+notify = "8.2.0"
+num-traits = { version = "0.2.19" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+slab = "0.4.12"
+smallvec = "1.15.1"
+structopt = "0.3.26"
+sysinfo = "0.38.0"
+thiserror = "2.0.18"
+typetag = "0.2.21"
 uuid = { version = "1.16.0", features = ["serde", "v4"] }
 
 [build-dependencies]
