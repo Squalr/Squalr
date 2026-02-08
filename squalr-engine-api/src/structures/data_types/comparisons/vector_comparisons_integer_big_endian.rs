@@ -5,7 +5,7 @@ use std::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Rem, Shl, Shr, Sub};
 use std::ptr;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::{SimdInt, SimdUint};
-use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+use std::simd::{Simd, SimdElement};
 use std::sync::Arc;
 
 pub struct VectorComparisonsIntegerBigEndian {}
@@ -15,8 +15,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
         // Optimization: no endian byte swap required for immediate or current values.
@@ -35,8 +33,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
         // Optimization: no endian byte swap required for immediate or current values.
@@ -55,8 +51,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdInt,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -76,8 +70,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdUint,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -97,8 +89,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdInt,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -118,8 +108,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdUint,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -139,8 +127,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdInt,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -160,8 +146,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdUint,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -181,8 +165,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdInt,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -202,8 +184,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdUint,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -223,8 +203,6 @@ impl VectorComparisonsIntegerBigEndian {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -240,8 +218,6 @@ impl VectorComparisonsIntegerBigEndian {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -257,8 +233,6 @@ impl VectorComparisonsIntegerBigEndian {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdInt,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -276,8 +250,6 @@ impl VectorComparisonsIntegerBigEndian {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdUint,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -295,8 +267,6 @@ impl VectorComparisonsIntegerBigEndian {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdInt,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -314,8 +284,6 @@ impl VectorComparisonsIntegerBigEndian {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd + SimdUint,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -333,8 +301,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Add<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -358,8 +324,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Add<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -383,8 +347,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -408,8 +370,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -433,8 +393,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Mul<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -458,8 +416,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Mul<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -483,8 +439,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Div<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -515,8 +469,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Div<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -547,8 +499,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Rem<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -579,8 +529,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Rem<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -611,8 +559,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Shl<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -636,8 +582,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Shl<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -661,8 +605,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + Shr<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -686,8 +628,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + Shr<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -711,8 +651,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + BitAnd<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -736,8 +674,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + BitAnd<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -761,8 +697,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + BitOr<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -786,8 +720,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + BitOr<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -811,8 +743,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdInt + BitXor<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -836,8 +766,6 @@ impl VectorComparisonsIntegerBigEndian {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq + SimdUint + BitXor<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();

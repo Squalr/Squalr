@@ -3,21 +3,22 @@ use crate::scanners::structures::snapshot_region_filter_run_length_encoder::Snap
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
+use squalr_engine_api::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorOverlapping<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>, {}
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>, {}
 
 impl<const N: usize> ScannerVectorOverlapping<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     /// Produces a mask chunked up into `data_type_size` chunks, with the first N bytes of each chunk set to 0xFF up to the `memory_alignment_size`.
     /// 4-byte align 1 -> 0xFF 0x00 0x00 0x00..
@@ -77,7 +78,7 @@ where
 /// In other words, this scan efficiently handles searching for values where the data type size is larger than the memory alignment.
 impl<const N: usize> Scanner for ScannerVectorOverlapping<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     fn get_scanner_name(&self) -> &'static str {
         &"Vector Overlapping"

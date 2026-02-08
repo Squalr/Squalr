@@ -1,7 +1,4 @@
-use std::{
-    simd::{LaneCount, Simd, SupportedLaneCount},
-    sync::Arc,
-};
+use std::{simd::Simd, sync::Arc};
 
 /// Defines a compare function that operates on an immediate (ie all inequalities).
 /// Parameters: current value pointer.
@@ -34,10 +31,7 @@ pub type VectorCompareFnRelative<const N: usize> = Arc<dyn Fn(*const u8, *const 
 pub type VectorCompareFnDelta<const N: usize> = VectorCompareFnRelative<N>;
 
 /// Enum that wraps vector comparison functions based on scan type.
-pub enum ScanFunctionVector<const N: usize>
-where
-    LaneCount<N>: SupportedLaneCount,
-{
+pub enum ScanFunctionVector<const N: usize> {
     Immediate(VectorCompareFnImmediate<N>),
     RelativeOrDelta(VectorCompareFnRelative<N>),
 }

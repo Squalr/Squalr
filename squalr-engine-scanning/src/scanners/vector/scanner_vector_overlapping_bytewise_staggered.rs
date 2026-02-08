@@ -4,6 +4,7 @@ use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
+use squalr_engine_api::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
@@ -11,16 +12,16 @@ use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::Sn
 use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::ptr;
+use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorOverlappingBytewiseStaggered<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>, {}
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>, {}
 
 impl<const N: usize> ScannerVectorOverlappingBytewiseStaggered<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     fn encode_results(
         compare_result: &Simd<u8, N>,
@@ -71,7 +72,7 @@ where
 /// For example, even scanning for something like `00 01 02 03`
 impl<const N: usize> Scanner for ScannerVectorOverlappingBytewiseStaggered<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     fn get_scanner_name(&self) -> &'static str {
         &"Vector Overlapping (Bytewise Staggered)"

@@ -1,6 +1,7 @@
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
+use crate::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
@@ -9,7 +10,6 @@ use crate::structures::scanning::comparisons::scan_function_vector::ScanFunction
 use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::structures::scanning::plans::plan_types::planned_scan_type::PlannedScanType;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized};
-use std::simd::{LaneCount, SupportedLaneCount};
 
 /// Represents the scan plan for scanning an individual filter within a larger element scan.
 pub struct SnapshotFilterElementScanPlan<'lifetime> {
@@ -88,7 +88,7 @@ impl<'lifetime> SnapshotFilterElementScanPlan<'lifetime> {
 
     pub fn get_scan_function_vector<const N: usize>(&self) -> &Option<ScanFunctionVector<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+        VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
         self.scan_constraint_finalized.get_scan_function_vector()
     }

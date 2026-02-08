@@ -1,4 +1,5 @@
 use crate::structures::data_types::data_type::DataType;
+use crate::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompareTypeDelta;
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
@@ -8,17 +9,13 @@ use crate::structures::scanning::comparisons::scan_function_vector::{
     VectorCompareFnRelative64,
 };
 use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
-use std::simd::{LaneCount, SupportedLaneCount};
 use std::sync::Arc;
 
 /// A wrapper function to re-genericize vector functions on `DataType` structs for use by scanners.
 /// This is necessary because all `DataType` instances need to be implemented by the traits that define them.
 /// Due to Rust limitations, these traits cannot have generics, so explicit 64/32/16 byte vector functions are implemented.
 /// However, our scanners are generic, so we need to "get back to" generics, and this is how we do it.
-pub trait VectorComparer<const N: usize>
-where
-    LaneCount<N>: SupportedLaneCount,
-{
+pub trait VectorComparer<const N: usize> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
@@ -38,7 +35,7 @@ where
     ) -> Option<VectorCompareFnDelta<N>>;
 }
 
-impl VectorComparer<64> for LaneCount<64> {
+impl VectorComparer<64> for VectorLaneCount<64> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
@@ -64,7 +61,7 @@ impl VectorComparer<64> for LaneCount<64> {
     }
 }
 
-impl VectorComparer<32> for LaneCount<32> {
+impl VectorComparer<32> for VectorLaneCount<32> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
@@ -90,7 +87,7 @@ impl VectorComparer<32> for LaneCount<32> {
     }
 }
 
-impl VectorComparer<16> for LaneCount<16> {
+impl VectorComparer<16> for VectorLaneCount<16> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         scan_compare_type_immediate: &ScanCompareTypeImmediate,
@@ -116,10 +113,7 @@ impl VectorComparer<16> for LaneCount<16> {
     }
 }
 
-trait VectorCompareWrapper<const N: usize>
-where
-    LaneCount<N>: SupportedLaneCount,
-{
+trait VectorCompareWrapper<const N: usize> {
     fn get_vector_compare_func_immediate(
         data_type: &Arc<dyn DataType>,
         compare_type_immediate: &ScanCompareTypeImmediate,

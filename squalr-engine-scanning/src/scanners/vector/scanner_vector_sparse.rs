@@ -2,22 +2,23 @@ use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
 use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
+use squalr_engine_api::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::{data_types::generics::vector_comparer::VectorComparer, memory::memory_alignment::MemoryAlignment};
+use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
 
 pub struct ScannerVectorSparse<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>, {}
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>, {}
 
 impl<const N: usize> ScannerVectorSparse<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     // This mask automatically captures all in-between elements. For example, scanning for Byte 0 with an alignment of 2-bytes
     // against <0, 24, 0, 43> would all return true, due to this mask of <0, 255, 0, 255>. Scan results will automatically skip
@@ -95,7 +96,7 @@ where
 /// In other words, this scan efficiently handles searching for values where the data type size is smaller than the memory alignment.
 impl<const N: usize> Scanner for ScannerVectorSparse<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     fn get_scanner_name(&self) -> &'static str {
         &"Vector Sparse"

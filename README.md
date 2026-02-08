@@ -274,29 +274,17 @@ This needs to be done such that the GUI can make snap decisions without chatty t
 
 Very challenging task.
 
-### Installer Build
-Branch: `pr/installer`
-
-The installer is based on Slint, and we have since migrated to egui. It would also be good to audit the installer, as this is one of those things that is very frustrating to users if it goes awry.
-
-This also means that the existing slint files need to be ported to egui, and cross referenced with squalr-gui for how egui is used within this project.
-
-It would also be nice to have tests to sanity check the installer if feasible.
-
 ### Conversion Testing
 Branch: `pr/conversion-testing`
 
 The conversions in the squalr-api should probably have a dedicated test suite.
 
+Additionally, conversions should be architecturally audited for robustness.
+
 ### Pointer Scanning
 Branch: `pr/pointer-scanning`
 
 Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
-
-### Nightly Build Upgrade
-Branch: `pr/nightly-upgrade`
-
-The latest version of Rust nightly breaks the SIMD SupportedLanes and LaneCount, cascading into several refactors.
 
 ### Release Test
 Branch: `pr/release-test`

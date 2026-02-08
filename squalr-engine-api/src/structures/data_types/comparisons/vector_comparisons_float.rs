@@ -6,7 +6,7 @@ use std::ops::{Add, Div, Mul, Rem, Sub};
 use std::ptr;
 use std::simd::cmp::{SimdPartialEq, SimdPartialOrd};
 use std::simd::num::SimdFloat;
-use std::simd::{LaneCount, Simd, SimdElement, SupportedLaneCount};
+use std::simd::{Simd, SimdElement};
 use std::sync::Arc;
 
 pub struct VectorComparisonsFloat {}
@@ -16,8 +16,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -37,8 +35,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -58,8 +54,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -78,8 +72,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -98,8 +90,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -118,8 +108,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -138,8 +126,6 @@ impl VectorComparisonsFloat {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -155,8 +141,6 @@ impl VectorComparisonsFloat {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -172,8 +156,6 @@ impl VectorComparisonsFloat {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -189,8 +171,6 @@ impl VectorComparisonsFloat {
         _scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdPartialOrd,
     {
         Some(Arc::new(move |current_values_ptr, previous_values_ptr| {
@@ -206,8 +186,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat
             + SimdPartialOrd
             + Add<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
@@ -232,8 +210,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat + SimdPartialOrd + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>,
     {
         let immediate_value = scan_constraint.get_data_value();
@@ -255,8 +231,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat
             + SimdPartialOrd
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
@@ -281,8 +255,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat
             + SimdPartialOrd
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>
@@ -307,8 +279,6 @@ impl VectorComparisonsFloat {
         scan_constraint: &ScanConstraint
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         Simd<PrimitiveType, E>: SimdFloat
             + SimdPartialOrd
             + Sub<Simd<PrimitiveType, E>, Output = Simd<PrimitiveType, E>>

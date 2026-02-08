@@ -1,13 +1,13 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::generics::vector_comparer::VectorComparer;
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
+use crate::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use crate::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use crate::structures::scanning::comparisons::scan_function_vector::ScanFunctionVector;
 use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use crate::{registries::symbols::symbol_registry::SymbolRegistry, structures::data_types::floating_point_tolerance::FloatingPointTolerance};
-use std::simd::{LaneCount, SupportedLaneCount};
 
 /// Represents a scan constraint that has finished being processed by rules.
 pub struct ScanConstraintFinalized {
@@ -20,7 +20,7 @@ pub struct ScanConstraintFinalized {
     scan_function_vector_64: Option<ScanFunctionVector<64>>,
 }
 
-impl GetVectorFunction<16> for LaneCount<16> {
+impl GetVectorFunction<16> for VectorLaneCount<16> {
     fn get_vector_field<'lifetime>(
         &self,
         scan_constraint_finalized: &'lifetime ScanConstraintFinalized,
@@ -29,7 +29,7 @@ impl GetVectorFunction<16> for LaneCount<16> {
     }
 }
 
-impl GetVectorFunction<32> for LaneCount<32> {
+impl GetVectorFunction<32> for VectorLaneCount<32> {
     fn get_vector_field<'lifetime>(
         &self,
         scan_constraint_finalized: &'lifetime ScanConstraintFinalized,
@@ -38,7 +38,7 @@ impl GetVectorFunction<32> for LaneCount<32> {
     }
 }
 
-impl GetVectorFunction<64> for LaneCount<64> {
+impl GetVectorFunction<64> for VectorLaneCount<64> {
     fn get_vector_field<'lifetime>(
         &self,
         scan_constraint_finalized: &'lifetime ScanConstraintFinalized,
@@ -98,9 +98,9 @@ impl ScanConstraintFinalized {
 
     pub fn get_scan_function_vector<const N: usize>(&self) -> &Option<ScanFunctionVector<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+        VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
-        LaneCount::<N> {}.get_vector_field(self)
+        VectorLaneCount::<N> {}.get_vector_field(self)
     }
 
     fn calculate_periodicity(
@@ -167,7 +167,7 @@ impl ScanConstraintFinalized {
 
     pub fn build_scan_function_vector<const N: usize>(scan_constraint: &ScanConstraint) -> Option<ScanFunctionVector<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+        VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
         let symbol_registry = SymbolRegistry::get_instance();
 

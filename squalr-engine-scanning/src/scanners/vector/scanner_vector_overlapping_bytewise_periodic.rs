@@ -3,23 +3,24 @@ use crate::scanners::structures::snapshot_region_filter_run_length_encoder::Snap
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
+use squalr_engine_api::structures::data_types::generics::vector_lane_count::VectorLaneCount;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
+use std::simd::Simd;
 use std::simd::cmp::SimdPartialEq;
-use std::simd::{LaneCount, Simd, SupportedLaneCount};
 use std::{ptr, vec};
 
 pub struct ScannerVectorOverlappingBytewisePeriodic<const N: usize>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>, {}
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>, {}
 
 impl<const N: usize> ScannerVectorOverlappingBytewisePeriodic<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     fn encode_results(
         compare_result: &Simd<u8, N>,
@@ -62,7 +63,7 @@ where
 /// For example, scanning for an i32 of value 00 00 00 00 can actually be greatly optimized by simply searching for the byte 0!
 impl<const N: usize> Scanner for ScannerVectorOverlappingBytewisePeriodic<N>
 where
-    LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+    VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
 {
     fn get_scanner_name(&self) -> &'static str {
         &"Vector Overlapping (Bytewise Periodic)"

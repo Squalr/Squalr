@@ -18,6 +18,7 @@ use crate::structures::{
         data_type::DataType,
         data_type_ref::DataTypeRef,
         generics::vector_comparer::VectorComparer,
+        generics::vector_lane_count::VectorLaneCount,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
     scanning::comparisons::{
@@ -28,11 +29,7 @@ use crate::structures::{
     },
 };
 use std::sync::Once;
-use std::{
-    collections::HashMap,
-    simd::{LaneCount, SupportedLaneCount},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 /// Manages a symbolic struct registry and a data type registry. All registered data types are also registered into the symbolic struct
 /// registry, since each data type is considered to be a symbol. The struct contains a single anonymous field for the corresponding type.
@@ -321,11 +318,11 @@ impl SymbolRegistry {
         scan_constraint: &ScanConstraint,
     ) -> Option<VectorCompareFnImmediate<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+        VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
         match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
             Some(data_type) => {
-                <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, scan_constraint)
+                <VectorLaneCount<N> as VectorComparer<N>>::get_vector_compare_func_immediate(&data_type, &scan_compare_type_immediate, scan_constraint)
             }
             None => None,
         }
@@ -337,10 +334,12 @@ impl SymbolRegistry {
         scan_constraint: &ScanConstraint,
     ) -> Option<VectorCompareFnRelative<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+        VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
         match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, scan_constraint),
+            Some(data_type) => {
+                <VectorLaneCount<N> as VectorComparer<N>>::get_vector_compare_func_relative(&data_type, &scan_compare_type_relative, scan_constraint)
+            }
             None => None,
         }
     }
@@ -352,10 +351,10 @@ impl SymbolRegistry {
         scan_constraint: &ScanConstraint,
     ) -> Option<VectorCompareFnDelta<N>>
     where
-        LaneCount<N>: SupportedLaneCount + VectorComparer<N> + GetVectorFunction<N>,
+        VectorLaneCount<N>: VectorComparer<N> + GetVectorFunction<N>,
     {
         match self.get_data_type(scan_constraint.get_data_value().get_data_type_id()) {
-            Some(data_type) => <LaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, scan_constraint),
+            Some(data_type) => <VectorLaneCount<N> as VectorComparer<N>>::get_vector_compare_func_delta(&data_type, &scan_compare_type_delta, scan_constraint),
             None => None,
         }
     }

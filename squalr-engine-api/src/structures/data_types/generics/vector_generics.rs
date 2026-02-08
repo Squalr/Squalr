@@ -1,5 +1,5 @@
 use std::simd::SimdElement;
-use std::simd::{LaneCount, Simd, SupportedLaneCount, cmp::SimdPartialEq};
+use std::simd::{Simd, cmp::SimdPartialEq};
 use std::{mem, ptr};
 
 use crate::structures::data_types::generics::vectorization_plan::VectorizationPlan;
@@ -10,7 +10,6 @@ impl VectorGenerics {
     /// Reinterprets a `Simd` vector as a different type.
     pub fn transmute<SourceType, TargetType, const N: usize>(value: Simd<SourceType, N>) -> Simd<TargetType, N>
     where
-        LaneCount<N>: SupportedLaneCount,
         SourceType: SimdElement,
         TargetType: SimdElement,
         Simd<TargetType, N>: SimdPartialEq,
@@ -29,8 +28,6 @@ impl VectorGenerics {
     /// Reinterprets a `Mask` type as a `Simd` vector of raw bytes.
     pub fn transmute_mask<PrimitiveType, const N: usize, const E: usize>(mask: <Simd<PrimitiveType, E> as SimdPartialEq>::Mask) -> Simd<u8, N>
     where
-        LaneCount<N>: SupportedLaneCount,
-        LaneCount<E>: SupportedLaneCount,
         PrimitiveType: SimdElement,
         Simd<PrimitiveType, E>: SimdPartialEq,
     {
@@ -43,10 +40,7 @@ impl VectorGenerics {
         Simd::<u8, N>::from_array(result_array)
     }
     /// Rotates left and sets the last `OFFSET` elements to 0.
-    pub fn rotate_left_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
+    pub fn rotate_left_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N> {
         let mut rotated = vector.rotate_elements_left::<OFFSET>();
         let zero_start = N.saturating_sub(OFFSET.min(N));
 
@@ -58,10 +52,7 @@ impl VectorGenerics {
     }
 
     /// Rotates right and sets the first `OFFSET` elements to 0.
-    pub fn rotate_right_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
+    pub fn rotate_right_with_discard<const N: usize, const OFFSET: usize>(vector: Simd<u8, N>) -> Simd<u8, N> {
         let mut rotated = vector.rotate_elements_right::<OFFSET>();
 
         for index in 0..OFFSET.min(N) {
@@ -75,10 +66,7 @@ impl VectorGenerics {
     pub fn rotate_left_with_discard_max_8<const N: usize>(
         vector: Simd<u8, N>,
         rotation: u64,
-    ) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
+    ) -> Simd<u8, N> {
         let mut rotated = match rotation {
             1 => vector.rotate_elements_left::<1>(),
             2 => vector.rotate_elements_left::<2>(),
@@ -103,10 +91,7 @@ impl VectorGenerics {
     pub fn rotate_right_with_discard_max_8<const N: usize>(
         vector: Simd<u8, N>,
         rotation: u64,
-    ) -> Simd<u8, N>
-    where
-        LaneCount<N>: SupportedLaneCount,
-    {
+    ) -> Simd<u8, N> {
         let mut rotated = match rotation {
             1 => vector.rotate_elements_right::<1>(),
             2 => vector.rotate_elements_right::<2>(),
