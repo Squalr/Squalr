@@ -74,7 +74,7 @@ This allows us to create several different modes, such as a unified GUI/CLI/TUI 
 | ---------- | ----- | ----- | ----- | ------ | --------------- | ---------------- |
 | Desktop    | ✅    | ✅    | ✅    | ✅     | ✅              | ✅               |
 | Android    | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
-| iPhone     | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
+| iPhone (Not Available Yet)     | ✅    | ✅    | ✅    | ✅     | ❌              | ✅               |
 
 ### Architecture Glossary
 - A **snapshot** is a full query of all virtual memory regions in an internal process. This is created in two passes, once to determine the virtual page addresses and sizes, and another pass to collect the values.
@@ -163,7 +163,7 @@ This is why selecting the best scanner is crucial, we have many such as:
 - [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [X] Struct viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for struct viewer data types.
-- [X] String-based editing / committing of struct viewer entries.
+- [ ] String-based editing / committing of struct viewer entries.
 - [ ] Projects with a per-file backing. Freezable addresses. Sortable.
 
 ## Post-Launch Tasklist
@@ -232,3 +232,82 @@ Seems like no real downsides from a comprehension point of view.
 Struct scans will be very challenging. Imagine scanning for {float} {float} {float}, ie XYZ coordinates as a struct. You can't just serialize to bytes and scan for them, due to floating point tolerance. Even worse, if you did X > 2000, Y < 500, Z > 0, this necessitates per-field handling.
 
 Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.
+
+## Detailed Tasklist
+This is a highly descriptive 
+
+### Error Handling
+Branch: `pr/error_handling`
+Normalize error style (engine uses struct-based errors; cli/gui can use `anyhow!`, and using Result<(), String> is generally bad practice).
+
+### Android Build
+Branch: `pr/android`
+The android build should be made functional again. Note that unlike the main gui build, this must run in IPC mode with a privileged shell rather than standalone.
+
+This was once fully functional for querying processes, but this was using Slint for the GUI, and we have since moved to egui.
+
+This will require a bit of a revival.
+
+### TUI Build
+Branch: `pr/tui`
+
+Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways.
+
+### Scan Commands
+Branch: `pr/scan-commands`
+
+We are on , and should better organize the commands that we fire. First, we have improperly organized scanning as a scan command.
+
+There should be scan (element scan) and pscan (pointer scan). These are not related. It is unclear at this point in time whether struct scans are abstracted under element scans, but if it makes sense to decouple this should be done as well.
+
+In a CLI, it would actually be ideal for scan commands to be blocking (ie the response includes the results rather than a task handle), where as a TUI/GUI would prefer the task handle with progress updates for showing a progress bar, to free up the user to do other things. Maybe this can be a default arg?
+
+### Engine Event Hooks
+Branch: `pr/engine-event-hooks`
+
+When the engine emits events, it would be nice for listeners and plugins to hook into these.
+
+### Registry Synchronization
+Branch: `pr/registry-synchronization`
+
+Currently, there is a global singleton of the registry that exists for both the unprivileged side, and the privileged side. In a standalone build, this is the same registry, with only one instance.
+
+This is not a system that makes sense for a long term plugin based approach. Ideally, plugins could register new things to the registries, and then this would be synchronized with the unprivileged GUI.
+
+This needs to be done such that the GUI can make snap decisions without chatty traffic to the privileged side.
+
+Very challenging task.
+
+### Installer Build
+Branch: `pr/installer`
+
+The installer is based on Slint, and we have since migrated to egui. It would also be good to audit the installer, as this is one of those things that is very frustrating to users if it goes awry.
+
+This also means that the existing slint files need to be ported to egui, and cross referenced with squalr-gui for how egui is used within this project.
+
+It would also be nice to have tests to sanity check the installer if feasible.
+
+### Conversion Testing
+Branch: `pr/conversion-testing`
+
+The conversions in the squalr-api should probably have a dedicated test suite.
+
+### Pointer Scanning
+Branch: `pr/pointer-scanning`
+
+Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
+
+### Nightly Build Upgrade
+Branch: `pr/nightly-upgrade`
+
+The latest version of Rust nightly breaks the SIMD SupportedLanes and LaneCount, cascading into several refactors.
+
+### Package Upgrades
+Branch: `pr/package-upgrades`
+
+Many packages need upgrading, some with breaking changes that may cause refactors.
+
+### Release Test
+Branch: `pr/release-test`
+
+We need to orchestrate a full attempt at a v1.0.0 release to see how the process goes.
