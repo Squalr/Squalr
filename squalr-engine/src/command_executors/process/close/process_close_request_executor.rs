@@ -1,6 +1,5 @@
 use crate::{command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor, engine_privileged_state::EnginePrivilegedState};
 use squalr_engine_api::commands::process::close::{process_close_request::ProcessCloseRequest, process_close_response::ProcessCloseResponse};
-use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ProcessCloseRequest {
@@ -20,7 +19,11 @@ impl PrivilegedCommandRequestExecutor for ProcessCloseRequest {
                 process_info.get_handle()
             );
 
-            match ProcessQuery::close_process(process_info.get_handle()) {
+            match engine_privileged_state
+                .get_os_providers()
+                .process_query
+                .close_process(process_info.get_handle())
+            {
                 Ok(_) => {
                     engine_privileged_state
                         .get_process_manager()

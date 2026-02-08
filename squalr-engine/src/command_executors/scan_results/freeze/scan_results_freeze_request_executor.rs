@@ -4,10 +4,6 @@ use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_reque
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_response::ScanResultsFreezeResponse;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::pointer::Pointer;
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
-use squalr_engine_memory::memory_reader::MemoryReader;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanResultsFreezeRequest {
@@ -18,6 +14,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsFreezeRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let symbol_registry = SymbolRegistry::get_instance();
+        let os_providers = engine_privileged_state.get_os_providers();
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,
@@ -42,7 +39,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsFreezeRequest {
             .get_process_manager()
             .get_opened_process()
         {
-            MemoryQueryer::get_instance().get_modules(&opened_process_info)
+            os_providers.memory_query.get_modules(&opened_process_info)
         } else {
             vec![]
         };
@@ -58,7 +55,10 @@ impl PrivilegedCommandRequestExecutor for ScanResultsFreezeRequest {
                 let mut module_offset = scan_result.get_address();
 
                 // Check whether this scan result belongs to a module (ie check if the address is static).
-                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(module_offset, &modules) {
+                if let Some((found_module_name, address)) = os_providers
+                    .memory_query
+                    .address_to_module(module_offset, &modules)
+                {
                     module_name = found_module_name;
                     module_offset = address;
                 }
@@ -73,7 +73,10 @@ impl PrivilegedCommandRequestExecutor for ScanResultsFreezeRequest {
                         let data_type_ref = scan_result.get_data_type_ref();
 
                         if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
-                            if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
+                            if os_providers
+                                .memory_read
+                                .read(&opened_process_info, address, &mut data_value)
+                            {
                                 freeze_list_registry_guard.set_address_frozen(pointer, data_value.get_value_bytes().to_vec());
                                 continue;
                             }

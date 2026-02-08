@@ -2,8 +2,6 @@ use crate::command_executors::privileged_request_executor::PrivilegedCommandRequ
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
 use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_response::ScanResultsAddToProjectResponse;
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanResultsAddToProjectRequest {
@@ -11,17 +9,8 @@ impl PrivilegedCommandRequestExecutor for ScanResultsAddToProjectRequest {
 
     fn execute(
         &self,
-        engine_privileged_state: &Arc<EnginePrivilegedState>,
+        _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        let snapshot = engine_privileged_state.get_snapshot();
-        let snapshot_guard = match snapshot.read() {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on Snapshot: {}", error);
-
-                return ScanResultsAddToProjectResponse::default();
-            }
-        };
         /*
         let project_manager = engine_privileged_state.get_project_manager();
         let mut project_changed = false;

@@ -5,10 +5,6 @@ use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_res
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
-use squalr_engine_memory::memory_reader::MemoryReader;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
@@ -19,6 +15,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let symbol_registry = SymbolRegistry::get_instance();
+        let os_providers = engine_privileged_state.get_os_providers();
         let snapshot = engine_privileged_state.get_snapshot();
         let snapshot_guard = match snapshot.read() {
             Ok(snapshot) => snapshot,
@@ -35,7 +32,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
             .get_process_manager()
             .get_opened_process()
         {
-            MemoryQueryer::get_instance().get_modules(&opened_process_info)
+            os_providers.memory_query.get_modules(&opened_process_info)
         } else {
             vec![]
         };
@@ -54,14 +51,17 @@ impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
                     .get_opened_process()
                 {
                     if let Some(mut data_value) = scan_result.get_current_value().clone() {
-                        if MemoryReader::get_instance().read(&opened_process_info, address, &mut data_value) {
+                        if os_providers
+                            .memory_read
+                            .read(&opened_process_info, address, &mut data_value)
+                        {
                             recently_read_value = Some(data_value);
                         }
                     }
                 }
 
                 // Check whether this scan result belongs to a module (ie check if the address is static).
-                if let Some((found_module_name, address)) = MemoryQueryer::get_instance().address_to_module(address, &modules) {
+                if let Some((found_module_name, address)) = os_providers.memory_query.address_to_module(address, &modules) {
                     module_name = found_module_name;
                     module_offset = address;
                 }

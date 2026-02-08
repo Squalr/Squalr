@@ -1,0 +1,133 @@
+name: squalr-tests
+
+on:
+  pull_request:
+    branches:
+      - pr/unit-tests
+    paths:
+      - "squalr-tests/**"
+      - "squalr-engine/**"
+      - "squalr-engine-api/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/squalr-tests-pr.yml"
+  workflow_dispatch:
+
+jobs:
+  test-squalr-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+      uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+      uses: Swatinem/rust-cache@v2
+
+      - name: Run squalr-tests
+      run: cargo test -p squalr-tests
+
+  warning-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Detect touched unit-test crates
+        id: touched-crates
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          declare -a candidate_crates=("squalr-tests" "squalr-engine" "squalr-engine-api")
+          declare -A seen_crates=()
+          declare -a touched_crates=()
+
+          while IFS= read -r changed_path; do
+            for candidate_crate in "${candidate_crates[@]}"; do
+              if [[ "${changed_path}" == "${candidate_crate}/"* ]]; then
+                if [[ -z "${seen_crates[${candidate_crate}]:-}" ]]; then
+                  seen_crates["${candidate_crate}"]=1
+                  touched_crates+=("${candidate_crate}")
+                fi
+              fi
+            done
+          done < <(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
+
+          if git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" | grep -qE '^(Cargo.toml|Cargo.lock)$'; then
+            for candidate_crate in "${candidate_crates[@]}"; do
+              if [[ -z "${seen_crates[${candidate_crate}]:-}" ]]; then
+                seen_crates["${candidate_crate}"]=1
+                touched_crates+=("${candidate_crate}")
+              fi
+            done
+          fi
+
+          if [[ ${#touched_crates[@]} -eq 0 ]]; then
+            echo "has_touched_crates=false" >> "${GITHUB_OUTPUT}"
+            echo "touched_crates=" >> "${GITHUB_OUTPUT}"
+            echo "No touched unit-test crates detected."
+            exit 0
+          fi
+
+          touched_crates_csv=$(IFS=,; echo "${touched_crates[*]}")
+          echo "has_touched_crates=true" >> "${GITHUB_OUTPUT}"
+          echo "touched_crates=${touched_crates_csv}" >> "${GITHUB_OUTPUT}"
+          echo "Touched unit-test crates: ${touched_crates_csv}"
+
+      - name: Compare warning baseline against base branch
+        if: steps.touched-crates.outputs.has_touched_crates == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TOUCHED_CRATES: ${{ steps.touched-crates.outputs.touched_crates }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .ci-logs
+          git worktree add ../squalr_workspace_base "${BASE_SHA}"
+          trap 'git worktree remove --force ../squalr_workspace_base' EXIT
+
+          IFS=',' read -r -a touched_crate_array <<< "${TOUCHED_CRATES}"
+          new_warning_detected=false
+
+          for touched_crate in "${touched_crate_array[@]}"; do
+            echo "Checking warning baseline for ${touched_crate}."
+
+            base_log_path="${PWD}/.ci-logs/${touched_crate}.base.log"
+            head_log_path="${PWD}/.ci-logs/${touched_crate}.head.log"
+
+            (
+              cd ../squalr_workspace_base
+              cargo check --manifest-path "${touched_crate}/Cargo.toml" --message-format short 2>&1
+            ) | tee "${base_log_path}" > /dev/null || true
+
+            cargo check --manifest-path "${touched_crate}/Cargo.toml" --message-format short 2>&1 | tee "${head_log_path}" > /dev/null || true
+
+            base_warning_count=$(grep -c "warning:" "${base_log_path}" || true)
+            head_warning_count=$(grep -c "warning:" "${head_log_path}" || true)
+
+            echo "Baseline warnings (${touched_crate}): ${base_warning_count}"
+            echo "PR warnings (${touched_crate}): ${head_warning_count}"
+
+            if [[ "${head_warning_count}" -gt "${base_warning_count}" ]]; then
+              echo "New warnings detected for ${touched_crate}."
+              new_warning_detected=true
+            fi
+          done
+
+          if [[ "${new_warning_detected}" == "true" ]]; then
+            echo "Failing because one or more touched crates introduced new warnings."
+            exit 1
+          fi

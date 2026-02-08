@@ -1,7 +1,9 @@
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::settings::memory::set::memory_settings_set_response::MemorySettingsSetResponse;
 use crate::commands::settings::settings_response::SettingsResponse;
-use crate::commands::{privileged_command_response::TypedPrivilegedCommandResponse, settings::memory::list::memory_settings_list_response::MemorySettingsListResponse};
+use crate::commands::{
+    privileged_command_response::TypedPrivilegedCommandResponse, settings::memory::list::memory_settings_list_response::MemorySettingsListResponse,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

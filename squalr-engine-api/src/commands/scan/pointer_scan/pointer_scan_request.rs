@@ -11,7 +11,7 @@ use structopt::StructOpt;
 pub struct PointerScanRequest {
     #[structopt(short = "a", long)]
     pub target_address: AnonymousValueString,
-    #[structopt(short = "d", long)]
+    #[structopt(short = "t", long)]
     pub pointer_data_type_ref: DataTypeRef,
     #[structopt(short = "d", long)]
     pub max_depth: u64,

@@ -1,10 +1,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_memory::memory_reader::MemoryReader;
 use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 pub trait SnapshotRegionMemoryReader {
     fn read_all_memory(

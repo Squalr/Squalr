@@ -6,12 +6,12 @@ use squalr_engine_api::commands::settings::settings_response::SettingsResponse;
 pub fn handle_settings_response(cmd: SettingsResponse) {
     match cmd {
         SettingsResponse::General { general_settings_response } => match general_settings_response {
-            GeneralSettingsResponse::List { general_settings_list_response } => {
-                match general_settings_list_response.general_settings {
-                    Ok(settings) => log::info!("General settings: {:?}", settings),
-                    Err(error) => log::error!("Failed to list general settings: {}", error),
-                }
-            }
+            GeneralSettingsResponse::List {
+                general_settings_list_response,
+            } => match general_settings_list_response.general_settings {
+                Ok(settings) => log::info!("General settings: {:?}", settings),
+                Err(error) => log::error!("Failed to list general settings: {}", error),
+            },
             GeneralSettingsResponse::Set { .. } => {
                 log::info!("General settings updated.");
             }

@@ -2,6 +2,7 @@
 
 [workspace]
 members = [
+    "squalr-tests",
     "squalr-engine",
     "squalr-engine-architecture",
     "squalr-engine-debuggers",

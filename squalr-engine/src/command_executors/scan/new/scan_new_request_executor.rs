@@ -4,7 +4,6 @@ use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
 use std::sync::Arc;
 
@@ -50,7 +49,10 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
         freeze_list_registry_guard.clear();
 
         // Query all memory pages for the process from the OS.
-        let memory_pages = MemoryQueryer::get_memory_page_bounds(&opened_process_info, PageRetrievalMode::FromSettings);
+        let memory_pages = engine_privileged_state
+            .get_os_providers()
+            .memory_query
+            .get_memory_page_bounds(&opened_process_info, PageRetrievalMode::FromSettings);
 
         // Attempt to merge any adjacent regions. This drastically simplifies the scanning process by eliminating edge case handling.
         // Additionally, we must track the page boundaries at which the merge took place.

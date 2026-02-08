@@ -4,10 +4,6 @@ use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRe
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
 use squalr_engine_api::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-use squalr_engine_memory::memory_queryer::memory_queryer::MemoryQueryer;
-use squalr_engine_memory::memory_queryer::memory_queryer_trait::IMemoryQueryer;
-use squalr_engine_memory::memory_reader::MemoryReader;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
@@ -21,6 +17,8 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
             .get_process_manager()
             .get_opened_process()
         {
+            let os_providers = engine_privileged_state.get_os_providers();
+
             log::info!("Reading value from address {}", self.address);
 
             let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
@@ -33,12 +31,16 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
                     .get_process_manager()
                     .get_opened_process()
                 {
-                    MemoryQueryer::get_instance().get_modules(&opened_process_info)
+                    os_providers.memory_query.get_modules(&opened_process_info)
                 } else {
                     vec![]
                 };
-                let module_address = MemoryQueryer::get_instance().resolve_module(&modules, &self.module_name);
-                let success = MemoryReader::get_instance().read_struct(&process_info, module_address.saturating_add(self.address), &mut out_valued_struct);
+                let module_address = os_providers
+                    .memory_query
+                    .resolve_module(&modules, &self.module_name);
+                let success = os_providers
+                    .memory_read
+                    .read_struct(&process_info, module_address.saturating_add(self.address), &mut out_valued_struct);
 
                 MemoryReadResponse {
                     valued_struct: out_valued_struct,
@@ -46,7 +48,9 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
                     success,
                 }
             } else {
-                let success = MemoryReader::get_instance().read_struct(&process_info, self.address, &mut out_valued_struct);
+                let success = os_providers
+                    .memory_read
+                    .read_struct(&process_info, self.address, &mut out_valued_struct);
 
                 MemoryReadResponse {
                     valued_struct: out_valued_struct,

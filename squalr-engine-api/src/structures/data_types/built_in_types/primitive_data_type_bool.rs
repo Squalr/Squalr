@@ -18,60 +18,69 @@ impl PrimitiveDataTypeBool {
     pub fn deanonymize<T: Copy + num_traits::ToBytes + From<u8>>(
         anonymous_value_string: &AnonymousValueString,
         is_big_endian: bool,
-        bool_data_type_size_bytes: u64,
+        _bool_data_type_size_bytes: u64,
     ) -> Result<Vec<u8>, DataTypeError>
     where
         Vec<u8>: From<<T as num_traits::ToBytes>::Bytes>,
     {
         let original_string = anonymous_value_string.get_anonymous_value_string();
         let normalized = original_string.trim().to_ascii_lowercase();
-        let max_leading_zeros = (bool_data_type_size_bytes * 8) - 1;
-        let is_valid = |string: &str| -> bool {
-            if string == "0" || string == "1" {
-                return true;
+        let format = anonymous_value_string.get_anonymous_value_string_format();
+
+        let parse_error = || DataTypeError::ParseError(format!("Invalid boolean string '{}' for format {:?}", original_string, format));
+
+        let parse_decimal_like_boolean = |decimal_like_string: &str| -> Result<bool, DataTypeError> {
+            if decimal_like_string.is_empty()
+                || !decimal_like_string
+                    .chars()
+                    .all(|character| character.is_ascii_digit())
+            {
+                return Err(parse_error());
             }
-            if string.starts_with('0') && string.len() - 1 <= max_leading_zeros as usize {
-                return string[1..].chars().all(|char| char == '0' || char == '1');
-            }
-            false
+
+            Ok(decimal_like_string.chars().any(|character| character != '0'))
         };
-        let boolean = match anonymous_value_string.get_anonymous_value_string_format() {
-            AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::String => {
-                if is_valid(&normalized) {
-                    Ok(normalized
-                        .trim_start_matches('0')
-                        .parse::<bool>()
-                        .unwrap_or(false))
-                } else {
-                    Err(DataTypeError::ParseError(format!(
-                        "Invalid boolean string '{}' for format {:?}",
-                        original_string,
-                        anonymous_value_string.get_anonymous_value_string_format()
-                    )))
-                }
+
+        let parse_binary_like_boolean = |binary_like_string: &str| -> Result<bool, DataTypeError> {
+            if binary_like_string.is_empty()
+                || !binary_like_string
+                    .chars()
+                    .all(|character| character == '0' || character == '1')
+            {
+                return Err(parse_error());
             }
-            AnonymousValueStringFormat::Binary
-            | AnonymousValueStringFormat::Decimal
-            | AnonymousValueStringFormat::Hexadecimal
-            | AnonymousValueStringFormat::Address => {
-                if is_valid(&normalized) {
-                    Ok(normalized
-                        .trim_start_matches('0')
-                        .parse::<bool>()
-                        .unwrap_or(false))
-                } else {
-                    Err(DataTypeError::ParseError(format!(
-                        "Invalid boolean string '{}' for format {:?}",
-                        original_string,
-                        anonymous_value_string.get_anonymous_value_string_format()
-                    )))
-                }
+
+            Ok(binary_like_string.chars().any(|character| character == '1'))
+        };
+
+        let parse_hex_like_boolean = |hex_like_string: &str| -> Result<bool, DataTypeError> {
+            if hex_like_string.is_empty()
+                || !hex_like_string
+                    .chars()
+                    .all(|character| character.is_ascii_hexdigit())
+            {
+                return Err(parse_error());
             }
-            _ => Err(DataTypeError::ParseError(format!(
-                "Invalid boolean string '{}' for format {:?}",
-                original_string,
-                anonymous_value_string.get_anonymous_value_string_format()
-            ))),
+
+            Ok(hex_like_string.chars().any(|character| character != '0'))
+        };
+
+        let boolean = match format {
+            AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::String => match normalized.as_str() {
+                "true" => Ok(true),
+                "false" => Ok(false),
+                _ => parse_decimal_like_boolean(normalized.as_str()),
+            },
+            AnonymousValueStringFormat::Binary => {
+                let binary_string = normalized.strip_prefix("0b").unwrap_or(normalized.as_str());
+                parse_binary_like_boolean(binary_string)
+            }
+            AnonymousValueStringFormat::Decimal => parse_decimal_like_boolean(normalized.as_str()),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
+                let hexadecimal_string = normalized.strip_prefix("0x").unwrap_or(normalized.as_str());
+                parse_hex_like_boolean(hexadecimal_string)
+            }
+            _ => Err(parse_error()),
         }?;
 
         let primitive: T = if boolean { T::from(1) } else { T::from(0) };

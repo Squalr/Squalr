@@ -24,6 +24,6 @@ pub enum PrivilegedCommand {
     #[structopt(alias = "set", alias = "st")]
     Settings(SettingsCommand),
 
-    #[structopt(alias = "set", alias = "st")]
+    #[structopt(alias = "tasks", alias = "tt")]
     TrackableTasks(TrackableTasksCommand),
 }

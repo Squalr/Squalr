@@ -3,7 +3,6 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::commands::process::open::process_open_response::ProcessOpenResponse;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
-use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::Arc;
 use sysinfo::Pid;
 
@@ -30,10 +29,11 @@ impl PrivilegedCommandRequestExecutor for ProcessOpenRequest {
             limit: Some(1),
         };
 
-        let processes = ProcessQuery::get_processes(options);
+        let os_providers = engine_privileged_state.get_os_providers();
+        let processes = os_providers.process_query.get_processes(options);
 
         if let Some(process_info) = processes.first() {
-            match ProcessQuery::open_process(&process_info) {
+            match os_providers.process_query.open_process(&process_info) {
                 Ok(opened_process_info) => {
                     engine_privileged_state
                         .get_process_manager()

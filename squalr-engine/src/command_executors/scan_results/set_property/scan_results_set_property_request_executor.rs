@@ -7,8 +7,6 @@ use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_types::built_in_types::bool32::data_type_bool32::DataTypeBool32;
 use squalr_engine_api::structures::data_types::data_type::DataType;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
-use squalr_engine_memory::memory_writer::MemoryWriter;
-use squalr_engine_memory::memory_writer::memory_writer_trait::IMemoryWriter;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanResultsSetPropertyRequest {
@@ -28,6 +26,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsSetPropertyRequest {
             }
         };
         let symbol_registry = SymbolRegistry::get_instance();
+        let os_providers = engine_privileged_state.get_os_providers();
 
         match self.field_namespace.as_str() {
             ScanResult::PROPERTY_NAME_VALUE => {
@@ -41,7 +40,9 @@ impl PrivilegedCommandRequestExecutor for ScanResultsSetPropertyRequest {
                                 .get_opened_process()
                             {
                                 // Best-effort attempt to write the property bytes.
-                                let _ = MemoryWriter::get_instance().write_bytes(&opened_process_info, address, &value_bytes);
+                                let _ = os_providers
+                                    .memory_write
+                                    .write_bytes(&opened_process_info, address, &value_bytes);
                             }
                         }
                     }

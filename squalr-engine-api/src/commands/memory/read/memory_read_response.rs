@@ -1,6 +1,6 @@
+use crate::commands::memory::memory_response::MemoryResponse;
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
-use crate::commands::memory::memory_response::MemoryResponse;
 use crate::structures::structs::valued_struct::ValuedStruct;
 use serde::{Deserialize, Serialize};
 

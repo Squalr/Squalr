@@ -1,6 +1,7 @@
 use crate::engine_bindings::interprocess::interprocess_engine_api_privileged_bindings::InterprocessEngineApiPrivilegedBindings;
 use crate::engine_bindings::standalone::standalone_engine_api_privileged_bindings::StandalonePrivilegedEngine;
 use crate::engine_mode::EngineMode;
+use crate::os::engine_os_provider::EngineOsProviders;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
 use crossbeam_channel::Receiver;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
@@ -12,7 +13,6 @@ use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::Eleme
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_processes::process::process_manager::ProcessManager;
-use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use squalr_engine_scanning::freeze_task::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use std::sync::{Arc, RwLock};
 
@@ -32,10 +32,20 @@ pub struct EnginePrivilegedState {
 
     /// The collection of all engine registries.
     registries: Arc<Registries>,
+
+    /// OS access providers for process and memory operations.
+    os_providers: EngineOsProviders,
 }
 
 impl EnginePrivilegedState {
     pub fn new(engine_mode: EngineMode) -> Arc<Self> {
+        Self::new_with_os_providers(engine_mode, EngineOsProviders::default())
+    }
+
+    pub fn new_with_os_providers(
+        engine_mode: EngineMode,
+        os_providers: EngineOsProviders,
+    ) -> Arc<Self> {
         let engine_bindings_standalone = match engine_mode {
             EngineMode::Standalone => Some(Arc::new(RwLock::new(StandalonePrivilegedEngine::new()))),
             _ => None,
@@ -65,6 +75,7 @@ impl EnginePrivilegedState {
             snapshot,
             engine_bindings,
             registries,
+            os_providers,
         });
 
         // Initialize standalone privileged bindings if they are present.
@@ -95,7 +106,11 @@ impl EnginePrivilegedState {
             }
         }
 
-        if let Err(error) = ProcessQuery::start_monitoring() {
+        if let Err(error) = engine_privileged_state
+            .os_providers
+            .process_query
+            .start_monitoring()
+        {
             log::error!("Failed to monitor system processes: {}", error);
         }
 
@@ -119,6 +134,11 @@ impl EnginePrivilegedState {
     /// Gets all engine registries.
     pub fn get_registries(&self) -> Arc<Registries> {
         self.registries.clone()
+    }
+
+    /// Gets OS providers used for process and memory operations.
+    pub fn get_os_providers(&self) -> &EngineOsProviders {
+        &self.os_providers
     }
 
     /// Gets the registry for the list of addresses that have been marked as frozen.

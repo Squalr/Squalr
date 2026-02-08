@@ -1,7 +1,9 @@
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::settings::general::set::general_settings_set_response::GeneralSettingsSetResponse;
 use crate::commands::settings::settings_response::SettingsResponse;
-use crate::commands::{privileged_command_response::PrivilegedCommandResponse, settings::general::list::general_settings_list_response::GeneralSettingsListResponse};
+use crate::commands::{
+    privileged_command_response::PrivilegedCommandResponse, settings::general::list::general_settings_list_response::GeneralSettingsListResponse,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

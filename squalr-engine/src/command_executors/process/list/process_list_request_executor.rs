@@ -3,7 +3,6 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::list::process_list_response::ProcessListResponse;
 use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
-use squalr_engine_processes::process_query::process_queryer::ProcessQuery;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ProcessListRequest {
@@ -11,7 +10,7 @@ impl PrivilegedCommandRequestExecutor for ProcessListRequest {
 
     fn execute(
         &self,
-        _engine_privileged_state: &Arc<EnginePrivilegedState>,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         log::info!(
             "Listing processes with options: require_windowed={}, search_name={:?}, match_case={}, limit={:?}",
@@ -30,7 +29,10 @@ impl PrivilegedCommandRequestExecutor for ProcessListRequest {
             limit: self.limit,
         };
 
-        let processes = ProcessQuery::get_processes(options);
+        let processes = engine_privileged_state
+            .get_os_providers()
+            .process_query
+            .get_processes(options);
 
         ProcessListResponse { processes }
     }

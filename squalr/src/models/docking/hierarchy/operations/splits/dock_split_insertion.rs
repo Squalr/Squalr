@@ -61,10 +61,13 @@ impl DockNode {
 
                         // Give the new child the remaining 1/(n+1) share
                         let new_child_ratio = 1.0 / (n as f32 + 1.0);
-                        children.insert(insert_at, DockSplitChild {
-                            node: source_node,
-                            ratio: new_child_ratio,
-                        });
+                        children.insert(
+                            insert_at,
+                            DockSplitChild {
+                                node: source_node,
+                                ratio: new_child_ratio,
+                            },
+                        );
 
                         // The values should be normalized, but just guarantee it in case.
                         Self::normalize_split_ratios(children);
@@ -102,10 +105,10 @@ impl DockNode {
 
             *self = DockNode::Split {
                 direction: split_dir,
-                children: vec![DockSplitChild { node: first, ratio: 0.5 }, DockSplitChild {
-                    node: second,
-                    ratio: 0.5,
-                }],
+                children: vec![
+                    DockSplitChild { node: first, ratio: 0.5 },
+                    DockSplitChild { node: second, ratio: 0.5 },
+                ],
             };
             return true;
         }
@@ -124,10 +127,10 @@ impl DockNode {
 
         *target_node = DockNode::Split {
             direction: split_dir,
-            children: vec![DockSplitChild { node: first, ratio: 0.5 }, DockSplitChild {
-                node: second,
-                ratio: 0.5,
-            }],
+            children: vec![
+                DockSplitChild { node: first, ratio: 0.5 },
+                DockSplitChild { node: second, ratio: 0.5 },
+            ],
         };
 
         true
