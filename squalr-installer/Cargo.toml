@@ -11,9 +11,10 @@ binary-mode = []
 
 [dependencies]
 squalr-engine = { path = "../squalr-engine" }
+eframe = ">=0.32.3"
+epaint = ">=0.32.3"
 log = { version = ">=0.4.27" }
-slint = { version = "=1.11.0", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "renderer-software", "std"] }
+image = ">=0.25.6"
 
 [build-dependencies]
-slint-build = { version = "=1.11.0" }
 winresource = ">=0.1.20"

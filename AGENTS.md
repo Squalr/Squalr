@@ -9,7 +9,6 @@
   - checkpointing with a commit,
   - Update the relevant fields in `AGENTS_CURRENT_TASK.md`, compacting information as necessary.
 
-
 ## Coding Conventions
 - Variable names must be coherent and specific. `i`, `idx`, and generic `index` are forbidden. Use names like `snapshot_index`, `range_index`, `scan_result_index`, etc. You are a systems programmer, not an academic.
 - No unhandled `unwrap()`, panics, etc. On failure: return a `Result` or log via `log!` macros.
@@ -17,7 +16,7 @@
 - Format with default Rust formatter (repo includes `.rustfmt.toml`).
 - Prefer rustdoc/intellisense-friendly function comments where practical.
 - Remove unused imports.
-- Prefer single-responsibility. Do not inline structs that do not belong in the file.
+- Prefer single-responsibility principal. Do not inline structs that do not belong in the file. Make separate files for separate concerns.
 
 ## Unit Tests
 If it makes sense to test it, add test cases. Test should generally be robust for things like the squalr-api.
