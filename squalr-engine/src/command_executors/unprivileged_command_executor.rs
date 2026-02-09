@@ -2,7 +2,7 @@ use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUn
 use serde::{Serialize, de::DeserializeOwned};
 use squalr_engine_api::{
     commands::{unprivileged_command::UnprivilegedCommand, unprivileged_command_response::UnprivilegedCommandResponse},
-    engine::engine_unprivileged_state::EngineUnprivilegedState,
+    engine::engine_execution_context::EngineExecutionContext,
 };
 use std::sync::Arc;
 
@@ -11,14 +11,14 @@ pub trait UnprivilegedCommandExecutor: Clone + Serialize + DeserializeOwned {
 
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> Self::ResponseType;
 }
 
 impl ExecutableCommandUnprivleged for UnprivilegedCommand {
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> UnprivilegedCommandResponse {
         match self {
             UnprivilegedCommand::Project(command) => command.execute(engine_unprivileged_state),

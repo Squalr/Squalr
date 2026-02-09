@@ -121,7 +121,7 @@ impl Widget for MainShortcutBarView {
                             ))
                             .clicked()
                         {
-                            process_to_open = Some(Some(windowed_process.get_process_id().as_u32()));
+                            process_to_open = Some(Some(windowed_process.get_process_id()));
                             *should_close = true;
 
                             return;

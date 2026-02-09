@@ -33,7 +33,7 @@ impl ProjectManager {
 
     /// Dispatches an engine event indicating that the project items have changed.
     pub fn notify_project_items_changed(&self) {
-        if let Ok(project) = self.opened_project.read() {
+        if let Ok(_project) = self.opened_project.read() {
             /*
             let project_root = if let Some(project) = project.as_ref() {
                 Some(project.get_project_root().clone())

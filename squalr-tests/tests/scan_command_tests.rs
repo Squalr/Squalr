@@ -133,7 +133,7 @@ fn scan_reset_request_dispatches_reset_command_and_invokes_typed_callback() {
 #[test]
 fn scan_reset_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        ScanCollectValuesResponse { trackable_task_handle: None }.to_engine_response(),
+        ScanCollectValuesResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -162,7 +162,7 @@ fn scan_reset_request_does_not_invoke_callback_when_response_variant_is_wrong() 
 #[test]
 fn scan_collect_values_request_dispatches_collect_values_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        ScanCollectValuesResponse { trackable_task_handle: None }.to_engine_response(),
+        ScanCollectValuesResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -224,7 +224,7 @@ fn scan_collect_values_request_does_not_invoke_callback_when_response_variant_is
 #[test]
 fn element_scan_request_dispatches_element_scan_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        ElementScanResponse { trackable_task_handle: None }.to_engine_response(),
+        ElementScanResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -296,7 +296,7 @@ fn element_scan_request_does_not_invoke_callback_when_response_variant_is_wrong(
 #[test]
 fn pointer_scan_request_dispatches_pointer_scan_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        PointerScanResponse { trackable_task_handle: None }.to_engine_response(),
+        PointerScanResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -347,7 +347,7 @@ fn pointer_scan_request_dispatches_pointer_scan_command_and_invokes_typed_callba
 #[test]
 fn pointer_scan_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        ScanCollectValuesResponse { trackable_task_handle: None }.to_engine_response(),
+        ScanCollectValuesResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -381,7 +381,7 @@ fn pointer_scan_request_does_not_invoke_callback_when_response_variant_is_wrong(
 #[test]
 fn struct_scan_request_dispatches_struct_scan_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        StructScanResponse { trackable_task_handle: None }.to_engine_response(),
+        StructScanResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -431,7 +431,7 @@ fn struct_scan_request_dispatches_struct_scan_command_and_invokes_typed_callback
 #[test]
 fn struct_scan_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        PointerScanResponse { trackable_task_handle: None }.to_engine_response(),
+        PointerScanResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();

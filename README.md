@@ -234,7 +234,7 @@ Struct scans will be very challenging. Imagine scanning for {float} {float} {flo
 Our existing architecture is quite flexible, but this definitely requires a special scanner implementation, and it is highly unlikely to benefit from any of the rules engine optimizations.
 
 ## Detailed Tasklist
-This is a highly descriptive 
+This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
 
 ### Android Build
 Branch: `pr/android`
@@ -247,16 +247,24 @@ This will require a bit of a revival.
 ### TUI Build
 Branch: `pr/tui`
 
-Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways.
+Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways. Need to investigate TUI options, and which makes the most sense to use.
 
-### Scan Commands
-Branch: `pr/scan-commands`
+### Conversion Testing
+Branch: `pr/conversion-testing`
 
-We are on , and should better organize the commands that we fire. First, we have improperly organized scanning as a scan command.
+The conversions in the squalr-engine-api should probably have a dedicated test suite.
 
-There should be scan (element scan) and pscan (pointer scan). These are not related. It is unclear at this point in time whether struct scans are abstracted under element scans, but if it makes sense to decouple this should be done as well.
+Additionally, conversions should be architecturally audited for robustness.
 
-In a CLI, it would actually be ideal for scan commands to be blocking (ie the response includes the results rather than a task handle), where as a TUI/GUI would prefer the task handle with progress updates for showing a progress bar, to free up the user to do other things. Maybe this can be a default arg?
+### Pointer Scanning
+Branch: `pr/pointer-scanning`
+
+Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
+
+### Release Test
+Branch: `pr/release-test`
+
+We need to orchestrate a full attempt at a v1.0.0 release to see how the process goes.
 
 ### Engine Event Hooks
 Branch: `pr/engine-event-hooks`
@@ -274,19 +282,11 @@ This needs to be done such that the GUI can make snap decisions without chatty t
 
 Very challenging task.
 
-### Conversion Testing
-Branch: `pr/conversion-testing`
+### Scan Commands
+Branch: `pr/scan-commands`
 
-The conversions in the squalr-api should probably have a dedicated test suite.
+We should better organize the commands that we fire. First, we have improperly organized scanning as a scan command.
 
-Additionally, conversions should be architecturally audited for robustness.
+There should be scan (element scan) and pscan (pointer scan). These are not related. It is unclear at this point in time whether struct scans are abstracted under element scans, but if it makes sense to decouple this should be done as well.
 
-### Pointer Scanning
-Branch: `pr/pointer-scanning`
-
-Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
-
-### Release Test
-Branch: `pr/release-test`
-
-We need to orchestrate a full attempt at a v1.0.0 release to see how the process goes.
+In a CLI, it would actually be ideal for scan commands to be blocking (ie the response includes the results rather than a task handle), where as a TUI/GUI would prefer the task handle with progress updates for showing a progress bar, to free up the user to do other things. Maybe this can be a default arg?

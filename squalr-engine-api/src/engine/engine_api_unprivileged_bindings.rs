@@ -3,8 +3,7 @@ use crate::{
         privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse, unprivileged_command::UnprivilegedCommand,
         unprivileged_command_response::UnprivilegedCommandResponse,
     },
-    engine::engine_binding_error::EngineBindingError,
-    engine::engine_unprivileged_state::EngineUnprivilegedState,
+    engine::{engine_binding_error::EngineBindingError, engine_execution_context::EngineExecutionContext},
     events::engine_event::EngineEvent,
 };
 use crossbeam_channel::Receiver;
@@ -23,7 +22,7 @@ pub trait EngineApiUnprivilegedBindings: Send + Sync {
     fn dispatch_unprivileged_command(
         &self,
         engine_command: UnprivilegedCommand,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_execution_context: &Arc<dyn EngineExecutionContext>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError>;
 

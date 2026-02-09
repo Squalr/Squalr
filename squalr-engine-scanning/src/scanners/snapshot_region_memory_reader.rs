@@ -1,19 +1,20 @@
+use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::snapshot_region_memory_read_error::SnapshotRegionMemoryReadError;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_memory::memory_reader::MemoryReader;
-use squalr_engine_memory::memory_reader::memory_reader_trait::IMemoryReader;
 
 pub trait SnapshotRegionMemoryReader {
     fn read_all_memory(
         &mut self,
         process_info: &OpenedProcessInfo,
+        scan_execution_context: &ScanExecutionContext,
     ) -> Result<(), SnapshotRegionMemoryReadError>;
     fn read_all_memory_chunked(
         &mut self,
         process_info: &OpenedProcessInfo,
+        scan_execution_context: &ScanExecutionContext,
     ) -> Result<(), SnapshotRegionMemoryReadError>;
 }
 
@@ -22,6 +23,7 @@ impl SnapshotRegionMemoryReader for SnapshotRegion {
     fn read_all_memory(
         &mut self,
         process_info: &OpenedProcessInfo,
+        scan_execution_context: &ScanExecutionContext,
     ) -> Result<(), SnapshotRegionMemoryReadError> {
         let region_size = self.get_region_size() as usize;
         let base_address = self.get_base_address();
@@ -41,7 +43,7 @@ impl SnapshotRegionMemoryReader for SnapshotRegion {
 
         if self.page_boundaries.is_empty() {
             // If this snapshot is part of a standalone memory page, just read the regions as normal.
-            let read_succeeded = MemoryReader::get_instance().read_bytes(process_info, base_address, &mut self.current_values);
+            let read_succeeded = scan_execution_context.read_bytes(process_info, base_address, &mut self.current_values);
 
             if !read_succeeded {
                 self.page_boundary_tombstones.insert(base_address);
@@ -80,7 +82,7 @@ impl SnapshotRegionMemoryReader for SnapshotRegion {
             let read_failures = read_ranges
                 .into_par_iter()
                 .map(|(address, buffer)| {
-                    let success = MemoryReader::get_instance().read_bytes(process_info, address, buffer);
+                    let success = scan_execution_context.read_bytes(process_info, address, buffer);
 
                     if success { None } else { Some(address) }
                 })
@@ -107,6 +109,7 @@ impl SnapshotRegionMemoryReader for SnapshotRegion {
     fn read_all_memory_chunked(
         &mut self,
         process_info: &OpenedProcessInfo,
+        scan_execution_context: &ScanExecutionContext,
     ) -> Result<(), SnapshotRegionMemoryReadError> {
         const CHUNK_SIZE: usize = 16 * 1024;
         let region_size = self.get_region_size() as usize;
@@ -135,7 +138,7 @@ impl SnapshotRegionMemoryReader for SnapshotRegion {
                 .into_par_iter()
                 .filter_map(|(chunk_index, chunk)| {
                     let chunk_address = base_address + chunk_index as u64 * CHUNK_SIZE as u64;
-                    let read_succeeded = MemoryReader::get_instance().read_bytes(process_info, chunk_address, chunk);
+                    let read_succeeded = scan_execution_context.read_bytes(process_info, chunk_address, chunk);
 
                     if read_succeeded { None } else { Some(chunk_address) }
                 })
@@ -189,7 +192,7 @@ impl SnapshotRegionMemoryReader for SnapshotRegion {
             let read_failures = read_ranges
                 .into_par_iter()
                 .filter_map(|(address, chunk)| {
-                    let read_succeeded = MemoryReader::get_instance().read_bytes(process_info, address, chunk);
+                    let read_succeeded = scan_execution_context.read_bytes(process_info, address, chunk);
 
                     if read_succeeded { None } else { Some(address) }
                 })

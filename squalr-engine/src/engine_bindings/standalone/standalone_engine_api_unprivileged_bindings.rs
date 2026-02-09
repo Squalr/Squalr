@@ -9,7 +9,7 @@ use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::Arc;
 
@@ -56,7 +56,7 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
     fn dispatch_unprivileged_command(
         &self,
         unprivileged_command: UnprivilegedCommand,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
         let response = unprivileged_command.execute(engine_unprivileged_state);

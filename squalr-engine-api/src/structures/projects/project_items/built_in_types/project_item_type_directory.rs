@@ -1,5 +1,5 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-use crate::registries::registries::Registries;
+use crate::registries::registry_context::RegistryContext;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::projects::project_items::project_item_type_ref::ProjectItemTypeRef;
@@ -21,9 +21,9 @@ impl ProjectItemType for ProjectItemTypeDirectory {
 
     fn on_activated_changed(
         &self,
-        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
-        registries: &Registries,
-        project_item_ref: &ProjectItemRef,
+        _engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
+        _registry_context: &dyn RegistryContext,
+        _project_item_ref: &ProjectItemRef,
     ) {
         /*
         let is_activated = project_item.get_is_activated();
@@ -36,12 +36,12 @@ impl ProjectItemType for ProjectItemTypeDirectory {
 
     fn tick(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
-        opened_process: &Option<OpenedProcessInfo>,
-        registries: &Registries,
-        project_item_ref: &ProjectItemRef,
+        _engine_bindings: &dyn EngineApiPrivilegedBindings,
+        _opened_process: &Option<OpenedProcessInfo>,
+        registry_context: &dyn RegistryContext,
+        _project_item_ref: &ProjectItemRef,
     ) {
-        if let Ok(project_item_type_registry) = registries.get_project_item_type_registry().read() {
+        if let Ok(_project_item_type_registry) = registry_context.get_project_item_type_registry().read() {
             // Recurse the tick call to all child project items.
             /*
             for child in project_item.get_children_mut() {

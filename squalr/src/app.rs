@@ -4,7 +4,8 @@ use crate::views::main_window::main_window_view::MainWindowView;
 use crate::{app_context::AppContext, ui::theme::Theme};
 use eframe::egui::{CentralPanel, Context, Frame, Visuals};
 use epaint::{CornerRadius, Rgba, vec2};
-use squalr_engine_api::{dependency_injection::dependency_container::DependencyContainer, engine::engine_unprivileged_state::EngineUnprivilegedState};
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::RwLock;
 use std::{rc::Rc, sync::Arc};
 

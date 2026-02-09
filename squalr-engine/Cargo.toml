@@ -7,13 +7,9 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../squalr-engine-api" }
-squalr-engine-architecture = { path = "../squalr-engine-architecture" }
-squalr-engine-debuggers = { path = "../squalr-engine-debuggers" }
-squalr-engine-memory = { path = "../squalr-engine-memory" }
-squalr-engine-processes = { path = "../squalr-engine-processes" }
+squalr-engine-session = { path = "../squalr-engine-session" }
 squalr-engine-projects = { path = "../squalr-engine-projects" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
-squalr-engine-scripting = { path = "../squalr-engine-scripting" }
 anyhow = "1.0.101"
 bincode = { version = "2.0.1", features = ["serde"] }
 crossbeam-channel = "0.5.15"
@@ -29,7 +25,6 @@ semver = "1.0.27"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 structopt = "0.3.26"
-sysinfo = "0.38.0"
 tempfile = "3.24.0"
 thiserror = "2.0.18"
 ureq = { version = "3.0.11", default-features = false, features = ["native-tls"] }

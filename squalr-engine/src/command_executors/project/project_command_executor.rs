@@ -4,7 +4,7 @@ use squalr_engine_api::{
         project::project_command::ProjectCommand,
         unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse},
     },
-    engine::engine_unprivileged_state::EngineUnprivilegedState,
+    engine::engine_execution_context::EngineExecutionContext,
 };
 use std::sync::Arc;
 
@@ -13,7 +13,7 @@ impl UnprivilegedCommandExecutor for ProjectCommand {
 
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandExecutor>::ResponseType {
         match self {
             ProjectCommand::Create { project_create_request } => project_create_request

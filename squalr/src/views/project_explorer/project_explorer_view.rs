@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Layout, Response, Ui, Widget};
-use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::{dependency_injection::dependency::Dependency, engine::engine_execution_context::EngineExecutionContext};
 use std::sync::Arc;
 
 #[derive(Clone)]

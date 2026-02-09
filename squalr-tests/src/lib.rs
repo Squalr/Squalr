@@ -11,8 +11,9 @@ use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::EngineEvent;
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::{Arc, OnceLock, RwLock};
 
 /// Provides a shared execution context for integration tests that require `EngineUnprivilegedState`.
@@ -49,7 +50,7 @@ impl EngineApiUnprivilegedBindings for NoOpEngineBindings {
     fn dispatch_unprivileged_command(
         &self,
         _engine_command: UnprivilegedCommand,
-        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
         callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
         callback(self.unprivileged_response.clone());

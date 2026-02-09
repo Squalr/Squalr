@@ -2,9 +2,9 @@ use crate::command_executors::privileged_request_executor::PrivilegedCommandRequ
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::open::process_open_request::ProcessOpenRequest;
 use squalr_engine_api::commands::process::open::process_open_response::ProcessOpenResponse;
-use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
+use squalr_engine_session::os::Pid;
+use squalr_engine_session::os::ProcessQueryOptions;
 use std::sync::Arc;
-use sysinfo::Pid;
 
 impl PrivilegedCommandRequestExecutor for ProcessOpenRequest {
     type ResponseType = ProcessOpenResponse;

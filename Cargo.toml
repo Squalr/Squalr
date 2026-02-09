@@ -3,14 +3,13 @@
 [workspace]
 members = [
     "squalr-tests",
+    "squalr-engine-api",
+    "squalr-engine-domain",
+    "squalr-engine-session",
+    "squalr-engine-operating-system",
     "squalr-engine",
-    "squalr-engine-architecture",
-    "squalr-engine-debuggers",
-    "squalr-engine-memory",
-    "squalr-engine-processes",
     "squalr-engine-projects",
     "squalr-engine-scanning",
-    "squalr-engine-scripting",
     "squalr-android",
     "squalr-cli",
     "squalr-tui",

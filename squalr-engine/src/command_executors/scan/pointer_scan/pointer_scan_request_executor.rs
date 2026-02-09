@@ -1,13 +1,14 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::scan::scan_results_metadata_collector::collect_scan_results_metadata;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_request::PointerScanRequest;
 use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_response::PointerScanResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
-use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutorTask;
+use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
+use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
 use std::sync::Arc;
-use std::thread;
 
 impl PrivilegedCommandRequestExecutor for PointerScanRequest {
     type ResponseType = PointerScanResponse;
@@ -45,38 +46,23 @@ impl PrivilegedCommandRequestExecutor for PointerScanRequest {
                 ScanSettingsConfig::get_is_single_threaded_scan(),
                 ScanSettingsConfig::get_debug_perform_validation_scan(),
             );
-
-            // Start the task to perform the scan.
-            let task = PointerScanExecutorTask::start_task(process_info, snapshot.clone(), snapshot.clone(), scan_parameters, true);
-            let task_handle = task.get_task_handle();
-            let engine_privileged_state = engine_privileged_state.clone();
-            let progress_receiver = task.subscribe_to_progress_updates();
-
-            engine_privileged_state
-                .get_trackable_task_manager()
-                .register_task(task.clone());
-
-            // Spawn a thread to listen to progress updates.
-            thread::spawn(move || {
-                while let Ok(progress) = progress_receiver.recv() {
-                    log::info!("Progress: {:.2}%", progress);
-                }
-            });
-
-            thread::spawn(move || {
-                task.wait_for_completion();
-                engine_privileged_state
-                    .get_trackable_task_manager()
-                    .unregister_task(&task.get_task_identifier());
-                engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
-            });
+            let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
+            let scan_execution_context = ScanExecutionContext::new(
+                None,
+                None,
+                Some(Arc::new(move |opened_process_info, address, values| {
+                    memory_read_provider.read_bytes(opened_process_info, address, values)
+                })),
+            );
+            PointerScanExecutor::execute_scan(process_info, snapshot.clone(), snapshot, scan_parameters, true, &scan_execution_context);
+            engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 
             PointerScanResponse {
-                trackable_task_handle: Some(task_handle),
+                scan_results_metadata: collect_scan_results_metadata(engine_privileged_state),
             }
         } else {
             log::error!("No opened process");
-            PointerScanResponse { trackable_task_handle: None }
+            PointerScanResponse::default()
         }
     }
 }

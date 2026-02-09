@@ -1,6 +1,7 @@
 use crate::scanners::element_scan_dispatcher::ElementScanDispatcher;
+use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
-use crate::scanners::value_collector_task::ValueCollectorTask;
+use crate::scanners::value_collector_task::ValueCollector;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
@@ -9,50 +10,38 @@ use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
-use std::thread;
 use std::time::Instant;
 
-pub struct ElementScanExecutorTask {}
-
-const TASK_NAME: &'static str = "Element Scan Executor";
+pub struct ElementScanExecutor;
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
-impl ElementScanExecutorTask {
-    pub fn start_task(
+impl ElementScanExecutor {
+    pub fn execute_scan(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_plan: ElementScanPlan,
         with_logging: bool,
-    ) -> Arc<TrackableTask> {
-        let task = TrackableTask::create(TASK_NAME.to_string(), None);
-        let task_clone = task.clone();
-
-        thread::spawn(move || {
-            Self::scan_task(&task_clone, process_info, snapshot, element_scan_plan, with_logging);
-
-            task_clone.complete();
-        });
-
-        task
+        scan_execution_context: &ScanExecutionContext,
+    ) {
+        Self::scan_task(process_info, snapshot, element_scan_plan, with_logging, scan_execution_context);
     }
 
     fn scan_task(
-        trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
         element_scan_plan: ElementScanPlan,
         with_logging: bool,
+        scan_execution_context: &ScanExecutionContext,
     ) {
         let total_start_time = Instant::now();
 
         // If the parameter is set, first collect values before the scan.
         // This is slower overall than interleaving the reads, but better for capturing values that may soon change.
         if element_scan_plan.get_memory_read_mode() == MemoryReadMode::ReadBeforeScan {
-            ValueCollectorTask::start_task(process_info.clone(), snapshot.clone(), with_logging).wait_for_completion();
+            ValueCollector::collect_values(process_info.clone(), snapshot.clone(), with_logging, scan_execution_context);
         }
 
         if with_logging {
@@ -73,12 +62,11 @@ impl ElementScanExecutorTask {
         let start_time = Instant::now();
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
-        let cancellation_token = trackable_task.get_cancellation_token();
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
 
         // Create a function that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
         let snapshot_iterator = |snapshot_region: &mut SnapshotRegion| {
-            if cancellation_token.load(Ordering::SeqCst) {
+            if scan_execution_context.should_cancel() {
                 return;
             }
 
@@ -87,7 +75,7 @@ impl ElementScanExecutorTask {
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_plan.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
-                let _ = snapshot_region.read_all_memory(&process_info);
+                let _ = snapshot_region.read_all_memory(&process_info, scan_execution_context);
             }
 
             /*
@@ -124,7 +112,7 @@ impl ElementScanExecutorTask {
             // To reduce performance impact, only periodically send progress updates.
             if processed % 32 == 0 {
                 let progress = (processed as f32 / total_region_count as f32) * 100.0;
-                trackable_task.set_progress(progress);
+                scan_execution_context.report_progress(progress);
             }
         };
 

@@ -1,13 +1,13 @@
-use squalr_engine::os::engine_os_provider::{EngineOsProviders, MemoryQueryProvider, MemoryReadProvider, MemoryWriteProvider, ProcessQueryProvider};
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-use squalr_engine_memory::memory_queryer::page_retrieval_mode::PageRetrievalMode;
-use squalr_engine_processes::process_query::process_query_error::ProcessQueryError;
-use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
+use squalr_engine_operating_system::memory_queryer::page_retrieval_mode::PageRetrievalMode;
+use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
+use squalr_engine_operating_system::process_query::process_query_options::ProcessQueryOptions;
+use squalr_engine_session::os::engine_os_provider::{EngineOsProviders, MemoryQueryProvider, MemoryReadProvider, MemoryWriteProvider, ProcessQueryProvider};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]

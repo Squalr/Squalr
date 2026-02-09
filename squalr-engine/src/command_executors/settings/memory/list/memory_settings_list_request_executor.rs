@@ -3,7 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::settings::memory::list::memory_settings_list_request::MemorySettingsListRequest;
 use squalr_engine_api::commands::settings::memory::list::memory_settings_list_response::MemorySettingsListResponse;
 use squalr_engine_api::commands::settings::settings_error::SettingsError;
-use squalr_engine_memory::config::memory_settings_config::MemorySettingsConfig;
+use squalr_engine_session::os::MemorySettingsConfig;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for MemorySettingsListRequest {

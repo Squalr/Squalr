@@ -2,6 +2,7 @@ use crate::command_executors::privileged_request_executor::PrivilegedCommandRequ
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
+use squalr_engine_api::registries::registry_context::RegistryContext;
 use squalr_engine_api::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use std::sync::Arc;

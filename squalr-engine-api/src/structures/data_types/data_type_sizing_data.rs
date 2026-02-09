@@ -1,8 +1,1 @@
-use serde::{Deserialize, Serialize};
-
-/// Represents the size of an associated data type.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum DataTypeSizingData {
-    FixedSize,
-    VariableSize(Option<u64>),
-}
+pub use squalr_engine_domain::structures::data_types::data_type_sizing_data::*;

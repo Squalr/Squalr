@@ -2,7 +2,7 @@ use crate::command_executors::unprivileged_request_executor::UnprivilegedCommand
 use rfd::FileDialog;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::open::project_open_response::ProjectOpenResponse;
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
@@ -14,7 +14,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
 
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         let project_manager = engine_unprivileged_state.get_project_manager();
         let opened_project = project_manager.get_opened_project();

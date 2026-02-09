@@ -1,7 +1,7 @@
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
-use crate::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use crate::engine::engine_execution_context::EngineExecutionContext;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -13,13 +13,13 @@ pub trait PrivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
 
     fn send<F>(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_execution_context: &Arc<impl EngineExecutionContext + 'static>,
         callback: F,
     ) where
         F: FnOnce(<Self as PrivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as PrivilegedCommandRequest>::ResponseType: TypedPrivilegedCommandResponse,
     {
-        match engine_unprivileged_state.get_bindings().read() {
+        match engine_execution_context.get_bindings().read() {
             Ok(engine_bindings) => {
                 self.send_unprivileged(&*engine_bindings, callback);
             }

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use squalr_engine_api::{
     commands::{unprivileged_command::UnprivilegedCommand, unprivileged_command_response::UnprivilegedCommandResponse},
-    engine::engine_unprivileged_state::EngineUnprivilegedState,
+    engine::engine_execution_context::EngineExecutionContext,
 };
 use std::sync::Arc;
 
@@ -14,6 +14,6 @@ pub enum EngineIngress {
 pub trait ExecutableCommandUnprivleged {
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> UnprivilegedCommandResponse;
 }

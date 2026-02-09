@@ -1,59 +1,48 @@
-use crate::scanners::value_collector_task::ValueCollectorTask;
+use crate::scanners::scan_execution_context::ScanExecutionContext;
+use crate::scanners::value_collector_task::ValueCollector;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::{Arc, RwLock};
-use std::thread;
 
-pub struct PointerScanExecutorTask {}
-
-const TASK_NAME: &'static str = "Pointer Scan Executor";
+pub struct PointerScanExecutor;
 
 /// Implementation of a task that performs a scan against the provided snapshot. Does not collect new values.
 /// Caller is assumed to have already done this if desired.
-impl PointerScanExecutorTask {
-    pub fn start_task(
+impl PointerScanExecutor {
+    pub fn execute_scan(
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
-    ) -> Arc<TrackableTask> {
-        let task = TrackableTask::create(TASK_NAME.to_string(), None);
-        let task_clone = task.clone();
-
-        thread::spawn(move || {
-            Self::scan_task(
-                &task_clone,
-                process_info,
-                statics_snapshot,
-                heaps_snapshot,
-                pointer_scan_parameters,
-                with_logging,
-            );
-
-            task_clone.complete();
-        });
-
-        task
+        scan_execution_context: &ScanExecutionContext,
+    ) {
+        Self::scan_task(
+            process_info,
+            statics_snapshot,
+            heaps_snapshot,
+            pointer_scan_parameters,
+            with_logging,
+            scan_execution_context,
+        );
     }
 
     fn scan_task(
-        _trackable_task: &Arc<TrackableTask>,
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
         _pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
+        scan_execution_context: &ScanExecutionContext,
     ) {
         if with_logging {
             log::info!("Performing pointer scan...");
         }
 
         // Populate the latest static and heap values from process memory.
-        ValueCollectorTask::start_task(process_info.clone(), statics_snapshot.clone(), with_logging).wait_for_completion();
-        ValueCollectorTask::start_task(process_info.clone(), heaps_snapshot.clone(), with_logging).wait_for_completion();
+        ValueCollector::collect_values(process_info.clone(), statics_snapshot.clone(), with_logging, scan_execution_context);
+        ValueCollector::collect_values(process_info.clone(), heaps_snapshot.clone(), with_logging, scan_execution_context);
 
         // Find valid pointers. JIRA: Binary search kernel?
         /*

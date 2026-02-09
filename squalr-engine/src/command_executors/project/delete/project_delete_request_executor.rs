@@ -1,7 +1,7 @@
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::delete::project_delete_request::ProjectDeleteRequest;
 use squalr_engine_api::commands::project::delete::project_delete_response::ProjectDeleteResponse;
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_projects::settings::project_settings_config::ProjectSettingsConfig;
 use std::fs;
 use std::sync::Arc;
@@ -11,7 +11,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectDeleteRequest {
 
     fn execute(
         &self,
-        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
         // If a path is provided, use this directly. Otherwise, try to use the project settings relative name to construct the path.
         // If no path nor project name is provided, we will just make an empty project with a default name.

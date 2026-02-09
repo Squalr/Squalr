@@ -1,6 +1,6 @@
 use crate::{
     commands::{unprivileged_command::UnprivilegedCommand, unprivileged_command_response::TypedUnprivilegedCommandResponse},
-    engine::{engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_unprivileged_state::EngineUnprivilegedState},
+    engine::{engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_execution_context::EngineExecutionContext},
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -13,7 +13,7 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
 
     fn send<F>(
         &self,
-        execution_context: &Arc<EngineUnprivilegedState>,
+        execution_context: &Arc<impl EngineExecutionContext + 'static>,
         callback: F,
     ) where
         F: FnOnce(<Self as UnprivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
@@ -30,7 +30,7 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
     fn send_unprivileged<F>(
         &self,
         engine_bindings: &dyn EngineApiUnprivilegedBindings,
-        execution_context: &Arc<EngineUnprivilegedState>,
+        execution_context: &Arc<impl EngineExecutionContext + 'static>,
         callback: F,
     ) where
         F: FnOnce(<Self as UnprivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
@@ -38,9 +38,11 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
     {
         let command = self.to_engine_command();
 
+        let execution_context: Arc<dyn EngineExecutionContext> = execution_context.clone();
+
         if let Err(error) = engine_bindings.dispatch_unprivileged_command(
             command,
-            execution_context,
+            &execution_context,
             Box::new(move |engine_response| {
                 if let Ok(response) = <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
                     callback(response);

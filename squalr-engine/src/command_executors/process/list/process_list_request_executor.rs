@@ -2,7 +2,7 @@ use crate::command_executors::privileged_request_executor::PrivilegedCommandRequ
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::process::list::process_list_request::ProcessListRequest;
 use squalr_engine_api::commands::process::list::process_list_response::ProcessListResponse;
-use squalr_engine_processes::process_query::process_query_options::ProcessQueryOptions;
+use squalr_engine_session::os::ProcessQueryOptions;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ProcessListRequest {

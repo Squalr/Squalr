@@ -1,11 +1,12 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::scan::scan_results_metadata_collector::collect_scan_results_metadata;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_request::ScanCollectValuesRequest;
 use squalr_engine_api::commands::scan::collect_values::scan_collect_values_response::ScanCollectValuesResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use squalr_engine_scanning::scanners::value_collector_task::ValueCollectorTask;
+use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::scanners::value_collector_task::ValueCollector;
 use std::sync::Arc;
-use std::thread;
 
 impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
     type ResponseType = ScanCollectValuesResponse;
@@ -19,36 +20,23 @@ impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
             .get_opened_process()
         {
             let snapshot = engine_privileged_state.get_snapshot();
-            let task = ValueCollectorTask::start_task(process_info.clone(), snapshot, true);
-            let task_handle = task.get_task_handle();
-            let progress_receiver = task.subscribe_to_progress_updates();
-            let engine_privileged_state = engine_privileged_state.clone();
-
-            engine_privileged_state
-                .get_trackable_task_manager()
-                .register_task(task.clone());
-
-            // Spawn a thread to listen to progress updates
-            thread::spawn(move || {
-                while let Ok(progress) = progress_receiver.recv() {
-                    log::info!("Progress: {:.2}%", progress);
-                }
-            });
-
-            thread::spawn(move || {
-                task.wait_for_completion();
-                engine_privileged_state
-                    .get_trackable_task_manager()
-                    .unregister_task(&task.get_task_identifier());
-                engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
-            });
+            let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
+            let scan_execution_context = ScanExecutionContext::new(
+                None,
+                None,
+                Some(Arc::new(move |opened_process_info, address, values| {
+                    memory_read_provider.read_bytes(opened_process_info, address, values)
+                })),
+            );
+            ValueCollector::collect_values(process_info.clone(), snapshot, true, &scan_execution_context);
+            engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 
             ScanCollectValuesResponse {
-                trackable_task_handle: Some(task_handle),
+                scan_results_metadata: collect_scan_results_metadata(engine_privileged_state),
             }
         } else {
             log::error!("No opened process");
-            ScanCollectValuesResponse { trackable_task_handle: None }
+            ScanCollectValuesResponse::default()
         }
     }
 }

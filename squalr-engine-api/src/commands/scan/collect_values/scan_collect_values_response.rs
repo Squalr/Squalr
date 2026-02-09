@@ -1,12 +1,12 @@
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::scan::scan_response::ScanResponse;
-use crate::structures::tasks::trackable_task_handle::TrackableTaskHandle;
+use crate::structures::scan_results::scan_results_metadata::ScanResultsMetadata;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScanCollectValuesResponse {
-    pub trackable_task_handle: Option<TrackableTaskHandle>,
+    pub scan_results_metadata: ScanResultsMetadata,
 }
 
 impl TypedPrivilegedCommandResponse for ScanCollectValuesResponse {

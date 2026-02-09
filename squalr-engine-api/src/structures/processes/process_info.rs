@@ -1,6 +1,5 @@
 use crate::structures::processes::process_icon::ProcessIcon;
 use serde::{Deserialize, Serialize};
-use sysinfo::Pid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProcessInfo {
@@ -25,8 +24,8 @@ impl ProcessInfo {
         }
     }
 
-    pub fn get_process_id(&self) -> Pid {
-        Pid::from_u32(self.process_id)
+    pub fn get_process_id(&self) -> u32 {
+        self.process_id
     }
 
     pub fn get_process_id_raw(&self) -> u32 {

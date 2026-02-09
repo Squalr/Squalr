@@ -54,7 +54,6 @@ impl FreezeListRegistry {
     // JIRA: This function need sto be able to clear by source. We need to be be able to register by source.
     // We need to be able to also freeze complex types like pointers.
     pub fn clear(&mut self) {
-        let JIRA = 6942069420u64;
         self.frozen_pointers.clear();
     }
 }

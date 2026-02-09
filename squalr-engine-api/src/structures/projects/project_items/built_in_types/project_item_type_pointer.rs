@@ -1,5 +1,5 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-use crate::registries::registries::Registries;
+use crate::registries::registry_context::RegistryContext;
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
@@ -20,19 +20,19 @@ impl ProjectItemType for ProjectItemTypePointer {
 
     fn on_activated_changed(
         &self,
-        engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
-        registries: &Registries,
-        project_item: &ProjectItemRef,
+        _engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
+        _registry_context: &dyn RegistryContext,
+        _project_item: &ProjectItemRef,
     ) {
         // JIRA: Implement
     }
 
     fn tick(
         &self,
-        engine_bindings: &dyn EngineApiPrivilegedBindings,
-        opened_process: &Option<OpenedProcessInfo>,
-        registries: &Registries,
-        project_item: &ProjectItemRef,
+        _engine_bindings: &dyn EngineApiPrivilegedBindings,
+        _opened_process: &Option<OpenedProcessInfo>,
+        _registry_context: &dyn RegistryContext,
+        _project_item: &ProjectItemRef,
     ) {
     }
 }

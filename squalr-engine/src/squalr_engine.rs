@@ -1,15 +1,15 @@
 use crate::app_provisioner::updater::app_updater::AppUpdater;
 use crate::engine_bindings::standalone::standalone_engine_api_unprivileged_bindings::StandaloneEngineApiUnprivilegedBindings;
 use crate::engine_mode::EngineMode;
-use crate::engine_privileged_state::EnginePrivilegedState;
+use crate::engine_privileged_state::{EnginePrivilegedState, create_engine_privileged_state};
+use crate::vectors::Vectors;
 use crate::{
     app_provisioner::progress_tracker::ProgressTracker,
     engine_bindings::interprocess::interprocess_engine_api_unprivileged_bindings::InterprocessEngineApiUnprivilegedBindings,
 };
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
-use squalr_engine_architecture::vectors::Vectors;
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::{Arc, RwLock};
 
 /// Orchestrates commands and responses to and from the engine.
@@ -31,10 +31,10 @@ impl SqualrEngine {
 
         match engine_mode {
             EngineMode::Standalone => {
-                engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode)?);
+                engine_privileged_state = Some(create_engine_privileged_state(engine_mode)?);
             }
             EngineMode::PrivilegedShell => {
-                engine_privileged_state = Some(EnginePrivilegedState::new(engine_mode)?);
+                engine_privileged_state = Some(create_engine_privileged_state(engine_mode)?);
             }
             EngineMode::UnprivilegedHost => {}
         }

@@ -1,10 +1,13 @@
+#[cfg(target_os = "android")]
 use squalr_engine::engine_mode::EngineMode;
+#[cfg(target_os = "android")]
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_gui::view_models::main_window::main_window_view_model::MainWindowViewModel;
 
+#[cfg(target_os = "android")]
 // On a rooted device, the unprivileged GUI must spawn a privileged CLI app, so it is bundled into the GUI.
 static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../squalr-cli"));
 
+#[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: slint::android::AndroidApp) {
     slint::android::init(app).unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while initializing Slint: {}", error));
@@ -14,17 +17,14 @@ fn android_main(app: slint::android::AndroidApp) {
     let mut squalr_engine = SqualrEngine::new(EngineMode::UnprivilegedHost)
         .unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while initializing Squalr engine: {}", error));
 
-    // Create and show the main window, which in turn will instantiate all dockable windows.
-    let _main_window_view = MainWindowViewModel::new(squalr_engine.get_dependency_container_mut())
-        .unwrap_or_else(|error| panic!("Fatal Android bootstrap failure while creating Squalr GUI: {}", error));
-
-    // Now that gui dependencies are registered, start the engine fully.
+    // The Android GUI bootstrap is pending migration to the current desktop UI architecture.
     squalr_engine.initialize();
 
     // Run the slint window event loop until slint::quit_event_loop() is called.
     slint::run_event_loop().unwrap_or_else(|error| panic!("Fatal Android runtime failure while starting event loop: {}", error));
 }
 
+#[cfg(target_os = "android")]
 fn unpack_cli() -> std::io::Result<()> {
     use std::io::Write;
     use std::process::{Command, Stdio};

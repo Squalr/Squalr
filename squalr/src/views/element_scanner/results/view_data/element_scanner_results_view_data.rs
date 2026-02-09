@@ -6,7 +6,6 @@ use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_reque
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
@@ -22,6 +21,7 @@ use squalr_engine_api::{
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
     structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult},
 };
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 use std::{thread, time::Duration};

@@ -1,0 +1,16 @@
+[package]
+name = "squalr-engine-session"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2024"
+
+[dependencies]
+squalr-engine-api = { path = "../squalr-engine-api" }
+squalr-engine-scanning = { path = "../squalr-engine-scanning" }
+squalr-engine-operating-system = { path = "../squalr-engine-operating-system" }
+anyhow = "1.0.101"
+crossbeam-channel = "0.5.15"
+dirs = "6.0.0"
+log = "0.4.29"
+log4rs = "1.4.0"
+sysinfo = "0.38.0"

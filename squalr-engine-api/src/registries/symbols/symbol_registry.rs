@@ -28,6 +28,7 @@ use crate::structures::{
         scan_function_scalar::{ScalarCompareFnImmediate, ScalarCompareFnRelative},
     },
 };
+use squalr_engine_domain::structures::structs::symbol_resolver::SymbolResolver;
 use std::sync::Once;
 use std::{collections::HashMap, sync::Arc};
 
@@ -402,5 +403,28 @@ impl SymbolRegistry {
         }
 
         (symbolic_struct_registry, data_type_registry)
+    }
+}
+
+impl SymbolResolver for SymbolRegistry {
+    fn get_default_value(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Option<DataValue> {
+        self.get_default_value(data_type_ref)
+    }
+
+    fn get_unit_size_in_bytes(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> u64 {
+        self.get_unit_size_in_bytes(data_type_ref)
+    }
+
+    fn get_symbolic_struct(
+        &self,
+        symbolic_struct_namespace: &str,
+    ) -> Option<Arc<SymbolicStructDefinition>> {
+        self.get(symbolic_struct_namespace)
     }
 }

@@ -2,7 +2,7 @@ use crate::command_executors::unprivileged_command_executor::UnprivilegedCommand
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::project_items_command::ProjectItemsCommand;
 use squalr_engine_api::commands::unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse};
-use squalr_engine_api::engine::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::sync::Arc;
 
 impl UnprivilegedCommandExecutor for ProjectItemsCommand {
@@ -10,7 +10,7 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
 
     fn execute(
         &self,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandExecutor>::ResponseType {
         match self {
             ProjectItemsCommand::Activate {

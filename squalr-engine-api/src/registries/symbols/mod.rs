@@ -1,2 +1,1 @@
-pub mod symbol_registry;
-pub mod symbol_registry_error;
+pub use squalr_engine_domain::registries::symbols::*;

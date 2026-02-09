@@ -5608,6 +5608,7 @@ dependencies = [
  "smallvec",
  "squalr-engine",
  "squalr-engine-api",
+ "squalr-engine-session",
  "wasm-bindgen",
  "winresource",
 ]
@@ -5624,7 +5625,6 @@ dependencies = [
  "slint",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-architecture",
  "structopt",
  "sysinfo",
  "winresource",
@@ -5643,6 +5643,7 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
+ "squalr-engine-session",
  "structopt",
 ]
 
@@ -5665,15 +5666,10 @@ dependencies = [
  "serde",
  "serde_json",
  "squalr-engine-api",
- "squalr-engine-architecture",
- "squalr-engine-debuggers",
- "squalr-engine-memory",
- "squalr-engine-processes",
  "squalr-engine-projects",
  "squalr-engine-scanning",
- "squalr-engine-scripting",
+ "squalr-engine-session",
  "structopt",
- "sysinfo",
  "tempfile",
  "thiserror 2.0.18",
  "ureq",
@@ -5692,11 +5688,9 @@ dependencies = [
  "bus",
  "crossbeam-channel",
  "directories",
- "dirs",
  "encoding",
  "encoding_rs",
  "log",
- "log4rs",
  "notify",
  "num-traits",
  "rayon",
@@ -5704,51 +5698,37 @@ dependencies = [
  "serde_json",
  "slab",
  "smallvec",
+ "squalr-engine-domain",
  "structopt",
- "sysinfo",
  "thiserror 2.0.18",
  "typetag",
  "uuid",
 ]
 
 [[package]]
-name = "squalr-engine-architecture"
-version = "0.1.1"
+name = "squalr-engine-domain"
+version = "0.1.0"
 dependencies = [
  "log",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
-name = "squalr-engine-debuggers"
-version = "0.1.1"
-dependencies = [
- "squalr-engine-api",
-]
-
-[[package]]
-name = "squalr-engine-memory"
+name = "squalr-engine-operating-system"
 version = "0.1.1"
 dependencies = [
  "bitflags 2.10.0",
- "libc",
- "log",
- "serde",
- "serde_json",
- "squalr-engine-api",
- "sysinfo",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "squalr-engine-processes"
-version = "0.1.1"
-dependencies = [
  "image",
+ "libc",
  "log",
  "once_cell",
  "rayon",
  "regex",
  "serde",
+ "serde_json",
  "squalr-engine-api",
  "sysinfo",
  "thiserror 2.0.18",
@@ -5782,20 +5762,22 @@ dependencies = [
  "serde_json",
  "smallvec",
  "squalr-engine-api",
- "squalr-engine-memory",
- "sysinfo",
  "thiserror 2.0.18",
 ]
 
 [[package]]
-name = "squalr-engine-scripting"
-version = "0.1.1"
+name = "squalr-engine-session"
+version = "0.1.0"
 dependencies = [
- "squalr-engine-architecture",
- "squalr-engine-debuggers",
- "squalr-engine-memory",
- "squalr-engine-processes",
+ "anyhow",
+ "crossbeam-channel",
+ "dirs",
+ "log",
+ "log4rs",
+ "squalr-engine-api",
+ "squalr-engine-operating-system",
  "squalr-engine-scanning",
+ "sysinfo",
 ]
 
 [[package]]
@@ -5818,8 +5800,8 @@ dependencies = [
  "crossbeam-channel",
  "squalr-engine",
  "squalr-engine-api",
- "squalr-engine-memory",
- "squalr-engine-processes",
+ "squalr-engine-operating-system",
+ "squalr-engine-session",
  "structopt",
 ]
 

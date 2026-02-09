@@ -10,7 +10,6 @@ use squalr_engine_api::{
         },
     },
     dependency_injection::dependency::Dependency,
-    engine::engine_unprivileged_state::EngineUnprivilegedState,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
         data_values::anonymous_value_string_format::AnonymousValueStringFormat,
@@ -20,6 +19,7 @@ use squalr_engine_api::{
         },
     },
 };
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -152,7 +152,7 @@ impl ElementScannerViewData {
         element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
-            // JIRA: Use scan_execute_response.trackable_task_handle;
+            // JIRA: Use scan_execute_response.scan_results_metadata.
             match element_scanner_view_data_clone.write("Element scanner view data start next scan response") {
                 Some(mut element_scanner_view_data) => {
                     element_scanner_view_data.view_state = ElementScannerViewState::HasResults;

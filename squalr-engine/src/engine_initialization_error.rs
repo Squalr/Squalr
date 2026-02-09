@@ -1,5 +1,5 @@
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
-use squalr_engine_processes::process_query::process_query_error::ProcessQueryError;
+use squalr_engine_session::os::ProcessQueryError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

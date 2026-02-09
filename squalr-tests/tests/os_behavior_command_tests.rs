@@ -1,6 +1,6 @@
 use squalr_engine::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use squalr_engine::engine_mode::EngineMode;
-use squalr_engine::engine_privileged_state::EnginePrivilegedState;
+use squalr_engine::engine_privileged_state::{EnginePrivilegedState, create_engine_privileged_state_with_os_providers};
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
 use squalr_engine_api::commands::process::close::process_close_request::ProcessCloseRequest;
@@ -35,7 +35,7 @@ use squalr_tests::mocks::mock_os::MockEngineOs;
 fn create_test_state() -> (MockEngineOs, std::sync::Arc<EnginePrivilegedState>) {
     let mock_engine_os = MockEngineOs::new();
     let engine_os_providers = mock_engine_os.create_providers();
-    let engine_privileged_state_result = EnginePrivilegedState::new_with_os_providers(EngineMode::Standalone, engine_os_providers);
+    let engine_privileged_state_result = create_engine_privileged_state_with_os_providers(EngineMode::Standalone, engine_os_providers);
     let engine_privileged_state = match engine_privileged_state_result {
         Ok(engine_privileged_state) => engine_privileged_state,
         Err(error) => panic!("failed to create engine privileged state in test: {}", error),

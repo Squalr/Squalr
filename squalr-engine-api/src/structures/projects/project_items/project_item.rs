@@ -1,5 +1,5 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-use crate::registries::registries::Registries;
+use crate::registries::registry_context::RegistryContext;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
@@ -87,14 +87,14 @@ impl ProjectItem {
         &mut self,
         project_item_ref: &ProjectItemRef,
         engine_bindings: &Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
-        registries: &Registries,
+        registry_context: &dyn RegistryContext,
         is_activated: bool,
     ) {
         self.is_activated = is_activated;
 
-        if let Ok(project_item_type_registry) = registries.get_project_item_type_registry().read() {
+        if let Ok(project_item_type_registry) = registry_context.get_project_item_type_registry().read() {
             if let Some(project_item_type) = project_item_type_registry.get(self.item_type.get_project_item_type_id()) {
-                project_item_type.on_activated_changed(engine_bindings, registries, project_item_ref);
+                project_item_type.on_activated_changed(engine_bindings, registry_context, project_item_ref);
             }
         }
     }

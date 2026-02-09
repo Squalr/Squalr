@@ -1,6 +1,7 @@
 use crate::{models::docking::docking_manager::DockingManager, ui::theme::Theme};
 use eframe::egui::Context;
-use squalr_engine_api::{dependency_injection::dependency_container::DependencyContainer, engine::engine_unprivileged_state::EngineUnprivilegedState};
+use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::{Arc, RwLock};
 
 /// Contains commonly used state shared between most widgets.
