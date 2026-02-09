@@ -1,4 +1,5 @@
 pub mod memory;
+pub mod pointer_scan;
 pub mod privileged_command_executor;
 pub mod privileged_request_executor;
 pub mod process;
@@ -7,6 +8,7 @@ pub mod project_items;
 pub mod scan;
 pub mod scan_results;
 pub mod settings;
+pub mod struct_scan;
 pub mod trackable_tasks;
 pub mod unprivileged_command_executor;
 pub mod unprivileged_request_executor;

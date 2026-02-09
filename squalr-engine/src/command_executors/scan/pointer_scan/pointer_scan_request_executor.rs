@@ -1,8 +1,8 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::command_executors::scan::scan_results_metadata_collector::collect_scan_results_metadata;
 use crate::engine_privileged_state::EnginePrivilegedState;
-use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_request::PointerScanRequest;
-use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_response::PointerScanResponse;
+use squalr_engine_api::commands::pointer_scan::pointer_scan_request::PointerScanRequest;
+use squalr_engine_api::commands::pointer_scan::pointer_scan_response::PointerScanResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;

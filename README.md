@@ -249,6 +249,11 @@ Branch: `pr/tui`
 
 Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways. Need to investigate TUI options, and which makes the most sense to use.
 
+### Draggable Docking Windows
+Branch: `pr/docking`
+
+Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways. Need to investigate TUI options, and which makes the most sense to use.
+
 ### Conversion Testing
 Branch: `pr/conversion-testing`
 
@@ -287,6 +292,5 @@ Branch: `pr/scan-commands`
 
 We should better organize the commands that we fire. First, we have improperly organized scanning as a scan command.
 
-There should be scan (element scan) and pscan (pointer scan). These are not related. It is unclear at this point in time whether struct scans are abstracted under element scans, but if it makes sense to decouple this should be done as well.
+There should be scan (element scan), pscan (pointer scan), and sscan(struct scan). These are not under the same scan namespace. It is unclear at this point in time whether struct scans are abstracted under element scans, but if it makes sense to decouple this should be done as well.
 
-In a CLI, it would actually be ideal for scan commands to be blocking (ie the response includes the results rather than a task handle), where as a TUI/GUI would prefer the task handle with progress updates for showing a progress bar, to free up the user to do other things. Maybe this can be a default arg?

@@ -22,6 +22,8 @@ impl ExecutableCommandPrivileged for PrivilegedCommand {
             PrivilegedCommand::Process(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Results(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Scan(command) => command.execute(engine_privileged_state),
+            PrivilegedCommand::PointerScan(command) => command.execute(engine_privileged_state),
+            PrivilegedCommand::StructScan(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::Settings(command) => command.execute(engine_privileged_state),
             PrivilegedCommand::TrackableTasks(command) => command.execute(engine_privileged_state),
         }

@@ -1,3 +1,6 @@
+use squalr_engine_api::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
+use squalr_engine_api::commands::pointer_scan::pointer_scan_request::PointerScanRequest;
+use squalr_engine_api::commands::pointer_scan::pointer_scan_response::PointerScanResponse;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -8,13 +11,12 @@ use squalr_engine_api::commands::scan::element_scan::element_scan_request::Eleme
 use squalr_engine_api::commands::scan::element_scan::element_scan_response::ElementScanResponse;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
-use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_request::PointerScanRequest;
-use squalr_engine_api::commands::scan::pointer_scan::pointer_scan_response::PointerScanResponse;
 use squalr_engine_api::commands::scan::reset::scan_reset_request::ScanResetRequest;
 use squalr_engine_api::commands::scan::reset::scan_reset_response::ScanResetResponse;
 use squalr_engine_api::commands::scan::scan_command::ScanCommand;
-use squalr_engine_api::commands::scan::struct_scan::struct_scan_request::StructScanRequest;
-use squalr_engine_api::commands::scan::struct_scan::struct_scan_response::StructScanResponse;
+use squalr_engine_api::commands::struct_scan::struct_scan_command::StructScanCommand;
+use squalr_engine_api::commands::struct_scan::struct_scan_request::StructScanRequest;
+use squalr_engine_api::commands::struct_scan::struct_scan_response::StructScanResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
@@ -322,7 +324,7 @@ fn pointer_scan_request_dispatches_pointer_scan_command_and_invokes_typed_callba
     assert_eq!(dispatched_commands_guard.len(), 1);
 
     match &dispatched_commands_guard[0] {
-        PrivilegedCommand::Scan(ScanCommand::PointerScan {
+        PrivilegedCommand::PointerScan(PointerScanCommand {
             pointer_scan_request: captured_pointer_scan_request,
         }) => {
             assert_eq!(
@@ -373,7 +375,7 @@ fn pointer_scan_request_does_not_invoke_callback_when_response_variant_is_wrong(
     assert_eq!(dispatched_commands_guard.len(), 1);
 
     match &dispatched_commands_guard[0] {
-        PrivilegedCommand::Scan(ScanCommand::PointerScan { .. }) => {}
+        PrivilegedCommand::PointerScan(PointerScanCommand { .. }) => {}
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
 }
@@ -408,7 +410,7 @@ fn struct_scan_request_dispatches_struct_scan_command_and_invokes_typed_callback
     assert_eq!(dispatched_commands_guard.len(), 1);
 
     match &dispatched_commands_guard[0] {
-        PrivilegedCommand::Scan(ScanCommand::StructScan {
+        PrivilegedCommand::StructScan(StructScanCommand {
             struct_scan_request: captured_struct_scan_request,
         }) => {
             assert_eq!(
@@ -458,7 +460,7 @@ fn struct_scan_request_does_not_invoke_callback_when_response_variant_is_wrong()
     assert_eq!(dispatched_commands_guard.len(), 1);
 
     match &dispatched_commands_guard[0] {
-        PrivilegedCommand::Scan(ScanCommand::StructScan { .. }) => {}
+        PrivilegedCommand::StructScan(StructScanCommand { .. }) => {}
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
 }
@@ -468,7 +470,6 @@ fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
         PrivilegedCommand::from_iter_safe([
             "squalr-cli",
-            "scan",
             "pointer-scan",
             "--target-address",
             "4096;address;",
@@ -487,7 +488,7 @@ fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
     assert!(parsed_command_result.is_ok());
 
     match parsed_command_result.expect("command should parse successfully") {
-        PrivilegedCommand::Scan(ScanCommand::PointerScan { pointer_scan_request }) => {
+        PrivilegedCommand::PointerScan(PointerScanCommand { pointer_scan_request }) => {
             assert_eq!(pointer_scan_request.target_address.get_anonymous_value_string(), "4096");
             assert_eq!(pointer_scan_request.pointer_data_type_ref.get_data_type_id(), "u64");
             assert_eq!(pointer_scan_request.max_depth, 5);
@@ -602,7 +603,6 @@ fn privileged_command_parser_accepts_scan_struct_scan_with_long_flags() {
     let parse_result = std::panic::catch_unwind(|| {
         PrivilegedCommand::from_iter_safe([
             "squalr-cli",
-            "scan",
             "struct-scan",
             "--scan-value",
             "12;dec;",
@@ -621,7 +621,7 @@ fn privileged_command_parser_accepts_scan_struct_scan_with_long_flags() {
     assert!(parsed_command_result.is_ok());
 
     match parsed_command_result.expect("command should parse successfully") {
-        PrivilegedCommand::Scan(ScanCommand::StructScan { struct_scan_request }) => {
+        PrivilegedCommand::StructScan(StructScanCommand { struct_scan_request }) => {
             assert_eq!(
                 struct_scan_request
                     .scan_value
@@ -641,7 +641,6 @@ fn privileged_command_parser_rejects_scan_struct_scan_with_invalid_compare_type(
     let parse_result = std::panic::catch_unwind(|| {
         PrivilegedCommand::from_iter_safe([
             "squalr-cli",
-            "scan",
             "struct-scan",
             "--scan-value",
             "12;dec;",
@@ -649,6 +648,88 @@ fn privileged_command_parser_rejects_scan_struct_scan_with_invalid_compare_type(
             "u32",
             "--compare-type",
             "invalid-compare",
+        ])
+    });
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_err());
+}
+
+#[test]
+fn privileged_command_parser_accepts_pointer_scan_alias_pscan() {
+    let parse_result = std::panic::catch_unwind(|| {
+        PrivilegedCommand::from_iter_safe([
+            "squalr-cli",
+            "pscan",
+            "--target-address",
+            "4096;address;",
+            "--pointer-data-type-ref",
+            "u64",
+            "--max-depth",
+            "5",
+            "--offset-size",
+            "8",
+        ])
+    });
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_ok());
+}
+
+#[test]
+fn privileged_command_parser_accepts_struct_scan_alias_sscan() {
+    let parse_result = std::panic::catch_unwind(|| {
+        PrivilegedCommand::from_iter_safe([
+            "squalr-cli",
+            "sscan",
+            "--scan-value",
+            "12;dec;",
+            "--data-type-ids",
+            "u32",
+            "--compare-type",
+            "==",
+        ])
+    });
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_ok());
+}
+
+#[test]
+fn privileged_command_parser_rejects_nested_scan_pointer_scan_subcommand() {
+    let parse_result = std::panic::catch_unwind(|| {
+        PrivilegedCommand::from_iter_safe([
+            "squalr-cli",
+            "scan",
+            "pointer-scan",
+            "--target-address",
+            "4096;address;",
+            "--pointer-data-type-ref",
+            "u64",
+            "--max-depth",
+            "5",
+            "--offset-size",
+            "8",
+        ])
+    });
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_err());
+}
+
+#[test]
+fn privileged_command_parser_rejects_nested_scan_struct_scan_subcommand() {
+    let parse_result = std::panic::catch_unwind(|| {
+        PrivilegedCommand::from_iter_safe([
+            "squalr-cli",
+            "scan",
+            "struct-scan",
+            "--scan-value",
+            "12;dec;",
+            "--data-type-ids",
+            "u32",
+            "--compare-type",
+            "==",
         ])
     });
 

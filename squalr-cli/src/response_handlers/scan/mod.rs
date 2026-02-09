@@ -15,7 +15,5 @@ pub fn handle_scan_response(cmd: ScanResponse) {
         ScanResponse::New { .. } => handle_scan_new_response(cmd),
         ScanResponse::CollectValues { .. } => handle_scan_collect_values_response(cmd),
         ScanResponse::ElementScan { .. } => handle_scan_execute_response(cmd),
-        ScanResponse::PointerScan { .. } => handle_scan_execute_response(cmd),
-        ScanResponse::StructScan { .. } => handle_scan_execute_response(cmd),
     }
 }
