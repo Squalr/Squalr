@@ -42,8 +42,13 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
             command,
             execution_context,
             Box::new(move |engine_response| {
-                if let Ok(response) = <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
-                    callback(response);
+                match <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
+                    Ok(response) => {
+                        callback(response);
+                    }
+                    Err(unexpected_response) => {
+                        log::error!("Received unexpected response variant: {:?}", unexpected_response);
+                    }
                 }
             }),
         ) {
