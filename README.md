@@ -286,11 +286,3 @@ This is not a system that makes sense for a long term plugin based approach. Ide
 This needs to be done such that the GUI can make snap decisions without chatty traffic to the privileged side.
 
 Very challenging task.
-
-### Scan Commands
-Branch: `pr/scan-commands`
-
-We should better organize the commands that we fire. First, we have improperly organized scanning as a scan command.
-
-There should be scan (element scan), pscan (pointer scan), and sscan(struct scan). These are not under the same scan namespace. It is unclear at this point in time whether struct scans are abstracted under element scans, but if it makes sense to decouple this should be done as well.
-
