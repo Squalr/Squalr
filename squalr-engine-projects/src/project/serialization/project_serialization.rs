@@ -35,7 +35,8 @@ impl SerializableProjectFile for Project {
     fn load_from_path(project_directory_path: &Path) -> anyhow::Result<Self> {
         let project_info = ProjectInfo::load_from_path(&project_directory_path.join(Project::PROJECT_FILE))?;
         let mut project_items = HashMap::new();
-        let project_root_ref = ProjectItemRef::new(project_directory_path.to_path_buf());
+        let project_root_directory_path = resolve_project_root_directory_path(project_directory_path);
+        let project_root_ref = ProjectItemRef::new(project_root_directory_path.clone());
         let project_root = ProjectItemTypeDirectory::new_project_item(&project_root_ref);
 
         project_items.insert(project_root_ref.clone(), project_root);
@@ -54,23 +55,59 @@ impl SerializableProjectFile for Project {
                     project_items.insert(dir_ref.clone(), dir_item);
 
                     load_recursive(&entry_path, project_items)?;
-                } else if let Some(extension) = entry_path.extension() {
-                    if extension == Project::PROJECT_ITEM_EXTENSION {
-                        let item_ref = ProjectItemRef::new(entry_path.clone());
-                        let project_item = ProjectItem::load_from_path(&entry_path)?;
+                } else if is_project_item_file_path(&entry_path) {
+                    let item_ref = ProjectItemRef::new(entry_path.clone());
+                    let project_item = ProjectItem::load_from_path(&entry_path)?;
 
-                        project_items.insert(item_ref, project_item);
-                    } else {
-                        log::debug!("Skipping non-project item during deserialization: {:?}", entry_path)
-                    }
+                    project_items.insert(item_ref, project_item);
+                } else {
+                    log::debug!("Skipping non-project item during deserialization: {:?}", entry_path)
                 }
             }
 
             Ok(())
         }
 
-        load_recursive(&project_directory_path, &mut project_items)?;
+        if !project_root_directory_path.exists() {
+            std::fs::create_dir_all(&project_root_directory_path)?;
+        }
+
+        load_recursive(&project_root_directory_path, &mut project_items)?;
 
         Ok(Project::new(project_info, project_items, project_root_ref))
+    }
+}
+
+fn resolve_project_root_directory_path(project_directory_path: &Path) -> std::path::PathBuf {
+    project_directory_path.join(Project::PROJECT_DIR)
+}
+
+fn is_project_item_file_path(project_item_path: &Path) -> bool {
+    let expected_extension = Project::PROJECT_ITEM_EXTENSION.trim_start_matches('.');
+
+    project_item_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.eq_ignore_ascii_case(expected_extension))
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_project_item_file_path;
+    use std::path::PathBuf;
+
+    #[test]
+    fn is_project_item_file_path_accepts_json_extension() {
+        let project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/Addresses/health.json");
+
+        assert!(is_project_item_file_path(&project_item_path));
+    }
+
+    #[test]
+    fn is_project_item_file_path_rejects_non_json_extension() {
+        let project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/Addresses/notes.txt");
+
+        assert!(!is_project_item_file_path(&project_item_path));
     }
 }

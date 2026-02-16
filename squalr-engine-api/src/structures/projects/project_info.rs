@@ -72,6 +72,10 @@ impl ProjectInfo {
         &self.project_manifest
     }
 
+    pub fn get_project_manifest_mut(&mut self) -> &mut ProjectManifest {
+        &mut self.project_manifest
+    }
+
     pub fn get_has_unsaved_changes(&self) -> bool {
         self.has_unsaved_changes
     }

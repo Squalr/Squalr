@@ -65,12 +65,20 @@ impl DataType for DataTypeStringUtf8 {
 
     fn anonymize_value_bytes(
         &self,
-        _value_bytes: &[u8],
-        _anonymous_value_string_format: AnonymousValueStringFormat,
+        value_bytes: &[u8],
+        anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Result<AnonymousValueString, DataTypeError> {
-        Err(DataTypeError::DecodingError {
-            error: "Not implemented".to_string(),
-        })
+        if anonymous_value_string_format != AnonymousValueStringFormat::String {
+            return Err(DataTypeError::ParseError("Unsupported data value format".to_string()));
+        }
+
+        let decoded_string = String::from_utf8_lossy(value_bytes).to_string();
+
+        Ok(AnonymousValueString::new(
+            decoded_string,
+            AnonymousValueStringFormat::String,
+            crate::structures::data_values::container_type::ContainerType::None,
+        ))
     }
 
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
@@ -98,5 +106,34 @@ impl DataType for DataTypeStringUtf8 {
         data_type_ref: DataTypeRef,
     ) -> DataValue {
         DataValue::new(data_type_ref.clone(), vec![])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataTypeStringUtf8;
+    use crate::structures::data_types::data_type::DataType;
+    use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+
+    #[test]
+    fn anonymize_value_bytes_returns_utf8_string() {
+        let data_type = DataTypeStringUtf8 {};
+        let value_bytes = b"PlayerHealth";
+        let anonymous_value_string = data_type
+            .anonymize_value_bytes(value_bytes, AnonymousValueStringFormat::String)
+            .unwrap_or_else(|error| panic!("Expected UTF-8 anonymization to succeed: {}", error));
+
+        assert_eq!(anonymous_value_string.get_anonymous_value_string(), "PlayerHealth");
+    }
+
+    #[test]
+    fn anonymize_value_bytes_with_invalid_utf8_replaces_invalid_sequences() {
+        let data_type = DataTypeStringUtf8 {};
+        let value_bytes = [0xF0, 0x80, 0x80, 0x80];
+        let anonymous_value_string = data_type
+            .anonymize_value_bytes(&value_bytes, AnonymousValueStringFormat::String)
+            .unwrap_or_else(|error| panic!("Expected UTF-8 anonymization to tolerate invalid bytes: {}", error));
+
+        assert!(!anonymous_value_string.get_anonymous_value_string().is_empty());
     }
 }

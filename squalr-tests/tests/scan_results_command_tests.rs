@@ -3,8 +3,6 @@ use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
-use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
-use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_response::ScanResultsAddToProjectResponse;
 use squalr_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use squalr_engine_api::commands::scan_results::delete::scan_results_delete_response::ScanResultsDeleteResponse;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
@@ -467,98 +465,6 @@ fn scan_results_refresh_request_does_not_invoke_callback_when_response_variant_i
 }
 
 #[test]
-fn scan_results_add_to_project_request_dispatches_add_to_project_command_and_invokes_typed_callback() {
-    let bindings = MockEngineBindings::new(
-        ScanResultsAddToProjectResponse::default().to_engine_response(),
-        ProjectListResponse::default().to_engine_response(),
-    );
-    let dispatched_commands = bindings.get_dispatched_commands();
-
-    let scan_results_add_to_project_request = ScanResultsAddToProjectRequest {
-        scan_result_refs: vec![ScanResultRef::new(5), ScanResultRef::new(15)],
-    };
-    let callback_invoked = Arc::new(AtomicBool::new(false));
-    let callback_invoked_clone = callback_invoked.clone();
-
-    scan_results_add_to_project_request.send_unprivileged(&bindings, move |_scan_results_add_to_project_response| {
-        callback_invoked_clone.store(true, Ordering::SeqCst);
-    });
-
-    assert!(callback_invoked.load(Ordering::SeqCst));
-
-    let dispatched_commands_guard = dispatched_commands
-        .lock()
-        .expect("command capture lock should be available");
-    assert_eq!(dispatched_commands_guard.len(), 1);
-
-    match &dispatched_commands_guard[0] {
-        PrivilegedCommand::Results(ScanResultsCommand::AddToProject {
-            results_add_to_project_request: captured_scan_results_add_to_project_request,
-        }) => {
-            assert_eq!(
-                captured_scan_results_add_to_project_request
-                    .scan_result_refs
-                    .len(),
-                2
-            );
-            assert_eq!(
-                captured_scan_results_add_to_project_request.scan_result_refs[0].get_scan_result_global_index(),
-                5
-            );
-            assert_eq!(
-                captured_scan_results_add_to_project_request.scan_result_refs[1].get_scan_result_global_index(),
-                15
-            );
-        }
-        dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
-    }
-}
-
-#[test]
-fn scan_results_add_to_project_request_does_not_invoke_callback_when_response_variant_is_wrong() {
-    let bindings = MockEngineBindings::new(
-        ScanResultsFreezeResponse::default().to_engine_response(),
-        ProjectListResponse::default().to_engine_response(),
-    );
-    let dispatched_commands = bindings.get_dispatched_commands();
-
-    let scan_results_add_to_project_request = ScanResultsAddToProjectRequest {
-        scan_result_refs: vec![ScanResultRef::new(55)],
-    };
-    let callback_invoked = Arc::new(AtomicBool::new(false));
-    let callback_invoked_clone = callback_invoked.clone();
-
-    scan_results_add_to_project_request.send_unprivileged(&bindings, move |_scan_results_add_to_project_response| {
-        callback_invoked_clone.store(true, Ordering::SeqCst);
-    });
-
-    assert!(!callback_invoked.load(Ordering::SeqCst));
-
-    let dispatched_commands_guard = dispatched_commands
-        .lock()
-        .expect("command capture lock should be available");
-    assert_eq!(dispatched_commands_guard.len(), 1);
-
-    match &dispatched_commands_guard[0] {
-        PrivilegedCommand::Results(ScanResultsCommand::AddToProject {
-            results_add_to_project_request: captured_scan_results_add_to_project_request,
-        }) => {
-            assert_eq!(
-                captured_scan_results_add_to_project_request
-                    .scan_result_refs
-                    .len(),
-                1
-            );
-            assert_eq!(
-                captured_scan_results_add_to_project_request.scan_result_refs[0].get_scan_result_global_index(),
-                55
-            );
-        }
-        dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
-    }
-}
-
-#[test]
 fn scan_results_set_property_request_dispatches_set_property_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
         ScanResultsSetPropertyResponse::default().to_engine_response(),
@@ -725,37 +631,6 @@ fn privileged_command_parser_accepts_scan_results_refresh_with_long_flags() {
             assert_eq!(results_refresh_request.scan_result_refs.len(), 2);
             assert_eq!(results_refresh_request.scan_result_refs[0].get_scan_result_global_index(), 13);
             assert_eq!(results_refresh_request.scan_result_refs[1].get_scan_result_global_index(), 21);
-        }
-        parsed_command => panic!("unexpected parsed command: {parsed_command:?}"),
-    }
-}
-
-#[test]
-fn privileged_command_parser_accepts_scan_results_add_to_project_with_long_flags() {
-    let parse_result = std::panic::catch_unwind(|| {
-        PrivilegedCommand::from_iter_safe([
-            "squalr-cli",
-            "results",
-            "add-to-project",
-            "--scan-result-refs",
-            "8",
-            "--scan-result-refs",
-            "34",
-        ])
-    });
-
-    assert!(parse_result.is_ok());
-
-    let parsed_command_result = parse_result.expect("parser should not panic");
-    assert!(parsed_command_result.is_ok());
-
-    match parsed_command_result.expect("command should parse successfully") {
-        PrivilegedCommand::Results(ScanResultsCommand::AddToProject {
-            results_add_to_project_request,
-        }) => {
-            assert_eq!(results_add_to_project_request.scan_result_refs.len(), 2);
-            assert_eq!(results_add_to_project_request.scan_result_refs[0].get_scan_result_global_index(), 8);
-            assert_eq!(results_add_to_project_request.scan_result_refs[1].get_scan_result_global_index(), 34);
         }
         parsed_command => panic!("unexpected parsed command: {parsed_command:?}"),
     }

@@ -124,23 +124,23 @@ impl ValuedStructField {
                     format!("{{{}}}", nested_str)
                 }
             }
-            ValuedStructFieldData::Value(_data_value) => "TODO".to_string(), /*
-                                                                             ValuedStructFieldData::Value(data_value) => match data_value.get_active_display_value() {
-                                                                                 Some(display_value) => {
-                                                                                     if pretty_print {
-                                                                                         format!("{}{}\n", indent, display_value.get_display_string())
-                                                                                     } else {
-                                                                                         format!("{}{}", indent, display_value.get_display_string())
-                                                                                     }
-                                                                                 }
-                                                                                 None => {
-                                                                                     if pretty_print {
-                                                                                         format!("{}\n", indent)
-                                                                                     } else {
-                                                                                         indent
-                                                                                     }
-                                                                                 }
-                                                                             }, */
+            ValuedStructFieldData::Value(_data_value) => String::new(), /*
+                                                                        ValuedStructFieldData::Value(data_value) => match data_value.get_active_display_value() {
+                                                                            Some(display_value) => {
+                                                                                if pretty_print {
+                                                                                    format!("{}{}\n", indent, display_value.get_display_string())
+                                                                                } else {
+                                                                                    format!("{}{}", indent, display_value.get_display_string())
+                                                                                }
+                                                                            }
+                                                                            None => {
+                                                                                if pretty_print {
+                                                                                    format!("{}\n", indent)
+                                                                                } else {
+                                                                                    indent
+                                                                                }
+                                                                            }
+                                                                        }, */
         }
     }
 }

@@ -9,30 +9,34 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
 
     fn execute(
         &self,
-        _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
-        /*
-        match engine_privileged_state
-            .get_project_manager()
-            .get_opened_project()
-            .read()
-        {
-            Ok(opened_project) => match opened_project.as_ref() {
-                Some(opened_project) => {
-                    return ProjectItemsListResponse {
-                        opened_project_info: Some(opened_project.get_project_info().clone()),
-                        opened_project_root: Some(opened_project.get_project_root().clone()),
-                    };
+        let project_manager = engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+
+        match opened_project_lock.read() {
+            Ok(opened_project_guard) => {
+                let opened_project = match opened_project_guard.as_ref() {
+                    Some(opened_project) => opened_project,
+                    None => return ProjectItemsListResponse::default(),
+                };
+                let opened_project_root = opened_project.get_project_root().cloned();
+                let opened_project_items = opened_project
+                    .get_project_items()
+                    .iter()
+                    .map(|(project_item_ref, project_item)| (project_item_ref.clone(), project_item.clone()))
+                    .collect();
+
+                ProjectItemsListResponse {
+                    opened_project_info: Some(opened_project.get_project_info().clone()),
+                    opened_project_root,
+                    opened_project_items,
                 }
-                None => {
-                    return ProjectItemsListResponse::default();
-                }
-            },
-            Err(error) => {
-                log::error!("Error obtaining opened project lock: {}", error);
-                return ProjectItemsListResponse::default();
             }
-        }*/
-        ProjectItemsListResponse::default()
+            Err(error) => {
+                log::error!("Error obtaining opened project lock for list command: {}", error);
+                ProjectItemsListResponse::default()
+            }
+        }
     }
 }

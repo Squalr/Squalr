@@ -1,6 +1,6 @@
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use arc_swap::Guard;
-use squalr_engine_api::commands::scan_results::add_to_project::scan_results_add_to_project_request::ScanResultsAddToProjectRequest;
+use squalr_engine_api::commands::project_items::add::project_items_add_request::ProjectItemsAddRequest;
 use squalr_engine_api::commands::scan_results::delete::scan_results_delete_request::ScanResultsDeleteRequest;
 use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_request::ScanResultsFreezeRequest;
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
@@ -13,17 +13,16 @@ use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBas
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::{
     commands::{
-        privileged_command_request::PrivilegedCommandRequest,
-        scan_results::{
-            query::scan_results_query_request::ScanResultsQueryRequest, refresh::scan_results_refresh_request::ScanResultsRefreshRequest,
-            set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest,
-        },
+        privileged_command_request::PrivilegedCommandRequest, scan_results::query::scan_results_query_request::ScanResultsQueryRequest,
+        scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest,
+        scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest, unprivileged_command_request::UnprivilegedCommandRequest,
     },
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
     structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult},
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::ops::RangeInclusive;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::{thread, time::Duration};
 
@@ -474,14 +473,36 @@ impl ElementScannerResultsViewData {
     pub fn add_scan_results_to_project(
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        target_directory_path: Option<PathBuf>,
     ) {
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
 
         if !scan_result_refs.is_empty() {
-            let engine_unprivileged_state = &engine_unprivileged_state;
-            let scan_results_add_to_project_request = ScanResultsAddToProjectRequest { scan_result_refs };
+            let project_items_add_request = ProjectItemsAddRequest {
+                scan_result_refs,
+                target_directory_path,
+            };
 
-            scan_results_add_to_project_request.send(engine_unprivileged_state, |_response| {});
+            project_items_add_request.send(&engine_unprivileged_state, |_response| {});
+        }
+    }
+
+    pub fn add_scan_result_to_project_by_index(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        local_scan_result_index: i32,
+        target_directory_path: Option<PathBuf>,
+    ) {
+        let local_scan_result_indices = [local_scan_result_index];
+        let scan_result_refs = Self::collect_scan_result_refs_by_indicies(element_scanner_results_view_data, &local_scan_result_indices);
+
+        if !scan_result_refs.is_empty() {
+            let project_items_add_request = ProjectItemsAddRequest {
+                scan_result_refs,
+                target_directory_path,
+            };
+
+            project_items_add_request.send(&engine_unprivileged_state, |_response| {});
         }
     }
 
@@ -726,6 +747,7 @@ impl ElementScannerResultsViewData {
 #[cfg(test)]
 mod tests {
     use super::ElementScannerResultsViewData;
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
     use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
@@ -793,5 +815,19 @@ mod tests {
         let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
 
         assert!(selected_scan_result_refs.is_empty());
+    }
+
+    #[test]
+    fn collect_scan_result_refs_by_indicies_returns_requested_index_only() {
+        let dependency_container = DependencyContainer::new();
+        let element_scanner_results_view_data = dependency_container.register(create_view_data_with_scan_results(&[10, 11, 12, 13]));
+
+        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_by_indicies(element_scanner_results_view_data, &[2]);
+        let selected_scan_result_global_indices = selected_scan_result_refs
+            .iter()
+            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
+            .collect::<Vec<_>>();
+
+        assert_eq!(selected_scan_result_global_indices, vec![12]);
     }
 }

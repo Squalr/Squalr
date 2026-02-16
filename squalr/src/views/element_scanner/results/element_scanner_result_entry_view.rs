@@ -200,11 +200,6 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
                             .to_string()
                     })
             })
-            .or_else(|| {
-                self.scan_result
-                    .get_current_display_value(self.active_display_format)
-                    .map(|current_display_value| current_display_value.get_anonymous_value_string().to_string())
-            })
             .unwrap_or_else(|| "??".to_string());
 
         user_interface.painter().text(

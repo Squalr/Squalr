@@ -1,3 +1,9 @@
 pub mod activate;
+pub mod add;
+pub mod create;
+pub mod delete;
 pub mod list;
+pub mod move_item;
 pub mod project_items_executor;
+pub mod rename;
+pub mod reorder;

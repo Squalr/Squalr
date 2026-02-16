@@ -1,12 +1,6 @@
 # Agentic Current Task (Readonly)
 Our current task, from `README.md`, is:
-`pr/project-explorer`
-
-### Architecture Plan
-Modify sparingly as new information is learned. Keep minimal and simple.
-The goal is to keep the architecture in mind and not drift into minefields.
-
-----------------------
+`pr/TODO`
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks.)

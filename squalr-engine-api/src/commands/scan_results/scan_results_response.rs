@@ -1,4 +1,3 @@
-use crate::commands::scan_results::add_to_project::scan_results_add_to_project_response::ScanResultsAddToProjectResponse;
 use crate::commands::scan_results::delete::scan_results_delete_response::ScanResultsDeleteResponse;
 use crate::commands::scan_results::freeze::scan_results_freeze_response::ScanResultsFreezeResponse;
 use crate::commands::scan_results::list::scan_results_list_response::ScanResultsListResponse;
@@ -17,9 +16,6 @@ pub enum ScanResultsResponse {
     },
     Refresh {
         scan_results_refresh_response: ScanResultsRefreshResponse,
-    },
-    AddToProject {
-        scan_results_add_to_project_response: ScanResultsAddToProjectResponse,
     },
     Freeze {
         scan_results_freeze_response: ScanResultsFreezeResponse,

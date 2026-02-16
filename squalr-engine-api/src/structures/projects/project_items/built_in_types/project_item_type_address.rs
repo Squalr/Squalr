@@ -85,6 +85,7 @@ impl ProjectItemType for ProjectItemTypeAddress {
 
 impl ProjectItemTypeAddress {
     pub const PROJECT_ITEM_TYPE_ID: &str = "address";
+    pub const DEFAULT_PROJECT_ITEM_NAME: &str = "New Address";
     pub const PROPERTY_ADDRESS: &str = "address";
     pub const PROPERTY_MODULE: &str = "module";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
@@ -98,11 +99,14 @@ impl ProjectItemTypeAddress {
         freeze_value: DataValue,
     ) -> ProjectItem {
         let project_item_type_ref = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
-        let mut project_item = ProjectItem::new(project_item_type_ref, name);
+        let project_item_name = if name.trim().is_empty() { Self::DEFAULT_PROJECT_ITEM_NAME } else { name };
+        let mut project_item = ProjectItem::new(project_item_type_ref, project_item_name);
 
         project_item.set_field_description(description);
         Self::set_field_module(&mut project_item, module);
         Self::set_field_address(&mut project_item, address);
+        // Default to unknown until project-item refresh logic reads live memory.
+        Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
         Self::set_field_symbolic_struct_definition_reference(&mut project_item, freeze_value.get_data_type_id());
 
         project_item
@@ -119,7 +123,7 @@ impl ProjectItemTypeAddress {
             match bytes.len() {
                 8 => return u64::from_le_bytes(bytes.try_into().unwrap_or([0u8; 8])),
                 4 => {
-                    let arr = [0u8; 4];
+                    let arr: [u8; 4] = bytes.try_into().unwrap_or([0u8; 4]);
 
                     return u32::from_le_bytes(arr) as u64;
                 }
@@ -143,16 +147,7 @@ impl ProjectItemTypeAddress {
     }
 
     pub fn get_field_module(project_item: &mut ProjectItem) -> String {
-        if let Some(name_field) = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_MODULE)
-        {
-            name_field.get_display_string(true, 0)
-        } else {
-            String::new()
-        }
+        Self::read_string_field(project_item, Self::PROPERTY_MODULE)
     }
 
     pub fn set_field_module(
@@ -168,16 +163,7 @@ impl ProjectItemTypeAddress {
     }
 
     pub fn get_field_freeze_data_value_interpreter(project_item: &mut ProjectItem) -> String {
-        if let Some(name_field) = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_FREEZE_DISPLAY_VALUE)
-        {
-            name_field.get_display_string(true, 0)
-        } else {
-            String::new()
-        }
+        Self::read_string_field(project_item, Self::PROPERTY_FREEZE_DISPLAY_VALUE)
     }
 
     pub fn set_field_freeze_data_value_interpreter(
@@ -193,15 +179,12 @@ impl ProjectItemTypeAddress {
     }
 
     pub fn get_field_symbolic_struct_definition_reference(project_item: &mut ProjectItem) -> Option<SymbolicStructRef> {
-        if let Some(name_field) = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
-        {
-            Some(SymbolicStructRef::new(name_field.get_display_string(true, 0)))
-        } else {
+        let symbolic_struct_definition_reference = Self::read_string_field(project_item, Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
+
+        if symbolic_struct_definition_reference.is_empty() {
             None
+        } else {
+            Some(SymbolicStructRef::new(symbolic_struct_definition_reference))
         }
     }
 
@@ -215,5 +198,61 @@ impl ProjectItemTypeAddress {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE, field_data, false);
+    }
+
+    fn read_string_field(
+        project_item: &ProjectItem,
+        field_name: &str,
+    ) -> String {
+        let data_value = match project_item
+            .get_properties()
+            .get_field(field_name)
+            .and_then(|field| field.get_data_value())
+        {
+            Some(data_value) => data_value,
+            None => return String::new(),
+        };
+
+        String::from_utf8(data_value.get_value_bytes().clone()).unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectItemTypeAddress;
+    use crate::structures::data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u32::data_type_u32::DataTypeU32};
+    use crate::structures::structs::valued_struct_field::ValuedStructFieldData;
+
+    #[test]
+    fn new_project_item_uses_new_address_for_empty_name() {
+        let project_item = ProjectItemTypeAddress::new_project_item("", 0x1234, "module", "", DataTypeU8::get_value_from_primitive(0));
+
+        assert_eq!(project_item.get_field_name(), ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME);
+    }
+
+    #[test]
+    fn new_project_item_uses_supplied_name_when_non_empty() {
+        let project_item = ProjectItemTypeAddress::new_project_item("Address Name", 0x1234, "module", "", DataTypeU8::get_value_from_primitive(0));
+
+        assert_eq!(project_item.get_field_name(), "Address Name");
+    }
+
+    #[test]
+    fn new_project_item_defaults_freeze_display_value_to_unknown() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "module", "", DataTypeU8::get_value_from_primitive(7));
+
+        assert_eq!(ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut project_item), "");
+    }
+
+    #[test]
+    fn get_field_address_reads_u32_bytes() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "module", "", DataTypeU8::get_value_from_primitive(7));
+        let address_field_data = ValuedStructFieldData::Value(DataTypeU32::get_value_from_primitive(0x89ABCDEF));
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(ProjectItemTypeAddress::PROPERTY_ADDRESS, address_field_data, false);
+
+        assert_eq!(ProjectItemTypeAddress::get_field_address(&mut project_item), 0x89ABCDEF);
     }
 }

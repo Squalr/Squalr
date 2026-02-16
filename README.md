@@ -61,7 +61,7 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 - [X] Dockable window system
 - [ ] Struct scans
 - [ ] Pointer scans
-- [ ] Project system
+- [X] Project system
 
 ## Architectural Overview
 
@@ -163,19 +163,18 @@ This is why selecting the best scanner is crucial, we have many such as:
 - [X] Generic array scanning system (ie scan for array of floats, array of ints, array of strings...)
 - [X] Struct viewer in the GUI that can register an active set of properties.
 - [X] Display type switching for struct viewer data types.
-- [ ] String-based editing / committing of struct viewer entries.
-- [ ] Projects with a per-file backing. Freezable addresses. Sortable.
+- [X] String-based editing / committing of struct viewer entries.
+- [X] Projects with a per-file backing. Freezable addresses. Sortable.
+- [X] Editing scan results directly (via struct viewer).
 
 ## Post-Launch Tasklist
 Lower priority features that we can defer, for now.
 
 Post-launch Features:
-- [ ] Sortable project items.
 - [ ] Struct Scans.
 - [ ] Improve coverage of conversion framework.
 - [ ] More string encodings
 - [ ] Custom and built in editors for property viewer data types.
-- [ ] Editing scan results directly (via property viewer).
 - [ ] Deleting scan results directly.
 - [ ] Case insensitive string scans.
 - [ ] Tolerance handling for float array scans.
@@ -235,18 +234,6 @@ Our existing architecture is quite flexible, but this definitely requires a spec
 
 ## Detailed Tasklist
 This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
-
-### Project Explorer
-Branch: `pr/project-explorer`
-We need to get the project explorer functioning. This includes all project commands, which are NOT transmitted across the privileged boundary. Projects are entirely an unprivileged concept. This means the commands are routed locally.
-
-We also need the nested nature of the GUI functioning, data type icons, preview values (ie if its an address/pointer, try to show a preview value in the right column).
-
-Additionally, we need common GUI controls like drag/drop reordering, deleting entries with confirmation (without a modal popup, instead a take-over menu of that docked panel -- this is critical for android support which does not use modals).
-
-We also need some easy ways to add items to the project, such as double clicking on a scan result, or selecting a scan result range and clicking a button to add all selected items to the project.
-
-Reordering is tricky because we want one file per project item. This means sorting is metadata in each folder with sort orders.
 
 ### Symbol Registry
 Branch: `pr/symbol-registry`

@@ -12,11 +12,6 @@ pub fn handle_scan_results_response(cmd: ScanResultsResponse) {
         ScanResultsResponse::Refresh { scan_results_refresh_response } => {
             log::debug!("Unhandled scan results refresh response: {:?}", scan_results_refresh_response);
         }
-        ScanResultsResponse::AddToProject {
-            scan_results_add_to_project_response,
-        } => {
-            log::debug!("Unhandled scan results add-to-project response: {:?}", scan_results_add_to_project_response);
-        }
         ScanResultsResponse::Freeze { scan_results_freeze_response } => {
             log::debug!("Unhandled scan results freeze response: {:?}", scan_results_freeze_response);
         }

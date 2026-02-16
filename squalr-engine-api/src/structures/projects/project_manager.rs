@@ -33,7 +33,7 @@ impl ProjectManager {
 
     /// Dispatches an engine event indicating that the project items have changed.
     pub fn notify_project_items_changed(&self) {
-        if let Ok(_project) = self.opened_project.read() {
+        if self.opened_project.try_read().is_ok() {
             /*
             let project_root = if let Some(project) = project.as_ref() {
                 Some(project.get_project_root().clone())
@@ -132,5 +132,41 @@ impl ProjectManager {
         let project_info = ProjectInfo::new(path.clone(), None, ProjectManifest::default());
 
         project_info
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectManager;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    #[test]
+    fn notify_project_items_changed_does_not_block_when_opened_project_write_lock_is_held() {
+        let project_manager = ProjectManager::new();
+        let opened_project_lock = project_manager.get_opened_project();
+        let opened_project_write_guard = opened_project_lock
+            .write()
+            .expect("Expected to acquire opened project write lock for test.");
+        let (completion_sender, completion_receiver) = mpsc::channel();
+
+        thread::scope(|scope| {
+            scope.spawn(|| {
+                project_manager.notify_project_items_changed();
+                completion_sender
+                    .send(())
+                    .expect("Expected to send completion after notify_project_items_changed.");
+            });
+
+            let completion_result = completion_receiver.recv_timeout(Duration::from_millis(250));
+
+            assert!(
+                completion_result.is_ok(),
+                "notify_project_items_changed should not block while opened project write lock is held."
+            );
+        });
+
+        drop(opened_project_write_guard);
     }
 }

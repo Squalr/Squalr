@@ -15,4 +15,11 @@ impl ProjectManifest {
     pub fn get_project_item_sort_order(&self) -> &Vec<PathBuf> {
         &self.project_item_sort_order
     }
+
+    pub fn set_project_item_sort_order(
+        &mut self,
+        project_item_sort_order: Vec<PathBuf>,
+    ) {
+        self.project_item_sort_order = project_item_sort_order;
+    }
 }

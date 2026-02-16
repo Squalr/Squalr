@@ -8,6 +8,7 @@ pub enum ElementScannerResultFrameAction {
     FreezeIndex(i32, bool),
     ToggleFreezeSelection(bool),
     AddSelection,
+    AddScanResult(i32),
     DeleteSelection,
     CommitValueToSelection(AnonymousValueString),
 }

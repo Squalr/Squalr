@@ -104,16 +104,7 @@ impl ProjectItem {
     }
 
     pub fn get_field_name(&self) -> String {
-        if let Some(name_field) = self
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_NAME)
-        {
-            name_field.get_display_string(true, 0)
-        } else {
-            String::new()
-        }
+        Self::read_string_field(self, Self::PROPERTY_NAME)
     }
 
     pub fn set_field_name(
@@ -128,16 +119,7 @@ impl ProjectItem {
     }
 
     pub fn get_field_icon_id(&self) -> String {
-        if let Some(icon_id_field) = self
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_ICON_ID)
-        {
-            icon_id_field.get_display_string(true, 0)
-        } else {
-            String::new()
-        }
+        Self::read_string_field(self, Self::PROPERTY_ICON_ID)
     }
 
     pub fn set_field_icon_id(
@@ -152,16 +134,7 @@ impl ProjectItem {
     }
 
     pub fn get_field_description(&self) -> String {
-        if let Some(icon_id_field) = self
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_DESCRIPTION)
-        {
-            icon_id_field.get_display_string(true, 0)
-        } else {
-            String::new()
-        }
+        Self::read_string_field(self, Self::PROPERTY_DESCRIPTION)
     }
 
     pub fn set_field_description(
@@ -173,5 +146,21 @@ impl ProjectItem {
 
         self.get_properties_mut()
             .set_field_data(Self::PROPERTY_DESCRIPTION, field_data, false);
+    }
+
+    fn read_string_field(
+        project_item: &ProjectItem,
+        field_name: &str,
+    ) -> String {
+        let data_value = match project_item
+            .get_properties()
+            .get_field(field_name)
+            .and_then(|field| field.get_data_value())
+        {
+            Some(data_value) => data_value,
+            None => return String::new(),
+        };
+
+        String::from_utf8(data_value.get_value_bytes().clone()).unwrap_or_default()
     }
 }

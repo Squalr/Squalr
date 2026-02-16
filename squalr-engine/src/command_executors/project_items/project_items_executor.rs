@@ -13,12 +13,30 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
         engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandExecutor>::ResponseType {
         match self {
+            ProjectItemsCommand::Add { project_items_add_request } => project_items_add_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectItemsCommand::Activate {
                 project_items_activate_request,
             } => project_items_activate_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::Create { project_items_create_request } => project_items_create_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::Delete { project_items_delete_request } => project_items_delete_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectItemsCommand::List { project_items_list_request } => project_items_list_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::Move { project_items_move_request } => project_items_move_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::Rename { project_items_rename_request } => project_items_rename_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
+            ProjectItemsCommand::Reorder { project_items_reorder_request } => project_items_reorder_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
         }

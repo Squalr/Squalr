@@ -12,6 +12,7 @@ use crate::{
             },
             scanner::{element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_view_data::ElementScannerViewData},
         },
+        project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
         struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     },
 };
@@ -26,6 +27,7 @@ pub struct ElementScannerResultsView {
     app_context: Arc<AppContext>,
     element_scanner_view_data: Dependency<ElementScannerViewData>,
     element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
+    project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
 }
 
@@ -39,6 +41,9 @@ impl ElementScannerResultsView {
         let element_scanner_results_view_data = app_context
             .dependency_container
             .register(ElementScannerResultsViewData::new());
+        let project_hierarchy_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProjectHierarchyViewData>();
         let struct_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<StructViewerViewData>();
@@ -49,6 +54,7 @@ impl ElementScannerResultsView {
             app_context,
             element_scanner_view_data,
             element_scanner_results_view_data,
+            project_hierarchy_view_data,
             struct_viewer_view_data,
         }
     }
@@ -301,7 +307,7 @@ impl Widget for ElementScannerResultsView {
                                 rows_max_y = Some(row_response.rect.max.y);
 
                                 if row_response.double_clicked() {
-                                    // JIRA: Double click logic.
+                                    element_sanner_result_frame_action = ElementScannerResultFrameAction::AddScanResult(index as i32);
                                 }
                             }
                         });
@@ -411,9 +417,20 @@ impl Widget for ElementScannerResultsView {
                     );
                 }
                 ElementScannerResultFrameAction::AddSelection => {
+                    let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
                     ElementScannerResultsViewData::add_scan_results_to_project(
                         self.element_scanner_results_view_data.clone(),
                         self.app_context.engine_unprivileged_state.clone(),
+                        target_directory_path,
+                    );
+                }
+                ElementScannerResultFrameAction::AddScanResult(index) => {
+                    let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
+                    ElementScannerResultsViewData::add_scan_result_to_project_by_index(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
+                        index,
+                        target_directory_path,
                     );
                 }
                 ElementScannerResultFrameAction::DeleteSelection => {

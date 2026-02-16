@@ -151,3 +151,28 @@ impl StructViewerViewData {
         field_display_values
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerViewData;
+    use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
+    use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
+
+    #[test]
+    fn create_field_edit_values_populates_utf8_fields() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("module.exe").to_named_valued_struct_field("module".to_string(), false),
+        ]);
+
+        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct);
+        let module_edit_value = field_edit_values.get("module");
+
+        assert!(module_edit_value.is_some());
+        assert_eq!(
+            module_edit_value
+                .map(|anonymous_value_string| anonymous_value_string.get_anonymous_value_string())
+                .unwrap_or_default(),
+            "module.exe"
+        );
+    }
+}

@@ -77,7 +77,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectCreateRequest {
         }
 
         let project_info = ProjectInfo::new(project_directory_path.to_path_buf(), None, ProjectManifest::default());
-        let project_root_ref = ProjectItemRef::new(PathBuf::new());
+        let project_root_ref = ProjectItemRef::new(project_directory_path.join(Project::PROJECT_DIR));
         let mut project_items = HashMap::new();
 
         project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
