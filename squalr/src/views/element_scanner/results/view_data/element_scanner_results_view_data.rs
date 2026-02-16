@@ -182,6 +182,9 @@ impl ElementScannerResultsViewData {
 
         element_scanner_results_view_data.is_setting_properties = true;
 
+        // Drop to commit the write before send(), which may execute the callback synchronously.
+        drop(element_scanner_results_view_data);
+
         scan_results_set_property_request.send(&engine_unprivileged_state, move |scan_results_set_property_response| {
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Set selected scan results response") {
                 Some(element_scanner_results_view_data) => element_scanner_results_view_data,
@@ -226,6 +229,9 @@ impl ElementScannerResultsViewData {
         let scan_results_query_request = ScanResultsQueryRequest { page_index };
 
         element_scanner_results_view_data.is_querying_scan_results = true;
+
+        // Drop to commit the write before send(), which may execute the callback synchronously.
+        drop(element_scanner_results_view_data);
 
         scan_results_query_request.send(&engine_unprivileged_state, move |scan_results_query_response| {
             // let audio_player = &self.audio_player;
@@ -462,6 +468,9 @@ impl ElementScannerResultsViewData {
 
         element_scanner_results_view_data.is_freezing_entries = true;
 
+        // Drop to commit the write before send(), which may execute the callback synchronously.
+        drop(element_scanner_results_view_data);
+
         if !scan_result_refs.is_empty() {
             let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_freeze_request = ScanResultsFreezeRequest { scan_result_refs, is_frozen };
@@ -516,6 +525,9 @@ impl ElementScannerResultsViewData {
         });
 
         element_scanner_results_view_data.is_freezing_entries = true;
+
+        // Drop to commit the write before send(), which may execute the callback synchronously.
+        drop(element_scanner_results_view_data);
 
         if !scan_result_refs.is_empty() {
             let engine_unprivileged_state = &engine_unprivileged_state;
