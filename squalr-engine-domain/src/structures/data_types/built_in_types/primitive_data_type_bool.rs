@@ -108,11 +108,85 @@ impl PrimitiveDataTypeBool {
             // We can actually ignore is_big_endian because we really only care if any value is non-zero, which is invariant across endianness.
             let is_true = chunk.iter().any(|&byte| byte != 0);
 
-            bool_strings.push(if is_true { "true" } else { "false" });
+            bool_strings.push(match anonymous_value_string_format {
+                AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::String => {
+                    if is_true {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                }
+                AnonymousValueStringFormat::Binary => {
+                    if is_true {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                }
+                AnonymousValueStringFormat::Decimal => {
+                    if is_true {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                }
+                AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
+                    if is_true {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                }
+                _ => {
+                    if is_true {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                }
+            });
         }
 
         let anonymous_value_string = bool_strings.join(", ");
 
         Ok(AnonymousValueString::new(anonymous_value_string, anonymous_value_string_format, container_type))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PrimitiveDataTypeBool;
+    use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+
+    #[test]
+    fn anonymize_bool_format_uses_true_false_strings() {
+        let value_bytes = [0x00_u8, 0x01_u8];
+        let value_string = PrimitiveDataTypeBool::anonymize::<u8>(&value_bytes, false, AnonymousValueStringFormat::Bool, 1).unwrap();
+
+        assert_eq!(value_string.get_anonymous_value_string(), "false, true");
+    }
+
+    #[test]
+    fn anonymize_decimal_format_uses_zero_one_strings() {
+        let value_bytes = [0x00_u8, 0x01_u8];
+        let value_string = PrimitiveDataTypeBool::anonymize::<u8>(&value_bytes, false, AnonymousValueStringFormat::Decimal, 1).unwrap();
+
+        assert_eq!(value_string.get_anonymous_value_string(), "0, 1");
+    }
+
+    #[test]
+    fn anonymize_binary_format_uses_unprefixed_bits() {
+        let value_bytes = [0x00_u8, 0x01_u8];
+        let value_string = PrimitiveDataTypeBool::anonymize::<u8>(&value_bytes, false, AnonymousValueStringFormat::Binary, 1).unwrap();
+
+        assert_eq!(value_string.get_anonymous_value_string(), "0, 1");
+    }
+
+    #[test]
+    fn anonymize_hexadecimal_format_uses_unprefixed_digits() {
+        let value_bytes = [0x00_u8, 0x01_u8];
+        let value_string = PrimitiveDataTypeBool::anonymize::<u8>(&value_bytes, false, AnonymousValueStringFormat::Hexadecimal, 1).unwrap();
+
+        assert_eq!(value_string.get_anonymous_value_string(), "0, 1");
     }
 }

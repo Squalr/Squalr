@@ -19,6 +19,7 @@ use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, Scrol
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::{dependency_injection::dependency::Dependency, structures::scan_results::scan_result::ScanResult};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct ElementScannerResultsView {
@@ -57,6 +58,10 @@ impl Widget for ElementScannerResultsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        user_interface
+            .ctx()
+            .request_repaint_after(Duration::from_millis(100));
+
         const FAUX_BAR_THICKNESS: f32 = 3.0;
         const BAR_THICKNESS: f32 = 4.0;
         const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 80.0;
@@ -378,6 +383,7 @@ impl Widget for ElementScannerResultsView {
                     ElementScannerResultsViewData::set_scan_result_selection_start(
                         self.element_scanner_results_view_data.clone(),
                         self.struct_viewer_view_data.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         index,
                     );
                 }
@@ -385,6 +391,7 @@ impl Widget for ElementScannerResultsView {
                     ElementScannerResultsViewData::set_scan_result_selection_end(
                         self.element_scanner_results_view_data.clone(),
                         self.struct_viewer_view_data.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
                         index,
                     );
                 }

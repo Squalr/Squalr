@@ -108,7 +108,43 @@ impl PrimitiveDataTypeBool {
             // We can actually ignore is_big_endian because we really only care if any value is non-zero, which is invariant across endianness.
             let is_true = chunk.iter().any(|&byte| byte != 0);
 
-            bool_strings.push(if is_true { "true" } else { "false" });
+            bool_strings.push(match anonymous_value_string_format {
+                AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::String => {
+                    if is_true {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                }
+                AnonymousValueStringFormat::Binary => {
+                    if is_true {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                }
+                AnonymousValueStringFormat::Decimal => {
+                    if is_true {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                }
+                AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
+                    if is_true {
+                        "1"
+                    } else {
+                        "0"
+                    }
+                }
+                _ => {
+                    if is_true {
+                        "true"
+                    } else {
+                        "false"
+                    }
+                }
+            });
         }
 
         let anonymous_value_string = bool_strings.join(", ");

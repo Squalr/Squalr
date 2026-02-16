@@ -236,6 +236,28 @@ Our existing architecture is quite flexible, but this definitely requires a spec
 ## Detailed Tasklist
 This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
 
+### Project Explorer
+Branch: `pr/project-explorer`
+We need to get the project explorer functioning. This includes all project commands, which are NOT transmitted across the privileged boundary. Projects are entirely an unprivileged concept. This means the commands are routed locally.
+
+We also need the nested nature of the GUI functioning, data type icons, preview values (ie if its an address/pointer, try to show a preview value in the right column).
+
+Additionally, we need common GUI controls like drag/drop reordering, deleting entries with confirmation (without a modal popup, instead a take-over menu of that docked panel -- this is critical for android support which does not use modals).
+
+We also need some easy ways to add items to the project, such as double clicking on a scan result, or selecting a scan result range and clicking a button to add all selected items to the project.
+
+Reordering is tricky because we want one file per project item. This means sorting is metadata in each folder with sort orders.
+
+### Symbol Registry
+Branch: `pr/symbol-registry`
+We need a robust symbol system that allows for registering custom structs and data types for quick lookup. This can be tricky due to the need for both privileged and unprivileged domains requiring access to the symbol registry. See Registry Synchronization section.
+
+
+### Scan Result Deletion
+Branch: `pr/scan-result-deletion`
+
+We need to support deleting specific scan results. The internal data structures for storing scan results are not robust to this operation, so it actually makes more sense to manually track deletions rather than rebuilding all scan result data structures after a delete. Instead, we store deletions and use this information to intelligently skip entries when seeking to scan results by page.
+
 ### Android Build
 Branch: `pr/android`
 The android build should be made functional again. Note that unlike the main gui build, this must run in IPC mode with a privileged shell rather than standalone.
@@ -252,7 +274,7 @@ Needs a full implementation of a TUI that behaves as similar to the GUI as possi
 ### Draggable Docking Windows
 Branch: `pr/docking`
 
-Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways. Need to investigate TUI options, and which makes the most sense to use.
+Our docking system is quite robust, but we currently do not support changing the layout with drag/drop. The operations already exist to reparent and move windows around, so this may not be terribly bad. The tricky parts are the visual updates (ie while dragging something, show a blue sheen over drop targets that indicate where the docked window will insert).
 
 ### Conversion Testing
 Branch: `pr/conversion-testing`

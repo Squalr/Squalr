@@ -6,6 +6,7 @@ use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_reque
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
@@ -72,6 +73,8 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
+        Self::query_scan_results(element_scanner_results_view_data.clone(), engine_unprivileged_state.clone(), false);
+
         let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
 
@@ -168,11 +171,11 @@ impl ElementScannerResultsViewData {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
-        let scan_result_refs = element_scanner_results_view_data
-            .current_scan_results
-            .iter()
-            .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
-            .collect();
+        let scan_result_refs = Self::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
+
+        if scan_result_refs.is_empty() {
+            return;
+        }
 
         let scan_results_set_property_request = ScanResultsSetPropertyRequest {
             scan_result_refs,
@@ -185,7 +188,7 @@ impl ElementScannerResultsViewData {
         // Drop to commit the write before send(), which may execute the callback synchronously.
         drop(element_scanner_results_view_data);
 
-        scan_results_set_property_request.send(&engine_unprivileged_state, move |scan_results_set_property_response| {
+        scan_results_set_property_request.send(&engine_unprivileged_state, move |_scan_results_set_property_response| {
             let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Set selected scan results response") {
                 Some(element_scanner_results_view_data) => element_scanner_results_view_data,
                 None => return,
@@ -233,12 +236,13 @@ impl ElementScannerResultsViewData {
         // Drop to commit the write before send(), which may execute the callback synchronously.
         drop(element_scanner_results_view_data);
 
-        scan_results_query_request.send(&engine_unprivileged_state, move |scan_results_query_response| {
+        let element_scanner_results_view_data_for_response = element_scanner_results_view_data_clone.clone();
+        let did_dispatch = scan_results_query_request.send(&engine_unprivileged_state, move |scan_results_query_response| {
             // let audio_player = &self.audio_player;
             let byte_size_in_metric = StorageSizeConversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes as u128);
             let result_count = scan_results_query_response.result_count;
 
-            if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Query scan results response") {
+            if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_for_response.write("Query scan results response") {
                 element_scanner_results_view_data.is_querying_scan_results = false;
                 element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
                 element_scanner_results_view_data.result_count = result_count;
@@ -254,6 +258,12 @@ impl ElementScannerResultsViewData {
                 }
             }
         });
+
+        if !did_dispatch {
+            if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Query scan results dispatch failure") {
+                element_scanner_results_view_data.is_querying_scan_results = false;
+            }
+        }
     }
 
     /// Fetches up-to-date values and module information for the current scan results, then updates the UI.
@@ -292,8 +302,9 @@ impl ElementScannerResultsViewData {
         // Drop to commit the write.
         drop(element_scanner_results_view_data);
 
-        scan_results_refresh_request.send(engine_unprivileged_state, move |scan_results_refresh_response| {
-            let mut element_scanner_results_view_data = match element_scanner_results_view_data_clone.write("Refresh scan results response") {
+        let element_scanner_results_view_data_for_response = element_scanner_results_view_data_clone.clone();
+        let did_dispatch = scan_results_refresh_request.send(engine_unprivileged_state, move |scan_results_refresh_response| {
+            let mut element_scanner_results_view_data = match element_scanner_results_view_data_for_response.write("Refresh scan results response") {
                 Some(element_scanner_results_view_data) => element_scanner_results_view_data,
                 None => return,
             };
@@ -302,6 +313,12 @@ impl ElementScannerResultsViewData {
             element_scanner_results_view_data.is_refreshing_scan_results = false;
             element_scanner_results_view_data.current_scan_results = scan_results_refresh_response.scan_results;
         });
+
+        if !did_dispatch {
+            if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Refresh scan results dispatch failure") {
+                element_scanner_results_view_data.is_refreshing_scan_results = false;
+            }
+        }
     }
 
     fn set_page_index(
@@ -338,7 +355,7 @@ impl ElementScannerResultsViewData {
         // Drop to commit the write.
         drop(element_scanner_results_view_data);
 
-        // Refresh scan results with the new page index. // JIRA: Should happen in the loop technically, but we need to make the MVVM bindings deadlock resistant.
+        // Refresh scan results with the new page index.
         Self::query_scan_results(element_scanner_results_view_data_clone, engine_unprivileged_state, false);
     }
 
@@ -361,8 +378,10 @@ impl ElementScannerResultsViewData {
     pub fn set_scan_result_selection_start(
         element_scanner_results_view_data: Dependency<Self>,
         struct_viewer_view_data: Dependency<StructViewerViewData>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_result_collection_start_index: Option<i32>,
     ) {
+        let element_scanner_results_view_data_dependency = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection start") {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
@@ -376,20 +395,22 @@ impl ElementScannerResultsViewData {
             valued_structs.push(scan_result.as_valued_struct())
         });
 
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data_dependency.clone();
+        let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         StructViewerViewData::focus_valued_structs(
             struct_viewer_view_data,
             valued_structs,
-            Box::new(|modified_field| {
-                //
-            }),
+            Self::create_struct_field_modified_callback(element_scanner_results_view_data_clone, engine_unprivileged_state_clone),
         );
     }
 
     pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
         struct_viewer_view_data: Dependency<StructViewerViewData>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_result_collection_end_index: Option<i32>,
     ) {
+        let element_scanner_results_view_data_dependency = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection end") {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
@@ -402,13 +423,52 @@ impl ElementScannerResultsViewData {
             valued_structs.push(scan_result.as_valued_struct())
         });
 
+        let element_scanner_results_view_data_clone = element_scanner_results_view_data_dependency.clone();
+        let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         StructViewerViewData::focus_valued_structs(
             struct_viewer_view_data,
             valued_structs,
-            Box::new(|modified_field| {
-                //
-            }),
+            Self::create_struct_field_modified_callback(element_scanner_results_view_data_clone, engine_unprivileged_state_clone),
         );
+    }
+
+    fn create_struct_field_modified_callback(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) -> Arc<dyn Fn(squalr_engine_api::structures::structs::valued_struct_field::ValuedStructField) + Send + Sync> {
+        Arc::new(move |modified_field| {
+            let Some(modified_data_value) = modified_field.get_data_value() else {
+                return;
+            };
+
+            if modified_field.get_name() == ScanResult::PROPERTY_NAME_IS_FROZEN {
+                let is_frozen = modified_data_value
+                    .get_value_bytes()
+                    .iter()
+                    .any(|frozen_value_byte| *frozen_value_byte != 0);
+
+                Self::toggle_selected_scan_results_frozen(element_scanner_results_view_data.clone(), engine_unprivileged_state.clone(), is_frozen);
+
+                return;
+            }
+
+            let symbol_registry = SymbolRegistry::get_instance();
+            let data_type_ref = modified_data_value.get_data_type_ref();
+            let default_anonymous_value_string_format = symbol_registry.get_default_anonymous_value_string_format(data_type_ref);
+            let anonymous_value_string = symbol_registry
+                .anonymize_value(modified_data_value, default_anonymous_value_string_format)
+                .unwrap_or_else(|error| {
+                    log::warn!("Failed to anonymize struct edit value: {}", error);
+                    AnonymousValueString::new(String::new(), default_anonymous_value_string_format, ContainerType::None)
+                });
+
+            Self::set_selected_scan_results_value(
+                element_scanner_results_view_data.clone(),
+                engine_unprivileged_state.clone(),
+                modified_field.get_name(),
+                anonymous_value_string,
+            );
+        })
     }
 
     pub fn add_scan_results_to_project(
@@ -597,15 +657,19 @@ impl ElementScannerResultsViewData {
             None => return Vec::new(),
         };
 
-        let Some(range) = Self::get_selected_results_range(&element_scanner_results_view_data) else {
+        Self::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data)
+    }
+
+    fn collect_scan_result_refs_for_selected_range(element_scanner_results_view_data: &ElementScannerResultsViewData) -> Vec<ScanResultRef> {
+        let Some(selected_result_range) = Self::get_selected_results_range(element_scanner_results_view_data) else {
             return Vec::new();
         };
 
-        range
-            .filter_map(|index| {
+        selected_result_range
+            .filter_map(|selected_result_index| {
                 element_scanner_results_view_data
                     .current_scan_results
-                    .get(index)
+                    .get(selected_result_index)
             })
             .map(|scan_result| scan_result.get_base_result().get_scan_result_ref().clone())
             .collect()
@@ -656,5 +720,78 @@ impl ElementScannerResultsViewData {
                     .get_scan_result_global_index()
                     == global_index
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ElementScannerResultsViewData;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
+    use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
+    use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
+
+    fn create_scan_result(scan_result_global_index: u64) -> ScanResult {
+        let scan_result_valued = ScanResultValued::new(
+            0x1000 + scan_result_global_index,
+            DataTypeRef::new("u8"),
+            String::new(),
+            None,
+            Vec::new(),
+            None,
+            Vec::new(),
+            ScanResultRef::new(scan_result_global_index),
+        );
+
+        ScanResult::new(scan_result_valued, String::new(), 0, None, Vec::new(), false)
+    }
+
+    fn create_view_data_with_scan_results(scan_result_global_indices: &[u64]) -> ElementScannerResultsViewData {
+        let mut element_scanner_results_view_data = ElementScannerResultsViewData::new();
+        element_scanner_results_view_data.current_scan_results = scan_result_global_indices
+            .iter()
+            .map(|scan_result_global_index| create_scan_result(*scan_result_global_index))
+            .collect();
+
+        element_scanner_results_view_data
+    }
+
+    #[test]
+    fn collect_scan_result_refs_for_selected_range_uses_multi_select_bounds() {
+        let mut element_scanner_results_view_data = create_view_data_with_scan_results(&[10, 11, 12, 13]);
+        element_scanner_results_view_data.selection_index_start = Some(1);
+        element_scanner_results_view_data.selection_index_end = Some(2);
+
+        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
+        let selected_scan_result_global_indices = selected_scan_result_refs
+            .iter()
+            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
+            .collect::<Vec<_>>();
+
+        assert_eq!(selected_scan_result_global_indices, vec![11, 12]);
+    }
+
+    #[test]
+    fn collect_scan_result_refs_for_selected_range_uses_single_select_when_end_missing() {
+        let mut element_scanner_results_view_data = create_view_data_with_scan_results(&[10, 11, 12, 13]);
+        element_scanner_results_view_data.selection_index_start = Some(2);
+        element_scanner_results_view_data.selection_index_end = None;
+
+        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
+        let selected_scan_result_global_indices = selected_scan_result_refs
+            .iter()
+            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
+            .collect::<Vec<_>>();
+
+        assert_eq!(selected_scan_result_global_indices, vec![12]);
+    }
+
+    #[test]
+    fn collect_scan_result_refs_for_selected_range_returns_empty_without_selection() {
+        let element_scanner_results_view_data = create_view_data_with_scan_results(&[10, 11, 12, 13]);
+
+        let selected_scan_result_refs = ElementScannerResultsViewData::collect_scan_result_refs_for_selected_range(&element_scanner_results_view_data);
+
+        assert!(selected_scan_result_refs.is_empty());
     }
 }

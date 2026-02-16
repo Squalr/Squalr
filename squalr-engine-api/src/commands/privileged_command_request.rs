@@ -15,23 +15,26 @@ pub trait PrivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
         &self,
         engine_execution_context: &Arc<impl EngineExecutionContext + 'static>,
         callback: F,
-    ) where
+    ) -> bool
+    where
         F: FnOnce(<Self as PrivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as PrivilegedCommandRequest>::ResponseType: TypedPrivilegedCommandResponse,
     {
         match engine_execution_context.get_bindings().read() {
-            Ok(engine_bindings) => {
-                self.send_unprivileged(&*engine_bindings, callback);
+            Ok(engine_bindings) => self.send_unprivileged(&*engine_bindings, callback),
+            Err(error) => {
+                log::error!("Error getting engine execution context bindings: {}", error);
+                false
             }
-            Err(error) => log::error!("Error getting engine execution context bindings: {}", error),
-        };
+        }
     }
 
     fn send_unprivileged<F>(
         &self,
         engine_bindings: &dyn EngineApiUnprivilegedBindings,
         callback: F,
-    ) where
+    ) -> bool
+    where
         F: FnOnce(<Self as PrivilegedCommandRequest>::ResponseType) + Clone + Send + Sync + 'static,
         <Self as PrivilegedCommandRequest>::ResponseType: TypedPrivilegedCommandResponse,
     {
@@ -39,18 +42,21 @@ pub trait PrivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
 
         if let Err(error) = engine_bindings.dispatch_privileged_command(
             command,
-            Box::new(move |engine_response| {
-                match <Self as PrivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
+            Box::new(
+                move |engine_response| match <Self as PrivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
                     Ok(response) => {
                         callback(response);
                     }
                     Err(unexpected_response) => {
                         log::error!("Received unexpected response variant: {:?}", unexpected_response);
                     }
-                }
-            }),
+                },
+            ),
         ) {
             log::error!("Error dispatching command: {}", error);
+            return false;
         }
+
+        true
     }
 }

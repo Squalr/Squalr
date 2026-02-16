@@ -59,7 +59,13 @@ impl PrivilegedCommandRequestExecutor for ScanResultsQueryRequest {
                     .get_process_manager()
                     .get_opened_process()
                 {
-                    if let Some(mut data_value) = scan_result_base.get_current_value().clone() {
+                    let data_type_ref = scan_result_base.get_data_type_ref();
+                    let recently_read_value_template = scan_result_base
+                        .get_current_value()
+                        .clone()
+                        .or_else(|| symbol_registry.get_default_value(data_type_ref));
+
+                    if let Some(mut data_value) = recently_read_value_template {
                         if os_providers
                             .memory_read
                             .read(&opened_process_info, address, &mut data_value)

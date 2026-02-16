@@ -8,6 +8,7 @@ pub struct DataValueBoxConvertItemView<'lifetime> {
     app_context: Arc<AppContext>,
     anonymous_value_string: &'lifetime mut AnonymousValueString,
     target_anonymous_value_string_format: &'lifetime AnonymousValueStringFormat,
+    target_display_value: Option<&'lifetime AnonymousValueString>,
     is_conversion_available: bool,
     is_value_owned: bool,
     combo_box_width: f32,
@@ -18,6 +19,7 @@ impl<'lifetime> DataValueBoxConvertItemView<'lifetime> {
         app_context: Arc<AppContext>,
         anonymous_value_string: &'lifetime mut AnonymousValueString,
         target_anonymous_value_string_format: &'lifetime AnonymousValueStringFormat,
+        target_display_value: Option<&'lifetime AnonymousValueString>,
         is_conversion_available: bool,
         is_value_owned: bool,
         width: f32,
@@ -26,6 +28,7 @@ impl<'lifetime> DataValueBoxConvertItemView<'lifetime> {
             app_context: app_context,
             anonymous_value_string,
             target_anonymous_value_string_format,
+            target_display_value,
             is_conversion_available,
             is_value_owned,
             combo_box_width: width,
@@ -139,6 +142,8 @@ impl<'a> Widget for DataValueBoxConvertItemView<'a> {
             if self.is_conversion_available {
                 self.anonymous_value_string
                     .set_anonymous_value_string_format(*self.target_anonymous_value_string_format);
+            } else if let Some(target_display_value) = self.target_display_value {
+                *self.anonymous_value_string = target_display_value.clone();
             } else {
                 self.anonymous_value_string
                     .set_anonymous_value_string_format(*self.target_anonymous_value_string_format);

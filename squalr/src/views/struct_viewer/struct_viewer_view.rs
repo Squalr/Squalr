@@ -4,6 +4,9 @@ use crate::{app_context::AppContext, views::struct_viewer::view_data::struct_vie
 use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
 use epaint::{Rect, pos2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
+use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructFieldData;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -43,7 +46,7 @@ impl Widget for StructViewerView {
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
-                let struct_viewer_view_data = match self.struct_viewer_view_data.read("Struct viewer view") {
+                let mut struct_viewer_view_data = match self.struct_viewer_view_data.write("Struct viewer view") {
                     Some(data) => data,
                     None => return,
                 };
@@ -78,18 +81,31 @@ impl Widget for StructViewerView {
                     .auto_shrink([false, false])
                     .show(&mut user_interface, |inner_ui| {
                         if let Some(struct_under_view) = struct_viewer_view_data.struct_under_view.as_ref() {
-                            for field in struct_under_view.get_fields() {
-                                let is_selected = struct_viewer_view_data
-                                    .selected_field_name
-                                    .as_deref()
-                                    .unwrap_or_default()
-                                    == field.get_name();
+                            let struct_fields = struct_under_view.get_fields().to_vec();
+                            let selected_field_name = struct_viewer_view_data.selected_field_name.as_ref().clone();
+                            let field_display_values_map = struct_viewer_view_data.field_display_values.clone();
+
+                            for (field_row_index, field) in struct_fields.into_iter().enumerate() {
+                                let is_selected = selected_field_name.as_deref().unwrap_or_default() == field.get_name();
+                                let validation_data_type_ref = field
+                                    .get_data_value()
+                                    .map(|data_value| data_value.get_data_type_ref());
+                                let field_edit_value = struct_viewer_view_data
+                                    .field_edit_values
+                                    .get_mut(field.get_name());
+                                let field_display_values = field_display_values_map
+                                    .get(field.get_name())
+                                    .map(Vec::as_slice);
 
                                 inner_ui.add(StructViewerEntryView::new(
                                     self.app_context.clone(),
                                     &field,
+                                    field_row_index,
                                     is_selected,
                                     &mut frame_action,
+                                    field_edit_value,
+                                    field_display_values,
+                                    validation_data_type_ref,
                                     ICON_COLUMN_WIDTH + BAR_THICKNESS,
                                     value_splitter_x + BAR_THICKNESS,
                                 ));
@@ -143,8 +159,37 @@ impl Widget for StructViewerView {
             StructViewerFrameAction::SelectField(field_name) => {
                 StructViewerViewData::set_selected_field(self.struct_viewer_view_data.clone(), field_name);
             }
-            StructViewerFrameAction::EditValue(field, value) => {
-                //
+            StructViewerFrameAction::EditValue(edited_field) => {
+                if let Some(mut struct_viewer_view_data) = self.struct_viewer_view_data.write("Struct viewer edit value") {
+                    if let Some(struct_under_view) = Arc::make_mut(&mut struct_viewer_view_data.struct_under_view).as_mut() {
+                        if let Some(field_under_view) = struct_under_view.get_field_mut(edited_field.get_name()) {
+                            field_under_view.set_field_data(edited_field.get_field_data().clone());
+                        }
+                    }
+
+                    if let ValuedStructFieldData::Value(new_data_value) = edited_field.get_field_data() {
+                        if let Some(edit_value) = struct_viewer_view_data
+                            .field_edit_values
+                            .get_mut(edited_field.get_name())
+                        {
+                            let symbol_registry = SymbolRegistry::get_instance();
+                            let data_type_ref = new_data_value.get_data_type_ref();
+                            let default_anonymous_value_string_format = symbol_registry.get_default_anonymous_value_string_format(data_type_ref);
+                            let new_anonymous_value_string = symbol_registry
+                                .anonymize_value(new_data_value, default_anonymous_value_string_format)
+                                .unwrap_or_else(|error| {
+                                    log::warn!("Failed to anonymize edited struct value: {}", error);
+                                    AnonymousValueString::new(String::new(), default_anonymous_value_string_format, ContainerType::None)
+                                });
+
+                            *edit_value = new_anonymous_value_string;
+                        }
+                    }
+
+                    if let Some(struct_field_modified_callback) = struct_viewer_view_data.struct_field_modified_callback.clone() {
+                        struct_field_modified_callback(edited_field);
+                    }
+                }
             }
         }
 

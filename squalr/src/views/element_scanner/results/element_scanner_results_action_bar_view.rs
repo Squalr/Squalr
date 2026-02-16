@@ -173,6 +173,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 )
                 .width(data_value_box_width),
             );
+            let commit_on_enter_pressed = DataValueBoxView::consume_commit_on_enter(user_interface, "data_value_box_edit_value");
 
             let commit_value_response = user_interface.add_sized(
                 button_size,
@@ -183,7 +184,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
 
             IconDraw::draw(user_interface, commit_value_response.rect, &theme.icon_library.icon_handle_common_check_mark);
 
-            if commit_value_response.clicked() {
+            if commit_value_response.clicked() || commit_on_enter_pressed {
                 *self.element_sanner_result_frame_action =
                     ElementScannerResultFrameAction::CommitValueToSelection(element_scanner_results_view_data.current_display_string.clone());
             }

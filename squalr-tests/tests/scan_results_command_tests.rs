@@ -1,3 +1,4 @@
+use crossbeam_channel::{Receiver, unbounded};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -18,14 +19,45 @@ use squalr_engine_api::commands::scan_results::scan_results_command::ScanResults
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_response::ScanResultsSetPropertyResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
+use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
+use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::events::engine_event::EngineEvent;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
+use squalr_engine_api::{commands::unprivileged_command::UnprivilegedCommand, commands::unprivileged_command_response::UnprivilegedCommandResponse};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use structopt::StructOpt;
 
 use squalr_tests::mocks::mock_engine_bindings::MockEngineBindings;
+
+struct FailingDispatchBindings;
+
+impl EngineApiUnprivilegedBindings for FailingDispatchBindings {
+    fn dispatch_privileged_command(
+        &self,
+        _engine_command: PrivilegedCommand,
+        _callback: Box<dyn FnOnce(squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), EngineBindingError> {
+        Err(EngineBindingError::unavailable("dispatching privileged command in test"))
+    }
+
+    fn dispatch_unprivileged_command(
+        &self,
+        _engine_command: UnprivilegedCommand,
+        _engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        _callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+    ) -> Result<(), EngineBindingError> {
+        Err(EngineBindingError::unavailable("dispatching unprivileged command in test"))
+    }
+
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+        let (_event_sender, event_receiver) = unbounded();
+        Ok(event_receiver)
+    }
+}
 
 #[test]
 fn scan_results_list_request_dispatches_list_command_and_invokes_typed_callback() {
@@ -71,6 +103,20 @@ fn scan_results_list_request_dispatches_list_command_and_invokes_typed_callback(
         }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
+}
+
+#[test]
+fn scan_results_query_request_send_unprivileged_returns_false_when_dispatch_fails() {
+    let bindings = FailingDispatchBindings;
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    let did_dispatch = ScanResultsQueryRequest { page_index: 0 }.send_unprivileged(&bindings, move |_scan_results_query_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(!did_dispatch);
+    assert!(!callback_invoked.load(Ordering::SeqCst));
 }
 
 #[test]

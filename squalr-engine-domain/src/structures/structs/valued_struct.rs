@@ -154,7 +154,7 @@ impl ValuedStruct {
                 other_valued_struct
                     .fields
                     .iter()
-                    .any(|field_b| field_a == field_b)
+                    .any(|field_b| field_a.get_name() == field_b.get_name())
             })
         });
 
@@ -196,5 +196,46 @@ impl<ContextType> FromStringPrivileged<ContextType> for ValuedStruct {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ValuedStruct::new(struct_ref, fields))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ValuedStruct;
+    use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+
+    #[test]
+    fn combine_exclusive_keeps_common_field_names_when_values_differ() {
+        let first_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU8::get_value_from_primitive(10).to_named_valued_struct_field("value".to_string(), false),
+            DataTypeU8::get_value_from_primitive(20).to_named_valued_struct_field("other".to_string(), false),
+        ]);
+        let second_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU8::get_value_from_primitive(30).to_named_valued_struct_field("value".to_string(), false),
+            DataTypeU8::get_value_from_primitive(40).to_named_valued_struct_field("other".to_string(), false),
+        ]);
+
+        let combined_struct = ValuedStruct::combine_exclusive(&[first_struct, second_struct]);
+
+        assert!(combined_struct.get_field("value").is_some());
+        assert!(combined_struct.get_field("other").is_some());
+        assert_eq!(combined_struct.get_fields().len(), 2);
+    }
+
+    #[test]
+    fn combine_exclusive_discards_fields_not_present_in_all_structs() {
+        let first_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU8::get_value_from_primitive(10).to_named_valued_struct_field("value".to_string(), false),
+            DataTypeU8::get_value_from_primitive(20).to_named_valued_struct_field("only_first".to_string(), false),
+        ]);
+        let second_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU8::get_value_from_primitive(30).to_named_valued_struct_field("value".to_string(), false),
+        ]);
+
+        let combined_struct = ValuedStruct::combine_exclusive(&[first_struct, second_struct]);
+
+        assert!(combined_struct.get_field("value").is_some());
+        assert!(combined_struct.get_field("only_first").is_none());
+        assert_eq!(combined_struct.get_fields().len(), 1);
     }
 }

@@ -43,16 +43,16 @@ pub trait UnprivilegedCommandRequest: Clone + Serialize + DeserializeOwned {
         if let Err(error) = engine_bindings.dispatch_unprivileged_command(
             command,
             &execution_context,
-            Box::new(move |engine_response| {
-                match <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
+            Box::new(
+                move |engine_response| match <Self as UnprivilegedCommandRequest>::ResponseType::from_engine_response(engine_response) {
                     Ok(response) => {
                         callback(response);
                     }
                     Err(unexpected_response) => {
                         log::error!("Received unexpected response variant: {:?}", unexpected_response);
                     }
-                }
-            }),
+                },
+            ),
         ) {
             log::error!("Error dispatching command: {}", error);
         }
