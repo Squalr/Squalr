@@ -1,5 +1,3 @@
-#![feature(profile-rustflags)]
-
 [workspace]
 members = [
     "squalr-tests",

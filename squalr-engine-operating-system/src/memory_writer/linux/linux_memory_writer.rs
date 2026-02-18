@@ -1,7 +1,6 @@
 use crate::memory_writer::memory_writer_trait::MemoryWriterTrait;
+use libc::{c_void, iovec, pid_t, process_vm_writev};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::os::raw::c_void;
-use std::ptr::null_mut;
 
 pub struct LinuxMemoryWriter;
 
@@ -10,12 +9,28 @@ impl LinuxMemoryWriter {
         LinuxMemoryWriter
     }
 
-    fn write_memory(
-        process_handle: u64,
-        address: u64,
-        data: &[u8],
+    fn write_process_memory(
+        process_id: u32,
+        destination_address: u64,
+        source_bytes: &[u8],
     ) -> bool {
-        false
+        if source_bytes.is_empty() {
+            return true;
+        }
+
+        let local_iovec = iovec {
+            iov_base: source_bytes.as_ptr() as *mut c_void,
+            iov_len: source_bytes.len(),
+        };
+
+        let remote_iovec = iovec {
+            iov_base: destination_address as *mut c_void,
+            iov_len: source_bytes.len(),
+        };
+
+        let bytes_written = unsafe { process_vm_writev(process_id as pid_t, &local_iovec, 1, &remote_iovec, 1, 0) };
+
+        bytes_written == source_bytes.len() as isize
     }
 }
 
@@ -26,6 +41,6 @@ impl MemoryWriterTrait for LinuxMemoryWriter {
         address: u64,
         values: &[u8],
     ) -> bool {
-        Self::write_memory(process_info.get_handle(), address, values)
+        Self::write_process_memory(process_info.get_process_id_raw(), address, values)
     }
 }

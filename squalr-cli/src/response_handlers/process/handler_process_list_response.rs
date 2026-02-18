@@ -10,7 +10,21 @@ pub fn handle_process_list_response(process_response: ProcessResponse) {
         }
 
         for process_info in processes {
-            log::info!("process_id: {}, name: {}", process_info.get_process_id_raw(), process_info.get_name());
+            let icon_dimensions = process_info
+                .get_icon()
+                .as_ref()
+                .map(|process_icon| format!("{}x{}", process_icon.get_width(), process_icon.get_height()))
+                .unwrap_or_else(|| "none".to_string());
+            let has_icon = process_info.get_icon().is_some();
+
+            log::info!(
+                "process_id: {}, name: {}, is_windowed: {}, has_icon: {}, icon_dimensions: {}",
+                process_info.get_process_id_raw(),
+                process_info.get_name(),
+                process_info.get_is_windowed(),
+                has_icon,
+                icon_dimensions
+            );
         }
     }
 }

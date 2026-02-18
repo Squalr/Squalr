@@ -2,8 +2,7 @@ use serde_json::to_string_pretty;
 use squalr_engine_api::structures::settings::memory_settings::MemorySettings;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Once;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 pub struct MemorySettingsConfig {
     config: Arc<RwLock<MemorySettings>>,
@@ -29,18 +28,9 @@ impl MemorySettingsConfig {
     }
 
     fn get_instance() -> &'static MemorySettingsConfig {
-        static mut INSTANCE: Option<MemorySettingsConfig> = None;
-        static ONCE: Once = Once::new();
+        static INSTANCE: OnceLock<MemorySettingsConfig> = OnceLock::new();
 
-        unsafe {
-            ONCE.call_once(|| {
-                let instance = MemorySettingsConfig::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
+        INSTANCE.get_or_init(MemorySettingsConfig::new)
     }
 
     fn default_config_path() -> PathBuf {

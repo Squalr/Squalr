@@ -6,24 +6,15 @@ use crate::memory_queryer::region_bounds_handling::RegionBoundsHandling;
 use crate::{config::memory_settings_config::MemorySettingsConfig, memory_queryer::MemoryQueryerImpl};
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::{collections::HashSet, sync::Once};
+use std::{collections::HashSet, sync::OnceLock};
 
 pub struct MemoryQueryer;
 
 impl MemoryQueryer {
     pub fn get_instance() -> &'static MemoryQueryerImpl {
-        static mut INSTANCE: Option<MemoryQueryerImpl> = None;
-        static INIT: Once = Once::new();
+        static INSTANCE: OnceLock<MemoryQueryerImpl> = OnceLock::new();
 
-        unsafe {
-            INIT.call_once(|| {
-                let instance = MemoryQueryerImpl::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
+        INSTANCE.get_or_init(MemoryQueryerImpl::new)
     }
 
     pub fn get_memory_page_bounds(
