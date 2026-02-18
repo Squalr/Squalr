@@ -2,6 +2,7 @@ use crate::command_executors::unprivileged_request_executor::UnprivilegedCommand
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_response::ProjectItemsReorderResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -82,7 +83,7 @@ fn to_manifest_path(
     project_directory_path: &Path,
     project_item_path: &Path,
 ) -> PathBuf {
-    let resolved_project_item_path = if is_cross_platform_absolute_path(project_item_path) {
+    let resolved_project_item_path = if FileSystemUtils::is_cross_platform_absolute_path(project_item_path) {
         project_item_path.to_path_buf()
     } else {
         project_directory_path.join(project_item_path)
@@ -92,17 +93,6 @@ fn to_manifest_path(
         Ok(relative_project_item_path) => relative_project_item_path.to_path_buf(),
         Err(_) => resolved_project_item_path,
     }
-}
-
-fn is_cross_platform_absolute_path(project_item_path: &Path) -> bool {
-    if project_item_path.is_absolute() {
-        return true;
-    }
-
-    let path_string = project_item_path.to_string_lossy();
-    let path_bytes = path_string.as_bytes();
-
-    path_bytes.len() >= 3 && path_bytes[0].is_ascii_alphabetic() && path_bytes[1] == b':' && (path_bytes[2] == b'/' || path_bytes[2] == b'\\')
 }
 
 #[cfg(test)]

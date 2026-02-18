@@ -12,6 +12,7 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::proj
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -274,22 +275,11 @@ fn resolve_project_item_path(
     project_directory_path: &Path,
     project_item_path: &Path,
 ) -> PathBuf {
-    if is_cross_platform_absolute_path(project_item_path) {
+    if FileSystemUtils::is_cross_platform_absolute_path(project_item_path) {
         project_item_path.to_path_buf()
     } else {
         project_directory_path.join(project_item_path)
     }
-}
-
-fn is_cross_platform_absolute_path(project_item_path: &Path) -> bool {
-    if project_item_path.is_absolute() {
-        return true;
-    }
-
-    let path_string = project_item_path.to_string_lossy();
-    let path_bytes = path_string.as_bytes();
-
-    path_bytes.len() >= 3 && path_bytes[0].is_ascii_alphabetic() && path_bytes[1] == b':' && (path_bytes[2] == b'/' || path_bytes[2] == b'\\')
 }
 
 fn is_directory_path(

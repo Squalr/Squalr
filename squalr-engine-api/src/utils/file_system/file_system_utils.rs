@@ -6,6 +6,18 @@ use std::{
 pub struct FileSystemUtils {}
 
 impl FileSystemUtils {
+    /// Determines whether a path should be treated as absolute across platforms.
+    pub fn is_cross_platform_absolute_path(path: &Path) -> bool {
+        if path.is_absolute() {
+            return true;
+        }
+
+        let path_string = path.to_string_lossy();
+        let path_bytes = path_string.as_bytes();
+
+        path_bytes.len() >= 3 && path_bytes[0].is_ascii_alphabetic() && path_bytes[1] == b':' && (path_bytes[2] == b'/' || path_bytes[2] == b'\\')
+    }
+
     /// Creates a uniquely named directory like "New Folder", "New Folder (1)", etc. within the given base directory.
     pub fn create_unique_folder(
         base: &Path,
@@ -60,5 +72,27 @@ impl FileSystemUtils {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileSystemUtils;
+    use std::path::Path;
+
+    #[test]
+    fn is_cross_platform_absolute_path_detects_unix_absolute_paths() {
+        assert!(FileSystemUtils::is_cross_platform_absolute_path(Path::new("/tmp/test")));
+    }
+
+    #[test]
+    fn is_cross_platform_absolute_path_detects_windows_drive_absolute_paths() {
+        assert!(FileSystemUtils::is_cross_platform_absolute_path(Path::new("C:/Projects/TestProject")));
+        assert!(FileSystemUtils::is_cross_platform_absolute_path(Path::new("D:\\Projects\\TestProject")));
+    }
+
+    #[test]
+    fn is_cross_platform_absolute_path_rejects_relative_paths() {
+        assert!(!FileSystemUtils::is_cross_platform_absolute_path(Path::new("Projects/TestProject")));
     }
 }
