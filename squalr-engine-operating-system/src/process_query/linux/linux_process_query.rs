@@ -2,6 +2,7 @@ use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use image::ImageReader;
+use resvg::{tiny_skia, usvg};
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
@@ -16,7 +17,10 @@ pub struct LinuxProcessQuery;
 
 #[derive(Clone)]
 struct LinuxDesktopEntry {
-    executable_name: String,
+    executable_name: Option<String>,
+    desktop_file_stem: String,
+    desktop_file_name: String,
+    startup_wm_class: Option<String>,
     icon_name: String,
 }
 
@@ -24,7 +28,7 @@ impl LinuxProcessQuery {
     const DESKTOP_ENTRY_DIRECTORY_SUFFIX: &'static str = ".local/share/applications";
     const ICON_DIRECTORY_SUFFIX: &'static str = ".local/share/icons";
     const USER_ICON_FALLBACK_DIRECTORY_SUFFIX: &'static str = ".icons";
-    const SUPPORTED_ICON_EXTENSIONS: [&'static str; 6] = ["png", "xpm", "ico", "jpg", "jpeg", "bmp"];
+    const SUPPORTED_ICON_EXTENSIONS: [&'static str; 7] = ["png", "xpm", "ico", "jpg", "jpeg", "bmp", "svg"];
     const SHARED_DESKTOP_ENTRY_DIRECTORIES: [&'static str; 3] = [
         "/usr/share/applications",
         "/usr/local/share/applications",
@@ -287,9 +291,24 @@ impl LinuxProcessQuery {
         Some(executable_file_name)
     }
 
-    fn parse_desktop_entry(desktop_entry_contents: &str) -> Option<LinuxDesktopEntry> {
+    fn normalize_desktop_lookup_key(desktop_lookup_key: &str) -> Option<String> {
+        let normalized_desktop_lookup_key = desktop_lookup_key.trim().to_ascii_lowercase();
+
+        if normalized_desktop_lookup_key.is_empty() {
+            return None;
+        }
+
+        Some(normalized_desktop_lookup_key)
+    }
+
+    fn parse_desktop_entry(
+        desktop_entry_contents: &str,
+        desktop_file_stem: &str,
+        desktop_file_name: &str,
+    ) -> Option<LinuxDesktopEntry> {
         let mut found_desktop_entry_section = false;
         let mut executable_name: Option<String> = None;
+        let mut startup_wm_class: Option<String> = None;
         let mut icon_name: Option<String> = None;
         let mut is_hidden_from_ui = false;
 
@@ -322,6 +341,9 @@ impl LinuxProcessQuery {
                         icon_name = Some(desktop_value.to_string());
                     }
                 }
+                "StartupWMClass" => {
+                    startup_wm_class = Self::normalize_desktop_lookup_key(desktop_value);
+                }
                 "NoDisplay" => {
                     is_hidden_from_ui = desktop_value.eq_ignore_ascii_case("true");
                 }
@@ -334,7 +356,10 @@ impl LinuxProcessQuery {
         }
 
         Some(LinuxDesktopEntry {
-            executable_name: executable_name?,
+            executable_name,
+            desktop_file_stem: Self::normalize_desktop_lookup_key(desktop_file_stem)?,
+            desktop_file_name: Self::normalize_desktop_lookup_key(desktop_file_name)?,
+            startup_wm_class,
             icon_name: icon_name?,
         })
     }
@@ -370,7 +395,14 @@ impl LinuxProcessQuery {
                     Err(_) => continue,
                 };
 
-                if let Some(parsed_desktop_entry) = Self::parse_desktop_entry(&desktop_entry_contents) {
+                let Some(desktop_file_stem) = desktop_entry_path.file_stem().and_then(|value| value.to_str()) else {
+                    continue;
+                };
+                let Some(desktop_file_name) = desktop_entry_path.file_name().and_then(|value| value.to_str()) else {
+                    continue;
+                };
+
+                if let Some(parsed_desktop_entry) = Self::parse_desktop_entry(&desktop_entry_contents, desktop_file_stem, desktop_file_name) {
                     desktop_entries.push(parsed_desktop_entry);
                 }
             }
@@ -383,8 +415,23 @@ impl LinuxProcessQuery {
         let mut desktop_entry_icon_lookup = HashMap::new();
 
         for desktop_entry in Self::collect_desktop_entries() {
+            if let Some(executable_name) = desktop_entry.executable_name.as_ref() {
+                desktop_entry_icon_lookup
+                    .entry(executable_name.clone())
+                    .or_insert_with(|| desktop_entry.icon_name.clone());
+            }
+
+            if let Some(startup_wm_class) = desktop_entry.startup_wm_class.as_ref() {
+                desktop_entry_icon_lookup
+                    .entry(startup_wm_class.clone())
+                    .or_insert_with(|| desktop_entry.icon_name.clone());
+            }
+
             desktop_entry_icon_lookup
-                .entry(desktop_entry.executable_name)
+                .entry(desktop_entry.desktop_file_stem)
+                .or_insert_with(|| desktop_entry.icon_name.clone());
+            desktop_entry_icon_lookup
+                .entry(desktop_entry.desktop_file_name)
                 .or_insert(desktop_entry.icon_name);
         }
 
@@ -502,12 +549,38 @@ impl LinuxProcessQuery {
         None
     }
 
+    fn load_svg_icon_from_path(icon_path: &Path) -> Option<ProcessIcon> {
+        let icon_svg_bytes = fs::read(icon_path).ok()?;
+        let svg_tree = usvg::Tree::from_data(&icon_svg_bytes, &usvg::Options::default()).ok()?;
+        let svg_size = svg_tree.size();
+        let icon_width = svg_size.width().ceil().max(1.0) as u32;
+        let icon_height = svg_size.height().ceil().max(1.0) as u32;
+        let mut icon_pixmap = tiny_skia::Pixmap::new(icon_width, icon_height)?;
+        let mut icon_pixmap_mut = icon_pixmap.as_mut();
+        resvg::render(&svg_tree, tiny_skia::Transform::default(), &mut icon_pixmap_mut);
+        let icon_rgba_bytes = icon_pixmap.take();
+
+        Some(ProcessIcon::new(icon_rgba_bytes, icon_width, icon_height))
+    }
+
     fn load_icon_from_path(icon_path: &Path) -> Option<ProcessIcon> {
+        let is_svg_icon = icon_path
+            .extension()
+            .and_then(|extension_value| extension_value.to_str())
+            .map(|extension_value| extension_value.eq_ignore_ascii_case("svg"))
+            .unwrap_or(false);
+        if is_svg_icon {
+            return Self::load_svg_icon_from_path(icon_path);
+        }
+
         let icon_bytes = fs::read(icon_path).ok()?;
         let icon_reader = ImageReader::new(Cursor::new(icon_bytes))
             .with_guessed_format()
             .ok()?;
-        let decoded_image = icon_reader.decode().ok()?;
+        let decoded_image = match icon_reader.decode() {
+            Ok(decoded_image) => decoded_image,
+            Err(_) => return Self::load_svg_icon_from_path(icon_path),
+        };
         let rgba_image = decoded_image.to_rgba8();
         let (icon_width, icon_height) = rgba_image.dimensions();
         let icon_rgba_bytes = rgba_image.into_raw();
@@ -534,14 +607,69 @@ impl LinuxProcessQuery {
         Some(executable_file_name)
     }
 
+    fn get_process_command_executable_name(process_id: u32) -> Option<String> {
+        let process_command_path = PathBuf::from(format!("/proc/{process_id}/cmdline"));
+        let process_command_bytes = fs::read(process_command_path).ok()?;
+        let command_token = process_command_bytes
+            .split(|byte_value| *byte_value == 0)
+            .next()?;
+        if command_token.is_empty() {
+            return None;
+        }
+
+        let command_token_string = String::from_utf8_lossy(command_token);
+        let command_path = Path::new(command_token_string.as_ref());
+        let executable_name = command_path.file_name()?.to_string_lossy().to_ascii_lowercase();
+
+        if executable_name.is_empty() {
+            return None;
+        }
+
+        Some(executable_name)
+    }
+
+    fn get_process_comm_name(process_id: u32) -> Option<String> {
+        let process_comm_path = PathBuf::from(format!("/proc/{process_id}/comm"));
+        let process_comm_contents = fs::read_to_string(process_comm_path).ok()?;
+
+        Self::normalize_desktop_lookup_key(&process_comm_contents)
+    }
+
+    fn get_process_icon_lookup_keys(
+        process_id: u32,
+        process_name: &str,
+    ) -> Vec<String> {
+        let mut icon_lookup_keys = Vec::new();
+        let mut seen_icon_lookup_keys = HashSet::new();
+
+        for icon_lookup_key in [
+            Self::get_process_executable_name(process_id),
+            Self::get_process_command_executable_name(process_id),
+            Self::get_process_comm_name(process_id),
+            Self::normalize_desktop_lookup_key(process_name),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if seen_icon_lookup_keys.insert(icon_lookup_key.clone()) {
+                icon_lookup_keys.push(icon_lookup_key);
+            }
+        }
+
+        icon_lookup_keys
+    }
+
     fn get_icon_for_process(
         process_id: u32,
+        process_name: &str,
         desktop_entry_icon_lookup: &HashMap<String, String>,
         icon_search_directories: &[PathBuf],
         icon_cache: &mut HashMap<String, Option<ProcessIcon>>,
     ) -> Option<ProcessIcon> {
-        let executable_file_name = Self::get_process_executable_name(process_id)?;
-        let icon_name = desktop_entry_icon_lookup.get(&executable_file_name)?;
+        let process_icon_lookup_keys = Self::get_process_icon_lookup_keys(process_id, process_name);
+        let icon_name = process_icon_lookup_keys
+            .iter()
+            .find_map(|process_icon_lookup_key| desktop_entry_icon_lookup.get(process_icon_lookup_key))?;
 
         if let Some(cached_icon) = icon_cache.get(icon_name) {
             return cached_icon.clone();
@@ -630,7 +758,13 @@ impl ProcessQueryer for LinuxProcessQuery {
                 }
 
                 let process_icon = if process_query_options.fetch_icons {
-                    Self::get_icon_for_process(process_id_raw, &desktop_entry_icon_lookup, &icon_search_directories, &mut icon_cache)
+                    Self::get_icon_for_process(
+                        process_id_raw,
+                        &process_name,
+                        &desktop_entry_icon_lookup,
+                        &icon_search_directories,
+                        &mut icon_cache,
+                    )
                 } else {
                     None
                 };
@@ -726,11 +860,13 @@ Exec=/usr/bin/firefox %u
 Icon=firefox
 ";
 
-        let parsed_desktop_entry = LinuxProcessQuery::parse_desktop_entry(desktop_entry_contents);
+        let parsed_desktop_entry = LinuxProcessQuery::parse_desktop_entry(desktop_entry_contents, "firefox", "firefox.desktop");
 
         assert!(parsed_desktop_entry.is_some());
         if let Some(parsed_desktop_entry) = parsed_desktop_entry {
-            assert_eq!(parsed_desktop_entry.executable_name, "firefox");
+            assert_eq!(parsed_desktop_entry.executable_name, Some("firefox".to_string()));
+            assert_eq!(parsed_desktop_entry.desktop_file_stem, "firefox");
+            assert_eq!(parsed_desktop_entry.desktop_file_name, "firefox.desktop");
             assert_eq!(parsed_desktop_entry.icon_name, "firefox");
         }
     }
@@ -745,9 +881,37 @@ Icon=hidden-app
 NoDisplay=true
 ";
 
-        let parsed_desktop_entry = LinuxProcessQuery::parse_desktop_entry(desktop_entry_contents);
+        let parsed_desktop_entry = LinuxProcessQuery::parse_desktop_entry(desktop_entry_contents, "hidden-app", "hidden-app.desktop");
 
         assert!(parsed_desktop_entry.is_none());
+    }
+
+    #[test]
+    fn parse_desktop_entry_extracts_startup_wm_class() {
+        let desktop_entry_contents = "\
+[Desktop Entry]
+Type=Application
+Name=WezTerm
+Icon=org.wezfurlong.wezterm
+StartupWMClass=org.wezfurlong.wezterm
+";
+
+        let parsed_desktop_entry = LinuxProcessQuery::parse_desktop_entry(desktop_entry_contents, "org.wezfurlong.wezterm", "org.wezfurlong.wezterm.desktop");
+
+        assert!(parsed_desktop_entry.is_some());
+        if let Some(parsed_desktop_entry) = parsed_desktop_entry {
+            assert_eq!(parsed_desktop_entry.executable_name, None);
+            assert_eq!(parsed_desktop_entry.startup_wm_class, Some("org.wezfurlong.wezterm".to_string()));
+        }
+    }
+
+    #[test]
+    fn get_process_icon_lookup_keys_includes_process_name() {
+        let process_id = std::process::id();
+        let process_name = "Example.Process";
+        let process_icon_lookup_keys = LinuxProcessQuery::get_process_icon_lookup_keys(process_id, process_name);
+
+        assert!(process_icon_lookup_keys.contains(&"example.process".to_string()));
     }
 
     #[test]

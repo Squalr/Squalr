@@ -8,7 +8,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Follow up Linux process icon fidelity after parity landing: support `StartupWMClass`/desktop ID matching and SVG icon decoding for themes that do not ship raster icons.
+- Runtime verify Linux icon fidelity on real desktop sessions (Wayland + X11): confirm `StartupWMClass`/desktop-ID matching resolves expected app icons and document any mismatches.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -45,3 +45,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Linux process icon parity implementation at 2026-02-18 06:00:43Z: `LinuxProcessQuery::get_processes` now honors `fetch_icons` by mapping `/proc/<pid>/exe` names to `.desktop` entries (`Exec`/`Icon`) and loading raster icon assets from standard user/system icon directories into `ProcessIcon`.
 - Linux process icon parser tests added at 2026-02-18 06:00:43Z: coverage now includes shell-style exec token parsing (`env` prefix + quotes) and desktop-entry extraction/NoDisplay filtering.
 - Validation at 2026-02-18 06:00:43Z: `cargo fmt --all`, `cargo test -p squalr-engine-operating-system --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` passed after Linux icon-fetch changes.
+- Linux icon fidelity follow-up landed at 2026-02-18 06:06:26Z: desktop-entry icon lookup now additionally indexes `StartupWMClass`, desktop file stem (desktop ID), and full desktop filename; process icon lookup now tries `/proc/<pid>/exe`, `/proc/<pid>/cmdline`, `/proc/<pid>/comm`, and runtime process name keys.
+- Linux SVG icon support landed at 2026-02-18 06:06:26Z: icon resolver now accepts `.svg` and decodes vector icons into RGBA using `resvg` (`usvg` + `tiny-skia`) when themes do not provide raster assets.
+- Validation at 2026-02-18 06:06:26Z: `cargo fmt --all`, `cargo test -p squalr-engine-operating-system`, `cargo build -p squalr-engine-operating-system --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` passed.
