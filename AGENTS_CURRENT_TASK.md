@@ -9,7 +9,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Validate with clean Linux builds and smoke-run core binaries (currently blocked locally until Rust toolchain is available).
-- Open/update PR with scoped commits and follow-up checklist for remaining platform parity work.
+- Open/update PR with scoped commits and follow-up checklist for remaining platform parity work (blocked locally until `gh auth login` is completed).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -22,3 +22,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added Linux CI build workflow at `.github/workflows/linux-build.yml` to build GUI/CLI/TUI on `pr/linux`.
 - README now documents Linux native package prerequisites and standardized Linux build commands.
 - Validation attempt on 2026-02-18 confirmed `cargo` and `rustc` are unavailable in this environment (`command not found`), so local build/test execution remains blocked.
+- GitHub CLI is installed, but PR inspection/push workflows are blocked in this environment because no GitHub account is authenticated (`gh auth status`: not logged in, checked on 2026-02-18).
