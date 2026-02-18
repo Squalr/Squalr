@@ -20,6 +20,10 @@ pub struct MemoryReadRequest {
 
     #[structopt(short = "v")]
     pub symbolic_struct_definition: SymbolicStructDefinition,
+
+    #[structopt(long)]
+    #[serde(default)]
+    pub suppress_logging: bool,
 }
 
 impl PrivilegedCommandRequest for MemoryReadRequest {

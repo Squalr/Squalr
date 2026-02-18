@@ -123,6 +123,7 @@ fn memory_read_executor_uses_injected_module_resolution_and_reader() {
         address: 0x10,
         module_name: "game.exe".to_string(),
         symbolic_struct_definition: SymbolicStructDefinition::new(String::new(), vec![]),
+        suppress_logging: false,
     };
 
     let memory_read_response = memory_read_request.execute(&engine_privileged_state);
@@ -150,6 +151,7 @@ fn memory_read_executor_returns_failure_without_mutating_write_state_when_reader
         address: 0x44,
         module_name: "game.exe".to_string(),
         symbolic_struct_definition: SymbolicStructDefinition::new(String::new(), vec![]),
+        suppress_logging: false,
     };
 
     let memory_read_response = memory_read_request.execute(&engine_privileged_state);

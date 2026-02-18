@@ -17,6 +17,7 @@ use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWrit
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
+use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -29,6 +30,7 @@ use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructFie
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[derive(Clone)]
 pub struct ProjectHierarchyView {
@@ -184,7 +186,14 @@ impl Widget for ProjectHierarchyView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        self.sync_scan_settings_if_needed();
+        let project_read_interval = self.get_project_read_interval();
+        user_interface
+            .ctx()
+            .request_repaint_after(project_read_interval);
+
         self.refresh_if_project_changed();
+        self.refresh_if_project_preview_values_stale(project_read_interval);
 
         let project_hierarchy_toolbar_view = self.project_hierarchy_toolbar_view.clone();
         let mut project_hierarchy_frame_action = ProjectHierarchyFrameAction::None;
@@ -471,6 +480,97 @@ impl Widget for ProjectHierarchyView {
 }
 
 impl ProjectHierarchyView {
+    const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
+    const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
+    const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
+
+    fn sync_scan_settings_if_needed(&self) {
+        let should_request_scan_settings = self
+            .project_hierarchy_view_data
+            .write("Project hierarchy scan settings sync check")
+            .map(|mut project_hierarchy_view_data| {
+                let now = Instant::now();
+                let has_sync_interval_elapsed = project_hierarchy_view_data
+                    .last_scan_settings_sync_timestamp
+                    .map(|last_scan_settings_sync_timestamp| {
+                        now.duration_since(last_scan_settings_sync_timestamp) >= Duration::from_millis(Self::SCAN_SETTINGS_SYNC_INTERVAL_MS)
+                    })
+                    .unwrap_or(true);
+
+                if project_hierarchy_view_data.is_querying_scan_settings || !has_sync_interval_elapsed {
+                    return false;
+                }
+
+                project_hierarchy_view_data.is_querying_scan_settings = true;
+                project_hierarchy_view_data.last_scan_settings_sync_timestamp = Some(now);
+
+                true
+            })
+            .unwrap_or(false);
+
+        if !should_request_scan_settings {
+            return;
+        }
+
+        let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
+        let scan_settings_list_request = ScanSettingsListRequest {};
+        scan_settings_list_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_list_response| {
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Project hierarchy scan settings sync response") {
+                if let Ok(scan_settings) = scan_settings_list_response.scan_settings {
+                    project_hierarchy_view_data.project_read_interval_ms = scan_settings.project_read_interval_ms;
+                }
+
+                project_hierarchy_view_data.is_querying_scan_settings = false;
+            }
+        });
+    }
+
+    fn get_project_read_interval(&self) -> Duration {
+        let configured_project_read_interval_ms = self
+            .project_hierarchy_view_data
+            .read("Project hierarchy project read interval")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.project_read_interval_ms)
+            .unwrap_or(200);
+        let bounded_project_read_interval_ms =
+            configured_project_read_interval_ms.clamp(Self::MIN_PROJECT_READ_INTERVAL_MS, Self::MAX_PROJECT_READ_INTERVAL_MS);
+
+        Duration::from_millis(bounded_project_read_interval_ms)
+    }
+
+    fn refresh_if_project_preview_values_stale(
+        &self,
+        project_read_interval: Duration,
+    ) {
+        let should_refresh_project_items = self
+            .project_hierarchy_view_data
+            .write("Project hierarchy periodic project read check")
+            .map(|mut project_hierarchy_view_data| {
+                let has_open_project = project_hierarchy_view_data.opened_project_info.is_some();
+                if !has_open_project || project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
+                    return false;
+                }
+
+                let now = Instant::now();
+                let has_refresh_interval_elapsed = project_hierarchy_view_data
+                    .last_project_read_timestamp
+                    .map(|last_project_read_timestamp| now.duration_since(last_project_read_timestamp) >= project_read_interval)
+                    .unwrap_or(true);
+
+                if !has_refresh_interval_elapsed {
+                    return false;
+                }
+
+                project_hierarchy_view_data.last_project_read_timestamp = Some(now);
+
+                true
+            })
+            .unwrap_or(false);
+
+        if should_refresh_project_items {
+            ProjectHierarchyViewData::refresh_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone());
+        }
+    }
+
     fn focus_selected_project_items_in_struct_viewer(&self) {
         let selected_project_item_paths = self
             .project_hierarchy_view_data

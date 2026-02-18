@@ -63,17 +63,17 @@ impl GeneralSettingsConfig {
         &Self::get_instance().config
     }
 
-    pub fn get_engine_request_delay_ms() -> u64 {
+    pub fn get_debug_engine_request_delay_ms() -> u64 {
         if let Ok(config) = Self::get_instance().config.read() {
-            config.engine_request_delay_ms
+            config.debug_engine_request_delay_ms
         } else {
-            GeneralSettings::default().engine_request_delay_ms
+            GeneralSettings::default().debug_engine_request_delay_ms
         }
     }
 
-    pub fn set_engine_request_delay_ms(value: u64) {
+    pub fn set_debug_engine_request_delay_ms(value: u64) {
         if let Ok(mut config) = Self::get_instance().config.write() {
-            config.engine_request_delay_ms = value;
+            config.debug_engine_request_delay_ms = value;
         }
 
         Self::save_config();

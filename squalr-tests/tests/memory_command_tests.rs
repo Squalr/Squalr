@@ -116,6 +116,7 @@ fn memory_read_request_dispatches_read_command_and_invokes_typed_callback() {
         address: 0x1234,
         module_name: "kernel32.dll".to_string(),
         symbolic_struct_definition: SymbolicStructDefinition::new(String::new(), vec![]),
+        suppress_logging: false,
     };
 
     let callback_invoked = Arc::new(AtomicBool::new(false));
@@ -161,6 +162,7 @@ fn memory_read_request_does_not_invoke_callback_when_response_variant_is_wrong()
         address: 0x5678,
         module_name: "game.exe".to_string(),
         symbolic_struct_definition: SymbolicStructDefinition::new(String::new(), vec![]),
+        suppress_logging: false,
     };
 
     let callback_invoked = Arc::new(AtomicBool::new(false));

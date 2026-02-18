@@ -34,7 +34,7 @@ impl EngineApiUnprivilegedBindings for StandaloneEngineApiUnprivilegedBindings {
         privileged_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
-        let engine_request_delay = GeneralSettingsConfig::get_engine_request_delay_ms();
+        let engine_request_delay = GeneralSettingsConfig::get_debug_engine_request_delay_ms();
 
         // Execute the request either immediately, or on an artificial delay if a debug request delay is set.
         if engine_request_delay <= 0 {

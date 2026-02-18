@@ -42,7 +42,7 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 - [X] Desktop GUI build.
 - [X] Android GUI build.
 - [X] CLI build.
-- [ ] TUI build (tech stack TBD).
+- [X] TUI build.
 
 ### Developer-Facing Features
 - [ ] Command/event hooks
@@ -253,11 +253,6 @@ This was once fully functional for querying processes, but this was using Slint 
 
 This will require a bit of a revival.
 
-### TUI Build
-Branch: `pr/tui`
-
-Needs a full implementation of a TUI that behaves as similar to the GUI as possible where it makes sense, and perhaps like a CLI in other ways. Need to investigate TUI options, and which makes the most sense to use.
-
 ### Draggable Docking Windows
 Branch: `pr/docking`
 
@@ -274,6 +269,16 @@ Additionally, conversions should be architecturally audited for robustness.
 Branch: `pr/pointer-scanning`
 
 Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
+
+### Release Test
+Branch: `pr/linux`
+
+We need a functional Linux build
+
+### Release Test
+Branch: `pr/macos`
+
+We need a functional MacOS build. Not sure how feasible this is with Mac security features.
 
 ### Release Test
 Branch: `pr/release-test`

@@ -7,6 +7,68 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'squalr-tui'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=squalr-tui",
+                    "--package=squalr-tui"
+                ],
+                "filter": {
+                    "name": "squalr-tui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "terminal": "external"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release executable 'squalr-tui'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=squalr-tui",
+                    "--package=squalr-tui"
+                ],
+                "filter": {
+                    "name": "squalr-tui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "terminal": "external"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release (with debug info) executable 'squalr-tui'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--release",
+                    "--bin=squalr-tui",
+                    "--package=squalr-tui"
+                ],
+                "filter": {
+                    "name": "squalr-tui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "terminal": "external",
+            "env": {
+                "RUSTFLAGS": "-g"
+            }
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug executable 'squalr-cli'",
             "cargo": {
                 "args": [
@@ -54,65 +116,6 @@
                 ],
                 "filter": {
                     "name": "squalr-cli",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "RUSTFLAGS": "-g"
-            }
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug executable 'squalr-tui'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=squalr-tui",
-                    "--package=squalr-tui"
-                ],
-                "filter": {
-                    "name": "squalr-tui",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Release executable 'squalr-tui'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--release",
-                    "--bin=squalr-tui",
-                    "--package=squalr-tui"
-                ],
-                "filter": {
-                    "name": "squalr-tui",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Release (with debug info) executable 'squalr-tui'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--release",
-                    "--bin=squalr-tui",
-                    "--package=squalr-tui"
-                ],
-                "filter": {
-                    "name": "squalr-tui",
                     "kind": "bin"
                 }
             },

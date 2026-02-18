@@ -1,4 +1,4 @@
-use crate::logging::log_dispatcher::LogDispatcher;
+use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
 use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -27,6 +27,17 @@ pub struct EngineUnprivilegedState {
     project_manager: Arc<ProjectManager>,
 }
 
+#[derive(Clone, Copy)]
+pub struct EngineUnprivilegedStateOptions {
+    pub enable_console_logging: bool,
+}
+
+impl Default for EngineUnprivilegedStateOptions {
+    fn default() -> Self {
+        Self { enable_console_logging: true }
+    }
+}
+
 impl EngineExecutionContext for EngineUnprivilegedState {
     fn get_bindings(&self) -> &Arc<RwLock<dyn EngineApiUnprivilegedBindings>> {
         &self.engine_api_unprivileged_bindings
@@ -39,12 +50,21 @@ impl EngineExecutionContext for EngineUnprivilegedState {
 
 impl EngineUnprivilegedState {
     pub fn new(engine_api_unprivileged_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>) -> Arc<Self> {
+        Self::new_with_options(engine_api_unprivileged_bindings, EngineUnprivilegedStateOptions::default())
+    }
+
+    pub fn new_with_options(
+        engine_api_unprivileged_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>>,
+        options: EngineUnprivilegedStateOptions,
+    ) -> Arc<Self> {
         let project_manager = Arc::new(ProjectManager::new());
 
         Arc::new(EngineUnprivilegedState {
             engine_api_unprivileged_bindings,
             event_listeners: Arc::new(RwLock::new(HashMap::new())),
-            file_system_logger: Arc::new(LogDispatcher::new()),
+            file_system_logger: Arc::new(LogDispatcher::new_with_options(LogDispatcherOptions {
+                enable_console_output: options.enable_console_logging,
+            })),
             project_manager,
         })
     }

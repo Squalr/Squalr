@@ -12,8 +12,8 @@ impl PrivilegedCommandRequestExecutor for GeneralSettingsSetRequest {
         &self,
         _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        if let Some(engine_request_delay_ms) = self.engine_request_delay {
-            GeneralSettingsConfig::set_engine_request_delay_ms(engine_request_delay_ms);
+        if let Some(debug_engine_request_delay_ms) = self.engine_request_delay {
+            GeneralSettingsConfig::set_debug_engine_request_delay_ms(debug_engine_request_delay_ms);
         }
 
         GeneralSettingsSetResponse {}

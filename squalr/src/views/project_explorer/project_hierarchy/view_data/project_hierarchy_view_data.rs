@@ -17,9 +17,11 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 enum ProjectHierarchyDropOperation {
     Reorder {
@@ -45,6 +47,10 @@ pub struct ProjectHierarchyViewData {
     pub dragged_project_item_paths: Option<Vec<PathBuf>>,
     pub take_over_state: ProjectHierarchyTakeOverState,
     pub pending_operation: ProjectHierarchyPendingOperation,
+    pub project_read_interval_ms: u64,
+    pub is_querying_scan_settings: bool,
+    pub last_scan_settings_sync_timestamp: Option<Instant>,
+    pub last_project_read_timestamp: Option<Instant>,
 }
 
 impl ProjectHierarchyViewData {
@@ -62,6 +68,10 @@ impl ProjectHierarchyViewData {
             dragged_project_item_paths: None,
             take_over_state: ProjectHierarchyTakeOverState::None,
             pending_operation: ProjectHierarchyPendingOperation::None,
+            project_read_interval_ms: ScanSettings::default().project_read_interval_ms,
+            is_querying_scan_settings: false,
+            last_scan_settings_sync_timestamp: None,
+            last_project_read_timestamp: Some(Instant::now()),
         }
     }
 

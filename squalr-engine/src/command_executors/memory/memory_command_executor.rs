@@ -13,6 +13,9 @@ impl PrivilegedCommandExecutor for MemoryCommand {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
         match self {
+            MemoryCommand::Freeze { memory_freeze_request } => memory_freeze_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             MemoryCommand::Write { memory_write_request } => memory_write_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

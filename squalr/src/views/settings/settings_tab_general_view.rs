@@ -62,7 +62,7 @@ impl Widget for SettingsTabGeneralView {
                 user_interface.add(
                     GroupBox::new_from_theme(theme, "Developer Debugging", |user_interface| {
                         user_interface.horizontal(|user_interface| {
-                            let mut value: i64 = cached_general_settings.engine_request_delay_ms as i64;
+                            let mut value: i64 = cached_general_settings.debug_engine_request_delay_ms as i64;
                             let slider = Slider::new_from_theme(theme)
                                 .current_value(&mut value)
                                 .minimum_value(0)
@@ -70,11 +70,11 @@ impl Widget for SettingsTabGeneralView {
 
                             if user_interface.add(slider).changed() {
                                 if let Ok(mut cached_general_settings) = self.cached_general_settings.write() {
-                                    cached_general_settings.engine_request_delay_ms = value as u64;
+                                    cached_general_settings.debug_engine_request_delay_ms = value as u64;
                                 }
 
                                 let general_settings_set_request = GeneralSettingsSetRequest {
-                                    engine_request_delay: Some(cached_general_settings.engine_request_delay_ms),
+                                    engine_request_delay: Some(cached_general_settings.debug_engine_request_delay_ms),
                                     ..GeneralSettingsSetRequest::default()
                                 };
 

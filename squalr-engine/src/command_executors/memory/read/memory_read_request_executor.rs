@@ -20,7 +20,9 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
         {
             let os_providers = engine_privileged_state.get_os_providers();
 
-            log::info!("Reading value from address {}", self.address);
+            if !self.suppress_logging {
+                log::info!("Reading value from address {}", self.address);
+            }
 
             let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
             let mut out_valued_struct = self
@@ -60,7 +62,9 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
                 }
             }
         } else {
-            log::error!("No opened process available.");
+            if !self.suppress_logging {
+                log::error!("No opened process available.");
+            }
 
             MemoryReadResponse {
                 valued_struct: ValuedStruct::new(SymbolicStructRef::new(String::new()), vec![]),

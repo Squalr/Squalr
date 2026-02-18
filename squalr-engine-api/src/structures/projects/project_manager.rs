@@ -63,7 +63,7 @@ impl ProjectManager {
         // Watch only the top-level directory (not recursive) for project changes.
         watcher.watch(&projects_root, RecursiveMode::NonRecursive)?;
 
-        println!("Watching project directory: {}", projects_root.display());
+        log::info!("Watching project directory: {}", projects_root.display());
 
         // Spawn a thread to handle events.
         // JIRA: This is a bit jank, we miss icon updates, its not really as robust as it can be, etc.

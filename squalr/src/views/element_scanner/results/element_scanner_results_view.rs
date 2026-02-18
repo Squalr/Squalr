@@ -20,7 +20,6 @@ use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, Scrol
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::{dependency_injection::dependency::Dependency, structures::scan_results::scan_result::ScanResult};
 use std::sync::Arc;
-use std::time::Duration;
 
 #[derive(Clone)]
 pub struct ElementScannerResultsView {
@@ -64,9 +63,10 @@ impl Widget for ElementScannerResultsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let results_read_interval = ElementScannerResultsViewData::get_results_read_interval(self.element_scanner_results_view_data.clone());
         user_interface
             .ctx()
-            .request_repaint_after(Duration::from_millis(100));
+            .request_repaint_after(results_read_interval);
 
         const FAUX_BAR_THICKNESS: f32 = 3.0;
         const BAR_THICKNESS: f32 = 4.0;

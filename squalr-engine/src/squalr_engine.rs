@@ -9,7 +9,7 @@ use crate::{
 };
 use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
-use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
+use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
 use std::sync::{Arc, RwLock};
 
 /// Orchestrates commands and responses to and from the engine.
@@ -24,8 +24,28 @@ pub struct SqualrEngine {
     dependency_container: DependencyContainer,
 }
 
+#[derive(Clone, Copy)]
+pub struct SqualrEngineOptions {
+    pub enable_unprivileged_console_logging: bool,
+}
+
+impl Default for SqualrEngineOptions {
+    fn default() -> Self {
+        Self {
+            enable_unprivileged_console_logging: true,
+        }
+    }
+}
+
 impl SqualrEngine {
     pub fn new(engine_mode: EngineMode) -> anyhow::Result<Self> {
+        Self::new_with_options(engine_mode, SqualrEngineOptions::default())
+    }
+
+    pub fn new_with_options(
+        engine_mode: EngineMode,
+        options: SqualrEngineOptions,
+    ) -> anyhow::Result<Self> {
         let mut engine_privileged_state = None;
         let mut engine_unprivileged_state = None;
 
@@ -51,7 +71,12 @@ impl SqualrEngine {
 
         match engine_mode {
             EngineMode::Standalone | EngineMode::UnprivilegedHost => {
-                engine_unprivileged_state = Some(EngineUnprivilegedState::new(engine_bindings));
+                engine_unprivileged_state = Some(EngineUnprivilegedState::new_with_options(
+                    engine_bindings,
+                    EngineUnprivilegedStateOptions {
+                        enable_console_logging: options.enable_unprivileged_console_logging,
+                    },
+                ));
             }
             EngineMode::PrivilegedShell => {}
         }

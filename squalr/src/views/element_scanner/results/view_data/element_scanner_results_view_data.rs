@@ -15,16 +15,20 @@ use squalr_engine_api::{
     commands::{
         privileged_command_request::PrivilegedCommandRequest, scan_results::query::scan_results_query_request::ScanResultsQueryRequest,
         scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest,
-        scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest, unprivileged_command_request::UnprivilegedCommandRequest,
+        scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest,
+        settings::scan::list::scan_settings_list_request::ScanSettingsListRequest, unprivileged_command_request::UnprivilegedCommandRequest,
     },
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
-    structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult},
+    structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult, settings::scan_settings::ScanSettings},
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 
 #[derive(Clone)]
 pub struct ElementScannerResultsViewData {
@@ -43,11 +47,17 @@ pub struct ElementScannerResultsViewData {
     pub is_refreshing_scan_results: bool,
     pub is_setting_properties: bool,
     pub is_freezing_entries: bool,
+    pub results_read_interval_ms: u64,
+    pub is_querying_scan_settings: bool,
+    pub last_scan_settings_sync_timestamp: Option<Instant>,
 }
 
 impl ElementScannerResultsViewData {
     pub const DEFAULT_VALUE_SPLITTER_RATIO: f32 = 0.35;
     pub const DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO: f32 = 0.70;
+    pub const MIN_RESULTS_READ_INTERVAL_MS: u64 = 50;
+    pub const MAX_RESULTS_READ_INTERVAL_MS: u64 = 5_000;
+    pub const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
 
     pub fn new() -> Self {
         Self {
@@ -65,6 +75,9 @@ impl ElementScannerResultsViewData {
             is_refreshing_scan_results: false,
             is_setting_properties: false,
             is_freezing_entries: false,
+            results_read_interval_ms: ScanSettings::default().results_read_interval_ms,
+            is_querying_scan_settings: false,
+            last_scan_settings_sync_timestamp: None,
         }
     }
 
@@ -91,17 +104,29 @@ impl ElementScannerResultsViewData {
         let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
 
-        // Refresh scan values on a loop. JIRA: This should be coming from settings. We can probably cache, and have some mechanism for getting latest val.
+        // Refresh scan values on a loop using the configured scan-results read interval.
         thread::spawn(move || {
             loop {
                 let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
                 let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
 
+                Self::sync_scan_settings_if_needed(element_scanner_results_view_data.clone(), engine_unprivileged_state.clone());
                 Self::refresh_scan_results(element_scanner_results_view_data, engine_unprivileged_state);
 
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(Self::get_results_read_interval(element_scanner_results_view_data_clone.clone()));
             }
         });
+    }
+
+    pub fn get_results_read_interval(element_scanner_results_view_data: Dependency<Self>) -> Duration {
+        let configured_results_read_interval_ms = element_scanner_results_view_data
+            .read("Element scanner results read interval")
+            .map(|element_scanner_results_view_data| element_scanner_results_view_data.results_read_interval_ms)
+            .unwrap_or(ScanSettings::default().results_read_interval_ms);
+        let bounded_results_read_interval_ms =
+            configured_results_read_interval_ms.clamp(Self::MIN_RESULTS_READ_INTERVAL_MS, Self::MAX_RESULTS_READ_INTERVAL_MS);
+
+        Duration::from_millis(bounded_results_read_interval_ms)
     }
 
     pub fn navigate_first_page(
@@ -263,6 +288,51 @@ impl ElementScannerResultsViewData {
                 element_scanner_results_view_data.is_querying_scan_results = false;
             }
         }
+    }
+
+    fn sync_scan_settings_if_needed(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
+        let should_request_scan_settings = element_scanner_results_view_data
+            .write("Element scanner results scan settings sync check")
+            .map(|mut element_scanner_results_view_data| {
+                let now = Instant::now();
+                let has_sync_interval_elapsed = element_scanner_results_view_data
+                    .last_scan_settings_sync_timestamp
+                    .map(|last_scan_settings_sync_timestamp| {
+                        now.duration_since(last_scan_settings_sync_timestamp) >= Duration::from_millis(Self::SCAN_SETTINGS_SYNC_INTERVAL_MS)
+                    })
+                    .unwrap_or(true);
+
+                if element_scanner_results_view_data.is_querying_scan_settings || !has_sync_interval_elapsed {
+                    return false;
+                }
+
+                element_scanner_results_view_data.is_querying_scan_settings = true;
+                element_scanner_results_view_data.last_scan_settings_sync_timestamp = Some(now);
+
+                true
+            })
+            .unwrap_or(false);
+
+        if !should_request_scan_settings {
+            return;
+        }
+
+        let element_scanner_results_view_data_for_response = element_scanner_results_view_data.clone();
+        let scan_settings_list_request = ScanSettingsListRequest {};
+        scan_settings_list_request.send(&engine_unprivileged_state, move |scan_settings_list_response| {
+            if let Some(mut element_scanner_results_view_data) =
+                element_scanner_results_view_data_for_response.write("Element scanner results scan settings sync response")
+            {
+                if let Ok(scan_settings) = scan_settings_list_response.scan_settings {
+                    element_scanner_results_view_data.results_read_interval_ms = scan_settings.results_read_interval_ms;
+                }
+
+                element_scanner_results_view_data.is_querying_scan_settings = false;
+            }
+        });
     }
 
     /// Fetches up-to-date values and module information for the current scan results, then updates the UI.
