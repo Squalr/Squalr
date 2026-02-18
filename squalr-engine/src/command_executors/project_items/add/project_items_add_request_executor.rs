@@ -274,11 +274,22 @@ fn resolve_project_item_path(
     project_directory_path: &Path,
     project_item_path: &Path,
 ) -> PathBuf {
-    if project_item_path.is_absolute() {
+    if is_cross_platform_absolute_path(project_item_path) {
         project_item_path.to_path_buf()
     } else {
         project_directory_path.join(project_item_path)
     }
+}
+
+fn is_cross_platform_absolute_path(project_item_path: &Path) -> bool {
+    if project_item_path.is_absolute() {
+        return true;
+    }
+
+    let path_string = project_item_path.to_string_lossy();
+    let path_bytes = path_string.as_bytes();
+
+    path_bytes.len() >= 3 && path_bytes[0].is_ascii_alphabetic() && path_bytes[1] == b':' && (path_bytes[2] == b'/' || path_bytes[2] == b'\\')
 }
 
 fn is_directory_path(
