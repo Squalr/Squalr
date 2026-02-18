@@ -9,7 +9,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Open/update PR for `pr/linux` with scoped commits and a follow-up checklist for remaining platform parity work.
-- Follow up Linux UX parity gaps after runtime parity: evaluate Linux process icon fetching strategy.
+- Follow up Linux process icon fidelity after parity landing: support `StartupWMClass`/desktop ID matching and SVG icon decoding for themes that do not ship raster icons.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -43,3 +43,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Linux `require_windowed` fidelity improvement at 2026-02-18 05:55:55Z: process windowed detection now identifies active GUI clients by matching `/proc/<pid>/fd` socket inodes against Wayland/X11 sockets parsed from `/proc/net/unix`, replacing the prior environment-variable heuristic.
 - Linux process query tests added at 2026-02-18 05:55:55Z: coverage now includes parsing socket inode targets and display-socket inode filtering for Wayland/X11 detection.
 - Validation at 2026-02-18 05:55:55Z: `cargo fmt --all`, `cargo test -p squalr-engine-operating-system --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` all passed after Linux windowed detection changes.
+- Linux process icon parity implementation at 2026-02-18 06:00:43Z: `LinuxProcessQuery::get_processes` now honors `fetch_icons` by mapping `/proc/<pid>/exe` names to `.desktop` entries (`Exec`/`Icon`) and loading raster icon assets from standard user/system icon directories into `ProcessIcon`.
+- Linux process icon parser tests added at 2026-02-18 06:00:43Z: coverage now includes shell-style exec token parsing (`env` prefix + quotes) and desktop-entry extraction/NoDisplay filtering.
+- Validation at 2026-02-18 06:00:43Z: `cargo fmt --all`, `cargo test -p squalr-engine-operating-system --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` passed after Linux icon-fetch changes.
