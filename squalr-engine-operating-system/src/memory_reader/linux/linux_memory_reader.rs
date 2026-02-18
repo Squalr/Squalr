@@ -1,7 +1,6 @@
 use crate::memory_reader::memory_reader_trait::MemoryReaderTrait;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_api::structures::{data_values::data_value::DataValue, processes::opened_process_info::OpenedProcessInfo};
-use std::os::raw::c_void;
 
 pub struct LinuxMemoryReader;
 
@@ -14,27 +13,27 @@ impl LinuxMemoryReader {
 impl MemoryReaderTrait for LinuxMemoryReader {
     fn read(
         &self,
-        process_info: &OpenedProcessInfo,
-        address: u64,
-        data_value: &mut DataValue,
+        _process_info: &OpenedProcessInfo,
+        _address: u64,
+        _data_value: &mut DataValue,
     ) -> bool {
         false
     }
 
     fn read_struct(
         &self,
-        process_info: &OpenedProcessInfo,
-        address: u64,
-        valued_struct: &mut ValuedStruct,
+        _process_info: &OpenedProcessInfo,
+        _address: u64,
+        _valued_struct: &mut ValuedStruct,
     ) -> bool {
         false
     }
 
     fn read_bytes(
         &self,
-        process_info: &OpenedProcessInfo,
-        address: u64,
-        values: &mut [u8],
+        _process_info: &OpenedProcessInfo,
+        _address: u64,
+        _values: &mut [u8],
     ) -> bool {
         false
     }
