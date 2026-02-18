@@ -63,6 +63,25 @@ Long term, we do wish to integrate into the AI landscape, in a manner that actua
 - [ ] Pointer scans
 - [X] Project system
 
+## Linux Build
+
+Linux builds are validated with these entrypoints:
+- `cargo build -p squalr-cli --locked`
+- `cargo build -p squalr-tui --locked`
+- `cargo build -p squalr --locked`
+
+Install native dependencies before building:
+- `pkg-config`
+- `libasound2-dev`
+- `libudev-dev`
+- `libxkbcommon-dev`
+- `libwayland-dev`
+- `libx11-dev`
+- `libxcursor-dev`
+- `libxi-dev`
+- `libxrandr-dev`
+- `libxinerama-dev`
+
 ## Architectural Overview
 
 ### Command Response System
