@@ -9,7 +9,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Open/update PR for `pr/linux` with scoped commits and a follow-up checklist for remaining platform parity work.
-- Follow up Linux runtime parity beyond bootstrap: implement Linux process enumeration + memory read/write/query paths (`linux_process_query::get_processes`, `linux_memory_reader`, `linux_memory_writer`, `linux_memory_queryer`) so attach/scan flows work end-to-end.
+- Follow up Linux UX parity gaps after runtime parity: improve `require_windowed` fidelity on Linux process listing and evaluate Linux process icon fetching strategy.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -36,3 +36,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Linux process query tests added at 2026-02-18 05:49:56Z: validates `open_process` field mapping and `close_process` success semantics.
 - Validation at 2026-02-18 05:49:56Z: `cargo fmt --all` and `cargo test -p squalr-engine-operating-system --locked` passed.
 - Linux stub hygiene at 2026-02-18 05:49:56Z: removed unused imports/dead helper and unused parameter warnings in `linux_memory_reader`, `linux_memory_writer`, and `linux_memory_queryer`.
+- Linux runtime parity implementation at 2026-02-18: implemented `LinuxProcessQuery::get_processes` with `sysinfo` filtering support and ELF-based bitness detection from `/proc/<pid>/exe`; Linux open-process handles now map to PID values for consistent downstream memory operations.
+- Linux memory I/O implementation at 2026-02-18: `linux_memory_reader` now uses `process_vm_readv` and `linux_memory_writer` now uses `process_vm_writev`, with strict full-length transfer checks for `read`, `read_struct`, `read_bytes`, and `write_bytes`.
+- Linux memory query implementation at 2026-02-18: `linux_memory_queryer` now parses `/proc/<pid>/maps`, applies protection/type filters with range bounds handling, evaluates writability, and resolves modules (`get_modules`, `address_to_module`, `resolve_module`) from executable file-backed mappings.
+- Validation at 2026-02-18: `cargo fmt --all`, `cargo test -p squalr-engine-operating-system --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` all passed after Linux runtime parity changes.
