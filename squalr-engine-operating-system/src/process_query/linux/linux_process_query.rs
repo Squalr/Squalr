@@ -4,6 +4,7 @@ use crate::process_query::process_queryer::ProcessQueryer;
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use sysinfo::{ProcessesToUpdate, System};
@@ -23,6 +24,10 @@ impl LinuxProcessQuery {
         };
 
         Self::parse_elf_bitness_from_bytes(&executable_bytes).unwrap_or(Bitness::Bit64)
+    }
+
+    fn build_process_fd_directory_path(process_id: u32) -> PathBuf {
+        PathBuf::from(format!("/proc/{process_id}/fd"))
     }
 
     fn parse_elf_bitness_from_bytes(executable_bytes: &[u8]) -> Option<Bitness> {
@@ -46,17 +51,93 @@ impl LinuxProcessQuery {
         }
     }
 
-    fn is_process_windowed(process_id: u32) -> bool {
-        let process_environ_path = format!("/proc/{process_id}/environ");
-        let environment_bytes = match fs::read(process_environ_path) {
-            Ok(environment_bytes) => environment_bytes,
+    fn parse_socket_inode_from_fd_target(fd_target: &str) -> Option<u64> {
+        let socket_prefix = "socket:[";
+        let socket_suffix = "]";
+
+        if !(fd_target.starts_with(socket_prefix) && fd_target.ends_with(socket_suffix)) {
+            return None;
+        }
+
+        let inode_start_index = socket_prefix.len();
+        let inode_end_index = fd_target.len() - socket_suffix.len();
+        let inode_value_string = &fd_target[inode_start_index..inode_end_index];
+
+        inode_value_string.parse::<u64>().ok()
+    }
+
+    fn is_display_server_socket_path(socket_path: &str) -> bool {
+        socket_path.contains("/wayland-") || socket_path.contains("/tmp/.X11-unix/")
+    }
+
+    fn parse_display_server_socket_inodes(proc_net_unix_contents: &str) -> HashSet<u64> {
+        let mut display_server_socket_inodes = HashSet::new();
+
+        for proc_net_unix_line in proc_net_unix_contents.lines() {
+            let column_values: Vec<&str> = proc_net_unix_line.split_whitespace().collect();
+
+            if column_values.len() < 8 {
+                continue;
+            }
+
+            let socket_path = column_values[7];
+
+            if !Self::is_display_server_socket_path(socket_path) {
+                continue;
+            }
+
+            if let Ok(socket_inode) = column_values[6].parse::<u64>() {
+                display_server_socket_inodes.insert(socket_inode);
+            }
+        }
+
+        display_server_socket_inodes
+    }
+
+    fn collect_display_server_socket_inodes() -> HashSet<u64> {
+        let proc_net_unix_contents = match fs::read_to_string("/proc/net/unix") {
+            Ok(proc_net_unix_contents) => proc_net_unix_contents,
+            Err(_) => return HashSet::new(),
+        };
+
+        Self::parse_display_server_socket_inodes(&proc_net_unix_contents)
+    }
+
+    fn is_process_windowed(
+        process_id: u32,
+        display_server_socket_inodes: &HashSet<u64>,
+    ) -> bool {
+        if display_server_socket_inodes.is_empty() {
+            return false;
+        }
+
+        let process_fd_directory_path = Self::build_process_fd_directory_path(process_id);
+        let file_descriptor_entries = match fs::read_dir(process_fd_directory_path) {
+            Ok(file_descriptor_entries) => file_descriptor_entries,
             Err(_) => return false,
         };
 
-        environment_bytes
-            .split(|byte_value| *byte_value == 0)
-            .filter_map(|entry_bytes| std::str::from_utf8(entry_bytes).ok())
-            .any(|entry_string| entry_string.starts_with("DISPLAY=") || entry_string.starts_with("WAYLAND_DISPLAY="))
+        for file_descriptor_entry_result in file_descriptor_entries {
+            let file_descriptor_entry = match file_descriptor_entry_result {
+                Ok(file_descriptor_entry) => file_descriptor_entry,
+                Err(_) => continue,
+            };
+
+            let file_descriptor_target_path = match fs::read_link(file_descriptor_entry.path()) {
+                Ok(file_descriptor_target_path) => file_descriptor_target_path,
+                Err(_) => continue,
+            };
+
+            let file_descriptor_target_string = file_descriptor_target_path.to_string_lossy();
+
+            if let Some(socket_inode) = Self::parse_socket_inode_from_fd_target(&file_descriptor_target_string) {
+                if display_server_socket_inodes.contains(&socket_inode) {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     fn process_name_matches_filter(
@@ -107,6 +188,7 @@ impl ProcessQueryer for LinuxProcessQuery {
     fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let mut system = System::new_all();
         system.refresh_processes(ProcessesToUpdate::All, true);
+        let display_server_socket_inodes = Self::collect_display_server_socket_inodes();
 
         system
             .processes()
@@ -126,7 +208,7 @@ impl ProcessQueryer for LinuxProcessQuery {
                     return None;
                 }
 
-                let process_is_windowed = Self::is_process_windowed(process_id_raw);
+                let process_is_windowed = Self::is_process_windowed(process_id_raw, &display_server_socket_inodes);
 
                 if process_query_options.require_windowed && !process_is_windowed {
                     return None;
@@ -145,6 +227,7 @@ mod tests {
     use crate::process_query::process_queryer::ProcessQueryer;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+    use std::collections::HashSet;
 
     #[test]
     fn parse_elf_bitness_reads_32_bit_headers() {
@@ -166,6 +249,27 @@ mod tests {
     fn parse_elf_bitness_rejects_invalid_headers() {
         assert_eq!(LinuxProcessQuery::parse_elf_bitness_from_bytes(&[0x7F, b'N', b'O', b'T', 2]), None);
         assert_eq!(LinuxProcessQuery::parse_elf_bitness_from_bytes(&[0x7F, b'E', b'L', b'F']), None);
+    }
+
+    #[test]
+    fn parse_socket_inode_from_fd_target_extracts_inode() {
+        assert_eq!(LinuxProcessQuery::parse_socket_inode_from_fd_target("socket:[123456]"), Some(123456));
+        assert_eq!(LinuxProcessQuery::parse_socket_inode_from_fd_target("pipe:[123456]"), None);
+        assert_eq!(LinuxProcessQuery::parse_socket_inode_from_fd_target("socket:[]"), None);
+    }
+
+    #[test]
+    fn parse_display_server_socket_inodes_filters_wayland_and_x11_sockets() {
+        let proc_net_unix_contents = "\
+Num RefCount Protocol Flags Type St Inode Path
+0000000000000000: 00000002 00000000 00010000 0001 01 11111 /run/user/1000/wayland-0
+0000000000000000: 00000002 00000000 00010000 0001 01 22222 /tmp/.X11-unix/X0
+0000000000000000: 00000002 00000000 00010000 0001 01 33333 /tmp/non-display-socket
+";
+
+        let display_server_socket_inodes = LinuxProcessQuery::parse_display_server_socket_inodes(proc_net_unix_contents);
+
+        assert_eq!(display_server_socket_inodes, HashSet::from([11111_u64, 22222_u64]));
     }
 
     #[test]
