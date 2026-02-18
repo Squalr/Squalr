@@ -21,7 +21,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `squalr-engine-operating-system` now gates `windows-sys` under `target_os = "windows"` target dependencies.
 - Added Linux CI build workflow at `.github/workflows/linux-build.yml` to build GUI/CLI/TUI on `pr/linux`.
 - README now documents Linux native package prerequisites and standardized Linux build commands.
-- Validation attempt on 2026-02-18 confirmed `cargo` and `rustc` are unavailable in this environment (`command not found`), so local build/test execution remains blocked.
-- GitHub CLI is installed, but PR inspection/push workflows are blocked in this environment because no GitHub account is authenticated (`gh auth status`: not logged in, checked on 2026-02-18).
+- Validation state as of 2026-02-18: `cargo`/`rustc` are still unavailable (`command not found`), so `cargo fmt --all -- --check`, `cargo test --locked`, and Linux build/smoke-run commands remain blocked locally.
+- GitHub CLI is installed at `/usr/bin/gh`, but PR inspection/push workflows remain blocked because no GitHub host is authenticated (`gh auth status` reports not logged in, checked on 2026-02-18).
 - Safety hardening: replaced `static mut` + `unwrap_unchecked()` singleton initialization in `squalr-engine-operating-system` (`memory_reader`, `memory_writer`, `memory_queryer`, `memory_settings_config`) with `OnceLock`-based initialization.
-- Re-validation attempt on 2026-02-18: `cargo fmt --all -- --check`, `cargo test --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` all remain blocked by missing `cargo` (`command not found`); smoke-run is also blocked because no `target/` artifacts exist.
