@@ -1,6 +1,6 @@
 pub mod memory_writer_trait;
 
-use std::sync::Once;
+use std::sync::OnceLock;
 
 #[cfg(any(target_os = "android"))]
 mod android;
@@ -30,17 +30,8 @@ pub struct MemoryWriter;
 
 impl MemoryWriter {
     pub fn get_instance() -> &'static MemoryWriterImpl {
-        static mut INSTANCE: Option<MemoryWriterImpl> = None;
-        static INIT: Once = Once::new();
+        static INSTANCE: OnceLock<MemoryWriterImpl> = OnceLock::new();
 
-        unsafe {
-            INIT.call_once(|| {
-                let instance = MemoryWriterImpl::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
+        INSTANCE.get_or_init(MemoryWriterImpl::new)
     }
 }

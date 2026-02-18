@@ -1,6 +1,6 @@
 pub mod memory_reader_trait;
 
-use std::sync::Once;
+use std::sync::OnceLock;
 
 #[cfg(any(target_os = "android"))]
 mod android;
@@ -31,17 +31,8 @@ pub struct MemoryReader;
 
 impl MemoryReader {
     pub fn get_instance() -> &'static MemoryReaderImpl {
-        static mut INSTANCE: Option<MemoryReaderImpl> = None;
-        static INIT: Once = Once::new();
+        static INSTANCE: OnceLock<MemoryReaderImpl> = OnceLock::new();
 
-        unsafe {
-            INIT.call_once(|| {
-                let instance = MemoryReaderImpl::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
+        INSTANCE.get_or_init(MemoryReaderImpl::new)
     }
 }
