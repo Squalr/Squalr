@@ -8,11 +8,13 @@ pub struct LinuxProcessQuery;
 
 impl ProcessQueryer for LinuxProcessQuery {
     fn start_monitoring() -> Result<(), ProcessQueryError> {
-        Err(ProcessQueryError::not_implemented("start_monitoring", "linux"))
+        // Linux process query currently exposes immediate operations only.
+        Ok(())
     }
 
     fn stop_monitoring() -> Result<(), ProcessQueryError> {
-        Err(ProcessQueryError::not_implemented("stop_monitoring", "linux"))
+        // Linux process query currently exposes immediate operations only.
+        Ok(())
     }
 
     fn open_process(_process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
