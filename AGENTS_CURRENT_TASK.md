@@ -23,4 +23,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - README now documents Linux native package prerequisites and standardized Linux build commands.
 - Validation state as of 2026-02-18: `cargo`/`rustc` are still unavailable (`command not found`), so `cargo fmt --all -- --check`, `cargo test --locked`, and Linux build/smoke-run commands remain blocked locally.
 - GitHub CLI is installed at `/usr/bin/gh`, but PR inspection/push workflows remain blocked because no GitHub host is authenticated (`gh auth status` reports not logged in, checked on 2026-02-18).
+- Revalidated blockers at 2026-02-18 05:30:36Z: `cargo --version && rustc --version` fails with `cargo: command not found`; `gh auth status` still reports no logged-in hosts.
 - Safety hardening: replaced `static mut` + `unwrap_unchecked()` singleton initialization in `squalr-engine-operating-system` (`memory_reader`, `memory_writer`, `memory_queryer`, `memory_settings_config`) with `OnceLock`-based initialization.
