@@ -8,7 +8,6 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Open/update PR for `pr/linux` with scoped commits and a follow-up checklist for remaining platform parity work.
 - Follow up Linux process icon fidelity after parity landing: support `StartupWMClass`/desktop ID matching and SVG icon decoding for themes that do not ship raster icons.
 
 ## Important Information
