@@ -10,7 +10,6 @@ Our current task, from `README.md`, is:
 
 - Open/update PR for `pr/linux` with scoped commits and a follow-up checklist for remaining platform parity work.
 - Follow up Linux process parity beyond bootstrap: `open_process` / `close_process` remain `not_implemented` in `linux_process_query`, so real attach/scan flows are still blocked on Linux.
-- Investigate CLI `--help` behavior (currently exits with code `1` and prints command usage error text instead of clean help success).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -31,3 +30,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - CLI response handling now covers `MemoryResponse::Freeze` via a dedicated handler to keep API/CLI response matching exhaustive.
 - Linux process monitoring parity fix at 2026-02-18 05:46:38Z: `LinuxProcessQuery::start_monitoring` and `stop_monitoring` now return `Ok(())`, matching the immediate-operation model used by other platforms.
 - Revalidation at 2026-02-18 05:46:38Z: `cargo fmt --all`, `cargo test -p squalr-engine-operating-system --locked`, and Linux builds for CLI/TUI/GUI passed; startup no longer fails on `start_monitoring` not implemented. Remaining runtime issues observed: CLI `--help` still exits `1` with usage error text, TUI requires interactive terminal, GUI fails in headless/no-GL environment.
+- CLI `--help` behavior fix at 2026-02-18 05:48:11Z: parser now injects a synthetic binary argv token and treats `structopt` help/version parse outcomes as successful display output, so one-shot help exits `0` with clean command help text instead of usage error failure.
+- Validation at 2026-02-18 05:48:11Z: `cargo test -p squalr-cli --locked` passed (including new CLI parse tests) and `cargo run -p squalr-cli -- --help` exited `0`.
