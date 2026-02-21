@@ -20,3 +20,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - The GUI updater performs HTTPS calls to `api.github.com`; restrictive firewall/proxy environments may need an allow rule.
 - macOS process list performance fix: replaced per-process window scans with one shared CoreGraphics window scan per query, moved icon loading after filter checks, and cached icons by executable path within the process.
 - macOS icon correctness fix: switched icon resolution to `NSRunningApplication` by PID (with executable-path fallback), which avoids generic executable/terminal icons returned by `iconForFile` for many processes.
+- macOS open-process diagnostics improved: `OpenProcessFailed` now includes details, and `task_for_pid` failures report the concrete kern status so permission/target-protection issues are visible in logs/UI.

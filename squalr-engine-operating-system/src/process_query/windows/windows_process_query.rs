@@ -183,9 +183,10 @@ impl ProcessQueryer for WindowsProcessQuery {
         unsafe {
             let handle: HANDLE = OpenProcess(PROCESS_ALL_ACCESS, 0, process_info.get_process_id_raw());
             if handle == std::ptr::null_mut() {
-                Err(ProcessQueryError::OpenProcessFailed {
-                    process_id: process_info.get_process_id_raw(),
-                })
+                Err(ProcessQueryError::open_process_failed(
+                    process_info.get_process_id_raw(),
+                    "OpenProcess returned a null process handle",
+                ))
             } else {
                 let opened_process_info = OpenedProcessInfo::new(
                     process_info.get_process_id_raw(),

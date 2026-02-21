@@ -4,8 +4,8 @@ use thiserror::Error;
 pub enum ProcessQueryError {
     #[error("Failed to acquire process monitor lock during `{operation}`: {details}.")]
     ProcessMonitorLockPoisoned { operation: &'static str, details: String },
-    #[error("Failed to open process with id `{process_id}`.")]
-    OpenProcessFailed { process_id: u32 },
+    #[error("Failed to open process with id `{process_id}`{details_suffix}.")]
+    OpenProcessFailed { process_id: u32, details_suffix: String },
     #[error("Failed to close process handle `{handle}`.")]
     CloseProcessFailed { handle: u64 },
     #[error("Operation `{operation}` is not implemented on `{platform}`.")]
@@ -41,6 +41,23 @@ impl ProcessQueryError {
             details: details.into(),
         }
     }
+
+    pub fn open_process_failed(
+        process_id: u32,
+        details: impl Into<String>,
+    ) -> Self {
+        let details_text = details.into();
+        let details_suffix = if details_text.is_empty() {
+            String::new()
+        } else {
+            format!(": {}", details_text)
+        };
+
+        Self::OpenProcessFailed {
+            process_id,
+            details_suffix,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -62,5 +79,15 @@ mod tests {
         let error = ProcessQueryError::not_implemented("open_process", "linux");
 
         assert_eq!(error.to_string(), "Operation `open_process` is not implemented on `linux`.");
+    }
+
+    #[test]
+    fn open_process_failed_error_contains_details_when_present() {
+        let error = ProcessQueryError::open_process_failed(42, "task_for_pid returned KERN_FAILURE");
+
+        assert_eq!(
+            error.to_string(),
+            "Failed to open process with id `42`: task_for_pid returned KERN_FAILURE."
+        );
     }
 }

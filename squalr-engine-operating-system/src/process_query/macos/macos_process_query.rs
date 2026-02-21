@@ -64,6 +64,20 @@ unsafe extern "C" {
 }
 
 impl MacOsProcessQuery {
+    fn task_for_pid_failure_details(task_for_pid_status: i32) -> String {
+        let status_reason = match task_for_pid_status {
+            4 => "KERN_INVALID_ARGUMENT",
+            5 => "KERN_FAILURE",
+            8 => "KERN_PROTECTION_FAILURE",
+            _ => "UNKNOWN_KERN_STATUS",
+        };
+
+        format!(
+            "task_for_pid failed with status {} ({}). On macOS this generally means the target process is protected or the caller lacks debugging rights",
+            task_for_pid_status, status_reason
+        )
+    }
+
     fn collect_window_owner_process_ids() -> HashSet<u32> {
         let mut window_owner_process_ids = HashSet::new();
         let window_info_array = unsafe { CGWindowListCopyWindowInfo(CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY, CG_NULL_WINDOW_ID) };
@@ -269,7 +283,10 @@ impl ProcessQueryer for MacOsProcessQuery {
         let task_for_pid_status = unsafe { task_for_pid(mach_task_self(), process_id as c_int, &mut task_port as *mut mach_port_t) };
 
         if task_for_pid_status != KERN_SUCCESS || task_port == MACH_PORT_NULL {
-            return Err(ProcessQueryError::OpenProcessFailed { process_id });
+            return Err(ProcessQueryError::open_process_failed(
+                process_id,
+                Self::task_for_pid_failure_details(task_for_pid_status),
+            ));
         }
 
         Ok(OpenedProcessInfo::new(
