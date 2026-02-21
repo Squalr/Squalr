@@ -82,6 +82,38 @@ Install native dependencies before building:
 - `libxrandr-dev`
 - `libxinerama-dev`
 
+## macOS Build
+
+macOS builds are validated with these entrypoints:
+- `cargo build -p squalr-cli --locked`
+- `cargo build -p squalr-tui --locked`
+- `cargo build -p squalr --locked`
+
+Run targets:
+- CLI: `cargo run -p squalr-cli -- process list -w -l 20`
+- TUI: `cargo run -p squalr-tui`
+- GUI: `cargo run -p squalr`
+
+### macOS Security Whitelist / Disable Guide
+
+Squalr uses Mach APIs on macOS (`task_for_pid`, `mach_vm_read_overwrite`, `mach_vm_write`) to open and inspect target processes. If these calls are blocked, process open/read/write operations will fail.
+
+Whitelist these when prompted:
+- `Terminal` (or your IDE host, such as VS Code / CLion) under **Developer Tools** in `System Settings -> Privacy & Security -> Developer Tools`.
+- `squalr` / `squalr-cli` in security prompts so they are allowed to run.
+- `Terminal` for `sudo` usage if you run IPC mode (`squalr-cli --ipc-mode`) and macOS asks for admin authorization.
+
+Usually not required, but may help in locked-down environments:
+- **Full Disk Access** for `Terminal` and the target app if the process binary/project is in protected locations (`Desktop`, `Documents`, `Downloads`, iCloud-backed folders).
+
+Do **not** disable these globally unless you explicitly accept the system-wide risk:
+- Do not disable SIP (System Integrity Protection).
+- Do not disable Gatekeeper globally.
+
+Expected behavior notes:
+- Opening Apple system processes and other protected processes may still fail by design even with the settings above.
+- The GUI updater makes HTTPS requests to GitHub (`api.github.com`), so restrictive firewalls/proxies may need an allow rule.
+
 ## Architectural Overview
 
 ### Command Response System
