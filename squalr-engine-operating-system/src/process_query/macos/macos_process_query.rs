@@ -13,11 +13,14 @@ use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::os::raw::c_int;
+use std::sync::{LazyLock, RwLock};
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
 pub struct MacOsProcessQuery {}
+static PROCESS_ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<ProcessIcon>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
 type CFArrayRef = *const c_void;
 type CFDictionaryRef = *const c_void;
@@ -61,16 +64,15 @@ unsafe extern "C" {
 }
 
 impl MacOsProcessQuery {
-    fn is_process_windowed(process_id: &Pid) -> bool {
-        let owner_pid = process_id.as_u32() as i32;
+    fn collect_window_owner_process_ids() -> HashSet<u32> {
+        let mut window_owner_process_ids = HashSet::new();
         let window_info_array = unsafe { CGWindowListCopyWindowInfo(CG_WINDOW_LIST_OPTION_ON_SCREEN_ONLY, CG_NULL_WINDOW_ID) };
 
         if window_info_array.is_null() {
-            return false;
+            return window_owner_process_ids;
         }
 
         let window_count = unsafe { CFArrayGetCount(window_info_array) };
-        let mut has_window = false;
 
         for window_index in 0..window_count {
             let window_dictionary = unsafe { CFArrayGetValueAtIndex(window_info_array, window_index) as CFDictionaryRef };
@@ -86,14 +88,45 @@ impl MacOsProcessQuery {
             let mut window_owner_pid: i32 = 0;
             let parsed_number = unsafe { CFNumberGetValue(owner_pid_number, CF_NUMBER_SINT32_TYPE, &mut window_owner_pid as *mut i32 as *mut c_void) };
 
-            if parsed_number != 0 && window_owner_pid == owner_pid {
-                has_window = true;
-                break;
+            if parsed_number != 0 && window_owner_pid > 0 {
+                window_owner_process_ids.insert(window_owner_pid as u32);
             }
         }
 
         unsafe { CFRelease(window_info_array as CFTypeRef) };
-        has_window
+        window_owner_process_ids
+    }
+
+    fn matches_process_filters(
+        options: &ProcessQueryOptions,
+        process_name: &str,
+        process_is_windowed: bool,
+        process_id_raw: u32,
+    ) -> bool {
+        if options.require_windowed && !process_is_windowed {
+            return false;
+        }
+
+        if let Some(search_term) = options.search_name.as_ref() {
+            if options.match_case {
+                if !process_name.contains(search_term) {
+                    return false;
+                }
+            } else if !process_name
+                .to_lowercase()
+                .contains(&search_term.to_lowercase())
+            {
+                return false;
+            }
+        }
+
+        if let Some(required_process_id) = options.required_process_id {
+            if process_id_raw != required_process_id.as_u32() {
+                return false;
+            }
+        }
+
+        true
     }
 
     fn get_process_executable_path(process_id: &Pid) -> Option<String> {
@@ -113,6 +146,23 @@ impl MacOsProcessQuery {
 
     fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
         let executable_path = Self::get_process_executable_path(process_id)?;
+
+        if let Ok(icon_cache) = PROCESS_ICON_CACHE.read() {
+            if let Some(cached_process_icon) = icon_cache.get(&executable_path) {
+                return cached_process_icon.clone();
+            }
+        }
+
+        let process_icon = Self::get_icon_for_executable_path(&executable_path);
+
+        if let Ok(mut icon_cache) = PROCESS_ICON_CACHE.write() {
+            icon_cache.insert(executable_path, process_icon.clone());
+        }
+
+        process_icon
+    }
+
+    fn get_icon_for_executable_path(executable_path: &str) -> Option<ProcessIcon> {
         let executable_path_bytes = executable_path.as_bytes();
 
         let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
@@ -215,43 +265,103 @@ impl ProcessQueryer for MacOsProcessQuery {
 
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let mut system = System::new_all();
+        let mut matched_processes = Vec::new();
+        let window_owner_process_ids = Self::collect_window_owner_process_ids();
+        let process_limit = options.limit.unwrap_or(u64::MAX) as usize;
 
         system.refresh_processes(ProcessesToUpdate::All, true);
 
-        system
-            .processes()
-            .iter()
-            .filter_map(|(process_id, process)| {
-                let process_name = process.name().to_string_lossy().to_string();
-                let process_is_windowed = Self::is_process_windowed(process_id);
-                let process_icon = if options.fetch_icons { Self::get_icon(process_id) } else { None };
+        for (process_id, process) in system.processes() {
+            if matched_processes.len() >= process_limit {
+                break;
+            }
 
-                let process_info = ProcessInfo::new(process_id.as_u32(), process_name, process_is_windowed, process_icon);
+            let process_id_raw = process_id.as_u32();
+            let process_name = process.name().to_string_lossy().to_string();
+            let process_is_windowed = window_owner_process_ids.contains(&process_id_raw);
 
-                let mut matches = true;
+            if !Self::matches_process_filters(&options, &process_name, process_is_windowed, process_id_raw) {
+                continue;
+            }
 
-                if options.require_windowed {
-                    matches &= process_info.get_is_windowed();
-                }
+            let process_icon = if options.fetch_icons {
+                Self::get_icon(process_id)
+            } else {
+                None
+            };
 
-                if let Some(ref term) = options.search_name {
-                    if options.match_case {
-                        matches &= process_info.get_name().contains(term);
-                    } else {
-                        matches &= process_info
-                            .get_name()
-                            .to_lowercase()
-                            .contains(&term.to_lowercase());
-                    }
-                }
+            matched_processes.push(ProcessInfo::new(
+                process_id_raw,
+                process_name,
+                process_is_windowed,
+                process_icon,
+            ));
+        }
 
-                if let Some(required_pid) = options.required_process_id {
-                    matches &= process_info.get_process_id_raw() == required_pid.as_u32();
-                }
+        matched_processes
+    }
+}
 
-                matches.then_some(process_info)
-            })
-            .take(options.limit.unwrap_or(u64::MAX) as usize)
-            .collect()
+#[cfg(test)]
+mod tests {
+    use super::MacOsProcessQuery;
+    use crate::process_query::process_query_options::ProcessQueryOptions;
+    use sysinfo::Pid;
+
+    fn create_options() -> ProcessQueryOptions {
+        ProcessQueryOptions {
+            required_process_id: None,
+            search_name: None,
+            require_windowed: false,
+            match_case: false,
+            fetch_icons: false,
+            limit: None,
+        }
+    }
+
+    #[test]
+    fn process_filter_rejects_non_windowed_when_required() {
+        let mut options = create_options();
+        options.require_windowed = true;
+
+        assert!(!MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            false,
+            1234,
+        ));
+    }
+
+    #[test]
+    fn process_filter_respects_case_insensitive_search() {
+        let mut options = create_options();
+        options.search_name = Some("calculator".to_string());
+        options.match_case = false;
+
+        assert!(MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            true,
+            1234,
+        ));
+    }
+
+    #[test]
+    fn process_filter_respects_required_process_id() {
+        let mut options = create_options();
+        options.required_process_id = Some(Pid::from_u32(44));
+
+        assert!(!MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            true,
+            43,
+        ));
+        assert!(MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            true,
+            44,
+        ));
     }
 }

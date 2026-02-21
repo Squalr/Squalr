@@ -10,6 +10,7 @@ Our current task, from `README.md`, is:
 
 - [x] Investigate macOS run/build viability using current workspace targets.
 - [x] Document macOS-specific runtime/security requirements in `README.md`.
+- [x] Reduce macOS process listing stall in process query path.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -17,3 +18,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `cargo build -p squalr --locked` all succeed on macOS.
 - macOS runtime process access depends on Mach APIs (`task_for_pid`, `mach_vm_read_overwrite`, `mach_vm_write`), so Developer Tools authorization is a primary whitelist requirement.
 - The GUI updater performs HTTPS calls to `api.github.com`; restrictive firewall/proxy environments may need an allow rule.
+- macOS process list performance fix: replaced per-process window scans with one shared CoreGraphics window scan per query, moved icon loading after filter checks, and cached icons by executable path within the process.
