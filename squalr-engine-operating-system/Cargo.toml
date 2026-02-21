@@ -35,3 +35,7 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Security",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mach2 = "0.4.3"
+objc = "0.2.7"

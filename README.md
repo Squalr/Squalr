@@ -82,6 +82,32 @@ Install native dependencies before building:
 - `libxrandr-dev`
 - `libxinerama-dev`
 
+## macOS Build
+
+macOS builds are validated with these entrypoints:
+- `cargo build -p squalr-cli --locked`
+- `cargo build -p squalr-tui --locked`
+- `cargo build -p squalr --locked`
+
+Run targets:
+- CLI: `cargo run -p squalr-cli -- process list -w -l 20`
+- TUI: `cargo run -p squalr-tui`
+- GUI: `cargo run -p squalr`
+
+### macOS Security Whitelist / Disable Guide
+
+Squalr uses Mach APIs on macOS (`task_for_pid`, `mach_vm_read_overwrite`, `mach_vm_write`) to open and inspect target processes. If these calls are blocked, process open/read/write operations will fail.
+
+To enable these, system sandboxing security features must be disabled. Just note that this effects your entire system, and makes your system more vulnerable to bad software! Not advised unless you know what you are doing.
+
+- Boot your Mac in recovery mode (power down Mac, and boot while holding the power button down).
+- Launch Terminal from the Utilities menu.
+- Type `csrutil disable`
+- Reboot when prompted
+- When running Squalr, run it from the command line with elevated permissions (`sudo ./squalr` or `sudo ./squalr-cli` or `sudo ./squalr-tui`).
+
+This process can be reversed at any time to undo the security changes with `csrutil enable` instead.
+
 ## Architectural Overview
 
 ### Command Response System
