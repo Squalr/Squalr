@@ -206,6 +206,15 @@ impl MacOsMemoryQueryer {
         memory_type_flags
     }
 
+    fn is_region_queryable(region_info: &MacOsRegionInfo) -> bool {
+        let readable = (region_info.protection_flags & VM_PROT_READ as u32) != 0;
+        let writable = (region_info.protection_flags & VM_PROT_WRITE as u32) != 0;
+        let executable = (region_info.protection_flags & VM_PROT_EXECUTE as u32) != 0;
+        let copy_on_write = (region_info.protection_flags & VM_PROT_COPY as u32) != 0;
+
+        readable || writable || executable || copy_on_write
+    }
+
     fn module_name_from_path(module_path: &str) -> String {
         Path::new(module_path)
             .file_name()
@@ -245,6 +254,12 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
         queried_regions
             .iter()
             .filter_map(|region_info| {
+                // Skip inaccessible placeholder regions (VM_PROT_NONE). These are often large reserved
+                // ranges and can drastically overstate queryable process memory on macOS.
+                if !Self::is_region_queryable(region_info) {
+                    return None;
+                }
+
                 if required_protection_flags != 0 && (region_info.protection_flags & required_protection_flags) == 0 {
                     return None;
                 }
@@ -398,5 +413,37 @@ impl MemoryQueryerTrait for MacOsMemoryQueryer {
         }
 
         0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MacOsMemoryQueryer, MacOsRegionInfo};
+    use mach2::vm_prot::VM_PROT_READ;
+
+    #[test]
+    fn is_region_queryable_false_when_protection_is_none() {
+        let region_info = MacOsRegionInfo {
+            base_address: 0x1000,
+            region_size: 0x2000,
+            protection_flags: 0,
+            share_mode: 0,
+            mapped_file_path: None,
+        };
+
+        assert!(!MacOsMemoryQueryer::is_region_queryable(&region_info));
+    }
+
+    #[test]
+    fn is_region_queryable_true_when_any_access_flag_is_set() {
+        let region_info = MacOsRegionInfo {
+            base_address: 0x1000,
+            region_size: 0x2000,
+            protection_flags: VM_PROT_READ as u32,
+            share_mode: 0,
+            mapped_file_path: None,
+        };
+
+        assert!(MacOsMemoryQueryer::is_region_queryable(&region_info));
     }
 }

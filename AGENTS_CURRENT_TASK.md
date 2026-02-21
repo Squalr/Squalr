@@ -21,3 +21,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - macOS process list performance fix: replaced per-process window scans with one shared CoreGraphics window scan per query, moved icon loading after filter checks, and cached icons by executable path within the process.
 - macOS icon correctness fix: switched icon resolution to `NSRunningApplication` by PID (with executable-path fallback), which avoids generic executable/terminal icons returned by `iconForFile` for many processes.
 - macOS open-process diagnostics improved: `OpenProcessFailed` now includes details, and `task_for_pid` failures report the concrete kern status so permission/target-protection issues are visible in logs/UI.
+- macOS memory query fix: `get_virtual_pages` now excludes `VM_PROT_NONE` regions, preventing huge reserved/inaccessible mappings (for example, browser address-space reservations) from inflating scan/query memory totals.
