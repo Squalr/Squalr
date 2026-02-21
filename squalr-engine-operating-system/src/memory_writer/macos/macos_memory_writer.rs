@@ -1,7 +1,9 @@
 use crate::memory_writer::memory_writer_trait::MemoryWriterTrait;
+use mach2::kern_return::KERN_SUCCESS;
+use mach2::vm::mach_vm_write;
+use mach2::vm_types::{mach_vm_address_t, vm_offset_t};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::os::raw::c_void;
-use std::ptr::null_mut;
+use std::convert::TryFrom;
 
 pub struct MacOsMemoryWriter;
 
@@ -15,7 +17,18 @@ impl MacOsMemoryWriter {
         address: u64,
         data: &[u8],
     ) -> bool {
-        false
+        if data.is_empty() {
+            return true;
+        }
+
+        let data_length = match u32::try_from(data.len()) {
+            Ok(data_length) => data_length,
+            Err(_) => return false,
+        };
+
+        let write_status = unsafe { mach_vm_write(process_handle as _, address as mach_vm_address_t, data.as_ptr() as vm_offset_t, data_length) };
+
+        write_status == KERN_SUCCESS
     }
 }
 
