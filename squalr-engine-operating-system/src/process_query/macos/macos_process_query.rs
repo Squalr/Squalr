@@ -145,21 +145,77 @@ impl MacOsProcessQuery {
     }
 
     fn get_icon(process_id: &Pid) -> Option<ProcessIcon> {
-        let executable_path = Self::get_process_executable_path(process_id)?;
+        let process_id_raw = process_id.as_u32();
+        let process_icon_cache_key = format!("pid:{process_id_raw}");
 
         if let Ok(icon_cache) = PROCESS_ICON_CACHE.read() {
-            if let Some(cached_process_icon) = icon_cache.get(&executable_path) {
+            if let Some(cached_process_icon) = icon_cache.get(&process_icon_cache_key) {
                 return cached_process_icon.clone();
             }
         }
 
-        let process_icon = Self::get_icon_for_executable_path(&executable_path);
+        let process_icon = Self::get_running_application_icon(process_id)
+            .or_else(|| Self::get_process_executable_path(process_id).and_then(|executable_path| Self::get_icon_for_executable_path(&executable_path)));
 
         if let Ok(mut icon_cache) = PROCESS_ICON_CACHE.write() {
-            icon_cache.insert(executable_path, process_icon.clone());
+            icon_cache.insert(process_icon_cache_key, process_icon.clone());
         }
 
         process_icon
+    }
+
+    fn get_running_application_icon(process_id: &Pid) -> Option<ProcessIcon> {
+        let process_id_value = process_id.as_u32() as i32;
+        let autorelease_pool: *mut Object = unsafe { msg_send![class!(NSAutoreleasePool), new] };
+        if autorelease_pool.is_null() {
+            return None;
+        }
+
+        let process_icon = (|| {
+            let running_application: *mut Object = unsafe {
+                msg_send![
+                    class!(NSRunningApplication),
+                    runningApplicationWithProcessIdentifier: process_id_value
+                ]
+            };
+            if running_application.is_null() {
+                return None;
+            }
+
+            let icon_image: *mut Object = unsafe { msg_send![running_application, icon] };
+            Self::decode_ns_image_to_process_icon(icon_image)
+        })();
+
+        let _: () = unsafe { msg_send![autorelease_pool, drain] };
+        process_icon
+    }
+
+    fn decode_ns_image_to_process_icon(icon_image: *mut Object) -> Option<ProcessIcon> {
+        if icon_image.is_null() {
+            return None;
+        }
+
+        let tiff_data: *mut Object = unsafe { msg_send![icon_image, TIFFRepresentation] };
+        if tiff_data.is_null() {
+            return None;
+        }
+
+        let image_bytes_ptr: *const u8 = unsafe { msg_send![tiff_data, bytes] };
+        let image_bytes_len: usize = unsafe { msg_send![tiff_data, length] };
+        if image_bytes_ptr.is_null() || image_bytes_len == 0 {
+            return None;
+        }
+
+        let image_bytes = unsafe { std::slice::from_raw_parts(image_bytes_ptr, image_bytes_len) };
+        let image_reader = ImageReader::new(Cursor::new(image_bytes))
+            .with_guessed_format()
+            .ok()?;
+        let decoded_image = image_reader.decode().ok()?;
+        let rgba_image = decoded_image.to_rgba8();
+        let (icon_width, icon_height) = rgba_image.dimensions();
+        let icon_rgba_bytes = rgba_image.into_raw();
+
+        Some(ProcessIcon::new(icon_rgba_bytes, icon_width, icon_height))
     }
 
     fn get_icon_for_executable_path(executable_path: &str) -> Option<ProcessIcon> {
@@ -190,31 +246,7 @@ impl MacOsProcessQuery {
             }
 
             let icon_image: *mut Object = unsafe { msg_send![workspace, iconForFile: ns_executable_path] };
-            if icon_image.is_null() {
-                return None;
-            }
-
-            let tiff_data: *mut Object = unsafe { msg_send![icon_image, TIFFRepresentation] };
-            if tiff_data.is_null() {
-                return None;
-            }
-
-            let image_bytes_ptr: *const u8 = unsafe { msg_send![tiff_data, bytes] };
-            let image_bytes_len: usize = unsafe { msg_send![tiff_data, length] };
-            if image_bytes_ptr.is_null() || image_bytes_len == 0 {
-                return None;
-            }
-
-            let image_bytes = unsafe { std::slice::from_raw_parts(image_bytes_ptr, image_bytes_len) };
-            let image_reader = ImageReader::new(Cursor::new(image_bytes))
-                .with_guessed_format()
-                .ok()?;
-            let decoded_image = image_reader.decode().ok()?;
-            let rgba_image = decoded_image.to_rgba8();
-            let (icon_width, icon_height) = rgba_image.dimensions();
-            let icon_rgba_bytes = rgba_image.into_raw();
-
-            Some(ProcessIcon::new(icon_rgba_bytes, icon_width, icon_height))
+            Self::decode_ns_image_to_process_icon(icon_image)
         })();
 
         let _: () = unsafe { msg_send![autorelease_pool, drain] };
