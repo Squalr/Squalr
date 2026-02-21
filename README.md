@@ -108,15 +108,6 @@ To enable these, system sandboxing security features must be disabled. Just note
 
 This process can be reversed at any time to undo the security changes with `csrutil enable` instead.
 
-#### Method 2: Explicit Security Whitelists
-
-Specific whitelisting may work in very niche cases. However, this method is likley to fail in most cases.
-
-Under **Developer Tools** in `System Settings -> Privacy & Security -> Developer Tools`.
-- Whitelist `squalr` / `squalr-cli`  / `squalr-tui` in security prompts so they are allowed to run.
-
-Additionally, the target process may need to be whitelisted. There is no guarantee this will work.
-
 ## Architectural Overview
 
 ### Command Response System
