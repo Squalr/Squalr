@@ -98,21 +98,24 @@ Run targets:
 
 Squalr uses Mach APIs on macOS (`task_for_pid`, `mach_vm_read_overwrite`, `mach_vm_write`) to open and inspect target processes. If these calls are blocked, process open/read/write operations will fail.
 
-Whitelist these when prompted:
-- `Terminal` (or your IDE host, such as VS Code / CLion) under **Developer Tools** in `System Settings -> Privacy & Security -> Developer Tools`.
-- `squalr` / `squalr-cli` in security prompts so they are allowed to run.
-- `Terminal` for `sudo` usage if you run IPC mode (`squalr-cli --ipc-mode`) and macOS asks for admin authorization.
+To enable these, system sandboxing security features must be disabled. Just note that this effects your entire system, and makes your system more vulnerable to bad software! Not advised unless you know what you are doing.
 
-Usually not required, but may help in locked-down environments:
-- **Full Disk Access** for `Terminal` and the target app if the process binary/project is in protected locations (`Desktop`, `Documents`, `Downloads`, iCloud-backed folders).
+- Boot your Mac in recovery mode (power down Mac, and boot while holding the power button down).
+- Launch Terminal from the Utilities menu.
+- Type `csrutil disable`
+- Reboot when prompted
+- When running Squalr, run it from the command line with elevated permissions (`sudo ./squalr` or `sudo ./squalr-cli` or `sudo ./squalr-tui`).
 
-Do **not** disable these globally unless you explicitly accept the system-wide risk:
-- Do not disable SIP (System Integrity Protection).
-- Do not disable Gatekeeper globally.
+This process can be reversed at any time to undo the security changes with `csrutil enable` instead.
 
-Expected behavior notes:
-- Opening Apple system processes and other protected processes may still fail by design even with the settings above.
-- The GUI updater makes HTTPS requests to GitHub (`api.github.com`), so restrictive firewalls/proxies may need an allow rule.
+#### Method 2: Explicit Security Whitelists
+
+Specific whitelisting may work in very niche cases. However, this method is likley to fail in most cases.
+
+Under **Developer Tools** in `System Settings -> Privacy & Security -> Developer Tools`.
+- Whitelist `squalr` / `squalr-cli`  / `squalr-tui` in security prompts so they are allowed to run.
+
+Additionally, the target process may need to be whitelisted. There is no guarantee this will work.
 
 ## Architectural Overview
 
