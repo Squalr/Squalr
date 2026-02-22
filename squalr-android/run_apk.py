@@ -3,7 +3,8 @@ import subprocess
 import sys
 
 
-PACKAGE_CANDIDATES = ["com.squalr.android", "rust.squalr_android"]
+PACKAGE_CANDIDATES = ["com.squalr.android"]
+LEGACY_PACKAGE = "rust.squalr_android"
 
 
 def run_command(command_segments):
@@ -68,11 +69,21 @@ def main():
         "--package",
         help="Package name override. Defaults to checking known Squalr package ids.",
     )
+    argument_parser.add_argument(
+        "--include-legacy-package",
+        action="store_true",
+        help="Also try rust.squalr_android as a fallback for older installs.",
+    )
     parsed_arguments = argument_parser.parse_args()
 
     ensure_device_connected()
 
-    package_candidates = [parsed_arguments.package] if parsed_arguments.package else PACKAGE_CANDIDATES
+    if parsed_arguments.package:
+        package_candidates = [parsed_arguments.package]
+    else:
+        package_candidates = list(PACKAGE_CANDIDATES)
+        if parsed_arguments.include_legacy_package:
+            package_candidates.append(LEGACY_PACKAGE)
     for package_name in package_candidates:
         component_name = resolve_launch_activity(package_name)
         if component_name is None:

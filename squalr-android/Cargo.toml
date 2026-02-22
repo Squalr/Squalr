@@ -5,6 +5,9 @@ authors = ["Zachary Canann"]
 edition = "2024"
 build = "build.rs"
 
+[package.metadata.android]
+package = "com.squalr.android"
+
 [lib]
 crate-type = ["cdylib"]
 
