@@ -335,14 +335,6 @@ Branch: `pr/scan-result-deletion`
 
 We need to support deleting specific scan results. The internal data structures for storing scan results are not robust to this operation, so it actually makes more sense to manually track deletions rather than rebuilding all scan result data structures after a delete. Instead, we store deletions and use this information to intelligently skip entries when seeking to scan results by page.
 
-### Android Build
-Branch: `pr/android`
-The android build should be made functional again. Note that unlike the main gui build, this must run in IPC mode with a privileged shell rather than standalone.
-
-This was once fully functional for querying processes, but this was using Slint for the GUI, and we have since moved to egui.
-
-This will require a bit of a revival.
-
 ### Draggable Docking Windows
 Branch: `pr/docking`
 
@@ -359,16 +351,6 @@ Additionally, conversions should be architecturally audited for robustness.
 Branch: `pr/pointer-scanning`
 
 Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
-
-### Release Test
-Branch: `pr/linux`
-
-We need a functional Linux build
-
-### Release Test
-Branch: `pr/macos`
-
-We need a functional MacOS build. Not sure how feasible this is with Mac security features.
 
 ### Release Test
 Branch: `pr/release-test`

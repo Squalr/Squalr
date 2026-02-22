@@ -73,82 +73,20 @@ impl<'a> Widget for ComboBoxItemView<'a> {
         let icon_pos_x = allocated_size_rectangle.min.x + icon_left_padding;
         let icon_pos_y = allocated_size_rectangle.center().y - icon_size.y * 0.5;
         let icon_rect = Rect::from_min_size(pos2(icon_pos_x, icon_pos_y), icon_size);
-        let text_start_position = pos2(icon_rect.max.x + icon_left_padding + text_left_padding, allocated_size_rectangle.min.y);
-        let text_width = (allocated_size_rectangle.max.x - text_start_position.x - icon_left_padding).max(0.0);
-        let text_rectangle = Rect::from_min_size(text_start_position, vec2(text_width, row_height));
+        let text_pos = pos2(icon_rect.max.x + icon_left_padding + text_left_padding, allocated_size_rectangle.center().y);
 
         if let Some(icon) = &self.icon {
             IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
         }
 
-        let text_to_render = Self::truncate_text_to_width(
-            user_interface,
-            self.label,
-            text_width,
-            &theme.font_library.font_noto_sans.font_normal,
-            theme.foreground,
-        );
-        let text_painter = user_interface.painter().with_clip_rect(text_rectangle);
-        text_painter.text(
-            pos2(text_rectangle.min.x, allocated_size_rectangle.center().y),
+        user_interface.painter().text(
+            text_pos,
             Align2::LEFT_CENTER,
-            text_to_render,
+            self.label,
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground,
         );
 
         response
-    }
-}
-
-impl<'lifetime> ComboBoxItemView<'lifetime> {
-    fn truncate_text_to_width(
-        user_interface: &Ui,
-        label: &str,
-        max_text_width: f32,
-        font_id: &eframe::egui::FontId,
-        text_color: epaint::Color32,
-    ) -> String {
-        if max_text_width <= 0.0 {
-            return String::new();
-        }
-
-        let full_text_width = user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(label.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        });
-        if full_text_width <= max_text_width {
-            return label.to_string();
-        }
-
-        let ellipsis = "...";
-        let ellipsis_width = user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(ellipsis.to_string(), font_id.clone(), text_color)
-                .size()
-                .x
-        });
-        if ellipsis_width > max_text_width {
-            return String::new();
-        }
-
-        let mut truncated_label = label.to_string();
-        while !truncated_label.is_empty() {
-            truncated_label.pop();
-            let candidate_label = format!("{}{}", truncated_label, ellipsis);
-            let candidate_width = user_interface.ctx().fonts_mut(|fonts| {
-                fonts
-                    .layout_no_wrap(candidate_label.clone(), font_id.clone(), text_color)
-                    .size()
-                    .x
-            });
-            if candidate_width <= max_text_width {
-                return candidate_label;
-            }
-        }
-
-        String::new()
     }
 }
