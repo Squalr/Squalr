@@ -4,3 +4,4 @@ mod logging;
 pub mod os;
 pub mod registries;
 pub mod tasks;
+pub use logging::platform::platform_log_hooks;
