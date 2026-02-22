@@ -18,8 +18,16 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 - Need human verification: validate Android GUI process dropdown scroll interaction on-device after latest scroll-area behavior change.
+    - Fix failed. windowed dropdown is unscrollable.
 - Need human verification: validate Android GUI process dropdown now favors true windowed/user-facing entries and no longer floods with background processes.
-
+    - Fix failed. Still mostly junk processes. Please fucking write a minimal test script you can run and deploy, which should be returning:
+        - youtube
+        - photos
+        - play store
+        - calendar
+        - (maybe squalr if its running)
+    - These are the only fucking windowed processes running. Do not cross this off the list if your sample is still returning a bunch of fuckign garbage
+    - Added `verify_android_windowed_processes.py` to run rooted `squalr-cli process list -w` checks with strict expected/optional name-pattern validation; still needs on-device execution + verification.
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -48,3 +56,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Session revalidation (2026-02-22) passed: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; existing warnings remain unchanged.
 - Session revalidation (2026-02-22 11:14 -08:00) passed again from a clean tree: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; existing warnings remain unchanged.
 - Current status (2026-02-22): work is blocked only on on-device visual verification of Android GUI process dropdown scrolling and row quality.
+- Added on-device verification helper script `verify_android_windowed_processes.py` (2026-02-22) with optional deploy (`--deploy`) and strict allowlist validation for expected user-facing apps.
