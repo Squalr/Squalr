@@ -5,8 +5,13 @@ use anyhow::{Context, Result, bail};
 use cli::Cli;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
+#[cfg(target_os = "android")]
+use squalr_engine_session::platform_log_hooks::initialize_platform_log_hooks_once;
 
 fn main() -> Result<()> {
+    #[cfg(target_os = "android")]
+    initialize_platform_log_hooks_once("SqualrCli");
+
     let command_line_arguments: Vec<String> = std::env::args().collect();
     let engine_mode = if command_line_arguments
         .iter()

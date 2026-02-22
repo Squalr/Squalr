@@ -20,7 +20,7 @@ impl App {
     pub fn new(
         context: &Context,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
-        dependency_container: &DependencyContainer,
+        _dependency_container: &DependencyContainer,
         app_title: String,
     ) -> Self {
         let theme = Arc::new(Theme::new(context));

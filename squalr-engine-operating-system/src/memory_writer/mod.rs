@@ -2,10 +2,10 @@ pub mod memory_writer_trait;
 
 use std::sync::OnceLock;
 
-#[cfg(any(target_os = "android"))]
+#[cfg(target_os = "android")]
 mod android;
 
-#[cfg(any(target_os = "linux"))]
+#[cfg(target_os = "linux")]
 mod linux;
 
 #[cfg(any(target_os = "macos"))]

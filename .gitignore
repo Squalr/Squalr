@@ -6,3 +6,4 @@
 **/*.rs.bk
 
 *.DS_STORE
+.idea/

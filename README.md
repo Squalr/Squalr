@@ -82,6 +82,51 @@ Install native dependencies before building:
 - `libxrandr-dev`
 - `libxinerama-dev`
 
+## Android Build
+
+Android builds are currently validated on target `aarch64-linux-android` with API level 23.
+
+### Quickstart: APK on Device (Privileged GUI Path)
+
+Goal: install the GUI APK, push the privileged worker, and run the GUI in rooted IPC mode.
+
+Prerequisites:
+- Android SDK + NDK installed.
+- `ANDROID_HOME` set.
+- `ANDROID_NDK_ROOT` set.
+- Rust Android target installed: `rustup target add aarch64-linux-android`.
+- Cargo helpers installed:
+  - `cargo install cargo-ndk`
+  - `cargo install cargo-apk`
+- Rooted device connected over `adb`.
+
+Then run one of these from the workspace root:
+- `python ./build_and_deploy.py` (full smoke validation: preflight + build + install + launch + IPC worker check)
+- `python ./build_and_deploy.py --compile-check` (automated compile-only path: preflight + `cargo ndk` + `cargo apk`, no device required)
+- To launch an already-installed APK without rebuilding: `python ./run_apk.py`
+- To manually run the privileged worker shell for debugging: `python ./debug_run_privileged_shell.py`
+
+Notes:
+- The deploy script runs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, target installation, and `aarch64-linux-android-clang` visibility), then runs:
+  - `cargo ndk --target aarch64-linux-android build -p squalr-cli`
+  - `cargo apk build --target aarch64-linux-android --lib`
+- In full smoke mode, the script installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, launches the app, and validates privileged worker startup.
+- Running without flags prompts: `Build in release mode? (y/n [default])`.
+- Non-interactive environments should pass `--release` or `--debug` to avoid the prompt.
+- `--release` prefers release artifacts; if release signing is not configured (`[package.metadata.android.signing.release]`), APK build automatically falls back to debug.
+- If `adb install` fails on a previous install, uninstall first:
+  - `adb uninstall com.squalr.android`
+
+Common preflight failure example:
+```text
+> rustup target list --installed
+aarch64-linux-android
+wasm32-unknown-unknown
+x86_64-pc-windows-msvc
+ANDROID_NDK_ROOT is not set.
+```
+If this appears, set `ANDROID_NDK_ROOT` to your Android NDK path and rerun the script.
+
 ## macOS Build
 
 macOS builds are validated with these entrypoints:

@@ -1,11 +1,10 @@
+use crate::app_provisioner::http_client::AppProvisionerHttpClient;
 use crate::app_provisioner::operations::download::download_progress::DownloadProgress;
 use anyhow::Result;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use ureq::config::Config;
-use ureq::tls::{TlsConfig, TlsProvider};
 
 pub struct UpdateOperationDownload {
     progress: Arc<Mutex<Option<DownloadProgress>>>,
@@ -27,9 +26,7 @@ impl UpdateOperationDownload {
     ) -> Result<()> {
         log::info!("Downloading from: {}", url);
 
-        let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
-        let config = Config::builder().tls_config(tls_config).build();
-        let agent = config.new_agent();
+        let agent = AppProvisionerHttpClient::create_agent();
         let mut response = agent.get(url).call()?;
 
         // Status is ureq::http::StatusCode. Convert it to u16 first.
