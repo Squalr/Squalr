@@ -3,7 +3,8 @@ use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use image::ImageReader;
-use regex::bytes::Regex;
+use regex::Regex;
+use regex::bytes::Regex as BytesRegex;
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
@@ -21,6 +22,7 @@ use zip::ZipArchive;
 
 /// Minimum UID for user-installed apps.
 const MIN_USER_UID: u32 = 10000;
+const PACKAGE_ACTIVITY_PATTERN: &str = r"(?P<package_name>[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)/";
 const ICON_PATHS: [&str; 5] = [
     "res/mipmap-mdpi-v4/ic_launcher.png",
     "res/mipmap-hdpi-v4/ic_launcher.png",
@@ -203,7 +205,7 @@ impl AndroidProcessQuery {
             return package_map;
         }
 
-        let regex = match Regex::new(r"/data/app(?:/[^/]+)?/(?P<package_name>[a-zA-Z0-9_.]+)-[^/]+/") {
+        let regex = match BytesRegex::new(r"/data/app(?:/[^/]+)?/(?P<package_name>[a-zA-Z0-9_.]+)-[^/]+/") {
             Ok(regex) => regex,
             Err(error) => {
                 log::error!("Failed to compile regex: {}", error);
@@ -223,6 +225,63 @@ impl AndroidProcessQuery {
         }
 
         package_map
+    }
+
+    fn parse_visible_windowed_packages_from_dumpsys_output(dumpsys_output: &str) -> HashSet<String> {
+        let package_name_regex = match Regex::new(PACKAGE_ACTIVITY_PATTERN) {
+            Ok(package_name_regex) => package_name_regex,
+            Err(error) => {
+                log::error!("Failed to compile visible package regex: {}", error);
+                return HashSet::new();
+            }
+        };
+        let mut visible_windowed_packages = HashSet::new();
+
+        for regex_capture in package_name_regex.captures_iter(dumpsys_output) {
+            let package_name = regex_capture
+                .name("package_name")
+                .map(|package_name_match| package_name_match.as_str().trim().to_string())
+                .unwrap_or_default();
+            if package_name.is_empty() {
+                continue;
+            }
+
+            visible_windowed_packages.insert(package_name);
+        }
+
+        visible_windowed_packages
+    }
+
+    fn query_visible_windowed_packages() -> HashSet<String> {
+        let dumpsys_argument_sets = [
+            vec!["window", "visible-apps"],
+            vec!["window", "windows"],
+            vec!["activity", "activities"],
+        ];
+
+        for dumpsys_arguments in dumpsys_argument_sets {
+            let dumpsys_output = match Command::new("dumpsys").args(&dumpsys_arguments).output() {
+                Ok(command_output) => command_output,
+                Err(error) => {
+                    log::warn!("Failed running dumpsys {}: {}", dumpsys_arguments.join(" "), error);
+                    continue;
+                }
+            };
+
+            if !dumpsys_output.status.success() {
+                let stderr_output = String::from_utf8_lossy(&dumpsys_output.stderr);
+                log::warn!("dumpsys {} returned non-zero status: {}", dumpsys_arguments.join(" "), stderr_output.trim());
+                continue;
+            }
+
+            let stdout_output = String::from_utf8_lossy(&dumpsys_output.stdout);
+            let visible_windowed_packages = Self::parse_visible_windowed_packages_from_dumpsys_output(&stdout_output);
+            if !visible_windowed_packages.is_empty() {
+                return visible_windowed_packages;
+            }
+        }
+
+        HashSet::new()
     }
 
     fn parse_installed_package_paths() -> HashMap<String, String> {
@@ -454,6 +513,7 @@ impl ProcessQueryer for AndroidProcessQuery {
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
         let package_paths = Self::parse_installed_package_paths();
         let (all_processes, zygote_processes) = Self::get_live_process_maps();
+        let visible_windowed_packages = Self::query_visible_windowed_packages();
         let mut results = Vec::new();
 
         for android_process_info in all_processes.values() {
@@ -464,7 +524,13 @@ impl ProcessQueryer for AndroidProcessQuery {
             let is_windowed = apk_path.is_some()
                 && Self::has_zygote_ancestor(android_process_info.process_id, &all_processes, &zygote_processes)
                 && Self::is_user_app(android_process_info.process_id)
-                && android_process_info.is_primary_package_process;
+                && android_process_info.is_primary_package_process
+                && (visible_windowed_packages.is_empty()
+                    || android_process_info
+                        .package_name
+                        .as_ref()
+                        .map(|package_name| visible_windowed_packages.contains(package_name))
+                        .unwrap_or(false));
 
             let icon = if options.fetch_icons {
                 if let Some(apk_path) = apk_path.as_deref() {
@@ -686,5 +752,35 @@ mod tests {
         let zygote_processes = HashMap::new();
 
         assert!(!AndroidProcessQuery::has_zygote_ancestor(700, &all_processes, &zygote_processes));
+    }
+
+    #[test]
+    fn parse_visible_windowed_packages_from_dumpsys_output_extracts_activity_packages() {
+        let dumpsys_output = r#"
+            mCurrentFocus=Window{43a9d73 u0 com.google.android.youtube/com.google.android.apps.youtube.app.WatchWhileActivity}
+            mFocusedApp=ActivityRecord{f5238f4 u0 com.android.vending/com.google.android.finsky.activities.MainActivity t312}
+            topResumedActivity=ActivityRecord{2d99f4f u0 com.google.android.calendar/com.android.calendar.homepage.AllInOneActivity t103}
+            ResumedActivity: ActivityRecord{34fda9e u0 com.google.android.apps.photos/com.google.android.apps.photos.home.HomeActivity t301}
+        "#;
+
+        let visible_windowed_packages = AndroidProcessQuery::parse_visible_windowed_packages_from_dumpsys_output(dumpsys_output);
+
+        assert!(visible_windowed_packages.contains("com.google.android.youtube"));
+        assert!(visible_windowed_packages.contains("com.android.vending"));
+        assert!(visible_windowed_packages.contains("com.google.android.calendar"));
+        assert!(visible_windowed_packages.contains("com.google.android.apps.photos"));
+    }
+
+    #[test]
+    fn parse_visible_windowed_packages_from_dumpsys_output_ignores_lines_without_package_activity_pairs() {
+        let dumpsys_output = r#"
+            Window #0 Window{32f44d u0 NotificationShade}
+            no package separator here
+            another unrelated line
+        "#;
+
+        let visible_windowed_packages = AndroidProcessQuery::parse_visible_windowed_packages_from_dumpsys_output(dumpsys_output);
+
+        assert!(visible_windowed_packages.is_empty());
     }
 }

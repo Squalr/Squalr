@@ -28,6 +28,7 @@ Our current task, from `README.md`, is:
         - (maybe squalr if its running)
     - These are the only fucking windowed processes running. Do not cross this off the list if your sample is still returning a bunch of fuckign garbage
     - Added `verify_android_windowed_processes.py` to run rooted `squalr-cli process list -w` checks with strict expected/optional name-pattern validation; still needs on-device execution + verification.
+    - Added engine-side visible-window intersection using `dumpsys` (`window visible-apps` -> `window windows` -> `activity activities`) so `is_windowed` now requires both existing heuristics and package visibility when dumpsys data is available; still needs on-device verification.
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -57,3 +58,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Session revalidation (2026-02-22 11:14 -08:00) passed again from a clean tree: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; existing warnings remain unchanged.
 - Current status (2026-02-22): work is blocked only on on-device visual verification of Android GUI process dropdown scrolling and row quality.
 - Added on-device verification helper script `verify_android_windowed_processes.py` (2026-02-22) with optional deploy (`--deploy`) and strict allowlist validation for expected user-facing apps.
+- Android engine windowed classification now intersects with visible package names parsed from `dumpsys` output (`squalr-engine-operating-system/src/process_query/android/android_process_query.rs`), with safe fallback to prior heuristics when dumpsys visibility cannot be parsed.
+- Added parser unit tests for visible package extraction from representative `dumpsys` activity/window lines in `squalr-engine-operating-system/src/process_query/android/android_process_query.rs`; these tests are target-gated with the Android module and require Android-target test execution to run.
+- Session validation (2026-02-22) passed: `cargo fmt --all`, `cargo check -p squalr-engine-operating-system --locked`, and `cargo test -p squalr-engine-operating-system --locked` (host-target tests only).
