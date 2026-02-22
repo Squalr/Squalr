@@ -102,6 +102,7 @@ Prerequisites:
 
 Then run one of these from the workspace root:
 - `python ./squalr-android/build_and_deploy.py` (optionally, pass --debug or --release for non-interactive build)
+- To launch an already-installed APK without rebuilding: `python ./squalr-android/run_apk.py`
 
 Notes:
 - The deploy script builds the Android worker, builds + installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, and verifies launch with `su -c '/data/local/tmp/squalr-cli --help'`.
