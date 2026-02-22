@@ -17,12 +17,8 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
-- Need human verification: visually confirm on-device Android GUI process dropdown renders more than two useful rows and opens expected target apps after new multi-source fallback in:
-  - `squalr/src/views/process_selector/view_data/process_selector_view_data.rs`.
-  - `squalr/src/views/main_window/main_shortcut_bar_view.rs`.
-  - Shortcut dropdown now precomputes fallback candidates from full process-list data when windowed results are too sparse.
-  - Shortcut refresh now requests both windowed and full process lists so fallback data is available in-session.
-  - Previous attempt failed before this change: dropdown showed 2 random/non-windowed rows (example: `com.google.android.euic`).
+- Need human verification: validate Android GUI process dropdown scroll interaction on-device after latest scroll-area behavior change.
+- Need human verification: validate Android GUI process dropdown now favors true windowed/user-facing entries and no longer floods with background processes.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -32,7 +28,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android package-path lookup fallback order is `/data/app` -> `packages.xml` -> `pm list packages -f`.
 - Added Android unit tests for primary-process classification, zygote-ancestor lineage detection, cycle safety, package-manager parser coverage, and zygote-name variants (`android_process_query.rs`).
 - Added process dropdown UX updates: vertical scroll area plus clipped/truncated long process names for combo-box rows.
-- Process dropdown rendering now uses conditional scroll behavior: render direct rows when result count is small, otherwise enable capped-height scroll area (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
+- Process dropdown rendering now always uses a capped-height vertical scroll area in the shortcut-bar combo popup to keep scrolling behavior consistent (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
 - Windowed process lists are now defensively normalized in GUI view-data before rendering: enforce `is_windowed == true` and sort deterministically by case-insensitive name then PID (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
 - Main shortcut bar dropdown scroll area now salts its state with a per-refresh nonce to avoid stale scroll offsets reopening at trailing rows (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
 - Added GUI unit tests for windowed-process normalization behavior (filter non-windowed entries + deterministic ordering) in `squalr/src/views/process_selector/view_data/process_selector_view_data.rs`.
@@ -47,8 +43,9 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `cargo check -p squalr --locked` still reports existing GUI unused-variable/unreachable-pattern warnings, with no new failures.
 - Direct `cargo check -p squalr --target aarch64-linux-android --locked` may fail in this environment due `aarch64-linux-android-clang` pathing for `ring`; use `cargo ndk` / deploy script paths for Android validation.
 - Lockfile regeneration is currently blocked in this environment by yanked crate requirement `zip = "^7.4.0"` from `squalr-engine`.
-- GUI process-list normalization now has a fallback path: if strict windowed filtering returns <=2 entries from a larger response (>=8), the dropdown uses deterministic unfiltered sorting to avoid tiny/incorrect dropdowns caused by unreliable `is_windowed` metadata (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
+- GUI process-list normalization fallback no longer broadens to unfiltered full-list sorting; when strict windowed count is tiny, fallback is limited to primary package candidates only (`name` contains `.` and not `:`) (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
 - Current session validation (2026-02-22): `cargo fmt --all` and `cargo test -p squalr process_selector_view_data --locked` passed; existing warnings remain pre-existing.
-- Shortcut-bar dropdown now consumes a precomputed fallback list that prefers full-list primary package processes (`name` has `.` and no `:`) when windowed results are fewer than 3; falls back to sorted full list if needed (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`, `squalr/src/views/main_window/main_shortcut_bar_view.rs`).
+- Shortcut-bar dropdown candidate selection now prefers strict windowed results whenever non-empty; only when empty does it fall back to primary package candidates, and it no longer falls back to the full process list (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
 - Shortcut-bar loading state now only shows spinner when no dropdown rows exist yet; stale rows remain visible during refresh (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
 - Current session validation (2026-02-22, latest): `cargo fmt --all`, `cargo test -p squalr process_selector_view_data --locked`, and `cargo check -p squalr --locked` passed; warnings remain pre-existing and unchanged.
+- Added/updated GUI unit tests for new fallback behavior in `ProcessSelectorViewData`: primary-package fallback for tiny strict windowed responses, strict-windowed precedence when available, and empty-result behavior when no valid fallback candidates exist (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).

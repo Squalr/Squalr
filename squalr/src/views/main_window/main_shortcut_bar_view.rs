@@ -111,10 +111,7 @@ impl Widget for MainShortcutBarView {
                 let show_loading_spinner = process_selector_view_data.is_awaiting_windowed_process_list && shortcut_dropdown_processes.is_empty();
 
                 if !show_loading_spinner {
-                    let row_height = 28.0_f32;
                     let max_dropdown_height = 280.0_f32;
-                    let visible_row_limit = (max_dropdown_height / row_height).floor() as usize;
-                    let should_use_scroll_area = shortcut_dropdown_processes.len() > visible_row_limit;
 
                     let mut render_process_rows = |inner_user_interface: &mut Ui| {
                         for shortcut_dropdown_process in shortcut_dropdown_processes {
@@ -140,20 +137,16 @@ impl Widget for MainShortcutBarView {
                         }
                     };
 
-                    if should_use_scroll_area {
-                        ScrollArea::vertical()
-                            .id_salt((
-                                "main_shortcut_bar_process_select_dropdown_scroll",
-                                process_selector_view_data.shortcut_dropdown_refresh_nonce,
-                            ))
-                            .max_height(max_dropdown_height)
-                            .auto_shrink([false, false])
-                            .show(user_interface, |inner_user_interface| {
-                                render_process_rows(inner_user_interface);
-                            });
-                    } else {
-                        render_process_rows(user_interface);
-                    }
+                    ScrollArea::vertical()
+                        .id_salt((
+                            "main_shortcut_bar_process_select_dropdown_scroll",
+                            process_selector_view_data.shortcut_dropdown_refresh_nonce,
+                        ))
+                        .max_height(max_dropdown_height)
+                        .auto_shrink([false, false])
+                        .show(user_interface, |inner_user_interface| {
+                            render_process_rows(inner_user_interface);
+                        });
 
                     if *should_close {
                         return;
