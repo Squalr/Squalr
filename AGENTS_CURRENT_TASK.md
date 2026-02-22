@@ -5,12 +5,15 @@ Our current task, from `README.md`, is:
 # Notes from Owner (Readonly Section)
 - Assume any unstaged file changes are from a previous iteration, and can be kept if they look good
 - The android device is rooted.
+- You don't get to declare things as fixed. Only "need human verification".
+- Keep .idea/ in gitignore you keep fucking this up. The goal is not to undo ALL changes from main. We want good changes. The goal is to eliminate stupid and speculative changes. Formatting is fine. Gitignore was fine.
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
+- Windowed process list still 100% fails. The point is, very obviously, to find processes with a genuine zygote backing, that are running as real apps on android. This does not work.
 - Continue pruning `pr/android-fixes` diff vs `main` by removing remaining non-Android churn where not required (lockfile/workspace task noise still pending review).
-- Audit GUI project against TUI for functionality gaps now that Android process selector regressions are fixed.
+    - Keep .idea reverted...
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
