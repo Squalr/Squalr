@@ -9,7 +9,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Run rooted-device validation once on a host with Android SDK/NDK env vars + connected rooted device, then capture successful smoke output (install + launch + privileged worker check). Blocked on this host: `ANDROID_NDK_ROOT` is unset and no rooted device is attached; latest local attempt (2026-02-22) still exits preflight with `ANDROID_NDK_ROOT is not set.`.
-- Clean up squalr-android once all scripts and logic are 100% migrated out and accounted for
+- Audit remaining `squalr-android` helper scripts and remove or modernize any legacy debug-only tooling that is no longer aligned with current deploy flow.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -29,7 +29,8 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `squalr` now exposes shared GUI bootstrap entrypoints (`run_gui`, `run_gui_android`), and `squalr-android` is a thin Android launcher wrapper calling that shared startup path.
 - `squalr-android/src/lib.rs` no longer references Slint APIs and no longer uses panic-based startup; startup failures are logged.
 - Removed obsolete Android CLI bundling bootstrap from `squalr-android` (`build.rs` deleted, legacy unpack flow removed).
-- Android privileged worker runtime path is now standardized to `/data/local/tmp/squalr-cli` in both engine spawn (`interprocess_engine_api_unprivileged_bindings.rs`) and `debug_run_privilged_shell.py`.
+- Android privileged worker runtime path is now standardized to `/data/local/tmp/squalr-cli` in both engine spawn (`interprocess_engine_api_unprivileged_bindings.rs`) and Android helper scripts.
+- Script cleanup (2026-02-22): removed misspelled legacy helper `debug_run_privilged_shell.py` and replaced it with `debug_run_privileged_shell.py` that runs `adb shell su -c <cli> --ipc-mode` without `shell=True`.
 - Local Android target checks currently fail before crate-level validation due to missing NDK toolchain wiring (`aarch64-linux-android-clang`/sysroot headers like `assert.h`), so preflight toolchain verification should be explicit in docs/scripts.
 - `squalr-android/build_and_deploy.py` now performs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, Rust Android target, `aarch64-linux-android-clang`, cargo-ndk/cargo-apk presence), runs `cargo ndk ... -p squalr-cli`, runs `cargo apk build --lib`, and in smoke mode performs install + app launch + privileged worker process validation.
 - Added non-device automation path: `python ./squalr-android/build_and_deploy.py --compile-check` for preflight + Android compile validation without adb deployment.
