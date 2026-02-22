@@ -30,6 +30,7 @@ const ICON_PATHS: [&str; 5] = [
     "res/mipmap-mdpi/ic_launcher.png",
     "res/mipmap-hdpi/ic_launcher.png",
 ];
+const SUPPORTED_ICON_EXTENSIONS: [&str; 4] = ["png", "webp", "jpg", "jpeg"];
 
 pub struct AndroidProcessQuery {}
 
@@ -365,26 +366,142 @@ impl AndroidProcessQuery {
         let file = File::open(apk_path).ok()?;
         let mut archive = ZipArchive::new(file).ok()?;
 
+        // Fast path for older launcher resource layouts.
         for icon_path in ICON_PATHS {
             if let Ok(mut icon_file) = archive.by_name(icon_path) {
                 let mut icon_data = vec![];
                 if icon_file.read_to_end(&mut icon_data).is_ok() {
-                    let reader = ImageReader::new(Cursor::new(icon_data))
-                        .with_guessed_format()
-                        .ok()?;
+                    if let Some(process_icon) = Self::decode_process_icon(icon_data) {
+                        return Some(process_icon);
+                    }
+                }
+            }
+        }
 
-                    if let Ok(image) = reader.decode() {
-                        let rgba_image = image.to_rgba8();
-                        let (width, height) = rgba_image.dimensions();
-                        let bytes_rgba = rgba_image.into_raw();
+        // Modern APKs often use non-ic_launcher names and WEBP density variants.
+        let mut scored_icon_paths = Self::collect_scored_icon_paths(&mut archive);
+        scored_icon_paths.sort_by(|left_entry, right_entry| {
+            right_entry
+                .0
+                .cmp(&left_entry.0)
+                .then_with(|| left_entry.1.cmp(&right_entry.1))
+        });
 
-                        return Some(ProcessIcon::new(bytes_rgba, width, height));
+        for (_, icon_path) in scored_icon_paths {
+            if let Ok(mut icon_file) = archive.by_name(&icon_path) {
+                let mut icon_data = vec![];
+                if icon_file.read_to_end(&mut icon_data).is_ok() {
+                    if let Some(process_icon) = Self::decode_process_icon(icon_data) {
+                        return Some(process_icon);
                     }
                 }
             }
         }
 
         None
+    }
+
+    fn decode_process_icon(icon_data: Vec<u8>) -> Option<ProcessIcon> {
+        let image_reader = ImageReader::new(Cursor::new(icon_data))
+            .with_guessed_format()
+            .ok()?;
+        let decoded_image = image_reader.decode().ok()?;
+        let rgba_image = decoded_image.to_rgba8();
+        let (icon_width, icon_height) = rgba_image.dimensions();
+        let icon_bytes_rgba = rgba_image.into_raw();
+
+        Some(ProcessIcon::new(icon_bytes_rgba, icon_width, icon_height))
+    }
+
+    fn collect_scored_icon_paths(archive: &mut ZipArchive<File>) -> Vec<(i32, String)> {
+        let mut scored_icon_paths = Vec::new();
+
+        for archive_entry_index in 0..archive.len() {
+            let archive_entry_name = {
+                let archive_entry = match archive.by_index(archive_entry_index) {
+                    Ok(archive_entry) => archive_entry,
+                    Err(_) => continue,
+                };
+                archive_entry.name().to_string()
+            };
+
+            if let Some(icon_score) = Self::score_icon_archive_entry(&archive_entry_name) {
+                scored_icon_paths.push((icon_score, archive_entry_name));
+            }
+        }
+
+        scored_icon_paths
+    }
+
+    fn score_icon_archive_entry(archive_entry_name: &str) -> Option<i32> {
+        let normalized_archive_entry_name = archive_entry_name.to_ascii_lowercase();
+
+        if !normalized_archive_entry_name.starts_with("res/") {
+            return None;
+        }
+
+        if !(normalized_archive_entry_name.contains("/mipmap") || normalized_archive_entry_name.contains("/drawable")) {
+            return None;
+        }
+
+        let icon_extension = Path::new(&normalized_archive_entry_name)
+            .extension()
+            .and_then(|icon_extension| icon_extension.to_str())?;
+        if !Self::is_supported_icon_extension(icon_extension) {
+            return None;
+        }
+
+        let mut icon_score = 0;
+
+        if normalized_archive_entry_name.contains("/mipmap") {
+            icon_score += 150;
+        }
+
+        if normalized_archive_entry_name.contains("ic_launcher") {
+            icon_score += 250;
+        }
+        if normalized_archive_entry_name.contains("launcher") {
+            icon_score += 150;
+        }
+        if normalized_archive_entry_name.contains("app_icon") {
+            icon_score += 125;
+        }
+        if normalized_archive_entry_name.contains("icon") {
+            icon_score += 50;
+        }
+        if normalized_archive_entry_name.contains("foreground") || normalized_archive_entry_name.contains("background") {
+            icon_score -= 80;
+        }
+
+        if normalized_archive_entry_name.contains("xxxhdpi") {
+            icon_score += 90;
+        } else if normalized_archive_entry_name.contains("xxhdpi") {
+            icon_score += 80;
+        } else if normalized_archive_entry_name.contains("xhdpi") {
+            icon_score += 70;
+        } else if normalized_archive_entry_name.contains("hdpi") {
+            icon_score += 60;
+        } else if normalized_archive_entry_name.contains("mdpi") {
+            icon_score += 50;
+        } else if normalized_archive_entry_name.contains("ldpi") {
+            icon_score += 40;
+        } else if normalized_archive_entry_name.contains("anydpi") {
+            icon_score += 25;
+        }
+
+        if icon_extension == "png" {
+            icon_score += 15;
+        } else if icon_extension == "webp" {
+            icon_score += 10;
+        }
+
+        Some(icon_score)
+    }
+
+    fn is_supported_icon_extension(icon_extension: &str) -> bool {
+        SUPPORTED_ICON_EXTENSIONS
+            .iter()
+            .any(|supported_icon_extension| supported_icon_extension.eq_ignore_ascii_case(icon_extension))
     }
 
     fn get_live_process_maps() -> (HashMap<u32, AndroidProcessInfo>, HashMap<u32, AndroidProcessInfo>) {
@@ -782,5 +899,29 @@ mod tests {
         let visible_windowed_packages = AndroidProcessQuery::parse_visible_windowed_packages_from_dumpsys_output(dumpsys_output);
 
         assert!(visible_windowed_packages.is_empty());
+    }
+
+    #[test]
+    fn score_icon_archive_entry_rejects_non_resource_files() {
+        let archive_entry_score = AndroidProcessQuery::score_icon_archive_entry("assets/splash.png");
+
+        assert!(archive_entry_score.is_none());
+    }
+
+    #[test]
+    fn score_icon_archive_entry_rejects_unsupported_extensions() {
+        let archive_entry_score = AndroidProcessQuery::score_icon_archive_entry("res/mipmap-xxhdpi-v4/ic_launcher.xml");
+
+        assert!(archive_entry_score.is_none());
+    }
+
+    #[test]
+    fn score_icon_archive_entry_prefers_launcher_mipmap_icons_over_generic_drawables() {
+        let launcher_icon_score =
+            AndroidProcessQuery::score_icon_archive_entry("res/mipmap-xxhdpi-v4/ic_launcher.webp").expect("launcher icon should produce a score");
+        let generic_drawable_score =
+            AndroidProcessQuery::score_icon_archive_entry("res/drawable-xhdpi-v4/status_badge.png").expect("drawable image should produce a score");
+
+        assert!(launcher_icon_score > generic_drawable_score);
     }
 }
