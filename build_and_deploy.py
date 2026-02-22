@@ -12,6 +12,11 @@ CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
 PACKAGE_NAME = "com.squalr.android"
 MAIN_ACTIVITY_NAME = "android.app.NativeActivity"
 ANDROID_MANIFEST_CRATE_NAME = "squalr"
+SU_INVOCATION_ATTEMPTS = [
+    ("su -c", ["su", "-c"]),
+    ("su 0 sh -c", ["su", "0", "sh", "-c"]),
+    ("su root sh -c", ["su", "root", "sh", "-c"]),
+]
 
 
 def run_command(command_segments, working_directory):
@@ -37,6 +42,20 @@ def run_command(command_segments, working_directory):
 def fail(message):
     print(message)
     sys.exit(1)
+
+
+def run_su_command_with_fallback(workspace_directory, shell_command, action_label):
+    for su_invocation_label, su_invocation_prefix in SU_INVOCATION_ATTEMPTS:
+        command_segments = ["adb", "shell", *su_invocation_prefix, shell_command]
+        exit_code, _ = run_command(command_segments, workspace_directory)
+        if exit_code == 0:
+            print(f"Succeeded: {action_label} via {su_invocation_label}")
+            return
+
+    fail(
+        f"Failed to {action_label} with all su invocation attempts: "
+        + ", ".join(invocation_label for invocation_label, _ in SU_INVOCATION_ATTEMPTS)
+    )
 
 
 def command_exists(command_name):
@@ -187,15 +206,16 @@ def deploy_privileged_worker(workspace_directory, worker_profile):
     if exit_code != 0:
         fail("Failed to push privileged worker to device.")
 
-    chmod_command = ["adb", "shell", f"su -c 'chmod +x {CLI_DEVICE_PATH}'"]
-    exit_code, _ = run_command(chmod_command, workspace_directory)
-    if exit_code != 0:
-        fail("Failed to mark privileged worker as executable via su.")
-
-    verify_command = ["adb", "shell", f"su -c '{CLI_DEVICE_PATH} --help'"]
-    exit_code, _ = run_command(verify_command, workspace_directory)
-    if exit_code != 0:
-        fail("Failed to verify privileged worker launch via su.")
+    run_su_command_with_fallback(
+        workspace_directory,
+        f"chmod +x {CLI_DEVICE_PATH}",
+        "mark privileged worker as executable",
+    )
+    run_su_command_with_fallback(
+        workspace_directory,
+        f"{CLI_DEVICE_PATH} --help",
+        "verify privileged worker launch",
+    )
 
 
 def resolve_launch_activity(workspace_directory):
@@ -362,12 +382,13 @@ def collect_launch_diagnostics(workspace_directory, launch_log_seconds, launch_l
 
 def verify_ipc_handshake(workspace_directory):
     print("\nWaiting for privileged worker IPC shell to come online...")
-    for _poll_index in range(12):
-        poll_command = ["adb", "shell", "su -c 'pidof squalr-cli'"]
-        exit_code, output_text = run_command(poll_command, workspace_directory)
-        if exit_code == 0 and output_text.strip():
-            print("Detected running privileged worker process.")
-            return
+    for _handshake_poll_attempt in range(12):
+        for _su_invocation_label, su_invocation_prefix in SU_INVOCATION_ATTEMPTS:
+            poll_command = ["adb", "shell", *su_invocation_prefix, "pidof squalr-cli"]
+            exit_code, output_text = run_command(poll_command, workspace_directory)
+            if exit_code == 0 and output_text.strip():
+                print("Detected running privileged worker process.")
+                return
         time.sleep(1)
 
     fail("Privileged worker IPC handshake check failed: no running `squalr-cli` process was detected after launch.")
