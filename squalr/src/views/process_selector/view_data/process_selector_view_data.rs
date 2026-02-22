@@ -38,6 +38,7 @@ impl ProcessSelectorViewData {
     const REQUEST_STALE_TIMEOUT: Duration = Duration::from_secs(3);
     const WINDOWED_FALLBACK_MIN_TOTAL_PROCESS_COUNT: usize = 8;
     const WINDOWED_FALLBACK_MAX_STRICT_RESULT_COUNT: usize = 2;
+    const IS_ANDROID_TARGET: bool = cfg!(target_os = "android");
 
     pub fn new() -> Self {
         Self {
@@ -383,6 +384,10 @@ impl ProcessSelectorViewData {
     fn normalize_windowed_processes_with_fallback(processes: Vec<ProcessInfo>) -> Vec<ProcessInfo> {
         let total_process_count = processes.len();
         let normalized_windowed_processes = Self::normalize_windowed_processes(processes.clone());
+        if !Self::IS_ANDROID_TARGET {
+            return normalized_windowed_processes;
+        }
+
         let strict_result_count = normalized_windowed_processes.len();
         let should_use_fallback =
             total_process_count >= Self::WINDOWED_FALLBACK_MIN_TOTAL_PROCESS_COUNT && strict_result_count <= Self::WINDOWED_FALLBACK_MAX_STRICT_RESULT_COUNT;
@@ -484,6 +489,10 @@ impl ProcessSelectorViewData {
     ) -> Vec<ProcessInfo> {
         if !windowed_processes.is_empty() {
             return windowed_processes.to_vec();
+        }
+
+        if !Self::IS_ANDROID_TARGET {
+            return Vec::new();
         }
 
         if full_processes.is_empty() {
@@ -650,8 +659,13 @@ mod tests {
             .map(|process_info| process_info.get_process_id_raw())
             .collect();
 
-        assert_eq!(normalized_processes.len(), 4);
-        assert_eq!(ordered_process_ids, vec![70, 80, 90, 50]);
+        if ProcessSelectorViewData::IS_ANDROID_TARGET {
+            assert_eq!(normalized_processes.len(), 4);
+            assert_eq!(ordered_process_ids, vec![70, 80, 90, 50]);
+        } else {
+            assert_eq!(normalized_processes.len(), 2);
+            assert_eq!(ordered_process_ids, vec![10, 20]);
+        }
     }
 
     #[test]
@@ -707,7 +721,11 @@ mod tests {
             .map(|process_info| process_info.get_process_id_raw())
             .collect();
 
-        assert_eq!(ordered_process_ids, vec![20, 10]);
+        if ProcessSelectorViewData::IS_ANDROID_TARGET {
+            assert_eq!(ordered_process_ids, vec![20, 10]);
+        } else {
+            assert!(ordered_process_ids.is_empty());
+        }
     }
 
     #[test]

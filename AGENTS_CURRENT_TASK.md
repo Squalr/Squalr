@@ -18,6 +18,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Need human verification: Validate non-Android GUI boot on a clean desktop environment after Android support changes, confirming startup no longer crashes during update/version check.
+- Need human verification: Validate desktop GUI process selector in `Windowed` mode only shows true windowed processes (no broad non-windowed `.exe` leakage) after Android fallback gating changes.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -26,3 +27,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Mitigation implemented: added `AppProvisionerHttpClient` to create a configured `ureq` agent with target-specific TLS provider (`NativeTls` on non-Android, `Rustls` on Android), and routed version-check/download HTTP calls through it.
 - Local verification: `cargo run -p squalr` no longer panics at boot; update check completes over HTTPS with `ureq::tls::native_tls` logs.
 - Note: `cargo test -p squalr-engine` has one environment-specific failure in `squalr_engine::tests::privileged_shell_does_not_create_unprivileged_state` due named pipe access denied on this host.
+- Root cause for windowed-process regression on desktop: Android fallback in `ProcessSelectorViewData::normalize_windowed_processes_with_fallback` and shortcut fallback was unconditional; on Windows, many non-windowed process names match the fallback heuristic (`contains('.') && !contains(':')`), polluting the windowed list.
+- Mitigation implemented: gated both fallbacks to Android only (`cfg!(target_os = "android")` via `IS_ANDROID_TARGET`), so non-Android windowed mode now uses strict `get_is_windowed()` filtering.
+- Local verification: `cargo test -p squalr process_selector_view_data --locked` passes with platform-conditional assertions for fallback behavior.
