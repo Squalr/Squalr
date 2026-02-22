@@ -4,4 +4,5 @@ pub struct AndroidProcessInfo {
     pub parent_process_id: u32,
     pub process_name: String,
     pub package_name: Option<String>,
+    pub is_primary_package_process: bool,
 }

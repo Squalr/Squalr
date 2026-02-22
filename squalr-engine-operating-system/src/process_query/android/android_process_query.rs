@@ -83,6 +83,16 @@ impl AndroidProcessQuery {
         Some(package_name_candidate.to_string())
     }
 
+    fn is_primary_package_process(
+        cmdline_process_name: Option<&str>,
+        package_name: Option<&str>,
+    ) -> bool {
+        match (cmdline_process_name, package_name) {
+            (Some(cmdline_process_name), Some(package_name)) => cmdline_process_name == package_name,
+            _ => false,
+        }
+    }
+
     /// Checks if a process belongs to a user app (UID >= 10000).
     fn is_user_app(process_id: u32) -> bool {
         let status_path = format!("/proc/{}/status", process_id);
@@ -277,6 +287,7 @@ impl AndroidProcessQuery {
                             let package_name = cmdline_process_name
                                 .as_deref()
                                 .and_then(Self::extract_package_name);
+                            let is_primary_package_process = Self::is_primary_package_process(cmdline_process_name.as_deref(), package_name.as_deref());
                             let mut parent_process_id = 0;
 
                             let stat_path = format!("/proc/{}/stat", process_id);
@@ -294,6 +305,7 @@ impl AndroidProcessQuery {
                                 parent_process_id,
                                 process_name: process_name.clone(),
                                 package_name: package_name.clone(),
+                                is_primary_package_process,
                             };
 
                             all_processes.insert(process_id, process_info.clone());
@@ -350,7 +362,8 @@ impl ProcessQueryer for AndroidProcessQuery {
                 .and_then(|package_name| Self::get_apk_path(package_name, &package_paths));
             let is_windowed = apk_path.is_some()
                 && zygote_processes.contains_key(&android_process_info.parent_process_id)
-                && Self::is_user_app(android_process_info.process_id);
+                && Self::is_user_app(android_process_info.process_id)
+                && android_process_info.is_primary_package_process;
 
             let icon = if options.fetch_icons {
                 if let Some(apk_path) = apk_path.as_deref() {
@@ -429,5 +442,19 @@ mod tests {
         let package_name = AndroidProcessQuery::extract_package_name_from_apk_directory("not_a_package_name");
 
         assert!(package_name.is_none());
+    }
+
+    #[test]
+    fn primary_package_process_requires_exact_cmdline_package_match() {
+        let is_primary_package_process = AndroidProcessQuery::is_primary_package_process(Some("com.squalr.android"), Some("com.squalr.android"));
+
+        assert!(is_primary_package_process);
+    }
+
+    #[test]
+    fn primary_package_process_rejects_colon_suffixed_processes() {
+        let is_primary_package_process = AndroidProcessQuery::is_primary_package_process(Some("com.squalr.android:worker"), Some("com.squalr.android"));
+
+        assert!(!is_primary_package_process);
     }
 }
