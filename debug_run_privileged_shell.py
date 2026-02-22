@@ -1,6 +1,7 @@
 import argparse
 import subprocess
 import sys
+import time
 
 
 DEFAULT_CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
@@ -37,7 +38,7 @@ def run_su_command_with_fallback(shell_command, action_label):
         exit_code, _ = run_command(["adb", "shell", *su_invocation_prefix, shell_command])
         if exit_code == 0:
             print(f"Succeeded: {action_label} via {su_invocation_label}")
-            return
+            return su_invocation_label
 
     fail(
         f"Failed to {action_label} with all su invocation attempts: "
@@ -67,7 +68,31 @@ def ensure_cli_exists(cli_device_path):
     )
 
 
-def run_adb_shell(cli_device_path):
+def find_worker_pid():
+    for su_invocation_label, su_invocation_prefix in SU_INVOCATION_ATTEMPTS:
+        exit_code, output_text = run_command(["adb", "shell", *su_invocation_prefix, "pidof squalr-cli"])
+        worker_process_identifier = output_text.strip()
+        if exit_code == 0 and worker_process_identifier:
+            print(f"Detected running worker pid(s) via {su_invocation_label}: {worker_process_identifier}")
+            return worker_process_identifier, su_invocation_label
+
+    return None, None
+
+
+def kill_existing_worker_if_present():
+    existing_worker_identifier, existing_worker_invocation = find_worker_pid()
+    if existing_worker_identifier is None:
+        print("No existing squalr-cli worker process detected before launch.")
+        return
+
+    run_su_command_with_fallback("pkill -f squalr-cli", "terminate pre-existing squalr-cli worker")
+    print(
+        "Terminated pre-existing worker process before diagnostics "
+        f"(detected via {existing_worker_invocation})."
+    )
+
+
+def run_adb_shell_with_pid_polling(cli_device_path, launch_poll_seconds):
     for su_invocation_label, su_invocation_prefix in SU_INVOCATION_ATTEMPTS:
         command_segments = ["adb", "shell", *su_invocation_prefix, f"{cli_device_path} --ipc-mode"]
         command_display = " ".join(command_segments)
@@ -79,13 +104,33 @@ def run_adb_shell(cli_device_path):
             stderr=None,
             text=True,
         )
-        process.wait()
+        launch_deadline = time.time() + launch_poll_seconds
 
-        if process.returncode == 0:
-            print(f"Privileged worker shell exited successfully via {su_invocation_label}.")
-            return 0
+        while time.time() < launch_deadline:
+            worker_process_identifier, worker_poll_invocation = find_worker_pid()
+            if worker_process_identifier:
+                print(
+                    "Succeeded: launch privileged worker process "
+                    f"via {su_invocation_label}; pid poll succeeded via {worker_poll_invocation}."
+                )
+                process.terminate()
+                process.wait(timeout=5)
+                return 0
 
-        print(f"Invocation failed via {su_invocation_label} with exit code {process.returncode}.")
+            process_exit_code = process.poll()
+            if process_exit_code is not None:
+                print(f"Invocation failed via {su_invocation_label} with exit code {process_exit_code}.")
+                break
+
+            time.sleep(1)
+
+        if process.poll() is None:
+            print(
+                f"No worker pid detected within {launch_poll_seconds} second(s) via {su_invocation_label}; "
+                "terminating this launch attempt."
+            )
+            process.terminate()
+            process.wait(timeout=5)
 
     return 1
 
@@ -99,13 +144,20 @@ def main():
         default=DEFAULT_CLI_DEVICE_PATH,
         help="Device path to the squalr-cli binary.",
     )
+    argument_parser.add_argument(
+        "--launch-poll-seconds",
+        type=int,
+        default=10,
+        help="Seconds to wait for worker pid detection after each launch attempt.",
+    )
     parsed_arguments = argument_parser.parse_args()
 
     ensure_device_connected()
     ensure_su_available()
     ensure_cli_exists(parsed_arguments.cli_path)
+    kill_existing_worker_if_present()
 
-    exit_code = run_adb_shell(parsed_arguments.cli_path)
+    exit_code = run_adb_shell_with_pid_polling(parsed_arguments.cli_path, parsed_arguments.launch_poll_seconds)
     if exit_code != 0:
         print(f"Privileged shell exited with code {exit_code}.", file=sys.stderr)
         sys.exit(exit_code)

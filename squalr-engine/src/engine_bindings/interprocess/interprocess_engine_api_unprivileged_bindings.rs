@@ -179,25 +179,38 @@ impl InterprocessEngineApiUnprivilegedBindings {
         event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
         ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
     ) {
-        let request_handles = request_handles.clone();
-        let event_senders = event_senders.clone();
-
         thread::spawn(move || {
             loop {
-                if let Ok(ipc_connection) = ipc_connection.read() {
-                    if let Some(ipc_connection) = ipc_connection.as_ref() {
-                        match ipc_connection.receive::<EngineEgress>() {
+                let mut should_stop_listener = false;
+
+                if let Ok(ipc_connection_lock) = ipc_connection.read() {
+                    if let Some(active_ipc_connection) = ipc_connection_lock.as_ref() {
+                        match active_ipc_connection.receive::<EngineEgress>() {
                             Ok((interprocess_egress, request_id)) => match interprocess_egress {
                                 EngineEgress::PrivilegedCommandResponse(engine_response) => {
                                     Self::handle_engine_response(&request_handles, engine_response, request_id)
                                 }
                                 EngineEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_senders, engine_event),
                             },
-                            Err(_error) => {
-                                std::process::exit(1);
+                            Err(receive_error) => {
+                                log::error!(
+                                    "Failed to receive from privileged worker IPC channel; stopping listener thread: {}",
+                                    receive_error
+                                );
+                                should_stop_listener = true;
                             }
                         }
+                    } else {
+                        log::error!("Privileged worker IPC connection is unavailable; stopping listener thread.");
+                        should_stop_listener = true;
                     }
+                } else {
+                    log::error!("Failed to acquire read lock for privileged worker IPC connection; stopping listener thread.");
+                    should_stop_listener = true;
+                }
+
+                if should_stop_listener {
+                    break;
                 }
 
                 thread::sleep(Duration::from_millis(1));

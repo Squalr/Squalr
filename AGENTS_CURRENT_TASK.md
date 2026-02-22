@@ -42,3 +42,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Revalidation status (2026-02-22, latest): reran `debug_run_privileged_shell.py` and `run_apk.py --launch-log-seconds 20`; outcomes are unchanged from earlier runs: all `su` invocations fail on-device, bootstrap halts at `Before SqualrEngine::new.`, `reportedDrawn=false`, splash window remains visible.
 - Device details for latest revalidation (2026-02-22): `adb devices -l` reports `model:Pixel_9_Pro_Fold device:comet`; `getprop ro.build.fingerprint` is `google/comet/comet:16/BP3A.251005.004.B3/14332485:user/release-keys`.
 - Host test status (2026-02-22): `cargo test -p squalr-engine -- --nocapture` passed (16 passed, 0 failed), including interprocess initialization failure-path tests.
+- Device was reflashed with Magisk (was out of data causing su to fail)
+- This command cause a hang: exec "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "python .\\debug_run_privileged_shell.py" in C:\Projects\squalr_workspace
