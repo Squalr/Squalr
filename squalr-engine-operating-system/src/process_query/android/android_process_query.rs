@@ -1,12 +1,13 @@
-use crate::process_info::{Bitness, OpenedProcessInfo, ProcessIcon, ProcessInfo};
 use crate::process_query::android::android_process_info::AndroidProcessInfo;
 use crate::process_query::process_query_error::ProcessQueryError;
 use crate::process_query::process_query_options::ProcessQueryOptions;
 use crate::process_query::process_queryer::ProcessQueryer;
 use image::ImageReader;
 use regex::bytes::Regex;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
+use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
+use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -29,7 +30,45 @@ const ICON_PATHS: [&str; 5] = [
 pub struct AndroidProcessQuery {}
 
 impl AndroidProcessQuery {
-    /// Checks if a process belongs to a user app (UID ≥ 10000).
+    fn read_cmdline_process_name(process_id: u32) -> Option<String> {
+        let cmdline_path = format!("/proc/{}/cmdline", process_id);
+        let cmdline_bytes = fs::read(cmdline_path).ok()?;
+        let cmdline_name = cmdline_bytes
+            .split(|byte_value| *byte_value == 0)
+            .next()
+            .map(|name_bytes| String::from_utf8_lossy(name_bytes).trim().to_string())?;
+
+        if cmdline_name.is_empty() { None } else { Some(cmdline_name) }
+    }
+
+    fn read_comm_process_name(process_id: u32) -> Option<String> {
+        let comm_path = format!("/proc/{}/comm", process_id);
+        let comm_name = fs::read_to_string(comm_path).ok()?.trim().to_string();
+
+        if comm_name.is_empty() { None } else { Some(comm_name) }
+    }
+
+    fn extract_package_name(cmdline_process_name: &str) -> Option<String> {
+        let package_name_candidate = cmdline_process_name
+            .split(':')
+            .next()
+            .map(str::trim)
+            .unwrap_or_default();
+
+        if package_name_candidate.is_empty()
+            || package_name_candidate.starts_with('/')
+            || !package_name_candidate.contains('.')
+            || !package_name_candidate
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '.')
+        {
+            return None;
+        }
+
+        Some(package_name_candidate.to_string())
+    }
+
+    /// Checks if a process belongs to a user app (UID >= 10000).
     fn is_user_app(process_id: u32) -> bool {
         let status_path = format!("/proc/{}/status", process_id);
         if let Ok(status) = fs::read_to_string(status_path) {
@@ -48,29 +87,29 @@ impl AndroidProcessQuery {
         false
     }
 
-    /// Parses `/data/system/packages.xml` (ABX Binary XML) and extracts package → APK path mapping.
-    /// This is done with a greedy binary regex solution, to avoid the need to write a complex binary XML parser.
+    /// Parses `/data/system/packages.xml` (ABX Binary XML) and extracts package-to-APK path mapping.
+    /// This is done with a greedy binary regex solution to avoid writing a complex binary XML parser.
     fn parse_packages_xml() -> HashMap<String, String> {
         let mut package_map = HashMap::new();
-        Logger::log(LogLevel::Info, "Scanning packages.xml...", None);
+        log::info!("Scanning packages.xml.");
         let file = match File::open("/data/system/packages.xml") {
             Ok(file) => file,
             Err(error) => {
-                Logger::log(LogLevel::Error, &format!("Error opening packages.xml: {}", error), None);
+                log::error!("Error opening packages.xml: {}", error);
                 return package_map;
             }
         };
 
         let mut buffer = vec![];
         if let Err(error) = BufReader::new(file).read_to_end(&mut buffer) {
-            Logger::log(LogLevel::Error, &format!("Error reading packages.xml: {}", error), None);
+            log::error!("Error reading packages.xml: {}", error);
             return package_map;
         }
 
         let regex = match Regex::new(r"/data/app(?:/[^/]+)?/(?P<package_name>[a-zA-Z0-9_.]+)-[^/]+/") {
             Ok(regex) => regex,
             Err(error) => {
-                Logger::log(LogLevel::Error, &format!("Failed to compile regex: {}", error), None);
+                log::error!("Failed to compile regex: {}", error);
                 return package_map;
             }
         };
@@ -86,7 +125,7 @@ impl AndroidProcessQuery {
             }
         }
 
-        Logger::log(LogLevel::Info, &format!("Found {} packages.", package_map.len()), None);
+        log::info!("Found {} packages.", package_map.len());
 
         package_map
     }
@@ -115,12 +154,12 @@ impl AndroidProcessQuery {
                         .with_guessed_format()
                         .ok()?;
 
-                    if let Ok(img) = reader.decode() {
-                        let rgba_img = img.to_rgba8();
-                        let (width, height) = rgba_img.dimensions();
-                        let bytes_rgba = rgba_img.into_raw();
+                    if let Ok(image) = reader.decode() {
+                        let rgba_image = image.to_rgba8();
+                        let (width, height) = rgba_image.dimensions();
+                        let bytes_rgba = rgba_image.into_raw();
 
-                        return Some(ProcessIcon { bytes_rgba, width, height });
+                        return Some(ProcessIcon::new(bytes_rgba, width, height));
                     }
                 }
             }
@@ -141,20 +180,19 @@ impl AndroidProcessQuery {
                         .all(|char_value| char_value.is_ascii_digit())
                     {
                         if let Ok(process_id) = process_id_string.parse::<u32>() {
-                            let mut package_name = String::new();
-                            let mut parent_process_id = 0;
-
-                            let cmdline_path = format!("/proc/{}/cmdline", process_id);
-                            if let Ok(cmdline_content) = fs::read_to_string(&cmdline_path) {
-                                package_name = cmdline_content
-                                    .split('\0')
-                                    .next()
-                                    .unwrap_or("")
-                                    .split(':')
-                                    .next()
-                                    .unwrap_or("")
-                                    .to_string();
+                            let cmdline_process_name = Self::read_cmdline_process_name(process_id);
+                            let process_name = cmdline_process_name
+                                .clone()
+                                .or_else(|| Self::read_comm_process_name(process_id))
+                                .unwrap_or_default();
+                            if process_name.is_empty() {
+                                continue;
                             }
+
+                            let package_name = cmdline_process_name
+                                .as_deref()
+                                .and_then(Self::extract_package_name);
+                            let mut parent_process_id = 0;
 
                             let stat_path = format!("/proc/{}/stat", process_id);
                             if let Ok(stat_content) = fs::read_to_string(&stat_path) {
@@ -169,12 +207,13 @@ impl AndroidProcessQuery {
                             let process_info = AndroidProcessInfo {
                                 process_id,
                                 parent_process_id,
+                                process_name: process_name.clone(),
                                 package_name: package_name.clone(),
                             };
 
                             all_processes.insert(process_id, process_info.clone());
 
-                            if package_name == "zygote" || package_name == "zygote64" {
+                            if process_name == "zygote" || process_name == "zygote64" {
                                 zygote_processes.insert(process_id, process_info);
                             }
                         }
@@ -198,18 +237,18 @@ impl ProcessQueryer for AndroidProcessQuery {
         Ok(())
     }
 
-    // Android has no concept of opening a process -- do nothing, return 0 for handle.
+    // Android has no concept of opening a process, so return a zero handle.
     fn open_process(process_info: &ProcessInfo) -> Result<OpenedProcessInfo, ProcessQueryError> {
-        Ok(OpenedProcessInfo {
-            process_id: process_info.process_id,
-            name: process_info.name.clone(),
-            handle: 0,
-            bitness: Bitness::Bit64,
-            icon: process_info.icon.clone(),
-        })
+        Ok(OpenedProcessInfo::new(
+            process_info.get_process_id(),
+            process_info.get_name().to_string(),
+            0,
+            Bitness::Bit64,
+            process_info.get_icon().clone(),
+        ))
     }
 
-    // Android has no concept of closing a process -- do nothing.
+    // Android has no concept of closing a process.
     fn close_process(_handle: u64) -> Result<(), ProcessQueryError> {
         Ok(())
     }
@@ -220,39 +259,44 @@ impl ProcessQueryer for AndroidProcessQuery {
         let mut results = Vec::new();
 
         for android_process_info in all_processes.values() {
-            let apk_path = Self::get_apk_path(&android_process_info.package_name, &package_paths);
+            let apk_path = android_process_info
+                .package_name
+                .as_deref()
+                .and_then(|package_name| Self::get_apk_path(package_name, &package_paths));
             let is_windowed = apk_path.is_some()
                 && zygote_processes.contains_key(&android_process_info.parent_process_id)
                 && Self::is_user_app(android_process_info.process_id);
 
-            let icon = if let Some(apk_path) = apk_path {
-                Self::get_icon_from_apk(&apk_path)
+            let icon = if options.fetch_icons {
+                if let Some(apk_path) = apk_path.as_deref() {
+                    Self::get_icon_from_apk(apk_path)
+                } else {
+                    None
+                }
             } else {
                 None
             };
 
-            let process_info = ProcessInfo {
-                process_id: android_process_info.process_id,
-                name: android_process_info.package_name.clone(),
-                is_windowed,
-                icon,
-            };
+            let process_info = ProcessInfo::new(android_process_info.process_id, android_process_info.process_name.clone(), is_windowed, icon);
             let mut matches = true;
 
             if let Some(ref term) = options.search_name {
                 if options.match_case {
-                    matches &= process_info.name.contains(term);
+                    matches &= process_info.get_name().contains(term);
                 } else {
-                    matches &= process_info.name.to_lowercase().contains(&term.to_lowercase());
+                    matches &= process_info
+                        .get_name()
+                        .to_lowercase()
+                        .contains(&term.to_lowercase());
                 }
             }
 
             if let Some(required_process_id) = options.required_process_id {
-                matches &= process_info.process_id == required_process_id.as_u32();
+                matches &= process_info.get_process_id() == required_process_id.as_u32();
             }
 
             if options.require_windowed {
-                matches &= process_info.is_windowed;
+                matches &= process_info.get_is_windowed();
             }
 
             if matches {
@@ -267,5 +311,24 @@ impl ProcessQueryer for AndroidProcessQuery {
         }
 
         results
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AndroidProcessQuery;
+
+    #[test]
+    fn extract_package_name_uses_base_name_without_process_suffix() {
+        let package_name = AndroidProcessQuery::extract_package_name("com.squalr.android:worker");
+
+        assert_eq!(package_name.as_deref(), Some("com.squalr.android"));
+    }
+
+    #[test]
+    fn extract_package_name_rejects_paths() {
+        let package_name = AndroidProcessQuery::extract_package_name("/system/bin/surfaceflinger");
+
+        assert!(package_name.is_none());
     }
 }

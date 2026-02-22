@@ -1,7 +1,7 @@
 use crate::memory_writer::memory_writer_trait::MemoryWriterTrait;
-use squalr_engine_common::dynamic_struct::to_bytes::ToBytes;
-use std::os::raw::c_void;
-use std::ptr::null_mut;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use std::fs::OpenOptions;
+use std::os::unix::fs::FileExt;
 
 pub struct AndroidMemoryWriter;
 
@@ -10,32 +10,48 @@ impl AndroidMemoryWriter {
         AndroidMemoryWriter
     }
 
-    fn write_memory(
-        process_handle: u64,
-        address: u64,
-        data: &[u8],
+    fn write_process_memory(
+        process_id: u32,
+        destination_address: u64,
+        source_bytes: &[u8],
     ) -> bool {
-        false
+        if source_bytes.is_empty() {
+            return true;
+        }
+
+        let process_memory_path = format!("/proc/{process_id}/mem");
+        let process_memory_file = match OpenOptions::new().write(true).open(process_memory_path) {
+            Ok(process_memory_file) => process_memory_file,
+            Err(error) => {
+                log::error!("Failed to open process memory for write: {}", error);
+                return false;
+            }
+        };
+
+        let mut total_bytes_written: usize = 0;
+        while total_bytes_written < source_bytes.len() {
+            let next_write_offset = destination_address + total_bytes_written as u64;
+            match process_memory_file.write_at(&source_bytes[total_bytes_written..], next_write_offset) {
+                Ok(0) => return false,
+                Ok(bytes_written) => total_bytes_written += bytes_written,
+                Err(error) => {
+                    log::error!("Failed to write process memory: {}", error);
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 
 impl MemoryWriterTrait for AndroidMemoryWriter {
-    fn write(
-        &self,
-        process_handle: u64,
-        address: u64,
-        value: &dyn ToBytes,
-    ) -> bool {
-        let bytes = value.to_bytes();
-        Self::write_memory(process_handle, address, &bytes)
-    }
-
     fn write_bytes(
         &self,
-        process_handle: u64,
+        process_info: &OpenedProcessInfo,
         address: u64,
         values: &[u8],
     ) -> bool {
-        Self::write_memory(process_handle, address, values)
+        Self::write_process_memory(process_info.get_process_id_raw(), address, values)
     }
 }

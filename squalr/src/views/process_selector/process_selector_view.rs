@@ -23,6 +23,7 @@ impl ProcessSelectorView {
         let process_selector_view_data = app_context
             .dependency_container
             .register(ProcessSelectorViewData::new());
+        ProcessSelectorViewData::refresh_active_process_list(process_selector_view_data.clone(), app_context.clone());
         let process_selector_toolbar_view = ProcessSelectorToolbarView::new(app_context.clone());
 
         Self {
@@ -38,24 +39,36 @@ impl Widget for ProcessSelectorView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        ProcessSelectorViewData::clear_stale_request_state(self.process_selector_view_data.clone());
+
         let theme = self.app_context.theme.clone();
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
+                user_interface.add(self.process_selector_toolbar_view.clone());
+
                 let process_selector_view_data = match self.process_selector_view_data.read("Process selector view") {
                     Some(process_selector_view_data) => process_selector_view_data,
                     None => return,
                 };
+                let show_windowed_processes_only = process_selector_view_data.show_windowed_processes_only;
+                let active_process_list = if show_windowed_processes_only {
+                    &process_selector_view_data.windowed_process_list
+                } else {
+                    &process_selector_view_data.full_process_list
+                };
+                let is_awaiting_active_process_list = if show_windowed_processes_only {
+                    process_selector_view_data.is_awaiting_windowed_process_list
+                } else {
+                    process_selector_view_data.is_awaiting_full_process_list
+                };
+                let mut selected_process = None;
 
-                user_interface.add(self.process_selector_toolbar_view.clone());
-
-                if !process_selector_view_data.is_awaiting_full_process_list {
+                if !is_awaiting_active_process_list {
                     ScrollArea::vertical()
                         .id_salt("process_selector")
                         .auto_shrink([false, false])
                         .show(&mut user_interface, |inner_user_interface| {
-                            let mut selected_process = None;
-
-                            for process in &process_selector_view_data.full_process_list {
+                            for process in active_process_list {
                                 let icon = match process.get_icon() {
                                     Some(icon) => process_selector_view_data.get_icon(&self.app_context, process.get_process_id_raw(), icon),
                                     None => None,
@@ -68,12 +81,6 @@ impl Widget for ProcessSelectorView {
                                     selected_process = Some(Some(process.get_process_id_raw()));
                                 }
                             }
-
-                            if let Some(selected_process) = selected_process {
-                                drop(process_selector_view_data);
-
-                                ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), selected_process);
-                            }
                         });
                 } else {
                     user_interface.allocate_ui_with_layout(
@@ -83,6 +90,12 @@ impl Widget for ProcessSelectorView {
                             user_interface.add(Spinner::new().color(theme.foreground));
                         },
                     );
+                }
+
+                drop(process_selector_view_data);
+
+                if let Some(selected_process) = selected_process {
+                    ProcessSelectorViewData::select_process(self.process_selector_view_data.clone(), self.app_context.clone(), selected_process);
                 }
             })
             .response;

@@ -1,4 +1,5 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
+use crate::engine_bindings::engine_ingress::EngineIngress;
 use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUnprivleged;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_initialization_error::EngineInitializationError;
@@ -21,6 +22,27 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
+
+#[cfg(target_os = "android")]
+const ANDROID_PRIVILEGED_WORKER_PATH: &str = "/data/local/tmp/squalr-cli";
+#[cfg(target_os = "android")]
+const ANDROID_SU_CANDIDATE_PATHS: [&str; 5] = [
+    "/system/bin/su",
+    "/system/xbin/su",
+    "/sbin/su",
+    "/su/bin/su",
+    "/magisk/.core/bin/su",
+];
+#[cfg(target_os = "android")]
+const ANDROID_SU_FALLBACK_COMMAND: &str = "su";
+#[cfg(target_os = "android")]
+const ANDROID_PRIVILEGED_WORKER_ARGS: &str = "--ipc-mode";
+#[cfg(target_os = "android")]
+const ANDROID_SU_ATTEMPT_STANDARD: &str = "su -c";
+#[cfg(target_os = "android")]
+const ANDROID_SU_ATTEMPT_USER_ZERO_SH: &str = "su 0 sh -c";
+#[cfg(target_os = "android")]
+const ANDROID_SU_ATTEMPT_USER_ROOT_SH: &str = "su root sh -c";
 
 pub struct InterprocessEngineApiUnprivilegedBindings {
     /// The spawned shell process with system privileges.
@@ -56,7 +78,7 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
 
         if let Some(ipc_connection) = ipc_connection_guard.as_ref() {
             ipc_connection
-                .send(privileged_command, request_id)
+                .send(EngineIngress::PrivilegedCommand(privileged_command), request_id)
                 .map_err(|error| EngineBindingError::operation_failed("sending privileged command over IPC", error))?;
 
             return Ok(());
@@ -158,25 +180,38 @@ impl InterprocessEngineApiUnprivilegedBindings {
         event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
         ipc_connection: Arc<RwLock<Option<InterprocessPipeBidirectional>>>,
     ) {
-        let request_handles = request_handles.clone();
-        let event_senders = event_senders.clone();
-
         thread::spawn(move || {
             loop {
-                if let Ok(ipc_connection) = ipc_connection.read() {
-                    if let Some(ipc_connection) = ipc_connection.as_ref() {
-                        match ipc_connection.receive::<EngineEgress>() {
+                let mut should_stop_listener = false;
+
+                if let Ok(ipc_connection_lock) = ipc_connection.read() {
+                    if let Some(active_ipc_connection) = ipc_connection_lock.as_ref() {
+                        match active_ipc_connection.receive::<EngineEgress>() {
                             Ok((interprocess_egress, request_id)) => match interprocess_egress {
                                 EngineEgress::PrivilegedCommandResponse(engine_response) => {
                                     Self::handle_engine_response(&request_handles, engine_response, request_id)
                                 }
                                 EngineEgress::EngineEvent(engine_event) => Self::handle_engine_event(&event_senders, engine_event),
                             },
-                            Err(_error) => {
-                                std::process::exit(1);
+                            Err(receive_error) => {
+                                log::error!(
+                                    "Failed to receive from privileged worker IPC channel; stopping listener thread: {:?}",
+                                    receive_error
+                                );
+                                should_stop_listener = true;
                             }
                         }
+                    } else {
+                        log::error!("Privileged worker IPC connection is unavailable; stopping listener thread.");
+                        should_stop_listener = true;
                     }
+                } else {
+                    log::error!("Failed to acquire read lock for privileged worker IPC connection; stopping listener thread.");
+                    should_stop_listener = true;
+                }
+
+                if should_stop_listener {
+                    break;
                 }
 
                 thread::sleep(Duration::from_millis(1));
@@ -211,15 +246,163 @@ impl InterprocessEngineApiUnprivilegedBindings {
 
     #[cfg(any(target_os = "android"))]
     fn spawn_squalr_cli_as_root() -> std::io::Result<std::process::Child> {
-        Logger::log(LogLevel::Info, "Spawning privileged worker...", None);
+        log::info!("Spawning privileged worker...");
 
-        let child = Command::new("su")
-            .arg("-c")
-            .arg("/data/data/rust.squalr_android/files/squalr-cli")
-            .arg("--ipc-mode")
-            .spawn()?;
+        if !std::path::Path::new(ANDROID_PRIVILEGED_WORKER_PATH).exists() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Privileged worker path '{}' does not exist from app context.", ANDROID_PRIVILEGED_WORKER_PATH),
+            ));
+        }
 
-        Ok(child)
+        let worker_start_command = Self::build_android_worker_start_command();
+        log::info!("Android worker start command: {}", worker_start_command);
+        let mut spawn_error_messages: Vec<String> = Vec::new();
+        let mut missing_su_candidate_paths: Vec<String> = Vec::new();
+
+        for su_candidate_path in ANDROID_SU_CANDIDATE_PATHS {
+            if !std::path::Path::new(su_candidate_path).exists() {
+                missing_su_candidate_paths.push(su_candidate_path.to_string());
+                continue;
+            }
+
+            log::info!("Attempting privileged worker spawn via su candidate: {}", su_candidate_path);
+            match Self::spawn_worker_with_su_candidate(su_candidate_path, &worker_start_command) {
+                Ok(child) => {
+                    log::info!("Privileged worker spawn initiated via su candidate: {}", su_candidate_path);
+
+                    return Ok(child);
+                }
+                Err(spawn_error) => {
+                    log::warn!(
+                        "Privileged worker spawn attempt failed via su candidate '{}': {}",
+                        su_candidate_path,
+                        spawn_error
+                    );
+                    spawn_error_messages.push(format!("{}: {}", su_candidate_path, spawn_error));
+                }
+            }
+        }
+
+        if !missing_su_candidate_paths.is_empty() {
+            log::warn!("su candidates unavailable from app context: {}", missing_su_candidate_paths.join(", "));
+        }
+
+        log::info!("Attempting privileged worker spawn via fallback su command: {}", ANDROID_SU_FALLBACK_COMMAND);
+        match Self::spawn_worker_with_su_candidate(ANDROID_SU_FALLBACK_COMMAND, &worker_start_command) {
+            Ok(child) => {
+                log::info!("Privileged worker spawn initiated via fallback su command: {}", ANDROID_SU_FALLBACK_COMMAND);
+
+                Ok(child)
+            }
+            Err(spawn_error) => {
+                log::warn!(
+                    "Privileged worker spawn attempt failed via fallback su command '{}': {}",
+                    ANDROID_SU_FALLBACK_COMMAND,
+                    spawn_error
+                );
+                spawn_error_messages.push(format!("{}: {}", ANDROID_SU_FALLBACK_COMMAND, spawn_error));
+
+                Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "Failed to spawn privileged worker using all su candidates. Worker command: '{}'. Missing su paths: {}. Attempts: {}.",
+                        worker_start_command,
+                        if missing_su_candidate_paths.is_empty() {
+                            "none".to_string()
+                        } else {
+                            missing_su_candidate_paths.join(", ")
+                        },
+                        spawn_error_messages.join(" | "),
+                    ),
+                ))
+            }
+        }
+    }
+
+    #[cfg(target_os = "android")]
+    fn spawn_worker_with_su_candidate(
+        su_candidate_path: &str,
+        worker_start_command: &str,
+    ) -> io::Result<Child> {
+        let su_spawn_attempts = Self::build_android_su_spawn_attempts(worker_start_command);
+        let mut su_attempt_error_messages: Vec<String> = Vec::new();
+
+        for su_spawn_attempt in su_spawn_attempts {
+            log::info!(
+                "Attempting privileged worker spawn via '{}' using invocation '{}'.",
+                su_candidate_path,
+                su_spawn_attempt.attempt_label
+            );
+
+            match Command::new(su_candidate_path)
+                .args(&su_spawn_attempt.command_arguments)
+                .spawn()
+            {
+                Ok(child) => {
+                    log::info!(
+                        "Privileged worker spawn launched via '{}' using invocation '{}'.",
+                        su_candidate_path,
+                        su_spawn_attempt.attempt_label
+                    );
+
+                    return Ok(child);
+                }
+                Err(spawn_error) => {
+                    log::warn!(
+                        "Privileged worker spawn failed via '{}' using invocation '{}': {}",
+                        su_candidate_path,
+                        su_spawn_attempt.attempt_label,
+                        spawn_error
+                    );
+                    su_attempt_error_messages.push(format!("{} => {}", su_spawn_attempt.attempt_label, spawn_error));
+                }
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "All su invocation attempts failed for '{}': {}",
+                su_candidate_path,
+                su_attempt_error_messages.join(" | ")
+            ),
+        ))
+    }
+
+    #[cfg(target_os = "android")]
+    fn build_android_worker_start_command() -> String {
+        // Avoid wrapping the worker path in extra quotes: some `su` implementations
+        // treat quoted paths literally and fail with ENOENT.
+        format!("{} {}", ANDROID_PRIVILEGED_WORKER_PATH, ANDROID_PRIVILEGED_WORKER_ARGS)
+    }
+
+    #[cfg(target_os = "android")]
+    fn build_android_su_spawn_attempts(worker_start_command: &str) -> Vec<AndroidSuSpawnAttempt> {
+        vec![
+            AndroidSuSpawnAttempt {
+                attempt_label: ANDROID_SU_ATTEMPT_STANDARD,
+                command_arguments: vec!["-c".to_string(), worker_start_command.to_string()],
+            },
+            AndroidSuSpawnAttempt {
+                attempt_label: ANDROID_SU_ATTEMPT_USER_ZERO_SH,
+                command_arguments: vec![
+                    "0".to_string(),
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    worker_start_command.to_string(),
+                ],
+            },
+            AndroidSuSpawnAttempt {
+                attempt_label: ANDROID_SU_ATTEMPT_USER_ROOT_SH,
+                command_arguments: vec![
+                    "root".to_string(),
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    worker_start_command.to_string(),
+                ],
+            },
+        ]
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -235,6 +418,12 @@ impl InterprocessEngineApiUnprivilegedBindings {
     }
 }
 
+#[cfg(target_os = "android")]
+struct AndroidSuSpawnAttempt {
+    attempt_label: &'static str,
+    command_arguments: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::InterprocessEngineApiUnprivilegedBindings;
@@ -242,6 +431,44 @@ mod tests {
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use std::io;
     use std::sync::{Arc, RwLock};
+
+    #[cfg(target_os = "android")]
+    #[test]
+    fn spawn_worker_with_su_candidate_fails_for_missing_binary() {
+        let spawn_result = InterprocessEngineApiUnprivilegedBindings::spawn_worker_with_su_candidate("/missing/su", "/data/local/tmp/squalr-cli --ipc-mode");
+
+        assert!(spawn_result.is_err());
+    }
+
+    #[cfg(target_os = "android")]
+    #[test]
+    fn android_worker_command_uses_unquoted_worker_path() {
+        let worker_start_command = InterprocessEngineApiUnprivilegedBindings::build_android_worker_start_command();
+
+        assert_eq!(worker_start_command, "/data/local/tmp/squalr-cli --ipc-mode");
+        assert!(!worker_start_command.starts_with('"'));
+    }
+
+    #[cfg(target_os = "android")]
+    #[test]
+    fn android_su_spawn_attempts_cover_expected_invocations() {
+        let worker_start_command = InterprocessEngineApiUnprivilegedBindings::build_android_worker_start_command();
+        let su_spawn_attempts = InterprocessEngineApiUnprivilegedBindings::build_android_su_spawn_attempts(&worker_start_command);
+
+        assert_eq!(su_spawn_attempts.len(), 3);
+        assert_eq!(su_spawn_attempts[0].attempt_label, "su -c");
+        assert_eq!(su_spawn_attempts[0].command_arguments, vec!["-c", "/data/local/tmp/squalr-cli --ipc-mode"]);
+        assert_eq!(su_spawn_attempts[1].attempt_label, "su 0 sh -c");
+        assert_eq!(
+            su_spawn_attempts[1].command_arguments,
+            vec!["0", "sh", "-c", "/data/local/tmp/squalr-cli --ipc-mode"]
+        );
+        assert_eq!(su_spawn_attempts[2].attempt_label, "su root sh -c");
+        assert_eq!(
+            su_spawn_attempts[2].command_arguments,
+            vec!["root", "sh", "-c", "/data/local/tmp/squalr-cli --ipc-mode"]
+        );
+    }
 
     #[test]
     fn initialize_fails_fast_when_privileged_cli_spawn_fails() {

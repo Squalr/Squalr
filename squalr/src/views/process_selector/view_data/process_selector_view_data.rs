@@ -12,31 +12,48 @@ use squalr_engine_api::{
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 #[derive(Clone)]
 pub struct ProcessSelectorViewData {
     pub opened_process: Option<OpenedProcessInfo>,
     pub cached_icon: Option<TextureHandle>,
+    pub show_windowed_processes_only: bool,
     pub windowed_process_list: Vec<ProcessInfo>,
     pub full_process_list: Vec<ProcessInfo>,
     pub icon_cache: HashMap<u32, TextureHandle>,
     pub is_awaiting_windowed_process_list: bool,
     pub is_awaiting_full_process_list: bool,
     pub is_opening_process: bool,
+    windowed_process_list_request_started_at: Option<Instant>,
+    full_process_list_request_started_at: Option<Instant>,
+    open_process_request_started_at: Option<Instant>,
 }
 
 impl ProcessSelectorViewData {
+    const REQUEST_STALE_TIMEOUT: Duration = Duration::from_secs(3);
+
     pub fn new() -> Self {
         Self {
             opened_process: None,
             cached_icon: None,
+            show_windowed_processes_only: cfg!(target_os = "android"),
             windowed_process_list: Vec::new(),
             full_process_list: Vec::new(),
             icon_cache: HashMap::new(),
             is_awaiting_windowed_process_list: false,
             is_awaiting_full_process_list: false,
             is_opening_process: false,
+            windowed_process_list_request_started_at: None,
+            full_process_list_request_started_at: None,
+            open_process_request_started_at: None,
+        }
+    }
+
+    pub fn clear_stale_request_state(process_selector_view_data_dependency: Dependency<ProcessSelectorViewData>) {
+        if let Some(mut process_selector_view_data) = process_selector_view_data_dependency.write("Process selector view data clear stale request state") {
+            process_selector_view_data.clear_stale_request_state_for_now(Instant::now());
         }
     }
 
@@ -58,23 +75,70 @@ impl ProcessSelectorViewData {
         match process_selector_view_data.write("Process selector view data refresh windowed process list") {
             Some(mut process_selector_view_data) => {
                 if process_selector_view_data.is_awaiting_windowed_process_list {
+                    log::debug!("Skipping windowed process-list refresh because a request is already pending.");
                     return;
                 }
 
                 process_selector_view_data.is_awaiting_windowed_process_list = true;
+                process_selector_view_data.windowed_process_list_request_started_at = Some(Instant::now());
+                log::info!("Dispatching windowed process-list refresh request.");
             }
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
+        let process_selector_view_data_for_response = process_selector_view_data.clone();
+        let did_dispatch = list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh windowed process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
             };
 
             process_selector_view_data.is_awaiting_windowed_process_list = false;
+            process_selector_view_data.windowed_process_list_request_started_at = None;
+            log::info!(
+                "Received windowed process-list response with {} entries.",
+                process_list_response.processes.len()
+            );
             ProcessSelectorViewData::set_windowed_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
+
+        if !did_dispatch {
+            log::warn!("Windowed process-list refresh request failed to dispatch.");
+            if let Some(mut process_selector_view_data) =
+                process_selector_view_data_for_response.write("Process selector view data refresh windowed process list dispatch failure")
+            {
+                process_selector_view_data.is_awaiting_windowed_process_list = false;
+                process_selector_view_data.windowed_process_list_request_started_at = None;
+            }
+        }
+    }
+
+    pub fn refresh_active_process_list(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+    ) {
+        let show_windowed_processes_only = process_selector_view_data
+            .read("Process selector view data refresh active process list")
+            .map(|process_selector_view_data| process_selector_view_data.show_windowed_processes_only)
+            .unwrap_or(false);
+
+        if show_windowed_processes_only {
+            Self::refresh_windowed_process_list(process_selector_view_data, app_context);
+        } else {
+            Self::refresh_full_process_list(process_selector_view_data, app_context);
+        }
+    }
+
+    pub fn set_show_windowed_processes_only(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+        show_windowed_processes_only: bool,
+    ) {
+        if let Some(mut process_selector_view_data_guard) = process_selector_view_data.write("Process selector view data set windowed mode") {
+            process_selector_view_data_guard.show_windowed_processes_only = show_windowed_processes_only;
+        }
+
+        Self::refresh_active_process_list(process_selector_view_data, app_context);
     }
 
     pub fn refresh_full_process_list(
@@ -95,24 +159,40 @@ impl ProcessSelectorViewData {
         match process_selector_view_data.write("Process selector view data refresh full process list") {
             Some(mut process_selector_view_data) => {
                 if process_selector_view_data.is_awaiting_full_process_list {
+                    log::debug!("Skipping full process-list refresh because a request is already pending.");
                     return;
                 }
 
                 process_selector_view_data.is_awaiting_full_process_list = true;
+                process_selector_view_data.full_process_list_request_started_at = Some(Instant::now());
+                log::info!("Dispatching full process-list refresh request.");
             }
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
+        let process_selector_view_data_for_response = process_selector_view_data.clone();
+        let did_dispatch = list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh full process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
             };
 
             process_selector_view_data.is_awaiting_full_process_list = false;
+            process_selector_view_data.full_process_list_request_started_at = None;
+            log::info!("Received full process-list response with {} entries.", process_list_response.processes.len());
 
             Self::set_full_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
+
+        if !did_dispatch {
+            log::warn!("Full process-list refresh request failed to dispatch.");
+            if let Some(mut process_selector_view_data) =
+                process_selector_view_data_for_response.write("Process selector view data refresh full process list dispatch failure")
+            {
+                process_selector_view_data.is_awaiting_full_process_list = false;
+                process_selector_view_data.full_process_list_request_started_at = None;
+            }
+        }
     }
 
     pub fn select_process(
@@ -135,13 +215,24 @@ impl ProcessSelectorViewData {
                     }
 
                     process_selector_view_data.is_opening_process = true;
+                    process_selector_view_data.open_process_request_started_at = Some(Instant::now());
                 }
                 None => return,
             };
 
-            process_open_request.send(&engine_unprivileged_state, move |process_open_response| {
+            let process_selector_view_data_for_response = process_selector_view_data.clone();
+            let did_dispatch = process_open_request.send(&engine_unprivileged_state, move |process_open_response| {
                 Self::set_opened_process_info(process_selector_view_data, &app_context, process_open_response.opened_process_info)
             });
+
+            if !did_dispatch {
+                if let Some(mut process_selector_view_data) =
+                    process_selector_view_data_for_response.write("Process selector view data select process dispatch failure")
+                {
+                    process_selector_view_data.is_opening_process = false;
+                    process_selector_view_data.open_process_request_started_at = None;
+                }
+            }
         } else {
             Self::set_opened_process_info(process_selector_view_data, &app_context, None)
         }
@@ -158,6 +249,7 @@ impl ProcessSelectorViewData {
         };
 
         process_selector_view_data.is_opening_process = false;
+        process_selector_view_data.open_process_request_started_at = None;
         process_selector_view_data.opened_process = opened_process;
 
         let icon_data = match &process_selector_view_data.opened_process {
@@ -297,5 +389,84 @@ impl ProcessSelectorViewData {
         process_selector_view_data
             .icon_cache
             .retain(|process_id, _| !removed.contains(process_id));
+    }
+
+    fn clear_stale_request_state_for_now(
+        &mut self,
+        current_instant: Instant,
+    ) {
+        if Self::is_request_stale(
+            current_instant,
+            self.windowed_process_list_request_started_at,
+            self.is_awaiting_windowed_process_list,
+        ) {
+            self.is_awaiting_windowed_process_list = false;
+            self.windowed_process_list_request_started_at = None;
+            log::warn!("Cleared stale windowed process-list loading state after timeout.");
+        }
+
+        if Self::is_request_stale(current_instant, self.full_process_list_request_started_at, self.is_awaiting_full_process_list) {
+            self.is_awaiting_full_process_list = false;
+            self.full_process_list_request_started_at = None;
+            log::warn!("Cleared stale full process-list loading state after timeout.");
+        }
+
+        if Self::is_request_stale(current_instant, self.open_process_request_started_at, self.is_opening_process) {
+            self.is_opening_process = false;
+            self.open_process_request_started_at = None;
+            log::warn!("Cleared stale process-open loading state after timeout.");
+        }
+    }
+
+    fn is_request_stale(
+        current_instant: Instant,
+        request_started_at: Option<Instant>,
+        is_request_pending: bool,
+    ) -> bool {
+        if !is_request_pending {
+            return false;
+        }
+
+        match request_started_at {
+            Some(request_start_instant) => current_instant
+                .checked_duration_since(request_start_instant)
+                .map(|elapsed_duration| elapsed_duration >= Self::REQUEST_STALE_TIMEOUT)
+                .unwrap_or(false),
+            None => true,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessSelectorViewData;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn request_is_stale_when_pending_and_timeout_elapsed() {
+        let current_instant = Instant::now();
+        let request_started_at = current_instant - (ProcessSelectorViewData::REQUEST_STALE_TIMEOUT + Duration::from_millis(1));
+
+        let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, Some(request_started_at), true);
+
+        assert!(is_stale);
+    }
+
+    #[test]
+    fn request_is_not_stale_when_not_pending() {
+        let current_instant = Instant::now();
+
+        let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, Some(current_instant), false);
+
+        assert!(!is_stale);
+    }
+
+    #[test]
+    fn request_is_stale_when_pending_without_start_timestamp() {
+        let current_instant = Instant::now();
+
+        let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, None, true);
+
+        assert!(is_stale);
     }
 }

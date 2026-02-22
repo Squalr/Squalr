@@ -20,5 +20,32 @@
                 "cwd": "${workspaceFolder}"
             }
         },
+        {
+            "label": "Build squalr-android (Android)",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "ndk",
+                "--platform",
+                "21",
+                "--target",
+                "aarch64-linux-android",
+                "build",
+                "--package",
+                "squalr-android",
+                "--lib"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            }
+        },
+        {
+            "label": "Build Android (CLI + GUI lib)",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Build squalr-cli (Android)",
+                "Build squalr-android (Android)"
+            ]
+        }
     ]
 }

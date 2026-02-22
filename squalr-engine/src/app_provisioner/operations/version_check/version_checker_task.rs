@@ -4,10 +4,7 @@ use crate::app_provisioner::operations::version_check::version_checker_status::V
 use anyhow::{Context, Result};
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
-use ureq::{
-    config::Config,
-    tls::{TlsConfig, TlsProvider},
-};
+use ureq::config::Config;
 
 pub struct VersionCheckerTask {}
 
@@ -64,8 +61,7 @@ impl VersionCheckerTask {
     }
 
     fn check_for_updates() -> Result<Option<GitHubReleaseInfo>> {
-        let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
-        let config = Config::builder().tls_config(tls_config).build();
+        let config = Config::builder().build();
         let agent = config.new_agent();
         let response = agent
             .get(AppProvisionerConfig::get_latest_version_url())

@@ -3,10 +3,31 @@ mod response_handlers;
 
 use anyhow::{Context, Result, bail};
 use cli::Cli;
+#[cfg(target_os = "android")]
+use log::LevelFilter;
 use squalr_engine::engine_mode::EngineMode;
 use squalr_engine::squalr_engine::SqualrEngine;
+#[cfg(target_os = "android")]
+use std::sync::OnceLock;
+
+#[cfg(target_os = "android")]
+static ANDROID_LOGCAT_INIT: OnceLock<()> = OnceLock::new();
+
+#[cfg(target_os = "android")]
+fn initialize_android_logcat_logger() {
+    ANDROID_LOGCAT_INIT.get_or_init(|| {
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_max_level(LevelFilter::Info)
+                .with_tag("SqualrCli"),
+        );
+    });
+}
 
 fn main() -> Result<()> {
+    #[cfg(target_os = "android")]
+    initialize_android_logcat_logger();
+
     let command_line_arguments: Vec<String> = std::env::args().collect();
     let engine_mode = if command_line_arguments
         .iter()

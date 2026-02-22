@@ -3,14 +3,46 @@ Our current task, from `README.md`, is:
 `pr/TODO`
 
 # Notes from Owner (Readonly Section)
-- 
+- Assume any unstaged file changes are from a previous iteration, and can be kept if they look good
+- The android device is rooted.
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- 
-
+- ~~Audit GUI project against TUI for functionality gaps now that Android full process-list refresh no longer reproduces as empty.~~
+    - WRONG YOU RETARDED FUCK. WHICHEVER AGENT KEEPS THINKING THE PROCESS LIST IS NON-EMPTY IS WRONG. THE GUI is 100% FUCKING EMPTY, EVERY FUCKING TIME. THIS IS ANDROID ONLY, DUE TO THE IPC COMPLEXITY. FUCKING INVESTIGATE YOU RETARD. ITS NOT A RENDERING BUG. FUCK YOU.
+    - ~~Okay its filled now, but with random shit. These are not windowed processes. (defeating the purpose of the windowed flag)~~
+- Validate Android GUI process-selector behavior after GUI windowed/full mode parity fix (windowed-only toggle now wired to `require_windowed` in GUI refresh path).
+- If windowed mode is still empty on Android, continue investigation in Android process windowed classification (`squalr-engine-operating-system/src/process_query/android/android_process_query.rs`).
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- 
+- Android build/runtime ownership is in `squalr` crate (`android_main` in `squalr/src/lib.rs`, manifest/resources under `squalr/android/`); `squalr-android` crate removed.
+- Canonical Android entry scripts: `build_and_deploy.py`, `run_apk.py`, `debug_run_privileged_shell.py`.
+- Launcher identity is pinned as `com.squalr.android/android.app.NativeActivity` with `android.app.lib_name = "squalr"`; deploy script enforces this.
+- Android worker target path is standardized as `/data/local/tmp/squalr-cli`.
+- Device status (2026-02-22): rooted `Pixel_9_Pro_Fold` (`adb serial: 4C101FDKD000Z8`, fingerprint `google/comet/comet:16/BP3A.251005.004.B3/14332485:user/release-keys`).
+- Root-only shell validation succeeds: `adb shell su -c id` returns `uid=0(root)`.
+- Manual privileged worker launch validation succeeds: `debug_run_privileged_shell.py` launches `squalr-cli --ipc-mode` and `pidof squalr-cli` reports a running pid.
+- Root cause for worker exits was `Cli::stay_alive()` reading stdin in `su -c` context (EOF); fix keeps IPC worker alive via sleep loop.
+- Interprocess spawn diagnostics now log worker command, su candidate resolution, and invocation-specific failures (`su -c`, `su 0 sh -c`, `su root sh -c`).
+- Privileged worker IPC diagnostics now log explicit receive/connection/read-lock failures before listener shutdown.
+- Process selector includes dispatch-failure + stale-timeout guards, and now logs process-list request dispatch + response counts.
+- GUI now triggers an initial full process-list refresh on process-selector view construction for deterministic Android validation.
+- Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed).
+- Host validation (2026-02-22): `cargo test -p squalr-cli -- --nocapture` passed (2 passed, 0 failed).
+- Android validation (2026-02-22, 08:45 local): `build_and_deploy.py --debug --launch-log-seconds 30` passed; worker detected (`pidof squalr-cli` => `16655`); artifact `logs/android_bootstrap_20260222_084500.log`.
+- Android validation (2026-02-22, 08:54 local): `build_and_deploy.py --debug --launch-log-seconds 45` logged GUI dispatch + successful full process-list response (`8111` entries), with `SqualrCli` execution log for `require_windowed=false`; worker detected (`pidof squalr-cli` => `17904`); artifact `logs/android_process_selector_validation_20260222_085458.log`.
+- Android validation (2026-02-22, 09:00 local): `build_and_deploy.py --debug --launch-log-seconds 45` passed; GUI logged full process-list dispatch + response (`8114` entries), repeated windowed responses (`0` entries), and worker detected (`pidof squalr-cli` => `18841`).
+- No occurrences in current Android validation logs of prior failure signatures: `failed to fill whole buffer`, `Broken pipe (os error 32)`, or IPC listener read-lock/receive failure logs.
+- GUI process-selector refresh root cause (2026-02-22): `ProcessSelectorView` held a read lock on `ProcessSelectorViewData` while drawing the toolbar; toolbar refresh click requires a write lock, so refresh attempts could no-op.
+- Fix (2026-02-22): render `ProcessSelectorToolbarView` before acquiring the read lock in `squalr/src/views/process_selector/process_selector_view.rs`, allowing refresh dispatch to acquire write access.
+- Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed) after lock-order change.
+- Android process query fix (2026-02-22): process display names now come from `/proc/<pid>/cmdline` with fallback to `/proc/<pid>/comm`; package extraction is optional and only used for APK/icon lookup and windowed classification.
+- Android process query hardening (2026-02-22): package extraction now rejects executable paths (for example `/system/bin/...`) to avoid package-name false positives in full process lists.
+- Host validation (2026-02-22): `cargo test -p squalr-engine-operating-system -- --nocapture` passed (3 passed, 0 failed).
+- Host validation (2026-02-22): `cargo test -p squalr-cli -- --nocapture` passed (2 passed, 0 failed) after Android query changes.
+- GUI process selector parity fix (2026-02-22): `ProcessSelectorViewData` now tracks `show_windowed_processes_only`; refreshes dispatch through active mode (`require_windowed=true/false`) instead of always full-list.
+- GUI process selector UX fix (2026-02-22): toolbar now has a windowed-only checkbox and refresh button that respects active mode (`squalr/src/views/process_selector/process_selector_toolbar_view.rs`).
+- GUI Android default (2026-02-22): process selector now defaults to windowed-only mode on Android (`cfg!(target_os = "android")`) while keeping full-list mode available via toggle.
+- Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed) after GUI windowed/full mode wiring changes.
