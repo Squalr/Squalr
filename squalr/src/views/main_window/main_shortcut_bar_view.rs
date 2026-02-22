@@ -3,7 +3,7 @@ use crate::{
     ui::widgets::controls::combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
     views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
 };
-use eframe::egui::{Align, Direction, Layout, Response, Sense, Spinner, Ui, UiBuilder, Widget};
+use eframe::egui::{Align, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget};
 use epaint::{CornerRadius, Rect, vec2};
 use squalr_engine_api::{dependency_injection::dependency::Dependency, events::process::changed::process_changed_event::ProcessChangedEvent};
 use std::sync::Arc;
@@ -108,26 +108,36 @@ impl Widget for MainShortcutBarView {
                 }
 
                 if !process_selector_view_data.is_awaiting_windowed_process_list {
-                    for windowed_process in &process_selector_view_data.windowed_process_list {
-                        let icon = match windowed_process.get_icon() {
-                            Some(icon) => process_selector_view_data.get_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
-                            None => None,
-                        };
+                    ScrollArea::vertical()
+                        .id_salt("main_shortcut_bar_process_select_dropdown_scroll")
+                        .max_height(280.0)
+                        .auto_shrink([false, false])
+                        .show(user_interface, |inner_user_interface| {
+                            for windowed_process in &process_selector_view_data.windowed_process_list {
+                                let icon = match windowed_process.get_icon() {
+                                    Some(icon) => process_selector_view_data.get_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
+                                    None => None,
+                                };
 
-                        if user_interface
-                            .add(ComboBoxItemView::new(
-                                self.app_context.clone(),
-                                windowed_process.get_name(),
-                                icon,
-                                process_dropdown_list_width,
-                            ))
-                            .clicked()
-                        {
-                            process_to_open = Some(Some(windowed_process.get_process_id()));
-                            *should_close = true;
+                                if inner_user_interface
+                                    .add(ComboBoxItemView::new(
+                                        self.app_context.clone(),
+                                        windowed_process.get_name(),
+                                        icon,
+                                        process_dropdown_list_width,
+                                    ))
+                                    .clicked()
+                                {
+                                    process_to_open = Some(Some(windowed_process.get_process_id()));
+                                    *should_close = true;
 
-                            return;
-                        }
+                                    return;
+                                }
+                            }
+                        });
+
+                    if *should_close {
+                        return;
                     }
                 } else {
                     user_interface.allocate_ui_with_layout(

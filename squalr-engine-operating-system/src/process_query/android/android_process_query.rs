@@ -15,6 +15,7 @@ use std::io::BufReader;
 use std::io::Cursor;
 use std::io::Read;
 use std::path::Path;
+use std::process::Command;
 use zip::ZipArchive;
 
 /// Minimum UID for user-installed apps.
@@ -210,13 +211,68 @@ impl AndroidProcessQuery {
     }
 
     fn parse_installed_package_paths() -> HashMap<String, String> {
-        let package_map = Self::parse_data_app_directories();
-        if !package_map.is_empty() {
-            return package_map;
+        let package_map_from_data_app = Self::parse_data_app_directories();
+        if !package_map_from_data_app.is_empty() {
+            return package_map_from_data_app;
         }
 
         log::warn!("No package paths found in /data/app. Falling back to packages.xml parsing.");
-        Self::parse_packages_xml()
+        let package_map_from_packages_xml = Self::parse_packages_xml();
+        if !package_map_from_packages_xml.is_empty() {
+            return package_map_from_packages_xml;
+        }
+
+        log::warn!("No package paths found in packages.xml. Falling back to package manager parsing.");
+        Self::parse_package_manager_packages()
+    }
+
+    fn parse_package_manager_packages() -> HashMap<String, String> {
+        let mut package_map = HashMap::new();
+        let package_manager_output = match Command::new("pm")
+            .arg("list")
+            .arg("packages")
+            .arg("-f")
+            .output()
+        {
+            Ok(output) => output,
+            Err(error) => {
+                log::error!("Failed to execute package manager query: {}", error);
+                return package_map;
+            }
+        };
+
+        if !package_manager_output.status.success() {
+            let error_output = String::from_utf8_lossy(&package_manager_output.stderr);
+            log::error!("Package manager query failed: {}", error_output.trim());
+            return package_map;
+        }
+
+        let package_list_output = String::from_utf8_lossy(&package_manager_output.stdout);
+        for package_list_line in package_list_output.lines() {
+            if let Some((package_name, apk_path)) = Self::parse_package_manager_entry(package_list_line) {
+                package_map.insert(package_name, apk_path);
+            }
+        }
+
+        package_map
+    }
+
+    fn parse_package_manager_entry(package_list_line: &str) -> Option<(String, String)> {
+        let package_line = package_list_line.trim();
+        if !package_line.starts_with("package:") {
+            return None;
+        }
+
+        let entry_without_prefix = package_line.trim_start_matches("package:");
+        let (apk_path, package_name) = entry_without_prefix.rsplit_once('=')?;
+        let parsed_apk_path = apk_path.trim();
+        let parsed_package_name = package_name.trim();
+
+        if parsed_apk_path.is_empty() || parsed_package_name.is_empty() {
+            return None;
+        }
+
+        Some((parsed_package_name.to_string(), parsed_apk_path.to_string()))
     }
 
     fn get_apk_path(
@@ -450,5 +506,24 @@ mod tests {
         let is_primary_package_process = AndroidProcessQuery::is_primary_package_process(Some("com.squalr.android:worker"), Some("com.squalr.android"));
 
         assert!(!is_primary_package_process);
+    }
+
+    #[test]
+    fn package_manager_line_parser_ignores_malformed_lines() {
+        let package_line = "package:/data/app/~~token/com.squalr.android-ABC==/base.apk=com.squalr.android";
+        let malformed_line = "package:missing_equals_separator";
+
+        let mut package_map = std::collections::HashMap::new();
+        for package_list_line in [package_line, malformed_line] {
+            if let Some((package_name, apk_path)) = AndroidProcessQuery::parse_package_manager_entry(package_list_line) {
+                package_map.insert(package_name, apk_path);
+            }
+        }
+
+        assert_eq!(
+            package_map.get("com.squalr.android"),
+            Some(&"/data/app/~~token/com.squalr.android-ABC==/base.apk".to_string())
+        );
+        assert_eq!(package_map.len(), 1);
     }
 }
