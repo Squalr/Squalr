@@ -8,7 +8,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Run one rooted-device smoke validation on a shell with `su` available and capture the exact successful transcript (install + launch + privileged worker check).
+- Run `python build_and_deploy.py --debug --skip-worker --launch-log-file target/android_launch_logcat.txt` on a connected device to capture launch diagnostics without requiring root.
+- Inspect `target/android_launch_logcat.txt` for `AndroidRuntime`, `DEBUG`, `libc`, and activity lifecycle errors tied to `com.squalr.android`.
+- If launch diagnostics are clean but app still hangs on icon screen, run `python run_apk.py --launch-log-file target/android_launch_logcat_rerun.txt` for a second repro capture.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -30,3 +32,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Launcher identity verification (2026-02-22): `aapt dump badging target/debug/apk/squalr.apk` reports `application-label:'Squalr'` and `application-icon-160:'res/drawable/app_icon.png'`; on-device resolver confirms `com.squalr.android/android.app.NativeActivity`.
 - Migration completion status (2026-02-22): `squalr-android` crate removed from workspace and deleted after moving Android launcher/resources/scripts to `squalr` + workspace root.
 - Remaining external dependency is rooted-device access to complete end-to-end privileged smoke validation.
+- Launch diagnostics tooling (2026-02-22): `build_and_deploy.py` now supports `--skip-worker`, `--launch-log-seconds`, and `--launch-log-file`; it force-stops the app, clears logcat, launches, then captures PID/activity dump + filtered logcat.
+- Launch diagnostics tooling (2026-02-22): `run_apk.py` now mirrors launch diagnostics capture with `--launch-log-seconds` and `--launch-log-file` for repeat repro runs without rebuilding.

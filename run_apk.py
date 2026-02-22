@@ -1,6 +1,8 @@
 import argparse
 import subprocess
 import sys
+import time
+from pathlib import Path
 
 
 PACKAGE_CANDIDATES = ["com.squalr.android"]
@@ -86,6 +88,39 @@ def launch_component(component_name):
         sys.exit(exit_code)
 
 
+def prepare_launch_diagnostics(package_name):
+    run_command(["adb", "shell", "am", "force-stop", package_name])
+    run_command(["adb", "logcat", "-c"])
+
+
+def collect_launch_diagnostics(package_name, launch_log_seconds, launch_log_file_path):
+    print(f"\nCollecting launch diagnostics for {launch_log_seconds} second(s)...")
+    time.sleep(launch_log_seconds)
+
+    run_command(["adb", "shell", "pidof", package_name])
+    run_command(["adb", "shell", "dumpsys", "activity", "activities", package_name])
+    _, logcat_output = run_command(
+        [
+            "adb",
+            "logcat",
+            "-d",
+            "-v",
+            "threadtime",
+            "ActivityTaskManager:I",
+            "ActivityManager:I",
+            "AndroidRuntime:E",
+            "DEBUG:E",
+            "libc:E",
+            "*:S",
+        ]
+    )
+
+    if launch_log_file_path:
+        launch_log_file_path.parent.mkdir(parents=True, exist_ok=True)
+        launch_log_file_path.write_text(logcat_output, encoding="utf-8")
+        print(f"\nSaved launch logcat to: {launch_log_file_path}")
+
+
 def main():
     argument_parser = argparse.ArgumentParser(description="Launch installed Squalr Android app over adb.")
     argument_parser.add_argument(
@@ -97,9 +132,20 @@ def main():
         action="store_true",
         help="Also try rust.squalr_android as a fallback for older installs.",
     )
+    argument_parser.add_argument(
+        "--launch-log-seconds",
+        type=int,
+        default=6,
+        help="Seconds to wait after launch before collecting log diagnostics.",
+    )
+    argument_parser.add_argument(
+        "--launch-log-file",
+        help="Optional path to write filtered launch logcat output.",
+    )
     parsed_arguments = argument_parser.parse_args()
 
     ensure_device_connected()
+    launch_log_file_path = Path(parsed_arguments.launch_log_file).resolve() if parsed_arguments.launch_log_file else None
 
     if parsed_arguments.package:
         package_candidates = [parsed_arguments.package]
@@ -108,8 +154,11 @@ def main():
         if parsed_arguments.include_legacy_package:
             package_candidates.append(LEGACY_PACKAGE)
     for package_name in package_candidates:
+        prepare_launch_diagnostics(package_name)
+
         launched_component_name = launch_known_main_activity(package_name)
         if launched_component_name is not None:
+            collect_launch_diagnostics(package_name, parsed_arguments.launch_log_seconds, launch_log_file_path)
             print(f"\nLaunched: {launched_component_name}")
             return
 
@@ -118,6 +167,7 @@ def main():
             continue
 
         launch_component(resolved_component_name)
+        collect_launch_diagnostics(package_name, parsed_arguments.launch_log_seconds, launch_log_file_path)
         print(f"\nLaunched: {resolved_component_name}")
         return
 

@@ -261,6 +261,40 @@ def verify_launcher_identity(workspace_directory):
         )
 
 
+def prepare_launch_diagnostics(workspace_directory):
+    run_command(["adb", "shell", "am", "force-stop", PACKAGE_NAME], workspace_directory)
+    run_command(["adb", "logcat", "-c"], workspace_directory)
+
+
+def collect_launch_diagnostics(workspace_directory, launch_log_seconds, launch_log_file_path):
+    print(f"\nCollecting launch diagnostics for {launch_log_seconds} second(s)...")
+    time.sleep(launch_log_seconds)
+
+    run_command(["adb", "shell", "pidof", PACKAGE_NAME], workspace_directory)
+    run_command(["adb", "shell", "dumpsys", "activity", "activities", PACKAGE_NAME], workspace_directory)
+    _, logcat_output = run_command(
+        [
+            "adb",
+            "logcat",
+            "-d",
+            "-v",
+            "threadtime",
+            "ActivityTaskManager:I",
+            "ActivityManager:I",
+            "AndroidRuntime:E",
+            "DEBUG:E",
+            "libc:E",
+            "*:S",
+        ],
+        workspace_directory,
+    )
+
+    if launch_log_file_path:
+        launch_log_file_path.parent.mkdir(parents=True, exist_ok=True)
+        launch_log_file_path.write_text(logcat_output, encoding="utf-8")
+        print(f"\nSaved launch logcat to: {launch_log_file_path}")
+
+
 def verify_ipc_handshake(workspace_directory):
     print("\nWaiting for privileged worker IPC shell to come online...")
     for _poll_index in range(12):
@@ -292,6 +326,21 @@ def main():
         action="store_true",
         help="Run host preflight and Android compile checks only (no adb install/launch).",
     )
+    argument_parser.add_argument(
+        "--skip-worker",
+        action="store_true",
+        help="Skip privileged worker deployment and IPC validation (useful for launch diagnostics on non-rooted devices).",
+    )
+    argument_parser.add_argument(
+        "--launch-log-seconds",
+        type=int,
+        default=6,
+        help="Seconds to wait after launch before collecting log diagnostics.",
+    )
+    argument_parser.add_argument(
+        "--launch-log-file",
+        help="Optional path to write filtered launch logcat output.",
+    )
     parsed_arguments = argument_parser.parse_args()
 
     workspace_directory = Path(__file__).resolve().parent
@@ -318,9 +367,20 @@ def main():
     ensure_adb_device_connected(workspace_directory)
     install_apk(workspace_directory, apk_profile)
     verify_launcher_identity(workspace_directory)
-    deploy_privileged_worker(workspace_directory, "release" if prefer_release_mode else "debug")
+    if not parsed_arguments.skip_worker:
+        deploy_privileged_worker(workspace_directory, "release" if prefer_release_mode else "debug")
+    else:
+        print("\nSkipping privileged worker deployment (--skip-worker).")
+
+    launch_log_file_path = Path(parsed_arguments.launch_log_file).resolve() if parsed_arguments.launch_log_file else None
+    prepare_launch_diagnostics(workspace_directory)
     launch_installed_app(workspace_directory)
-    verify_ipc_handshake(workspace_directory)
+    collect_launch_diagnostics(workspace_directory, parsed_arguments.launch_log_seconds, launch_log_file_path)
+
+    if not parsed_arguments.skip_worker:
+        verify_ipc_handshake(workspace_directory)
+    else:
+        print("\nSkipped IPC handshake validation because --skip-worker was provided.")
 
     print("\nDeployment + smoke validation complete.")
 
