@@ -473,7 +473,10 @@ impl ProcessSelectorViewData {
     }
 
     fn refresh_shortcut_dropdown_process_list(&mut self) {
-        let next_shortcut_dropdown_process_list = if self.show_windowed_processes_only {
+        let next_shortcut_dropdown_process_list = if !Self::IS_ANDROID_TARGET {
+            // Preserve legacy desktop behavior: shortcut dropdown is strictly windowed-only.
+            Self::sort_processes_case_insensitive_then_process_id(self.windowed_process_list.clone())
+        } else if self.show_windowed_processes_only {
             Self::choose_shortcut_dropdown_windowed_candidates(&self.windowed_process_list, &self.full_process_list)
         } else {
             Self::sort_processes_case_insensitive_then_process_id(self.full_process_list.clone())
@@ -725,6 +728,31 @@ mod tests {
             assert_eq!(ordered_process_ids, vec![20, 10]);
         } else {
             assert!(ordered_process_ids.is_empty());
+        }
+    }
+
+    #[test]
+    fn refresh_shortcut_dropdown_process_list_keeps_desktop_windowed_only_behavior() {
+        let mut process_selector_view_data = ProcessSelectorViewData::new();
+        process_selector_view_data.show_windowed_processes_only = false;
+        process_selector_view_data.windowed_process_list = vec![ProcessInfo::new(40, "WindowedApp".to_string(), true, None)];
+        process_selector_view_data.full_process_list = vec![
+            ProcessInfo::new(40, "WindowedApp".to_string(), true, None),
+            ProcessInfo::new(10, "BackgroundService.exe".to_string(), false, None),
+        ];
+
+        process_selector_view_data.refresh_shortcut_dropdown_process_list();
+
+        let ordered_process_ids: Vec<u32> = process_selector_view_data
+            .shortcut_dropdown_process_list
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+
+        if ProcessSelectorViewData::IS_ANDROID_TARGET {
+            assert_eq!(ordered_process_ids, vec![10, 40]);
+        } else {
+            assert_eq!(ordered_process_ids, vec![40]);
         }
     }
 

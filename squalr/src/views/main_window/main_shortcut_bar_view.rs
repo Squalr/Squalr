@@ -176,7 +176,9 @@ impl Widget for MainShortcutBarView {
             // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator?
             // Could throw in an artificial delay to simulate how this would behave over a network (GUI -> network -> shell).
             ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
-            ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
+            if cfg!(target_os = "android") {
+                ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
+            }
         } else if let Some(process_id) = process_to_open {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);

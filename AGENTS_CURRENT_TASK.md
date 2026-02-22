@@ -18,6 +18,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Need human verification: Validate non-Android GUI boot on a clean desktop environment after Android support changes, confirming startup no longer crashes during update/version check.
+- Need human verification: Validate desktop GUI shortcut process dropdown shows only true windowed processes (no background task leakage) after restoring non-Android windowed-only sourcing.
 - Need human verification: Validate desktop GUI process selector in `Windowed` mode only shows true windowed processes (no broad non-windowed `.exe` leakage) after Android fallback gating changes.
 
 ## Important Information
@@ -30,3 +31,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Root cause for windowed-process regression on desktop: Android fallback in `ProcessSelectorViewData::normalize_windowed_processes_with_fallback` and shortcut fallback was unconditional; on Windows, many non-windowed process names match the fallback heuristic (`contains('.') && !contains(':')`), polluting the windowed list.
 - Mitigation implemented: gated both fallbacks to Android only (`cfg!(target_os = "android")` via `IS_ANDROID_TARGET`), so non-Android windowed mode now uses strict `get_is_windowed()` filtering.
 - Local verification: `cargo test -p squalr process_selector_view_data --locked` passes with platform-conditional assertions for fallback behavior.
+- Root cause for persistent desktop leakage after fallback gating: shortcut dropdown selection logic sourced from full process list when `show_windowed_processes_only` was false (default non-Android), reintroducing background tasks despite strict windowed filtering.
+- Mitigation implemented: restored legacy desktop shortcut behavior by always sourcing shortcut dropdown from `windowed_process_list` on non-Android and only refreshing full list from the shortcut on Android.
+- Local verification: `cargo test -p squalr process_selector_view_data --locked` passes including `refresh_shortcut_dropdown_process_list_keeps_desktop_windowed_only_behavior`.
