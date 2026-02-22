@@ -23,6 +23,7 @@ impl ProcessSelectorView {
         let process_selector_view_data = app_context
             .dependency_container
             .register(ProcessSelectorViewData::new());
+        ProcessSelectorViewData::refresh_full_process_list(process_selector_view_data.clone(), app_context.clone());
         let process_selector_toolbar_view = ProcessSelectorToolbarView::new(app_context.clone());
 
         Self {

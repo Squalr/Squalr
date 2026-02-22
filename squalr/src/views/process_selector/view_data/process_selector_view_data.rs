@@ -73,11 +73,13 @@ impl ProcessSelectorViewData {
         match process_selector_view_data.write("Process selector view data refresh windowed process list") {
             Some(mut process_selector_view_data) => {
                 if process_selector_view_data.is_awaiting_windowed_process_list {
+                    log::debug!("Skipping windowed process-list refresh because a request is already pending.");
                     return;
                 }
 
                 process_selector_view_data.is_awaiting_windowed_process_list = true;
                 process_selector_view_data.windowed_process_list_request_started_at = Some(Instant::now());
+                log::info!("Dispatching windowed process-list refresh request.");
             }
             None => return,
         };
@@ -91,10 +93,15 @@ impl ProcessSelectorViewData {
 
             process_selector_view_data.is_awaiting_windowed_process_list = false;
             process_selector_view_data.windowed_process_list_request_started_at = None;
+            log::info!(
+                "Received windowed process-list response with {} entries.",
+                process_list_response.processes.len()
+            );
             ProcessSelectorViewData::set_windowed_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
 
         if !did_dispatch {
+            log::warn!("Windowed process-list refresh request failed to dispatch.");
             if let Some(mut process_selector_view_data) =
                 process_selector_view_data_for_response.write("Process selector view data refresh windowed process list dispatch failure")
             {
@@ -122,11 +129,13 @@ impl ProcessSelectorViewData {
         match process_selector_view_data.write("Process selector view data refresh full process list") {
             Some(mut process_selector_view_data) => {
                 if process_selector_view_data.is_awaiting_full_process_list {
+                    log::debug!("Skipping full process-list refresh because a request is already pending.");
                     return;
                 }
 
                 process_selector_view_data.is_awaiting_full_process_list = true;
                 process_selector_view_data.full_process_list_request_started_at = Some(Instant::now());
+                log::info!("Dispatching full process-list refresh request.");
             }
             None => return,
         };
@@ -140,11 +149,13 @@ impl ProcessSelectorViewData {
 
             process_selector_view_data.is_awaiting_full_process_list = false;
             process_selector_view_data.full_process_list_request_started_at = None;
+            log::info!("Received full process-list response with {} entries.", process_list_response.processes.len());
 
             Self::set_full_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
 
         if !did_dispatch {
+            log::warn!("Full process-list refresh request failed to dispatch.");
             if let Some(mut process_selector_view_data) =
                 process_selector_view_data_for_response.write("Process selector view data refresh full process list dispatch failure")
             {

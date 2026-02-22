@@ -1,4 +1,5 @@
 use crate::engine_bindings::engine_egress::EngineEgress;
+use crate::engine_bindings::engine_ingress::EngineIngress;
 use crate::engine_bindings::executable_command_unprivileged::ExecutableCommandUnprivleged;
 use crate::engine_bindings::interprocess::pipes::interprocess_pipe_bidirectional::InterprocessPipeBidirectional;
 use crate::engine_initialization_error::EngineInitializationError;
@@ -77,7 +78,7 @@ impl EngineApiUnprivilegedBindings for InterprocessEngineApiUnprivilegedBindings
 
         if let Some(ipc_connection) = ipc_connection_guard.as_ref() {
             ipc_connection
-                .send(privileged_command, request_id)
+                .send(EngineIngress::PrivilegedCommand(privileged_command), request_id)
                 .map_err(|error| EngineBindingError::operation_failed("sending privileged command over IPC", error))?;
 
             return Ok(());
