@@ -140,7 +140,10 @@ impl Widget for MainShortcutBarView {
 
                     if should_use_scroll_area {
                         ScrollArea::vertical()
-                            .id_salt("main_shortcut_bar_process_select_dropdown_scroll")
+                            .id_salt((
+                                "main_shortcut_bar_process_select_dropdown_scroll",
+                                process_selector_view_data.windowed_process_list_refresh_nonce,
+                            ))
                             .max_height(max_dropdown_height)
                             .auto_shrink([false, false])
                             .show(user_interface, |inner_user_interface| {

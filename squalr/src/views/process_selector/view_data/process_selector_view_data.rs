@@ -26,6 +26,7 @@ pub struct ProcessSelectorViewData {
     pub is_awaiting_windowed_process_list: bool,
     pub is_awaiting_full_process_list: bool,
     pub is_opening_process: bool,
+    pub windowed_process_list_refresh_nonce: u64,
     windowed_process_list_request_started_at: Option<Instant>,
     full_process_list_request_started_at: Option<Instant>,
     open_process_request_started_at: Option<Instant>,
@@ -45,6 +46,7 @@ impl ProcessSelectorViewData {
             is_awaiting_windowed_process_list: false,
             is_awaiting_full_process_list: false,
             is_opening_process: false,
+            windowed_process_list_refresh_nonce: 0,
             windowed_process_list_request_started_at: None,
             full_process_list_request_started_at: None,
             open_process_request_started_at: None,
@@ -81,6 +83,9 @@ impl ProcessSelectorViewData {
 
                 process_selector_view_data.is_awaiting_windowed_process_list = true;
                 process_selector_view_data.windowed_process_list_request_started_at = Some(Instant::now());
+                process_selector_view_data.windowed_process_list_refresh_nonce = process_selector_view_data
+                    .windowed_process_list_refresh_nonce
+                    .saturating_add(1);
                 log::info!("Dispatching windowed process-list refresh request.");
             }
             None => return,
@@ -319,17 +324,19 @@ impl ProcessSelectorViewData {
         app_context: &Arc<AppContext>,
         new_list: Vec<ProcessInfo>,
     ) {
-        let removed = Self::diff_pids(&process_selector_view_data.windowed_process_list, &new_list);
+        let normalized_windowed_processes = Self::normalize_windowed_processes(new_list);
+
+        let removed = Self::diff_pids(&process_selector_view_data.windowed_process_list, &normalized_windowed_processes);
 
         // Cache icons for the new list up front.
-        for process in &new_list {
+        for process in &normalized_windowed_processes {
             let pid = process.get_process_id_raw();
             if let Some(icon) = process.get_icon() {
                 Self::create_and_cache_icon(process_selector_view_data, app_context, pid, &icon);
             }
         }
 
-        process_selector_view_data.windowed_process_list = new_list;
+        process_selector_view_data.windowed_process_list = normalized_windowed_processes;
 
         // Remove icons for processes no longer present.
         Self::remove_from_cache(process_selector_view_data, &removed);
@@ -361,6 +368,29 @@ impl ProcessSelectorViewData {
 
         // Remove icons for processes no longer present.
         Self::remove_from_cache(process_selector_view_data, &removed);
+    }
+
+    /// Computes process ID deltas between old/new PID sets.
+    fn normalize_windowed_processes(processes: Vec<ProcessInfo>) -> Vec<ProcessInfo> {
+        let mut normalized_windowed_processes: Vec<ProcessInfo> = processes
+            .into_iter()
+            .filter(|process_info| process_info.get_is_windowed())
+            .collect();
+        normalized_windowed_processes.sort_by(|left_process_info, right_process_info| {
+            let name_ordering = left_process_info
+                .get_name()
+                .to_ascii_lowercase()
+                .cmp(&right_process_info.get_name().to_ascii_lowercase());
+            if name_ordering.is_eq() {
+                left_process_info
+                    .get_process_id_raw()
+                    .cmp(&right_process_info.get_process_id_raw())
+            } else {
+                name_ordering
+            }
+        });
+
+        normalized_windowed_processes
     }
 
     /// Computes process ID deltas between old/new PID sets.
@@ -440,6 +470,7 @@ impl ProcessSelectorViewData {
 #[cfg(test)]
 mod tests {
     use super::ProcessSelectorViewData;
+    use squalr_engine_api::structures::processes::process_info::ProcessInfo;
     use std::time::{Duration, Instant};
 
     #[test]
@@ -468,5 +499,35 @@ mod tests {
         let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, None, true);
 
         assert!(is_stale);
+    }
+
+    #[test]
+    fn normalize_windowed_processes_filters_non_windowed_entries() {
+        let process_list = vec![
+            ProcessInfo::new(20, "com.example.worker".to_string(), false, None),
+            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
+        ];
+
+        let normalized_windowed_processes = ProcessSelectorViewData::normalize_windowed_processes(process_list);
+
+        assert_eq!(normalized_windowed_processes.len(), 1);
+        assert_eq!(normalized_windowed_processes[0].get_name(), "com.example.app");
+    }
+
+    #[test]
+    fn normalize_windowed_processes_sorts_case_insensitive_then_process_id() {
+        let process_list = vec![
+            ProcessInfo::new(40, "beta".to_string(), true, None),
+            ProcessInfo::new(10, "Alpha".to_string(), true, None),
+            ProcessInfo::new(30, "alpha".to_string(), true, None),
+        ];
+
+        let normalized_windowed_processes = ProcessSelectorViewData::normalize_windowed_processes(process_list);
+        let ordered_process_ids: Vec<u32> = normalized_windowed_processes
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+
+        assert_eq!(ordered_process_ids, vec![10, 30, 40]);
     }
 }

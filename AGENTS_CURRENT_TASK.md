@@ -17,8 +17,11 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
-- Need human verification: visually confirm on-device Android GUI process dropdown renders correct windowed process rows after dropdown list height behavior fix in `main_shortcut_bar_view.rs` (small lists render without `ScrollArea`; larger lists use capped scroll region).
-    - Previous attempt failed: windowed list showed 2 random/non-windowed rows (for example `com.google.android.euic`).
+- Need human verification: visually confirm on-device Android GUI process dropdown now renders the expected full windowed list after windowed-list normalization + scroll-state reset in:
+  - `squalr/src/views/process_selector/view_data/process_selector_view_data.rs`.
+  - `squalr/src/views/main_window/main_shortcut_bar_view.rs`.
+  human: pending.
+  - Previous attempt failed before this change: dropdown showed 2 random/non-windowed rows (example: `com.google.android.euic`).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -29,14 +32,17 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added Android unit tests for primary-process classification, zygote-ancestor lineage detection, cycle safety, package-manager parser coverage, and zygote-name variants (`android_process_query.rs`).
 - Added process dropdown UX updates: vertical scroll area plus clipped/truncated long process names for combo-box rows.
 - Process dropdown rendering now uses conditional scroll behavior: render direct rows when result count is small, otherwise enable capped-height scroll area (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
+- Windowed process lists are now defensively normalized in GUI view-data before rendering: enforce `is_windowed == true` and sort deterministically by case-insensitive name then PID (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
+- Main shortcut bar dropdown scroll area now salts its state with a per-refresh nonce to avoid stale scroll offsets reopening at trailing rows (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
+- Added GUI unit tests for windowed-process normalization behavior (filter non-windowed entries + deterministic ordering) in `squalr/src/views/process_selector/view_data/process_selector_view_data.rs`.
 - Root cause for missing GUI rows was dependency replacement race; `ProcessSelectorViewData` is now single-registered in `main_window_view.rs` and consumed in `process_selector_view.rs` via shared dependency lookup.
 - GUI/TUI parity audit was completed on 2026-02-22; current gaps are listed under WONTFIX.
 - Validation baseline (latest run: 2026-02-22) passed: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr-engine-operating-system --target aarch64-linux-android --locked`, `cargo check -p squalr --locked`.
+- Session validation refresh (2026-02-22): passed `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo test -p squalr process_selector_view_data --locked`, and `cargo check -p squalr --locked` (warnings unchanged/pre-existing).
 - Android compile/deploy checks passed on 2026-02-22: `python ./build_and_deploy.py --compile-check` and `python ./build_and_deploy.py --debug`.
 - CLI-side rooted verification passed on 2026-02-22: `adb shell su -c "/data/local/tmp/squalr-cli process list -w -l 300"` showed `com.squalr.android` in windowed results.
 - GUI-side runtime logs from deploy on 2026-02-22 show process selector requests/responses with non-empty results (`Received windowed process-list response with 67 entries.`).
 - Current session (2026-02-22) remains blocked on on-device-only visual verification of Android GUI process dropdown row correctness; local CLI/tests/checks cannot replace that validation.
-- Session validation refresh (2026-02-22 10:49 -08:00): `cargo check -p squalr --locked` passed with only pre-existing GUI warnings.
 - `cargo check -p squalr --locked` still reports existing GUI unused-variable/unreachable-pattern warnings, with no new failures.
 - Direct `cargo check -p squalr --target aarch64-linux-android --locked` may fail in this environment due `aarch64-linux-android-clang` pathing for `ring`; use `cargo ndk` / deploy script paths for Android validation.
 - Lockfile regeneration is currently blocked in this environment by yanked crate requirement `zip = "^7.4.0"` from `squalr-engine`.
