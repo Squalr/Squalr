@@ -116,7 +116,6 @@ impl AndroidProcessQuery {
     fn parse_data_app_directories() -> HashMap<String, String> {
         let mut package_map = HashMap::new();
         let data_app_root = Path::new("/data/app");
-        log::info!("Scanning {} for package directories.", data_app_root.display());
 
         let root_entries = match fs::read_dir(data_app_root) {
             Ok(entries) => entries,
@@ -167,8 +166,6 @@ impl AndroidProcessQuery {
             }
         }
 
-        log::info!("Found {} packages from /data/app scan.", package_map.len());
-
         package_map
     }
 
@@ -176,7 +173,6 @@ impl AndroidProcessQuery {
     /// This is done with a greedy binary regex solution to avoid writing a complex binary XML parser.
     fn parse_packages_xml() -> HashMap<String, String> {
         let mut package_map = HashMap::new();
-        log::info!("Scanning packages.xml.");
         let file = match File::open("/data/system/packages.xml") {
             Ok(file) => file,
             Err(error) => {
@@ -209,8 +205,6 @@ impl AndroidProcessQuery {
                 }
             }
         }
-
-        log::info!("Found {} packages.", package_map.len());
 
         package_map
     }
