@@ -1,6 +1,9 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
+    ui::{
+        draw::icon_draw::IconDraw,
+        widgets::controls::{button::Button, checkbox::Checkbox},
+    },
     views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
@@ -49,13 +52,29 @@ impl Widget for ProcessSelectorToolbarView {
 
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
+            let show_windowed_processes_only = self
+                .process_selector_view_data
+                .read("Process selector toolbar view")
+                .map(|process_selector_view_data| process_selector_view_data.show_windowed_processes_only)
+                .unwrap_or(false);
 
             // Refresh.
             let button_refresh = user_interface.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(user_interface, button_refresh.rect, &theme.icon_library.icon_handle_navigation_refresh);
 
             if button_refresh.clicked() {
-                ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
+                ProcessSelectorViewData::refresh_active_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
+            }
+
+            let button_windowed_only = user_interface.add(Checkbox::new_from_theme(theme).with_check_state_bool(show_windowed_processes_only));
+            user_interface.label("Windowed");
+
+            if button_windowed_only.clicked() {
+                ProcessSelectorViewData::set_show_windowed_processes_only(
+                    self.process_selector_view_data.clone(),
+                    self.app_context.clone(),
+                    !show_windowed_processes_only,
+                );
             }
         });
 

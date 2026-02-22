@@ -11,9 +11,9 @@ Our current task, from `README.md`, is:
 
 - ~~Audit GUI project against TUI for functionality gaps now that Android full process-list refresh no longer reproduces as empty.~~
     - WRONG YOU RETARDED FUCK. WHICHEVER AGENT KEEPS THINKING THE PROCESS LIST IS NON-EMPTY IS WRONG. THE GUI is 100% FUCKING EMPTY, EVERY FUCKING TIME. THIS IS ANDROID ONLY, DUE TO THE IPC COMPLEXITY. FUCKING INVESTIGATE YOU RETARD. ITS NOT A RENDERING BUG. FUCK YOU.
-    - Okay its filled now, but with random shit (ie packages instead of processes) from your current workspace changes
-- Validate on-device that Android full process list now displays live process identifiers (not package-derived names), while preserving icon/windowed detection.
-- If Android process naming behavior validates, continue GUI vs TUI functionality gap audit.
+    - ~~Okay its filled now, but with random shit. These are not windowed processes. (defeating the purpose of the windowed flag)~~
+- Validate Android GUI process-selector behavior after GUI windowed/full mode parity fix (windowed-only toggle now wired to `require_windowed` in GUI refresh path).
+- If windowed mode is still empty on Android, continue investigation in Android process windowed classification (`squalr-engine-operating-system/src/process_query/android/android_process_query.rs`).
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -42,3 +42,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android process query hardening (2026-02-22): package extraction now rejects executable paths (for example `/system/bin/...`) to avoid package-name false positives in full process lists.
 - Host validation (2026-02-22): `cargo test -p squalr-engine-operating-system -- --nocapture` passed (3 passed, 0 failed).
 - Host validation (2026-02-22): `cargo test -p squalr-cli -- --nocapture` passed (2 passed, 0 failed) after Android query changes.
+- GUI process selector parity fix (2026-02-22): `ProcessSelectorViewData` now tracks `show_windowed_processes_only`; refreshes dispatch through active mode (`require_windowed=true/false`) instead of always full-list.
+- GUI process selector UX fix (2026-02-22): toolbar now has a windowed-only checkbox and refresh button that respects active mode (`squalr/src/views/process_selector/process_selector_toolbar_view.rs`).
+- GUI Android default (2026-02-22): process selector now defaults to windowed-only mode on Android (`cfg!(target_os = "android")`) while keeping full-list mode available via toggle.
+- Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed) after GUI windowed/full mode wiring changes.

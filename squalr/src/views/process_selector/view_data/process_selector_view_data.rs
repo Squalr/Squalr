@@ -19,6 +19,7 @@ use std::{
 pub struct ProcessSelectorViewData {
     pub opened_process: Option<OpenedProcessInfo>,
     pub cached_icon: Option<TextureHandle>,
+    pub show_windowed_processes_only: bool,
     pub windowed_process_list: Vec<ProcessInfo>,
     pub full_process_list: Vec<ProcessInfo>,
     pub icon_cache: HashMap<u32, TextureHandle>,
@@ -37,6 +38,7 @@ impl ProcessSelectorViewData {
         Self {
             opened_process: None,
             cached_icon: None,
+            show_windowed_processes_only: cfg!(target_os = "android"),
             windowed_process_list: Vec::new(),
             full_process_list: Vec::new(),
             icon_cache: HashMap::new(),
@@ -109,6 +111,34 @@ impl ProcessSelectorViewData {
                 process_selector_view_data.windowed_process_list_request_started_at = None;
             }
         }
+    }
+
+    pub fn refresh_active_process_list(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+    ) {
+        let show_windowed_processes_only = process_selector_view_data
+            .read("Process selector view data refresh active process list")
+            .map(|process_selector_view_data| process_selector_view_data.show_windowed_processes_only)
+            .unwrap_or(false);
+
+        if show_windowed_processes_only {
+            Self::refresh_windowed_process_list(process_selector_view_data, app_context);
+        } else {
+            Self::refresh_full_process_list(process_selector_view_data, app_context);
+        }
+    }
+
+    pub fn set_show_windowed_processes_only(
+        process_selector_view_data: Dependency<ProcessSelectorViewData>,
+        app_context: Arc<AppContext>,
+        show_windowed_processes_only: bool,
+    ) {
+        if let Some(mut process_selector_view_data_guard) = process_selector_view_data.write("Process selector view data set windowed mode") {
+            process_selector_view_data_guard.show_windowed_processes_only = show_windowed_processes_only;
+        }
+
+        Self::refresh_active_process_list(process_selector_view_data, app_context);
     }
 
     pub fn refresh_full_process_list(
