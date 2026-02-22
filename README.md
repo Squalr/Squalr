@@ -100,25 +100,13 @@ Prerequisites:
   - `cargo install cargo-apk`
 - Rooted device connected over `adb`.
 
-Run these commands from the workspace root:
-1. Build the privileged worker binary (`squalr-cli`) for Android.
-   - `cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-cli --release`
-2. Build the Android GUI APK (`squalr-android`).
-   - `cd squalr-android`
-   - `cargo apk build --target aarch64-linux-android --lib --release`
-   - `cd ..`
-3. Install the APK on the device.
-   - `adb install -r squalr-android/target/release/apk/squalr-android.apk`
-4. Push the privileged worker onto the device.
-   - `adb push target/aarch64-linux-android/release/squalr-cli /data/local/tmp/squalr-cli`
-5. Make the worker executable and verify `su` can run it.
-   - `adb shell "su -c 'chmod +x /data/local/tmp/squalr-cli'"`
-   - `adb shell "su -c '/data/local/tmp/squalr-cli --help'"`
-6. Launch the Squalr app on the device.
-   - The GUI should start in IPC host mode and invoke the worker via `su`.
+Then run one of these from the workspace root:
+- `python ./squalr-android/build_and_deploy.py`
+- `python ./squalr-android/build_and_deploy.py --release`
 
 Notes:
-- `squalr-android/build.rs` expects `target/<triple>/<profile>/squalr-cli` to exist first, so step 1 is required before step 2.
+- The deploy script builds the Android worker, builds + installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, and verifies launch with `su -c '/data/local/tmp/squalr-cli --help'`.
+- `--release` prefers release artifacts; if release signing is not configured (`[package.metadata.android.signing.release]`), APK build automatically falls back to debug.
 - If `adb install` fails on a previous install, uninstall first:
   - `adb uninstall com.squalr.android`
 

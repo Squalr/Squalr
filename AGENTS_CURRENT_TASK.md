@@ -22,3 +22,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `squalr-android/build.rs` now bundles `target/<triple>/<profile>/squalr-cli` into `OUT_DIR/squalr-cli-bundle` and fails with a clear message if the CLI has not been built first.
 - Android workspace/IDE checks can fail with android-activity 0.6.0 missing backend features when `squalr` pulls `eframe` defaults on Android; enabling `eframe` feature `android-native-activity` in `squalr/Cargo.toml` unifies `android-activity` on `native-activity` and removes that mismatch.
 - Android docs now prioritize a rooted-device quickstart that leads directly to a deployable GUI APK (`cargo apk build --release`), install via `adb`, and privileged worker verification via `su`.
+- Corrected Android APK install path in README quickstart to include target triple output (`target/aarch64-linux-android/release/apk/squalr-android.apk`) and added a fallback locate command.
+- `squalr-android/build_and_deploy.py` now handles end-to-end rooted deploy (APK install + worker push/chmod/verify) and falls back to debug APK when release signing is not configured.
