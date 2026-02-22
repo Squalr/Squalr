@@ -20,3 +20,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android memory reader/writer now use `/proc/<pid>/mem` with `FileExt::read_at`/`write_at`, avoiding unresolved `process_vm_readv/process_vm_writev` symbols on Android linker.
 - Android memory/process querying currently reuses maintained Linux implementations in `squalr-engine-operating-system` for compile stability.
 - `squalr-android/build.rs` now bundles `target/<triple>/<profile>/squalr-cli` into `OUT_DIR/squalr-cli-bundle` and fails with a clear message if the CLI has not been built first.
+- Android workspace/IDE checks can fail with android-activity 0.6.0 missing backend features when `squalr` pulls `eframe` defaults on Android; enabling `eframe` feature `android-native-activity` in `squalr/Cargo.toml` unifies `android-activity` on `native-activity` and removes that mismatch.

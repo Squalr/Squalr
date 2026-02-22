@@ -13,7 +13,7 @@ anyhow = "1.0.101"
 arc-swap = "1.8.1"
 bus = "2.4.1"
 crossbeam-channel = "0.5.15"
-eframe = "0.33.3"
+eframe = { version = "0.33.3", features = ["android-native-activity"] }
 env_logger = "0.11.8"
 epaint = "0.33.3"
 image = "0.25.9"
@@ -26,3 +26,4 @@ wasm-bindgen = "0.2"
 
 [build-dependencies]
 winresource = "0.1.30"
+
