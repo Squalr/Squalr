@@ -11,7 +11,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Windowed process list still 100% fails. The point is, very obviously, to find processes with a genuine zygote backing, that are running as real apps on android. This does not work.
+- Need human verification: validate Android windowed process list after switching from direct-parent zygote checks to full parent-lineage zygote ancestry checks.
 - Continue pruning `pr/android-fixes` diff vs `main` by removing remaining non-Android churn where not required (lockfile/workspace task noise still pending review).
     - Keep .idea reverted...
 
@@ -30,3 +30,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Full rooted deploy validation succeeded on 2026-02-22 via `python ./build_and_deploy.py --debug`.
 - Android bootstrap logs confirm windowed process list response with 67 entries on device.
 - Added vertical scroll area to main process dropdown and clipped/truncated long process names in combo-box rows.
+- Updated Android windowed classification to require zygote ancestry anywhere in the process parent chain (not just direct parent PID), preventing false negatives on indirect spawn paths.
+- Added Android unit tests for zygote-ancestor lineage detection and parent-cycle safety in `android_process_query.rs`.
+- Validation run on 2026-02-22: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr-engine-operating-system --target aarch64-linux-android --locked`.

@@ -9,6 +9,7 @@ use squalr_engine_api::structures::processes::opened_process_info::OpenedProcess
 use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
@@ -371,6 +372,38 @@ impl AndroidProcessQuery {
 
         (all_processes, zygote_processes)
     }
+
+    /// Determines whether a process has a zygote ancestor in its process tree.
+    fn has_zygote_ancestor(
+        process_id: u32,
+        all_processes: &HashMap<u32, AndroidProcessInfo>,
+        zygote_processes: &HashMap<u32, AndroidProcessInfo>,
+    ) -> bool {
+        let process_info = match all_processes.get(&process_id) {
+            Some(process_info) => process_info,
+            None => return false,
+        };
+        let mut current_parent_process_id = process_info.parent_process_id;
+        let mut visited_processes = HashSet::new();
+
+        while current_parent_process_id > 0 {
+            if zygote_processes.contains_key(&current_parent_process_id) {
+                return true;
+            }
+
+            if !visited_processes.insert(current_parent_process_id) {
+                return false;
+            }
+
+            let parent_process_info = match all_processes.get(&current_parent_process_id) {
+                Some(parent_process_info) => parent_process_info,
+                None => return false,
+            };
+            current_parent_process_id = parent_process_info.parent_process_id;
+        }
+
+        false
+    }
 }
 
 impl ProcessQueryer for AndroidProcessQuery {
@@ -411,7 +444,7 @@ impl ProcessQueryer for AndroidProcessQuery {
                 .as_deref()
                 .and_then(|package_name| Self::get_apk_path(package_name, &package_paths));
             let is_windowed = apk_path.is_some()
-                && zygote_processes.contains_key(&android_process_info.parent_process_id)
+                && Self::has_zygote_ancestor(android_process_info.process_id, &all_processes, &zygote_processes)
                 && Self::is_user_app(android_process_info.process_id)
                 && android_process_info.is_primary_package_process;
 
@@ -465,6 +498,8 @@ impl ProcessQueryer for AndroidProcessQuery {
 #[cfg(test)]
 mod tests {
     use super::AndroidProcessQuery;
+    use crate::process_query::android::android_process_info::AndroidProcessInfo;
+    use std::collections::HashMap;
 
     #[test]
     fn extract_package_name_uses_base_name_without_process_suffix() {
@@ -525,5 +560,93 @@ mod tests {
             Some(&"/data/app/~~token/com.squalr.android-ABC==/base.apk".to_string())
         );
         assert_eq!(package_map.len(), 1);
+    }
+
+    #[test]
+    fn zygote_ancestor_walk_detects_indirect_lineage() {
+        let mut all_processes = HashMap::new();
+        all_processes.insert(
+            1,
+            AndroidProcessInfo {
+                process_id: 1,
+                parent_process_id: 0,
+                process_name: "init".to_string(),
+                package_name: None,
+                is_primary_package_process: false,
+            },
+        );
+        all_processes.insert(
+            100,
+            AndroidProcessInfo {
+                process_id: 100,
+                parent_process_id: 1,
+                process_name: "zygote64".to_string(),
+                package_name: None,
+                is_primary_package_process: false,
+            },
+        );
+        all_processes.insert(
+            200,
+            AndroidProcessInfo {
+                process_id: 200,
+                parent_process_id: 100,
+                process_name: "usap64".to_string(),
+                package_name: None,
+                is_primary_package_process: false,
+            },
+        );
+        all_processes.insert(
+            300,
+            AndroidProcessInfo {
+                process_id: 300,
+                parent_process_id: 200,
+                process_name: "com.squalr.android".to_string(),
+                package_name: Some("com.squalr.android".to_string()),
+                is_primary_package_process: true,
+            },
+        );
+
+        let mut zygote_processes = HashMap::new();
+        zygote_processes.insert(
+            100,
+            AndroidProcessInfo {
+                process_id: 100,
+                parent_process_id: 1,
+                process_name: "zygote64".to_string(),
+                package_name: None,
+                is_primary_package_process: false,
+            },
+        );
+
+        assert!(AndroidProcessQuery::has_zygote_ancestor(300, &all_processes, &zygote_processes));
+    }
+
+    #[test]
+    fn zygote_ancestor_walk_handles_parent_cycles() {
+        let mut all_processes = HashMap::new();
+        all_processes.insert(
+            700,
+            AndroidProcessInfo {
+                process_id: 700,
+                parent_process_id: 800,
+                process_name: "com.squalr.android".to_string(),
+                package_name: Some("com.squalr.android".to_string()),
+                is_primary_package_process: true,
+            },
+        );
+        all_processes.insert(
+            800,
+            AndroidProcessInfo {
+                process_id: 800,
+                parent_process_id: 700,
+                process_name: "loop-parent".to_string(),
+                package_name: None,
+                is_primary_package_process: false,
+            },
+        );
+
+        let zygote_processes = HashMap::new();
+
+        assert!(!AndroidProcessQuery::has_zygote_ancestor(700, &all_processes, &zygote_processes));
     }
 }
