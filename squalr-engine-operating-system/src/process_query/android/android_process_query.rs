@@ -68,6 +68,21 @@ impl AndroidProcessQuery {
         Some(package_name_candidate.to_string())
     }
 
+    fn extract_package_name_from_apk_directory(apk_directory_name: &str) -> Option<String> {
+        let package_name_candidate = apk_directory_name.split('-').next().unwrap_or_default().trim();
+
+        if package_name_candidate.is_empty()
+            || !package_name_candidate.contains('.')
+            || !package_name_candidate
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || character == '_' || character == '.')
+        {
+            return None;
+        }
+
+        Some(package_name_candidate.to_string())
+    }
+
     /// Checks if a process belongs to a user app (UID >= 10000).
     fn is_user_app(process_id: u32) -> bool {
         let status_path = format!("/proc/{}/status", process_id);
@@ -85,6 +100,66 @@ impl AndroidProcessQuery {
         }
 
         false
+    }
+
+    /// Parses `/data/app` package directories and extracts package-to-APK path mapping.
+    fn parse_data_app_directories() -> HashMap<String, String> {
+        let mut package_map = HashMap::new();
+        let data_app_root = Path::new("/data/app");
+        log::info!("Scanning {} for package directories.", data_app_root.display());
+
+        let root_entries = match fs::read_dir(data_app_root) {
+            Ok(entries) => entries,
+            Err(error) => {
+                log::error!("Error reading {}: {}", data_app_root.display(), error);
+                return package_map;
+            }
+        };
+
+        for root_entry in root_entries.flatten() {
+            let root_path = root_entry.path();
+            let root_name = root_entry.file_name().to_string_lossy().to_string();
+            if !root_path.is_dir() {
+                continue;
+            }
+
+            let mut candidate_directories = Vec::new();
+            if root_name.starts_with("~~") {
+                if let Ok(child_entries) = fs::read_dir(&root_path) {
+                    for child_entry in child_entries.flatten() {
+                        if child_entry.path().is_dir() {
+                            candidate_directories.push(child_entry.path());
+                        }
+                    }
+                }
+            } else {
+                candidate_directories.push(root_path);
+            }
+
+            for apk_directory_path in candidate_directories {
+                let apk_directory_name = match apk_directory_path
+                    .file_name()
+                    .and_then(|file_name| file_name.to_str())
+                {
+                    Some(file_name) => file_name,
+                    None => continue,
+                };
+
+                let package_name = match Self::extract_package_name_from_apk_directory(apk_directory_name) {
+                    Some(package_name) => package_name,
+                    None => continue,
+                };
+
+                let base_apk_path = apk_directory_path.join("base.apk");
+                if base_apk_path.is_file() {
+                    package_map.insert(package_name, base_apk_path.to_string_lossy().to_string());
+                }
+            }
+        }
+
+        log::info!("Found {} packages from /data/app scan.", package_map.len());
+
+        package_map
     }
 
     /// Parses `/data/system/packages.xml` (ABX Binary XML) and extracts package-to-APK path mapping.
@@ -128,6 +203,16 @@ impl AndroidProcessQuery {
         log::info!("Found {} packages.", package_map.len());
 
         package_map
+    }
+
+    fn parse_installed_package_paths() -> HashMap<String, String> {
+        let package_map = Self::parse_data_app_directories();
+        if !package_map.is_empty() {
+            return package_map;
+        }
+
+        log::warn!("No package paths found in /data/app. Falling back to packages.xml parsing.");
+        Self::parse_packages_xml()
     }
 
     fn get_apk_path(
@@ -254,7 +339,7 @@ impl ProcessQueryer for AndroidProcessQuery {
     }
 
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        let package_paths = Self::parse_packages_xml();
+        let package_paths = Self::parse_installed_package_paths();
         let (all_processes, zygote_processes) = Self::get_live_process_maps();
         let mut results = Vec::new();
 
@@ -328,6 +413,20 @@ mod tests {
     #[test]
     fn extract_package_name_rejects_paths() {
         let package_name = AndroidProcessQuery::extract_package_name("/system/bin/surfaceflinger");
+
+        assert!(package_name.is_none());
+    }
+
+    #[test]
+    fn extract_package_name_from_apk_directory_parses_package_segment() {
+        let package_name = AndroidProcessQuery::extract_package_name_from_apk_directory("com.squalr.android-ABCD1234==");
+
+        assert_eq!(package_name.as_deref(), Some("com.squalr.android"));
+    }
+
+    #[test]
+    fn extract_package_name_from_apk_directory_rejects_invalid_names() {
+        let package_name = AndroidProcessQuery::extract_package_name_from_apk_directory("not_a_package_name");
 
         assert!(package_name.is_none());
     }
