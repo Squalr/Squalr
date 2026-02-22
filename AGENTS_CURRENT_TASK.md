@@ -45,6 +45,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Targeted revalidation (2026-02-22) passed: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked` (same pre-existing warnings only).
 - Session revalidation (2026-02-22) passed again: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; warnings remain pre-existing and unchanged.
 - Session revalidation (2026-02-22, follow-up) passed again: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; warnings remain pre-existing and unchanged.
+- Session revalidation (2026-02-22, latest) passed: `cargo fmt --all`, `cargo test -p squalr process_selector_view_data --locked`, and `cargo check -p squalr --locked`; warnings remain pre-existing and unchanged.
 - Current session (2026-02-22) remains blocked on on-device-only visual verification of Android GUI process dropdown row correctness; local CLI/tests/checks cannot replace that validation.
 - `cargo check -p squalr --locked` still reports existing GUI unused-variable/unreachable-pattern warnings, with no new failures.
 - Direct `cargo check -p squalr --target aarch64-linux-android --locked` may fail in this environment due `aarch64-linux-android-clang` pathing for `ring`; use `cargo ndk` / deploy script paths for Android validation.
