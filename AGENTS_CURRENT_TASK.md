@@ -11,7 +11,13 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Audit the GUI project against the TUI and identify concrete functionality gaps that should be added to the tasklist.
+- Add multi-data-type scan parity to GUI element scanner (`squalr/src/views/element_scanner/scanner/view_data/element_scanner_view_data.rs`) so one scan request can include multiple selected data types like TUI.
+- Add GUI process list search/filter input parity with TUI process selector (`squalr/src/views/process_selector`) including in-memory filtering and refresh-aware state behavior.
+- Add GUI project selector search/filter parity with TUI project list workflows (`squalr/src/views/project_explorer/project_selector`) so large project lists can be searched quickly.
+- Add GUI output window controls parity with TUI (`squalr/src/views/output/output_view.rs`): clear log action and configurable max-line cap.
+- Complete GUI settings parity with TUI for missing controls in memory/scan tabs (`squalr/src/views/settings/settings_tab_memory_view.rs`, `squalr/src/views/settings/settings_tab_scan_view.rs`), including start/end address editing, memory alignment, memory read mode, and floating-point tolerance.
+- Need human verification - FAILED validate Android windowed process list after broadening zygote-process identification to use both `/proc/<pid>/cmdline` and `/proc/<pid>/comm` name sources during ancestry checks. Confirm Squalr appears in windowed-only results.
+- Fix Gui build to display windowed processes. Again, this once worked on main branch. Why are you complicating it?
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -39,3 +45,8 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added unit tests for zygote process-name classification variants and path-prefixed zygote naming in `android_process_query.rs` (compiled under Android target).
 - Validation run on 2026-02-22: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr-engine-operating-system --target aarch64-linux-android --locked`, `cargo test -p squalr-engine-operating-system --locked`.
 - Human verification completed on 2026-02-22: `adb shell su -c "/data/local/tmp/squalr-cli process list -w -l 300"` with `adb logcat -d -v brief SqualrCli:I *:S` confirms `name: com.squalr.android, is_windowed: true` appears in windowed-only results.
+- GUI vs TUI audit completed on 2026-02-22 and tasklist replaced with concrete parity gaps.
+- Confirmed GUI element scanner currently submits a single `DataTypeRef` per scan while TUI supports multiple selected data types per request.
+- Confirmed GUI process/project selectors currently lack search/filter input controls that exist in TUI.
+- Confirmed GUI output view currently lacks clear/max-line controls available in TUI output pane.
+- Confirmed GUI memory/scan settings tabs still have missing parity controls and placeholder paths compared with TUI settings workflows.
