@@ -10,7 +10,7 @@ from pathlib import Path
 TARGET_TRIPLE = "aarch64-linux-android"
 CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
 PACKAGE_NAME = "com.squalr.android"
-MAIN_ACTIVITY_NAME = "android_activity.MainActivity"
+MAIN_ACTIVITY_NAME = "android.app.NativeActivity"
 
 
 def run_command(command_segments, working_directory):

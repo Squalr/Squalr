@@ -5,7 +5,7 @@ import sys
 
 PACKAGE_CANDIDATES = ["com.squalr.android"]
 LEGACY_PACKAGE = "rust.squalr_android"
-MAIN_ACTIVITY_NAME = "android_activity.MainActivity"
+MAIN_ACTIVITY_NAME = "android.app.NativeActivity"
 
 
 def run_command(command_segments):

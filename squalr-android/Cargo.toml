@@ -6,6 +6,15 @@ edition = "2024"
 
 [package.metadata.android]
 package = "com.squalr.android"
+resources = "android/res"
+
+[package.metadata.android.sdk]
+min_sdk_version = 23
+target_sdk_version = 30
+
+[package.metadata.android.application]
+label = "Squalr"
+icon = "@drawable/app_icon"
 
 [lib]
 crate-type = ["cdylib"]
