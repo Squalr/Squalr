@@ -291,6 +291,41 @@ def summarize_window_splash_state(window_dump_output):
         print("No splash window entry found in dumpsys window output.")
 
 
+def summarize_bootstrap_breadcrumbs(logcat_output):
+    breadcrumb_lines = [
+        output_line.strip()
+        for output_line in logcat_output.splitlines()
+        if "[android_bootstrap]" in output_line
+    ]
+    if not breadcrumb_lines:
+        print("No Android bootstrap breadcrumbs were found in filtered logcat output.")
+        return
+
+    expected_breadcrumb_messages = [
+        "Before SqualrEngine::new.",
+        "After SqualrEngine::new.",
+        "Before App::new.",
+        "After App::new.",
+        "Before first frame submission.",
+    ]
+    reached_breadcrumb_messages = {
+        expected_breadcrumb_message
+        for expected_breadcrumb_message in expected_breadcrumb_messages
+        if any(expected_breadcrumb_message in breadcrumb_line for breadcrumb_line in breadcrumb_lines)
+    }
+    missing_breadcrumb_messages = [
+        expected_breadcrumb_message
+        for expected_breadcrumb_message in expected_breadcrumb_messages
+        if expected_breadcrumb_message not in reached_breadcrumb_messages
+    ]
+
+    print(f"Last Android bootstrap breadcrumb: {breadcrumb_lines[-1]}")
+    if missing_breadcrumb_messages:
+        print(f"Missing expected breadcrumbs: {', '.join(missing_breadcrumb_messages)}")
+    else:
+        print("Reached all expected Android bootstrap breadcrumbs through first frame submission.")
+
+
 def collect_launch_diagnostics(workspace_directory, launch_log_seconds, launch_log_file_path):
     print(f"\nCollecting launch diagnostics for {launch_log_seconds} second(s)...")
     time.sleep(launch_log_seconds)
@@ -317,6 +352,7 @@ def collect_launch_diagnostics(workspace_directory, launch_log_seconds, launch_l
         ],
         workspace_directory,
     )
+    summarize_bootstrap_breadcrumbs(logcat_output)
 
     if launch_log_file_path:
         launch_log_file_path.parent.mkdir(parents=True, exist_ok=True)
