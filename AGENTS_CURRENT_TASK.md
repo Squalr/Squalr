@@ -8,8 +8,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Run one rooted-device smoke validation and capture the exact successful transcript (install + launch + privileged worker check).
-- Verify final on-device launcher identity after reinstall (`Squalr` label + custom icon) and confirm resolved launcher component is `com.squalr.android/android.app.NativeActivity`.
+- Run one rooted-device smoke validation on a shell with `su` available and capture the exact successful transcript (install + launch + privileged worker check).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -27,5 +26,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android launcher mismatch fix (2026-02-22): `squalr/android/AndroidManifest.xml` now declares `android.app.NativeActivity` with `android.app.lib_name = "squalr"` instead of `android_activity.MainActivity`; `squalr/src/lib.rs` exports `pub fn android_main(...)` for reliable symbol discovery.
 - Deployment guard (2026-02-22): `build_and_deploy.py` now verifies resolved launcher identity before worker deployment and fails fast on component mismatch.
 - Validation status (2026-02-22): compile-check passes; debug deploy reaches install/push but fails at `su` step on non-rooted shell (`/system/bin/sh: su: inaccessible or not found`).
+- Validation status (2026-02-22): reran `python build_and_deploy.py --debug`; host preflight passed, APK reinstall succeeded, launcher resolution returned `com.squalr.android/android.app.NativeActivity`, and worker push succeeded before failing at `adb shell su -c 'chmod +x /data/local/tmp/squalr-cli'` on non-rooted shell.
+- Launcher identity verification (2026-02-22): `aapt dump badging target/debug/apk/squalr.apk` reports `application-label:'Squalr'` and `application-icon-160:'res/drawable/app_icon.png'`; on-device resolver confirms `com.squalr.android/android.app.NativeActivity`.
 - Migration completion status (2026-02-22): `squalr-android` crate removed from workspace and deleted after moving Android launcher/resources/scripts to `squalr` + workspace root.
 - Remaining external dependency is rooted-device access to complete end-to-end privileged smoke validation.
