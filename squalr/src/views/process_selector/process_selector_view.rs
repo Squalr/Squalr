@@ -38,6 +38,8 @@ impl Widget for ProcessSelectorView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        ProcessSelectorViewData::clear_stale_request_state(self.process_selector_view_data.clone());
+
         let theme = self.app_context.theme.clone();
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {

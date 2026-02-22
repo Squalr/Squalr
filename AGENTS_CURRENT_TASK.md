@@ -9,36 +9,23 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Validate Android process list behavior on rooted device after dispatch-failure spinner fix.
+- Investigate Android privileged worker lifecycle: app-side spawn succeeds, but `squalr-cli --ipc-mode` exits immediately and IPC channel breaks (`Broken pipe`).
+- Validate end-to-end process list population once worker lifecycle is stable.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Android blockers addressed: target/toolchain gaps, Android TLS/cross-linking, desktop-only dependency removal, stale OS-layer code paths, and CLI bundling assumptions.
-- Android engine/platform updates: `ureq` uses `rustls` on Android, memory IO uses `/proc/<pid>/mem`, and Android currently reuses maintained Linux query paths for compile stability.
-- Android build/runtime ownership moved into `squalr`: `android_main` in `squalr/src/lib.rs`, manifest/resources in `squalr/Cargo.toml` + `squalr/android/`, and `squalr-android` crate removed.
-- Build/deploy scripts are workspace-root canonical entrypoints: `build_and_deploy.py`, `run_apk.py`, `debug_run_privileged_shell.py`.
-- Launcher identity is pinned and validated as `com.squalr.android/android.app.NativeActivity` with `android.app.lib_name = "squalr"`, app label `Squalr`, and expected icon resources.
-- Deploy guardrail exists: `build_and_deploy.py` fails fast when resolved launcher does not match expected component.
-- Current external blocker remains rooted-device access; non-rooted validation consistently fails at `su` operations during worker deployment.
-- Privileged worker target path is standardized: `/data/local/tmp/squalr-cli`.
-- Launch diagnostics support `--skip-worker`, `--launch-log-seconds`, and `--launch-log-file` for non-rooted repro loops without rebuild.
-- Log filtering now includes `Squalr:I` so Android bootstrap breadcrumbs are captured directly in script log outputs.
-- Startup breadcrumbs instrumented around Android bootstrap: before/after engine creation, app construction, engine initialization, and first-frame submission.
-- Current failure signature: startup stops at `Before SqualrEngine::new.` with privileged worker spawn failure (`ENOENT`) in unprivileged-host startup path.
-- Worker command quoting fix landed: Android worker command is now `/data/local/tmp/squalr-cli --ipc-mode` without embedded path quotes.
-- Additional spawn diagnostics landed (2026-02-22): interprocess bindings now log worker command, each su candidate attempt, unavailable su paths, and aggregated failure context.
-- Launch diagnostics enhancement landed (2026-02-22): scripts now summarize `reportedDrawn` from `dumpsys activity` and splash-window presence from `dumpsys window`.
-- Launch diagnostics enhancement landed (2026-02-22): `build_and_deploy.py` and `run_apk.py` now summarize Android bootstrap breadcrumb progression and explicitly list missing checkpoints through first-frame submission.
-- Recent host-side validation status (2026-02-22): compile-check and debug deploy flows complete through install/push on test device, with expected `su` failure on non-rooted shell.
-- Android privileged spawn compatibility expanded (2026-02-22): each `su` candidate now tries `su -c`, `su 0 sh -c`, and `su root sh -c` with per-invocation diagnostics; host unit tests pass for interprocess initialization paths.
-- Android deploy/debug script parity landed (2026-02-22): `build_and_deploy.py` and `debug_run_privileged_shell.py` now try `su -c`, `su 0 sh -c`, and `su root sh -c` for chmod/verify/worker launch and IPC pid polling.
-- Rooted validation rerun status (2026-02-22): connected device `adb-4C101FDKD000Z8-XSqEd2._adb-tls-connect._tcp` is not rooted for our use case; `debug_run_privileged_shell.py` fails all `su` invocation forms with `/system/bin/sh: su: inaccessible or not found`.
-- Installed-app launch diagnostics status (2026-02-22): `run_apk.py --launch-log-seconds 20` shows process launch but bootstrap stops at `Before SqualrEngine::new.`; missing `After SqualrEngine::new.`, `Before App::new.`, `After App::new.`, and `Before first frame submission.`; `dumpsys` reports `reportedDrawn=false` and splash window still present.
-- Revalidation status (2026-02-22, latest): reran `debug_run_privileged_shell.py` and `run_apk.py --launch-log-seconds 20`; outcomes are unchanged from earlier runs: all `su` invocations fail on-device, bootstrap halts at `Before SqualrEngine::new.`, `reportedDrawn=false`, splash window remains visible.
-- Device details for latest revalidation (2026-02-22): `adb devices -l` reports `model:Pixel_9_Pro_Fold device:comet`; `getprop ro.build.fingerprint` is `google/comet/comet:16/BP3A.251005.004.B3/14332485:user/release-keys`.
-- Host test status (2026-02-22): `cargo test -p squalr-engine -- --nocapture` passed (16 passed, 0 failed), including interprocess initialization failure-path tests.
-- Device was reflashed with Magisk (was out of data causing su to fail)
-- This command can hang: `exec "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command "python .\\debug_run_privileged_shell.py"` in `C:\Projects\squalr_workspace`.
-- Process selector dispatch-failure guard landed (2026-02-22): if process list/open requests fail to dispatch, `is_awaiting_windowed_process_list`, `is_awaiting_full_process_list`, and `is_opening_process` are now reset immediately to avoid infinite spinner states.
-- Host validation status (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (25 passed, 0 failed) after the process selector dispatch-failure fix.
+- Android build/runtime ownership is in `squalr` crate (`android_main` in `squalr/src/lib.rs`, manifest/resources under `squalr/android/`); `squalr-android` crate removed.
+- Canonical Android entry scripts: `build_and_deploy.py`, `run_apk.py`, `debug_run_privileged_shell.py`.
+- Launcher identity is pinned as `com.squalr.android/android.app.NativeActivity` with `android.app.lib_name = "squalr"`; deploy script enforces this.
+- Android worker target path is standardized as `/data/local/tmp/squalr-cli`.
+- Interprocess spawn diagnostics now log worker command, su candidate resolution, and invocation-specific failures (`su -c`, `su 0 sh -c`, `su root sh -c`).
+- Device status (2026-02-22): rooted `Pixel_9_Pro_Fold` (`adb serial: 4C101FDKD000Z8`, fingerprint `google/comet/comet:16/BP3A.251005.004.B3/14332485:user/release-keys`).
+- Root-only shell validation now succeeds: `adb shell su -c id` returns `uid=0(root)`.
+- Manual privileged worker launch validation succeeds: `debug_run_privileged_shell.py` launches `squalr-cli --ipc-mode` and `pidof squalr-cli` reports a running pid.
+- App launch now reaches all Android bootstrap breadcrumbs through first-frame submission (`reportedDrawn=true`, no splash window entry).
+- Active blocker: during app bootstrap, privileged worker spawn is reported as launched, but IPC listener immediately errors (`failed to fill whole buffer`) and subsequent command dispatches fail with `Broken pipe (os error 32)`.
+- `build_and_deploy.py --debug --launch-log-seconds 30` currently fails final worker handshake polling because no long-lived `squalr-cli` pid remains after app launch.
+- Process selector dispatch-failure guard was already landed; additional stale-request timeout guard now landed in GUI state to prevent infinite spinner when callbacks never arrive.
+- Rooted UI validation (2026-02-22): after timeout guard, process selector spinner clears within a few seconds instead of remaining indefinitely.
+- Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed), including new process-selector stale-request tests.

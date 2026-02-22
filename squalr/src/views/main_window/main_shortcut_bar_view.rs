@@ -45,6 +45,8 @@ impl Widget for MainShortcutBarView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        ProcessSelectorViewData::clear_stale_request_state(self.process_selector_view_data.clone());
+
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), 32.0), Sense::empty());
         let theme = &self.app_context.theme;
         let combo_box_width = 224.0;
