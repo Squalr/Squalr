@@ -9,8 +9,11 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Audit GUI project against TUI for functionality gaps now that Android full process-list refresh no longer reproduces as empty.
-
+- ~~Audit GUI project against TUI for functionality gaps now that Android full process-list refresh no longer reproduces as empty.~~
+    - WRONG YOU RETARDED FUCK. WHICHEVER AGENT KEEPS THINKING THE PROCESS LIST IS NON-EMPTY IS WRONG. THE GUI is 100% FUCKING EMPTY, EVERY FUCKING TIME. THIS IS ANDROID ONLY, DUE TO THE IPC COMPLEXITY. FUCKING INVESTIGATE YOU RETARD. ITS NOT A RENDERING BUG. FUCK YOU.
+    - Okay its filled now, but with random shit (ie packages instead of processes) from your current workspace changes
+- Validate on-device that Android full process list now displays live process identifiers (not package-derived names), while preserving icon/windowed detection.
+- If Android process naming behavior validates, continue GUI vs TUI functionality gap audit.
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -35,3 +38,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - GUI process-selector refresh root cause (2026-02-22): `ProcessSelectorView` held a read lock on `ProcessSelectorViewData` while drawing the toolbar; toolbar refresh click requires a write lock, so refresh attempts could no-op.
 - Fix (2026-02-22): render `ProcessSelectorToolbarView` before acquiring the read lock in `squalr/src/views/process_selector/process_selector_view.rs`, allowing refresh dispatch to acquire write access.
 - Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed) after lock-order change.
+- Android process query fix (2026-02-22): process display names now come from `/proc/<pid>/cmdline` with fallback to `/proc/<pid>/comm`; package extraction is optional and only used for APK/icon lookup and windowed classification.
+- Android process query hardening (2026-02-22): package extraction now rejects executable paths (for example `/system/bin/...`) to avoid package-name false positives in full process lists.
+- Host validation (2026-02-22): `cargo test -p squalr-engine-operating-system -- --nocapture` passed (3 passed, 0 failed).
+- Host validation (2026-02-22): `cargo test -p squalr-cli -- --nocapture` passed (2 passed, 0 failed) after Android query changes.
