@@ -93,12 +93,40 @@ def prepare_launch_diagnostics(package_name):
     run_command(["adb", "logcat", "-c"])
 
 
+def summarize_activity_draw_state(package_name, activity_dump_output):
+    draw_state_lines = [
+        output_line.strip()
+        for output_line in activity_dump_output.splitlines()
+        if package_name in output_line and "reportedDrawn=" in output_line
+    ]
+    if not draw_state_lines:
+        print("No reportedDrawn activity state line was found in dumpsys activity output.")
+        return
+
+    print(f"Activity draw state: {draw_state_lines[-1]}")
+
+
+def summarize_window_splash_state(package_name, window_dump_output):
+    splash_lines = [
+        output_line.strip()
+        for output_line in window_dump_output.splitlines()
+        if "Splash Screen" in output_line and package_name in output_line
+    ]
+    if splash_lines:
+        print(f"Splash window still present: {splash_lines[-1]}")
+    else:
+        print("No splash window entry found in dumpsys window output.")
+
+
 def collect_launch_diagnostics(package_name, launch_log_seconds, launch_log_file_path):
     print(f"\nCollecting launch diagnostics for {launch_log_seconds} second(s)...")
     time.sleep(launch_log_seconds)
 
     run_command(["adb", "shell", "pidof", package_name])
-    run_command(["adb", "shell", "dumpsys", "activity", "activities", package_name])
+    _, activity_dump_output = run_command(["adb", "shell", "dumpsys", "activity", "activities", package_name])
+    summarize_activity_draw_state(package_name, activity_dump_output)
+    _, window_dump_output = run_command(["adb", "shell", "dumpsys", "window", "windows"])
+    summarize_window_splash_state(package_name, window_dump_output)
     _, logcat_output = run_command(
         [
             "adb",
