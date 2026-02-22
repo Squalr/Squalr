@@ -36,6 +36,12 @@ const ANDROID_SU_CANDIDATE_PATHS: [&str; 5] = [
 const ANDROID_SU_FALLBACK_COMMAND: &str = "su";
 #[cfg(target_os = "android")]
 const ANDROID_PRIVILEGED_WORKER_ARGS: &str = "--ipc-mode";
+#[cfg(target_os = "android")]
+const ANDROID_SU_ATTEMPT_STANDARD: &str = "su -c";
+#[cfg(target_os = "android")]
+const ANDROID_SU_ATTEMPT_USER_ZERO_SH: &str = "su 0 sh -c";
+#[cfg(target_os = "android")]
+const ANDROID_SU_ATTEMPT_USER_ROOT_SH: &str = "su root sh -c";
 
 pub struct InterprocessEngineApiUnprivilegedBindings {
     /// The spawned shell process with system privileges.
@@ -305,10 +311,49 @@ impl InterprocessEngineApiUnprivilegedBindings {
         su_candidate_path: &str,
         worker_start_command: &str,
     ) -> io::Result<Child> {
-        Command::new(su_candidate_path)
-            .arg("-c")
-            .arg(worker_start_command)
-            .spawn()
+        let su_spawn_attempts = Self::build_android_su_spawn_attempts(worker_start_command);
+        let mut su_attempt_error_messages: Vec<String> = Vec::new();
+
+        for su_spawn_attempt in su_spawn_attempts {
+            log::info!(
+                "Attempting privileged worker spawn via '{}' using invocation '{}'.",
+                su_candidate_path,
+                su_spawn_attempt.attempt_label
+            );
+
+            match Command::new(su_candidate_path)
+                .args(&su_spawn_attempt.command_arguments)
+                .spawn()
+            {
+                Ok(child) => {
+                    log::info!(
+                        "Privileged worker spawn launched via '{}' using invocation '{}'.",
+                        su_candidate_path,
+                        su_spawn_attempt.attempt_label
+                    );
+
+                    return Ok(child);
+                }
+                Err(spawn_error) => {
+                    log::warn!(
+                        "Privileged worker spawn failed via '{}' using invocation '{}': {}",
+                        su_candidate_path,
+                        su_spawn_attempt.attempt_label,
+                        spawn_error
+                    );
+                    su_attempt_error_messages.push(format!("{} => {}", su_spawn_attempt.attempt_label, spawn_error));
+                }
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!(
+                "All su invocation attempts failed for '{}': {}",
+                su_candidate_path,
+                su_attempt_error_messages.join(" | ")
+            ),
+        ))
     }
 
     #[cfg(target_os = "android")]
@@ -316,6 +361,34 @@ impl InterprocessEngineApiUnprivilegedBindings {
         // Avoid wrapping the worker path in extra quotes: some `su` implementations
         // treat quoted paths literally and fail with ENOENT.
         format!("{} {}", ANDROID_PRIVILEGED_WORKER_PATH, ANDROID_PRIVILEGED_WORKER_ARGS)
+    }
+
+    #[cfg(target_os = "android")]
+    fn build_android_su_spawn_attempts(worker_start_command: &str) -> Vec<AndroidSuSpawnAttempt> {
+        vec![
+            AndroidSuSpawnAttempt {
+                attempt_label: ANDROID_SU_ATTEMPT_STANDARD,
+                command_arguments: vec!["-c".to_string(), worker_start_command.to_string()],
+            },
+            AndroidSuSpawnAttempt {
+                attempt_label: ANDROID_SU_ATTEMPT_USER_ZERO_SH,
+                command_arguments: vec![
+                    "0".to_string(),
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    worker_start_command.to_string(),
+                ],
+            },
+            AndroidSuSpawnAttempt {
+                attempt_label: ANDROID_SU_ATTEMPT_USER_ROOT_SH,
+                command_arguments: vec![
+                    "root".to_string(),
+                    "sh".to_string(),
+                    "-c".to_string(),
+                    worker_start_command.to_string(),
+                ],
+            },
+        ]
     }
 
     #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -329,6 +402,12 @@ impl InterprocessEngineApiUnprivilegedBindings {
         // So, just spawn it normally for the rare occasion that we are testing this feature on windows.
         Command::new("squalr-cli").arg("--ipc-mode").spawn()
     }
+}
+
+#[cfg(target_os = "android")]
+struct AndroidSuSpawnAttempt {
+    attempt_label: &'static str,
+    command_arguments: Vec<String>,
 }
 
 #[cfg(test)]
@@ -354,6 +433,27 @@ mod tests {
 
         assert_eq!(worker_start_command, "/data/local/tmp/squalr-cli --ipc-mode");
         assert!(!worker_start_command.starts_with('"'));
+    }
+
+    #[cfg(target_os = "android")]
+    #[test]
+    fn android_su_spawn_attempts_cover_expected_invocations() {
+        let worker_start_command = InterprocessEngineApiUnprivilegedBindings::build_android_worker_start_command();
+        let su_spawn_attempts = InterprocessEngineApiUnprivilegedBindings::build_android_su_spawn_attempts(&worker_start_command);
+
+        assert_eq!(su_spawn_attempts.len(), 3);
+        assert_eq!(su_spawn_attempts[0].attempt_label, "su -c");
+        assert_eq!(su_spawn_attempts[0].command_arguments, vec!["-c", "/data/local/tmp/squalr-cli --ipc-mode"]);
+        assert_eq!(su_spawn_attempts[1].attempt_label, "su 0 sh -c");
+        assert_eq!(
+            su_spawn_attempts[1].command_arguments,
+            vec!["0", "sh", "-c", "/data/local/tmp/squalr-cli --ipc-mode"]
+        );
+        assert_eq!(su_spawn_attempts[2].attempt_label, "su root sh -c");
+        assert_eq!(
+            su_spawn_attempts[2].command_arguments,
+            vec!["root", "sh", "-c", "/data/local/tmp/squalr-cli --ipc-mode"]
+        );
     }
 
     #[test]

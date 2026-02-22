@@ -8,7 +8,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Verify Android privileged worker launch on a rooted device after command-string quoting fix in `InterprocessEngineApiUnprivilegedBindings` (`/data/local/tmp/squalr-cli --ipc-mode` without embedded path quotes), now with expanded spawn-attempt diagnostics (su candidate path, missing su paths, full worker command).
+- Verify Android privileged worker launch on a rooted device after Android `su` compatibility expansion in `InterprocessEngineApiUnprivilegedBindings` (attempts now include `su -c`, `su 0 sh -c`, and `su root sh -c` per candidate path).
 - Once worker spawn succeeds, rerun launch diagnostics and confirm breadcrumb progression past `After SqualrEngine::new.`, `After App::new.`, and `Before first frame submission.` (scripts now summarize missing checkpoints directly from logcat).
 - If first-frame breadcrumb appears but splash persists (`reportedDrawn=false`), inspect `eframe`/`winit` Android lifecycle callbacks and draw signal timing in app construction (using scripted `reportedDrawn` + splash-window summaries).
 
@@ -32,3 +32,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Launch diagnostics enhancement landed (2026-02-22): scripts now summarize `reportedDrawn` from `dumpsys activity` and splash-window presence from `dumpsys window`.
 - Launch diagnostics enhancement landed (2026-02-22): `build_and_deploy.py` and `run_apk.py` now summarize Android bootstrap breadcrumb progression and explicitly list missing checkpoints through first-frame submission.
 - Recent host-side validation status (2026-02-22): compile-check and debug deploy flows complete through install/push on test device, with expected `su` failure on non-rooted shell.
+- Android privileged spawn compatibility expanded (2026-02-22): each `su` candidate now tries `su -c`, `su 0 sh -c`, and `su root sh -c` with per-invocation diagnostics; host unit tests pass for interprocess initialization paths.
