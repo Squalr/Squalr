@@ -11,6 +11,7 @@ Our current task, from `README.md`, is:
 
 - Validate Android app-launched privileged worker lifecycle after `squalr-cli` IPC keepalive fix (confirm worker pid persists after launch and no early IPC EOF).
 - Validate end-to-end process list population once worker lifecycle is stable.
+- Capture privileged worker-side IPC receive failure details during app bootstrap (current logs only show host-side EOF/Broken pipe).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -32,3 +33,8 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Rooted UI validation (2026-02-22): after timeout guard, process selector spinner clears within a few seconds instead of remaining indefinitely.
 - Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed), including new process-selector stale-request tests.
 - Host validation (2026-02-22): `cargo test -p squalr-cli -- --nocapture` passed (2 passed, 0 failed).
+- Android validation rerun (2026-02-22): `build_and_deploy.py --debug --launch-log-seconds 30` still fails worker handshake; repeated host log errors remain `failed to fill whole buffer` followed by privileged command `Broken pipe (os error 32)`.
+- Manual app launch validation (2026-02-22): app process (`com.squalr.android`) stays alive, but `pidof squalr-cli` never returns a running worker pid after app bootstrap.
+- Logcat confirms spawn attempt path is unchanged (fallback `su -c /data/local/tmp/squalr-cli --ipc-mode` reports "spawn launched"), but IPC listener fails almost immediately on host side.
+- Magisk/system logs during repro show repeated superuser grant notifications for shell, indicating `su` invocation executes but worker still exits shortly after launch.
+- App-context manual run (`adb shell run-as com.squalr.android su -c "/data/local/tmp/squalr-cli --ipc-mode"`) can hold a worker process open, so immediate failure is specific to app-managed bootstrap lifecycle rather than a universal inability to execute the worker binary.
