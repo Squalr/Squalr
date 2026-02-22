@@ -3,12 +3,12 @@ Our current task, from `README.md`, is:
 `pr/TODO`
 
 # Notes from Owner (Readonly Section)
-- 
+- Assume any unstaged file changes are from a previous iteration
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Resolve Android privileged worker spawn ENOENT from app context (`Failed to spawn privileged CLI process... No such file or directory`) despite `/data/local/tmp/squalr-cli` existing and executable.
+- Verify Android privileged worker launch on a rooted device after command-string quoting fix in `InterprocessEngineApiUnprivilegedBindings` (`/data/local/tmp/squalr-cli --ipc-mode` without embedded path quotes), now that script-captured diagnostics include `Squalr:I` breadcrumbs.
 - Once worker spawn succeeds, rerun launch diagnostics and confirm breadcrumb progression past `After SqualrEngine::new.`, `After App::new.`, and `Before first frame submission.`.
 - If first-frame breadcrumb appears but splash persists (`reportedDrawn=false`), inspect `eframe`/`winit` Android lifecycle callbacks and draw signal timing in app construction.
 
@@ -41,3 +41,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Launch diagnostic rerun (2026-02-22): `python build_and_deploy.py --debug --skip-worker --launch-log-file target/android_launch_logcat_startup_trace.txt` completed; script-filtered log still omits app-tag logs by design.
 - Breadcrumb capture (2026-02-22): direct `adb logcat` with `Squalr:I` confirms startup stops at `[android_bootstrap] Before SqualrEngine::new.` followed by `Failed to spawn privileged CLI process for unprivileged host startup: No such file or directory (os error 2)`.
 - Verification detail (2026-02-22): even after manual `adb push target/aarch64-linux-android/debug/squalr-cli /data/local/tmp/squalr-cli` and `adb shell chmod 755`, app launch still reports the same ENOENT spawn failure.
+- ENOENT spawn root-cause hypothesis and patch (2026-02-22): Android worker command previously used embedded quotes (`\"/data/local/tmp/squalr-cli\" --ipc-mode`), which can be treated as a literal executable path by some `su` implementations; `squalr-engine` now builds `/data/local/tmp/squalr-cli --ipc-mode` without embedded quotes.
+- Launch diagnostics filter update (2026-02-22): `build_and_deploy.py` and `run_apk.py` now include `Squalr:I` in filtered `adb logcat` capture so startup breadcrumbs are persisted in `--launch-log-file` output without manual unfiltered logcat collection.

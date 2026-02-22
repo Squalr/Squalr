@@ -279,6 +279,7 @@ def collect_launch_diagnostics(workspace_directory, launch_log_seconds, launch_l
             "-d",
             "-v",
             "threadtime",
+            "Squalr:I",
             "ActivityTaskManager:I",
             "ActivityManager:I",
             "AndroidRuntime:E",
