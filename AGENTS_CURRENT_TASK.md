@@ -8,16 +8,16 @@ Our current task, from `README.md`, is:
 - You don't get to declare things as fixed. Only "need human verification".
 - Keep .idea/ in gitignore you keep fucking this up. The goal is not to undo ALL changes from main. We want good changes. The goal is to eliminate stupid and speculative changes. Formatting is fine. Gitignore was fine.
 
-## Current Tasklist (ordered)
-(Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
-
+## WONTFIX (For now)
 - Add multi-data-type scan parity to GUI element scanner (`squalr/src/views/element_scanner/scanner/view_data/element_scanner_view_data.rs`) so one scan request can include multiple selected data types like TUI.
 - Add GUI process list search/filter input parity with TUI process selector (`squalr/src/views/process_selector`) including in-memory filtering and refresh-aware state behavior.
 - Add GUI project selector search/filter parity with TUI project list workflows (`squalr/src/views/project_explorer/project_selector`) so large project lists can be searched quickly.
 - Add GUI output window controls parity with TUI (`squalr/src/views/output/output_view.rs`): clear log action and configurable max-line cap.
 - Complete GUI settings parity with TUI for missing controls in memory/scan tabs (`squalr/src/views/settings/settings_tab_memory_view.rs`, `squalr/src/views/settings/settings_tab_scan_view.rs`), including start/end address editing, memory alignment, memory read mode, and floating-point tolerance.
-- Need human verification - FAILED validate Android windowed process list after broadening zygote-process identification to use both `/proc/<pid>/cmdline` and `/proc/<pid>/comm` name sources during ancestry checks. Confirm Squalr appears in windowed-only results.
-- Fix Gui build to display windowed processes. Again, this once worked on main branch. Why are you complicating it?
+
+## Current Tasklist (ordered)
+(Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
+- Need human verification: validate Android GUI windowed process display after dependency initialization fix (`ProcessSelectorViewData` now registered once in `main_window_view`, and `ProcessSelectorView` now consumes shared dependency instead of re-registering).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -50,3 +50,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Confirmed GUI process/project selectors currently lack search/filter input controls that exist in TUI.
 - Confirmed GUI output view currently lacks clear/max-line controls available in TUI output pane.
 - Confirmed GUI memory/scan settings tabs still have missing parity controls and placeholder paths compared with TUI settings workflows.
+- Potential root cause for missing Android GUI process rows: dependency replacement race due to `ProcessSelectorView` re-registering `ProcessSelectorViewData` after other views captured lazy dependencies; changed to eager single registration in `main_window_view.rs` and shared `get_dependency` usage in `process_selector_view.rs`.
+- Validation run on 2026-02-22: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr --locked`.

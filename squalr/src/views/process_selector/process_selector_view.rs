@@ -22,7 +22,7 @@ impl ProcessSelectorView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let process_selector_view_data = app_context
             .dependency_container
-            .register(ProcessSelectorViewData::new());
+            .get_dependency::<ProcessSelectorViewData>();
         ProcessSelectorViewData::refresh_active_process_list(process_selector_view_data.clone(), app_context.clone());
         let process_selector_toolbar_view = ProcessSelectorToolbarView::new(app_context.clone());
 

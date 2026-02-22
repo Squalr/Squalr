@@ -10,6 +10,7 @@ use crate::views::main_window::main_toolbar_view::MainToolbarView;
 use crate::views::output::output_view::OutputView;
 use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
+use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
@@ -36,6 +37,10 @@ impl MainWindowView {
         title: Rc<String>,
         corner_radius: CornerRadius,
     ) -> Self {
+        app_context
+            .dependency_container
+            .register(ProcessSelectorViewData::new());
+
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
         let main_toolbar_view = MainToolbarView::new(app_context.clone());
         let main_shortcut_bar_view = MainShortcutBarView::new(app_context.clone());
