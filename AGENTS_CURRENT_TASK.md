@@ -8,7 +8,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Run rooted-device validation once with `python ./squalr-android/build_and_deploy.py` and capture expected smoke output for future troubleshooting docs.
+- Run rooted-device validation once on a host with Android SDK/NDK env vars + connected rooted device, then capture successful smoke output (install + launch + privileged worker check).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -33,3 +33,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `squalr-android/build_and_deploy.py` now performs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, Rust Android target, `aarch64-linux-android-clang`, cargo-ndk/cargo-apk presence), runs `cargo ndk ... -p squalr-cli`, runs `cargo apk build --lib`, and in smoke mode performs install + app launch + privileged worker process validation.
 - Added non-device automation path: `python ./squalr-android/build_and_deploy.py --compile-check` for preflight + Android compile validation without adb deployment.
 - Architecture decision: keep Option B (`squalr` Android `cdylib` + thin `squalr-android` launcher) and keep deploy scripts in `squalr-android/` for now to avoid disrupting current desktop VSCode launch/debug paths.
+- Smoke attempt (2026-02-22) was run with `python ./squalr-android/build_and_deploy.py --debug` to avoid interactive prompt; preflight failed as expected at `ANDROID_NDK_ROOT is not set.` and README troubleshooting output now includes this exact failure signature.

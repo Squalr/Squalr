@@ -111,9 +111,20 @@ Notes:
   - `cargo apk build --target aarch64-linux-android --lib`
 - In full smoke mode, the script installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, launches the app, and validates privileged worker startup.
 - Running without flags prompts: `Build in release mode? (y/n [default])`.
+- Non-interactive environments should pass `--release` or `--debug` to avoid the prompt.
 - `--release` prefers release artifacts; if release signing is not configured (`[package.metadata.android.signing.release]`), APK build automatically falls back to debug.
 - If `adb install` fails on a previous install, uninstall first:
   - `adb uninstall com.squalr.android`
+
+Common preflight failure example:
+```text
+> rustup target list --installed
+aarch64-linux-android
+wasm32-unknown-unknown
+x86_64-pc-windows-msvc
+ANDROID_NDK_ROOT is not set.
+```
+If this appears, set `ANDROID_NDK_ROOT` to your Android NDK path and rerun the script.
 
 ## macOS Build
 
