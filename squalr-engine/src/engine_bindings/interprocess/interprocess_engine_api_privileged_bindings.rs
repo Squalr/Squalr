@@ -148,11 +148,21 @@ impl InterprocessEngineApiPrivilegedBindings {
                                     let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
                                 }
                             },
-                            Err(_error) => {
+                            Err(receive_error) => {
+                                log::error!(
+                                    "Privileged worker failed receiving host IPC request; exiting worker process: {:?}",
+                                    receive_error
+                                );
                                 std::process::exit(1);
                             }
                         }
+                    } else {
+                        log::error!("Privileged worker IPC connection became unavailable; exiting worker process.");
+                        std::process::exit(1);
                     }
+                } else {
+                    log::error!("Privileged worker failed acquiring IPC read lock; exiting worker process.");
+                    std::process::exit(1);
                 }
 
                 thread::sleep(Duration::from_millis(1));

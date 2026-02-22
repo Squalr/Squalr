@@ -194,7 +194,7 @@ impl InterprocessEngineApiUnprivilegedBindings {
                             },
                             Err(receive_error) => {
                                 log::error!(
-                                    "Failed to receive from privileged worker IPC channel; stopping listener thread: {}",
+                                    "Failed to receive from privileged worker IPC channel; stopping listener thread: {:?}",
                                     receive_error
                                 );
                                 should_stop_listener = true;

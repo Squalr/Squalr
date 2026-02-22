@@ -5156,6 +5156,7 @@ dependencies = [
 name = "squalr-cli"
 version = "0.1.1"
 dependencies = [
+ "android_logger",
  "anyhow",
  "crossbeam-channel",
  "futures",
