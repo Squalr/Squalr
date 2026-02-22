@@ -32,6 +32,20 @@ const ICON_PATHS: [&str; 5] = [
 pub struct AndroidProcessQuery {}
 
 impl AndroidProcessQuery {
+    fn is_zygote_process_name(process_name: Option<&str>) -> bool {
+        let normalized_process_name = process_name
+            .unwrap_or_default()
+            .trim()
+            .rsplit('/')
+            .next()
+            .unwrap_or_default();
+
+        matches!(
+            normalized_process_name,
+            "zygote" | "zygote64" | "app_zygote" | "app_zygote64" | "webview_zygote"
+        )
+    }
+
     fn read_cmdline_process_name(process_id: u32) -> Option<String> {
         let cmdline_path = format!("/proc/{}/cmdline", process_id);
         let cmdline_bytes = fs::read(cmdline_path).ok()?;
@@ -327,9 +341,10 @@ impl AndroidProcessQuery {
                     {
                         if let Ok(process_id) = process_id_string.parse::<u32>() {
                             let cmdline_process_name = Self::read_cmdline_process_name(process_id);
+                            let comm_process_name = Self::read_comm_process_name(process_id);
                             let process_name = cmdline_process_name
                                 .clone()
-                                .or_else(|| Self::read_comm_process_name(process_id))
+                                .or_else(|| comm_process_name.clone())
                                 .unwrap_or_default();
                             if process_name.is_empty() {
                                 continue;
@@ -358,10 +373,13 @@ impl AndroidProcessQuery {
                                 package_name: package_name.clone(),
                                 is_primary_package_process,
                             };
+                            let is_zygote_process = Self::is_zygote_process_name(cmdline_process_name.as_deref())
+                                || Self::is_zygote_process_name(comm_process_name.as_deref())
+                                || Self::is_zygote_process_name(Some(process_name.as_str()));
 
                             all_processes.insert(process_id, process_info.clone());
 
-                            if process_name == "zygote" || process_name == "zygote64" {
+                            if is_zygote_process {
                                 zygote_processes.insert(process_id, process_info);
                             }
                         }
@@ -560,6 +578,26 @@ mod tests {
             Some(&"/data/app/~~token/com.squalr.android-ABC==/base.apk".to_string())
         );
         assert_eq!(package_map.len(), 1);
+    }
+
+    #[test]
+    fn zygote_process_name_detection_accepts_known_variants() {
+        assert!(AndroidProcessQuery::is_zygote_process_name(Some("zygote")));
+        assert!(AndroidProcessQuery::is_zygote_process_name(Some("zygote64")));
+        assert!(AndroidProcessQuery::is_zygote_process_name(Some("app_zygote")));
+        assert!(AndroidProcessQuery::is_zygote_process_name(Some("app_zygote64")));
+        assert!(AndroidProcessQuery::is_zygote_process_name(Some("webview_zygote")));
+    }
+
+    #[test]
+    fn zygote_process_name_detection_accepts_path_prefixed_names() {
+        assert!(AndroidProcessQuery::is_zygote_process_name(Some("/system/bin/zygote64")));
+    }
+
+    #[test]
+    fn zygote_process_name_detection_rejects_non_zygote_names() {
+        assert!(!AndroidProcessQuery::is_zygote_process_name(Some("system_server")));
+        assert!(!AndroidProcessQuery::is_zygote_process_name(Some("com.squalr.android")));
     }
 
     #[test]
