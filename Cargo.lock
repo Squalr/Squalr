@@ -5113,6 +5113,7 @@ dependencies = [
 name = "squalr"
 version = "0.1.1"
 dependencies = [
+ "android-activity",
  "anyhow",
  "arc-swap",
  "bus",
@@ -5131,14 +5132,6 @@ dependencies = [
  "squalr-engine-session",
  "wasm-bindgen",
  "winresource",
-]
-
-[[package]]
-name = "squalr-android"
-version = "0.1.1"
-dependencies = [
- "log",
- "squalr",
 ]
 
 [[package]]

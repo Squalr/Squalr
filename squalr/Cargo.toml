@@ -5,6 +5,21 @@ authors = ["Zachary Canann"]
 edition = "2024"
 # build = "build.rs"
 
+[package.metadata.android]
+package = "com.squalr.android"
+resources = "android/res"
+
+[package.metadata.android.sdk]
+min_sdk_version = 23
+target_sdk_version = 30
+
+[package.metadata.android.application]
+label = "Squalr"
+icon = "@drawable/app_icon"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
@@ -17,7 +32,6 @@ env_logger = "0.11.8"
 epaint = "0.33.3"
 image = "0.25.9"
 log = "0.4.29"
-rodio = "0.21.1"
 serde = "1.0.228"
 serde_json = "1.0.149"
 smallvec = "1.15.1"
@@ -25,9 +39,11 @@ wasm-bindgen = "0.2"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 eframe = "0.33.3"
+rodio = "0.21.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
 eframe = { version = "0.33.3", default-features = false, features = ["glow", "android-native-activity"] }
+android-activity = "0.6.0"
 
 [build-dependencies]
 winresource = "0.1.30"

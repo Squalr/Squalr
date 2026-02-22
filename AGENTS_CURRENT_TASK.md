@@ -11,6 +11,7 @@ Our current task, from `README.md`, is:
 - Run one rooted-device smoke validation and capture the exact successful transcript (install + launch + privileged worker check).
 - Verify final on-device launcher identity after reinstall (`Squalr` label + custom icon, `NativeActivity` launch path).
 
+
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -19,11 +20,11 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android read/write now uses `/proc/<pid>/mem` with `FileExt::read_at`/`write_at`, avoiding unresolved `process_vm_*` linker symbols.
 - Android memory/process querying currently reuses maintained Linux implementations in `squalr-engine-operating-system` for compile stability.
 - Android build unification fix: `squalr/Cargo.toml` enables `eframe` feature `android-native-activity`, preventing `android-activity` backend mismatch.
-- Shared bootstrap is in place: `squalr` exposes `run_gui` + `run_gui_android`; `squalr-android` is a thin launcher wrapper.
-- Legacy Android CLI unpack/bootstrap path was removed (`squalr-android/build.rs` deleted); privileged worker path is standardized to `/data/local/tmp/squalr-cli`.
-- `squalr-android/build_and_deploy.py` now does host preflight, CLI cross-build, APK build, optional install/launch, and privileged worker validation; includes `--compile-check`, `--debug`, `--release`.
+- Android bootstrap is now owned directly by `squalr`: `android_main` is in `squalr/src/lib.rs` and package metadata/resources are in `squalr/Cargo.toml` + `squalr/android/`.
+- Privileged worker path is standardized to `/data/local/tmp/squalr-cli`.
+- Workspace-root scripts (`build_and_deploy.py`, `run_apk.py`, `debug_run_privileged_shell.py`) are now canonical and invoke Android builds from `squalr/`.
 - NDK preflight now recognizes modern LLVM toolchain layouts (including Windows `.cmd` wrappers) and checks `cargo apk --help` for cargo-apk availability.
 - Launch and identity fixes: scripts target `com.squalr.android/android.app.NativeActivity`; Android metadata sets `label = "Squalr"`, `icon = "@drawable/app_icon"`, and `resources = "android/res"`.
 - Validation status (2026-02-22): compile-check passes; debug deploy reaches install/push but fails at `su` step on non-rooted shell (`/system/bin/sh: su: inaccessible or not found`).
-- Android script placement alignment complete: workspace-root wrappers (`build_and_deploy.py`, `run_apk.py`, `debug_run_privileged_shell.py`) now delegate to canonical scripts in `squalr-android/`.
+- Migration completion status (2026-02-22): `squalr-android` crate removed from workspace and deleted after moving Android launcher/resources/scripts to `squalr` + workspace root.
 - Remaining external dependency is rooted-device access to complete end-to-end privileged smoke validation.

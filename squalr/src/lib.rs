@@ -17,7 +17,15 @@ static ICON_APP: &[u8] = include_bytes!("../images/app/app_icon.png");
 static APP_NAME: &str = "Squalr";
 
 #[cfg(target_os = "android")]
-pub use eframe::winit::platform::android::activity::AndroidApp;
+pub use android_activity::AndroidApp;
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+fn android_main(android_app: AndroidApp) {
+    if let Err(error) = run_gui_android(android_app) {
+        log::error!("Fatal Android GUI bootstrap failure: {error:?}");
+    }
+}
 
 /// Runs the Squalr GUI with the provided engine mode.
 pub fn run_gui(engine_mode: EngineMode) -> Result<()> {
