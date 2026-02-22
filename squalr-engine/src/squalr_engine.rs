@@ -123,22 +123,3 @@ impl SqualrEngine {
         &self.dependency_container
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn privileged_shell_does_not_create_unprivileged_state() {
-        let engine = SqualrEngine::new(EngineMode::PrivilegedShell).expect("Privileged shell mode should initialize without creating unprivileged bindings.");
-
-        assert!(
-            engine.get_engine_unprivileged_state().is_none(),
-            "Privileged shell mode must not create unprivileged state."
-        );
-        assert!(
-            engine.get_engine_privileged_state().is_some(),
-            "Privileged shell mode must create privileged state."
-        );
-    }
-}

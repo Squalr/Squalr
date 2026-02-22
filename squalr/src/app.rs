@@ -14,8 +14,6 @@ pub struct App {
     app_context: Arc<AppContext>,
     main_window_view: MainWindowView,
     corner_radius: CornerRadius,
-    #[cfg(target_os = "android")]
-    first_frame_logged: bool,
 }
 
 impl App {
@@ -37,8 +35,6 @@ impl App {
             app_context,
             main_window_view,
             corner_radius,
-            #[cfg(target_os = "android")]
-            first_frame_logged: false,
         }
     }
 }
@@ -56,12 +52,6 @@ impl eframe::App for App {
         context: &Context,
         _frame: &mut eframe::Frame,
     ) {
-        #[cfg(target_os = "android")]
-        if !self.first_frame_logged {
-            log::info!("[android_bootstrap] Before first frame submission.");
-            self.first_frame_logged = true;
-        }
-
         let app_frame = Frame::new()
             .corner_radius(self.corner_radius)
             .stroke(context.style().visuals.widgets.noninteractive.fg_stroke)

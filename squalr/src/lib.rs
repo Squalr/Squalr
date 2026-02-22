@@ -27,7 +27,8 @@ pub use android_activity::AndroidApp;
 static ANDROID_LOGCAT_INIT: OnceLock<()> = OnceLock::new();
 
 #[cfg(target_os = "android")]
-fn initialize_android_logcat_logger() {
+#[unsafe(no_mangle)]
+pub fn android_main(android_app: AndroidApp) {
     ANDROID_LOGCAT_INIT.get_or_init(|| {
         android_logger::init_once(
             android_logger::Config::default()
@@ -35,12 +36,6 @@ fn initialize_android_logcat_logger() {
                 .with_tag("Squalr"),
         );
     });
-}
-
-#[cfg(target_os = "android")]
-#[unsafe(no_mangle)]
-pub fn android_main(android_app: AndroidApp) {
-    initialize_android_logcat_logger();
 
     if let Err(error) = run_gui_android(android_app) {
         log::error!("Fatal Android GUI bootstrap failure: {error:?}");

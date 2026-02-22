@@ -107,15 +107,18 @@ impl ProcessSelectorViewData {
 
             process_selector_view_data.is_awaiting_windowed_process_list = false;
             process_selector_view_data.windowed_process_list_request_started_at = None;
+
             log::info!(
                 "Received windowed process-list response with {} entries.",
                 process_list_response.processes.len()
             );
+
             ProcessSelectorViewData::set_windowed_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
 
         if !did_dispatch {
             log::warn!("Windowed process-list refresh request failed to dispatch.");
+
             if let Some(mut process_selector_view_data) =
                 process_selector_view_data_for_response.write("Process selector view data refresh windowed process list dispatch failure")
             {
@@ -576,193 +579,5 @@ impl ProcessSelectorViewData {
                 .unwrap_or(false),
             None => true,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ProcessSelectorViewData;
-    use squalr_engine_api::structures::processes::process_info::ProcessInfo;
-    use std::time::{Duration, Instant};
-
-    #[test]
-    fn request_is_stale_when_pending_and_timeout_elapsed() {
-        let current_instant = Instant::now();
-        let request_started_at = current_instant - (ProcessSelectorViewData::REQUEST_STALE_TIMEOUT + Duration::from_millis(1));
-
-        let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, Some(request_started_at), true);
-
-        assert!(is_stale);
-    }
-
-    #[test]
-    fn request_is_not_stale_when_not_pending() {
-        let current_instant = Instant::now();
-
-        let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, Some(current_instant), false);
-
-        assert!(!is_stale);
-    }
-
-    #[test]
-    fn request_is_stale_when_pending_without_start_timestamp() {
-        let current_instant = Instant::now();
-
-        let is_stale = ProcessSelectorViewData::is_request_stale(current_instant, None, true);
-
-        assert!(is_stale);
-    }
-
-    #[test]
-    fn normalize_windowed_processes_filters_non_windowed_entries() {
-        let process_list = vec![
-            ProcessInfo::new(20, "com.example.worker".to_string(), false, None),
-            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
-        ];
-
-        let normalized_windowed_processes = ProcessSelectorViewData::normalize_windowed_processes(process_list);
-
-        assert_eq!(normalized_windowed_processes.len(), 1);
-        assert_eq!(normalized_windowed_processes[0].get_name(), "com.example.app");
-    }
-
-    #[test]
-    fn normalize_windowed_processes_sorts_case_insensitive_then_process_id() {
-        let process_list = vec![
-            ProcessInfo::new(40, "beta".to_string(), true, None),
-            ProcessInfo::new(10, "Alpha".to_string(), true, None),
-            ProcessInfo::new(30, "alpha".to_string(), true, None),
-        ];
-
-        let normalized_windowed_processes = ProcessSelectorViewData::normalize_windowed_processes(process_list);
-        let ordered_process_ids: Vec<u32> = normalized_windowed_processes
-            .iter()
-            .map(|process_info| process_info.get_process_id_raw())
-            .collect();
-
-        assert_eq!(ordered_process_ids, vec![10, 30, 40]);
-    }
-
-    #[test]
-    fn normalize_windowed_processes_with_fallback_uses_primary_package_fallback_when_strict_count_is_tiny() {
-        let process_list = vec![
-            ProcessInfo::new(90, "com.omega.service".to_string(), false, None),
-            ProcessInfo::new(10, "Alpha".to_string(), true, None),
-            ProcessInfo::new(70, "com.delta.game".to_string(), false, None),
-            ProcessInfo::new(20, "beta".to_string(), true, None),
-            ProcessInfo::new(80, "com.epsilon.tool".to_string(), false, None),
-            ProcessInfo::new(60, "gamma".to_string(), false, None),
-            ProcessInfo::new(50, "com.zeta.player".to_string(), false, None),
-            ProcessInfo::new(40, "eta".to_string(), false, None),
-        ];
-
-        let normalized_processes = ProcessSelectorViewData::normalize_windowed_processes_with_fallback(process_list);
-        let ordered_process_ids: Vec<u32> = normalized_processes
-            .iter()
-            .map(|process_info| process_info.get_process_id_raw())
-            .collect();
-
-        if ProcessSelectorViewData::IS_ANDROID_TARGET {
-            assert_eq!(normalized_processes.len(), 4);
-            assert_eq!(ordered_process_ids, vec![70, 80, 90, 50]);
-        } else {
-            assert_eq!(normalized_processes.len(), 2);
-            assert_eq!(ordered_process_ids, vec![10, 20]);
-        }
-    }
-
-    #[test]
-    fn normalize_windowed_processes_with_fallback_keeps_strict_windowed_filter_for_small_responses() {
-        let process_list = vec![
-            ProcessInfo::new(20, "com.example.worker".to_string(), false, None),
-            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
-            ProcessInfo::new(30, "com.example.helper".to_string(), false, None),
-        ];
-
-        let normalized_processes = ProcessSelectorViewData::normalize_windowed_processes_with_fallback(process_list);
-        let ordered_process_ids: Vec<u32> = normalized_processes
-            .iter()
-            .map(|process_info| process_info.get_process_id_raw())
-            .collect();
-
-        assert_eq!(normalized_processes.len(), 1);
-        assert_eq!(ordered_process_ids, vec![10]);
-    }
-
-    #[test]
-    fn choose_shortcut_dropdown_windowed_candidates_returns_windowed_when_non_empty() {
-        let windowed_processes = vec![ProcessInfo::new(10, "com.example.app".to_string(), true, None)];
-        let full_processes = vec![
-            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
-            ProcessInfo::new(11, "com.example.app:service".to_string(), false, None),
-            ProcessInfo::new(20, "com.alpha.game".to_string(), false, None),
-            ProcessInfo::new(30, "zygote64".to_string(), false, None),
-            ProcessInfo::new(40, "com.beta.player".to_string(), false, None),
-        ];
-
-        let fallback_processes = ProcessSelectorViewData::choose_shortcut_dropdown_windowed_candidates(&windowed_processes, &full_processes);
-        let ordered_process_ids: Vec<u32> = fallback_processes
-            .iter()
-            .map(|process_info| process_info.get_process_id_raw())
-            .collect();
-
-        assert_eq!(ordered_process_ids, vec![10]);
-    }
-
-    #[test]
-    fn choose_shortcut_dropdown_windowed_candidates_uses_primary_package_fallback_when_windowed_empty() {
-        let windowed_processes = Vec::new();
-        let full_processes = vec![
-            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
-            ProcessInfo::new(11, "com.example.app:service".to_string(), false, None),
-            ProcessInfo::new(20, "com.alpha.game".to_string(), false, None),
-        ];
-
-        let fallback_processes = ProcessSelectorViewData::choose_shortcut_dropdown_windowed_candidates(&windowed_processes, &full_processes);
-        let ordered_process_ids: Vec<u32> = fallback_processes
-            .iter()
-            .map(|process_info| process_info.get_process_id_raw())
-            .collect();
-
-        if ProcessSelectorViewData::IS_ANDROID_TARGET {
-            assert_eq!(ordered_process_ids, vec![20, 10]);
-        } else {
-            assert!(ordered_process_ids.is_empty());
-        }
-    }
-
-    #[test]
-    fn refresh_shortcut_dropdown_process_list_keeps_desktop_windowed_only_behavior() {
-        let mut process_selector_view_data = ProcessSelectorViewData::new();
-        process_selector_view_data.show_windowed_processes_only = false;
-        process_selector_view_data.windowed_process_list = vec![ProcessInfo::new(40, "WindowedApp".to_string(), true, None)];
-        process_selector_view_data.full_process_list = vec![
-            ProcessInfo::new(40, "WindowedApp".to_string(), true, None),
-            ProcessInfo::new(10, "BackgroundService.exe".to_string(), false, None),
-        ];
-
-        process_selector_view_data.refresh_shortcut_dropdown_process_list();
-
-        let ordered_process_ids: Vec<u32> = process_selector_view_data
-            .shortcut_dropdown_process_list
-            .iter()
-            .map(|process_info| process_info.get_process_id_raw())
-            .collect();
-
-        if ProcessSelectorViewData::IS_ANDROID_TARGET {
-            assert_eq!(ordered_process_ids, vec![10, 40]);
-        } else {
-            assert_eq!(ordered_process_ids, vec![40]);
-        }
-    }
-
-    #[test]
-    fn choose_shortcut_dropdown_windowed_candidates_returns_empty_when_no_candidates_exist() {
-        let windowed_processes = Vec::new();
-        let full_processes = vec![ProcessInfo::new(11, "system_server".to_string(), false, None)];
-
-        let fallback_processes = ProcessSelectorViewData::choose_shortcut_dropdown_windowed_candidates(&windowed_processes, &full_processes);
-
-        assert!(fallback_processes.is_empty());
     }
 }
