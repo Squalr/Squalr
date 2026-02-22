@@ -9,25 +9,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Avoid deadlocks, I just had to kill an agent over:
-exec
-"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -Command 'cargo test -p squalr-engine -- --nocapture' in C:\Projects\squalr_workspaceTraceback (most recent call last):
-Ctrl+C
-  File "C:\Projects\squalr_workspace\agentic_loop.py", line 6, in <module>
-    subprocess.run(CMD, shell=True)
-  File "C:\Users\zacha\anaconda3\Lib\subprocess.py", line 550, in run
-    stdout, stderr = process.communicate(input, timeout=timeout)
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\zacha\anaconda3\Lib\subprocess.py", line 1201, in communicate
-    self.wait()
-  File "C:\Users\zacha\anaconda3\Lib\subprocess.py", line 1264, in wait
-    return self._wait(timeout=timeout)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\zacha\anaconda3\Lib\subprocess.py", line 1588, in _wait
-    result = _winapi.WaitForSingleObject(self._handle,
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-KeyboardInterrupt
-- Validate Android GUI process-selector refresh button after lock-order fix in `squalr/src/views/process_selector/process_selector_view.rs`.
+- Audit GUI project against TUI for functionality gaps now that Android full process-list refresh no longer reproduces as empty.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -48,6 +30,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Host validation (2026-02-22): `cargo test -p squalr-cli -- --nocapture` passed (2 passed, 0 failed).
 - Android validation (2026-02-22, 08:45 local): `build_and_deploy.py --debug --launch-log-seconds 30` passed; worker detected (`pidof squalr-cli` => `16655`); artifact `logs/android_bootstrap_20260222_084500.log`.
 - Android validation (2026-02-22, 08:54 local): `build_and_deploy.py --debug --launch-log-seconds 45` logged GUI dispatch + successful full process-list response (`8111` entries), with `SqualrCli` execution log for `require_windowed=false`; worker detected (`pidof squalr-cli` => `17904`); artifact `logs/android_process_selector_validation_20260222_085458.log`.
+- Android validation (2026-02-22, 09:00 local): `build_and_deploy.py --debug --launch-log-seconds 45` passed; GUI logged full process-list dispatch + response (`8114` entries), repeated windowed responses (`0` entries), and worker detected (`pidof squalr-cli` => `18841`).
 - No occurrences in current Android validation logs of prior failure signatures: `failed to fill whole buffer`, `Broken pipe (os error 32)`, or IPC listener read-lock/receive failure logs.
 - GUI process-selector refresh root cause (2026-02-22): `ProcessSelectorView` held a read lock on `ProcessSelectorViewData` while drawing the toolbar; toolbar refresh click requires a write lock, so refresh attempts could no-op.
 - Fix (2026-02-22): render `ProcessSelectorToolbarView` before acquiring the read lock in `squalr/src/views/process_selector/process_selector_view.rs`, allowing refresh dispatch to acquire write access.
