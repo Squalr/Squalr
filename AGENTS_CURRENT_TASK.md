@@ -3,12 +3,13 @@ Our current task, from `README.md`, is:
 `pr/TODO`
 
 # Notes from Owner (Readonly Section)
-- Assume any unstaged file changes are from a previous iteration
+- Assume any unstaged file changes are from a previous iteration, and can be kept if they look good
+- The android device is rooted.
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Acquire or switch to a rooted Android device/shell where `su` is present and invokable from `adb shell` (last revalidated on 2026-02-22: connected device still reports `su: inaccessible or not found` for `su -c`, `su 0 sh -c`, and `su root sh -c`).
+- Acquire or switch to a rooted Android device/shell where `su` is present and invokable from `adb shell` (last revalidated on 2026-02-22: connected device still reports `su: inaccessible or not found` for `su -c`, `su 0 sh -c`, and `su root sh -c`, and `adb shell which su` returns no path).
 - On rooted device, rerun `debug_run_privileged_shell.py` and record which `su` invocation path succeeds for chmod/verify/worker launch + IPC pid polling.
 - On rooted device, verify Android privileged worker launch after Android `su` compatibility expansion in `InterprocessEngineApiUnprivilegedBindings` (candidate invocations: `su -c`, `su 0 sh -c`, and `su root sh -c`).
 - Once worker spawn succeeds, rerun launch diagnostics and confirm breadcrumb progression past `After SqualrEngine::new.`, `After App::new.`, and `Before first frame submission.` (scripts now summarize missing checkpoints directly from logcat).
@@ -39,4 +40,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Rooted validation rerun status (2026-02-22): connected device `adb-4C101FDKD000Z8-XSqEd2._adb-tls-connect._tcp` is not rooted for our use case; `debug_run_privileged_shell.py` fails all `su` invocation forms with `/system/bin/sh: su: inaccessible or not found`.
 - Installed-app launch diagnostics status (2026-02-22): `run_apk.py --launch-log-seconds 20` shows process launch but bootstrap stops at `Before SqualrEngine::new.`; missing `After SqualrEngine::new.`, `Before App::new.`, `After App::new.`, and `Before first frame submission.`; `dumpsys` reports `reportedDrawn=false` and splash window still present.
 - Revalidation status (2026-02-22, latest): reran `debug_run_privileged_shell.py` and `run_apk.py --launch-log-seconds 20`; outcomes are unchanged from earlier runs: all `su` invocations fail on-device, bootstrap halts at `Before SqualrEngine::new.`, `reportedDrawn=false`, splash window remains visible.
+- Device details for latest revalidation (2026-02-22): `adb devices -l` reports `model:Pixel_9_Pro_Fold device:comet`; `getprop ro.build.fingerprint` is `google/comet/comet:16/BP3A.251005.004.B3/14332485:user/release-keys`.
 - Host test status (2026-02-22): `cargo test -p squalr-engine -- --nocapture` passed (16 passed, 0 failed), including interprocess initialization failure-path tests.
