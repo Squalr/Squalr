@@ -5,6 +5,8 @@ use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::io;
 use std::io::Write;
 use std::sync::{Arc, mpsc};
+use std::thread;
+use std::time::Duration;
 use structopt::StructOpt;
 use structopt::clap::ErrorKind;
 
@@ -40,17 +42,9 @@ impl Cli {
     }
 
     pub fn stay_alive() {
-        let stdin = io::stdin();
-        let mut stdout = io::stdout();
-
-        if let Err(error) = stdout.flush() {
-            log::error!("Error flushing stdout {}", error);
-            return;
+        loop {
+            thread::sleep(Duration::from_secs(60));
         }
-
-        let mut input = String::new();
-        let _ = stdin.read_line(&mut input);
-        log::error!("Exiting cli.");
     }
 
     /// Executes a single command and blocks until the engine response arrives.
