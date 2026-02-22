@@ -82,6 +82,31 @@ Install native dependencies before building:
 - `libxrandr-dev`
 - `libxinerama-dev`
 
+## Android Build
+
+Android builds are currently validated on target `aarch64-linux-android` with API level 21.
+
+Prerequisites:
+- Android SDK + NDK installed.
+- `ANDROID_HOME` set.
+- `ANDROID_NDK_ROOT` set.
+- Rust Android target installed: `rustup target add aarch64-linux-android`
+- Cargo helpers installed:
+  - `cargo install cargo-ndk`
+  - `cargo install cargo-apk`
+
+Build commands:
+- Build privileged worker binary that is bundled into the Android library:
+  - `cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-cli`
+- Build Android GUI library:
+  - `cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-android --lib`
+- Optional APK build/install from `squalr-android/`:
+  - `cargo apk build --target aarch64-linux-android --lib`
+  - `adb install target/debug/apk/squalr-android.apk`
+
+Runtime note:
+- Android runs in IPC host mode and expects rooted `su` access so the bundled `squalr-cli` can be launched as the privileged worker.
+
 ## macOS Build
 
 macOS builds are validated with these entrypoints:

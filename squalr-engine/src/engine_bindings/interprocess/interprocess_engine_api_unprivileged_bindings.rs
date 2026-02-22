@@ -211,7 +211,7 @@ impl InterprocessEngineApiUnprivilegedBindings {
 
     #[cfg(any(target_os = "android"))]
     fn spawn_squalr_cli_as_root() -> std::io::Result<std::process::Child> {
-        Logger::log(LogLevel::Info, "Spawning privileged worker...", None);
+        log::info!("Spawning privileged worker...");
 
         let child = Command::new("su")
             .arg("-c")

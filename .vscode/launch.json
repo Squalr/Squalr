@@ -185,23 +185,10 @@
             }
         },
         {
-            "type": "lldb",
+            "type": "node-terminal",
             "request": "launch",
-            "name": "Debug squalr-android",
-            "preLaunchTask": "Build squalr-cli (Android)",
-            "cargo": {
-                "args": [
-                    "ndk",
-                    "--platform",
-                    "21",
-                    "--target",
-                    "aarch64-linux-android",
-                    "build",
-                    "--bin",
-                    "squalr-cli"
-                ]
-            },
-            "args": [],
+            "name": "Build Android (CLI + GUI lib)",
+            "command": "cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-cli; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-android --lib",
             "cwd": "${workspaceFolder}"
         },
         {

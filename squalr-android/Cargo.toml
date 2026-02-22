@@ -3,7 +3,7 @@ name = "squalr-android"
 version = "0.1.1"
 authors = ["Zachary Canann"]
 edition = "2024"
-# build = "build.rs"
+build = "build.rs"
 
 [lib]
 crate-type = ["cdylib"]
@@ -20,5 +20,3 @@ slint = { version = "1.15.0", default-features = false, features = ["accessibili
 structopt = "0.3.26"
 sysinfo = "0.38.0"
 
-[build-dependencies]
-winresource = "0.1.30"

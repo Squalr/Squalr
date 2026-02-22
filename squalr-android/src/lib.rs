@@ -5,7 +5,7 @@ use squalr_engine::squalr_engine::SqualrEngine;
 
 #[cfg(target_os = "android")]
 // On a rooted device, the unprivileged GUI must spawn a privileged CLI app, so it is bundled into the GUI.
-static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/../../../squalr-cli"));
+static SQUALR_CLI: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/squalr-cli-bundle"));
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]

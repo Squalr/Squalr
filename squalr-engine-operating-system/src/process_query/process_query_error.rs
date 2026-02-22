@@ -53,10 +53,7 @@ impl ProcessQueryError {
             format!(": {}", details_text)
         };
 
-        Self::OpenProcessFailed {
-            process_id,
-            details_suffix,
-        }
+        Self::OpenProcessFailed { process_id, details_suffix }
     }
 }
 
@@ -85,9 +82,6 @@ mod tests {
     fn open_process_failed_error_contains_details_when_present() {
         let error = ProcessQueryError::open_process_failed(42, "task_for_pid returned KERN_FAILURE");
 
-        assert_eq!(
-            error.to_string(),
-            "Failed to open process with id `42`: task_for_pid returned KERN_FAILURE."
-        );
+        assert_eq!(error.to_string(), "Failed to open process with id `42`: task_for_pid returned KERN_FAILURE.");
     }
 }

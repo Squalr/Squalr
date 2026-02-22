@@ -5,7 +5,6 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use ureq::config::Config;
-use ureq::tls::{TlsConfig, TlsProvider};
 
 pub struct UpdateOperationDownload {
     progress: Arc<Mutex<Option<DownloadProgress>>>,
@@ -27,8 +26,7 @@ impl UpdateOperationDownload {
     ) -> Result<()> {
         log::info!("Downloading from: {}", url);
 
-        let tls_config = TlsConfig::builder().provider(TlsProvider::NativeTls).build();
-        let config = Config::builder().tls_config(tls_config).build();
+        let config = Config::builder().build();
         let agent = config.new_agent();
         let mut response = agent.get(url).call()?;
 

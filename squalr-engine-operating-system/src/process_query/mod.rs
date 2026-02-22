@@ -2,10 +2,7 @@ pub mod process_query_error;
 pub mod process_query_options;
 pub mod process_queryer;
 
-#[cfg(any(target_os = "android"))]
-mod android;
-
-#[cfg(any(target_os = "linux"))]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux;
 
 #[cfg(any(target_os = "macos"))]

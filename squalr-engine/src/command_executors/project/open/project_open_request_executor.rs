@@ -1,4 +1,5 @@
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+#[cfg(not(target_os = "android"))]
 use rfd::FileDialog;
 use squalr_engine_api::commands::project::open::project_open_request::ProjectOpenRequest;
 use squalr_engine_api::commands::project::open::project_open_response::ProjectOpenResponse;
@@ -26,14 +27,25 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
             }
         };
 
-        let mut selected_path: Option<PathBuf> = None;
+        let selected_path: Option<PathBuf>;
 
         if self.open_file_browser {
-            selected_path = FileDialog::new().pick_folder();
-            if selected_path.is_none() {
-                log::info!("File browser cancelled by user.");
+            #[cfg(not(target_os = "android"))]
+            {
+                selected_path = FileDialog::new().pick_folder();
+                if selected_path.is_none() {
+                    log::info!("File browser cancelled by user.");
+                    return ProjectOpenResponse { success: false };
+                }
+            }
+
+            #[cfg(target_os = "android")]
+            {
+                log::error!("Project folder picker is unavailable on Android. Provide `project_directory_path` instead.");
                 return ProjectOpenResponse { success: false };
             }
+        } else {
+            selected_path = None;
         }
 
         // Prioritize open options in the following order: file browser selected path > direct path > constructed from name.

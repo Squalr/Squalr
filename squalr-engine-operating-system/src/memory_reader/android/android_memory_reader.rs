@@ -1,10 +1,9 @@
 use crate::memory_reader::memory_reader_trait::MemoryReaderTrait;
+use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use squalr_engine_common::dynamic_struct::dynamic_struct::DynamicStruct;
-use squalr_engine_common::logging::log_level::LogLevel;
-use squalr_engine_common::logging::logger::Logger;
-use std::fs::OpenOptions;
-use std::io::{Read, Seek, SeekFrom};
+use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
+use std::fs::File;
+use std::os::unix::fs::FileExt;
 
 pub struct AndroidMemoryReader;
 
@@ -13,74 +12,80 @@ impl AndroidMemoryReader {
         AndroidMemoryReader
     }
 
-    fn read_bytes_internal(
-        &self,
-        process_info: &OpenedProcessInfo,
-        address: u64,
-        len: usize,
-    ) -> std::io::Result<Vec<u8>> {
-        // Construct the path to the process's mem file.
-        let process_memory_path = format!("/proc/{}/mem", process_info.process_id);
+    fn read_process_memory(
+        process_id: u32,
+        source_address: u64,
+        destination_buffer: &mut [u8],
+    ) -> bool {
+        if destination_buffer.is_empty() {
+            return true;
+        }
 
-        // Open the file in read-only mode.
-        let mut process_memory_file = OpenOptions::new().read(true).open(&process_memory_path)?;
+        let process_memory_path = format!("/proc/{process_id}/mem");
+        let process_memory_file = match File::open(process_memory_path) {
+            Ok(process_memory_file) => process_memory_file,
+            Err(error) => {
+                log::error!("Failed to open process memory for read: {}", error);
+                return false;
+            }
+        };
 
-        // Seek to the desired offset in the process memory.
-        process_memory_file.seek(SeekFrom::Start(address))?;
-
-        // Read data into our buffer.
-        let mut buffer = vec![0u8; len];
-        let mut bytes_read = 0;
-
-        while bytes_read < len {
-            match process_memory_file.read(&mut buffer[bytes_read..])? {
-                0 => {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        format!("EOF while reading process memory at address {:#x} in {}", address, process_memory_path),
-                    ));
+        let mut total_bytes_read: usize = 0;
+        while total_bytes_read < destination_buffer.len() {
+            let next_read_offset = source_address + total_bytes_read as u64;
+            match process_memory_file.read_at(&mut destination_buffer[total_bytes_read..], next_read_offset) {
+                Ok(0) => return false,
+                Ok(bytes_read) => total_bytes_read += bytes_read,
+                Err(error) => {
+                    log::error!("Failed to read process memory: {}", error);
+                    return false;
                 }
-                n => bytes_read += n,
             }
         }
-        Ok(buf)
+
+        true
     }
 }
 
 impl MemoryReaderTrait for AndroidMemoryReader {
-    /// Reads into a `DynamicStruct` by calling `read_bytes_internal(...)`.
     fn read(
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
-        dynamic_struct: &mut DynamicStruct,
+        data_value: &mut DataValue,
     ) -> bool {
-        let size = dynamic_struct.get_size_in_bytes() as usize;
+        let mut value_bytes = vec![0_u8; data_value.get_size_in_bytes() as usize];
+        let read_succeeded = Self::read_process_memory(process_info.get_process_id_raw(), address, &mut value_bytes);
 
-        match self.read_bytes_internal(process_info, address, size) {
-            Ok(bytes) => {
-                dynamic_struct.copy_from_bytes(&bytes);
-                true
-            }
-            Err(_) => false,
+        if read_succeeded {
+            data_value.copy_from_bytes(&value_bytes);
         }
+
+        read_succeeded
     }
 
-    /// Reads into a raw byte slice by calling `read_bytes_internal(...)`.
+    fn read_struct(
+        &self,
+        process_info: &OpenedProcessInfo,
+        address: u64,
+        valued_struct: &mut ValuedStruct,
+    ) -> bool {
+        let mut struct_bytes = vec![0_u8; valued_struct.get_size_in_bytes() as usize];
+        let read_succeeded = Self::read_process_memory(process_info.get_process_id_raw(), address, &mut struct_bytes);
+
+        if read_succeeded {
+            return valued_struct.copy_from_bytes(&struct_bytes);
+        }
+
+        false
+    }
+
     fn read_bytes(
         &self,
         process_info: &OpenedProcessInfo,
         address: u64,
         values: &mut [u8],
     ) -> bool {
-        let size = values.len();
-
-        match self.read_bytes_internal(process_info, address, size) {
-            Ok(bytes) => {
-                values.copy_from_slice(&bytes);
-                true
-            }
-            Err(_) => false,
-        }
+        Self::read_process_memory(process_info.get_process_id_raw(), address, values)
     }
 }

@@ -10,10 +10,7 @@ pub(crate) trait ProcessQueryer {
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo>;
 }
 
-#[cfg(any(target_os = "android"))]
-use crate::process_query::android::android_process_query::AndroidProcessQuery as ProcessQueryImpl;
-
-#[cfg(any(target_os = "linux"))]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 use crate::process_query::linux::linux_process_query::LinuxProcessQuery as ProcessQueryImpl;
 
 #[cfg(any(target_os = "macos"))]
