@@ -8,9 +8,22 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- [x] Restore Android cross-build for `squalr-cli` and `squalr-android`.
-- [x] Update docs with current Android build/run workflow.
-- [x] Add VS Code launch entry that performs Android build-only flow.
+- Replace legacy Slint Android bootstrap in `squalr-android/src/lib.rs` with the current egui app bootstrap path. Current file still uses `slint::android::AndroidApp`, `slint::run_event_loop()`, and panic-based startup.
+- Decide Android app entry architecture and implement it consistently:
+  - Option A: make `squalr-android` a thin Android launcher wrapper that calls shared GUI startup from the `squalr` crate.
+  - Option B: make `squalr` itself produce the Android `cdylib` and retire duplicate Android GUI bootstrap code.
+- Eliminate hard-coded legacy package id paths (`/data/data/rust.squalr_android/...`) and switch to a single source of truth for worker binary path based on `com.squalr.android`.
+- Align privileged worker deployment and runtime execution path:
+  - `build_and_deploy.py` currently pushes worker to `/data/local/tmp/squalr-cli`.
+  - Android runtime spawn path currently expects `/data/data/<package>/files/squalr-cli`.
+  - Pick one path strategy and enforce it in scripts + engine spawn logic.
+- Update Android helper scripts (`debug_run_privilged_shell.py`, launch/deploy scripts) to use the same package id/path strategy and remove stale legacy defaults.
+- Add Android smoke validation steps that are run and documented together:
+  - host preflight (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, `aarch64-linux-android-clang` visibility),
+  - `cargo ndk ... build -p squalr-cli`,
+  - `cargo apk build --target aarch64-linux-android --lib`,
+  - `adb` install + launch + privileged worker IPC handshake.
+- After migration, add at least one automated compile check path for Android (scripted local check or CI job) to prevent Slint-era regressions from reappearing.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -28,3 +41,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Fixed `squalr-android/build_and_deploy.py` APK install path resolution to support both `target/<triple>/<profile>/apk/...` and `target/<profile>/apk/...` output layouts from `cargo apk`.
 - Added `squalr-android/run_apk.py` to launch the installed Android app over adb without rebuilding; it resolves launch activity across known package ids and supports a `--package` override.
 - Set explicit Android app id in `squalr-android/Cargo.toml` (`[package.metadata.android] package = "com.squalr.android"`) and updated `run_apk.py` to default-launch only that package, with optional legacy fallback flag.
+- `squalr-android/src/lib.rs` is still Slint-era bootstrap code and currently references `slint::*` APIs despite no `slint` dependency in `squalr-android/Cargo.toml`; this is now the primary code-level Android blocker.
+- `squalr-engine/src/engine_bindings/interprocess/interprocess_engine_api_unprivileged_bindings.rs` still spawns Android worker from `/data/data/rust.squalr_android/files/squalr-cli`, which conflicts with current package id `com.squalr.android`.
+- Android worker path strategy is internally inconsistent: deploy script verifies `/data/local/tmp/squalr-cli` while engine runtime expects `/data/data/<package>/files/squalr-cli`.
+- Local Android target checks currently fail before crate-level validation due to missing NDK toolchain wiring (`aarch64-linux-android-clang`/sysroot headers like `assert.h`), so preflight toolchain verification should be explicit in docs/scripts.
