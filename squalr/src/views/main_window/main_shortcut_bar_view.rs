@@ -107,30 +107,32 @@ impl Widget for MainShortcutBarView {
                     }
                 }
 
-                if !process_selector_view_data.is_awaiting_windowed_process_list {
+                let shortcut_dropdown_processes = &process_selector_view_data.shortcut_dropdown_process_list;
+                let show_loading_spinner = process_selector_view_data.is_awaiting_windowed_process_list && shortcut_dropdown_processes.is_empty();
+
+                if !show_loading_spinner {
                     let row_height = 28.0_f32;
                     let max_dropdown_height = 280.0_f32;
                     let visible_row_limit = (max_dropdown_height / row_height).floor() as usize;
-                    let windowed_processes = &process_selector_view_data.windowed_process_list;
-                    let should_use_scroll_area = windowed_processes.len() > visible_row_limit;
+                    let should_use_scroll_area = shortcut_dropdown_processes.len() > visible_row_limit;
 
                     let mut render_process_rows = |inner_user_interface: &mut Ui| {
-                        for windowed_process in windowed_processes {
-                            let icon = match windowed_process.get_icon() {
-                                Some(icon) => process_selector_view_data.get_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
+                        for shortcut_dropdown_process in shortcut_dropdown_processes {
+                            let icon = match shortcut_dropdown_process.get_icon() {
+                                Some(icon) => process_selector_view_data.get_icon(&self.app_context, shortcut_dropdown_process.get_process_id_raw(), icon),
                                 None => None,
                             };
 
                             if inner_user_interface
                                 .add(ComboBoxItemView::new(
                                     self.app_context.clone(),
-                                    windowed_process.get_name(),
+                                    shortcut_dropdown_process.get_name(),
                                     icon,
                                     process_dropdown_list_width,
                                 ))
                                 .clicked()
                             {
-                                process_to_open = Some(Some(windowed_process.get_process_id()));
+                                process_to_open = Some(Some(shortcut_dropdown_process.get_process_id()));
                                 *should_close = true;
 
                                 return;
@@ -142,7 +144,7 @@ impl Widget for MainShortcutBarView {
                         ScrollArea::vertical()
                             .id_salt((
                                 "main_shortcut_bar_process_select_dropdown_scroll",
-                                process_selector_view_data.windowed_process_list_refresh_nonce,
+                                process_selector_view_data.shortcut_dropdown_refresh_nonce,
                             ))
                             .max_height(max_dropdown_height)
                             .auto_shrink([false, false])
@@ -181,6 +183,7 @@ impl Widget for MainShortcutBarView {
             // JIRA: Set an atomic flag maybe on the process view data such that we can show a loading indicator?
             // Could throw in an artificial delay to simulate how this would behave over a network (GUI -> network -> shell).
             ProcessSelectorViewData::refresh_windowed_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
+            ProcessSelectorViewData::refresh_full_process_list(self.process_selector_view_data.clone(), self.app_context.clone());
         } else if let Some(process_id) = process_to_open {
             // Drop the read lock to free up the data for write lock access.
             drop(process_selector_view_data);

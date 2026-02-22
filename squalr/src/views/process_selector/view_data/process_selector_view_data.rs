@@ -27,6 +27,8 @@ pub struct ProcessSelectorViewData {
     pub is_awaiting_full_process_list: bool,
     pub is_opening_process: bool,
     pub windowed_process_list_refresh_nonce: u64,
+    pub shortcut_dropdown_refresh_nonce: u64,
+    pub shortcut_dropdown_process_list: Vec<ProcessInfo>,
     windowed_process_list_request_started_at: Option<Instant>,
     full_process_list_request_started_at: Option<Instant>,
     open_process_request_started_at: Option<Instant>,
@@ -36,6 +38,7 @@ impl ProcessSelectorViewData {
     const REQUEST_STALE_TIMEOUT: Duration = Duration::from_secs(3);
     const WINDOWED_FALLBACK_MIN_TOTAL_PROCESS_COUNT: usize = 8;
     const WINDOWED_FALLBACK_MAX_STRICT_RESULT_COUNT: usize = 2;
+    const MIN_SHORTCUT_DROPDOWN_PROCESS_COUNT: usize = 3;
 
     pub fn new() -> Self {
         Self {
@@ -49,6 +52,8 @@ impl ProcessSelectorViewData {
             is_awaiting_full_process_list: false,
             is_opening_process: false,
             windowed_process_list_refresh_nonce: 0,
+            shortcut_dropdown_refresh_nonce: 0,
+            shortcut_dropdown_process_list: Vec::new(),
             windowed_process_list_request_started_at: None,
             full_process_list_request_started_at: None,
             open_process_request_started_at: None,
@@ -143,6 +148,7 @@ impl ProcessSelectorViewData {
     ) {
         if let Some(mut process_selector_view_data_guard) = process_selector_view_data.write("Process selector view data set windowed mode") {
             process_selector_view_data_guard.show_windowed_processes_only = show_windowed_processes_only;
+            process_selector_view_data_guard.refresh_shortcut_dropdown_process_list();
         }
 
         Self::refresh_active_process_list(process_selector_view_data, app_context);
@@ -339,6 +345,7 @@ impl ProcessSelectorViewData {
         }
 
         process_selector_view_data.windowed_process_list = normalized_windowed_processes;
+        process_selector_view_data.refresh_shortcut_dropdown_process_list();
 
         // Remove icons for processes no longer present.
         Self::remove_from_cache(process_selector_view_data, &removed);
@@ -367,6 +374,7 @@ impl ProcessSelectorViewData {
         }
 
         process_selector_view_data.full_process_list = new_list;
+        process_selector_view_data.refresh_shortcut_dropdown_process_list();
 
         // Remove icons for processes no longer present.
         Self::remove_from_cache(process_selector_view_data, &removed);
@@ -448,6 +456,67 @@ impl ProcessSelectorViewData {
         process_selector_view_data
             .icon_cache
             .retain(|process_id, _| !removed.contains(process_id));
+    }
+
+    fn refresh_shortcut_dropdown_process_list(&mut self) {
+        let next_shortcut_dropdown_process_list = if self.show_windowed_processes_only {
+            Self::choose_shortcut_dropdown_windowed_candidates(&self.windowed_process_list, &self.full_process_list)
+        } else {
+            Self::sort_processes_case_insensitive_then_process_id(self.full_process_list.clone())
+        };
+
+        self.shortcut_dropdown_process_list = next_shortcut_dropdown_process_list;
+        self.shortcut_dropdown_refresh_nonce = self.shortcut_dropdown_refresh_nonce.saturating_add(1);
+    }
+
+    fn choose_shortcut_dropdown_windowed_candidates(
+        windowed_processes: &[ProcessInfo],
+        full_processes: &[ProcessInfo],
+    ) -> Vec<ProcessInfo> {
+        if windowed_processes.len() >= Self::MIN_SHORTCUT_DROPDOWN_PROCESS_COUNT {
+            return windowed_processes.to_vec();
+        }
+
+        if full_processes.is_empty() {
+            return windowed_processes.to_vec();
+        }
+
+        let primary_package_processes = Self::extract_primary_package_processes(full_processes);
+        if primary_package_processes.len() >= Self::MIN_SHORTCUT_DROPDOWN_PROCESS_COUNT {
+            log::warn!(
+                "Shortcut dropdown fallback activated: using {} primary package processes instead of {} windowed results.",
+                primary_package_processes.len(),
+                windowed_processes.len()
+            );
+
+            return primary_package_processes;
+        }
+
+        let sorted_full_processes = Self::sort_processes_case_insensitive_then_process_id(full_processes.to_vec());
+        log::warn!(
+            "Shortcut dropdown fallback activated: using full process list with {} entries; windowed results: {}.",
+            sorted_full_processes.len(),
+            windowed_processes.len()
+        );
+
+        sorted_full_processes
+    }
+
+    fn extract_primary_package_processes(full_processes: &[ProcessInfo]) -> Vec<ProcessInfo> {
+        let mut sorted_full_processes = Self::sort_processes_case_insensitive_then_process_id(full_processes.to_vec());
+        let mut seen_process_names = HashSet::new();
+
+        sorted_full_processes.retain(|process_info| {
+            let process_name = process_info.get_name();
+            let is_primary_package_name = process_name.contains('.') && !process_name.contains(':');
+            if !is_primary_package_name {
+                return false;
+            }
+
+            seen_process_names.insert(process_name.to_ascii_lowercase())
+        });
+
+        sorted_full_processes
     }
 
     fn clear_stale_request_state_for_now(
@@ -599,5 +668,42 @@ mod tests {
 
         assert_eq!(normalized_processes.len(), 1);
         assert_eq!(ordered_process_ids, vec![10]);
+    }
+
+    #[test]
+    fn choose_shortcut_dropdown_windowed_candidates_uses_primary_package_fallback_when_windowed_too_small() {
+        let windowed_processes = vec![ProcessInfo::new(10, "com.example.app".to_string(), true, None)];
+        let full_processes = vec![
+            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
+            ProcessInfo::new(11, "com.example.app:service".to_string(), false, None),
+            ProcessInfo::new(20, "com.alpha.game".to_string(), false, None),
+            ProcessInfo::new(30, "zygote64".to_string(), false, None),
+            ProcessInfo::new(40, "com.beta.player".to_string(), false, None),
+        ];
+
+        let fallback_processes = ProcessSelectorViewData::choose_shortcut_dropdown_windowed_candidates(&windowed_processes, &full_processes);
+        let ordered_process_ids: Vec<u32> = fallback_processes
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+
+        assert_eq!(ordered_process_ids, vec![20, 40, 10]);
+    }
+
+    #[test]
+    fn choose_shortcut_dropdown_windowed_candidates_uses_full_list_when_primary_fallback_too_small() {
+        let windowed_processes = vec![ProcessInfo::new(10, "com.example.app".to_string(), true, None)];
+        let full_processes = vec![
+            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
+            ProcessInfo::new(11, "system_server".to_string(), false, None),
+        ];
+
+        let fallback_processes = ProcessSelectorViewData::choose_shortcut_dropdown_windowed_candidates(&windowed_processes, &full_processes);
+        let ordered_process_ids: Vec<u32> = fallback_processes
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+
+        assert_eq!(ordered_process_ids, vec![10, 11]);
     }
 }
