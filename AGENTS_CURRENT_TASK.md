@@ -27,7 +27,7 @@ Ctrl+C
     result = _winapi.WaitForSingleObject(self._handle,
              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 KeyboardInterrupt
-- Audit the GUI project against the TUI for functionality gaps now that Android process-list population is validated.
+- Validate Android GUI process-selector refresh button after lock-order fix in `squalr/src/views/process_selector/process_selector_view.rs`.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -49,3 +49,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android validation (2026-02-22, 08:45 local): `build_and_deploy.py --debug --launch-log-seconds 30` passed; worker detected (`pidof squalr-cli` => `16655`); artifact `logs/android_bootstrap_20260222_084500.log`.
 - Android validation (2026-02-22, 08:54 local): `build_and_deploy.py --debug --launch-log-seconds 45` logged GUI dispatch + successful full process-list response (`8111` entries), with `SqualrCli` execution log for `require_windowed=false`; worker detected (`pidof squalr-cli` => `17904`); artifact `logs/android_process_selector_validation_20260222_085458.log`.
 - No occurrences in current Android validation logs of prior failure signatures: `failed to fill whole buffer`, `Broken pipe (os error 32)`, or IPC listener read-lock/receive failure logs.
+- GUI process-selector refresh root cause (2026-02-22): `ProcessSelectorView` held a read lock on `ProcessSelectorViewData` while drawing the toolbar; toolbar refresh click requires a write lock, so refresh attempts could no-op.
+- Fix (2026-02-22): render `ProcessSelectorToolbarView` before acquiring the read lock in `squalr/src/views/process_selector/process_selector_view.rs`, allowing refresh dispatch to acquire write access.
+- Host validation (2026-02-22): `cargo test -p squalr --lib -- --nocapture` passed (28 passed, 0 failed) after lock-order change.
