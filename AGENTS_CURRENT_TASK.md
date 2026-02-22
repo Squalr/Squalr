@@ -10,7 +10,6 @@ Our current task, from `README.md`, is:
 
 - Run one rooted-device smoke validation and capture the exact successful transcript (install + launch + privileged worker check).
 - Verify final on-device launcher identity after reinstall (`Squalr` label + custom icon, `NativeActivity` launch path).
-- Align Android script placement with owner direction (migrate/alias scripts into workspace root or document explicit reason to keep under `squalr-android/`).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -26,4 +25,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - NDK preflight now recognizes modern LLVM toolchain layouts (including Windows `.cmd` wrappers) and checks `cargo apk --help` for cargo-apk availability.
 - Launch and identity fixes: scripts target `com.squalr.android/android.app.NativeActivity`; Android metadata sets `label = "Squalr"`, `icon = "@drawable/app_icon"`, and `resources = "android/res"`.
 - Validation status (2026-02-22): compile-check passes; debug deploy reaches install/push but fails at `su` step on non-rooted shell (`/system/bin/sh: su: inaccessible or not found`).
+- Android script placement alignment complete: workspace-root wrappers (`build_and_deploy.py`, `run_apk.py`, `debug_run_privileged_shell.py`) now delegate to canonical scripts in `squalr-android/`.
 - Remaining external dependency is rooted-device access to complete end-to-end privileged smoke validation.
