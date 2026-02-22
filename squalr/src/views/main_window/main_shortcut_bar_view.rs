@@ -108,33 +108,47 @@ impl Widget for MainShortcutBarView {
                 }
 
                 if !process_selector_view_data.is_awaiting_windowed_process_list {
-                    ScrollArea::vertical()
-                        .id_salt("main_shortcut_bar_process_select_dropdown_scroll")
-                        .max_height(280.0)
-                        .auto_shrink([false, false])
-                        .show(user_interface, |inner_user_interface| {
-                            for windowed_process in &process_selector_view_data.windowed_process_list {
-                                let icon = match windowed_process.get_icon() {
-                                    Some(icon) => process_selector_view_data.get_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
-                                    None => None,
-                                };
+                    let row_height = 28.0_f32;
+                    let max_dropdown_height = 280.0_f32;
+                    let visible_row_limit = (max_dropdown_height / row_height).floor() as usize;
+                    let windowed_processes = &process_selector_view_data.windowed_process_list;
+                    let should_use_scroll_area = windowed_processes.len() > visible_row_limit;
 
-                                if inner_user_interface
-                                    .add(ComboBoxItemView::new(
-                                        self.app_context.clone(),
-                                        windowed_process.get_name(),
-                                        icon,
-                                        process_dropdown_list_width,
-                                    ))
-                                    .clicked()
-                                {
-                                    process_to_open = Some(Some(windowed_process.get_process_id()));
-                                    *should_close = true;
+                    let mut render_process_rows = |inner_user_interface: &mut Ui| {
+                        for windowed_process in windowed_processes {
+                            let icon = match windowed_process.get_icon() {
+                                Some(icon) => process_selector_view_data.get_icon(&self.app_context, windowed_process.get_process_id_raw(), icon),
+                                None => None,
+                            };
 
-                                    return;
-                                }
+                            if inner_user_interface
+                                .add(ComboBoxItemView::new(
+                                    self.app_context.clone(),
+                                    windowed_process.get_name(),
+                                    icon,
+                                    process_dropdown_list_width,
+                                ))
+                                .clicked()
+                            {
+                                process_to_open = Some(Some(windowed_process.get_process_id()));
+                                *should_close = true;
+
+                                return;
                             }
-                        });
+                        }
+                    };
+
+                    if should_use_scroll_area {
+                        ScrollArea::vertical()
+                            .id_salt("main_shortcut_bar_process_select_dropdown_scroll")
+                            .max_height(max_dropdown_height)
+                            .auto_shrink([false, false])
+                            .show(user_interface, |inner_user_interface| {
+                                render_process_rows(inner_user_interface);
+                            });
+                    } else {
+                        render_process_rows(user_interface);
+                    }
 
                     if *should_close {
                         return;

@@ -17,7 +17,8 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
-- Need human verification: visually confirm on-device Android GUI process dropdown renders non-empty windowed rows after dependency initialization fix (`ProcessSelectorViewData` registered once in `main_window_view`, `ProcessSelectorView` now consumes shared dependency via `get_dependency`).
+- Need human verification: visually confirm on-device Android GUI process dropdown renders correct windowed process rows after dropdown list height behavior fix in `main_shortcut_bar_view.rs` (small lists render without `ScrollArea`; larger lists use capped scroll region).
+    - Previous attempt failed: windowed list showed 2 random/non-windowed rows (for example `com.google.android.euic`).
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -27,6 +28,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android package-path lookup fallback order is `/data/app` -> `packages.xml` -> `pm list packages -f`.
 - Added Android unit tests for primary-process classification, zygote-ancestor lineage detection, cycle safety, package-manager parser coverage, and zygote-name variants (`android_process_query.rs`).
 - Added process dropdown UX updates: vertical scroll area plus clipped/truncated long process names for combo-box rows.
+- Process dropdown rendering now uses conditional scroll behavior: render direct rows when result count is small, otherwise enable capped-height scroll area (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
 - Root cause for missing GUI rows was dependency replacement race; `ProcessSelectorViewData` is now single-registered in `main_window_view.rs` and consumed in `process_selector_view.rs` via shared dependency lookup.
 - GUI/TUI parity audit was completed on 2026-02-22; current gaps are listed under WONTFIX.
 - Validation baseline used repeatedly on 2026-02-22: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr-engine-operating-system --target aarch64-linux-android --locked`, `cargo check -p squalr --locked`.
