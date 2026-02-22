@@ -104,6 +104,7 @@ Then run one of these from the workspace root:
 - `python ./squalr-android/build_and_deploy.py` (full smoke validation: preflight + build + install + launch + IPC worker check)
 - `python ./squalr-android/build_and_deploy.py --compile-check` (automated compile-only path: preflight + `cargo ndk` + `cargo apk`, no device required)
 - To launch an already-installed APK without rebuilding: `python ./squalr-android/run_apk.py`
+- To manually run the privileged worker shell for debugging: `python ./squalr-android/debug_run_privileged_shell.py`
 
 Notes:
 - The deploy script runs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, target installation, and `aarch64-linux-android-clang` visibility), then runs:

@@ -9,7 +9,6 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Run rooted-device validation once on a host with Android SDK/NDK env vars + connected rooted device, then capture successful smoke output (install + launch + privileged worker check). Blocked on this host: `ANDROID_NDK_ROOT` is unset and no rooted device is attached; latest local attempt (2026-02-22) still exits preflight with `ANDROID_NDK_ROOT is not set.`.
-- Audit remaining `squalr-android` helper scripts and remove or modernize any legacy debug-only tooling that is no longer aligned with current deploy flow.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -36,3 +35,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added non-device automation path: `python ./squalr-android/build_and_deploy.py --compile-check` for preflight + Android compile validation without adb deployment.
 - Architecture decision: keep Option B (`squalr` Android `cdylib` + thin `squalr-android` launcher) and keep deploy scripts in `squalr-android/` for now to avoid disrupting current desktop VSCode launch/debug paths.
 - Smoke re-check (2026-02-22): reran `python ./squalr-android/build_and_deploy.py --debug`; host still has `ANDROID_HOME` but no `ANDROID_NDK_ROOT`, and preflight exits with `ANDROID_NDK_ROOT is not set.` after installed-target listing. Rooted-device smoke remains blocked on host configuration and hardware availability.
+- Script audit follow-up (2026-02-22): modernized `squalr-android/debug_run_privileged_shell.py` with adb/device/root/CLI preflight checks and direct process I/O streaming; no additional legacy Android helper scripts remain.
