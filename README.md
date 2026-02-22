@@ -101,11 +101,11 @@ Prerequisites:
 - Rooted device connected over `adb`.
 
 Then run one of these from the workspace root:
-- `python ./squalr-android/build_and_deploy.py`
-- `python ./squalr-android/build_and_deploy.py --release`
+- `python ./squalr-android/build_and_deploy.py` (optionally, pass --debug or --release for non-interactive build)
 
 Notes:
 - The deploy script builds the Android worker, builds + installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, and verifies launch with `su -c '/data/local/tmp/squalr-cli --help'`.
+- Running without flags prompts: `Build in release mode? (y/n [default])`.
 - `--release` prefers release artifacts; if release signing is not configured (`[package.metadata.android.signing.release]`), APK build automatically falls back to debug.
 - If `adb install` fails on a previous install, uninstall first:
   - `adb uninstall com.squalr.android`

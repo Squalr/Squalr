@@ -1,5 +1,4 @@
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -87,9 +86,15 @@ def build_apk_with_fallback(android_manifest_directory, prefer_release):
 
 
 def install_apk(workspace_directory, apk_profile):
-    apk_path = workspace_directory / "target" / TARGET_TRIPLE / apk_profile / "apk" / "squalr-android.apk"
-    if not apk_path.exists():
-        print(f"Built APK not found at expected path: {apk_path}")
+    apk_candidate_paths = [
+        workspace_directory / "target" / TARGET_TRIPLE / apk_profile / "apk" / "squalr-android.apk",
+        workspace_directory / "target" / apk_profile / "apk" / "squalr-android.apk",
+    ]
+    apk_path = next((candidate_path for candidate_path in apk_candidate_paths if candidate_path.exists()), None)
+    if apk_path is None:
+        print("Built APK not found in expected locations:")
+        for candidate_path in apk_candidate_paths:
+            print(f"  - {candidate_path}")
         sys.exit(1)
 
     install_command = ["adb", "install", "-r", str(apk_path)]
@@ -126,20 +131,34 @@ def deploy_privileged_worker(workspace_directory, worker_profile):
 
 def main():
     argument_parser = argparse.ArgumentParser(description="Build and deploy Squalr Android GUI + privileged worker.")
-    argument_parser.add_argument(
+    build_mode_group = argument_parser.add_mutually_exclusive_group()
+    build_mode_group.add_argument(
         "--release",
         action="store_true",
-        help="Prefer release builds. If APK signing is not configured, APK build falls back to debug.",
+        help="Use release build mode. If APK signing is not configured, APK build falls back to debug.",
+    )
+    build_mode_group.add_argument(
+        "--debug",
+        action="store_true",
+        help="Use debug build mode without prompting.",
     )
     parsed_arguments = argument_parser.parse_args()
 
     script_directory = Path(__file__).resolve().parent
     workspace_directory = script_directory.parent
 
-    build_cli_binary(workspace_directory, parsed_arguments.release)
-    apk_profile = build_apk_with_fallback(script_directory, parsed_arguments.release)
+    if parsed_arguments.release:
+        prefer_release_mode = True
+    elif parsed_arguments.debug:
+        prefer_release_mode = False
+    else:
+        release_prompt = input("Build in release mode? (y/n [default]): ").strip().lower()
+        prefer_release_mode = release_prompt == "y"
+
+    build_cli_binary(workspace_directory, prefer_release_mode)
+    apk_profile = build_apk_with_fallback(script_directory, prefer_release_mode)
     install_apk(workspace_directory, apk_profile)
-    deploy_privileged_worker(workspace_directory, "release" if parsed_arguments.release else "debug")
+    deploy_privileged_worker(workspace_directory, "release" if prefer_release_mode else "debug")
 
     print("\nDeployment complete. Launch the Squalr app on device.")
 

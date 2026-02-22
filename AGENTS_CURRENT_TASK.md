@@ -24,3 +24,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android docs now prioritize a rooted-device quickstart that leads directly to a deployable GUI APK (`cargo apk build --release`), install via `adb`, and privileged worker verification via `su`.
 - Corrected Android APK install path in README quickstart to include target triple output (`target/aarch64-linux-android/release/apk/squalr-android.apk`) and added a fallback locate command.
 - `squalr-android/build_and_deploy.py` now handles end-to-end rooted deploy (APK install + worker push/chmod/verify) and falls back to debug APK when release signing is not configured.
+- Restored interactive release prompt in `squalr-android/build_and_deploy.py`; running without flags now asks whether to use release mode, with `--release`/`--debug` available as explicit overrides.
+- Fixed `squalr-android/build_and_deploy.py` APK install path resolution to support both `target/<triple>/<profile>/apk/...` and `target/<profile>/apk/...` output layouts from `cargo apk`.
