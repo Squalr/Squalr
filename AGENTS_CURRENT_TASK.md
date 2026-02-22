@@ -38,14 +38,12 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android compile/deploy checks passed on 2026-02-22: `python ./build_and_deploy.py --compile-check` and `python ./build_and_deploy.py --debug`.
 - CLI-side rooted verification passed on 2026-02-22: `adb shell su -c "/data/local/tmp/squalr-cli process list -w -l 300"` showed `com.squalr.android` in windowed results.
 - GUI-side runtime logs from deploy on 2026-02-22 show process selector requests/responses with non-empty results (`Received windowed process-list response with 67 entries.`).
-- Session revalidation (2026-02-22, latest) passed: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; warnings remain pre-existing and unchanged.
-- Current session (2026-02-22) remains blocked on on-device-only visual verification of Android GUI process dropdown row correctness; local CLI/tests/checks cannot replace that validation.
 - `cargo check -p squalr --locked` still reports existing GUI unused-variable/unreachable-pattern warnings, with no new failures.
 - Direct `cargo check -p squalr --target aarch64-linux-android --locked` may fail in this environment due `aarch64-linux-android-clang` pathing for `ring`; use `cargo ndk` / deploy script paths for Android validation.
 - Lockfile regeneration is currently blocked in this environment by yanked crate requirement `zip = "^7.4.0"` from `squalr-engine`.
 - GUI process-list normalization fallback no longer broadens to unfiltered full-list sorting; when strict windowed count is tiny, fallback is limited to primary package candidates only (`name` contains `.` and not `:`) (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
-- Current session validation (2026-02-22): `cargo fmt --all` and `cargo test -p squalr process_selector_view_data --locked` passed; existing warnings remain pre-existing.
 - Shortcut-bar dropdown candidate selection now prefers strict windowed results whenever non-empty; only when empty does it fall back to primary package candidates, and it no longer falls back to the full process list (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
 - Shortcut-bar loading state now only shows spinner when no dropdown rows exist yet; stale rows remain visible during refresh (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
-- Current session validation (2026-02-22, latest): `cargo fmt --all`, `cargo test -p squalr process_selector_view_data --locked`, and `cargo check -p squalr --locked` passed; warnings remain pre-existing and unchanged.
 - Added/updated GUI unit tests for new fallback behavior in `ProcessSelectorViewData`: primary-package fallback for tiny strict windowed responses, strict-windowed precedence when available, and empty-result behavior when no valid fallback candidates exist (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
+- Session revalidation (2026-02-22) passed: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; existing warnings remain unchanged.
+- Current status (2026-02-22): work is blocked only on on-device visual verification of Android GUI process dropdown scrolling and row quality.
