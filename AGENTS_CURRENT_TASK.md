@@ -46,4 +46,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Shortcut-bar loading state now only shows spinner when no dropdown rows exist yet; stale rows remain visible during refresh (`squalr/src/views/main_window/main_shortcut_bar_view.rs`).
 - Added/updated GUI unit tests for new fallback behavior in `ProcessSelectorViewData`: primary-package fallback for tiny strict windowed responses, strict-windowed precedence when available, and empty-result behavior when no valid fallback candidates exist (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
 - Session revalidation (2026-02-22) passed: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; existing warnings remain unchanged.
+- Session revalidation (2026-02-22 11:14 -08:00) passed again from a clean tree: `cargo test -p squalr process_selector_view_data --locked` and `cargo check -p squalr --locked`; existing warnings remain unchanged.
 - Current status (2026-02-22): work is blocked only on on-device visual verification of Android GUI process dropdown scrolling and row quality.
