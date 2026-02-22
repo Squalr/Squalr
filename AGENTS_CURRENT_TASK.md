@@ -12,8 +12,7 @@ Our current task, from `README.md`, is:
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
 - Need human verification: validate Android windowed process list after switching from direct-parent zygote checks to full parent-lineage zygote ancestry checks.
-- Continue pruning `pr/android-fixes` diff vs `main` by removing remaining non-Android churn where not required (lockfile/workspace task noise still pending review).
-    - Keep .idea reverted...
+- Continue pruning `pr/android-fixes` diff vs `main` by reviewing remaining lockfile/workspace-level churn for Android necessity.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -33,3 +32,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Updated Android windowed classification to require zygote ancestry anywhere in the process parent chain (not just direct parent PID), preventing false negatives on indirect spawn paths.
 - Added Android unit tests for zygote-ancestor lineage detection and parent-cycle safety in `android_process_query.rs`.
 - Validation run on 2026-02-22: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr-engine-operating-system --target aarch64-linux-android --locked`.
+- Pruned non-Android diff noise by reverting formatting-only changes in `squalr-engine-operating-system/src/process_query/macos/macos_process_query.rs`.
+- Validation run on 2026-02-22: `cargo test -p squalr-tests --locked` (all passing).

@@ -333,9 +333,18 @@ impl ProcessQueryer for MacOsProcessQuery {
                 continue;
             }
 
-            let process_icon = if options.fetch_icons { Self::get_icon(process_id) } else { None };
+            let process_icon = if options.fetch_icons {
+                Self::get_icon(process_id)
+            } else {
+                None
+            };
 
-            matched_processes.push(ProcessInfo::new(process_id_raw, process_name, process_is_windowed, process_icon));
+            matched_processes.push(ProcessInfo::new(
+                process_id_raw,
+                process_name,
+                process_is_windowed,
+                process_icon,
+            ));
         }
 
         matched_processes
@@ -364,7 +373,12 @@ mod tests {
         let mut options = create_options();
         options.require_windowed = true;
 
-        assert!(!MacOsProcessQuery::matches_process_filters(&options, "Calculator", false, 1234,));
+        assert!(!MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            false,
+            1234,
+        ));
     }
 
     #[test]
@@ -373,7 +387,12 @@ mod tests {
         options.search_name = Some("calculator".to_string());
         options.match_case = false;
 
-        assert!(MacOsProcessQuery::matches_process_filters(&options, "Calculator", true, 1234,));
+        assert!(MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            true,
+            1234,
+        ));
     }
 
     #[test]
@@ -381,7 +400,17 @@ mod tests {
         let mut options = create_options();
         options.required_process_id = Some(Pid::from_u32(44));
 
-        assert!(!MacOsProcessQuery::matches_process_filters(&options, "Calculator", true, 43,));
-        assert!(MacOsProcessQuery::matches_process_filters(&options, "Calculator", true, 44,));
+        assert!(!MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            true,
+            43,
+        ));
+        assert!(MacOsProcessQuery::matches_process_filters(
+            &options,
+            "Calculator",
+            true,
+            44,
+        ));
     }
 }
