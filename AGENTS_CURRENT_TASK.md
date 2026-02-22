@@ -36,6 +36,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - CLI-side rooted verification passed on 2026-02-22: `adb shell su -c "/data/local/tmp/squalr-cli process list -w -l 300"` showed `com.squalr.android` in windowed results.
 - GUI-side runtime logs from deploy on 2026-02-22 show process selector requests/responses with non-empty results (`Received windowed process-list response with 67 entries.`).
 - Current session (2026-02-22) remains blocked on on-device-only visual verification of Android GUI process dropdown row correctness; local CLI/tests/checks cannot replace that validation.
+- Session validation refresh (2026-02-22 10:49 -08:00): `cargo check -p squalr --locked` passed with only pre-existing GUI warnings.
 - `cargo check -p squalr --locked` still reports existing GUI unused-variable/unreachable-pattern warnings, with no new failures.
 - Direct `cargo check -p squalr --target aarch64-linux-android --locked` may fail in this environment due `aarch64-linux-android-clang` pathing for `ring`; use `cargo ndk` / deploy script paths for Android validation.
 - Lockfile regeneration is currently blocked in this environment by yanked crate requirement `zip = "^7.4.0"` from `squalr-engine`.
