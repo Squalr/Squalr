@@ -27,8 +27,9 @@ Our current task, from `README.md`, is:
         - calendar
         - (maybe squalr if its running)
     - These are the only fucking windowed processes running. Do not cross this off the list if your sample is still returning a bunch of fuckign garbage
-    - Added `verify_android_windowed_processes.py` to run rooted `squalr-cli process list -w` checks with strict expected/optional name-pattern validation; still needs on-device execution + verification.
+    - Added `verify_android_windowed_processes.py` to run rooted `squalr-cli process list -w` checks with strict expected/optional name-pattern validation.
     - Added engine-side visible-window intersection using `dumpsys` (`window visible-apps` -> `window windows` -> `activity activities`) so `is_windowed` now requires both existing heuristics and package visibility when dumpsys data is available; still needs on-device verification.
+    - Need human verification: rooted CLI verification now passes on-device (2026-02-22) and returns only expected windowed apps: YouTube, Photos, Play Store (`com.android.vending`), Calendar, and optional Squalr. GUI dropdown behavior still needs visual confirmation.
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -61,3 +62,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Android engine windowed classification now intersects with visible package names parsed from `dumpsys` output (`squalr-engine-operating-system/src/process_query/android/android_process_query.rs`), with safe fallback to prior heuristics when dumpsys visibility cannot be parsed.
 - Added parser unit tests for visible package extraction from representative `dumpsys` activity/window lines in `squalr-engine-operating-system/src/process_query/android/android_process_query.rs`; these tests are target-gated with the Android module and require Android-target test execution to run.
 - Session validation (2026-02-22) passed: `cargo fmt --all`, `cargo check -p squalr-engine-operating-system --locked`, and `cargo test -p squalr-engine-operating-system --locked` (host-target tests only).
+- Android CLI process-list handler now emits machine-readable process rows to stdout on Android builds in addition to logger output (`squalr-cli/src/response_handlers/process/handler_process_list_response.rs`), unblocking rooted script-based verification.
+- On-device rooted verification passed on 2026-02-22 after deploy: `python .\\verify_android_windowed_processes.py --deploy` and `python .\\verify_android_windowed_processes.py` (default expected patterns updated to use `vending` for Play Store synonym handling).

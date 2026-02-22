@@ -8,8 +8,6 @@ CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
 DEFAULT_EXPECTED_PATTERNS = [
     "youtube",
     "photos",
-    "play store",
-    "playstore",
     "vending",
     "calendar",
 ]
