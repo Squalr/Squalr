@@ -22,6 +22,9 @@ use std::thread;
 use std::time::Duration;
 use uuid::Uuid;
 
+#[cfg(target_os = "android")]
+const ANDROID_PRIVILEGED_WORKER_PATH: &str = "/data/local/tmp/squalr-cli";
+
 pub struct InterprocessEngineApiUnprivilegedBindings {
     /// The spawned shell process with system privileges.
     privileged_shell_process: Arc<RwLock<Option<Child>>>,
@@ -213,11 +216,8 @@ impl InterprocessEngineApiUnprivilegedBindings {
     fn spawn_squalr_cli_as_root() -> std::io::Result<std::process::Child> {
         log::info!("Spawning privileged worker...");
 
-        let child = Command::new("su")
-            .arg("-c")
-            .arg("/data/data/rust.squalr_android/files/squalr-cli")
-            .arg("--ipc-mode")
-            .spawn()?;
+        let worker_start_command = format!("{} --ipc-mode", ANDROID_PRIVILEGED_WORKER_PATH);
+        let child = Command::new("su").arg("-c").arg(worker_start_command).spawn()?;
 
         Ok(child)
     }

@@ -5137,15 +5137,8 @@ dependencies = [
 name = "squalr-android"
 version = "0.1.1"
 dependencies = [
- "futures",
  "log",
- "rayon",
- "serde",
- "serde_json",
- "squalr-engine",
- "squalr-engine-api",
- "structopt",
- "sysinfo",
+ "squalr",
 ]
 
 [[package]]

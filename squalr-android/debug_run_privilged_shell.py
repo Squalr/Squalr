@@ -1,7 +1,10 @@
 import subprocess
 
+CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
+
+
 def run_adb_command():
-    command = 'adb shell su -c "/data/data/rust.squalr_android/files/squalr-cli --ipc-mode"'
+    command = f'adb shell su -c "{CLI_DEVICE_PATH} --ipc-mode"'
     
     try:
         # Use Popen for better interaction
