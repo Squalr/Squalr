@@ -10,6 +10,7 @@ from pathlib import Path
 TARGET_TRIPLE = "aarch64-linux-android"
 CLI_DEVICE_PATH = "/data/local/tmp/squalr-cli"
 PACKAGE_NAME = "com.squalr.android"
+MAIN_ACTIVITY_NAME = "android_activity.MainActivity"
 
 
 def run_command(command_segments, working_directory):
@@ -66,20 +67,30 @@ def ensure_host_preflight(workspace_directory):
     if not ndk_root_path.exists():
         fail(f"ANDROID_NDK_ROOT path does not exist: {android_ndk_root}")
 
-    clang_from_path = command_exists("aarch64-linux-android-clang")
-    clang_from_ndk = list(ndk_root_path.glob("toolchains/llvm/prebuilt/*/bin/aarch64-linux-android-clang"))
-    if not clang_from_path and not clang_from_ndk:
-        fail("Could not find aarch64-linux-android-clang in PATH or under ANDROID_NDK_ROOT toolchains.")
+    clang_candidates_from_path = [
+        "aarch64-linux-android-clang",
+        "aarch64-linux-android-clang.cmd",
+        "aarch64-linux-android21-clang",
+        "aarch64-linux-android21-clang.cmd",
+    ]
+    clang_from_path = any(command_exists(clang_candidate) for clang_candidate in clang_candidates_from_path)
+    clang_from_ndk = list(ndk_root_path.glob("toolchains/llvm/prebuilt/*/bin/aarch64-linux-android*-clang*"))
+    legacy_clang_from_ndk = list(ndk_root_path.glob("build/core/toolchains/aarch64-linux-android-clang*"))
+    if not clang_from_path and not clang_from_ndk and not legacy_clang_from_ndk:
+        fail(
+            "Could not find Android clang toolchain in PATH or under ANDROID_NDK_ROOT "
+            "(expected aarch64-linux-android*-clang in toolchains/llvm/prebuilt/*/bin)."
+        )
 
     cargo_ndk_version_command = ["cargo", "ndk", "--version"]
     exit_code, _ = run_command(cargo_ndk_version_command, workspace_directory)
     if exit_code != 0:
         fail("Failed to run `cargo ndk --version`. Install with: cargo install cargo-ndk")
 
-    cargo_apk_version_command = ["cargo", "apk", "--version"]
-    exit_code, _ = run_command(cargo_apk_version_command, workspace_directory)
+    cargo_apk_probe_command = ["cargo", "apk", "--help"]
+    exit_code, _ = run_command(cargo_apk_probe_command, workspace_directory)
     if exit_code != 0:
-        fail("Failed to run `cargo apk --version`. Install with: cargo install cargo-apk")
+        fail("Failed to run `cargo apk --help`. Install with: cargo install cargo-apk")
 
 
 def ensure_adb_device_connected(workspace_directory):
@@ -187,7 +198,19 @@ def deploy_privileged_worker(workspace_directory, worker_profile):
 
 
 def resolve_launch_activity(workspace_directory):
-    resolve_command = ["adb", "shell", "cmd", "package", "resolve-activity", "--brief", PACKAGE_NAME]
+    resolve_command = [
+        "adb",
+        "shell",
+        "cmd",
+        "package",
+        "resolve-activity",
+        "--brief",
+        "-a",
+        "android.intent.action.MAIN",
+        "-c",
+        "android.intent.category.LAUNCHER",
+        PACKAGE_NAME,
+    ]
     exit_code, output_text = run_command(resolve_command, workspace_directory)
     if exit_code != 0:
         return None
@@ -201,18 +224,26 @@ def resolve_launch_activity(workspace_directory):
     component_name = output_lines[-1]
     if "/" not in component_name:
         return None
+    if not component_name.startswith(f"{PACKAGE_NAME}/"):
+        return None
 
     return component_name
 
 
 def launch_installed_app(workspace_directory):
-    component_name = resolve_launch_activity(workspace_directory)
-    if component_name is None:
+    explicit_component_name = f"{PACKAGE_NAME}/{MAIN_ACTIVITY_NAME}"
+    explicit_launch_command = ["adb", "shell", "am", "start", "-n", explicit_component_name]
+    explicit_launch_exit_code, _ = run_command(explicit_launch_command, workspace_directory)
+    if explicit_launch_exit_code == 0:
+        return
+
+    resolved_component_name = resolve_launch_activity(workspace_directory)
+    if resolved_component_name is None:
         fail(f"Could not resolve launchable activity for package: {PACKAGE_NAME}")
 
-    launch_command = ["adb", "shell", "am", "start", "-n", component_name]
-    exit_code, _ = run_command(launch_command, workspace_directory)
-    if exit_code != 0:
+    resolved_launch_command = ["adb", "shell", "am", "start", "-n", resolved_component_name]
+    resolved_launch_exit_code, _ = run_command(resolved_launch_command, workspace_directory)
+    if resolved_launch_exit_code != 0:
         fail("Failed to launch the installed APK.")
 
 

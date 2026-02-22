@@ -5,6 +5,7 @@ import sys
 
 PACKAGE_CANDIDATES = ["com.squalr.android"]
 LEGACY_PACKAGE = "rust.squalr_android"
+MAIN_ACTIVITY_NAME = "android_activity.MainActivity"
 
 
 def run_command(command_segments):
@@ -39,7 +40,19 @@ def ensure_device_connected():
 
 def resolve_launch_activity(package_name):
     exit_code, output_text = run_command(
-        ["adb", "shell", "cmd", "package", "resolve-activity", "--brief", package_name]
+        [
+            "adb",
+            "shell",
+            "cmd",
+            "package",
+            "resolve-activity",
+            "--brief",
+            "-a",
+            "android.intent.action.MAIN",
+            "-c",
+            "android.intent.category.LAUNCHER",
+            package_name,
+        ]
     )
     if exit_code != 0:
         return None
@@ -53,7 +66,17 @@ def resolve_launch_activity(package_name):
     component_name = output_lines[-1]
     if "/" not in component_name:
         return None
+    if not component_name.startswith(f"{package_name}/"):
+        return None
     return component_name
+
+
+def launch_known_main_activity(package_name):
+    explicit_component_name = f"{package_name}/{MAIN_ACTIVITY_NAME}"
+    exit_code, _ = run_command(["adb", "shell", "am", "start", "-n", explicit_component_name])
+    if exit_code == 0:
+        return explicit_component_name
+    return None
 
 
 def launch_component(component_name):
@@ -85,12 +108,17 @@ def main():
         if parsed_arguments.include_legacy_package:
             package_candidates.append(LEGACY_PACKAGE)
     for package_name in package_candidates:
-        component_name = resolve_launch_activity(package_name)
-        if component_name is None:
+        launched_component_name = launch_known_main_activity(package_name)
+        if launched_component_name is not None:
+            print(f"\nLaunched: {launched_component_name}")
+            return
+
+        resolved_component_name = resolve_launch_activity(package_name)
+        if resolved_component_name is None:
             continue
 
-        launch_component(component_name)
-        print(f"\nLaunched: {component_name}")
+        launch_component(resolved_component_name)
+        print(f"\nLaunched: {resolved_component_name}")
         return
 
     package_list_display = ", ".join(package_candidates)
