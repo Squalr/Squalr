@@ -8,9 +8,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Run `python build_and_deploy.py --debug --skip-worker --launch-log-file target/android_launch_logcat.txt` on a connected device to capture launch diagnostics without requiring root.
-- Inspect `target/android_launch_logcat.txt` for `AndroidRuntime`, `DEBUG`, `libc`, and activity lifecycle errors tied to `com.squalr.android`.
-- If launch diagnostics are clean but app still hangs on icon screen, run `python run_apk.py --launch-log-file target/android_launch_logcat_rerun.txt` for a second repro capture.
+- Add explicit startup breadcrumbs in Android bootstrap (`android_main` path) before/after engine init and before first frame submission, then surface them in logcat.
+- Re-run `python build_and_deploy.py --debug --skip-worker --launch-log-file target/android_launch_logcat_startup_trace.txt` and confirm whether bootstrap reaches first-frame path.
+- If bootstrap reaches first-frame path but splash still persists, inspect `eframe`/`winit` Android lifecycle callbacks and blocking points in app construction for a missing/delayed draw signal.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -34,3 +34,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Remaining external dependency is rooted-device access to complete end-to-end privileged smoke validation.
 - Launch diagnostics tooling (2026-02-22): `build_and_deploy.py` now supports `--skip-worker`, `--launch-log-seconds`, and `--launch-log-file`; it force-stops the app, clears logcat, launches, then captures PID/activity dump + filtered logcat.
 - Launch diagnostics tooling (2026-02-22): `run_apk.py` now mirrors launch diagnostics capture with `--launch-log-seconds` and `--launch-log-file` for repeat repro runs without rebuilding.
+- Launch diagnostics run (2026-02-22): `python build_and_deploy.py --debug --skip-worker --launch-log-file target/android_launch_logcat.txt` completed successfully on-device; filtered log showed no `AndroidRuntime`, `DEBUG`, or `libc` errors for `com.squalr.android`.
+- Repro run (2026-02-22): `python run_apk.py --launch-log-file target/android_launch_logcat_rerun.txt` again showed clean filtered logcat, process alive (`pidof` resolved), and `NativeActivity` resumed.
+- Hang characterization (2026-02-22): `dumpsys activity` and `dumpsys window` show app remains on `Splash Screen com.squalr.android` with `reportedDrawn=false`; unfiltered logcat confirms `libsqualr.so` loads successfully, suggesting a post-load native startup/draw-path stall rather than an immediate Java crash.
