@@ -248,6 +248,19 @@ def launch_installed_app(workspace_directory):
         fail("Failed to launch the installed APK.")
 
 
+def verify_launcher_identity(workspace_directory):
+    resolved_component_name = resolve_launch_activity(workspace_directory)
+    if resolved_component_name is None:
+        fail(f"Could not resolve launchable activity for package: {PACKAGE_NAME}")
+
+    expected_component_name = f"{PACKAGE_NAME}/{MAIN_ACTIVITY_NAME}"
+    if resolved_component_name != expected_component_name:
+        fail(
+            "Launcher identity mismatch. "
+            f"Expected {expected_component_name}, got {resolved_component_name}"
+        )
+
+
 def verify_ipc_handshake(workspace_directory):
     print("\nWaiting for privileged worker IPC shell to come online...")
     for _poll_index in range(12):
@@ -304,6 +317,7 @@ def main():
 
     ensure_adb_device_connected(workspace_directory)
     install_apk(workspace_directory, apk_profile)
+    verify_launcher_identity(workspace_directory)
     deploy_privileged_worker(workspace_directory, "release" if prefer_release_mode else "debug")
     launch_installed_app(workspace_directory)
     verify_ipc_handshake(workspace_directory)
