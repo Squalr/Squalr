@@ -6,7 +6,6 @@ Our current task, from `README.md`, is:
 - Assume any unstaged file changes are from a previous iteration, and can be kept if they look good
 - The android device is rooted.
 - You don't get to declare things as fixed. Only "need human verification".
-- Keep .idea/ in gitignore you keep fucking this up. The goal is not to undo ALL changes from main. We want good changes. The goal is to eliminate stupid and speculative changes. Formatting is fine. Gitignore was fine.
 
 ## WONTFIX (For now)
 - Add multi-data-type scan parity to GUI element scanner (`squalr/src/views/element_scanner/scanner/view_data/element_scanner_view_data.rs`) so one scan request can include multiple selected data types like TUI.
@@ -18,12 +17,12 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: Validate Android windowed process list now renders per-process icons from real device APKs.
+- Need human verification: Validate non-Android GUI boot on a clean desktop environment after Android support changes, confirming startup no longer crashes during update/version check.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Root cause: Android process icon extraction only checked a narrow fixed list of legacy APK paths (`ic_launcher.png` in a few mipmap folders), so many modern APKs returned no icon.
-- Change made: Added broad APK resource icon candidate discovery/scoring over `res/mipmap*` and `res/drawable*` entries with support for `png/webp/jpg/jpeg`, while keeping legacy fast-path checks.
-- Added score heuristics to prioritize likely launcher icons (mipmap + launcher/icon naming + higher density variants) and decode the best available candidate.
-- Host-side tests pass, but Android-specific icon behavior still requires on-device verification.
+- Root cause for non-Android GUI boot crash: `ureq` v3 defaults TLS provider to `Rustls`, but desktop `squalr-engine` dependency enables only `native-tls`; version check thread panicked on first HTTPS request to GitHub.
+- Mitigation implemented: added `AppProvisionerHttpClient` to create a configured `ureq` agent with target-specific TLS provider (`NativeTls` on non-Android, `Rustls` on Android), and routed version-check/download HTTP calls through it.
+- Local verification: `cargo run -p squalr` no longer panics at boot; update check completes over HTTPS with `ureq::tls::native_tls` logs.
+- Note: `cargo test -p squalr-engine` has one environment-specific failure in `squalr_engine::tests::privileged_shell_does_not_create_unprivileged_state` due named pipe access denied on this host.

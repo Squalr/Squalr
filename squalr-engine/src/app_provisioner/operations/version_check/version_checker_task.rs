@@ -1,10 +1,10 @@
 use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
+use crate::app_provisioner::http_client::AppProvisionerHttpClient;
 use crate::app_provisioner::operations::version_check::github_release_info::GitHubReleaseInfo;
 use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
 use anyhow::{Context, Result};
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
-use ureq::config::Config;
 
 pub struct VersionCheckerTask {}
 
@@ -61,8 +61,7 @@ impl VersionCheckerTask {
     }
 
     fn check_for_updates() -> Result<Option<GitHubReleaseInfo>> {
-        let config = Config::builder().build();
-        let agent = config.new_agent();
+        let agent = AppProvisionerHttpClient::create_agent();
         let response = agent
             .get(AppProvisionerConfig::get_latest_version_url())
             .header("User-Agent", "squalr-rust-updater")
