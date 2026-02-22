@@ -86,26 +86,41 @@ Install native dependencies before building:
 
 Android builds are currently validated on target `aarch64-linux-android` with API level 21.
 
+### Quickstart: APK on Device (Privileged GUI Path)
+
+Goal: install the GUI APK, push the privileged worker, and run the GUI in rooted IPC mode.
+
 Prerequisites:
 - Android SDK + NDK installed.
 - `ANDROID_HOME` set.
 - `ANDROID_NDK_ROOT` set.
-- Rust Android target installed: `rustup target add aarch64-linux-android`
+- Rust Android target installed: `rustup target add aarch64-linux-android`.
 - Cargo helpers installed:
   - `cargo install cargo-ndk`
   - `cargo install cargo-apk`
+- Rooted device connected over `adb`.
 
-Build commands:
-- Build privileged worker binary that is bundled into the Android library:
-  - `cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-cli`
-- Build Android GUI library:
-  - `cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-android --lib`
-- Optional APK build/install from `squalr-android/`:
-  - `cargo apk build --target aarch64-linux-android --lib`
-  - `adb install target/debug/apk/squalr-android.apk`
+Run these commands from the workspace root:
+1. Build the privileged worker binary (`squalr-cli`) for Android.
+   - `cargo ndk --platform 21 --target aarch64-linux-android build -p squalr-cli --release`
+2. Build the Android GUI APK (`squalr-android`).
+   - `cd squalr-android`
+   - `cargo apk build --target aarch64-linux-android --lib --release`
+   - `cd ..`
+3. Install the APK on the device.
+   - `adb install -r squalr-android/target/release/apk/squalr-android.apk`
+4. Push the privileged worker onto the device.
+   - `adb push target/aarch64-linux-android/release/squalr-cli /data/local/tmp/squalr-cli`
+5. Make the worker executable and verify `su` can run it.
+   - `adb shell "su -c 'chmod +x /data/local/tmp/squalr-cli'"`
+   - `adb shell "su -c '/data/local/tmp/squalr-cli --help'"`
+6. Launch the Squalr app on the device.
+   - The GUI should start in IPC host mode and invoke the worker via `su`.
 
-Runtime note:
-- Android runs in IPC host mode and expects rooted `su` access so the bundled `squalr-cli` can be launched as the privileged worker.
+Notes:
+- `squalr-android/build.rs` expects `target/<triple>/<profile>/squalr-cli` to exist first, so step 1 is required before step 2.
+- If `adb install` fails on a previous install, uninstall first:
+  - `adb uninstall com.squalr.android`
 
 ## macOS Build
 
