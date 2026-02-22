@@ -8,8 +8,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Rerun rooted-device validation using updated deploy/debug scripts (now aligned with engine-side `su` invocation matrix) and capture which invocation path succeeds on-device.
-- Verify Android privileged worker launch on a rooted device after Android `su` compatibility expansion in `InterprocessEngineApiUnprivilegedBindings` (attempts now include `su -c`, `su 0 sh -c`, and `su root sh -c` per candidate path).
+- Acquire or switch to a rooted Android device/shell where `su` is present and invokable from `adb shell` (current connected device reports `su: inaccessible or not found` for `su -c`, `su 0 sh -c`, and `su root sh -c`).
+- On rooted device, rerun `debug_run_privileged_shell.py` and record which `su` invocation path succeeds for chmod/verify/worker launch + IPC pid polling.
+- On rooted device, verify Android privileged worker launch after Android `su` compatibility expansion in `InterprocessEngineApiUnprivilegedBindings` (candidate invocations: `su -c`, `su 0 sh -c`, and `su root sh -c`).
 - Once worker spawn succeeds, rerun launch diagnostics and confirm breadcrumb progression past `After SqualrEngine::new.`, `After App::new.`, and `Before first frame submission.` (scripts now summarize missing checkpoints directly from logcat).
 - If first-frame breadcrumb appears but splash persists (`reportedDrawn=false`), inspect `eframe`/`winit` Android lifecycle callbacks and draw signal timing in app construction (using scripted `reportedDrawn` + splash-window summaries).
 
@@ -35,3 +36,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Recent host-side validation status (2026-02-22): compile-check and debug deploy flows complete through install/push on test device, with expected `su` failure on non-rooted shell.
 - Android privileged spawn compatibility expanded (2026-02-22): each `su` candidate now tries `su -c`, `su 0 sh -c`, and `su root sh -c` with per-invocation diagnostics; host unit tests pass for interprocess initialization paths.
 - Android deploy/debug script parity landed (2026-02-22): `build_and_deploy.py` and `debug_run_privileged_shell.py` now try `su -c`, `su 0 sh -c`, and `su root sh -c` for chmod/verify/worker launch and IPC pid polling.
+- Rooted validation rerun status (2026-02-22): connected device `adb-4C101FDKD000Z8-XSqEd2._adb-tls-connect._tcp` is not rooted for our use case; `debug_run_privileged_shell.py` fails all `su` invocation forms with `/system/bin/sh: su: inaccessible or not found`.
+- Installed-app launch diagnostics status (2026-02-22): `run_apk.py --launch-log-seconds 20` shows process launch but bootstrap stops at `Before SqualrEngine::new.`; missing `After SqualrEngine::new.`, `Before App::new.`, `After App::new.`, and `Before first frame submission.`; `dumpsys` reports `reportedDrawn=false` and splash window still present.
+- Host test status (2026-02-22): `cargo test -p squalr-engine -- --nocapture` passed (16 passed, 0 failed), including interprocess initialization failure-path tests.
