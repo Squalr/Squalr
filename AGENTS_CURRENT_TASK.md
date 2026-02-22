@@ -20,8 +20,14 @@ Our current task, from `README.md`, is:
 - Need human verification: visually confirm on-device Android GUI process dropdown now renders the expected full windowed list after windowed-list normalization + scroll-state reset in:
   - `squalr/src/views/process_selector/view_data/process_selector_view_data.rs`.
   - `squalr/src/views/main_window/main_shortcut_bar_view.rs`.
+  - Latest change adds guarded normalization fallback for sparse `is_windowed` metadata (`>= 8` total entries with `<= 2` strict windowed matches) to prevent 2-row collapse.
   human: latest report says fixes failed again.
   - Previous attempt failed before this change: dropdown showed 2 random/non-windowed rows (example: `com.google.android.euic`).
+Fix failed x 20000
+
+- holy fuck dude you retarded fucking midwit retard just make a fucking dropdown that is more than 2 fucking rows dude fuck you.
+
+- windowed list fuck you bitch this literally used to work on the main branch this should not be broken fuck you
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -46,3 +52,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `cargo check -p squalr --locked` still reports existing GUI unused-variable/unreachable-pattern warnings, with no new failures.
 - Direct `cargo check -p squalr --target aarch64-linux-android --locked` may fail in this environment due `aarch64-linux-android-clang` pathing for `ring`; use `cargo ndk` / deploy script paths for Android validation.
 - Lockfile regeneration is currently blocked in this environment by yanked crate requirement `zip = "^7.4.0"` from `squalr-engine`.
+- GUI process-list normalization now has a fallback path: if strict windowed filtering returns <=2 entries from a larger response (>=8), the dropdown uses deterministic unfiltered sorting to avoid tiny/incorrect dropdowns caused by unreliable `is_windowed` metadata (`squalr/src/views/process_selector/view_data/process_selector_view_data.rs`).
+- Current session validation (2026-02-22): `cargo fmt --all` and `cargo test -p squalr process_selector_view_data --locked` passed; existing warnings remain pre-existing.

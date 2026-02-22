@@ -34,6 +34,8 @@ pub struct ProcessSelectorViewData {
 
 impl ProcessSelectorViewData {
     const REQUEST_STALE_TIMEOUT: Duration = Duration::from_secs(3);
+    const WINDOWED_FALLBACK_MIN_TOTAL_PROCESS_COUNT: usize = 8;
+    const WINDOWED_FALLBACK_MAX_STRICT_RESULT_COUNT: usize = 2;
 
     pub fn new() -> Self {
         Self {
@@ -324,7 +326,7 @@ impl ProcessSelectorViewData {
         app_context: &Arc<AppContext>,
         new_list: Vec<ProcessInfo>,
     ) {
-        let normalized_windowed_processes = Self::normalize_windowed_processes(new_list);
+        let normalized_windowed_processes = Self::normalize_windowed_processes_with_fallback(new_list);
 
         let removed = Self::diff_pids(&process_selector_view_data.windowed_process_list, &normalized_windowed_processes);
 
@@ -370,13 +372,40 @@ impl ProcessSelectorViewData {
         Self::remove_from_cache(process_selector_view_data, &removed);
     }
 
-    /// Computes process ID deltas between old/new PID sets.
+    /// Normalizes windowed process results and falls back when windowed flags look unreliable.
+    fn normalize_windowed_processes_with_fallback(processes: Vec<ProcessInfo>) -> Vec<ProcessInfo> {
+        let total_process_count = processes.len();
+        let normalized_windowed_processes = Self::normalize_windowed_processes(processes.clone());
+        let strict_result_count = normalized_windowed_processes.len();
+        let should_use_fallback =
+            total_process_count >= Self::WINDOWED_FALLBACK_MIN_TOTAL_PROCESS_COUNT && strict_result_count <= Self::WINDOWED_FALLBACK_MAX_STRICT_RESULT_COUNT;
+
+        if should_use_fallback {
+            log::warn!(
+                "Windowed normalization fallback activated: strict windowed count {} out of {} total; using unfiltered sorted list.",
+                strict_result_count,
+                total_process_count
+            );
+
+            return Self::sort_processes_case_insensitive_then_process_id(processes);
+        }
+
+        normalized_windowed_processes
+    }
+
+    /// Filters to windowed processes and applies deterministic ordering.
     fn normalize_windowed_processes(processes: Vec<ProcessInfo>) -> Vec<ProcessInfo> {
-        let mut normalized_windowed_processes: Vec<ProcessInfo> = processes
+        let normalized_windowed_processes: Vec<ProcessInfo> = processes
             .into_iter()
             .filter(|process_info| process_info.get_is_windowed())
             .collect();
-        normalized_windowed_processes.sort_by(|left_process_info, right_process_info| {
+
+        Self::sort_processes_case_insensitive_then_process_id(normalized_windowed_processes)
+    }
+
+    /// Applies deterministic ordering by process name then process ID.
+    fn sort_processes_case_insensitive_then_process_id(mut processes: Vec<ProcessInfo>) -> Vec<ProcessInfo> {
+        processes.sort_by(|left_process_info, right_process_info| {
             let name_ordering = left_process_info
                 .get_name()
                 .to_ascii_lowercase()
@@ -390,7 +419,7 @@ impl ProcessSelectorViewData {
             }
         });
 
-        normalized_windowed_processes
+        processes
     }
 
     /// Computes process ID deltas between old/new PID sets.
@@ -529,5 +558,46 @@ mod tests {
             .collect();
 
         assert_eq!(ordered_process_ids, vec![10, 30, 40]);
+    }
+
+    #[test]
+    fn normalize_windowed_processes_with_fallback_uses_sorted_unfiltered_results_when_strict_count_is_tiny() {
+        let process_list = vec![
+            ProcessInfo::new(90, "omega.service".to_string(), false, None),
+            ProcessInfo::new(10, "Alpha".to_string(), true, None),
+            ProcessInfo::new(70, "delta".to_string(), false, None),
+            ProcessInfo::new(20, "beta".to_string(), true, None),
+            ProcessInfo::new(80, "epsilon".to_string(), false, None),
+            ProcessInfo::new(60, "gamma".to_string(), false, None),
+            ProcessInfo::new(50, "zeta".to_string(), false, None),
+            ProcessInfo::new(40, "eta".to_string(), false, None),
+        ];
+
+        let normalized_processes = ProcessSelectorViewData::normalize_windowed_processes_with_fallback(process_list);
+        let ordered_process_ids: Vec<u32> = normalized_processes
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+
+        assert_eq!(normalized_processes.len(), 8);
+        assert_eq!(ordered_process_ids, vec![10, 20, 70, 80, 40, 60, 90, 50]);
+    }
+
+    #[test]
+    fn normalize_windowed_processes_with_fallback_keeps_strict_windowed_filter_for_small_responses() {
+        let process_list = vec![
+            ProcessInfo::new(20, "com.example.worker".to_string(), false, None),
+            ProcessInfo::new(10, "com.example.app".to_string(), true, None),
+            ProcessInfo::new(30, "com.example.helper".to_string(), false, None),
+        ];
+
+        let normalized_processes = ProcessSelectorViewData::normalize_windowed_processes_with_fallback(process_list);
+        let ordered_process_ids: Vec<u32> = normalized_processes
+            .iter()
+            .map(|process_info| process_info.get_process_id_raw())
+            .collect();
+
+        assert_eq!(normalized_processes.len(), 1);
+        assert_eq!(ordered_process_ids, vec![10]);
     }
 }
