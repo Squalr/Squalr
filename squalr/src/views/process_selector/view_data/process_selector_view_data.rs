@@ -66,7 +66,8 @@ impl ProcessSelectorViewData {
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
+        let process_selector_view_data_for_response = process_selector_view_data.clone();
+        let did_dispatch = list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh windowed process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
@@ -75,6 +76,14 @@ impl ProcessSelectorViewData {
             process_selector_view_data.is_awaiting_windowed_process_list = false;
             ProcessSelectorViewData::set_windowed_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
+
+        if !did_dispatch {
+            if let Some(mut process_selector_view_data) =
+                process_selector_view_data_for_response.write("Process selector view data refresh windowed process list dispatch failure")
+            {
+                process_selector_view_data.is_awaiting_windowed_process_list = false;
+            }
+        }
     }
 
     pub fn refresh_full_process_list(
@@ -103,7 +112,8 @@ impl ProcessSelectorViewData {
             None => return,
         };
 
-        list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
+        let process_selector_view_data_for_response = process_selector_view_data.clone();
+        let did_dispatch = list_windowed_processes_request.send(&engine_unprivileged_state, move |process_list_response| {
             let mut process_selector_view_data = match process_selector_view_data.write("Process selector view data refresh full process list response") {
                 Some(process_selector_view_data) => process_selector_view_data,
                 None => return,
@@ -113,6 +123,14 @@ impl ProcessSelectorViewData {
 
             Self::set_full_process_list(&mut process_selector_view_data, &app_context, process_list_response.processes);
         });
+
+        if !did_dispatch {
+            if let Some(mut process_selector_view_data) =
+                process_selector_view_data_for_response.write("Process selector view data refresh full process list dispatch failure")
+            {
+                process_selector_view_data.is_awaiting_full_process_list = false;
+            }
+        }
     }
 
     pub fn select_process(
@@ -139,9 +157,18 @@ impl ProcessSelectorViewData {
                 None => return,
             };
 
-            process_open_request.send(&engine_unprivileged_state, move |process_open_response| {
+            let process_selector_view_data_for_response = process_selector_view_data.clone();
+            let did_dispatch = process_open_request.send(&engine_unprivileged_state, move |process_open_response| {
                 Self::set_opened_process_info(process_selector_view_data, &app_context, process_open_response.opened_process_info)
             });
+
+            if !did_dispatch {
+                if let Some(mut process_selector_view_data) =
+                    process_selector_view_data_for_response.write("Process selector view data select process dispatch failure")
+                {
+                    process_selector_view_data.is_opening_process = false;
+                }
+            }
         } else {
             Self::set_opened_process_info(process_selector_view_data, &app_context, None)
         }
