@@ -11,7 +11,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: validate Android windowed process list after broadening zygote-process identification to use both `/proc/<pid>/cmdline` and `/proc/<pid>/comm` name sources during ancestry checks. Confirm Squalr appears in windowed-only results.
+- Audit the GUI project against the TUI and identify concrete functionality gaps that should be added to the tasklist.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -38,3 +38,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added resilient zygote-process detection in Android process query by evaluating known zygote variants across both cmdline and comm names, then using that in parent-lineage ancestry checks.
 - Added unit tests for zygote process-name classification variants and path-prefixed zygote naming in `android_process_query.rs` (compiled under Android target).
 - Validation run on 2026-02-22: `cargo fmt --all`, `cargo test -p squalr-tests --locked`, `cargo check -p squalr-engine-operating-system --target aarch64-linux-android --locked`, `cargo test -p squalr-engine-operating-system --locked`.
+- Human verification completed on 2026-02-22: `adb shell su -c "/data/local/tmp/squalr-cli process list -w -l 300"` with `adb logcat -d -v brief SqualrCli:I *:S` confirms `name: com.squalr.android, is_windowed: true` appears in windowed-only results.
