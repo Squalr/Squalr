@@ -101,11 +101,15 @@ Prerequisites:
 - Rooted device connected over `adb`.
 
 Then run one of these from the workspace root:
-- `python ./squalr-android/build_and_deploy.py` (optionally, pass --debug or --release for non-interactive build)
+- `python ./squalr-android/build_and_deploy.py` (full smoke validation: preflight + build + install + launch + IPC worker check)
+- `python ./squalr-android/build_and_deploy.py --compile-check` (automated compile-only path: preflight + `cargo ndk` + `cargo apk`, no device required)
 - To launch an already-installed APK without rebuilding: `python ./squalr-android/run_apk.py`
 
 Notes:
-- The deploy script builds the Android worker, builds + installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, and verifies launch with `su -c '/data/local/tmp/squalr-cli --help'`.
+- The deploy script runs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, target installation, and `aarch64-linux-android-clang` visibility), then runs:
+  - `cargo ndk --target aarch64-linux-android build -p squalr-cli`
+  - `cargo apk build --target aarch64-linux-android --lib`
+- In full smoke mode, the script installs the APK, pushes `/data/local/tmp/squalr-cli`, runs `su -c chmod +x`, launches the app, and validates privileged worker startup.
 - Running without flags prompts: `Build in release mode? (y/n [default])`.
 - `--release` prefers release artifacts; if release signing is not configured (`[package.metadata.android.signing.release]`), APK build automatically falls back to debug.
 - If `adb install` fails on a previous install, uninstall first:

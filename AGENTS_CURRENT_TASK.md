@@ -8,13 +8,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Add Android smoke validation steps that are run and documented together:
-  - host preflight (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, `aarch64-linux-android-clang` visibility),
-  - `cargo ndk ... build -p squalr-cli`,
-  - `cargo apk build --target aarch64-linux-android --lib`,
-  - `adb` install + launch + privileged worker IPC handshake.
-- After migration, add at least one automated compile check path for Android (scripted local check or CI job) to prevent Slint-era regressions from reappearing.
-- Decide whether to fully adopt owner-preferred architecture Option B (`squalr` as Android `cdylib`) and move Android deploy scripts to workspace root, without impacting current desktop VSCode launch/debug flows.
+- Run rooted-device validation once with `python ./squalr-android/build_and_deploy.py` and capture expected smoke output for future troubleshooting docs.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -36,3 +30,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Removed obsolete Android CLI bundling bootstrap from `squalr-android` (`build.rs` deleted, legacy unpack flow removed).
 - Android privileged worker runtime path is now standardized to `/data/local/tmp/squalr-cli` in both engine spawn (`interprocess_engine_api_unprivileged_bindings.rs`) and `debug_run_privilged_shell.py`.
 - Local Android target checks currently fail before crate-level validation due to missing NDK toolchain wiring (`aarch64-linux-android-clang`/sysroot headers like `assert.h`), so preflight toolchain verification should be explicit in docs/scripts.
+- `squalr-android/build_and_deploy.py` now performs host preflight checks (`ANDROID_HOME`, `ANDROID_NDK_ROOT`, Rust Android target, `aarch64-linux-android-clang`, cargo-ndk/cargo-apk presence), runs `cargo ndk ... -p squalr-cli`, runs `cargo apk build --lib`, and in smoke mode performs install + app launch + privileged worker process validation.
+- Added non-device automation path: `python ./squalr-android/build_and_deploy.py --compile-check` for preflight + Android compile validation without adb deployment.
+- Architecture decision: keep Option B (`squalr` Android `cdylib` + thin `squalr-android` launcher) and keep deploy scripts in `squalr-android/` for now to avoid disrupting current desktop VSCode launch/debug paths.
