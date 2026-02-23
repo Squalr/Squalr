@@ -26,7 +26,6 @@ impl InstallerApp {
         let corner_radius = CornerRadius::same(installer_theme.corner_radius_panel);
 
         let installer_icon_library = load_installer_icon_library(context);
-        start_installer(ui_state.clone(), context.clone());
 
         Self {
             ui_state,
@@ -53,10 +52,26 @@ impl eframe::App for InstallerApp {
         // Reapply visuals each frame so native theme updates cannot restore default light panel colors.
         self.installer_theme.apply(context);
 
-        let state_snapshot = match self.ui_state.lock() {
-            Ok(ui_state) => ui_state.clone(),
-            Err(_) => InstallerUiState::new(),
-        };
+        let mut pending_install_directory = None;
+        if let Ok(mut installer_state) = self.ui_state.lock() {
+            if installer_state.install_permission_granted && !installer_state.install_started {
+                match installer_state.resolve_install_directory() {
+                    Ok(install_directory) => {
+                        installer_state.install_started = true;
+                        installer_state.install_configuration_error = None;
+                        pending_install_directory = Some(install_directory);
+                    }
+                    Err(error_message) => {
+                        installer_state.install_permission_granted = false;
+                        installer_state.install_configuration_error = Some(error_message);
+                    }
+                }
+            }
+        }
+
+        if let Some(pending_install_directory) = pending_install_directory {
+            start_installer(self.ui_state.clone(), context.clone(), pending_install_directory);
+        }
 
         let app_frame = Frame::new()
             .corner_radius(self.corner_radius)
@@ -69,7 +84,12 @@ impl eframe::App for InstallerApp {
                 user_interface.style_mut().spacing.item_spacing = vec2(0.0, 0.0);
 
                 let installer_main_window_view = InstallerMainWindowView::new(self.installer_theme.clone(), self.installer_icon_library.clone());
-                installer_main_window_view.show(user_interface, &state_snapshot);
+                if let Ok(mut installer_state) = self.ui_state.lock() {
+                    installer_main_window_view.show(user_interface, &mut installer_state);
+                } else {
+                    let mut installer_state = InstallerUiState::new();
+                    installer_main_window_view.show(user_interface, &mut installer_state);
+                }
             });
     }
 }

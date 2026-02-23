@@ -88,7 +88,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Build Windows CLI/TUI/GUI
+      - name: Build Windows CLI/TUI/GUI/Installer
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path .ci-logs -Force | Out-Null
@@ -97,6 +97,8 @@ jobs:
           cargo build -p squalr-tui --locked 2>&1 | Tee-Object -FilePath .ci-logs/windows-squalr-tui.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo build -p squalr --locked 2>&1 | Tee-Object -FilePath .ci-logs/windows-squalr-gui.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build -p squalr-installer --locked 2>&1 | Tee-Object -FilePath .ci-logs/windows-squalr-installer.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Windows build logs

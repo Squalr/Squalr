@@ -1,23 +1,16 @@
 use crate::ui_state::InstallerUiState;
 use eframe::egui::Context;
-use squalr_engine::app_provisioner::app_provisioner_config::AppProvisionerConfig;
 use squalr_engine::app_provisioner::installer::app_installer::AppInstaller;
 use squalr_engine::app_provisioner::installer::install_phase::InstallPhase;
 use squalr_engine::app_provisioner::operations::launch::update_operation_launch::UpdateOperationLaunch;
 use squalr_engine::app_provisioner::progress_tracker::ProgressTracker;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-pub(crate) fn launch_app() {
-    match AppProvisionerConfig::get_default_install_dir() {
-        Ok(app_install_directory) => {
-            let executable_path = app_install_directory.join("squalr.exe");
-            UpdateOperationLaunch::launch_app(&executable_path);
-        }
-        Err(error) => {
-            log::error!("Failed to resolve install directory: {error}");
-        }
-    }
+pub(crate) fn launch_app(install_directory: PathBuf) {
+    let executable_path = install_directory.join("squalr.exe");
+    UpdateOperationLaunch::launch_app(&executable_path);
 }
 
 pub(crate) fn install_phase_string(install_phase: InstallPhase) -> &'static str {
@@ -31,14 +24,17 @@ pub(crate) fn install_phase_string(install_phase: InstallPhase) -> &'static str 
 pub(crate) fn installer_status_string(ui_state: &InstallerUiState) -> &'static str {
     if ui_state.install_complete {
         "Squalr installed successfully."
-    } else {
+    } else if ui_state.install_started {
         "Installing Squalr, please wait..."
+    } else {
+        "Squalr installer is waiting for confirmation."
     }
 }
 
 pub(crate) fn start_installer(
     ui_state: Arc<Mutex<InstallerUiState>>,
     repaint_context: Context,
+    install_directory: PathBuf,
 ) {
     let progress_tracker = ProgressTracker::new();
     let progress_receiver = progress_tracker.subscribe();
@@ -54,12 +50,5 @@ pub(crate) fn start_installer(
         }
     });
 
-    match AppProvisionerConfig::get_default_install_dir() {
-        Ok(install_directory) => {
-            AppInstaller::run_installation(install_directory, progress_tracker);
-        }
-        Err(error) => {
-            log::error!("Failed to resolve install directory: {error}");
-        }
-    }
+    AppInstaller::run_installation(install_directory, progress_tracker);
 }

@@ -270,8 +270,12 @@ jobs:
 
           output_dir="dist/release/${ARTIFACT_TARGET}"
           mkdir -p "${output_dir}"
-          cp "${cli_path}" "${output_dir}/squalr-cli-${ARTIFACT_TARGET}"
-          cp "${apk_path}" "${output_dir}/squalr-${ARTIFACT_TARGET}.apk"
+          cp "${cli_path}" "${output_dir}/squalr-cli"
+          cp "${apk_path}" "${output_dir}/squalr.apk"
+          cp "scripts/android/README_ANDROID_BUNDLE.md" "${output_dir}/README-android.md"
+          cp "scripts/android/install-android.sh" "${output_dir}/install-android.sh"
+          cp "scripts/android/install-android.ps1" "${output_dir}/install-android.ps1"
+          chmod +x "${output_dir}/install-android.sh"
 
           version="${{ needs.prepare-release.outputs.version }}"
           marker_path="${output_dir}/latest_version-${version}-${ARTIFACT_TARGET}.txt"
@@ -285,9 +289,13 @@ jobs:
             "build_profile": "${profile}",
             "apk_profile": "${apk_profile}",
             "artifacts": [
-              "squalr-${ARTIFACT_TARGET}.apk",
-              "squalr-cli-${ARTIFACT_TARGET}",
-              "latest_version-${version}-${ARTIFACT_TARGET}.txt"
+              "squalr.apk",
+              "squalr-cli",
+              "README-android.md",
+              "install-android.sh",
+              "install-android.ps1",
+              "latest_version-${version}-${ARTIFACT_TARGET}.txt",
+              "SHA256SUMS-${ARTIFACT_TARGET}.txt"
             ]
           }
           JSON
@@ -295,15 +303,21 @@ jobs:
           (
             cd "${output_dir}"
             sha256sum \
-              "squalr-cli-${ARTIFACT_TARGET}" \
-              "squalr-${ARTIFACT_TARGET}.apk" \
+              "squalr-cli" \
+              "squalr.apk" \
+              "README-android.md" \
+              "install-android.sh" \
+              "install-android.ps1" \
               "latest_version-${version}-${ARTIFACT_TARGET}.txt" \
               "squalr-${version}-${ARTIFACT_TARGET}.manifest.json" \
               > "SHA256SUMS-${ARTIFACT_TARGET}.txt"
           )
 
-          test -f "${output_dir}/squalr-cli-${ARTIFACT_TARGET}"
-          test -f "${output_dir}/squalr-${ARTIFACT_TARGET}.apk"
+          test -f "${output_dir}/squalr-cli"
+          test -f "${output_dir}/squalr.apk"
+          test -f "${output_dir}/README-android.md"
+          test -f "${output_dir}/install-android.sh"
+          test -f "${output_dir}/install-android.ps1"
           test -f "${output_dir}/SHA256SUMS-${ARTIFACT_TARGET}.txt"
 
       - name: Upload Android artifacts
@@ -338,7 +352,11 @@ jobs:
           test -f "dist/publish/squalr-${version}-linux-x86_64.zip"
           test -f "dist/publish/squalr-${version}-windows-x86_64.zip"
           test -f "dist/publish/squalr-${version}-macos-aarch64.zip"
-          test -f "dist/publish/squalr-android-aarch64.apk"
+          test -f "dist/publish/squalr.apk"
+          test -f "dist/publish/squalr-cli"
+          test -f "dist/publish/README-android.md"
+          test -f "dist/publish/install-android.sh"
+          test -f "dist/publish/install-android.ps1"
 
           test -f "dist/publish/SHA256SUMS-linux-x86_64.txt"
           test -f "dist/publish/SHA256SUMS-windows-x86_64.txt"
