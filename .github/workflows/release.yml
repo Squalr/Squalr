@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -174,8 +174,6 @@ jobs:
     needs: prepare-release
     runs-on: ubuntu-latest
     env:
-      ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
-      ANDROID_HOME: /usr/local/lib/android/sdk
       TARGET_TRIPLE: aarch64-linux-android
       ARTIFACT_TARGET: android-aarch64
     steps:
@@ -183,12 +181,37 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          set -euo pipefail
+          sdkmanager --install "ndk;27.0.12077973"
+
+      - name: Resolve Android environment
+        run: |
+          set -euo pipefail
+          android_home_path="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "${android_home_path}" ]]; then
+            echo "ANDROID_HOME and ANDROID_SDK_ROOT are both unset."
+            exit 1
+          fi
+          android_ndk_root_path="${android_home_path}/ndk/27.0.12077973"
+          if [[ ! -d "${android_ndk_root_path}" ]]; then
+            echo "Installed NDK path is missing: ${android_ndk_root_path}"
+            exit 1
+          fi
+          echo "ANDROID_HOME=${android_home_path}" >> "${GITHUB_ENV}"
+          echo "ANDROID_SDK_ROOT=${android_home_path}" >> "${GITHUB_ENV}"
+          echo "ANDROID_NDK_ROOT=${android_ndk_root_path}" >> "${GITHUB_ENV}"
 
       - name: Install Android cargo tools
         run: |

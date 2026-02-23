@@ -23,9 +23,10 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: run `.github/workflows/pr-validation.yml` on a PR to `main` and confirm Linux/Windows/macOS/Android/`squalr-tests`/warning-baseline all pass with nightly toolchains.
-- Need human verification: confirm Android compile-check now passes without `adb` in CI (`python ./scripts/build_and_deploy.py --compile-check --debug` path).
-- Need human verification: confirm warning-baseline and `squalr-tests` jobs no longer fail on `wayland-sys` missing `wayland-client.pc` after Linux dependency install in those jobs.
+- Need human verification: run `.github/workflows/pr-validation.yml` on a PR and confirm Linux/Windows/macOS + `squalr-tests` complete using stable toolchain (no `resvg` nightly mismatch errors).
+- Need human verification: run the Android compile-check job in `.github/workflows/pr-validation.yml` and confirm explicit SDK+NDK setup resolves `ANDROID_NDK_ROOT` path failures.
+- Need human verification: run `.github/workflows/release.yml` via `workflow_dispatch` with `dry_run=true` and confirm desktop + Android artifact contract validation succeeds.
+- Need human verification: enforce merge blocking in branch protection after required checks are validated by CI.
 
 
 ## Important Information
@@ -39,8 +40,9 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added `docs/release-artifact-contract.md` documenting per-platform artifact names, checksums, and release safety controls.
 - Local validation evidence captured: `python -m py_compile scripts/release.py`, `python scripts/release.py --step build-package ... --dry-run`, and `python scripts/release.py --step release-publish ... --dry-run`.
 - Android build automation path exists at `python ./scripts/build_and_deploy.py --compile-check`; CI reuses it with `--debug` to avoid prompts.
-- Updated `.github/workflows/pr-validation.yml` to use `dtolnay/rust-toolchain@nightly` across jobs and install Linux native deps in `squalr-tests` and warning-baseline jobs (needed for GUI/eframe/wayland transitive checks).
-- Updated `.github/workflows/release.yml` build jobs to use `dtolnay/rust-toolchain@nightly`.
+- Updated `.github/workflows/pr-validation.yml` to use `dtolnay/rust-toolchain@stable` across jobs to avoid nightly regressions in transitive crates (for example `resvg`).
+- Updated `.github/workflows/release.yml` build jobs to use `dtolnay/rust-toolchain@stable`.
+- Updated `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android jobs to install SDK tools + `ndk;27.0.12077973` and export resolved `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `ANDROID_NDK_ROOT` at runtime.
 - Updated `scripts/build_and_deploy.py` preflight to conditionally require `adb`; compile-check mode now skips `adb` requirement.
 - Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
