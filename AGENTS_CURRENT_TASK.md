@@ -17,9 +17,13 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- 
+- Bundle a readme with the android build and a script to install it (windows ps1 and sh for unix)
+- android cli should not be squalr-cli-android, it should be squalr-cli, and squalr-android-aarch64 should just be squalr
+- Mac gui build should be a proper application
+- Update the windows installer to just literally move the current files (squalr, squalr-cli, squalr-tui) to an install directory rather than downloading them. If none are present, maybe then we can prompt the user to download the latest and install those instead?
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- 
+- Need human verification: Android release artifact names are now normalized in CI output to `squalr.apk` and `squalr-cli` (without `-android-aarch64` suffixes), with publish validation updated to match.
+- Need human verification: Android release bundle now includes `README-android.md`, `install-android.sh`, and `install-android.ps1`; these are listed in the Android manifest and checksum file.
