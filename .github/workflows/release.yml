@@ -237,7 +237,7 @@ jobs:
 
           if [[ "${profile}" == "release" ]]; then
             set +e
-            release_apk_output=$(cargo apk build --target "${TARGET_TRIPLE}" --lib --release 2>&1)
+            release_apk_output=$(cd squalr && cargo apk build --target "${TARGET_TRIPLE}" --lib --release 2>&1)
             release_apk_exit_code=$?
             set -e
             echo "${release_apk_output}"
@@ -245,7 +245,7 @@ jobs:
             if [[ ${release_apk_exit_code} -ne 0 ]]; then
               if echo "${release_apk_output}" | grep -q "Configure a release keystore"; then
                 echo "Release signing is not configured. Falling back to debug APK build."
-                cargo apk build --target "${TARGET_TRIPLE}" --lib
+                (cd squalr && cargo apk build --target "${TARGET_TRIPLE}" --lib)
                 apk_profile="debug"
               else
                 echo "Failed to build release APK for a reason other than signing configuration."
@@ -253,7 +253,7 @@ jobs:
               fi
             fi
           else
-            cargo apk build --target "${TARGET_TRIPLE}" --lib
+            (cd squalr && cargo apk build --target "${TARGET_TRIPLE}" --lib)
           fi
 
           apk_path=$(find target -type f -path "*/${apk_profile}/apk/squalr.apk" | head -n 1)
