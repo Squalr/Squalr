@@ -188,6 +188,10 @@ def resolve_binary_name(crate_name: str) -> str:
     return f"{crate_name}{executable_suffix}"
 
 
+def is_macos_artifact_target(artifact_target: str) -> bool:
+    return artifact_target.startswith("macos-")
+
+
 def ensure_clean_directory(directory_path: Path, *, dry_run: bool) -> None:
     if directory_path.exists():
         if dry_run:
@@ -228,6 +232,57 @@ def copy_file_with_parent(source_path: Path, destination_path: Path, *, dry_run:
 
     destination_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source_path, destination_path)
+
+
+def create_macos_app_bundle(
+    *,
+    gui_binary_source_path: Path,
+    staging_directory: Path,
+    version: str,
+    dry_run: bool,
+) -> Path:
+    app_bundle_directory = staging_directory / "squalr.app"
+    app_contents_directory = app_bundle_directory / "Contents"
+    app_macos_directory = app_contents_directory / "MacOS"
+    bundled_gui_binary_path = app_macos_directory / "squalr"
+    info_plist_path = app_contents_directory / "Info.plist"
+
+    info_plist_text = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+  <string>Squalr</string>
+  <key>CFBundleExecutable</key>
+  <string>squalr</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.squalr.desktop</string>
+  <key>CFBundleName</key>
+  <string>Squalr</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>{version}</string>
+  <key>CFBundleVersion</key>
+  <string>{version}</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+</dict>
+</plist>
+"""
+
+    if dry_run:
+        print(f"Would create macOS app bundle directory: {app_bundle_directory}")
+        print(f"Would copy {gui_binary_source_path} -> {bundled_gui_binary_path}")
+        print(f"Would write Info.plist: {info_plist_path}")
+        return app_bundle_directory
+
+    app_macos_directory.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(gui_binary_source_path, bundled_gui_binary_path)
+    current_file_mode = bundled_gui_binary_path.stat().st_mode
+    bundled_gui_binary_path.chmod(current_file_mode | 0o111)
+    info_plist_path.write_text(info_plist_text, encoding="utf-8")
+    return app_bundle_directory
 
 
 def create_deterministic_zip(source_directory: Path, zip_path: Path, *, dry_run: bool) -> None:
@@ -321,10 +376,24 @@ def package_desktop_artifacts(
     manifest_path = dist_directory / f"{bundle_prefix}.manifest.json"
     version_marker_path = dist_directory / f"latest_version-{version}-{artifact_target}.txt"
 
+    packaged_executable_names: list[str] = []
+    is_macos_bundle_target = is_macos_artifact_target(artifact_target)
+
     for executable_name in executable_names:
         source_binary_path = target_profile_directory / executable_name
+        if is_macos_bundle_target and executable_name == resolve_binary_name("squalr"):
+            create_macos_app_bundle(
+                gui_binary_source_path=source_binary_path,
+                staging_directory=staging_directory,
+                version=version,
+                dry_run=dry_run,
+            )
+            packaged_executable_names.append("squalr.app")
+            continue
+
         destination_binary_path = staging_directory / executable_name
         copy_file_with_parent(source_binary_path, destination_binary_path, dry_run=dry_run)
+        packaged_executable_names.append(executable_name)
 
     if dry_run:
         print(f"Would write version marker: {version_marker_path}")
@@ -338,7 +407,7 @@ def package_desktop_artifacts(
         "artifact_target": artifact_target,
         "build_profile": build_profile,
         "artifacts": [bundle_archive_path.name, version_marker_path.name],
-        "executables": executable_names,
+        "executables": packaged_executable_names,
     }
     if dry_run:
         print(f"Would write manifest: {manifest_path}")
