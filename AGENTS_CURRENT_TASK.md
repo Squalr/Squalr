@@ -23,19 +23,10 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- [x] Baseline CI/release audit: mapped current workflows (`linux-build.yml`, `squalr-tests-pr.yml`, `workspace-nightly.yml`), documented missing PR coverage for `main`, and captured required build matrix (desktop CLI/TUI/GUI on Windows/Linux/macOS plus Android compile checks). Need human verification.
-- [x] Created a single required PR validation workflow targeting `main` and `release/**` with path filters covering engine/app crates and workflow files (`.github/workflows/pr-validation.yml`). Need human verification.
-- [x] Implemented Linux PR job parity with README build contract (`cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, `cargo build -p squalr --locked`) including native package install + cache. Need human verification.
-- [x] Implemented Windows PR job parity for CLI/TUI/GUI locked builds with retained logs via uploaded artifacts. Need human verification.
-- [x] Implemented macOS PR job parity for CLI/TUI/GUI locked builds including GUI build scope. Need human verification.
-- [x] Implemented Android PR compile-check job via existing script (`python ./scripts/build_and_deploy.py --compile-check --debug`) with non-interactive flags/env setup. Need human verification.
-- [x] Kept unit/integration checks in required PR flow (`cargo test -p squalr-tests --locked` and warning-baseline gate for touched crates) in unified workflow. Need human verification.
-- [x] Added branch-protection runbook with required checks, branch rules, and explicit GitHub branch-protection merge-blocking note (`docs/branch-protection-runbook.md`). Need human verification.
-- [x] Replace interactive release flow with CI-friendly release pipeline: tag/manual trigger that runs cross-platform build matrix, creates deterministic artifacts, and publishes a GitHub Release draft with checksums (`.github/workflows/release.yml`, `scripts/release.py`). Need human verification.
-- [x] Refactor `scripts/release.py` for automation mode (`--release-type`, `--non-interactive`, optional `--no-version-bump`) and split responsibilities: version bump, build/package, and release-publish steps callable from CI. Need human verification.
-- [x] Define artifact contract per platform (naming, archive format, included resources, `latest_version` handling), then enforce it in CI with validation steps (`docs/release-artifact-contract.md`, `release.yml` validate step, script manifests/checksums). Need human verification.
-- [x] Add rollback/safety controls for release workflow (dry-run mode, draft-only publish default, idempotent tag handling, and fail-fast on missing artifacts/signing config). Need human verification.
-- [ ] Validate workflows locally where feasible (`act`/script dry-runs) and via PR test branches; record evidence and mark each checklist item as "need human verification" before closure. Local script dry-runs completed; PR test-branch workflow runs still need human verification.
+- Need human verification: run `.github/workflows/pr-validation.yml` on a PR to `main` and confirm Linux/Windows/macOS/Android/`squalr-tests`/warning-baseline all pass with nightly toolchains.
+- Need human verification: confirm Android compile-check now passes without `adb` in CI (`python ./scripts/build_and_deploy.py --compile-check --debug` path).
+- Need human verification: confirm warning-baseline and `squalr-tests` jobs no longer fail on `wayland-sys` missing `wayland-client.pc` after Linux dependency install in those jobs.
+
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -48,4 +39,8 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added `docs/release-artifact-contract.md` documenting per-platform artifact names, checksums, and release safety controls.
 - Local validation evidence captured: `python -m py_compile scripts/release.py`, `python scripts/release.py --step build-package ... --dry-run`, and `python scripts/release.py --step release-publish ... --dry-run`.
 - Android build automation path exists at `python ./scripts/build_and_deploy.py --compile-check`; CI reuses it with `--debug` to avoid prompts.
+- Updated `.github/workflows/pr-validation.yml` to use `dtolnay/rust-toolchain@nightly` across jobs and install Linux native deps in `squalr-tests` and warning-baseline jobs (needed for GUI/eframe/wayland transitive checks).
+- Updated `.github/workflows/release.yml` build jobs to use `dtolnay/rust-toolchain@nightly`.
+- Updated `scripts/build_and_deploy.py` preflight to conditionally require `adb`; compile-check mode now skips `adb` requirement.
+- Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
