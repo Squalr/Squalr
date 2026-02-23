@@ -5,7 +5,7 @@ pub struct AppProvisionerConfig {}
 impl AppProvisionerConfig {
     pub const DOWNLOAD_WEIGHT: f32 = 0.35;
     pub const EXTRACT_WEIGHT: f32 = 1.0 - AppProvisionerConfig::DOWNLOAD_WEIGHT;
-    pub const FILENAME: &'static str = "Squalr.zip";
+    pub const FILENAME: &'static str = "squalr-release-bundle.zip";
     const GITHUB_API_LATEST_RELEASE: &'static str = "https://api.github.com/repos/zcanann/Squalr-Rust/releases/latest";
 
     /// Gets the version URL for the latest release.
