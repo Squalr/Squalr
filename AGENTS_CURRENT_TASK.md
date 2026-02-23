@@ -23,11 +23,9 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: run `.github/workflows/pr-validation.yml` on a PR and confirm Linux/Windows/macOS + `squalr-tests` complete using stable toolchain (no `resvg` nightly mismatch errors).
-- Need human verification: run the Android compile-check job in `.github/workflows/pr-validation.yml` and confirm explicit SDK+NDK setup resolves `ANDROID_NDK_ROOT` path failures.
-- Need human verification: run `.github/workflows/release.yml` via `workflow_dispatch` with `dry_run=true` and confirm desktop + Android artifact contract validation succeeds.
-- Need human verification: enforce merge blocking in branch protection after required checks are validated by CI.
-
+- Need human verification: open a PR targeting `main` (or `release/**`) and confirm `pr-validation.yml` required checks all pass on GitHub-hosted runners (Linux, Windows, macOS, Android compile-check, `squalr-tests`, warning-baseline).
+- Need human verification: configure GitHub branch protection for `main` to require the `pr-validation.yml` checks, then confirm merge is blocked when any required check fails.
+- Need human verification: run `release.yml` in both `workflow_dispatch` dry-run mode and tag-triggered mode to verify draft release publication and artifact contract behavior end-to-end.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -48,3 +46,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
 - Local validation evidence captured (2026-02-23, revalidated): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (141 tests passed locally across the `squalr-tests` integration suites).
 - Added Python cache ignore rules in `.gitignore` (`__pycache__/`, `*.pyc`) to prevent transient local artifacts from polluting git status.
+- Local validation evidence captured (2026-02-23): workspace override is `nightly-x86_64-pc-windows-msvc` (`rustup show`) and `cargo test -p squalr-tests --locked` continues to pass (141 tests), so the previously logged SIMD lane-count failure is currently not reproducible locally.
