@@ -99,11 +99,6 @@ jobs:
             fi
           fi
 
-          if [[ "${build_profile}" == "release" ]] && ! grep -q "^\[package\.metadata\.android\.signing\.release\]" squalr/Cargo.toml; then
-            echo "Release profile requires Android release signing config in squalr/Cargo.toml."
-            exit 1
-          fi
-
           version="${tag_name#v}"
           echo "tag_name=${tag_name}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
@@ -231,6 +226,7 @@ jobs:
         run: |
           set -euo pipefail
           profile="${{ needs.prepare-release.outputs.build_profile }}"
+          apk_profile="${profile}"
           if [[ "${profile}" == "release" ]]; then
             profile_flag="--release"
           else
@@ -238,9 +234,29 @@ jobs:
           fi
 
           cargo ndk --target "${TARGET_TRIPLE}" build -p squalr-cli --locked ${profile_flag}
-          cargo apk build --target "${TARGET_TRIPLE}" --lib ${profile_flag}
 
-          apk_path=$(find target -type f -path "*/${profile}/apk/squalr.apk" | head -n 1)
+          if [[ "${profile}" == "release" ]]; then
+            set +e
+            release_apk_output=$(cargo apk build --target "${TARGET_TRIPLE}" --lib --release 2>&1)
+            release_apk_exit_code=$?
+            set -e
+            echo "${release_apk_output}"
+
+            if [[ ${release_apk_exit_code} -ne 0 ]]; then
+              if echo "${release_apk_output}" | grep -q "Configure a release keystore"; then
+                echo "Release signing is not configured. Falling back to debug APK build."
+                cargo apk build --target "${TARGET_TRIPLE}" --lib
+                apk_profile="debug"
+              else
+                echo "Failed to build release APK for a reason other than signing configuration."
+                exit 1
+              fi
+            fi
+          else
+            cargo apk build --target "${TARGET_TRIPLE}" --lib
+          fi
+
+          apk_path=$(find target -type f -path "*/${apk_profile}/apk/squalr.apk" | head -n 1)
           if [[ -z "${apk_path}" ]]; then
             echo "Android APK was not found in target output."
             exit 1
@@ -267,6 +283,7 @@ jobs:
             "version": "${version}",
             "artifact_target": "${ARTIFACT_TARGET}",
             "build_profile": "${profile}",
+            "apk_profile": "${apk_profile}",
             "artifacts": [
               "squalr-${ARTIFACT_TARGET}.apk",
               "squalr-cli-${ARTIFACT_TARGET}",
