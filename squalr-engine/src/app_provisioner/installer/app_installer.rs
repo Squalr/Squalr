@@ -38,12 +38,27 @@ impl AppInstaller {
 
                 // Find the .zip asset meta data for the latest github release.
                 let maybe_zip_asset = latest_version_info.assets.as_ref().and_then(|assets| {
+                    if let Some(expected_bundle_asset_name) = AppProvisionerConfig::get_release_bundle_asset_name(&latest_version_info.tag_name) {
+                        if let Some(bundle_asset) = assets.iter().find(|release_asset| {
+                            release_asset
+                                .name
+                                .eq_ignore_ascii_case(&expected_bundle_asset_name)
+                        }) {
+                            return Some(bundle_asset);
+                        }
+
+                        log::warn!(
+                            "Could not find platform bundle asset {} in release; trying legacy fallback.",
+                            expected_bundle_asset_name
+                        );
+                    }
+
                     assets
                         .iter()
-                        .find(|asset| asset.name.eq_ignore_ascii_case("squalr.zip"))
+                        .find(|release_asset| release_asset.name.eq_ignore_ascii_case("squalr.zip"))
                 });
                 let Some(zip_asset) = maybe_zip_asset else {
-                    log::error!("Could not find squalr.zip in release assets, installation failed.");
+                    log::error!("Could not find a compatible zip asset in release assets, installation failed.");
                     return;
                 };
                 let download_url = &zip_asset.browser_download_url;

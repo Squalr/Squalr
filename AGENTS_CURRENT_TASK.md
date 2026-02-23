@@ -17,7 +17,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- [ ] Need human verification: Validate Windows installer requires explicit confirmation before installation starts, supports editing the default install directory, and shows warning-colored text that existing target directory contents are deleted before install.
+- Audit GUI vs TUI for non-WONTFIX parity gaps and add concrete follow-up tasks.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -26,3 +26,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Installer UI now pre-fills default install directory but allows editing before install.
 - Installer UI now includes warning-colored text: existing contents of selected install directory are deleted before install (matches `AppInstaller::prepare_install_directory` behavior).
 - PR validation Windows job now compiles `squalr-installer` and uploads `windows-squalr-installer.log`; `build-windows` previously only built CLI/TUI/GUI crates.
+- Installer footer `Launch Squalr` now launches GUI and closes installer window; need human verification.
+- App installer/updater now prefer platform bundle assets (`squalr-<version>-<os>-<arch>.zip`) with legacy fallback to `squalr.zip`; need human verification against live releases.
+- Release packaging writes top-level text manifests (`MANIFEST-<target>.txt`) and keeps version/hash metadata as top-level `.txt` files; need human verification in GitHub release output.
