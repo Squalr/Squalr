@@ -17,7 +17,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Update the windows installer to just literally move the current files (squalr, squalr-cli, squalr-tui) to an install directory rather than downloading them. If none are present, maybe then we can prompt the user to download the latest and install those instead?
+- Audit GUI project parity against TUI and add one concrete, non-WONTFIX follow-up task with target files.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -25,3 +25,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Need human verification: Android release artifact names are now normalized in CI output to `squalr.apk` and `squalr-cli` (without `-android-aarch64` suffixes), with publish validation updated to match.
 - Need human verification: Android release bundle now includes `README-android.md`, `install-android.sh`, and `install-android.ps1`; these are listed in the Android manifest and checksum file.
 - Need human verification: macOS release packaging now emits `squalr.app` (with `Contents/Info.plist` and bundled GUI binary) in the desktop zip instead of only a raw GUI executable.
+- Need human verification: Windows installer now installs from local payload binaries (`squalr(.exe)`, `squalr-cli(.exe)`, `squalr-tui(.exe)`) adjacent to the installer by moving them into `%LocalAppData%\\Programs\\Squalr`, and only falls back to GitHub download flow when payload binaries are missing/incomplete.
