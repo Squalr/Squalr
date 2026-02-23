@@ -45,3 +45,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
 - Local validation evidence captured (2026-02-23): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (all tests passed locally).
+- Added Python cache ignore rules in `.gitignore` (`__pycache__/`, `*.pyc`) to prevent transient local artifacts from polluting git status.
