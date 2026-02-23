@@ -44,3 +44,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Updated `scripts/build_and_deploy.py` preflight to conditionally require `adb`; compile-check mode now skips `adb` requirement.
 - Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
+- Local validation evidence captured (2026-02-23): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (all tests passed locally).
