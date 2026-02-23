@@ -31,11 +31,11 @@ Our current task is to create git workflows to:
 - [x] Implemented Android PR compile-check job via existing script (`python ./scripts/build_and_deploy.py --compile-check --debug`) with non-interactive flags/env setup. Need human verification.
 - [x] Kept unit/integration checks in required PR flow (`cargo test -p squalr-tests --locked` and warning-baseline gate for touched crates) in unified workflow. Need human verification.
 - [x] Added branch-protection runbook with required checks, branch rules, and explicit GitHub branch-protection merge-blocking note (`docs/branch-protection-runbook.md`). Need human verification.
-- [ ] Replace interactive release flow with CI-friendly release pipeline: tag/manual trigger that runs cross-platform build matrix, creates deterministic artifacts, and publishes a GitHub Release draft with checksums.
-- [ ] Refactor `scripts/release.py` for automation mode (`--release-type`, `--non-interactive`, optional `--no-version-bump`) and split responsibilities: version bump, build/package, and release-publish steps callable from CI.
-- [ ] Define artifact contract per platform (naming, archive format, included resources, `latest_version` handling), then enforce it in CI with validation steps.
-- [ ] Add rollback/safety controls for release workflow (dry-run mode, draft-only publish default, idempotent tag handling, and fail-fast on missing artifacts/signing config).
-- [ ] Validate workflows locally where feasible (`act`/script dry-runs) and via PR test branches; record evidence and mark each checklist item as "need human verification" before closure.
+- [x] Replace interactive release flow with CI-friendly release pipeline: tag/manual trigger that runs cross-platform build matrix, creates deterministic artifacts, and publishes a GitHub Release draft with checksums (`.github/workflows/release.yml`, `scripts/release.py`). Need human verification.
+- [x] Refactor `scripts/release.py` for automation mode (`--release-type`, `--non-interactive`, optional `--no-version-bump`) and split responsibilities: version bump, build/package, and release-publish steps callable from CI. Need human verification.
+- [x] Define artifact contract per platform (naming, archive format, included resources, `latest_version` handling), then enforce it in CI with validation steps (`docs/release-artifact-contract.md`, `release.yml` validate step, script manifests/checksums). Need human verification.
+- [x] Add rollback/safety controls for release workflow (dry-run mode, draft-only publish default, idempotent tag handling, and fail-fast on missing artifacts/signing config). Need human verification.
+- [ ] Validate workflows locally where feasible (`act`/script dry-runs) and via PR test branches; record evidence and mark each checklist item as "need human verification" before closure. Local script dry-runs completed; PR test-branch workflow runs still need human verification.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -43,6 +43,9 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Existing workflows are branch-specific (`pr/linux`, `pr/unit-tests`) and do not currently provide a required `main` PR gate.
 - Existing workflows cover Linux builds, `squalr-tests`, warning-baseline checks, and nightly workspace tests only.
 - Added `.github/workflows/pr-validation.yml` for required `main`/`release/**` PR checks: Linux, Windows, macOS, Android compile-check, `squalr-tests`, and warning-baseline.
-- `scripts/release.py` is currently interactive and Windows-centric (`squalr.exe`, `squalr-installer.exe` assumptions), so it is not CI-ready for multi-platform release automation.
+- Added `.github/workflows/release.yml` for tag/manual release automation with desktop+Android matrix packaging, artifact contract validation, and draft release publication.
+- Refactored `scripts/release.py` into CI-callable phases (`version-bump`, `build-package`, `release-publish`) with `--release-type`, `--non-interactive`, `--no-version-bump`, and `--dry-run`.
+- Added `docs/release-artifact-contract.md` documenting per-platform artifact names, checksums, and release safety controls.
+- Local validation evidence captured: `python -m py_compile scripts/release.py`, `python scripts/release.py --step build-package ... --dry-run`, and `python scripts/release.py --step release-publish ... --dry-run`.
 - Android build automation path exists at `python ./scripts/build_and_deploy.py --compile-check`; CI reuses it with `--debug` to avoid prompts.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
