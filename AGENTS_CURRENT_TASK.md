@@ -23,7 +23,7 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: rerun `android-compile-check` in `pr-validation.yml` to confirm `scripts/build_and_deploy.py` workspace root fix resolves the prior `scripts/squalr` manifest path failure on GitHub runners.
+- Need human verification: rerun `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android jobs in GitHub Actions to confirm installing `platforms;android-30` and `build-tools;30.0.3` resolves the previous `Platform '30' is not installed` failure.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -47,3 +47,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
 - Local validation evidence captured (2026-02-23, revalidated): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (141 tests passed locally across the `squalr-tests` integration suites).
 - Added Python cache ignore rules in `.gitignore` (`__pycache__/`, `*.pyc`) to prevent transient local artifacts from polluting git status.
+- Updated `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android setup to install `platforms;android-30` and `build-tools;30.0.3` alongside `ndk;27.0.12077973`, matching `squalr/Cargo.toml` `target_sdk_version = 30`.
+- Local validation evidence captured (2026-02-23): `cargo test -p squalr-tests --locked` passed after workflow updates (141 tests passed).

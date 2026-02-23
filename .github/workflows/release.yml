@@ -197,7 +197,7 @@ jobs:
       - name: Install Android NDK
         run: |
           set -euo pipefail
-          sdkmanager --install "ndk;27.0.12077973"
+          sdkmanager --install "platforms;android-30" "build-tools;30.0.3" "ndk;27.0.12077973"
 
       - name: Resolve Android environment
         run: |
