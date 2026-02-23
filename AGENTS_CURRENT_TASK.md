@@ -17,9 +17,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- CI runs and passes for all platforms.
+- 
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Release pipeline no longer hard-fails in `prepare-release` when Android release signing config is missing. Android build now attempts `cargo apk build --release`, and if it fails only due missing keystore config (`Configure a release keystore`), it automatically falls back to a debug APK while keeping other release-profile artifact behavior unchanged.
+- 
