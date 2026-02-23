@@ -23,7 +23,7 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: re-run GitHub `pr-validation` and `release` workflows on a PR/tag after pinning Rust toolchains to `nightly-2026-02-07` and confirm the prior `portable_simd` CI failures are resolved.
+- Need human verification: rerun `android-compile-check` in `pr-validation.yml` to confirm `scripts/build_and_deploy.py` workspace root fix resolves the prior `scripts/squalr` manifest path failure on GitHub runners.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -42,6 +42,8 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Updated `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android jobs to install SDK tools + `ndk;27.0.12077973` and export resolved `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `ANDROID_NDK_ROOT` at runtime.
 - Updated `scripts/build_and_deploy.py` preflight to conditionally require `adb`; compile-check mode now skips `adb` requirement.
 - Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
+- Updated `scripts/build_and_deploy.py` workspace resolution to use repository root (`Path(__file__).resolve().parent.parent`) so Android APK build runs from `squalr/` instead of the invalid `scripts/squalr` path.
+- Local validation evidence captured (2026-02-23): `python -m py_compile scripts/build_and_deploy.py scripts/release.py`, `python scripts/build_and_deploy.py --help`, and explicit path probe confirming `android_manifest_directory == <repo>/squalr`.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
 - Local validation evidence captured (2026-02-23, revalidated): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (141 tests passed locally across the `squalr-tests` integration suites).
 - Added Python cache ignore rules in `.gitignore` (`__pycache__/`, `*.pyc`) to prevent transient local artifacts from polluting git status.

@@ -433,7 +433,7 @@ def main():
     )
     parsed_arguments = argument_parser.parse_args()
 
-    workspace_directory = Path(__file__).resolve().parent
+    workspace_directory = Path(__file__).resolve().parent.parent
     android_manifest_directory = workspace_directory / ANDROID_MANIFEST_CRATE_NAME
 
     if parsed_arguments.release:
