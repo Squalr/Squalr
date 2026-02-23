@@ -1,0 +1,346 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Existing tag to release (example: v1.2.3)."
+        required: false
+        type: string
+      create_tag_if_missing:
+        description: "Create and push the dispatch tag when it does not exist."
+        required: false
+        default: false
+        type: boolean
+      build_profile:
+        description: "Cargo profile used for packaging."
+        required: false
+        default: "release"
+        type: choice
+        options:
+          - release
+          - debug
+      dry_run:
+        description: "Validate and build artifacts without publishing release changes."
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag_name || github.ref_name || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.resolve.outputs.tag_name }}
+      version: ${{ steps.resolve.outputs.version }}
+      build_profile: ${{ steps.resolve.outputs.build_profile }}
+      dry_run: ${{ steps.resolve.outputs.dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG_NAME: ${{ github.event.inputs.tag_name }}
+          INPUT_CREATE_TAG: ${{ github.event.inputs.create_tag_if_missing }}
+          INPUT_BUILD_PROFILE: ${{ github.event.inputs.build_profile }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            tag_name="${REF_NAME}"
+            build_profile="release"
+            dry_run="false"
+          else
+            tag_name="${INPUT_TAG_NAME}"
+            build_profile="${INPUT_BUILD_PROFILE:-release}"
+            dry_run="${INPUT_DRY_RUN:-true}"
+          fi
+
+          if [[ -z "${tag_name}" ]]; then
+            echo "tag_name is required for manual releases."
+            exit 1
+          fi
+
+          if [[ ! "${tag_name}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must match v<major>.<minor>.<patch>: ${tag_name}"
+            exit 1
+          fi
+
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if git rev-parse "refs/tags/${tag_name}" >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/${tag_name}" >/dev/null 2>&1; then
+              echo "Tag ${tag_name} already exists."
+            elif [[ "${INPUT_CREATE_TAG}" == "true" ]]; then
+              if [[ "${dry_run}" == "true" ]]; then
+                echo "Dry run: would create and push ${tag_name}."
+              else
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git tag -a "${tag_name}" -m "Release ${tag_name}"
+                git push origin "${tag_name}"
+              fi
+            else
+              echo "Tag ${tag_name} does not exist and create_tag_if_missing=false."
+              exit 1
+            fi
+          fi
+
+          if [[ "${build_profile}" == "release" ]] && ! grep -q "^\[package\.metadata\.android\.signing\.release\]" squalr/Cargo.toml; then
+            echo "Release profile requires Android release signing config in squalr/Cargo.toml."
+            exit 1
+          fi
+
+          version="${tag_name#v}"
+          echo "tag_name=${tag_name}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "build_profile=${build_profile}" >> "${GITHUB_OUTPUT}"
+          echo "dry_run=${dry_run}" >> "${GITHUB_OUTPUT}"
+
+  build-desktop:
+    needs: prepare-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_target: linux-x86_64
+          - os: windows-latest
+            artifact_target: windows-x86_64
+          - os: macos-latest
+            artifact_target: macos-aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux native dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libasound2-dev \
+            libudev-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxinerama-dev
+
+      - name: Package desktop artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/release.py \
+            --step build-package \
+            --non-interactive \
+            --no-version-bump \
+            --tag "${{ needs.prepare-release.outputs.tag_name }}" \
+            --artifact-target "${{ matrix.artifact_target }}" \
+            --build-profile "${{ needs.prepare-release.outputs.build_profile }}" \
+            --dist-dir "dist/release/${{ matrix.artifact_target }}"
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.artifact_target }}
+          path: dist/release/${{ matrix.artifact_target }}
+          if-no-files-found: error
+
+  build-android:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    env:
+      TARGET_TRIPLE: aarch64-linux-android
+      ARTIFACT_TARGET: android-aarch64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platforms;android-30" "build-tools;30.0.3" "ndk;27.0.12077973"
+
+      - name: Resolve Android environment
+        run: |
+          set -euo pipefail
+          android_home_path="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [[ -z "${android_home_path}" ]]; then
+            echo "ANDROID_HOME and ANDROID_SDK_ROOT are both unset."
+            exit 1
+          fi
+          android_ndk_root_path="${android_home_path}/ndk/27.0.12077973"
+          if [[ ! -d "${android_ndk_root_path}" ]]; then
+            echo "Installed NDK path is missing: ${android_ndk_root_path}"
+            exit 1
+          fi
+          echo "ANDROID_HOME=${android_home_path}" >> "${GITHUB_ENV}"
+          echo "ANDROID_SDK_ROOT=${android_home_path}" >> "${GITHUB_ENV}"
+          echo "ANDROID_NDK_ROOT=${android_ndk_root_path}" >> "${GITHUB_ENV}"
+
+      - name: Install Android cargo tools
+        run: |
+          set -euo pipefail
+          cargo install cargo-ndk --locked
+          cargo install cargo-apk --locked
+
+      - name: Add Android clang to PATH
+        run: |
+          set -euo pipefail
+          echo "${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "${GITHUB_PATH}"
+
+      - name: Build and package Android artifacts
+        run: |
+          set -euo pipefail
+          profile="${{ needs.prepare-release.outputs.build_profile }}"
+          if [[ "${profile}" == "release" ]]; then
+            profile_flag="--release"
+          else
+            profile_flag=""
+          fi
+
+          cargo ndk --target "${TARGET_TRIPLE}" build -p squalr-cli --locked ${profile_flag}
+          cargo apk build --target "${TARGET_TRIPLE}" --lib ${profile_flag}
+
+          apk_path=$(find target -type f -path "*/${profile}/apk/squalr.apk" | head -n 1)
+          if [[ -z "${apk_path}" ]]; then
+            echo "Android APK was not found in target output."
+            exit 1
+          fi
+
+          cli_path="target/${TARGET_TRIPLE}/${profile}/squalr-cli"
+          if [[ ! -f "${cli_path}" ]]; then
+            echo "Android CLI binary was not found: ${cli_path}"
+            exit 1
+          fi
+
+          output_dir="dist/release/${ARTIFACT_TARGET}"
+          mkdir -p "${output_dir}"
+          cp "${cli_path}" "${output_dir}/squalr-cli-${ARTIFACT_TARGET}"
+          cp "${apk_path}" "${output_dir}/squalr-${ARTIFACT_TARGET}.apk"
+
+          version="${{ needs.prepare-release.outputs.version }}"
+          marker_path="${output_dir}/latest_version-${version}-${ARTIFACT_TARGET}.txt"
+          printf '%s\n' "${version}" > "${marker_path}"
+
+          manifest_path="${output_dir}/squalr-${version}-${ARTIFACT_TARGET}.manifest.json"
+          cat > "${manifest_path}" <<JSON
+          {
+            "version": "${version}",
+            "artifact_target": "${ARTIFACT_TARGET}",
+            "build_profile": "${profile}",
+            "artifacts": [
+              "squalr-${ARTIFACT_TARGET}.apk",
+              "squalr-cli-${ARTIFACT_TARGET}",
+              "latest_version-${version}-${ARTIFACT_TARGET}.txt"
+            ]
+          }
+          JSON
+
+          (
+            cd "${output_dir}"
+            sha256sum \
+              "squalr-cli-${ARTIFACT_TARGET}" \
+              "squalr-${ARTIFACT_TARGET}.apk" \
+              "latest_version-${version}-${ARTIFACT_TARGET}.txt" \
+              "squalr-${version}-${ARTIFACT_TARGET}.manifest.json" \
+              > "SHA256SUMS-${ARTIFACT_TARGET}.txt"
+          )
+
+          test -f "${output_dir}/squalr-cli-${ARTIFACT_TARGET}"
+          test -f "${output_dir}/squalr-${ARTIFACT_TARGET}.apk"
+          test -f "${output_dir}/SHA256SUMS-${ARTIFACT_TARGET}.txt"
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-android-aarch64
+          path: dist/release/android-aarch64
+          if-no-files-found: error
+
+  publish-release:
+    needs:
+      - prepare-release
+      - build-desktop
+      - build-android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/publish
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Validate artifact contract
+        run: |
+          set -euo pipefail
+          version="${{ needs.prepare-release.outputs.version }}"
+
+          test -f "dist/publish/squalr-${version}-linux-x86_64.zip"
+          test -f "dist/publish/squalr-${version}-windows-x86_64.zip"
+          test -f "dist/publish/squalr-${version}-macos-aarch64.zip"
+          test -f "dist/publish/squalr-android-aarch64.apk"
+
+          test -f "dist/publish/SHA256SUMS-linux-x86_64.txt"
+          test -f "dist/publish/SHA256SUMS-windows-x86_64.txt"
+          test -f "dist/publish/SHA256SUMS-macos-aarch64.txt"
+          test -f "dist/publish/SHA256SUMS-android-aarch64.txt"
+
+      - name: Publish draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dry_run_flag=""
+          if [[ "${{ needs.prepare-release.outputs.dry_run }}" == "true" ]]; then
+            dry_run_flag="--dry-run"
+          fi
+
+          python scripts/release.py \
+            --step release-publish \
+            --non-interactive \
+            --tag "${{ needs.prepare-release.outputs.tag_name }}" \
+            --assets-dir dist/publish \
+            ${dry_run_flag}

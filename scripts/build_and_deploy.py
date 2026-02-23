@@ -62,8 +62,12 @@ def command_exists(command_name):
     return shutil.which(command_name) is not None
 
 
-def ensure_host_preflight(workspace_directory):
-    missing_commands = [command_name for command_name in ["cargo", "rustup", "adb"] if not command_exists(command_name)]
+def ensure_host_preflight(workspace_directory, require_adb):
+    required_commands = ["cargo", "rustup"]
+    if require_adb:
+        required_commands.append("adb")
+
+    missing_commands = [command_name for command_name in required_commands if not command_exists(command_name)]
     if missing_commands:
         fail(f"Missing required command(s): {', '.join(missing_commands)}")
 
@@ -429,7 +433,7 @@ def main():
     )
     parsed_arguments = argument_parser.parse_args()
 
-    workspace_directory = Path(__file__).resolve().parent
+    workspace_directory = Path(__file__).resolve().parent.parent
     android_manifest_directory = workspace_directory / ANDROID_MANIFEST_CRATE_NAME
 
     if parsed_arguments.release:
@@ -442,7 +446,7 @@ def main():
         release_prompt = input("Build in release mode? (y/n [default]): ").strip().lower()
         prefer_release_mode = release_prompt == "y"
 
-    ensure_host_preflight(workspace_directory)
+    ensure_host_preflight(workspace_directory, require_adb=not parsed_arguments.compile_check)
     build_cli_binary(workspace_directory, prefer_release_mode)
     apk_profile = build_apk_with_fallback(android_manifest_directory, prefer_release_mode)
 

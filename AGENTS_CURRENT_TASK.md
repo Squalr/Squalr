@@ -1,10 +1,16 @@
 # Agentic Current Task (Readonly)
 Our current task, from `README.md`, is:
-`pr/TODO`
+`pr/release-test`
+
+Our current task is to create git workflows to:
+- Build for all platforms and valid combinations when a PR is rasied
+- Block merging to main until these builds complete
+- Support releasing to all platforms in a heavily automated way (ie `scripts/release.py` exists to bump versions, but we may want something CI friendly if we cant compile for all platforms locally?)
+    - This needs auditing and a clear strategy.
 
 # Notes from Owner (Readonly Section)
-- Assume any unstaged file changes are from a previous iteration, and can be kept if they look good
-- The android device is rooted.
+- Assume any unstaged/uncomitted file changes are from a previous iteration (or if this file, probably the human author giving guidance), and can be kept if they look good. Do not ask me about them.
+- Assume any connected android devices are rooted, and assume MacOS has SIP disabled.
 - You don't get to declare things as fixed. Only "need human verification".
 
 ## WONTFIX (For now)
@@ -17,21 +23,29 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: Validate non-Android GUI boot on a clean desktop environment after Android support changes, confirming startup no longer crashes during update/version check.
-- Need human verification: Validate desktop GUI shortcut process dropdown shows only true windowed processes (no background task leakage) after restoring non-Android windowed-only sourcing.
-- Need human verification: Validate desktop GUI process selector in `Windowed` mode only shows true windowed processes (no broad non-windowed `.exe` leakage) after Android fallback gating changes.
+- Need human verification: rerun `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android jobs in GitHub Actions to confirm installing `platforms;android-30` and `build-tools;30.0.3` resolves the previous `Platform '30' is not installed` failure.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Root cause for non-Android GUI boot crash: `ureq` v3 defaults TLS provider to `Rustls`, but desktop `squalr-engine` dependency enables only `native-tls`; version check thread panicked on first HTTPS request to GitHub.
-- Mitigation implemented: added `AppProvisionerHttpClient` to create a configured `ureq` agent with target-specific TLS provider (`NativeTls` on non-Android, `Rustls` on Android), and routed version-check/download HTTP calls through it.
-- Local verification: `cargo run -p squalr` no longer panics at boot; update check completes over HTTPS with `ureq::tls::native_tls` logs.
-- Note: `cargo test -p squalr-engine` has one environment-specific failure in `squalr_engine::tests::privileged_shell_does_not_create_unprivileged_state` due named pipe access denied on this host.
-- Root cause for windowed-process regression on desktop: Android fallback in `ProcessSelectorViewData::normalize_windowed_processes_with_fallback` and shortcut fallback was unconditional; on Windows, many non-windowed process names match the fallback heuristic (`contains('.') && !contains(':')`), polluting the windowed list.
-- Mitigation implemented: gated both fallbacks to Android only (`cfg!(target_os = "android")` via `IS_ANDROID_TARGET`), so non-Android windowed mode now uses strict `get_is_windowed()` filtering.
-- Local verification: `cargo test -p squalr process_selector_view_data --locked` passes with platform-conditional assertions for fallback behavior.
-- Root cause for persistent desktop leakage after fallback gating: shortcut dropdown selection logic sourced from full process list when `show_windowed_processes_only` was false (default non-Android), reintroducing background tasks despite strict windowed filtering.
-- Mitigation implemented: restored legacy desktop shortcut behavior by always sourcing shortcut dropdown from `windowed_process_list` on non-Android and only refreshing full list from the shortcut on Android.
-- Local verification: `cargo test -p squalr process_selector_view_data --locked` passes including `refresh_shortcut_dropdown_process_list_keeps_desktop_windowed_only_behavior`.
-- Android logging hooks consolidated into shared `squalr-engine-session` platform layer: added `PlatformLogHooks` trait + dispatcher in `src/logging/platform/platform_log_hooks.rs`, implemented Android hook init in existing `src/logging/platform/android_log_hooks.rs`, and updated `squalr` + `squalr-cli` entry points to call `initialize_platform_log_hooks_once(...)` instead of crate-local Android logger setup.
+- Existing workflows are branch-specific (`pr/linux`, `pr/unit-tests`) and do not currently provide a required `main` PR gate.
+- Existing workflows cover Linux builds, `squalr-tests`, warning-baseline checks, and nightly workspace tests only.
+- Added `.github/workflows/pr-validation.yml` for required `main`/`release/**` PR checks: Linux, Windows, macOS, Android compile-check, `squalr-tests`, and warning-baseline.
+- Added `.github/workflows/release.yml` for tag/manual release automation with desktop+Android matrix packaging, artifact contract validation, and draft release publication.
+- Refactored `scripts/release.py` into CI-callable phases (`version-bump`, `build-package`, `release-publish`) with `--release-type`, `--non-interactive`, `--no-version-bump`, and `--dry-run`.
+- Added `docs/release-artifact-contract.md` documenting per-platform artifact names, checksums, and release safety controls.
+- Local validation evidence captured: `python -m py_compile scripts/release.py`, `python scripts/release.py --step build-package ... --dry-run`, and `python scripts/release.py --step release-publish ... --dry-run`.
+- Android build automation path exists at `python ./scripts/build_and_deploy.py --compile-check`; CI reuses it with `--debug` to avoid prompts.
+- Updated `.github/workflows/pr-validation.yml` toolchain installs to `dtolnay/rust-toolchain@nightly` with `toolchain: nightly-2026-02-07`.
+- Updated `.github/workflows/release.yml` build jobs to `dtolnay/rust-toolchain@nightly` with `toolchain: nightly-2026-02-07`.
+- Updated `.github/workflows/workspace-nightly.yml` and `.github/workflows/squalr-tests-pr.yml` to the same pinned nightly (`nightly-2026-02-07`) for consistency.
+- Updated `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android jobs to install SDK tools + `ndk;27.0.12077973` and export resolved `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `ANDROID_NDK_ROOT` at runtime.
+- Updated `scripts/build_and_deploy.py` preflight to conditionally require `adb`; compile-check mode now skips `adb` requirement.
+- Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
+- Updated `scripts/build_and_deploy.py` workspace resolution to use repository root (`Path(__file__).resolve().parent.parent`) so Android APK build runs from `squalr/` instead of the invalid `scripts/squalr` path.
+- Local validation evidence captured (2026-02-23): `python -m py_compile scripts/build_and_deploy.py scripts/release.py`, `python scripts/build_and_deploy.py --help`, and explicit path probe confirming `android_manifest_directory == <repo>/squalr`.
+- Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
+- Local validation evidence captured (2026-02-23, revalidated): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (141 tests passed locally across the `squalr-tests` integration suites).
+- Added Python cache ignore rules in `.gitignore` (`__pycache__/`, `*.pyc`) to prevent transient local artifacts from polluting git status.
+- Updated `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android setup to install `platforms;android-30` and `build-tools;30.0.3` alongside `ndk;27.0.12077973`, matching `squalr/Cargo.toml` `target_sdk_version = 30`.
+- Local validation evidence captured (2026-02-23): `cargo test -p squalr-tests --locked` passed after workflow updates (141 tests passed).
