@@ -43,14 +43,24 @@ impl AppUpdater {
                     return;
                 }
 
-                // Find the .zip asset meta data for the latest github release.
-                let maybe_zip_asset = latest_version_info.assets.as_ref().and_then(|assets| {
+                // Find the .zip asset metadata for the latest GitHub release.
+                let Some(expected_bundle_asset_name) =
+                    AppProvisionerConfig::get_release_bundle_asset_name(&latest_version_info.tag_name)
+                else {
+                    log::error!("Could not resolve platform bundle asset name, update failed.");
+                    return;
+                };
+
+                let maybe_bundle_asset = latest_version_info.assets.as_ref().and_then(|assets| {
                     assets
                         .iter()
-                        .find(|asset| asset.name.eq_ignore_ascii_case("squalr.zip"))
+                        .find(|release_asset| release_asset.name.eq_ignore_ascii_case(&expected_bundle_asset_name))
                 });
-                let Some(zip_asset) = maybe_zip_asset else {
-                    log::error!("Could not find squalr.zip in release assets, update failed.");
+                let Some(zip_asset) = maybe_bundle_asset else {
+                    log::error!(
+                        "Could not find required platform bundle asset {} in release assets, update failed.",
+                        expected_bundle_asset_name
+                    );
                     return;
                 };
                 let download_url = &zip_asset.browser_download_url;

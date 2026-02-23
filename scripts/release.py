@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import re
 import shutil
@@ -373,7 +372,7 @@ def package_desktop_artifacts(
 
     bundle_prefix = f"squalr-{version}-{artifact_target}"
     bundle_archive_path = dist_directory / f"{bundle_prefix}.zip"
-    manifest_path = dist_directory / f"{bundle_prefix}.manifest.json"
+    manifest_path = dist_directory / f"MANIFEST-{artifact_target}.txt"
     version_marker_path = dist_directory / f"latest_version-{version}-{artifact_target}.txt"
 
     packaged_executable_names: list[str] = []
@@ -402,17 +401,19 @@ def package_desktop_artifacts(
 
     create_deterministic_zip(staging_directory, bundle_archive_path, dry_run=dry_run)
 
-    artifact_manifest = {
-        "version": version,
-        "artifact_target": artifact_target,
-        "build_profile": build_profile,
-        "artifacts": [bundle_archive_path.name, version_marker_path.name],
-        "executables": packaged_executable_names,
-    }
     if dry_run:
         print(f"Would write manifest: {manifest_path}")
     else:
-        manifest_path.write_text(json.dumps(artifact_manifest, indent=2) + "\n", encoding="utf-8")
+        manifest_lines = [
+            f"version={version}",
+            f"artifact_target={artifact_target}",
+            f"build_profile={build_profile}",
+            f"bundle={bundle_archive_path.name}",
+            f"version_marker={version_marker_path.name}",
+            f"executables={','.join(packaged_executable_names)}",
+            "",
+        ]
+        manifest_path.write_text("\n".join(manifest_lines), encoding="utf-8")
 
     checksum_candidates = [bundle_archive_path, version_marker_path, manifest_path]
     checksum_file_path = write_checksum_file(
@@ -443,7 +444,7 @@ def discover_release_assets(assets_directory: Path) -> list[Path]:
         if file_name.startswith("SHA256SUMS") and file_name.endswith(".txt"):
             release_assets.append(file_path)
             continue
-        if file_name.endswith(".manifest.json"):
+        if file_name.startswith("MANIFEST-") and file_name.endswith(".txt"):
             release_assets.append(file_path)
             continue
         if file_name.endswith((".zip", ".apk", ".exe", ".dmg", ".gz", ".tgz")):

@@ -281,24 +281,14 @@ jobs:
           marker_path="${output_dir}/latest_version-${version}-${ARTIFACT_TARGET}.txt"
           printf '%s\n' "${version}" > "${marker_path}"
 
-          manifest_path="${output_dir}/squalr-${version}-${ARTIFACT_TARGET}.manifest.json"
-          cat > "${manifest_path}" <<JSON
-          {
-            "version": "${version}",
-            "artifact_target": "${ARTIFACT_TARGET}",
-            "build_profile": "${profile}",
-            "apk_profile": "${apk_profile}",
-            "artifacts": [
-              "squalr.apk",
-              "squalr-cli",
-              "README-android.md",
-              "install-android.sh",
-              "install-android.ps1",
-              "latest_version-${version}-${ARTIFACT_TARGET}.txt",
-              "SHA256SUMS-${ARTIFACT_TARGET}.txt"
-            ]
-          }
-          JSON
+          manifest_path="${output_dir}/MANIFEST-${ARTIFACT_TARGET}.txt"
+          cat > "${manifest_path}" <<TXT
+          version=${version}
+          artifact_target=${ARTIFACT_TARGET}
+          build_profile=${profile}
+          apk_profile=${apk_profile}
+          artifacts=squalr.apk,squalr-cli,README-android.md,install-android.sh,install-android.ps1,latest_version-${version}-${ARTIFACT_TARGET}.txt,SHA256SUMS-${ARTIFACT_TARGET}.txt
+          TXT
 
           (
             cd "${output_dir}"
@@ -309,7 +299,7 @@ jobs:
               "install-android.sh" \
               "install-android.ps1" \
               "latest_version-${version}-${ARTIFACT_TARGET}.txt" \
-              "squalr-${version}-${ARTIFACT_TARGET}.manifest.json" \
+              "MANIFEST-${ARTIFACT_TARGET}.txt" \
               > "SHA256SUMS-${ARTIFACT_TARGET}.txt"
           )
 
