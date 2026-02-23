@@ -1,0 +1,295 @@
+name: pr-validation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "README.md"
+      - "scripts/**"
+      - "squalr/**"
+      - "squalr-cli/**"
+      - "squalr-tui/**"
+      - "squalr-tests/**"
+      - "squalr-engine/**"
+      - "squalr-engine-api/**"
+      - "squalr-engine-domain/**"
+      - "squalr-engine-operating-system/**"
+      - "squalr-engine-projects/**"
+      - "squalr-engine-scanning/**"
+      - "squalr-engine-session/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux native dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libasound2-dev \
+            libudev-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxinerama-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Linux CLI/TUI/GUI
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          cargo build -p squalr-cli --locked 2>&1 | tee .ci-logs/linux-squalr-cli.log
+          cargo build -p squalr-tui --locked 2>&1 | tee .ci-logs/linux-squalr-tui.log
+          cargo build -p squalr --locked 2>&1 | tee .ci-logs/linux-squalr-gui.log
+
+      - name: Upload Linux build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-logs
+          path: .ci-logs
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Windows CLI/TUI/GUI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .ci-logs -Force | Out-Null
+          cargo build -p squalr-cli --locked 2>&1 | Tee-Object -FilePath .ci-logs/windows-squalr-cli.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build -p squalr-tui --locked 2>&1 | Tee-Object -FilePath .ci-logs/windows-squalr-tui.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo build -p squalr --locked 2>&1 | Tee-Object -FilePath .ci-logs/windows-squalr-gui.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-logs
+          path: .ci-logs
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build macOS CLI/TUI/GUI
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          cargo build -p squalr-cli --locked 2>&1 | tee .ci-logs/macos-squalr-cli.log
+          cargo build -p squalr-tui --locked 2>&1 | tee .ci-logs/macos-squalr-tui.log
+          cargo build -p squalr --locked 2>&1 | tee .ci-logs/macos-squalr-gui.log
+
+      - name: Upload macOS build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-logs
+          path: .ci-logs
+
+  build-android-compile-check:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.0.12077973
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Android cargo tools
+        run: |
+          set -euo pipefail
+          cargo install cargo-ndk --locked
+          cargo install cargo-apk --locked
+
+      - name: Add Android clang to PATH
+        run: |
+          set -euo pipefail
+          echo "${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> "${GITHUB_PATH}"
+
+      - name: Android compile-check
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          python ./scripts/build_and_deploy.py --compile-check --debug 2>&1 | tee .ci-logs/android-compile-check.log
+
+      - name: Upload Android compile-check logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-compile-check-logs
+          path: .ci-logs
+
+  squalr-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run squalr-tests
+        run: cargo test -p squalr-tests --locked
+
+  warning-baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Detect touched crates
+        id: touched-crates
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          declare -a candidate_crates=(
+            "squalr-tests"
+            "squalr"
+            "squalr-cli"
+            "squalr-tui"
+            "squalr-installer"
+            "squalr-engine"
+            "squalr-engine-api"
+            "squalr-engine-domain"
+            "squalr-engine-operating-system"
+            "squalr-engine-projects"
+            "squalr-engine-scanning"
+            "squalr-engine-session"
+          )
+          declare -A seen_crates=()
+          declare -a touched_crates=()
+          while IFS= read -r changed_path; do
+            for candidate_crate in "${candidate_crates[@]}"; do
+              if [[ "${changed_path}" == "${candidate_crate}/"* ]]; then
+                if [[ -z "${seen_crates[${candidate_crate}]:-}" ]]; then
+                  seen_crates["${candidate_crate}"]=1
+                  touched_crates+=("${candidate_crate}")
+                fi
+              fi
+            done
+          done < <(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")
+          if git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" | grep -qE '^(Cargo.toml|Cargo.lock)$'; then
+            for candidate_crate in "${candidate_crates[@]}"; do
+              if [[ -z "${seen_crates[${candidate_crate}]:-}" ]]; then
+                seen_crates["${candidate_crate}"]=1
+                touched_crates+=("${candidate_crate}")
+              fi
+            done
+          fi
+          if [[ ${#touched_crates[@]} -eq 0 ]]; then
+            echo "has_touched_crates=false" >> "${GITHUB_OUTPUT}"
+            echo "touched_crates=" >> "${GITHUB_OUTPUT}"
+            echo "No touched crates detected."
+            exit 0
+          fi
+          touched_crates_csv=$(IFS=,; echo "${touched_crates[*]}")
+          echo "has_touched_crates=true" >> "${GITHUB_OUTPUT}"
+          echo "touched_crates=${touched_crates_csv}" >> "${GITHUB_OUTPUT}"
+          echo "Touched crates: ${touched_crates_csv}"
+
+      - name: Compare warning baseline against base branch
+        if: steps.touched-crates.outputs.has_touched_crates == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          TOUCHED_CRATES: ${{ steps.touched-crates.outputs.touched_crates }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-logs
+          git worktree add ../squalr_workspace_base "${BASE_SHA}"
+          trap 'git worktree remove --force ../squalr_workspace_base' EXIT
+          IFS=',' read -r -a touched_crate_array <<< "${TOUCHED_CRATES}"
+          new_warning_detected=false
+          for touched_crate in "${touched_crate_array[@]}"; do
+            echo "Checking warning baseline for ${touched_crate}."
+            base_log_path="${PWD}/.ci-logs/${touched_crate}.base.log"
+            head_log_path="${PWD}/.ci-logs/${touched_crate}.head.log"
+            (
+              cd ../squalr_workspace_base
+              cargo check --manifest-path "${touched_crate}/Cargo.toml" --message-format short 2>&1
+            ) | tee "${base_log_path}" > /dev/null || true
+            cargo check --manifest-path "${touched_crate}/Cargo.toml" --message-format short 2>&1 | tee "${head_log_path}" > /dev/null || true
+            base_warning_count=$(grep -c "warning:" "${base_log_path}" || true)
+            head_warning_count=$(grep -c "warning:" "${head_log_path}" || true)
+            echo "Baseline warnings (${touched_crate}): ${base_warning_count}"
+            echo "PR warnings (${touched_crate}): ${head_warning_count}"
+            if [[ "${head_warning_count}" -gt "${base_warning_count}" ]]; then
+              echo "New warnings detected for ${touched_crate}."
+              new_warning_detected=true
+            fi
+          done
+          if [[ "${new_warning_detected}" == "true" ]]; then
+            echo "Failing because one or more touched crates introduced new warnings."
+            exit 1
+          fi
+
+      - name: Upload warning baseline logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: warning-baseline-logs
+          path: .ci-logs

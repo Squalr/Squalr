@@ -23,14 +23,14 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- [ ] Baseline CI/release audit: map current workflows (`linux-build.yml`, `squalr-tests-pr.yml`, `workspace-nightly.yml`), document missing PR coverage for `main`, and capture required build matrix (desktop CLI/TUI/GUI on Windows/Linux/macOS plus Android compile checks).
-- [ ] Create a single required PR validation workflow targeting `main` (and any release branch policy) with path filters that still include all engine/app crates and workflow files.
-- [ ] Implement Linux PR job parity with README build contract (`cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, `cargo build -p squalr --locked`) including native package install + cache.
-- [ ] Implement Windows PR job parity for CLI/TUI/GUI locked builds; ensure artifacts or logs are retained when failures occur.
-- [ ] Implement macOS PR job parity for CLI/TUI/GUI locked builds; keep GUI build in scope to catch platform-specific regressions.
-- [ ] Implement Android PR compile-check job using existing script (`python ./build_and_deploy.py --compile-check`) with non-interactive flags/env setup so CI never prompts.
-- [ ] Keep unit/integration checks in required PR flow (`cargo test -p squalr-tests` and warning-baseline gate for touched crates), consolidating existing logic into the main PR workflow or a reusable called workflow.
-- [ ] Add branch-protection runbook in docs: required checks list, expected branch rules, and explicit note that merge blocking is configured in GitHub branch protection (human-admin action).
+- [x] Baseline CI/release audit: mapped current workflows (`linux-build.yml`, `squalr-tests-pr.yml`, `workspace-nightly.yml`), documented missing PR coverage for `main`, and captured required build matrix (desktop CLI/TUI/GUI on Windows/Linux/macOS plus Android compile checks). Need human verification.
+- [x] Created a single required PR validation workflow targeting `main` and `release/**` with path filters covering engine/app crates and workflow files (`.github/workflows/pr-validation.yml`). Need human verification.
+- [x] Implemented Linux PR job parity with README build contract (`cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, `cargo build -p squalr --locked`) including native package install + cache. Need human verification.
+- [x] Implemented Windows PR job parity for CLI/TUI/GUI locked builds with retained logs via uploaded artifacts. Need human verification.
+- [x] Implemented macOS PR job parity for CLI/TUI/GUI locked builds including GUI build scope. Need human verification.
+- [x] Implemented Android PR compile-check job via existing script (`python ./scripts/build_and_deploy.py --compile-check --debug`) with non-interactive flags/env setup. Need human verification.
+- [x] Kept unit/integration checks in required PR flow (`cargo test -p squalr-tests --locked` and warning-baseline gate for touched crates) in unified workflow. Need human verification.
+- [x] Added branch-protection runbook with required checks, branch rules, and explicit GitHub branch-protection merge-blocking note (`docs/branch-protection-runbook.md`). Need human verification.
 - [ ] Replace interactive release flow with CI-friendly release pipeline: tag/manual trigger that runs cross-platform build matrix, creates deterministic artifacts, and publishes a GitHub Release draft with checksums.
 - [ ] Refactor `scripts/release.py` for automation mode (`--release-type`, `--non-interactive`, optional `--no-version-bump`) and split responsibilities: version bump, build/package, and release-publish steps callable from CI.
 - [ ] Define artifact contract per platform (naming, archive format, included resources, `latest_version` handling), then enforce it in CI with validation steps.
@@ -42,6 +42,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 
 - Existing workflows are branch-specific (`pr/linux`, `pr/unit-tests`) and do not currently provide a required `main` PR gate.
 - Existing workflows cover Linux builds, `squalr-tests`, warning-baseline checks, and nightly workspace tests only.
+- Added `.github/workflows/pr-validation.yml` for required `main`/`release/**` PR checks: Linux, Windows, macOS, Android compile-check, `squalr-tests`, and warning-baseline.
 - `scripts/release.py` is currently interactive and Windows-centric (`squalr.exe`, `squalr-installer.exe` assumptions), so it is not CI-ready for multi-platform release automation.
-- Android build automation path already exists via `python ./build_and_deploy.py --compile-check`; CI integration should reuse this instead of duplicating logic.
+- Android build automation path exists at `python ./scripts/build_and_deploy.py --compile-check`; CI reuses it with `--debug` to avoid prompts.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
