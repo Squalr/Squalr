@@ -9,7 +9,7 @@ Our current task is to create git workflows to:
     - This needs auditing and a clear strategy.
 
 # Notes from Owner (Readonly Section)
-- Assume any unstaged/uncomitted file changes are from a previous iteration, and can be kept if they look good. Do not ask me about them.
+- Assume any unstaged/uncomitted file changes are from a previous iteration (or if this file, probably the human author giving guidance), and can be kept if they look good. Do not ask me about them.
 - Assume any connected android devices are rooted, and assume MacOS has SIP disabled.
 - You don't get to declare things as fixed. Only "need human verification".
 
@@ -23,9 +23,7 @@ Our current task is to create git workflows to:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: open a PR targeting `main` (or `release/**`) and confirm `pr-validation.yml` required checks all pass on GitHub-hosted runners (Linux, Windows, macOS, Android compile-check, `squalr-tests`, warning-baseline).
-- Need human verification: configure GitHub branch protection for `main` to require the `pr-validation.yml` checks, then confirm merge is blocked when any required check fails.
-- Need human verification: run `release.yml` in both `workflow_dispatch` dry-run mode and tag-triggered mode to verify draft release publication and artifact contract behavior end-to-end.
+- Need human verification: re-run GitHub `pr-validation` and `release` workflows on a PR/tag after pinning Rust toolchains to `nightly-2026-02-07` and confirm the prior `portable_simd` CI failures are resolved.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -38,12 +36,12 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added `docs/release-artifact-contract.md` documenting per-platform artifact names, checksums, and release safety controls.
 - Local validation evidence captured: `python -m py_compile scripts/release.py`, `python scripts/release.py --step build-package ... --dry-run`, and `python scripts/release.py --step release-publish ... --dry-run`.
 - Android build automation path exists at `python ./scripts/build_and_deploy.py --compile-check`; CI reuses it with `--debug` to avoid prompts.
-- Updated `.github/workflows/pr-validation.yml` to use `dtolnay/rust-toolchain@stable` across jobs to avoid nightly regressions in transitive crates (for example `resvg`).
-- Updated `.github/workflows/release.yml` build jobs to use `dtolnay/rust-toolchain@stable`.
+- Updated `.github/workflows/pr-validation.yml` toolchain installs to `dtolnay/rust-toolchain@nightly` with `toolchain: nightly-2026-02-07`.
+- Updated `.github/workflows/release.yml` build jobs to `dtolnay/rust-toolchain@nightly` with `toolchain: nightly-2026-02-07`.
+- Updated `.github/workflows/workspace-nightly.yml` and `.github/workflows/squalr-tests-pr.yml` to the same pinned nightly (`nightly-2026-02-07`) for consistency.
 - Updated `.github/workflows/pr-validation.yml` and `.github/workflows/release.yml` Android jobs to install SDK tools + `ndk;27.0.12077973` and export resolved `ANDROID_HOME` / `ANDROID_SDK_ROOT` / `ANDROID_NDK_ROOT` at runtime.
 - Updated `scripts/build_and_deploy.py` preflight to conditionally require `adb`; compile-check mode now skips `adb` requirement.
 - Local validation evidence captured: `python -m py_compile scripts/build_and_deploy.py`.
 - Merge blocking must be enforced in GitHub branch protection settings after required checks are finalized (human-admin action).
 - Local validation evidence captured (2026-02-23, revalidated): `python -m py_compile scripts/build_and_deploy.py scripts/release.py` and `cargo test -p squalr-tests --locked` (141 tests passed locally across the `squalr-tests` integration suites).
 - Added Python cache ignore rules in `.gitignore` (`__pycache__/`, `*.pyc`) to prevent transient local artifacts from polluting git status.
-- Local validation evidence captured (2026-02-23): workspace override is `nightly-x86_64-pc-windows-msvc` (`rustup show`) and `cargo test -p squalr-tests --locked` continues to pass (141 tests), so the previously logged SIMD lane-count failure is currently not reproducible locally.

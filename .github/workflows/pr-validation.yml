@@ -52,7 +52,9 @@ jobs:
             libxinerama-dev
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -79,7 +81,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -109,7 +113,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -138,8 +144,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly-2026-02-07
           targets: aarch64-linux-android
 
       - name: Cache cargo
@@ -201,7 +208,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
 
       - name: Install Linux native dependencies
         run: |
@@ -234,7 +243,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2026-02-07
 
       - name: Install Linux native dependencies
         run: |
