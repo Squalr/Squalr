@@ -352,11 +352,6 @@ Branch: `pr/pointer-scanning`
 
 Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
 
-### Release Test
-Branch: `pr/release-test`
-
-We need to orchestrate a full attempt at a v1.0.0 release to see how the process goes.
-
 ### Engine Event Hooks
 Branch: `pr/engine-event-hooks`
 
