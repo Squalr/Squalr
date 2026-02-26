@@ -5128,7 +5128,7 @@ dependencies = [
 
 [[package]]
 name = "squalr"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "android-activity",
  "anyhow",
@@ -5153,7 +5153,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-cli"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -5170,7 +5170,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "bincode",
@@ -5201,7 +5201,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-api"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -5227,7 +5227,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-domain"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "log",
  "num-traits",
@@ -5238,7 +5238,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-operating-system"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bitflags 2.10.0",
  "image",
@@ -5261,7 +5261,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-projects"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "log",
@@ -5272,7 +5272,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-scanning"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "bitflags 2.10.0",
  "bytemuck",
@@ -5290,7 +5290,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-engine-session"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "android_logger",
  "anyhow",
@@ -5306,7 +5306,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-installer"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "eframe",
@@ -5319,7 +5319,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-tests"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "crossbeam-channel",
  "squalr-engine",
@@ -5331,7 +5331,7 @@ dependencies = [
 
 [[package]]
 name = "squalr-tui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
