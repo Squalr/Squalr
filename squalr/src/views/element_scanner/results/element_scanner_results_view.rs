@@ -77,6 +77,8 @@ impl Widget for ElementScannerResultsView {
         let mut new_value_splitter_ratio: Option<f32> = None;
         let mut new_previous_value_splitter_ratio: Option<f32> = None;
         let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
+        let mut scan_results_has_keyboard_focus = false;
+        let mut selection_freeze_checkstate = CheckState::False;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
@@ -208,7 +210,7 @@ impl Widget for ElementScannerResultsView {
                 );
 
                 // Assume all false.
-                let mut selection_freeze_checkstate = CheckState::False;
+                selection_freeze_checkstate = CheckState::False;
 
                 // Result entries.
                 ScrollArea::vertical()
@@ -300,6 +302,12 @@ impl Widget for ElementScannerResultsView {
                                 );
                                 let row_response = user_interface.add(entry_widget);
 
+                                if row_response.clicked() || row_response.double_clicked() {
+                                    row_response.request_focus();
+                                }
+
+                                scan_results_has_keyboard_focus |= row_response.has_focus();
+
                                 if rows_min_y.is_none() {
                                     rows_min_y = Some(row_response.rect.min.y);
                                 }
@@ -380,6 +388,10 @@ impl Widget for ElementScannerResultsView {
                     element_scanner_results_view_data.previous_value_splitter_ratio = new_previous_value_splitter_ratio;
                 }
             }
+        }
+
+        if scan_results_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
+            element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(selection_freeze_checkstate);
         }
 
         if element_sanner_result_frame_action != ElementScannerResultFrameAction::None {

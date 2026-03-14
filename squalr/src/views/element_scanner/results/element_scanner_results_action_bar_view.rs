@@ -114,17 +114,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 .add(Checkbox::new_from_theme(theme).with_check_state(self.selection_freeze_checkstate))
                 .clicked()
             {
-                match self.selection_freeze_checkstate {
-                    CheckState::False => {
-                        *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::ToggleFreezeSelection(true);
-                    }
-                    CheckState::Mixed => {
-                        *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::ToggleFreezeSelection(false);
-                    }
-                    CheckState::True => {
-                        *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::ToggleFreezeSelection(false);
-                    }
-                }
+                *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(self.selection_freeze_checkstate);
             }
 
             let y_center = allocated_size_rectangle.center().y - button_size.y * 0.5;
