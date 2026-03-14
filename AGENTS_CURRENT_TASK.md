@@ -24,6 +24,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 
 - `squalr-installer` now defers installation until user clicks `Install Squalr`; startup no longer auto-runs install.
 - Installer UI now pre-fills default install directory but allows editing before install.
+- Windows installer now prompts for Start Menu registration (default on) and desktop shortcut creation (default off) using installer-styled checkboxes; install now syncs per-user `.lnk` shortcuts after payload copy/extract and needs human verification.
 - Installer UI now includes warning-colored text: existing contents of selected install directory are deleted before install (matches `AppInstaller::prepare_install_directory` behavior).
 - PR validation Windows job now compiles `squalr-installer` and uploads `windows-squalr-installer.log`; `build-windows` previously only built CLI/TUI/GUI crates.
 - Installer footer `Launch Squalr` now launches GUI and closes installer window; need human verification.

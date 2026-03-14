@@ -1,6 +1,8 @@
 use crate::app_provisioner::app_provisioner_config::AppProvisionerConfig;
+use crate::app_provisioner::installer::app_shortcut_manager::AppShortcutManager;
 use crate::app_provisioner::installer::install_phase::InstallPhase;
 use crate::app_provisioner::installer::install_progress::InstallProgress;
+use crate::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
 use crate::app_provisioner::operations::download::update_operation_download::UpdateOperationDownload;
 use crate::app_provisioner::operations::extract::update_operation_extract::UpdateOperationExtract;
 use crate::app_provisioner::operations::version_check::version_checker_status::VersionCheckerStatus;
@@ -17,9 +19,10 @@ impl AppInstaller {
 
     pub fn run_installation(
         install_dir: PathBuf,
+        install_shortcut_options: InstallShortcutOptions,
         progress_tracker: ProgressTracker,
     ) {
-        match Self::install_from_local_payload(&install_dir, &progress_tracker) {
+        match Self::install_from_local_payload(&install_dir, &install_shortcut_options, &progress_tracker) {
             Ok(true) => return,
             Ok(false) => {
                 log::info!("Local installer payload not found. Falling back to latest GitHub release download.");
@@ -31,23 +34,24 @@ impl AppInstaller {
         }
 
         let progress_tracker = progress_tracker.clone();
+        let install_shortcut_options = install_shortcut_options.clone();
 
         VersionCheckerTask::run(move |status| {
             if let VersionCheckerStatus::LatestVersionFound(latest_version_info) = status {
                 log::info!("Starting installation...");
 
                 // Find the .zip asset metadata for the latest GitHub release.
-                let Some(expected_bundle_asset_name) =
-                    AppProvisionerConfig::get_release_bundle_asset_name(&latest_version_info.tag_name)
-                else {
+                let Some(expected_bundle_asset_name) = AppProvisionerConfig::get_release_bundle_asset_name(&latest_version_info.tag_name) else {
                     log::error!("Could not resolve platform bundle asset name, installation failed.");
                     return;
                 };
 
                 let maybe_bundle_asset = latest_version_info.assets.as_ref().and_then(|assets| {
-                    assets
-                        .iter()
-                        .find(|release_asset| release_asset.name.eq_ignore_ascii_case(&expected_bundle_asset_name))
+                    assets.iter().find(|release_asset| {
+                        release_asset
+                            .name
+                            .eq_ignore_ascii_case(&expected_bundle_asset_name)
+                    })
                 });
                 let Some(zip_asset) = maybe_bundle_asset else {
                     log::error!(
@@ -125,6 +129,11 @@ impl AppInstaller {
                     return;
                 }
 
+                if let Err(error) = AppShortcutManager::sync_shortcuts(&install_dir, &install_shortcut_options) {
+                    log::error!("Failed to synchronize application shortcuts: {}", error);
+                    return;
+                }
+
                 // Update progress to complete.
                 progress_tracker.update_progress(InstallProgress {
                     phase: InstallPhase::Complete,
@@ -140,6 +149,7 @@ impl AppInstaller {
 
     fn install_from_local_payload(
         install_dir: &Path,
+        install_shortcut_options: &InstallShortcutOptions,
         progress_tracker: &ProgressTracker,
     ) -> std::io::Result<bool> {
         let payload_directory = match Self::resolve_payload_directory() {
@@ -164,6 +174,12 @@ impl AppInstaller {
 
         log::info!("Installing from local payload in {}", payload_directory.display());
         Self::move_payload_files_into_installation_directory(&local_binary_paths, install_dir, progress_tracker)?;
+        if let Err(error) = AppShortcutManager::sync_shortcuts(install_dir, install_shortcut_options) {
+            return Err(std::io::Error::other(format!(
+                "Failed to synchronize application shortcuts after local install: {}",
+                error
+            )));
+        }
         progress_tracker.update_progress(InstallProgress {
             phase: InstallPhase::Complete,
             progress_percent: 1.0,
@@ -311,6 +327,7 @@ impl AppInstaller {
 #[cfg(test)]
 mod tests {
     use super::AppInstaller;
+    use crate::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
     use crate::app_provisioner::progress_tracker::ProgressTracker;
     use std::path::Path;
     use tempfile::TempDir;
@@ -365,5 +382,13 @@ mod tests {
                 .all(|source_binary_path| !source_binary_path.exists())
         );
         Ok(())
+    }
+
+    #[test]
+    fn install_shortcut_options_default_to_start_menu_only() {
+        let install_shortcut_options = InstallShortcutOptions::default();
+
+        assert!(install_shortcut_options.register_start_menu_shortcut);
+        assert!(!install_shortcut_options.create_desktop_shortcut);
     }
 }

@@ -2,6 +2,7 @@ use crate::logging::{MAX_LOG_BUFFER_BYTES, trim_log_buffer};
 use squalr_engine::app_provisioner::app_provisioner_config::AppProvisionerConfig;
 use squalr_engine::app_provisioner::installer::install_phase::InstallPhase;
 use squalr_engine::app_provisioner::installer::install_progress::InstallProgress;
+use squalr_engine::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -14,6 +15,7 @@ pub(crate) struct InstallerUiState {
     pub(crate) install_permission_granted: bool,
     pub(crate) install_configuration_error: Option<String>,
     pub(crate) install_complete: bool,
+    pub(crate) install_shortcut_options: InstallShortcutOptions,
     pub(crate) installer_logs: String,
 }
 
@@ -32,6 +34,7 @@ impl InstallerUiState {
             install_permission_granted: false,
             install_configuration_error: None,
             install_complete: false,
+            install_shortcut_options: InstallShortcutOptions::default(),
             installer_logs: String::new(),
         }
     }
