@@ -29,4 +29,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - PR validation Windows job now compiles `squalr-installer` and uploads `windows-squalr-installer.log`; `build-windows` previously only built CLI/TUI/GUI crates.
 - Installer footer `Launch Squalr` now launches GUI and closes installer window; need human verification.
 - App installer/updater now require platform bundle assets (`squalr-<version>-<os>-<arch>.zip`) and fail if missing; need human verification against live releases.
-- Release packaging writes top-level text manifests (`MANIFEST-<target>.txt`) and keeps version/hash metadata as top-level `.txt` files; need human verification in GitHub release output.
+- Release packaging now omits per-platform manifests, version markers, and per-platform checksum files; GitHub releases should contain the real platform assets plus a single aggregate `SHA256SUMS.txt`; need human verification against live releases.
