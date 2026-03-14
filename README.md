@@ -335,11 +335,6 @@ Branch: `pr/scan-result-deletion`
 
 We need to support deleting specific scan results. The internal data structures for storing scan results are not robust to this operation, so it actually makes more sense to manually track deletions rather than rebuilding all scan result data structures after a delete. Instead, we store deletions and use this information to intelligently skip entries when seeking to scan results by page.
 
-### Draggable Docking Windows
-Branch: `pr/docking`
-
-Our docking system is quite robust, but we currently do not support changing the layout with drag/drop. The operations already exist to reparent and move windows around, so this may not be terribly bad. The tricky parts are the visual updates (ie while dragging something, show a blue sheen over drop targets that indicate where the docked window will insert).
-
 ### Conversion Testing
 Branch: `pr/conversion-testing`
 

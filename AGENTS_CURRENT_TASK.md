@@ -17,21 +17,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification for draggable dock window UX: threshold feel, overlay placement, hover sheen, cursor transitions, and persisted layout updates after drop.
+- 
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- `squalr-installer` now defers installation until user clicks `Install Squalr`; startup no longer auto-runs install.
-- Installer UI now pre-fills default install directory but allows editing before install.
-- Windows installer now prompts for Start Menu registration (default on) and desktop shortcut creation (default off) using installer-styled checkboxes; install now syncs per-user `.lnk` shortcuts after payload copy/extract and needs human verification.
-- Installer UI now includes warning-colored text: existing contents of selected install directory are deleted before install (matches `AppInstaller::prepare_install_directory` behavior).
-- PR validation Windows job now compiles `squalr-installer` and uploads `windows-squalr-installer.log`; `build-windows` previously only built CLI/TUI/GUI crates.
-- Installer footer `Launch Squalr` now launches GUI and closes installer window; need human verification.
-- App installer/updater now require platform bundle assets (`squalr-<version>-<os>-<arch>.zip`) and fail if missing; need human verification against live releases.
-- Release packaging now omits per-platform manifests, version markers, and per-platform checksum files; GitHub releases should contain the real platform assets plus a single aggregate `SHA256SUMS.txt`; need human verification against live releases.
-- Auto updater version checks were pointed at the stale `zcanann/Squalr-Rust` GitHub API endpoint; live releases are currently served from `https://api.github.com/repos/Squalr/Squalr/releases/latest` and `v0.1.2` exposes the expected desktop bundle assets; need human verification from an installed build.
-- Live GitHub release `v0.1.2` only exposes `squalr.apk` for Android because the tag's `scripts/release.py` upload filter only published `.zip/.apk/...` plus legacy manifest/checksum/version-marker files; raw Android support files and the extensionless `squalr-cli` worker were built into `dist/publish` but excluded from `gh release upload`. Current `HEAD` includes these files in the release asset allowlist; need human verification on the next published Android release.
-- Docked window title bars now start a drag/drop docking flow with a 24px activation threshold before overlays appear.
-- Dock root now paints five translucent blue drop zones over each rendered dock target, with preview sheens and `Move`/`NoDrop` cursor updates during drag.
-- Dock drag/drop now commits through existing reparent operations and persists the layout to `docking_settings.json`; need human verification on desktop UI.
+- 
