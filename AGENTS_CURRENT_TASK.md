@@ -30,3 +30,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Installer footer `Launch Squalr` now launches GUI and closes installer window; need human verification.
 - App installer/updater now require platform bundle assets (`squalr-<version>-<os>-<arch>.zip`) and fail if missing; need human verification against live releases.
 - Release packaging now omits per-platform manifests, version markers, and per-platform checksum files; GitHub releases should contain the real platform assets plus a single aggregate `SHA256SUMS.txt`; need human verification against live releases.
+- Auto updater version checks were pointed at the stale `zcanann/Squalr-Rust` GitHub API endpoint; live releases are currently served from `https://api.github.com/repos/Squalr/Squalr/releases/latest` and `v0.1.2` exposes the expected desktop bundle assets; need human verification from an installed build.
