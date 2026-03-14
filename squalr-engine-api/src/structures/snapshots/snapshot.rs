@@ -1,5 +1,5 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::scan_results::scan_result_valued::ScanResultValued;
+use crate::structures::scan_results::{scan_result_data_type_count::ScanResultDataTypeCount, scan_result_valued::ScanResultValued};
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
 
@@ -111,6 +111,31 @@ impl Snapshot {
             .sum()
     }
 
+    /// Gets the surviving result counts for every data type in this snapshot.
+    pub fn get_result_counts_by_data_type(&self) -> Vec<ScanResultDataTypeCount> {
+        let mut result_counts_by_data_type: Vec<ScanResultDataTypeCount> = Vec::new();
+
+        for snapshot_region in &self.snapshot_regions {
+            for region_result_count in snapshot_region
+                .get_scan_results()
+                .get_result_counts_by_data_type()
+            {
+                if let Some(existing_result_count) = result_counts_by_data_type
+                    .iter_mut()
+                    .find(|existing_result_count| existing_result_count.data_type_ref == region_result_count.data_type_ref)
+                {
+                    existing_result_count.result_count = existing_result_count
+                        .result_count
+                        .saturating_add(region_result_count.result_count);
+                } else {
+                    result_counts_by_data_type.push(region_result_count);
+                }
+            }
+        }
+
+        result_counts_by_data_type
+    }
+
     /// Collects a filtered page of scan results in global address-ascending order.
     pub fn get_scan_results_page(
         &self,
@@ -170,6 +195,7 @@ mod tests {
     use crate::structures::memory::memory_alignment::MemoryAlignment;
     use crate::structures::memory::normalized_region::NormalizedRegion;
     use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
+    use crate::structures::scan_results::scan_result_data_type_count::ScanResultDataTypeCount;
     use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
     use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
     use crate::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -235,6 +261,43 @@ mod tests {
                 .get_scan_result_ref()
                 .get_scan_result_global_index(),
             1
+        );
+    }
+
+    #[test]
+    fn get_result_counts_by_data_type_aggregates_across_regions() {
+        let mut snapshot = Snapshot::new();
+        let mut first_snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x100), Vec::new());
+        let mut second_snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x100), Vec::new());
+
+        first_snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![
+            SnapshotRegionFilterCollection::new(
+                vec![vec![SnapshotRegionFilter::new(0x1010, 4)]],
+                DataTypeRef::new("u32"),
+                MemoryAlignment::Alignment1,
+            ),
+            SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1),
+        ]));
+        second_snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![
+            SnapshotRegionFilterCollection::new(
+                vec![vec![SnapshotRegionFilter::new(0x2010, 8)]],
+                DataTypeRef::new("u32"),
+                MemoryAlignment::Alignment4,
+            ),
+            SnapshotRegionFilterCollection::new(
+                vec![vec![SnapshotRegionFilter::new(0x2020, 4)]],
+                DataTypeRef::new("u16"),
+                MemoryAlignment::Alignment2,
+            ),
+        ]));
+        snapshot.set_snapshot_regions(vec![first_snapshot_region, second_snapshot_region]);
+
+        assert_eq!(
+            snapshot.get_result_counts_by_data_type(),
+            vec![
+                ScanResultDataTypeCount::new(DataTypeRef::new("u32"), 3),
+                ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 2),
+            ]
         );
     }
 }

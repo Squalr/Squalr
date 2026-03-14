@@ -2,8 +2,10 @@ use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use crate::structures::{
-    data_types::data_type_ref::DataTypeRef, scan_results::scan_result_valued::ScanResultValued,
-    scanning::filters::snapshot_region_filter::SnapshotRegionFilter, scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
+    data_types::data_type_ref::DataTypeRef,
+    scan_results::{scan_result_data_type_count::ScanResultDataTypeCount, scan_result_valued::ScanResultValued},
+    scanning::filters::snapshot_region_filter::SnapshotRegionFilter,
+    scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
 };
 use std::{
     cmp::{Reverse, max},
@@ -309,6 +311,18 @@ impl SnapshotRegionScanResults {
             .sum()
     }
 
+    /// Gets the surviving result counts for each data type in this region.
+    pub fn get_result_counts_by_data_type(&self) -> Vec<ScanResultDataTypeCount> {
+        self.snapshot_region_filter_collections
+            .iter()
+            .filter_map(|collection| {
+                let result_count = collection.get_number_of_results();
+
+                (result_count > 0).then(|| ScanResultDataTypeCount::new(collection.get_data_type_ref().clone(), result_count))
+            })
+            .collect()
+    }
+
     /// Gets the collections of snapshot filters contained by this snapshot region. Generally one collection per data type scanned.
     pub fn get_filter_collections(&self) -> &Vec<SnapshotRegionFilterCollection> {
         &self.snapshot_region_filter_collections
@@ -358,6 +372,7 @@ mod tests {
     use crate::structures::data_types::data_type_ref::DataTypeRef;
     use crate::structures::memory::memory_alignment::MemoryAlignment;
     use crate::structures::memory::normalized_region::NormalizedRegion;
+    use crate::structures::scan_results::scan_result_data_type_count::ScanResultDataTypeCount;
     use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
     use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
     use crate::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -441,5 +456,21 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(scan_result_global_indices, vec![101, 102]);
+    }
+
+    #[test]
+    fn get_result_counts_by_data_type_skips_zero_result_collections() {
+        let zero_result_collection = SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+        let populated_collection = SnapshotRegionFilterCollection::new(
+            vec![vec![SnapshotRegionFilter::new(0x1000, 6)]],
+            DataTypeRef::new("u16"),
+            MemoryAlignment::Alignment2,
+        );
+        let scan_results = SnapshotRegionScanResults::new(vec![zero_result_collection, populated_collection]);
+
+        assert_eq!(
+            scan_results.get_result_counts_by_data_type(),
+            vec![ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 3)]
+        );
     }
 }

@@ -39,6 +39,9 @@ pub struct DataTypeSelectorView<'lifetime> {
     width: f32,
     height: f32,
     label_mode: DataTypeSelectorLabelMode,
+    available_data_types: Option<Vec<DataTypeRef>>,
+    selectable_data_type_column_count: usize,
+    show_placeholder_entries: bool,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
@@ -74,6 +77,9 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             width: 160.0,
             height: 28.0,
             label_mode: DataTypeSelectorLabelMode::Text,
+            available_data_types: None,
+            selectable_data_type_column_count: Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT,
+            show_placeholder_entries: true,
         }
     }
 
@@ -103,6 +109,24 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
     pub fn icon_only_label(mut self) -> Self {
         self.label_mode = DataTypeSelectorLabelMode::IconOnly;
+        self
+    }
+
+    pub fn available_data_types(
+        mut self,
+        available_data_types: Vec<DataTypeRef>,
+    ) -> Self {
+        self.available_data_types = Some(available_data_types);
+        self
+    }
+
+    pub fn stacked_list(mut self) -> Self {
+        self.selectable_data_type_column_count = 1;
+        self
+    }
+
+    pub fn hide_placeholder_entries(mut self) -> Self {
+        self.show_placeholder_entries = false;
         self
     }
 
@@ -148,9 +172,9 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         Id::new(("data_type_selector_drag_selection_state", menu_id))
     }
 
-    fn selectable_popup_width() -> f32 {
-        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH * Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT as f32
-            + Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING * (Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT.saturating_sub(1) as f32)
+    fn selectable_popup_width(selectable_data_type_column_count: usize) -> f32 {
+        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH * selectable_data_type_column_count as f32
+            + Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING * (selectable_data_type_column_count.saturating_sub(1) as f32)
     }
 
     fn selectable_data_type_grid_id(menu_id: &str) -> Id {
@@ -247,6 +271,36 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             ),
         }
     }
+
+    fn default_selectable_data_types() -> Vec<DataTypeRef> {
+        Self::SELECTABLE_DATA_TYPE_ROWS
+            .iter()
+            .flatten()
+            .map(|data_type_id| DataTypeRef::new(data_type_id))
+            .collect()
+    }
+
+    fn ordered_selectable_data_types(available_data_types: Option<&[DataTypeRef]>) -> Vec<DataTypeRef> {
+        let default_selectable_data_types = Self::default_selectable_data_types();
+
+        let Some(available_data_types) = available_data_types else {
+            return default_selectable_data_types;
+        };
+
+        let mut ordered_selectable_data_types = default_selectable_data_types
+            .iter()
+            .filter(|default_selectable_data_type| available_data_types.contains(default_selectable_data_type))
+            .cloned()
+            .collect::<Vec<_>>();
+
+        for available_data_type in available_data_types {
+            if !ordered_selectable_data_types.contains(available_data_type) {
+                ordered_selectable_data_types.push(available_data_type.clone());
+            }
+        }
+
+        ordered_selectable_data_types
+    }
 }
 
 impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
@@ -261,16 +315,27 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let width = self.width;
         let height = self.height;
         let label_mode = self.label_mode;
-        let popup_width = Self::selectable_popup_width();
+        let available_data_types = self.available_data_types;
+        let selectable_data_type_column_count = self.selectable_data_type_column_count.max(1);
+        let show_placeholder_entries = self.show_placeholder_entries;
+        let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
-        let combo_icon = DataTypeToIconConverter::convert_data_type_to_icon(combo_data_type_id, &app_context.theme.icon_library);
+        let combo_icon = if data_type_selection.selected_data_type_count() == 0 {
+            None
+        } else {
+            Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                combo_data_type_id,
+                &app_context.theme.icon_library,
+            ))
+        };
         let combo_label = Self::combo_label(data_type_selection, label_mode);
+        let selectable_data_types = Self::ordered_selectable_data_types(available_data_types.as_deref());
 
         let combo_box = ComboBoxView::new(
             app_context.clone(),
             combo_label,
             menu_id,
-            Some(combo_icon),
+            combo_icon,
             move |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 Self::reset_drag_state_if_needed(popup_user_interface, menu_id);
                 popup_user_interface.set_min_width(popup_width);
@@ -280,57 +345,68 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
                         .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
                         .show(user_interface, |user_interface| {
-                            for data_type_row in Self::SELECTABLE_DATA_TYPE_ROWS {
-                                for data_type_id in data_type_row {
-                                    let data_type_ref = DataTypeRef::new(data_type_id);
-                                    let data_type_item_response = user_interface.add(
-                                        DataTypeItemView::new(
-                                            app_context.clone(),
-                                            DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
-                                            Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                                data_type_id,
-                                                &app_context.theme.icon_library,
-                                            )),
-                                            Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
-                                        )
-                                        .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref))),
-                                    );
+                            for (data_type_index, data_type_ref) in selectable_data_types.iter().enumerate() {
+                                let data_type_item_response = user_interface.add(
+                                    DataTypeItemView::new(
+                                        app_context.clone(),
+                                        DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id()),
+                                        Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                            data_type_ref.get_data_type_id(),
+                                            &app_context.theme.icon_library,
+                                        )),
+                                        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
+                                    )
+                                    .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(data_type_ref))),
+                                );
 
-                                    Self::handle_selectable_data_type_interaction(
-                                        user_interface,
-                                        menu_id,
-                                        data_type_selection,
-                                        data_type_ref,
-                                        &data_type_item_response,
-                                    );
+                                Self::handle_selectable_data_type_interaction(
+                                    user_interface,
+                                    menu_id,
+                                    data_type_selection,
+                                    data_type_ref.clone(),
+                                    &data_type_item_response,
+                                );
+
+                                if (data_type_index + 1) % selectable_data_type_column_count == 0 {
+                                    user_interface.end_row();
                                 }
+                            }
 
+                            if !selectable_data_types.is_empty() && selectable_data_types.len() % selectable_data_type_column_count != 0 {
                                 user_interface.end_row();
                             }
                         });
 
-                    user_interface.separator();
-                    Grid::new(Self::placeholder_data_type_grid_id(menu_id))
-                        .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
-                        .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
-                        .show(user_interface, |user_interface| {
-                            for placeholder_data_type_entry in Self::PLACEHOLDER_DATA_TYPE_ROW {
-                                let (label, icon) = Self::placeholder_entry(&app_context, placeholder_data_type_entry);
-                                if user_interface
-                                    .add(DataTypeItemView::new(
-                                        app_context.clone(),
-                                        label,
-                                        Some(icon),
-                                        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
-                                    ))
-                                    .clicked()
-                                {
-                                    *should_close = true;
-                                }
-                            }
+                    if show_placeholder_entries {
+                        user_interface.separator();
+                        Grid::new(Self::placeholder_data_type_grid_id(menu_id))
+                            .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
+                            .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
+                            .show(user_interface, |user_interface| {
+                                for (placeholder_index, placeholder_data_type_entry) in Self::PLACEHOLDER_DATA_TYPE_ROW.iter().enumerate() {
+                                    let (label, icon) = Self::placeholder_entry(&app_context, *placeholder_data_type_entry);
+                                    if user_interface
+                                        .add(DataTypeItemView::new(
+                                            app_context.clone(),
+                                            label,
+                                            Some(icon),
+                                            Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
+                                        ))
+                                        .clicked()
+                                    {
+                                        *should_close = true;
+                                    }
 
-                            user_interface.end_row();
-                        });
+                                    if (placeholder_index + 1) % selectable_data_type_column_count == 0 {
+                                        user_interface.end_row();
+                                    }
+                                }
+
+                                if Self::PLACEHOLDER_DATA_TYPE_ROW.len() % selectable_data_type_column_count != 0 {
+                                    user_interface.end_row();
+                                }
+                            });
+                    }
                 });
             },
         )
@@ -373,6 +449,22 @@ mod tests {
 
     #[test]
     fn selectable_popup_width_accounts_for_two_columns_and_spacing() {
-        assert_eq!(DataTypeSelectorView::selectable_popup_width(), 248.0);
+        assert_eq!(DataTypeSelectorView::selectable_popup_width(2), 248.0);
+    }
+
+    #[test]
+    fn ordered_selectable_data_types_preserves_builtin_order_for_filtered_types() {
+        assert_eq!(
+            DataTypeSelectorView::ordered_selectable_data_types(Some(&[
+                DataTypeRef::new("u32"),
+                DataTypeRef::new("i8"),
+                DataTypeRef::new("u16")
+            ])),
+            vec![
+                DataTypeRef::new("i8"),
+                DataTypeRef::new("u16"),
+                DataTypeRef::new("u32"),
+            ]
+        );
     }
 }

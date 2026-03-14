@@ -80,7 +80,7 @@ impl Widget for ElementScannerResultsView {
         const BAR_THICKNESS: f32 = 4.0;
         const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 80.0;
         const MINIMUM_SPLITTER_PIXEL_GAP: f32 = 40.0;
-        const DATA_TYPE_COLUMN_PIXEL_WIDTH: f32 = 64.0;
+        const DATA_TYPE_COLUMN_PIXEL_WIDTH: f32 = 128.0;
 
         let theme = &self.app_context.theme;
         let mut new_value_splitter_ratio: Option<f32> = None;
@@ -209,6 +209,7 @@ impl Widget for ElementScannerResultsView {
                     let previous_data_type_filter_selection = element_scanner_results_view_data
                         .data_type_filter_selection
                         .clone();
+                    let available_data_types = element_scanner_results_view_data.available_data_types.clone();
 
                     user_interface.put(
                         data_type_filter_combo_rectangle,
@@ -219,7 +220,9 @@ impl Widget for ElementScannerResultsView {
                         )
                         .width(data_type_filter_combo_rectangle.width())
                         .height(data_type_filter_combo_rectangle.height())
-                        .icon_only_label(),
+                        .available_data_types(available_data_types)
+                        .stacked_list()
+                        .hide_placeholder_entries(),
                     );
 
                     did_change_data_type_filters = element_scanner_results_view_data.data_type_filter_selection != previous_data_type_filter_selection;

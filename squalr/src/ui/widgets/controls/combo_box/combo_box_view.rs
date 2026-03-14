@@ -118,6 +118,11 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             },
             allocated_size_rectangle.center().y - galley.size().y * 0.5,
         );
+        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
+        let label_clip_rectangle = Rect::from_min_max(
+            pos2(text_pos.x, allocated_size_rectangle.min.y + self.border_width),
+            pos2((divider_x - self.label_spacing).max(text_pos.x), allocated_size_rectangle.max.y),
+        );
 
         // Draw base background.
         user_interface
@@ -151,10 +156,12 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             );
         }
         // Draw text next to icon.
-        user_interface.painter().galley(text_pos, galley, text_color);
+        user_interface
+            .painter()
+            .with_clip_rect(label_clip_rectangle)
+            .galley(text_pos, galley, text_color);
 
         // Divider bar before right arrow.
-        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
         let divider_rectangle = Rect::from_min_max(
             pos2(divider_x, allocated_size_rectangle.min.y + self.border_width),
             pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),

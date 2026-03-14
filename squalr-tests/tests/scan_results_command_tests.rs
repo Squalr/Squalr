@@ -62,6 +62,7 @@ fn scan_results_list_request_dispatches_list_command_and_invokes_typed_callback(
     let bindings = MockEngineBindings::new(
         ScanResultsListResponse {
             scan_results: vec![],
+            data_type_result_counts: vec![],
             page_index: 4,
             last_page_index: 12,
             page_size: 22,
@@ -165,6 +166,7 @@ fn scan_results_query_request_dispatches_query_command_and_invokes_typed_callbac
     let bindings = MockEngineBindings::new(
         ScanResultsQueryResponse {
             scan_results: vec![],
+            data_type_result_counts: vec![],
             page_index: 3,
             last_page_index: 8,
             page_size: 20,

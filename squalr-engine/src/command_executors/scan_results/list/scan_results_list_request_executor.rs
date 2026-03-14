@@ -18,6 +18,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
         let symbol_registry = SymbolRegistry::get_instance();
         let results_page_size = (ScanSettingsConfig::get_results_page_size() as u64).max(1);
         let mut scan_results_list = vec![];
+        let mut data_type_result_counts = vec![];
         let mut last_page_index = 0;
         let mut result_count = 0;
         let mut total_size_in_bytes = 0;
@@ -35,6 +36,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
         };
 
         if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
+            data_type_result_counts = snapshot.get_result_counts_by_data_type();
             result_count = snapshot.get_number_of_results_for_data_types(self.data_type_filters.as_deref());
             last_page_index = result_count.saturating_sub(1) / results_page_size;
             total_size_in_bytes = snapshot.get_byte_count();
@@ -100,6 +102,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
 
         ScanResultsListResponse {
             scan_results: scan_results_list,
+            data_type_result_counts,
             page_index: effective_page_index,
             page_size: results_page_size,
             last_page_index,

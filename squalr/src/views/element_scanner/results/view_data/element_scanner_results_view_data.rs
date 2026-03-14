@@ -44,6 +44,7 @@ pub struct ElementScannerResultsViewData {
     pub previous_value_splitter_ratio: f32,
     pub current_scan_results: Vec<ScanResult>,
     pub data_type_filter_selection: DataTypeSelection,
+    pub available_data_types: Vec<DataTypeRef>,
     pub current_page_index: u64,
     pub cached_last_page_index: u64,
     pub selection_index_start: Option<i32>,
@@ -73,6 +74,7 @@ impl ElementScannerResultsViewData {
             previous_value_splitter_ratio: Self::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO,
             current_scan_results: Vec::new(),
             data_type_filter_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
+            available_data_types: vec![DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)],
             current_page_index: 0,
             cached_last_page_index: 0,
             selection_index_start: None,
@@ -283,18 +285,39 @@ impl ElementScannerResultsViewData {
         drop(element_scanner_results_view_data);
 
         let element_scanner_results_view_data_for_response = element_scanner_results_view_data_clone.clone();
+        let engine_unprivileged_state_for_response = engine_unprivileged_state.clone();
         let did_dispatch = scan_results_query_request.send(&engine_unprivileged_state, move |scan_results_query_response| {
             // let audio_player = &self.audio_player;
             let byte_size_in_metric = StorageSizeConversions::value_to_metric_size(scan_results_query_response.total_size_in_bytes as u128);
             let result_count = scan_results_query_response.result_count;
+            let available_data_types = scan_results_query_response
+                .data_type_result_counts
+                .iter()
+                .filter(|data_type_result_count| data_type_result_count.result_count > 0)
+                .map(|data_type_result_count| data_type_result_count.data_type_ref.clone())
+                .collect::<Vec<_>>();
+            let mut should_requery_scan_results = false;
 
             if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_for_response.write("Query scan results response") {
                 element_scanner_results_view_data.is_querying_scan_results = false;
+                element_scanner_results_view_data.available_data_types = available_data_types.clone();
                 element_scanner_results_view_data.current_page_index = scan_results_query_response.page_index;
                 element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
                 element_scanner_results_view_data.result_count = result_count;
                 element_scanner_results_view_data.stats_string = format!("{} (Count: {})", byte_size_in_metric, result_count);
                 element_scanner_results_view_data.current_scan_results = scan_results_query_response.scan_results;
+                should_requery_scan_results = Self::synchronize_data_type_filter_selection_with_available_data_types(
+                    &mut element_scanner_results_view_data.data_type_filter_selection,
+                    &available_data_types,
+                );
+            }
+
+            if should_requery_scan_results {
+                Self::query_scan_results_for_active_data_type_filters(
+                    element_scanner_results_view_data_for_response.clone(),
+                    engine_unprivileged_state_for_response.clone(),
+                );
+                return;
             }
 
             if play_sound {
@@ -311,6 +334,36 @@ impl ElementScannerResultsViewData {
                 element_scanner_results_view_data.is_querying_scan_results = false;
             }
         }
+    }
+
+    fn synchronize_data_type_filter_selection_with_available_data_types(
+        data_type_filter_selection: &mut DataTypeSelection,
+        available_data_types: &[DataTypeRef],
+    ) -> bool {
+        let selected_data_types = data_type_filter_selection.selected_data_types().to_vec();
+        let retained_selected_data_types = selected_data_types
+            .iter()
+            .filter(|selected_data_type| available_data_types.contains(selected_data_type))
+            .cloned()
+            .collect::<Vec<_>>();
+        let did_prune_unavailable_selected_data_types = retained_selected_data_types.len() != selected_data_types.len();
+        let replacement_selected_data_types = if retained_selected_data_types.is_empty()
+            && !selected_data_types.is_empty()
+            && did_prune_unavailable_selected_data_types
+            && !available_data_types.is_empty()
+        {
+            available_data_types.to_vec()
+        } else {
+            retained_selected_data_types
+        };
+
+        if replacement_selected_data_types == selected_data_types {
+            return false;
+        }
+
+        data_type_filter_selection.replace_selected_data_types(replacement_selected_data_types);
+
+        true
     }
 
     fn sync_scan_settings_if_needed(
@@ -387,14 +440,18 @@ impl ElementScannerResultsViewData {
         let Some(scan_data_type_selection) = scan_data_type_selection else {
             return;
         };
+        let scan_selected_data_types = scan_data_type_selection.selected_data_types().to_vec();
 
         if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Apply scan results data type filters from scan selection")
         {
-            if element_scanner_results_view_data.data_type_filter_selection == scan_data_type_selection {
+            if element_scanner_results_view_data.data_type_filter_selection == scan_data_type_selection
+                && element_scanner_results_view_data.available_data_types == scan_selected_data_types
+            {
                 return;
             }
 
             element_scanner_results_view_data.data_type_filter_selection = scan_data_type_selection;
+            element_scanner_results_view_data.available_data_types = scan_selected_data_types;
             element_scanner_results_view_data.current_page_index = 0;
             element_scanner_results_view_data.selection_index_start = None;
             element_scanner_results_view_data.selection_index_end = None;
@@ -883,6 +940,7 @@ impl ElementScannerResultsViewData {
 #[cfg(test)]
 mod tests {
     use super::ElementScannerResultsViewData;
+    use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
@@ -965,5 +1023,51 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(selected_scan_result_global_indices, vec![12]);
+    }
+
+    #[test]
+    fn synchronize_data_type_filter_selection_prunes_eliminated_types() {
+        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_filter_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        let did_change_selection = ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(
+            &mut data_type_filter_selection,
+            &[DataTypeRef::new("u32")],
+        );
+
+        assert!(did_change_selection);
+        assert_eq!(data_type_filter_selection.selected_data_types(), &[DataTypeRef::new("u32")]);
+        assert_eq!(data_type_filter_selection.visible_data_type(), &DataTypeRef::new("u32"));
+    }
+
+    #[test]
+    fn synchronize_data_type_filter_selection_restores_available_types_when_selection_was_eliminated() {
+        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+
+        let did_change_selection = ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(
+            &mut data_type_filter_selection,
+            &[DataTypeRef::new("u32"), DataTypeRef::new("u16")],
+        );
+
+        assert!(did_change_selection);
+        assert_eq!(
+            data_type_filter_selection.selected_data_types(),
+            &[DataTypeRef::new("u32"), DataTypeRef::new("u16")]
+        );
+        assert_eq!(data_type_filter_selection.visible_data_type(), &DataTypeRef::new("u32"));
+    }
+
+    #[test]
+    fn synchronize_data_type_filter_selection_preserves_intentional_empty_selection() {
+        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_filter_selection.replace_selected_data_types(Vec::new());
+
+        let did_change_selection = ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(
+            &mut data_type_filter_selection,
+            &[DataTypeRef::new("u32")],
+        );
+
+        assert!(!did_change_selection);
+        assert!(data_type_filter_selection.selected_data_types().is_empty());
     }
 }

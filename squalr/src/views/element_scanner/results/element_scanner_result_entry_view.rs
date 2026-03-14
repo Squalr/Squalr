@@ -1,5 +1,6 @@
 use crate::{
     app_context::AppContext,
+    ui::converters::data_type_to_string_converter::DataTypeToStringConverter,
     ui::widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
     views::element_scanner::results::view_data::element_scanner_result_frame_action::ElementScannerResultFrameAction,
 };
@@ -143,14 +144,16 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         let row_center_y = allocated_size_rectangle.center().y;
         let icon_size = vec2(16.0, 16.0);
         let data_type_ref = self.scan_result.get_data_type_ref();
+        let data_type_label = DataTypeToStringConverter::convert_data_type_to_string(data_type_ref.get_data_type_id());
         let icon_handle = crate::ui::converters::data_type_to_icon_converter::DataTypeToIconConverter::convert_data_type_to_icon(
             data_type_ref.get_data_type_id(),
             &theme.icon_library,
         );
-        let data_type_icon_rectangle = Rect::from_center_size(
-            pos2((self.data_type_splitter_position_x + self.address_splitter_position_x) * 0.5, row_center_y),
+        let data_type_icon_rectangle = Rect::from_min_size(
+            pos2(self.data_type_splitter_position_x + text_left_padding, row_center_y - icon_size.y * 0.5),
             icon_size,
         );
+        let data_type_text_position = pos2(data_type_icon_rectangle.max.x + text_left_padding, row_center_y);
         let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
         let address = self.scan_result.get_address();
         let address_string = if self.scan_result.is_module() {
@@ -166,6 +169,14 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             data_type_icon_rectangle,
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             Color32::WHITE,
+        );
+
+        user_interface.painter().text(
+            data_type_text_position,
+            Align2::LEFT_CENTER,
+            data_type_label,
+            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+            theme.foreground,
         );
 
         user_interface.painter().text(
