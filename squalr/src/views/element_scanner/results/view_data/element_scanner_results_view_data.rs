@@ -62,8 +62,8 @@ pub struct ElementScannerResultsViewData {
 }
 
 impl ElementScannerResultsViewData {
-    pub const DEFAULT_VALUE_SPLITTER_RATIO: f32 = 0.35;
     pub const DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO: f32 = 0.70;
+    pub const DEFAULT_VALUE_SPLITTER_RATIO: f32 = Self::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO - (1.0 - Self::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO);
     pub const MIN_RESULTS_READ_INTERVAL_MS: u64 = 50;
     pub const MAX_RESULTS_READ_INTERVAL_MS: u64 = 5_000;
     pub const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
@@ -1069,5 +1069,14 @@ mod tests {
 
         assert!(!did_change_selection);
         assert!(data_type_filter_selection.selected_data_types().is_empty());
+    }
+
+    #[test]
+    fn default_value_and_previous_value_columns_have_equal_width() {
+        let default_value_column_ratio =
+            ElementScannerResultsViewData::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO - ElementScannerResultsViewData::DEFAULT_VALUE_SPLITTER_RATIO;
+        let default_previous_value_column_ratio = 1.0 - ElementScannerResultsViewData::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO;
+
+        assert!((default_value_column_ratio - default_previous_value_column_ratio).abs() < 1e-6);
     }
 }

@@ -154,7 +154,21 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             icon_size,
         );
         let data_type_text_position = pos2(data_type_icon_rectangle.max.x + text_left_padding, row_center_y);
+        let data_type_text_clip_rectangle = Rect::from_min_max(
+            pos2(data_type_text_position.x, allocated_size_rectangle.min.y),
+            pos2(
+                (self.address_splitter_position_x - text_left_padding).max(data_type_text_position.x),
+                allocated_size_rectangle.max.y,
+            ),
+        );
         let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
+        let address_text_clip_rectangle = Rect::from_min_max(
+            pos2(address_text_position.x, allocated_size_rectangle.min.y),
+            pos2(
+                (self.value_splitter_position_x - text_left_padding).max(address_text_position.x),
+                allocated_size_rectangle.max.y,
+            ),
+        );
         let address = self.scan_result.get_address();
         let address_string = if self.scan_result.is_module() {
             format!("{}+{:X}", self.scan_result.get_module(), self.scan_result.get_module_offset())
@@ -171,24 +185,37 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             Color32::WHITE,
         );
 
-        user_interface.painter().text(
-            data_type_text_position,
-            Align2::LEFT_CENTER,
-            data_type_label,
-            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-            theme.foreground,
-        );
+        user_interface
+            .painter()
+            .with_clip_rect(data_type_text_clip_rectangle)
+            .text(
+                data_type_text_position,
+                Align2::LEFT_CENTER,
+                data_type_label,
+                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                theme.foreground,
+            );
 
-        user_interface.painter().text(
-            address_text_position,
-            Align2::LEFT_CENTER,
-            address_string,
-            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-            theme.hexadecimal_green,
-        );
+        user_interface
+            .painter()
+            .with_clip_rect(address_text_clip_rectangle)
+            .text(
+                address_text_position,
+                Align2::LEFT_CENTER,
+                address_string,
+                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                theme.hexadecimal_green,
+            );
 
         // Value.
         let current_value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
+        let current_value_text_clip_rectangle = Rect::from_min_max(
+            pos2(current_value_text_position.x, allocated_size_rectangle.min.y),
+            pos2(
+                (self.previous_value_splitter_position_x - text_left_padding).max(current_value_text_position.x),
+                allocated_size_rectangle.max.y,
+            ),
+        );
         let current_value_string = self
             .scan_result
             .get_recently_read_display_value_resolved(self.active_display_format)
@@ -209,16 +236,26 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             })
             .unwrap_or_else(|| "??".to_string());
 
-        user_interface.painter().text(
-            current_value_text_position,
-            Align2::LEFT_CENTER,
-            current_value_string,
-            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-            theme.foreground,
-        );
+        user_interface
+            .painter()
+            .with_clip_rect(current_value_text_clip_rectangle)
+            .text(
+                current_value_text_position,
+                Align2::LEFT_CENTER,
+                current_value_string,
+                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                theme.foreground,
+            );
 
         // Previous value.
         let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
+        let previous_value_text_clip_rectangle = Rect::from_min_max(
+            pos2(previous_value_text_position.x, allocated_size_rectangle.min.y),
+            pos2(
+                (allocated_size_rectangle.max.x - text_left_padding).max(previous_value_text_position.x),
+                allocated_size_rectangle.max.y,
+            ),
+        );
         let previous_value_string = match self
             .scan_result
             .get_previous_display_value(self.active_display_format)
@@ -227,13 +264,16 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             None => "??",
         };
 
-        user_interface.painter().text(
-            previous_value_text_position,
-            Align2::LEFT_CENTER,
-            previous_value_string,
-            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-            theme.foreground,
-        );
+        user_interface
+            .painter()
+            .with_clip_rect(previous_value_text_clip_rectangle)
+            .text(
+                previous_value_text_position,
+                Align2::LEFT_CENTER,
+                previous_value_string,
+                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                theme.foreground,
+            );
 
         response
     }

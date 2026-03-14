@@ -42,6 +42,7 @@ pub struct DataTypeSelectorView<'lifetime> {
     available_data_types: Option<Vec<DataTypeRef>>,
     selectable_data_type_column_count: usize,
     show_placeholder_entries: bool,
+    show_preview_text: bool,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
@@ -80,6 +81,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             available_data_types: None,
             selectable_data_type_column_count: Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT,
             show_placeholder_entries: true,
+            show_preview_text: true,
         }
     }
 
@@ -130,6 +132,11 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         self
     }
 
+    pub fn hide_preview_text(mut self) -> Self {
+        self.show_preview_text = false;
+        self
+    }
+
     pub fn close(
         &self,
         user_interface: &mut Ui,
@@ -144,7 +151,12 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
     fn combo_label(
         data_type_selection: &DataTypeSelection,
         label_mode: DataTypeSelectorLabelMode,
+        show_preview_text: bool,
     ) -> String {
+        if !show_preview_text {
+            return String::new();
+        }
+
         match label_mode {
             DataTypeSelectorLabelMode::Text => {
                 let visible_data_type_label =
@@ -318,6 +330,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let available_data_types = self.available_data_types;
         let selectable_data_type_column_count = self.selectable_data_type_column_count.max(1);
         let show_placeholder_entries = self.show_placeholder_entries;
+        let show_preview_text = self.show_preview_text;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
         let combo_icon = if data_type_selection.selected_data_type_count() == 0 {
@@ -328,7 +341,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                 &app_context.theme.icon_library,
             ))
         };
-        let combo_label = Self::combo_label(data_type_selection, label_mode);
+        let combo_label = Self::combo_label(data_type_selection, label_mode, show_preview_text);
         let selectable_data_types = Self::ordered_selectable_data_types(available_data_types.as_deref());
 
         let combo_box = ComboBoxView::new(
@@ -431,7 +444,7 @@ mod tests {
         data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
 
         assert_eq!(
-            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::Text),
+            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::Text, true),
             "u32 +1"
         );
     }
@@ -442,8 +455,19 @@ mod tests {
         data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
 
         assert_eq!(
-            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::IconOnly),
+            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::IconOnly, true),
             "+1"
+        );
+    }
+
+    #[test]
+    fn hidden_preview_text_returns_empty_label() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        assert_eq!(
+            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::Text, false),
+            String::new()
         );
     }
 
