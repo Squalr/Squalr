@@ -2,6 +2,7 @@ use crate::ui_state::InstallerUiState;
 use eframe::egui::Context;
 use squalr_engine::app_provisioner::installer::app_installer::AppInstaller;
 use squalr_engine::app_provisioner::installer::install_phase::InstallPhase;
+use squalr_engine::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
 use squalr_engine::app_provisioner::operations::launch::update_operation_launch::UpdateOperationLaunch;
 use squalr_engine::app_provisioner::progress_tracker::ProgressTracker;
 use std::path::PathBuf;
@@ -35,6 +36,7 @@ pub(crate) fn start_installer(
     ui_state: Arc<Mutex<InstallerUiState>>,
     repaint_context: Context,
     install_directory: PathBuf,
+    install_shortcut_options: InstallShortcutOptions,
 ) {
     let progress_tracker = ProgressTracker::new();
     let progress_receiver = progress_tracker.subscribe();
@@ -50,5 +52,7 @@ pub(crate) fn start_installer(
         }
     });
 
-    AppInstaller::run_installation(install_directory, progress_tracker);
+    thread::spawn(move || {
+        AppInstaller::run_installation(install_directory, install_shortcut_options, progress_tracker);
+    });
 }

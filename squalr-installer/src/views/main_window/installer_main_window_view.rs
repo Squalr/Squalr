@@ -5,6 +5,7 @@ use crate::ui_state::InstallerUiState;
 use crate::views::main_window::installer_footer_view::InstallerFooterView;
 use crate::views::main_window::installer_log_view::InstallerLogView;
 use crate::views::main_window::installer_title_bar_view::InstallerTitleBarView;
+use crate::widgets::installer_checkbox::InstallerCheckbox;
 use eframe::egui::{Align, Frame, Layout, Margin, RichText, Stroke, TextEdit, Ui};
 
 #[derive(Clone)]
@@ -102,7 +103,7 @@ impl InstallerMainWindowView {
                                             .color(self.installer_theme.color_foreground),
                                     );
                                     user_interface.label(
-                                        RichText::new("Choose an installation directory, then confirm installation.")
+                                        RichText::new("Choose an installation directory and installer options, then confirm installation.")
                                             .font(self.installer_theme.fonts.font_normal.clone())
                                             .color(self.installer_theme.color_foreground_preview),
                                     );
@@ -116,6 +117,26 @@ impl InstallerMainWindowView {
                                         .hint_text("C:\\Users\\<user>\\AppData\\Local\\Programs\\Squalr");
                                     user_interface.add(install_directory_editor);
 
+                                    user_interface.add_space(8.0);
+                                    user_interface.label(
+                                        RichText::new("Installer options")
+                                            .font(self.installer_theme.fonts.font_normal.clone())
+                                            .color(self.installer_theme.color_foreground),
+                                    );
+                                    user_interface.add(InstallerCheckbox::new(
+                                        self.installer_theme.clone(),
+                                        "Register Squalr in Start Menu",
+                                        &mut installer_state
+                                            .install_shortcut_options
+                                            .register_start_menu_shortcut,
+                                    ));
+                                    user_interface.add(InstallerCheckbox::new(
+                                        self.installer_theme.clone(),
+                                        "Create desktop shortcut",
+                                        &mut installer_state.install_shortcut_options.create_desktop_shortcut,
+                                    ));
+
+                                    user_interface.add_space(8.0);
                                     user_interface.label(
                                         RichText::new("Warning: Existing contents in the selected installation directory will be deleted before install.")
                                             .font(self.installer_theme.fonts.font_normal.clone())

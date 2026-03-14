@@ -5,6 +5,7 @@ use crate::app_provisioner::operations::version_check::version_checker_status::V
 use anyhow::{Context, Result};
 use squalr_engine_api::structures::tasks::trackable_task::TrackableTask;
 use std::sync::Arc;
+use ureq::Error as UreqError;
 
 pub struct VersionCheckerTask {}
 
@@ -62,11 +63,25 @@ impl VersionCheckerTask {
 
     fn check_for_updates() -> Result<Option<GitHubReleaseInfo>> {
         let agent = AppProvisionerHttpClient::create_agent();
-        let response = agent
+        let response = match agent
             .get(AppProvisionerConfig::get_latest_version_url())
             .header("User-Agent", "squalr-rust-updater")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
             .call()
-            .context("Failed to send GitHub latest release request")?;
+        {
+            Ok(response) => response,
+            Err(UreqError::StatusCode(status_code)) => {
+                anyhow::bail!(
+                    "GitHub latest release request failed with HTTP status {} for {}",
+                    status_code,
+                    AppProvisionerConfig::get_latest_version_url()
+                );
+            }
+            Err(error) => {
+                return Err(error).context("Failed to send GitHub latest release request");
+            }
+        };
         let body = response
             .into_body()
             .read_to_string()

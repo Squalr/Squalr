@@ -6,6 +6,7 @@ use crate::views::main_window::installer_main_window_view::InstallerMainWindowVi
 use eframe::egui;
 use eframe::egui::{Frame, Visuals};
 use epaint::{CornerRadius, Rgba, vec2};
+use squalr_engine::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
 use std::sync::{Arc, Mutex};
 
 pub(crate) struct InstallerApp {
@@ -52,14 +53,14 @@ impl eframe::App for InstallerApp {
         // Reapply visuals each frame so native theme updates cannot restore default light panel colors.
         self.installer_theme.apply(context);
 
-        let mut pending_install_directory = None;
+        let mut pending_install_request: Option<(std::path::PathBuf, InstallShortcutOptions)> = None;
         if let Ok(mut installer_state) = self.ui_state.lock() {
             if installer_state.install_permission_granted && !installer_state.install_started {
                 match installer_state.resolve_install_directory() {
                     Ok(install_directory) => {
                         installer_state.install_started = true;
                         installer_state.install_configuration_error = None;
-                        pending_install_directory = Some(install_directory);
+                        pending_install_request = Some((install_directory, installer_state.install_shortcut_options.clone()));
                     }
                     Err(error_message) => {
                         installer_state.install_permission_granted = false;
@@ -69,8 +70,8 @@ impl eframe::App for InstallerApp {
             }
         }
 
-        if let Some(pending_install_directory) = pending_install_directory {
-            start_installer(self.ui_state.clone(), context.clone(), pending_install_directory);
+        if let Some((pending_install_directory, install_shortcut_options)) = pending_install_request {
+            start_installer(self.ui_state.clone(), context.clone(), pending_install_directory, install_shortcut_options);
         }
 
         let app_frame = Frame::new()

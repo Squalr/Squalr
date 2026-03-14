@@ -277,38 +277,11 @@ jobs:
           cp "scripts/android/install-android.ps1" "${output_dir}/install-android.ps1"
           chmod +x "${output_dir}/install-android.sh"
 
-          version="${{ needs.prepare-release.outputs.version }}"
-          marker_path="${output_dir}/latest_version-${version}-${ARTIFACT_TARGET}.txt"
-          printf '%s\n' "${version}" > "${marker_path}"
-
-          manifest_path="${output_dir}/MANIFEST-${ARTIFACT_TARGET}.txt"
-          cat > "${manifest_path}" <<TXT
-          version=${version}
-          artifact_target=${ARTIFACT_TARGET}
-          build_profile=${profile}
-          apk_profile=${apk_profile}
-          artifacts=squalr.apk,squalr-cli,README-android.md,install-android.sh,install-android.ps1,latest_version-${version}-${ARTIFACT_TARGET}.txt,SHA256SUMS-${ARTIFACT_TARGET}.txt
-          TXT
-
-          (
-            cd "${output_dir}"
-            sha256sum \
-              "squalr-cli" \
-              "squalr.apk" \
-              "README-android.md" \
-              "install-android.sh" \
-              "install-android.ps1" \
-              "latest_version-${version}-${ARTIFACT_TARGET}.txt" \
-              "MANIFEST-${ARTIFACT_TARGET}.txt" \
-              > "SHA256SUMS-${ARTIFACT_TARGET}.txt"
-          )
-
           test -f "${output_dir}/squalr-cli"
           test -f "${output_dir}/squalr.apk"
           test -f "${output_dir}/README-android.md"
           test -f "${output_dir}/install-android.sh"
           test -f "${output_dir}/install-android.ps1"
-          test -f "${output_dir}/SHA256SUMS-${ARTIFACT_TARGET}.txt"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -347,11 +320,6 @@ jobs:
           test -f "dist/publish/README-android.md"
           test -f "dist/publish/install-android.sh"
           test -f "dist/publish/install-android.ps1"
-
-          test -f "dist/publish/SHA256SUMS-linux-x86_64.txt"
-          test -f "dist/publish/SHA256SUMS-windows-x86_64.txt"
-          test -f "dist/publish/SHA256SUMS-macos-aarch64.txt"
-          test -f "dist/publish/SHA256SUMS-android-aarch64.txt"
 
       - name: Publish draft release
         env:

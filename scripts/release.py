@@ -22,6 +22,8 @@ VERSION_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
 DESKTOP_CRATES = ["squalr-cli", "squalr-tui", "squalr"]
 WINDOWS_INSTALLER_CRATE = "squalr-installer"
+RELEASE_ASSET_EXTENSIONS = (".zip", ".apk", ".exe", ".dmg", ".gz", ".tgz")
+RELEASE_SUPPORT_FILE_NAMES = {"README-android.md", "install-android.sh", "install-android.ps1", "squalr-cli"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -331,6 +333,18 @@ def write_checksum_file(target_directory: Path, checksum_file_name: str, file_pa
     return checksum_file_path
 
 
+def is_legacy_release_metadata_asset(file_name: str) -> bool:
+    return (
+        file_name.startswith("latest_version-")
+        or file_name.startswith("MANIFEST-")
+        or file_name.startswith("SHA256SUMS-")
+    ) and file_name.endswith(".txt")
+
+
+def is_release_payload_asset(file_name: str) -> bool:
+    return file_name.endswith(RELEASE_ASSET_EXTENSIONS) or file_name in RELEASE_SUPPORT_FILE_NAMES
+
+
 def validate_required_files(required_paths: list[Path]) -> None:
     missing_paths = [required_path for required_path in required_paths if not required_path.exists()]
     if missing_paths:
@@ -372,10 +386,6 @@ def package_desktop_artifacts(
 
     bundle_prefix = f"squalr-{version}-{artifact_target}"
     bundle_archive_path = dist_directory / f"{bundle_prefix}.zip"
-    manifest_path = dist_directory / f"MANIFEST-{artifact_target}.txt"
-    version_marker_path = dist_directory / f"latest_version-{version}-{artifact_target}.txt"
-
-    packaged_executable_names: list[str] = []
     is_macos_bundle_target = is_macos_artifact_target(artifact_target)
 
     for executable_name in executable_names:
@@ -387,43 +397,14 @@ def package_desktop_artifacts(
                 version=version,
                 dry_run=dry_run,
             )
-            packaged_executable_names.append("squalr.app")
             continue
 
         destination_binary_path = staging_directory / executable_name
         copy_file_with_parent(source_binary_path, destination_binary_path, dry_run=dry_run)
-        packaged_executable_names.append(executable_name)
-
-    if dry_run:
-        print(f"Would write version marker: {version_marker_path}")
-    else:
-        version_marker_path.write_text(f"{version}\n", encoding="utf-8")
 
     create_deterministic_zip(staging_directory, bundle_archive_path, dry_run=dry_run)
 
-    if dry_run:
-        print(f"Would write manifest: {manifest_path}")
-    else:
-        manifest_lines = [
-            f"version={version}",
-            f"artifact_target={artifact_target}",
-            f"build_profile={build_profile}",
-            f"bundle={bundle_archive_path.name}",
-            f"version_marker={version_marker_path.name}",
-            f"executables={','.join(packaged_executable_names)}",
-            "",
-        ]
-        manifest_path.write_text("\n".join(manifest_lines), encoding="utf-8")
-
-    checksum_candidates = [bundle_archive_path, version_marker_path, manifest_path]
-    checksum_file_path = write_checksum_file(
-        dist_directory,
-        checksum_file_name=f"SHA256SUMS-{artifact_target}.txt",
-        file_paths=checksum_candidates,
-        dry_run=dry_run,
-    )
-
-    expected_dist_files = checksum_candidates + [checksum_file_path]
+    expected_dist_files = [bundle_archive_path]
     if not dry_run:
         validate_required_files(expected_dist_files)
         shutil.rmtree(staging_directory)
@@ -431,24 +412,24 @@ def package_desktop_artifacts(
     print(f"Packaged artifacts in {dist_directory}")
 
 
-def discover_release_assets(assets_directory: Path) -> list[Path]:
+def discover_release_assets(assets_directory: Path, *, include_aggregate_checksum: bool = True) -> list[Path]:
     release_assets: list[Path] = []
     for file_path in sorted(assets_directory.rglob("*")):
         if not file_path.is_file():
             continue
 
         file_name = file_path.name
-        if file_name.startswith("latest_version-") and file_name.endswith(".txt"):
+        if is_legacy_release_metadata_asset(file_name):
+            continue
+        if file_name == "SHA256SUMS.txt" and not include_aggregate_checksum:
+            continue
+        if file_name == "SHA256SUMS.txt":
             release_assets.append(file_path)
             continue
-        if file_name.startswith("SHA256SUMS") and file_name.endswith(".txt"):
-            release_assets.append(file_path)
+        if not is_release_payload_asset(file_name):
             continue
-        if file_name.startswith("MANIFEST-") and file_name.endswith(".txt"):
-            release_assets.append(file_path)
-            continue
-        if file_name.endswith((".zip", ".apk", ".exe", ".dmg", ".gz", ".tgz")):
-            release_assets.append(file_path)
+
+        release_assets.append(file_path)
 
     return release_assets
 
@@ -483,7 +464,7 @@ def publish_release(
     if not assets_directory.exists():
         raise RuntimeError(f"Assets directory does not exist: {assets_directory}")
 
-    release_assets = discover_release_assets(assets_directory)
+    release_assets = discover_release_assets(assets_directory, include_aggregate_checksum=False)
     if not release_assets:
         raise RuntimeError(f"No release assets discovered in {assets_directory}")
 
