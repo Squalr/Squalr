@@ -11,6 +11,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     menu_id: &'lifetime str,
     icon: Option<TextureHandle>,
     add_contents: F,
+    disabled: bool,
     width: f32,
     height: f32,
     icon_padding_left: f32,
@@ -35,6 +36,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             menu_id,
             icon,
             add_contents,
+            disabled: false,
             width: 192.0,
             height: 28.0,
             icon_padding_left: 8.0,
@@ -65,6 +67,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         self
     }
 
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
     pub fn height(
         mut self,
         height: f32,
@@ -81,10 +91,12 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
     ) -> Response {
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
-        let text_color = theme.foreground;
+        let text_color = if self.disabled { theme.foreground_preview } else { theme.foreground };
+        let icon_tint = if self.disabled { theme.foreground_preview } else { Color32::WHITE };
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
         let desired_size = vec2(self.width, self.height);
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::click());
+        let sense = if self.disabled { Sense::hover() } else { Sense::click() };
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, sense);
 
         // Precompute positions.
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
@@ -116,8 +128,8 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         StateLayer {
             bounds_min: allocated_size_rectangle.min,
             bounds_max: allocated_size_rectangle.max,
-            enabled: true,
-            pressed: response.is_pointer_button_down_on(),
+            enabled: !self.disabled,
+            pressed: !self.disabled && response.is_pointer_button_down_on(),
             has_hover: response.hovered(),
             has_focus: response.has_focus(),
             corner_radius: CornerRadius::same(self.corner_radius),
@@ -135,7 +147,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 icon.id(),
                 Rect::from_min_size(left_icon_pos, icon_size_vec),
                 Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                Color32::WHITE,
+                icon_tint,
             );
         }
         // Draw text next to icon.
@@ -159,15 +171,19 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             down_arrow.id(),
             Rect::from_min_size(right_arrow_pos, icon_size_vec),
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
+            icon_tint,
         );
 
         // Popup logic.
         let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
-        if response.clicked() {
+        if response.clicked() && !self.disabled {
             open = !open;
+        }
+
+        if self.disabled {
+            open = false;
         }
 
         if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {

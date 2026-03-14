@@ -92,6 +92,7 @@ impl Widget for ElementScannerToolbarView {
         let mut should_start_scan = false;
         let mut should_add_new_scan_constraint = false;
         let mut remove_scan_constraint_index = 0;
+        let is_data_type_selection_disabled = element_scanner_view_data.view_state.has_active_scan();
 
         // Top row.
         toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), top_row_height), |user_interface| {
@@ -111,11 +112,14 @@ impl Widget for ElementScannerToolbarView {
 
                 // Data type selector.
                 user_interface.add_space(8.0);
-                user_interface.add(DataTypeSelectorView::new(
-                    self.app_context.clone(),
-                    &mut element_scanner_view_data.data_type_selection,
-                    "element_scanner_data_type_selector",
-                ));
+                user_interface.add(
+                    DataTypeSelectorView::new(
+                        self.app_context.clone(),
+                        &mut element_scanner_view_data.data_type_selection,
+                        "element_scanner_data_type_selector",
+                    )
+                    .disabled(is_data_type_selection_disabled),
+                );
 
                 // Collect values.
                 let button_collect_values = user_interface.add_sized(

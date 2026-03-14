@@ -29,6 +29,7 @@ pub struct DataTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
     data_type_selection: &'lifetime mut DataTypeSelection,
     menu_id: &'lifetime str,
+    disabled: bool,
     width: f32,
     height: f32,
 }
@@ -62,6 +63,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             app_context,
             data_type_selection,
             menu_id,
+            disabled: false,
             width: 160.0,
             height: 28.0,
         }
@@ -80,6 +82,14 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         height: f32,
     ) -> Self {
         self.height = height;
+        self
+    }
+
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
+        self.disabled = disabled;
         self
     }
 
@@ -221,6 +231,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let app_context = self.app_context;
         let data_type_selection = self.data_type_selection;
         let menu_id = self.menu_id;
+        let disabled = self.disabled;
         let width = self.width;
         let height = self.height;
         let popup_width = Self::selectable_popup_width();
@@ -296,6 +307,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                 });
             },
         )
+        .disabled(disabled)
         .width(width)
         .height(height);
 
