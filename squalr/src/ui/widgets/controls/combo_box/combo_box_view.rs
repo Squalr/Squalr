@@ -2,12 +2,12 @@ use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, TextureHandle, Vec2, pos2, vec2};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 /// A combo box that allows arbitrary custom content (ie not a normalized dropdown entry list).
 pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     app_context: Arc<AppContext>,
-    label: &'lifetime str,
+    label: Cow<'lifetime, str>,
     menu_id: &'lifetime str,
     icon: Option<TextureHandle>,
     add_contents: F,
@@ -24,14 +24,14 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
     pub fn new(
         app_context: Arc<AppContext>,
-        label: &'lifetime str,
+        label: impl Into<Cow<'lifetime, str>>,
         menu_id: &'lifetime str,
         icon: Option<TextureHandle>,
         add_contents: F,
     ) -> Self {
         Self {
             app_context,
-            label,
+            label: label.into(),
             menu_id,
             icon,
             add_contents,
@@ -50,7 +50,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         &self,
         user_interface: &mut Ui,
     ) {
-        let popup_id = Id::new(("combo_popup", user_interface.id().value(), self.label));
+        let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
 
         user_interface.memory_mut(|memory| {
             memory.data.insert_temp(popup_id, false);
@@ -96,7 +96,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         // Text label.
         let galley = user_interface
             .ctx()
-            .fonts_mut(|fonts| fonts.layout_no_wrap(self.label.to_owned(), font_id.clone(), text_color));
+            .fonts_mut(|fonts| fonts.layout_no_wrap(self.label.to_string(), font_id.clone(), text_color));
         let base_x = allocated_size_rectangle.min.x + self.icon_padding_left;
         let text_pos = pos2(
             if self.icon.is_some() {
@@ -163,7 +163,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         );
 
         // Popup logic.
-        let popup_id = Id::new((self.menu_id, user_interface.id().value(), self.label));
+        let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
         if response.clicked() {
@@ -182,7 +182,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
 
         // Draw popup content.
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
-        let popup_id_area = Id::new(("combo_popup_area", user_interface.id().value(), self.label));
+        let popup_id_area = Id::new(("combo_popup_area", self.menu_id, user_interface.id().value()));
         let mut should_close = false;
 
         let area_response = Area::new(popup_id_area)

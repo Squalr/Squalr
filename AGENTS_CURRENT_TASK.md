@@ -17,9 +17,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- 
+- Need human verification: `pr/multi-scan` GUI element scanner dropdown now uses checkbox multi-select with click-drag painting across contiguous entries and dispatches scans with all selected data types.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- 
+- User explicitly requested the previously deferred GUI multi-data-type scan work. Implemented in `squalr` only: selector state now tracks an active type plus selected set, the dropdown stays open for checkbox multi-select, dragging with the primary mouse button applies the initial select/deselect state across hovered entries, and scan dispatch now sends every selected `DataTypeRef`.
