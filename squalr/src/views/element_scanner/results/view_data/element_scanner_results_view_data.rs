@@ -340,6 +340,10 @@ impl ElementScannerResultsViewData {
         data_type_filter_selection: &mut DataTypeSelection,
         available_data_types: &[DataTypeRef],
     ) -> bool {
+        if available_data_types.is_empty() {
+            return false;
+        }
+
         let selected_data_types = data_type_filter_selection.selected_data_types().to_vec();
         let retained_selected_data_types = selected_data_types
             .iter()
@@ -1069,6 +1073,21 @@ mod tests {
 
         assert!(!did_change_selection);
         assert!(data_type_filter_selection.selected_data_types().is_empty());
+    }
+
+    #[test]
+    fn synchronize_data_type_filter_selection_preserves_selection_while_available_types_are_empty() {
+        let mut data_type_filter_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_filter_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        let did_change_selection =
+            ElementScannerResultsViewData::synchronize_data_type_filter_selection_with_available_data_types(&mut data_type_filter_selection, &[]);
+
+        assert!(!did_change_selection);
+        assert_eq!(
+            data_type_filter_selection.selected_data_types(),
+            &[DataTypeRef::new("i32"), DataTypeRef::new("u32")]
+        );
     }
 
     #[test]

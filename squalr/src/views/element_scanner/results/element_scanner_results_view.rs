@@ -222,7 +222,7 @@ impl Widget for ElementScannerResultsView {
                         .height(data_type_filter_combo_rectangle.height())
                         .available_data_types(available_data_types)
                         .stacked_list()
-                        .hide_preview_text()
+                        .icon_only_label()
                         .hide_placeholder_entries(),
                     );
 

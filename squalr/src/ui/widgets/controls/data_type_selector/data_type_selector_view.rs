@@ -171,8 +171,19 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             DataTypeSelectorLabelMode::IconOnly => match data_type_selection.selected_data_type_count() {
                 0 => "0".to_string(),
                 1 => String::new(),
-                selected_data_type_count => format!("+{}", selected_data_type_count - 1),
+                selected_data_type_count => format!("+{}", selected_data_type_count),
             },
+        }
+    }
+
+    fn should_render_combo_icon(
+        data_type_selection: &DataTypeSelection,
+        label_mode: DataTypeSelectorLabelMode,
+    ) -> bool {
+        match (label_mode, data_type_selection.selected_data_type_count()) {
+            (_, 0) => false,
+            (DataTypeSelectorLabelMode::IconOnly, selected_data_type_count) if selected_data_type_count > 1 => false,
+            _ => true,
         }
     }
 
@@ -333,13 +344,13 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let show_preview_text = self.show_preview_text;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
-        let combo_icon = if data_type_selection.selected_data_type_count() == 0 {
-            None
-        } else {
+        let combo_icon = if Self::should_render_combo_icon(data_type_selection, label_mode) {
             Some(DataTypeToIconConverter::convert_data_type_to_icon(
                 combo_data_type_id,
                 &app_context.theme.icon_library,
             ))
+        } else {
+            None
         };
         let combo_label = Self::combo_label(data_type_selection, label_mode, show_preview_text);
         let selectable_data_types = Self::ordered_selectable_data_types(available_data_types.as_deref());
@@ -450,14 +461,35 @@ mod tests {
     }
 
     #[test]
-    fn icon_only_combo_label_uses_only_extra_selection_count() {
+    fn icon_only_combo_label_uses_total_selection_count() {
         let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
         data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
 
         assert_eq!(
             DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::IconOnly, true),
-            "+1"
+            "+2"
         );
+    }
+
+    #[test]
+    fn icon_only_combo_hides_icon_for_multiple_selected_data_types() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        assert!(!DataTypeSelectorView::should_render_combo_icon(
+            &data_type_selection,
+            DataTypeSelectorLabelMode::IconOnly,
+        ));
+    }
+
+    #[test]
+    fn icon_only_combo_keeps_icon_for_single_selected_data_type() {
+        let data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+
+        assert!(DataTypeSelectorView::should_render_combo_icon(
+            &data_type_selection,
+            DataTypeSelectorLabelMode::IconOnly,
+        ));
     }
 
     #[test]
