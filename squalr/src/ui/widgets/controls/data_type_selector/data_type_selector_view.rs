@@ -1,8 +1,11 @@
 use crate::ui::converters::data_type_to_string_converter::DataTypeToStringConverter;
+use crate::ui::widgets::controls::check_state::CheckState;
 use crate::ui::widgets::controls::combo_box::combo_box_view::ComboBoxView;
 use crate::ui::widgets::controls::data_type_selector::data_type_item_view::DataTypeItemView;
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::{app_context::AppContext, ui::converters::data_type_to_icon_converter::DataTypeToIconConverter};
-use eframe::egui::{Id, Response, Ui, Widget};
+use eframe::egui::{Grid, Id, Response, Ui, Widget, vec2};
+use epaint::TextureHandle;
 use squalr_engine_api::structures::data_types::{
     built_in_types::{
         f32::data_type_f32::DataTypeF32, f32be::data_type_f32be::DataTypeF32be, f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be,
@@ -15,25 +18,52 @@ use squalr_engine_api::structures::data_types::{
 };
 use std::sync::Arc;
 
+#[derive(Clone, Copy)]
+enum PlaceholderDataTypeEntry {
+    String,
+    Custom,
+}
+
 /// A widget that allows selecting from a set of data types.
 pub struct DataTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
-    active_data_type: &'lifetime mut DataTypeRef,
+    data_type_selection: &'lifetime mut DataTypeSelection,
     menu_id: &'lifetime str,
+    disabled: bool,
     width: f32,
     height: f32,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
+    const SELECTABLE_DATA_TYPE_COLUMN_COUNT: usize = 2;
+    const SELECTABLE_DATA_TYPE_ITEM_WIDTH: f32 = 120.0;
+    const SELECTABLE_DATA_TYPE_COLUMN_SPACING: f32 = 8.0;
+    const SELECTABLE_DATA_TYPE_ROWS: [[&'static str; 2]; 9] = [
+        [DataTypeU8::DATA_TYPE_ID, DataTypeI8::DATA_TYPE_ID],
+        [DataTypeI16::DATA_TYPE_ID, DataTypeI16be::DATA_TYPE_ID],
+        [DataTypeI32::DATA_TYPE_ID, DataTypeI32be::DATA_TYPE_ID],
+        [DataTypeI64::DATA_TYPE_ID, DataTypeI64be::DATA_TYPE_ID],
+        [DataTypeU16::DATA_TYPE_ID, DataTypeU16be::DATA_TYPE_ID],
+        [DataTypeU32::DATA_TYPE_ID, DataTypeU32be::DATA_TYPE_ID],
+        [DataTypeU64::DATA_TYPE_ID, DataTypeU64be::DATA_TYPE_ID],
+        [DataTypeF32::DATA_TYPE_ID, DataTypeF32be::DATA_TYPE_ID],
+        [DataTypeF64::DATA_TYPE_ID, DataTypeF64be::DATA_TYPE_ID],
+    ];
+    const PLACEHOLDER_DATA_TYPE_ROW: [PlaceholderDataTypeEntry; 2] = [
+        PlaceholderDataTypeEntry::String,
+        PlaceholderDataTypeEntry::Custom,
+    ];
+
     pub fn new(
         app_context: Arc<AppContext>,
-        active_data_type: &'lifetime mut DataTypeRef,
+        data_type_selection: &'lifetime mut DataTypeSelection,
         menu_id: &'lifetime str,
     ) -> Self {
         Self {
             app_context,
-            active_data_type,
+            data_type_selection,
             menu_id,
+            disabled: false,
             width: 160.0,
             height: 28.0,
         }
@@ -55,15 +85,141 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         self
     }
 
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
     pub fn close(
         &self,
         user_interface: &mut Ui,
     ) {
-        let popup_id = Id::new(("data_type_selector_popup", user_interface.id().value()));
+        let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));
 
         user_interface.memory_mut(|memory| {
             memory.data.insert_temp(popup_id, false);
         });
+    }
+
+    fn combo_label(data_type_selection: &DataTypeSelection) -> String {
+        let visible_data_type_label = DataTypeToStringConverter::convert_data_type_to_string(data_type_selection.visible_data_type().get_data_type_id());
+
+        match data_type_selection.selected_data_type_count() {
+            0 => "Select types".to_string(),
+            1 => visible_data_type_label.to_string(),
+            selected_data_type_count => format!("{} +{}", visible_data_type_label, selected_data_type_count - 1),
+        }
+    }
+
+    fn drag_active_id(menu_id: &str) -> Id {
+        Id::new(("data_type_selector_drag_active", menu_id))
+    }
+
+    fn drag_selection_state_id(menu_id: &str) -> Id {
+        Id::new(("data_type_selector_drag_selection_state", menu_id))
+    }
+
+    fn selectable_popup_width() -> f32 {
+        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH * Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT as f32
+            + Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING * (Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT.saturating_sub(1) as f32)
+    }
+
+    fn selectable_data_type_grid_id(menu_id: &str) -> Id {
+        Id::new(("selectable_data_type_grid", menu_id))
+    }
+
+    fn placeholder_data_type_grid_id(menu_id: &str) -> Id {
+        Id::new(("placeholder_data_type_grid", menu_id))
+    }
+
+    fn is_pointer_over_item(
+        user_interface: &Ui,
+        item_response: &Response,
+    ) -> bool {
+        user_interface.input(|input_state| {
+            input_state
+                .pointer
+                .interact_pos()
+                .is_some_and(|pointer_position| item_response.rect.contains(pointer_position))
+        })
+    }
+
+    fn reset_drag_state_if_needed(
+        user_interface: &mut Ui,
+        menu_id: &str,
+    ) {
+        if user_interface.input(|input_state| !input_state.pointer.primary_down()) {
+            user_interface.memory_mut(|memory| {
+                memory.data.insert_temp(Self::drag_active_id(menu_id), false);
+                memory
+                    .data
+                    .insert_temp(Self::drag_selection_state_id(menu_id), false);
+            });
+        }
+    }
+
+    fn handle_selectable_data_type_interaction(
+        user_interface: &mut Ui,
+        menu_id: &str,
+        data_type_selection: &mut DataTypeSelection,
+        data_type_ref: DataTypeRef,
+        item_response: &Response,
+    ) {
+        let drag_active_id = Self::drag_active_id(menu_id);
+        let drag_selection_state_id = Self::drag_selection_state_id(menu_id);
+        let is_pointer_over_item = Self::is_pointer_over_item(user_interface, item_response);
+        let is_primary_pressed = user_interface.input(|input_state| input_state.pointer.primary_pressed());
+
+        if is_pointer_over_item && is_primary_pressed {
+            let should_select = !data_type_selection.is_data_type_selected(&data_type_ref);
+            data_type_selection.set_data_type_selected(data_type_ref, should_select);
+            user_interface.memory_mut(|memory| {
+                memory.data.insert_temp(drag_active_id, true);
+                memory.data.insert_temp(drag_selection_state_id, should_select);
+            });
+
+            return;
+        }
+
+        let is_drag_active = user_interface.memory(|memory| memory.data.get_temp::<bool>(drag_active_id).unwrap_or(false));
+        let drag_selection_state = user_interface.memory(|memory| {
+            memory
+                .data
+                .get_temp::<bool>(drag_selection_state_id)
+                .unwrap_or(false)
+        });
+        let is_primary_down = user_interface.input(|input_state| input_state.pointer.primary_down());
+
+        if is_drag_active && is_primary_down && is_pointer_over_item {
+            data_type_selection.set_data_type_selected(data_type_ref, drag_selection_state);
+        }
+    }
+
+    fn placeholder_entry(
+        app_context: &Arc<AppContext>,
+        placeholder_data_type_entry: PlaceholderDataTypeEntry,
+    ) -> (&'static str, TextureHandle) {
+        match placeholder_data_type_entry {
+            PlaceholderDataTypeEntry::String => (
+                "String...",
+                app_context
+                    .theme
+                    .icon_library
+                    .icon_handle_data_type_string
+                    .clone(),
+            ),
+            PlaceholderDataTypeEntry::Custom => (
+                "Custom...",
+                app_context
+                    .theme
+                    .icon_library
+                    .icon_handle_data_type_purple_blocks_array
+                    .clone(),
+            ),
+        }
     }
 }
 
@@ -72,358 +228,110 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let theme = &self.app_context.theme;
-        let icon_library = &theme.icon_library;
+        let app_context = self.app_context;
+        let data_type_selection = self.data_type_selection;
+        let menu_id = self.menu_id;
+        let disabled = self.disabled;
         let width = self.width;
         let height = self.height;
-        let element_width = 104.0;
-        let data_type_id = self.active_data_type.get_data_type_id();
-        let icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_id, icon_library);
+        let popup_width = Self::selectable_popup_width();
+        let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
+        let combo_icon = DataTypeToIconConverter::convert_data_type_to_icon(combo_data_type_id, &app_context.theme.icon_library);
+        let combo_label = Self::combo_label(data_type_selection);
 
         let combo_box = ComboBoxView::new(
-            self.app_context.clone(),
-            DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
-            self.menu_id,
-            Some(icon),
-            |popup_user_interface: &mut Ui, should_close: &mut bool| {
+            app_context.clone(),
+            combo_label,
+            menu_id,
+            Some(combo_icon),
+            move |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                Self::reset_drag_state_if_needed(popup_user_interface, menu_id);
+                popup_user_interface.set_min_width(popup_width);
+
                 popup_user_interface.vertical(|user_interface| {
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU8::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(DataTypeU8::get_data_type_id(), icon_library)),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU8::get_data_type_id());
-                            *should_close = true;
-                        };
+                    Grid::new(Self::selectable_data_type_grid_id(menu_id))
+                        .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
+                        .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
+                        .show(user_interface, |user_interface| {
+                            for data_type_row in Self::SELECTABLE_DATA_TYPE_ROWS {
+                                for data_type_id in data_type_row {
+                                    let data_type_ref = DataTypeRef::new(data_type_id);
+                                    let data_type_item_response = user_interface.add(
+                                        DataTypeItemView::new(
+                                            app_context.clone(),
+                                            DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
+                                            Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                                data_type_id,
+                                                &app_context.theme.icon_library,
+                                            )),
+                                            Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
+                                        )
+                                        .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref))),
+                                    );
 
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI8::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(DataTypeI8::get_data_type_id(), icon_library)),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI8::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
+                                    Self::handle_selectable_data_type_interaction(
+                                        user_interface,
+                                        menu_id,
+                                        data_type_selection,
+                                        data_type_ref,
+                                        &data_type_item_response,
+                                    );
+                                }
 
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI16::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeI16::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI16::get_data_type_id());
-                            *should_close = true;
-                        };
+                                user_interface.end_row();
+                            }
+                        });
 
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI16be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeI16be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI16be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
+                    user_interface.separator();
+                    Grid::new(Self::placeholder_data_type_grid_id(menu_id))
+                        .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
+                        .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
+                        .show(user_interface, |user_interface| {
+                            for placeholder_data_type_entry in Self::PLACEHOLDER_DATA_TYPE_ROW {
+                                let (label, icon) = Self::placeholder_entry(&app_context, placeholder_data_type_entry);
+                                if user_interface
+                                    .add(DataTypeItemView::new(
+                                        app_context.clone(),
+                                        label,
+                                        Some(icon),
+                                        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
+                                    ))
+                                    .clicked()
+                                {
+                                    *should_close = true;
+                                }
+                            }
 
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI32::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeI32::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI32::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI32be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeI32be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI32be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI64::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeI64::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI64::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeI64be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeI64be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeI64be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU16::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeU16::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU16::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU16be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeU16be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU16be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU32::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeU32::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU32::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU32be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeU32be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU32be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU64::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeU64::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU64::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeU64be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeU64be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeU64be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF32::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeF32::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeF32::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF32be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeF32be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeF32be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF64::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeF64::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeF64::get_data_type_id());
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                DataTypeToStringConverter::convert_data_type_to_string(DataTypeF64be::get_data_type_id()),
-                                Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                    DataTypeF64be::get_data_type_id(),
-                                    icon_library,
-                                )),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *self.active_data_type = DataTypeRef::new(DataTypeF64be::get_data_type_id());
-                            *should_close = true;
-                        };
-                    });
-
-                    user_interface.horizontal(|user_interface| {
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                "String...",
-                                Some(theme.icon_library.icon_handle_data_type_string.clone()),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *should_close = true;
-                        };
-
-                        if user_interface
-                            .add(DataTypeItemView::new(
-                                self.app_context.clone(),
-                                "Custom...",
-                                Some(
-                                    theme
-                                        .icon_library
-                                        .icon_handle_data_type_purple_blocks_array
-                                        .clone(),
-                                ),
-                                element_width,
-                            ))
-                            .clicked()
-                        {
-                            *should_close = true;
-                        };
-                    });
+                            user_interface.end_row();
+                        });
                 });
             },
         )
+        .disabled(disabled)
         .width(width)
         .height(height);
 
-        // Add the combo box to the layout
+        // Add the combo box to the layout.
         user_interface.add(combo_box)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataTypeSelectorView;
+    use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+
+    #[test]
+    fn combo_label_includes_extra_selection_count() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        assert_eq!(DataTypeSelectorView::combo_label(&data_type_selection), "u32 +1");
+    }
+
+    #[test]
+    fn selectable_popup_width_accounts_for_two_columns_and_spacing() {
+        assert_eq!(DataTypeSelectorView::selectable_popup_width(), 248.0);
     }
 }

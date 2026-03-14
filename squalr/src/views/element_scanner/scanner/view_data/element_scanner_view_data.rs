@@ -1,3 +1,4 @@
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::{
     element_scanner_view_state::ElementScannerViewState, view_data::element_scanner_value_view_data::ElementScannerValueViewData,
 };
@@ -24,7 +25,7 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ElementScannerViewData {
-    pub selected_data_type: DataTypeRef,
+    pub data_type_selection: DataTypeSelection,
     pub active_display_format: AnonymousValueStringFormat,
     pub view_state: ElementScannerViewState,
     pub scan_values_and_constraints: Vec<ElementScannerValueViewData>,
@@ -35,7 +36,7 @@ impl ElementScannerViewData {
 
     pub fn new() -> Self {
         Self {
-            selected_data_type: DataTypeRef::new(DataTypeI32::get_data_type_id()),
+            data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::get_data_type_id())),
             active_display_format: AnonymousValueStringFormat::Decimal,
             view_state: ElementScannerViewState::NoResults,
             scan_values_and_constraints: vec![ElementScannerValueViewData::new(Self::create_menu_id(0))],
@@ -84,12 +85,23 @@ impl ElementScannerViewData {
         element_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let element_scanner_view_data_view_state = {
+        let (element_scanner_view_data_view_state, has_selected_data_types) = {
             match element_scanner_view_data.read("Element scanner view data start scan") {
-                Some(element_scanner_view_data) => element_scanner_view_data.view_state,
+                Some(element_scanner_view_data) => (
+                    element_scanner_view_data.view_state,
+                    !element_scanner_view_data
+                        .data_type_selection
+                        .selected_data_types()
+                        .is_empty(),
+                ),
                 None => return,
             }
         };
+
+        if !has_selected_data_types {
+            log::error!("Cannot start an element scan without at least one selected data type.");
+            return;
+        }
 
         match element_scanner_view_data_view_state {
             ElementScannerViewState::HasResults => {
@@ -129,7 +141,15 @@ impl ElementScannerViewData {
                 None => return,
             }
         };
-        let data_type_refs = vec![element_scanner_view_data.selected_data_type.clone()];
+        let data_type_refs = element_scanner_view_data
+            .data_type_selection
+            .scan_data_type_refs();
+
+        if data_type_refs.is_empty() {
+            log::error!("Cannot start an element scan without at least one selected data type.");
+            return;
+        }
+
         let scan_constraints = element_scanner_view_data
             .scan_values_and_constraints
             .iter()
@@ -149,7 +169,7 @@ impl ElementScannerViewData {
 
         drop(element_scanner_view_data);
 
-        element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
+        element_scan_request.send(&engine_unprivileged_state, move |_scan_execute_response| {
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.scan_results_metadata.

@@ -165,7 +165,9 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 DataValueBoxView::new(
                     self.app_context.clone(),
                     &mut element_scanner_results_view_data.current_display_string,
-                    &element_scanner_view_data.selected_data_type,
+                    element_scanner_view_data
+                        .data_type_selection
+                        .visible_data_type(),
                     false,
                     true,
                     "Edit selected values...",
