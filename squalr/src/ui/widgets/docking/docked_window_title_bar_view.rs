@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::button::Button;
-use eframe::egui::{Align, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
+use eframe::egui::{Align, CursorIcon, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
 use epaint::{Color32, CornerRadius, vec2};
 use std::{rc::Rc, sync::Arc};
 
@@ -40,13 +40,11 @@ impl Widget for DockedWindowTitleBarView {
 
         // Background highlight if this is the actively dragged window.
         let background = if let Ok(docking_manager) = docking_manager.read() {
-            /*
-            if docking_manager.active_dragged_window_id() == Some(&self.identifier) {
-                theme.selected_border
+            if docking_manager.active_dragged_window_id() == Some(self.identifier.as_ref()) {
+                theme.selected_background
             } else {
                 theme.background_primary
-            }*/
-            theme.background_primary
+            }
         } else {
             theme.background_primary
         };
@@ -95,20 +93,32 @@ impl Widget for DockedWindowTitleBarView {
             allocated_size_rectangle.min,
             pos2(allocated_size_rectangle.max.x - 36.0, allocated_size_rectangle.max.y),
         );
-        let drag = user_interface.interact(drag_rect, Id::new(format!("dock_titlebar_{}", self.identifier)), Sense::click_and_drag());
+        let drag = user_interface
+            .interact(drag_rect, Id::new(format!("dock_titlebar_{}", self.identifier)), Sense::click_and_drag())
+            .on_hover_cursor(CursorIcon::Grab);
 
-        /*
         if drag.drag_started() {
-            if let Ok(mut docking_manager) = docking_manager.write() {
-                docking_manager.begin_drag(&self.identifier);
+            let pointer_press_origin = user_interface
+                .input(|input_state| input_state.pointer.press_origin())
+                .or_else(|| drag.interact_pointer_pos());
+
+            if let Some(pointer_press_origin) = pointer_press_origin {
+                if let Ok(mut docking_manager) = docking_manager.write() {
+                    docking_manager.begin_drag(&self.identifier, pointer_press_origin);
+                }
             }
+
+            user_interface.ctx().request_repaint();
         }
 
-        if drag.drag_released() {
-            if let Ok(mut docking_manager) = docking_manager.write() {
-                docking_manager.end_drag(&self.identifier);
+        if drag.dragged() {
+            if let Ok(mut docking_manager) = docking_manager.try_write() {
+                docking_manager.update_drag_pointer_position(drag.interact_pointer_pos());
             }
-        }*/
+
+            user_interface.ctx().set_cursor_icon(CursorIcon::Grabbing);
+            user_interface.ctx().request_repaint();
+        }
 
         response
     }

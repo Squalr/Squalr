@@ -1,6 +1,6 @@
 # Agentic Current Task (Readonly)
 Our current task, from `README.md`, is:
-`pr/TODO`
+`pr/docking`
 
 # Notes from Owner (Readonly Section)
 - Assume any unstaged/uncomitted file changes are from a previous iteration (or if this file, probably the human author giving guidance), and can be kept if they look good. Do not ask me about them.
@@ -17,7 +17,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Audit GUI vs TUI for non-WONTFIX parity gaps and add concrete follow-up tasks.
+- Need human verification for draggable dock window UX: threshold feel, overlay placement, hover sheen, cursor transitions, and persisted layout updates after drop.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -32,3 +32,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Release packaging now omits per-platform manifests, version markers, and per-platform checksum files; GitHub releases should contain the real platform assets plus a single aggregate `SHA256SUMS.txt`; need human verification against live releases.
 - Auto updater version checks were pointed at the stale `zcanann/Squalr-Rust` GitHub API endpoint; live releases are currently served from `https://api.github.com/repos/Squalr/Squalr/releases/latest` and `v0.1.2` exposes the expected desktop bundle assets; need human verification from an installed build.
 - Live GitHub release `v0.1.2` only exposes `squalr.apk` for Android because the tag's `scripts/release.py` upload filter only published `.zip/.apk/...` plus legacy manifest/checksum/version-marker files; raw Android support files and the extensionless `squalr-cli` worker were built into `dist/publish` but excluded from `gh release upload`. Current `HEAD` includes these files in the release asset allowlist; need human verification on the next published Android release.
+- Docked window title bars now start a drag/drop docking flow with a 24px activation threshold before overlays appear.
+- Dock root now paints five translucent blue drop zones over each rendered dock target, with preview sheens and `Move`/`NoDrop` cursor updates during drag.
+- Dock drag/drop now commits through existing reparent operations and persists the layout to `docking_settings.json`; need human verification on desktop UI.
