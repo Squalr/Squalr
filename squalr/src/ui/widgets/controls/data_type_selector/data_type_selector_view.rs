@@ -34,6 +34,9 @@ pub struct DataTypeSelectorView<'lifetime> {
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
+    const SELECTABLE_DATA_TYPE_COLUMN_COUNT: usize = 2;
+    const SELECTABLE_DATA_TYPE_ITEM_WIDTH: f32 = 120.0;
+    const SELECTABLE_DATA_TYPE_COLUMN_SPACING: f32 = 8.0;
     const SELECTABLE_DATA_TYPE_ROWS: [[&'static str; 2]; 9] = [
         [DataTypeU8::DATA_TYPE_ID, DataTypeI8::DATA_TYPE_ID],
         [DataTypeI16::DATA_TYPE_ID, DataTypeI16be::DATA_TYPE_ID],
@@ -109,6 +112,23 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         Id::new(("data_type_selector_drag_selection_state", menu_id))
     }
 
+    fn selectable_popup_width() -> f32 {
+        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH * Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT as f32
+            + Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING * (Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT.saturating_sub(1) as f32)
+    }
+
+    fn is_pointer_over_item(
+        user_interface: &Ui,
+        item_response: &Response,
+    ) -> bool {
+        user_interface.input(|input_state| {
+            input_state
+                .pointer
+                .interact_pos()
+                .is_some_and(|pointer_position| item_response.rect.contains(pointer_position))
+        })
+    }
+
     fn reset_drag_state_if_needed(
         user_interface: &mut Ui,
         menu_id: &str,
@@ -116,6 +136,9 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         if user_interface.input(|input_state| !input_state.pointer.primary_down()) {
             user_interface.memory_mut(|memory| {
                 memory.data.insert_temp(Self::drag_active_id(menu_id), false);
+                memory
+                    .data
+                    .insert_temp(Self::drag_selection_state_id(menu_id), false);
             });
         }
     }
@@ -129,9 +152,10 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
     ) {
         let drag_active_id = Self::drag_active_id(menu_id);
         let drag_selection_state_id = Self::drag_selection_state_id(menu_id);
+        let is_pointer_over_item = Self::is_pointer_over_item(user_interface, item_response);
         let is_primary_pressed = user_interface.input(|input_state| input_state.pointer.primary_pressed());
 
-        if item_response.is_pointer_button_down_on() && is_primary_pressed {
+        if is_pointer_over_item && is_primary_pressed {
             let should_select = !data_type_selection.is_data_type_selected(&data_type_ref);
             data_type_selection.set_data_type_selected(data_type_ref, should_select);
             user_interface.memory_mut(|memory| {
@@ -151,7 +175,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         });
         let is_primary_down = user_interface.input(|input_state| input_state.pointer.primary_down());
 
-        if is_drag_active && is_primary_down && item_response.hovered() {
+        if is_drag_active && is_primary_down && is_pointer_over_item {
             data_type_selection.set_data_type_selected(data_type_ref, drag_selection_state);
         }
     }
@@ -191,7 +215,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let menu_id = self.menu_id;
         let width = self.width;
         let height = self.height;
-        let element_width = 120.0;
+        let popup_width = Self::selectable_popup_width();
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
         let combo_icon = DataTypeToIconConverter::convert_data_type_to_icon(combo_data_type_id, &app_context.theme.icon_library);
         let combo_label = Self::combo_label(data_type_selection);
@@ -203,11 +227,16 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             Some(combo_icon),
             move |popup_user_interface: &mut Ui, _should_close: &mut bool| {
                 Self::reset_drag_state_if_needed(popup_user_interface, menu_id);
+                popup_user_interface.set_min_width(popup_width);
 
                 popup_user_interface.vertical(|user_interface| {
                     for data_type_row in Self::SELECTABLE_DATA_TYPE_ROWS {
                         user_interface.horizontal(|user_interface| {
-                            for data_type_id in data_type_row {
+                            for (data_type_index, data_type_id) in data_type_row.into_iter().enumerate() {
+                                if data_type_index > 0 {
+                                    user_interface.add_space(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING);
+                                }
+
                                 let data_type_ref = DataTypeRef::new(data_type_id);
                                 let data_type_item_response = user_interface.add(
                                     DataTypeItemView::new(
@@ -217,7 +246,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                                             data_type_id,
                                             &app_context.theme.icon_library,
                                         )),
-                                        element_width,
+                                        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
                                     )
                                     .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref))),
                                 );
@@ -235,9 +264,14 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
 
                     user_interface.separator();
                     user_interface.horizontal(|user_interface| {
-                        for placeholder_data_type_entry in Self::PLACEHOLDER_DATA_TYPE_ROW {
+                        for (placeholder_index, placeholder_data_type_entry) in Self::PLACEHOLDER_DATA_TYPE_ROW.into_iter().enumerate() {
+                            if placeholder_index > 0 {
+                                user_interface.add_space(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING);
+                            }
+
                             let (label, icon) = Self::placeholder_entry(&app_context, placeholder_data_type_entry);
-                            user_interface.add(DataTypeItemView::new(app_context.clone(), label, Some(icon), element_width).disabled(true));
+                            user_interface
+                                .add(DataTypeItemView::new(app_context.clone(), label, Some(icon), Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH).disabled(true));
                         }
                     });
                 });
@@ -248,5 +282,25 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
 
         // Add the combo box to the layout.
         user_interface.add(combo_box)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataTypeSelectorView;
+    use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+
+    #[test]
+    fn combo_label_includes_extra_selection_count() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        assert_eq!(DataTypeSelectorView::combo_label(&data_type_selection), "u32 +1");
+    }
+
+    #[test]
+    fn selectable_popup_width_accounts_for_two_columns_and_spacing() {
+        assert_eq!(DataTypeSelectorView::selectable_popup_width(), 248.0);
     }
 }
