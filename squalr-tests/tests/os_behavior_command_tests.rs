@@ -107,6 +107,42 @@ fn seed_snapshot_with_partial_multi_type_scan_results(
     }
 }
 
+fn seed_snapshot_with_multi_type_address_sorted_scan_results(
+    engine_privileged_state: &std::sync::Arc<EnginePrivilegedState>,
+    region_base_address: u64,
+) {
+    let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base_address, 0x100), Vec::new());
+    snapshot_region.current_values = vec![0u8; 0x100];
+    snapshot_region.previous_values = vec![0u8; 0x100];
+
+    let u32_filter_collection = SnapshotRegionFilterCollection::new(
+        vec![vec![SnapshotRegionFilter::new(region_base_address + 0x30, 4)]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
+    let u16_filter_collection = SnapshotRegionFilterCollection::new(
+        vec![vec![SnapshotRegionFilter::new(region_base_address + 0x10, 2)]],
+        DataTypeRef::new("u16"),
+        MemoryAlignment::Alignment1,
+    );
+    let u8_filter_collection = SnapshotRegionFilterCollection::new(
+        vec![vec![SnapshotRegionFilter::new(region_base_address + 0x40, 1)]],
+        DataTypeRef::new("u8"),
+        MemoryAlignment::Alignment1,
+    );
+
+    snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![
+        u32_filter_collection,
+        u16_filter_collection,
+        u8_filter_collection,
+    ]));
+
+    let snapshot_ref = engine_privileged_state.get_snapshot();
+    if let Ok(mut snapshot_guard) = snapshot_ref.write() {
+        snapshot_guard.set_snapshot_regions(vec![snapshot_region]);
+    }
+}
+
 #[test]
 fn memory_write_executor_uses_injected_module_resolution_and_writer() {
     let (mock_engine_os, engine_privileged_state) = create_test_state();
@@ -312,7 +348,11 @@ fn scan_results_list_executor_uses_injected_providers() {
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x1010);
 
-    let scan_results_list_response = ScanResultsListRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_list_response = ScanResultsListRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_list_response.scan_results.len(), 1);
     assert_eq!(scan_results_list_response.scan_results[0].get_module(), "game.exe");
@@ -336,7 +376,11 @@ fn scan_results_list_executor_handles_read_failure_without_incorrect_value_mutat
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x1010);
 
-    let scan_results_list_response = ScanResultsListRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_list_response = ScanResultsListRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_list_response.scan_results.len(), 1);
     assert_eq!(scan_results_list_response.scan_results[0].get_module(), "game.exe");
@@ -369,7 +413,11 @@ fn scan_results_query_executor_uses_injected_providers() {
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x4014);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.scan_results.len(), 1);
     assert_eq!(scan_results_query_response.scan_results[0].get_module(), "engine.dll");
@@ -393,7 +441,11 @@ fn scan_results_query_executor_handles_read_failure_without_incorrect_value_muta
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result(&engine_privileged_state, 0x4014);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.scan_results.len(), 1);
     assert_eq!(scan_results_query_response.scan_results[0].get_module(), "engine.dll");
@@ -426,7 +478,11 @@ fn scan_results_query_executor_reads_recent_values_when_scan_current_value_is_mi
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_single_scan_result_missing_current_value(&engine_privileged_state, 0x4014);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.scan_results.len(), 1);
     assert!(
@@ -455,7 +511,11 @@ fn scan_results_query_executor_ignores_empty_multi_type_collections_when_reporti
         .set_opened_process(create_opened_process_info());
     seed_snapshot_with_partial_multi_type_scan_results(&engine_privileged_state, region_base_address, result_address);
 
-    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
 
     assert_eq!(scan_results_query_response.result_count, 1);
     assert_eq!(scan_results_query_response.total_size_in_bytes, 4);
@@ -469,6 +529,73 @@ fn scan_results_query_executor_ignores_empty_multi_type_collections_when_reporti
         Err(error) => panic!("failed to lock mock state: {}", error),
     };
     assert_eq!(state_guard.memory_read_addresses, vec![result_address]);
+}
+
+#[test]
+fn scan_results_query_executor_returns_address_sorted_multi_type_results() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let region_base_address = 0x7FFF_5555_0000;
+
+    mock_engine_os.set_modules(vec![NormalizedModule::new("engine.dll", region_base_address, 0x1000)]);
+    engine_privileged_state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    seed_snapshot_with_multi_type_address_sorted_scan_results(&engine_privileged_state, region_base_address);
+
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .execute(&engine_privileged_state);
+    let result_addresses = scan_results_query_response
+        .scan_results
+        .iter()
+        .map(|scan_result| scan_result.get_address())
+        .collect::<Vec<_>>();
+    let result_data_type_ids = scan_results_query_response
+        .scan_results
+        .iter()
+        .map(|scan_result| scan_result.get_data_type_ref().get_data_type_id().to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        result_addresses,
+        vec![
+            region_base_address + 0x10,
+            region_base_address + 0x30,
+            region_base_address + 0x40
+        ]
+    );
+    assert_eq!(result_data_type_ids, vec!["u16".to_string(), "u32".to_string(), "u8".to_string()]);
+}
+
+#[test]
+fn scan_results_query_executor_filters_results_before_paging_counts() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let region_base_address = 0x7FFF_6666_0000;
+
+    mock_engine_os.set_modules(vec![NormalizedModule::new("engine.dll", region_base_address, 0x1000)]);
+    engine_privileged_state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    seed_snapshot_with_multi_type_address_sorted_scan_results(&engine_privileged_state, region_base_address);
+
+    let scan_results_query_response = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: Some(vec![DataTypeRef::new("u32")]),
+    }
+    .execute(&engine_privileged_state);
+
+    assert_eq!(scan_results_query_response.result_count, 1);
+    assert_eq!(scan_results_query_response.scan_results.len(), 1);
+    assert_eq!(scan_results_query_response.scan_results[0].get_address(), region_base_address + 0x30);
+    assert_eq!(
+        scan_results_query_response.scan_results[0]
+            .get_base_result()
+            .get_scan_result_ref()
+            .get_scan_result_global_index(),
+        1
+    );
 }
 
 #[test]

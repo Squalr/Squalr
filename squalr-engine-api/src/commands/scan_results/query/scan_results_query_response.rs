@@ -1,12 +1,13 @@
 use crate::commands::privileged_command_response::PrivilegedCommandResponse;
 use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
-use crate::structures::scan_results::scan_result::ScanResult;
+use crate::structures::scan_results::{scan_result::ScanResult, scan_result_data_type_count::ScanResultDataTypeCount};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ScanResultsQueryResponse {
     pub scan_results: Vec<ScanResult>,
+    pub data_type_result_counts: Vec<ScanResultDataTypeCount>,
     pub page_index: u64,
     pub last_page_index: u64,
     pub page_size: u64,

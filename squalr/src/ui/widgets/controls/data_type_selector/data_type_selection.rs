@@ -1,7 +1,7 @@
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 
 /// Stores the active data type alongside the selected scan data types.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DataTypeSelection {
     active_data_type: DataTypeRef,
     selected_data_types: Vec<DataTypeRef>,
@@ -81,6 +81,27 @@ impl DataTypeSelection {
     pub fn scan_data_type_refs(&self) -> Vec<DataTypeRef> {
         self.selected_data_types.clone()
     }
+
+    pub fn replace_selected_data_types(
+        &mut self,
+        selected_data_types: Vec<DataTypeRef>,
+    ) {
+        let mut deduplicated_selected_data_types = Vec::new();
+
+        for selected_data_type in selected_data_types {
+            if !deduplicated_selected_data_types.contains(&selected_data_type) {
+                deduplicated_selected_data_types.push(selected_data_type);
+            }
+        }
+
+        self.selected_data_types = deduplicated_selected_data_types;
+
+        if !self.is_data_type_selected(&self.active_data_type) {
+            if let Some(first_selected_data_type) = self.selected_data_types.first() {
+                self.active_data_type = first_selected_data_type.clone();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -120,5 +141,17 @@ mod tests {
 
         assert_eq!(data_type_selection.active_data_type(), &DataTypeRef::new("u32"));
         assert_eq!(data_type_selection.visible_data_type(), &DataTypeRef::new("i32"));
+    }
+
+    #[test]
+    fn replace_selected_data_types_updates_active_data_type_when_needed() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u64"), true);
+
+        data_type_selection.replace_selected_data_types(vec![DataTypeRef::new("u64"), DataTypeRef::new("u16")]);
+
+        assert_eq!(data_type_selection.active_data_type(), &DataTypeRef::new("u64"));
+        assert_eq!(data_type_selection.selected_data_types(), &[DataTypeRef::new("u64"), DataTypeRef::new("u16")]);
     }
 }

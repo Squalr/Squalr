@@ -1,6 +1,6 @@
 # Agentic Current Task (Readonly)
 Our current task, from `README.md`, is:
-`pr/scan-result-deletion`
+`pr/TODO`
 
 # Notes from Owner (Readonly Section)
 - Assume any unstaged/uncomitted file changes are from a previous iteration (or if this file, probably the human author giving guidance), and can be kept if they look good. Do not ask me about them.
@@ -21,7 +21,4 @@ Our current task, from `README.md`, is:
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Need human verification: engine startup now logs one random cute message from `squalr-engine/src/startup_messages.rs` during `SqualrEngine::initialize()`, so the message bank is shared by GUI, CLI, and TUI startup paths instead of living in an app crate.
-- Validation run: `cargo test -p squalr-engine --locked`, `cargo check -p squalr-cli -p squalr-tui -p squalr --locked`.
-- Need human verification: selected scan results now respond to `Space` using the same tri-state bulk freeze behavior as the footer checkbox. Keyboard focus is assigned from clicked result rows so the hotkey stays scoped to the scan results view.
-- Validation run: `cargo test -p squalr --lib`, `cargo check -p squalr --locked`, `cargo build -p squalr --locked`.
+- 

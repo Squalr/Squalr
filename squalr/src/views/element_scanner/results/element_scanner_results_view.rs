@@ -1,6 +1,9 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::check_state::CheckState},
+    ui::{
+        draw::icon_draw::IconDraw,
+        widgets::controls::{check_state::CheckState, data_type_selector::data_type_selector_view::DataTypeSelectorView},
+    },
     views::{
         element_scanner::{
             results::{
@@ -47,7 +50,12 @@ impl ElementScannerResultsView {
             .dependency_container
             .get_dependency::<StructViewerViewData>();
 
-        ElementScannerResultsViewData::poll_scan_results(element_scanner_results_view_data.clone(), app_context.engine_unprivileged_state.clone());
+        ElementScannerResultsViewData::sync_data_type_filters_from_scan_selection(element_scanner_results_view_data.clone(), element_scanner_view_data.clone());
+        ElementScannerResultsViewData::poll_scan_results(
+            element_scanner_results_view_data.clone(),
+            element_scanner_view_data.clone(),
+            app_context.engine_unprivileged_state.clone(),
+        );
 
         Self {
             app_context,
@@ -72,10 +80,12 @@ impl Widget for ElementScannerResultsView {
         const BAR_THICKNESS: f32 = 4.0;
         const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 80.0;
         const MINIMUM_SPLITTER_PIXEL_GAP: f32 = 40.0;
+        const DATA_TYPE_COLUMN_PIXEL_WIDTH: f32 = 80.0;
 
         let theme = &self.app_context.theme;
         let mut new_value_splitter_ratio: Option<f32> = None;
         let mut new_previous_value_splitter_ratio: Option<f32> = None;
+        let mut did_change_data_type_filters = false;
         let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
         let mut scan_results_has_keyboard_focus = false;
         let mut selection_freeze_checkstate = CheckState::False;
@@ -141,10 +151,16 @@ impl Widget for ElementScannerResultsView {
 
                 let value_splitter_position_x = content_min_x + content_width * value_splitter_ratio;
                 let previous_value_splitter_position_x = content_min_x + content_width * previous_value_splitter_ratio;
-                let faux_address_splitter_position_x = content_min_x + 36.0;
+                let faux_data_type_splitter_position_x = content_min_x + 36.0;
+                let faux_address_splitter_position_x = faux_data_type_splitter_position_x + DATA_TYPE_COLUMN_PIXEL_WIDTH;
 
                 let splitter_min_y = header_rectangle.min.y;
                 let splitter_max_y = content_clip_rectangle.max.y + footer_height;
+
+                let faux_data_type_splitter_rectangle = Rect::from_min_max(
+                    pos2(faux_data_type_splitter_position_x - FAUX_BAR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(faux_data_type_splitter_position_x + FAUX_BAR_THICKNESS * 0.5, splitter_max_y),
+                );
 
                 let faux_address_splitter_rectangle = Rect::from_min_max(
                     pos2(faux_address_splitter_position_x - FAUX_BAR_THICKNESS * 0.5, splitter_min_y),
@@ -173,6 +189,45 @@ impl Widget for ElementScannerResultsView {
                     freeze_icon_size,
                     &self.app_context.theme.icon_library.icon_handle_results_freeze,
                 );
+
+                let data_type_filter_combo_padding = 4.0;
+                let data_type_filter_combo_rectangle = Rect::from_min_max(
+                    pos2(
+                        faux_data_type_splitter_position_x + data_type_filter_combo_padding,
+                        header_rectangle.center().y - 12.0,
+                    ),
+                    pos2(
+                        faux_address_splitter_position_x - data_type_filter_combo_padding,
+                        header_rectangle.center().y + 12.0,
+                    ),
+                );
+
+                if let Some(mut element_scanner_results_view_data) = self
+                    .element_scanner_results_view_data
+                    .write("Element scanner results header data type filters")
+                {
+                    let previous_data_type_filter_selection = element_scanner_results_view_data
+                        .data_type_filter_selection
+                        .clone();
+                    let available_data_types = element_scanner_results_view_data.available_data_types.clone();
+
+                    user_interface.put(
+                        data_type_filter_combo_rectangle,
+                        DataTypeSelectorView::new(
+                            self.app_context.clone(),
+                            &mut element_scanner_results_view_data.data_type_filter_selection,
+                            "element_scanner_results_data_type_filters",
+                        )
+                        .width(data_type_filter_combo_rectangle.width())
+                        .height(data_type_filter_combo_rectangle.height())
+                        .available_data_types(available_data_types)
+                        .stacked_list()
+                        .icon_only_label()
+                        .hide_placeholder_entries(),
+                    );
+
+                    did_change_data_type_filters = element_scanner_results_view_data.data_type_filter_selection != previous_data_type_filter_selection;
+                }
 
                 // Address column header.
                 let text_left_padding = 8.0;
@@ -296,6 +351,7 @@ impl Widget for ElementScannerResultsView {
                                     index,
                                     is_selected,
                                     &mut element_sanner_result_frame_action,
+                                    faux_data_type_splitter_position_x,
                                     faux_address_splitter_position_x,
                                     value_splitter_position_x,
                                     previous_value_splitter_position_x,
@@ -331,6 +387,10 @@ impl Widget for ElementScannerResultsView {
                     previous_value_splitter_position_x,
                 ));
 
+                user_interface
+                    .painter()
+                    .rect_filled(faux_data_type_splitter_rectangle, 0.0, theme.background_control);
+
                 // Faux address splitter.
                 user_interface
                     .painter()
@@ -344,7 +404,7 @@ impl Widget for ElementScannerResultsView {
                     let drag_delta = value_splitter_response.drag_delta();
                     let mut new_value_splitter_position_x = value_splitter_position_x + drag_delta.x;
 
-                    let minimum_value_splitter_position_x = content_min_x + MINIMUM_COLUMN_PIXEL_WIDTH;
+                    let minimum_value_splitter_position_x = faux_address_splitter_position_x + MINIMUM_COLUMN_PIXEL_WIDTH;
                     let maximum_value_splitter_position_x = previous_value_splitter_position_x - MINIMUM_SPLITTER_PIXEL_GAP;
 
                     new_value_splitter_position_x = new_value_splitter_position_x.clamp(minimum_value_splitter_position_x, maximum_value_splitter_position_x);
@@ -388,6 +448,13 @@ impl Widget for ElementScannerResultsView {
                     element_scanner_results_view_data.previous_value_splitter_ratio = new_previous_value_splitter_ratio;
                 }
             }
+        }
+
+        if did_change_data_type_filters {
+            ElementScannerResultsViewData::query_scan_results_for_active_data_type_filters(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+            );
         }
 
         if scan_results_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
