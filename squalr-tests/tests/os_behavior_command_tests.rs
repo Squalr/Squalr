@@ -84,6 +84,29 @@ fn seed_snapshot_with_single_scan_result_missing_current_value(
     }
 }
 
+fn seed_snapshot_with_partial_multi_type_scan_results(
+    engine_privileged_state: &std::sync::Arc<EnginePrivilegedState>,
+    region_base_address: u64,
+    result_address: u64,
+) {
+    let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base_address, 0x100), Vec::new());
+    snapshot_region.current_values = vec![0u8; 0x100];
+    snapshot_region.previous_values = vec![0u8; 0x100];
+
+    let empty_filter_collection = SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1);
+    let populated_filter_collection = SnapshotRegionFilterCollection::new(
+        vec![vec![SnapshotRegionFilter::new(result_address, 4)]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
+    snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![empty_filter_collection, populated_filter_collection]));
+
+    let snapshot_ref = engine_privileged_state.get_snapshot();
+    if let Ok(mut snapshot_guard) = snapshot_ref.write() {
+        snapshot_guard.set_snapshot_regions(vec![snapshot_region]);
+    }
+}
+
 #[test]
 fn memory_write_executor_uses_injected_module_resolution_and_writer() {
     let (mock_engine_os, engine_privileged_state) = create_test_state();
@@ -418,6 +441,34 @@ fn scan_results_query_executor_reads_recent_values_when_scan_current_value_is_mi
         Err(error) => panic!("failed to lock mock state: {}", error),
     };
     assert_eq!(state_guard.memory_read_addresses, vec![0x4014]);
+}
+
+#[test]
+fn scan_results_query_executor_ignores_empty_multi_type_collections_when_reporting_total_size() {
+    let (mock_engine_os, engine_privileged_state) = create_test_state();
+    let region_base_address = 0x7FFF_1234_0000;
+    let result_address = region_base_address + 0x20;
+
+    mock_engine_os.set_modules(vec![NormalizedModule::new("engine.dll", region_base_address, 0x1000)]);
+    engine_privileged_state
+        .get_process_manager()
+        .set_opened_process(create_opened_process_info());
+    seed_snapshot_with_partial_multi_type_scan_results(&engine_privileged_state, region_base_address, result_address);
+
+    let scan_results_query_response = ScanResultsQueryRequest { page_index: 0 }.execute(&engine_privileged_state);
+
+    assert_eq!(scan_results_query_response.result_count, 1);
+    assert_eq!(scan_results_query_response.total_size_in_bytes, 4);
+    assert_eq!(scan_results_query_response.scan_results.len(), 1);
+    assert_eq!(scan_results_query_response.scan_results[0].get_module(), "engine.dll");
+    assert_eq!(scan_results_query_response.scan_results[0].get_module_offset(), 0x20);
+
+    let mock_os_state = mock_engine_os.get_state();
+    let state_guard = match mock_os_state.lock() {
+        Ok(state_guard) => state_guard,
+        Err(error) => panic!("failed to lock mock state: {}", error),
+    };
+    assert_eq!(state_guard.memory_read_addresses, vec![result_address]);
 }
 
 #[test]

@@ -151,16 +151,49 @@ impl SnapshotRegionScanResults {
     pub fn get_filter_bounds(&self) -> (u64, u64) {
         let mut filter_min_address = u64::MAX;
         let mut filter_max_address = 0u64;
+        let mut has_results = false;
 
         // Collect the minimum and maximum filter bounds. These are used to efficiently build our lookup table.
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
+            if snapshot_region_filter_collection.get_number_of_results() == 0 {
+                continue;
+            }
+
+            has_results = true;
             filter_min_address = filter_min_address.min(snapshot_region_filter_collection.get_filter_minimum_address());
             filter_max_address = filter_max_address.max(snapshot_region_filter_collection.get_filter_maximum_address());
+        }
+
+        if !has_results {
+            return (0, 0);
         }
 
         // In the case where there are no filters (or something gone horribly wrong), correct the min to be <= max.
         filter_min_address = filter_min_address.clamp(0u64, filter_max_address);
 
         (filter_min_address, filter_max_address)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SnapshotRegionScanResults;
+    use crate::structures::data_types::data_type_ref::DataTypeRef;
+    use crate::structures::memory::memory_alignment::MemoryAlignment;
+    use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+    use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+
+    #[test]
+    fn get_filter_bounds_ignores_zero_result_collections() {
+        let high_address = 0x7FFF_1234_0020;
+        let zero_result_collection = SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+        let populated_collection = SnapshotRegionFilterCollection::new(
+            vec![vec![SnapshotRegionFilter::new(high_address, 4)]],
+            DataTypeRef::new("u32"),
+            MemoryAlignment::Alignment1,
+        );
+        let scan_results = SnapshotRegionScanResults::new(vec![zero_result_collection, populated_collection]);
+
+        assert_eq!(scan_results.get_filter_bounds(), (high_address, high_address + 4));
     }
 }
