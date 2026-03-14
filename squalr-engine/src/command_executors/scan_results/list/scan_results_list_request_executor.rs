@@ -21,6 +21,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
         let mut last_page_index = 0;
         let mut result_count = 0;
         let mut total_size_in_bytes = 0;
+        let mut effective_page_index = 0;
         let os_providers = engine_privileged_state.get_os_providers();
 
         // Collect modules if possible so that we can resolve whether individual addresses are static later.
@@ -34,22 +35,14 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
         };
 
         if let Ok(snapshot) = engine_privileged_state.get_snapshot().read() {
-            result_count = snapshot.get_number_of_results();
+            result_count = snapshot.get_number_of_results_for_data_types(self.data_type_filters.as_deref());
             last_page_index = result_count.saturating_sub(1) / results_page_size;
             total_size_in_bytes = snapshot.get_byte_count();
+            let (resolved_page_index, scan_results_page) =
+                snapshot.get_scan_results_page(self.data_type_filters.as_deref(), self.page_index, results_page_size);
+            effective_page_index = resolved_page_index;
 
-            // Get the range of indicies for the elements of this page.
-            let index_of_first_page_entry = self.page_index.clamp(0, last_page_index) * results_page_size;
-            let index_of_last_page_entry = index_of_first_page_entry
-                .saturating_add(results_page_size)
-                .min(result_count);
-
-            for result_index in index_of_first_page_entry..index_of_last_page_entry {
-                let scan_result_base = match snapshot.get_scan_result(result_index) {
-                    None => break,
-                    Some(scan_result_base) => scan_result_base,
-                };
-
+            for scan_result_base in scan_results_page {
                 let mut recently_read_value = None;
                 let mut module_name = String::default();
                 let address = scan_result_base.get_address();
@@ -107,7 +100,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsListRequest {
 
         ScanResultsListResponse {
             scan_results: scan_results_list,
-            page_index: self.page_index,
+            page_index: effective_page_index,
             page_size: results_page_size,
             last_page_index,
             result_count,

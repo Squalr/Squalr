@@ -73,7 +73,10 @@ fn scan_results_list_request_dispatches_list_command_and_invokes_typed_callback(
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_list_request = ScanResultsListRequest { page_index: 4 };
+    let scan_results_list_request = ScanResultsListRequest {
+        page_index: 4,
+        data_type_filters: None,
+    };
     let callback_page_index = Arc::new(RwLock::new(None::<u64>));
     let callback_page_index_clone = callback_page_index.clone();
 
@@ -109,7 +112,11 @@ fn scan_results_query_request_send_unprivileged_returns_false_when_dispatch_fail
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
-    let did_dispatch = ScanResultsQueryRequest { page_index: 0 }.send_unprivileged(&bindings, move |_scan_results_query_response| {
+    let did_dispatch = ScanResultsQueryRequest {
+        page_index: 0,
+        data_type_filters: None,
+    }
+    .send_unprivileged(&bindings, move |_scan_results_query_response| {
         callback_invoked_clone.store(true, Ordering::SeqCst);
     });
 
@@ -125,7 +132,10 @@ fn scan_results_list_request_does_not_invoke_callback_when_response_variant_is_w
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_list_request = ScanResultsListRequest { page_index: 9 };
+    let scan_results_list_request = ScanResultsListRequest {
+        page_index: 9,
+        data_type_filters: None,
+    };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
@@ -166,7 +176,10 @@ fn scan_results_query_request_dispatches_query_command_and_invokes_typed_callbac
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_query_request = ScanResultsQueryRequest { page_index: 3 };
+    let scan_results_query_request = ScanResultsQueryRequest {
+        page_index: 3,
+        data_type_filters: None,
+    };
     let callback_page_size = Arc::new(RwLock::new(None::<u64>));
     let callback_page_size_clone = callback_page_size.clone();
 
@@ -204,7 +217,10 @@ fn scan_results_query_request_does_not_invoke_callback_when_response_variant_is_
     );
     let dispatched_commands = bindings.get_dispatched_commands();
 
-    let scan_results_query_request = ScanResultsQueryRequest { page_index: 7 };
+    let scan_results_query_request = ScanResultsQueryRequest {
+        page_index: 7,
+        data_type_filters: None,
+    };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 

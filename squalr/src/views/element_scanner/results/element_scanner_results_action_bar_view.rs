@@ -4,11 +4,8 @@ use crate::{
         draw::icon_draw::IconDraw,
         widgets::controls::{button::Button, check_state::CheckState, checkbox::Checkbox, data_value_box::data_value_box_view::DataValueBoxView},
     },
-    views::element_scanner::{
-        results::view_data::{
-            element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData,
-        },
-        scanner::view_data::element_scanner_view_data::ElementScannerViewData,
+    views::element_scanner::results::view_data::{
+        element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData,
     },
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
@@ -19,7 +16,6 @@ use std::sync::Arc;
 pub struct ElementScannerResultsActionBarView<'lifetime> {
     app_context: Arc<AppContext>,
     element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
-    element_scanner_view_data: Dependency<ElementScannerViewData>,
     selection_freeze_checkstate: CheckState,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
     address_splitter_position_x: f32,
@@ -41,14 +37,10 @@ impl<'lifetime> ElementScannerResultsActionBarView<'lifetime> {
         let element_scanner_results_view_data = app_context
             .dependency_container
             .get_dependency::<ElementScannerResultsViewData>();
-        let element_scanner_view_data = app_context
-            .dependency_container
-            .get_dependency::<ElementScannerViewData>();
 
         Self {
             app_context,
             element_scanner_results_view_data,
-            element_scanner_view_data,
             selection_freeze_checkstate,
             element_sanner_result_frame_action,
             address_splitter_position_x,
@@ -84,13 +76,6 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
             .write("Element scanner results action bar element scanner results view data")
         {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
-            None => return response,
-        };
-        let element_scanner_view_data = match self
-            .element_scanner_view_data
-            .read("Element scanner results action bar element scanner view data")
-        {
-            Some(element_scanner_view_data) => element_scanner_view_data,
             None => return response,
         };
 
@@ -146,6 +131,10 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
 
             let padding = 2.0;
             let data_value_box_width = self.previous_value_splitter_position_x - self.value_splitter_position_x - padding * 2.0;
+            let validation_data_type_ref = element_scanner_results_view_data
+                .data_type_filter_selection
+                .visible_data_type()
+                .clone();
 
             user_interface.put(
                 Rect::from_min_size(
@@ -155,9 +144,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 DataValueBoxView::new(
                     self.app_context.clone(),
                     &mut element_scanner_results_view_data.current_display_string,
-                    element_scanner_view_data
-                        .data_type_selection
-                        .visible_data_type(),
+                    &validation_data_type_ref,
                     false,
                     true,
                     "Edit selected values...",

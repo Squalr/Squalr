@@ -1,3 +1,5 @@
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use arc_swap::Guard;
 use squalr_engine_api::commands::project_items::add::project_items_add_request::ProjectItemsAddRequest;
@@ -19,7 +21,12 @@ use squalr_engine_api::{
         settings::scan::list::scan_settings_list_request::ScanSettingsListRequest, unprivileged_command_request::UnprivilegedCommandRequest,
     },
     events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent,
-    structures::{data_values::anonymous_value_string::AnonymousValueString, scan_results::scan_result::ScanResult, settings::scan_settings::ScanSettings},
+    structures::{
+        data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
+        data_values::anonymous_value_string::AnonymousValueString,
+        scan_results::scan_result::ScanResult,
+        settings::scan_settings::ScanSettings,
+    },
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::ops::RangeInclusive;
@@ -36,6 +43,7 @@ pub struct ElementScannerResultsViewData {
     pub value_splitter_ratio: f32,
     pub previous_value_splitter_ratio: f32,
     pub current_scan_results: Vec<ScanResult>,
+    pub data_type_filter_selection: DataTypeSelection,
     pub current_page_index: u64,
     pub cached_last_page_index: u64,
     pub selection_index_start: Option<i32>,
@@ -64,6 +72,7 @@ impl ElementScannerResultsViewData {
             value_splitter_ratio: Self::DEFAULT_VALUE_SPLITTER_RATIO,
             previous_value_splitter_ratio: Self::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO,
             current_scan_results: Vec::new(),
+            data_type_filter_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
             current_page_index: 0,
             cached_last_page_index: 0,
             selection_index_start: None,
@@ -83,19 +92,26 @@ impl ElementScannerResultsViewData {
 
     pub fn poll_scan_results(
         element_scanner_results_view_data: Dependency<Self>,
+        element_scanner_view_data: Dependency<ElementScannerViewData>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
         Self::query_scan_results(element_scanner_results_view_data.clone(), engine_unprivileged_state.clone(), false);
 
         let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         let element_scanner_results_view_data_clone = element_scanner_results_view_data.clone();
+        let element_scanner_view_data_clone = element_scanner_view_data.clone();
 
         // Requery all scan results if they update.
         {
             engine_unprivileged_state.listen_for_engine_event::<ScanResultsUpdatedEvent>(move |scan_results_updated_event| {
                 let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
+                let element_scanner_view_data = element_scanner_view_data_clone.clone();
                 let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
                 let play_sound = !scan_results_updated_event.is_new_scan;
+
+                if scan_results_updated_event.is_new_scan {
+                    Self::sync_data_type_filters_from_scan_selection(element_scanner_results_view_data.clone(), element_scanner_view_data);
+                }
 
                 Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, play_sound);
             });
@@ -253,7 +269,13 @@ impl ElementScannerResultsViewData {
             None => return,
         };
         let page_index = Self::load_current_page_index_write(&element_scanner_results_view_data);
-        let scan_results_query_request = ScanResultsQueryRequest { page_index };
+        let data_type_filters = Some(
+            element_scanner_results_view_data
+                .data_type_filter_selection
+                .selected_data_types()
+                .to_vec(),
+        );
+        let scan_results_query_request = ScanResultsQueryRequest { page_index, data_type_filters };
 
         element_scanner_results_view_data.is_querying_scan_results = true;
 
@@ -268,6 +290,7 @@ impl ElementScannerResultsViewData {
 
             if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_for_response.write("Query scan results response") {
                 element_scanner_results_view_data.is_querying_scan_results = false;
+                element_scanner_results_view_data.current_page_index = scan_results_query_response.page_index;
                 element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
                 element_scanner_results_view_data.result_count = result_count;
                 element_scanner_results_view_data.stats_string = format!("{} (Count: {})", byte_size_in_metric, result_count);
@@ -333,6 +356,49 @@ impl ElementScannerResultsViewData {
                 element_scanner_results_view_data.is_querying_scan_settings = false;
             }
         });
+    }
+
+    pub fn query_scan_results_for_active_data_type_filters(
+        element_scanner_results_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
+        {
+            let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Query scan results for active data type filters") {
+                Some(element_scanner_results_view_data) => element_scanner_results_view_data,
+                None => return,
+            };
+
+            element_scanner_results_view_data.current_page_index = 0;
+            element_scanner_results_view_data.selection_index_start = None;
+            element_scanner_results_view_data.selection_index_end = None;
+        }
+
+        Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
+    }
+
+    pub fn sync_data_type_filters_from_scan_selection(
+        element_scanner_results_view_data: Dependency<Self>,
+        element_scanner_view_data: Dependency<ElementScannerViewData>,
+    ) {
+        let scan_data_type_selection = element_scanner_view_data
+            .read("Sync scan results data type filters from scan selection")
+            .map(|element_scanner_view_data| element_scanner_view_data.data_type_selection.clone());
+
+        let Some(scan_data_type_selection) = scan_data_type_selection else {
+            return;
+        };
+
+        if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Apply scan results data type filters from scan selection")
+        {
+            if element_scanner_results_view_data.data_type_filter_selection == scan_data_type_selection {
+                return;
+            }
+
+            element_scanner_results_view_data.data_type_filter_selection = scan_data_type_selection;
+            element_scanner_results_view_data.current_page_index = 0;
+            element_scanner_results_view_data.selection_index_start = None;
+            element_scanner_results_view_data.selection_index_end = None;
+        }
     }
 
     /// Fetches up-to-date values and module information for the current scan results, then updates the UI.

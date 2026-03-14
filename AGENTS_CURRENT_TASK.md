@@ -1,6 +1,6 @@
 # Agentic Current Task (Readonly)
 Our current task, from `README.md`, is:
-`pr/scan-result-deletion`
+`pr/multi-results`
 
 # Notes from Owner (Readonly Section)
 - Assume any unstaged/uncomitted file changes are from a previous iteration (or if this file, probably the human author giving guidance), and can be kept if they look good. Do not ask me about them.
@@ -16,12 +16,12 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- 
+- Need human verification of the GUI scan-results type filter column, address-ascending mixed-type ordering, and filtered paging behavior on a real scan.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- Need human verification: engine startup now logs one random cute message from `squalr-engine/src/startup_messages.rs` during `SqualrEngine::initialize()`, so the message bank is shared by GUI, CLI, and TUI startup paths instead of living in an app crate.
-- Validation run: `cargo test -p squalr-engine --locked`, `cargo check -p squalr-cli -p squalr-tui -p squalr --locked`.
-- Need human verification: selected scan results now respond to `Space` using the same tri-state bulk freeze behavior as the footer checkbox. Keyboard focus is assigned from clicked result rows so the hotkey stays scoped to the scan results view.
-- Validation run: `cargo test -p squalr --lib`, `cargo check -p squalr --locked`, `cargo build -p squalr --locked`.
+- Scan-results query/list requests now accept optional `data_type_filters`; GUI/TUI query paths send explicit filter sets so result counts and pages are computed against the active types instead of filtering a loaded page.
+- Snapshot paging now zips scan results by address ascending at page-load time, preserving stable unfiltered `ScanResultRef` global indices so refresh/freeze/edit flows still resolve the correct entries.
+- GUI scan results now have a compact type column with an icon-only checkmark dropdown in the header; row type icons moved out of the address column.
+- Test coverage added for address-ascending mixed-type ordering and filter-aware paging. `cargo test -p squalr-engine-api --lib` still has a pre-existing unrelated failure in `utils::file_system::file_system_utils::tests::is_cross_platform_absolute_path_detects_unix_absolute_paths`.

@@ -1,3 +1,4 @@
+use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp;
@@ -93,5 +94,147 @@ impl Snapshot {
             .iter()
             .map(|snapshot_region| snapshot_region.get_scan_results().get_number_of_results())
             .sum()
+    }
+
+    /// Gets the number of scan results contained in this snapshot for the requested data type filters.
+    pub fn get_number_of_results_for_data_types(
+        &self,
+        filtered_data_types: Option<&[DataTypeRef]>,
+    ) -> u64 {
+        self.snapshot_regions
+            .iter()
+            .map(|snapshot_region| {
+                snapshot_region
+                    .get_scan_results()
+                    .get_number_of_results_for_data_types(filtered_data_types)
+            })
+            .sum()
+    }
+
+    /// Collects a filtered page of scan results in global address-ascending order.
+    pub fn get_scan_results_page(
+        &self,
+        filtered_data_types: Option<&[DataTypeRef]>,
+        page_index: u64,
+        page_size: u64,
+    ) -> (u64, Vec<ScanResultValued>) {
+        let total_filtered_result_count = self.get_number_of_results_for_data_types(filtered_data_types);
+        let last_page_index = if total_filtered_result_count == 0 {
+            0
+        } else {
+            total_filtered_result_count.saturating_sub(1) / page_size.max(1)
+        };
+        let effective_page_index = page_index.clamp(0, last_page_index);
+        let mut remaining_filtered_results_to_skip = effective_page_index.saturating_mul(page_size);
+        let mut remaining_page_capacity = page_size;
+        let mut region_global_scan_result_index_base: u64 = 0;
+        let mut scan_results_page = Vec::with_capacity(page_size as usize);
+
+        for snapshot_region in &self.snapshot_regions {
+            if remaining_page_capacity == 0 {
+                break;
+            }
+
+            let snapshot_region_scan_results = snapshot_region.get_scan_results();
+            let region_filtered_result_count = snapshot_region_scan_results.get_number_of_results_for_data_types(filtered_data_types);
+            let region_total_result_count = snapshot_region_scan_results.get_number_of_results();
+
+            if remaining_filtered_results_to_skip >= region_filtered_result_count {
+                remaining_filtered_results_to_skip = remaining_filtered_results_to_skip.saturating_sub(region_filtered_result_count);
+                region_global_scan_result_index_base = region_global_scan_result_index_base.saturating_add(region_total_result_count);
+                continue;
+            }
+
+            let mut region_scan_results_page = snapshot_region_scan_results.get_scan_results_page(
+                snapshot_region,
+                filtered_data_types,
+                region_global_scan_result_index_base,
+                remaining_filtered_results_to_skip,
+                remaining_page_capacity,
+            );
+
+            remaining_page_capacity = remaining_page_capacity.saturating_sub(region_scan_results_page.len() as u64);
+            remaining_filtered_results_to_skip = 0;
+            region_global_scan_result_index_base = region_global_scan_result_index_base.saturating_add(region_total_result_count);
+            scan_results_page.append(&mut region_scan_results_page);
+        }
+
+        (effective_page_index, scan_results_page)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Snapshot;
+    use crate::structures::data_types::data_type_ref::DataTypeRef;
+    use crate::structures::memory::memory_alignment::MemoryAlignment;
+    use crate::structures::memory::normalized_region::NormalizedRegion;
+    use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
+    use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
+    use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
+    use crate::structures::snapshots::snapshot_region::SnapshotRegion;
+
+    #[test]
+    fn get_scan_result_returns_address_sorted_result_order() {
+        let mut snapshot = Snapshot::new();
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x100), Vec::new());
+        let u32_collection = SnapshotRegionFilterCollection::new(
+            vec![vec![SnapshotRegionFilter::new(0x1010, 4)]],
+            DataTypeRef::new("u32"),
+            MemoryAlignment::Alignment1,
+        );
+        let u16_collection = SnapshotRegionFilterCollection::new(
+            vec![vec![SnapshotRegionFilter::new(0x1004, 2)]],
+            DataTypeRef::new("u16"),
+            MemoryAlignment::Alignment1,
+        );
+
+        snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![u32_collection, u16_collection]));
+        snapshot.set_snapshot_regions(vec![snapshot_region]);
+
+        let first_scan_result = snapshot
+            .get_scan_result(0)
+            .expect("Expected the first scan result.");
+        let second_scan_result = snapshot
+            .get_scan_result(1)
+            .expect("Expected the second scan result.");
+
+        assert_eq!(first_scan_result.get_address(), 0x1004);
+        assert_eq!(first_scan_result.get_data_type_ref().get_data_type_id(), "u16");
+        assert_eq!(second_scan_result.get_address(), 0x1010);
+        assert_eq!(second_scan_result.get_data_type_ref().get_data_type_id(), "u32");
+    }
+
+    #[test]
+    fn get_scan_results_page_filters_by_data_type_without_rewriting_global_indices() {
+        let mut snapshot = Snapshot::new();
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x100), Vec::new());
+        let u32_collection = SnapshotRegionFilterCollection::new(
+            vec![vec![SnapshotRegionFilter::new(0x2010, 4)]],
+            DataTypeRef::new("u32"),
+            MemoryAlignment::Alignment1,
+        );
+        let u16_collection = SnapshotRegionFilterCollection::new(
+            vec![vec![SnapshotRegionFilter::new(0x2008, 2)]],
+            DataTypeRef::new("u16"),
+            MemoryAlignment::Alignment1,
+        );
+
+        snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![u32_collection, u16_collection]));
+        snapshot.set_snapshot_regions(vec![snapshot_region]);
+
+        let filtered_data_types = vec![DataTypeRef::new("u32")];
+        let (effective_page_index, scan_results_page) = snapshot.get_scan_results_page(Some(&filtered_data_types), 0, 10);
+
+        assert_eq!(effective_page_index, 0);
+        assert_eq!(scan_results_page.len(), 1);
+        assert_eq!(scan_results_page[0].get_address(), 0x2010);
+        assert_eq!(
+            scan_results_page[0]
+                .get_base_result()
+                .get_scan_result_ref()
+                .get_scan_result_global_index(),
+            1
+        );
     }
 }

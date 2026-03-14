@@ -1,7 +1,7 @@
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 
 /// Stores the active data type alongside the selected scan data types.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DataTypeSelection {
     active_data_type: DataTypeRef,
     selected_data_types: Vec<DataTypeRef>,

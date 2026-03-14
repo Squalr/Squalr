@@ -15,6 +15,7 @@ pub struct ElementScannerResultEntryView<'lifetime> {
     index: usize,
     is_selected: bool,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
+    data_type_splitter_position_x: f32,
     address_splitter_position_x: f32,
     value_splitter_position_x: f32,
     previous_value_splitter_position_x: f32,
@@ -28,6 +29,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
         index: usize,
         is_selected: bool,
         element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
+        data_type_splitter_position_x: f32,
         address_splitter_position_x: f32,
         value_splitter_position_x: f32,
         previous_value_splitter_position_x: f32,
@@ -39,6 +41,7 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             index,
             is_selected,
             element_sanner_result_frame_action,
+            data_type_splitter_position_x,
             address_splitter_position_x,
             value_splitter_position_x,
             previous_value_splitter_position_x,
@@ -136,7 +139,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             );
         }
 
-        // Address.
+        // Data type.
         let row_center_y = allocated_size_rectangle.center().y;
         let icon_size = vec2(16.0, 16.0);
         let data_type_ref = self.scan_result.get_data_type_ref();
@@ -144,8 +147,11 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             data_type_ref.get_data_type_id(),
             &theme.icon_library,
         );
-        let icon_pos = pos2(self.address_splitter_position_x + text_left_padding, row_center_y - icon_size.y * 0.5);
-        let address_text_position = pos2(icon_pos.x + icon_size.x + 6.0, row_center_y);
+        let data_type_icon_rectangle = Rect::from_center_size(
+            pos2((self.data_type_splitter_position_x + self.address_splitter_position_x) * 0.5, row_center_y),
+            icon_size,
+        );
+        let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
         let address = self.scan_result.get_address();
         let address_string = if self.scan_result.is_module() {
             format!("{}+{:X}", self.scan_result.get_module(), self.scan_result.get_module_offset())
@@ -157,7 +163,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         user_interface.painter().image(
             icon_handle.id(),
-            Rect::from_min_size(icon_pos, icon_size),
+            data_type_icon_rectangle,
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             Color32::WHITE,
         );

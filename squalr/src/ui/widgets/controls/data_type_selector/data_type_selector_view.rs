@@ -24,6 +24,12 @@ enum PlaceholderDataTypeEntry {
     Custom,
 }
 
+#[derive(Clone, Copy)]
+enum DataTypeSelectorLabelMode {
+    Text,
+    IconOnly,
+}
+
 /// A widget that allows selecting from a set of data types.
 pub struct DataTypeSelectorView<'lifetime> {
     app_context: Arc<AppContext>,
@@ -32,6 +38,7 @@ pub struct DataTypeSelectorView<'lifetime> {
     disabled: bool,
     width: f32,
     height: f32,
+    label_mode: DataTypeSelectorLabelMode,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
@@ -66,6 +73,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             disabled: false,
             width: 160.0,
             height: 28.0,
+            label_mode: DataTypeSelectorLabelMode::Text,
         }
     }
 
@@ -93,6 +101,11 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         self
     }
 
+    pub fn icon_only_label(mut self) -> Self {
+        self.label_mode = DataTypeSelectorLabelMode::IconOnly;
+        self
+    }
+
     pub fn close(
         &self,
         user_interface: &mut Ui,
@@ -104,13 +117,26 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         });
     }
 
-    fn combo_label(data_type_selection: &DataTypeSelection) -> String {
-        let visible_data_type_label = DataTypeToStringConverter::convert_data_type_to_string(data_type_selection.visible_data_type().get_data_type_id());
+    fn combo_label(
+        data_type_selection: &DataTypeSelection,
+        label_mode: DataTypeSelectorLabelMode,
+    ) -> String {
+        match label_mode {
+            DataTypeSelectorLabelMode::Text => {
+                let visible_data_type_label =
+                    DataTypeToStringConverter::convert_data_type_to_string(data_type_selection.visible_data_type().get_data_type_id());
 
-        match data_type_selection.selected_data_type_count() {
-            0 => "Select types".to_string(),
-            1 => visible_data_type_label.to_string(),
-            selected_data_type_count => format!("{} +{}", visible_data_type_label, selected_data_type_count - 1),
+                match data_type_selection.selected_data_type_count() {
+                    0 => "Select types".to_string(),
+                    1 => visible_data_type_label.to_string(),
+                    selected_data_type_count => format!("{} +{}", visible_data_type_label, selected_data_type_count - 1),
+                }
+            }
+            DataTypeSelectorLabelMode::IconOnly => match data_type_selection.selected_data_type_count() {
+                0 => "0".to_string(),
+                1 => String::new(),
+                selected_data_type_count => format!("+{}", selected_data_type_count - 1),
+            },
         }
     }
 
@@ -234,10 +260,11 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let disabled = self.disabled;
         let width = self.width;
         let height = self.height;
+        let label_mode = self.label_mode;
         let popup_width = Self::selectable_popup_width();
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
         let combo_icon = DataTypeToIconConverter::convert_data_type_to_icon(combo_data_type_id, &app_context.theme.icon_library);
-        let combo_label = Self::combo_label(data_type_selection);
+        let combo_label = Self::combo_label(data_type_selection, label_mode);
 
         let combo_box = ComboBoxView::new(
             app_context.clone(),
@@ -318,7 +345,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
 
 #[cfg(test)]
 mod tests {
-    use super::DataTypeSelectorView;
+    use super::{DataTypeSelectorLabelMode, DataTypeSelectorView};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 
@@ -327,7 +354,21 @@ mod tests {
         let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
         data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
 
-        assert_eq!(DataTypeSelectorView::combo_label(&data_type_selection), "u32 +1");
+        assert_eq!(
+            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::Text),
+            "u32 +1"
+        );
+    }
+
+    #[test]
+    fn icon_only_combo_label_uses_only_extra_selection_count() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        assert_eq!(
+            DataTypeSelectorView::combo_label(&data_type_selection, DataTypeSelectorLabelMode::IconOnly),
+            "+1"
+        );
     }
 
     #[test]

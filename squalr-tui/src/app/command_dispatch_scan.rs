@@ -16,6 +16,7 @@ use squalr_engine_api::commands::scan_results::query::scan_results_query_request
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
@@ -297,7 +298,15 @@ impl AppShell {
 
         let page_index = self.app_state.scan_results_pane_state.current_page_index;
         self.sync_scan_results_type_filters_from_element_scanner();
-        let scan_results_query_request = ScanResultsQueryRequest { page_index };
+        let data_type_filters = Some(
+            self.app_state
+                .scan_results_pane_state
+                .filtered_data_type_ids
+                .iter()
+                .map(|filtered_data_type_id| DataTypeRef::new(filtered_data_type_id))
+                .collect(),
+        );
+        let scan_results_query_request = ScanResultsQueryRequest { page_index, data_type_filters };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         let request_dispatched = scan_results_query_request.send(engine_unprivileged_state, move |scan_results_query_response| {
             let _ = response_sender.send(scan_results_query_response);
