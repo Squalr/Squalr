@@ -80,7 +80,7 @@ impl Widget for ElementScannerResultsView {
         const BAR_THICKNESS: f32 = 4.0;
         const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 80.0;
         const MINIMUM_SPLITTER_PIXEL_GAP: f32 = 40.0;
-        const DATA_TYPE_COLUMN_PIXEL_WIDTH: f32 = 64.0;
+        const DATA_TYPE_COLUMN_PIXEL_WIDTH: f32 = 80.0;
 
         let theme = &self.app_context.theme;
         let mut new_value_splitter_ratio: Option<f32> = None;
