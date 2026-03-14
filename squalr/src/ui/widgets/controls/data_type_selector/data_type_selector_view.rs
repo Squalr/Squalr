@@ -4,7 +4,7 @@ use crate::ui::widgets::controls::combo_box::combo_box_view::ComboBoxView;
 use crate::ui::widgets::controls::data_type_selector::data_type_item_view::DataTypeItemView;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::{app_context::AppContext, ui::converters::data_type_to_icon_converter::DataTypeToIconConverter};
-use eframe::egui::{Id, Response, Ui, Widget};
+use eframe::egui::{Grid, Id, Response, Ui, Widget, vec2};
 use epaint::TextureHandle;
 use squalr_engine_api::structures::data_types::{
     built_in_types::{
@@ -117,6 +117,14 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             + Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING * (Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT.saturating_sub(1) as f32)
     }
 
+    fn selectable_data_type_grid_id(menu_id: &str) -> Id {
+        Id::new(("selectable_data_type_grid", menu_id))
+    }
+
+    fn placeholder_data_type_grid_id(menu_id: &str) -> Id {
+        Id::new(("placeholder_data_type_grid", menu_id))
+    }
+
     fn is_pointer_over_item(
         user_interface: &Ui,
         item_response: &Response,
@@ -225,55 +233,66 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             combo_label,
             menu_id,
             Some(combo_icon),
-            move |popup_user_interface: &mut Ui, _should_close: &mut bool| {
+            move |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 Self::reset_drag_state_if_needed(popup_user_interface, menu_id);
                 popup_user_interface.set_min_width(popup_width);
 
                 popup_user_interface.vertical(|user_interface| {
-                    for data_type_row in Self::SELECTABLE_DATA_TYPE_ROWS {
-                        user_interface.horizontal(|user_interface| {
-                            for (data_type_index, data_type_id) in data_type_row.into_iter().enumerate() {
-                                if data_type_index > 0 {
-                                    user_interface.add_space(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING);
+                    Grid::new(Self::selectable_data_type_grid_id(menu_id))
+                        .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
+                        .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
+                        .show(user_interface, |user_interface| {
+                            for data_type_row in Self::SELECTABLE_DATA_TYPE_ROWS {
+                                for data_type_id in data_type_row {
+                                    let data_type_ref = DataTypeRef::new(data_type_id);
+                                    let data_type_item_response = user_interface.add(
+                                        DataTypeItemView::new(
+                                            app_context.clone(),
+                                            DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
+                                            Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                                data_type_id,
+                                                &app_context.theme.icon_library,
+                                            )),
+                                            Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
+                                        )
+                                        .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref))),
+                                    );
+
+                                    Self::handle_selectable_data_type_interaction(
+                                        user_interface,
+                                        menu_id,
+                                        data_type_selection,
+                                        data_type_ref,
+                                        &data_type_item_response,
+                                    );
                                 }
 
-                                let data_type_ref = DataTypeRef::new(data_type_id);
-                                let data_type_item_response = user_interface.add(
-                                    DataTypeItemView::new(
-                                        app_context.clone(),
-                                        DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
-                                        Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                            data_type_id,
-                                            &app_context.theme.icon_library,
-                                        )),
-                                        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
-                                    )
-                                    .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(&data_type_ref))),
-                                );
-
-                                Self::handle_selectable_data_type_interaction(
-                                    user_interface,
-                                    menu_id,
-                                    data_type_selection,
-                                    data_type_ref,
-                                    &data_type_item_response,
-                                );
+                                user_interface.end_row();
                             }
                         });
-                    }
 
                     user_interface.separator();
-                    user_interface.horizontal(|user_interface| {
-                        for (placeholder_index, placeholder_data_type_entry) in Self::PLACEHOLDER_DATA_TYPE_ROW.into_iter().enumerate() {
-                            if placeholder_index > 0 {
-                                user_interface.add_space(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING);
+                    Grid::new(Self::placeholder_data_type_grid_id(menu_id))
+                        .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
+                        .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
+                        .show(user_interface, |user_interface| {
+                            for placeholder_data_type_entry in Self::PLACEHOLDER_DATA_TYPE_ROW {
+                                let (label, icon) = Self::placeholder_entry(&app_context, placeholder_data_type_entry);
+                                if user_interface
+                                    .add(DataTypeItemView::new(
+                                        app_context.clone(),
+                                        label,
+                                        Some(icon),
+                                        Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
+                                    ))
+                                    .clicked()
+                                {
+                                    *should_close = true;
+                                }
                             }
 
-                            let (label, icon) = Self::placeholder_entry(&app_context, placeholder_data_type_entry);
-                            user_interface
-                                .add(DataTypeItemView::new(app_context.clone(), label, Some(icon), Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH).disabled(true));
-                        }
-                    });
+                            user_interface.end_row();
+                        });
                 });
             },
         )

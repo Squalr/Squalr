@@ -16,10 +16,10 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: `pr/multi-scan` pass 2 fixes the GUI element scanner dropdown layout to keep a balanced two-column checkbox popup, restores click-drag painting across contiguous entries, and still dispatches scans with all selected data types.
+- Need human verification: `pr/multi-scan` pass 2 keeps the GUI element scanner dropdown as a balanced two-column checkbox popup, restores click-drag painting across contiguous entries, leaves string/custom as clickable facade rows without checkboxes, and still dispatches scans with all selected data types.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
 - User explicitly requested the previously deferred GUI multi-data-type scan work. Implemented in `squalr` only: selector state now tracks an active type plus selected set, the dropdown stays open for checkbox multi-select, dragging with the primary mouse button applies the initial select/deselect state across hovered entries, and scan dispatch now sends every selected `DataTypeRef`.
-- Pass 2 fixes the popup regressions in `squalr/src/ui/widgets/controls/data_type_selector/data_type_selector_view.rs`: popup width is now sized for two columns with explicit column spacing, and drag painting uses pointer-position containment instead of hover state so selections continue updating while the initial entry owns the drag. `cargo test -p squalr --locked` passed.
+- Pass 2 final follow-up keeps the two-column popup stable by rendering the data type rows through fixed-width grids and clipping each item to its own bounds in `squalr/src/ui/widgets/controls/data_type_selector/data_type_selector_view.rs` and `squalr/src/ui/widgets/controls/data_type_selector/data_type_item_view.rs`, which prevents the right column from painting into the left. String/custom facade rows are clickable again but remain unchecked/non-multi-select. `cargo test -p squalr --locked` passed.

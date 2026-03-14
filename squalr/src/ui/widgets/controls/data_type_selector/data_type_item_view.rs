@@ -5,7 +5,7 @@ use crate::{
         widgets::controls::{check_state::CheckState, checkbox::Checkbox, state_layer::StateLayer},
     },
 };
-use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
+use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::CornerRadius;
 use std::sync::Arc;
 
@@ -106,6 +106,9 @@ impl<'a> Widget for DataTypeItemView<'a> {
         }
         .ui(user_interface);
 
+        let mut item_contents_user_interface = user_interface.new_child(UiBuilder::new().max_rect(allocated_size_rectangle));
+        item_contents_user_interface.set_clip_rect(allocated_size_rectangle);
+
         // Draw icon and label inside layout.
         let mut current_pos_x = allocated_size_rectangle.min.x + left_padding;
 
@@ -114,7 +117,7 @@ impl<'a> Widget for DataTypeItemView<'a> {
                 pos2(current_pos_x, allocated_size_rectangle.center().y - Checkbox::HEIGHT * 0.5),
                 vec2(Checkbox::WIDTH, Checkbox::HEIGHT),
             );
-            user_interface.put(
+            item_contents_user_interface.put(
                 checkbox_rect,
                 Checkbox::new_from_theme(theme)
                     .with_check_state(check_state)
@@ -125,7 +128,7 @@ impl<'a> Widget for DataTypeItemView<'a> {
 
         let text_pos = if let Some(icon) = &self.icon {
             let icon_rect = Rect::from_min_size(pos2(current_pos_x, allocated_size_rectangle.center().y - icon_size.y * 0.5), icon_size);
-            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
+            IconDraw::draw_sized(&item_contents_user_interface, icon_rect.center(), icon_size, icon);
             current_pos_x = icon_rect.max.x + item_spacing;
 
             pos2(current_pos_x, allocated_size_rectangle.center().y)
@@ -133,7 +136,7 @@ impl<'a> Widget for DataTypeItemView<'a> {
             pos2(current_pos_x, allocated_size_rectangle.center().y)
         };
 
-        user_interface.painter().text(
+        item_contents_user_interface.painter().text(
             text_pos,
             Align2::LEFT_CENTER,
             self.label,
