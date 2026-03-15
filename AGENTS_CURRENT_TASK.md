@@ -21,4 +21,4 @@ Our current task, from `README.md`, is:
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- 
+- 2026-03-15: GitHub Actions Node 20 deprecation follow-up. `actions/checkout@v4`, `actions/upload-artifact@v4`, and `actions/download-artifact@v4` have newer Node 24-compatible majors available. `android-actions/setup-android` is still on `v3.2.2` and its published action metadata still declares `runs.using: node20`, so the Android jobs were switched to a repo-local shell setup instead. Need human verification in GitHub Actions.

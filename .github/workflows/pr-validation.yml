@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux native dependencies
         run: |
@@ -69,7 +69,7 @@ jobs:
 
       - name: Upload Linux build logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: linux-build-logs
           path: .ci-logs
@@ -78,7 +78,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -103,7 +103,7 @@ jobs:
 
       - name: Upload Windows build logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-build-logs
           path: .ci-logs
@@ -112,7 +112,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -132,7 +132,7 @@ jobs:
 
       - name: Upload macOS build logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: macos-build-logs
           path: .ci-logs
@@ -143,7 +143,7 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -155,12 +155,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK
         run: |
           set -euo pipefail
-          sdkmanager --install "platforms;android-30" "build-tools;30.0.3" "ndk;27.0.12077973"
+          bash ./scripts/ci/setup-android-sdk.sh \
+            "platform-tools" \
+            "platforms;android-30" \
+            "build-tools;30.0.3" \
+            "ndk;27.0.12077973"
 
       - name: Resolve Android environment
         run: |
@@ -198,7 +199,7 @@ jobs:
 
       - name: Upload Android compile-check logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: android-compile-check-logs
           path: .ci-logs
@@ -207,7 +208,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -240,7 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -357,7 +358,7 @@ jobs:
 
       - name: Upload warning baseline logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: warning-baseline-logs
           path: .ci-logs

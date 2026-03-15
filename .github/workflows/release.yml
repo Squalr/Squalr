@@ -46,7 +46,7 @@ jobs:
       dry_run: ${{ steps.resolve.outputs.dry_run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -120,7 +120,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -161,7 +161,7 @@ jobs:
             --dist-dir "dist/release/${{ matrix.artifact_target }}"
 
       - name: Upload desktop artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-${{ matrix.artifact_target }}
           path: dist/release/${{ matrix.artifact_target }}
@@ -175,7 +175,7 @@ jobs:
       ARTIFACT_TARGET: android-aarch64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
@@ -187,12 +187,13 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK
         run: |
           set -euo pipefail
-          sdkmanager --install "platforms;android-30" "build-tools;30.0.3" "ndk;27.0.12077973"
+          bash ./scripts/ci/setup-android-sdk.sh \
+            "platform-tools" \
+            "platforms;android-30" \
+            "build-tools;30.0.3" \
+            "ndk;27.0.12077973"
 
       - name: Resolve Android environment
         run: |
@@ -284,7 +285,7 @@ jobs:
           test -f "${output_dir}/install-android.ps1"
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-android-aarch64
           path: dist/release/android-aarch64
@@ -298,10 +299,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: dist/publish
           pattern: release-*
