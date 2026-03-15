@@ -5,13 +5,14 @@ use squalr_engine::app_provisioner::installer::install_phase::InstallPhase;
 use squalr_engine::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
 use squalr_engine::app_provisioner::operations::launch::update_operation_launch::UpdateOperationLaunch;
 use squalr_engine::app_provisioner::progress_tracker::ProgressTracker;
-use std::path::PathBuf;
+use std::io::Result;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-pub(crate) fn launch_app(install_directory: PathBuf) {
+pub(crate) fn launch_app(install_directory: &Path) -> Result<()> {
     let executable_path = install_directory.join("squalr.exe");
-    UpdateOperationLaunch::launch_app(&executable_path);
+    UpdateOperationLaunch::launch_app(&executable_path)
 }
 
 pub(crate) fn install_phase_string(install_phase: InstallPhase) -> &'static str {
