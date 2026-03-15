@@ -23,7 +23,7 @@ FIXED_ZIP_TIMESTAMP = (2020, 1, 1, 0, 0, 0)
 DESKTOP_CRATES = ["squalr-cli", "squalr-tui", "squalr"]
 WINDOWS_INSTALLER_CRATE = "squalr-installer"
 RELEASE_ASSET_EXTENSIONS = (".zip", ".apk", ".exe", ".dmg", ".gz", ".tgz")
-RELEASE_SUPPORT_FILE_NAMES = {"README-android.md", "install-android.sh", "install-android.ps1", "squalr-cli"}
+RELEASE_SUPPORT_FILE_NAMES: set[str] = set()
 
 
 def parse_args() -> argparse.Namespace:

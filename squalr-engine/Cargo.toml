@@ -38,7 +38,7 @@ rfd = "0.17.2"
 ureq = { version = "3.0.11", default-features = false, features = ["native-tls"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_System_Com", "Win32_UI_Shell"] }
+windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Storage_EnhancedStorage", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_Shell", "Win32_UI_Shell_PropertiesSystem"] }
 
 [build-dependencies]
 

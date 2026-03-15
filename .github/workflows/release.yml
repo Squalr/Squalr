@@ -227,6 +227,7 @@ jobs:
         run: |
           set -euo pipefail
           profile="${{ needs.prepare-release.outputs.build_profile }}"
+          version="${{ needs.prepare-release.outputs.version }}"
           apk_profile="${profile}"
           if [[ "${profile}" == "release" ]]; then
             profile_flag="--release"
@@ -270,19 +271,35 @@ jobs:
           fi
 
           output_dir="dist/release/${ARTIFACT_TARGET}"
-          mkdir -p "${output_dir}"
-          cp "${cli_path}" "${output_dir}/squalr-cli"
-          cp "${apk_path}" "${output_dir}/squalr.apk"
-          cp "scripts/android/README_ANDROID_BUNDLE.md" "${output_dir}/README-android.md"
-          cp "scripts/android/install-android.sh" "${output_dir}/install-android.sh"
-          cp "scripts/android/install-android.ps1" "${output_dir}/install-android.ps1"
-          chmod +x "${output_dir}/install-android.sh"
+          bundle_dir="${output_dir}/bundle"
+          bundle_archive_path="${output_dir}/squalr-${version}-${ARTIFACT_TARGET}.zip"
+          mkdir -p "${bundle_dir}"
+          cp "${cli_path}" "${bundle_dir}/squalr-cli"
+          cp "${apk_path}" "${bundle_dir}/squalr.apk"
+          cp "scripts/android/README_ANDROID_BUNDLE.md" "${bundle_dir}/README-android.md"
+          cp "scripts/android/install-android.sh" "${bundle_dir}/install-android.sh"
+          cp "scripts/android/install-android.ps1" "${bundle_dir}/install-android.ps1"
+          chmod +x "${bundle_dir}/install-android.sh"
 
-          test -f "${output_dir}/squalr-cli"
-          test -f "${output_dir}/squalr.apk"
-          test -f "${output_dir}/README-android.md"
-          test -f "${output_dir}/install-android.sh"
-          test -f "${output_dir}/install-android.ps1"
+          export SQUALR_ANDROID_BUNDLE_DIR="${bundle_dir}"
+          export SQUALR_ANDROID_BUNDLE_ARCHIVE="${bundle_archive_path}"
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          import release
+
+          release.create_deterministic_zip(
+              Path(os.environ["SQUALR_ANDROID_BUNDLE_DIR"]),
+              Path(os.environ["SQUALR_ANDROID_BUNDLE_ARCHIVE"]),
+              dry_run=False,
+          )
+          PY
+
+          rm -rf "${bundle_dir}"
+          test -f "${bundle_archive_path}"
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v6
@@ -316,11 +333,7 @@ jobs:
           test -f "dist/publish/squalr-${version}-linux-x86_64.zip"
           test -f "dist/publish/squalr-${version}-windows-x86_64.zip"
           test -f "dist/publish/squalr-${version}-macos-aarch64.zip"
-          test -f "dist/publish/squalr.apk"
-          test -f "dist/publish/squalr-cli"
-          test -f "dist/publish/README-android.md"
-          test -f "dist/publish/install-android.sh"
-          test -f "dist/publish/install-android.ps1"
+          test -f "dist/publish/squalr-${version}-android-aarch64.zip"
 
       - name: Publish draft release
         env:
