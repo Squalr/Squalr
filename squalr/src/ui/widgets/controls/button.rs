@@ -3,7 +3,6 @@ use crate::ui::widgets::controls::state_layer::StateLayer;
 use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::CornerRadius;
 
-#[derive(Default)]
 pub struct Button<'lifetime> {
     pub disabled: bool,
     pub tooltip_text: &'lifetime str,
@@ -16,6 +15,26 @@ pub struct Button<'lifetime> {
     pub border_color: Color32,
     pub click_sound: Option<&'lifetime str>,
     pub border_color_focused: Option<Color32>,
+    pub sense: Sense,
+}
+
+impl<'lifetime> Default for Button<'lifetime> {
+    fn default() -> Self {
+        Self {
+            disabled: false,
+            tooltip_text: "",
+            corner_radius: CornerRadius::ZERO,
+            border_width: 0.0,
+            margin: 0,
+            backgorund_color: Color32::TRANSPARENT,
+            hover_tint: Color32::TRANSPARENT,
+            pressed_tint: Color32::TRANSPARENT,
+            border_color: Color32::TRANSPARENT,
+            click_sound: None,
+            border_color_focused: None,
+            sense: Sense::click(),
+        }
+    }
 }
 
 impl<'lifetime> Button<'lifetime> {
@@ -121,6 +140,14 @@ impl<'lifetime> Button<'lifetime> {
         self.click_sound = sound;
         self
     }
+
+    pub fn sense(
+        mut self,
+        sense: Sense,
+    ) -> Self {
+        self.sense = sense;
+        self
+    }
 }
 
 impl<'lifetime> Widget for Button<'lifetime> {
@@ -128,7 +155,7 @@ impl<'lifetime> Widget for Button<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let sense = if self.disabled { Sense::hover() } else { Sense::click() };
+        let sense = if self.disabled { Sense::hover() } else { self.sense };
         let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(user_interface.available_size(), sense);
 
         // Background.

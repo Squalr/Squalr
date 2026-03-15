@@ -1,6 +1,6 @@
 # Agentic Current Task (Readonly)
 Our current task, from `README.md`, is:
-`pr/TODO`
+`pr/docking-fixes`
 
 # Notes from Owner (Readonly Section)
 - Assume any unstaged/uncomitted file changes are from a previous iteration (or if this file, probably the human author giving guidance), and can be kept if they look good. Do not ask me about them.
@@ -16,9 +16,10 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- 
+- Need human verification: drag footer tabs into other dock panels, confirm self-center drop is hidden for same-panel targets, and confirm standalone windows hide all self-drop targets while multi-tab panels keep cardinal self-drops.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- 
+- Footer tab buttons now start dock drags, so inactive tabs can be moved without first selecting them.
+- Drop overlay filtering now treats the current tab group as the same dock panel: center self-drops are hidden there, and cardinal self-drops remain only when the source window is part of a multi-tab group.
