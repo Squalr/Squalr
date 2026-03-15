@@ -18,7 +18,7 @@ pub struct ElementScannerResultsActionBarView<'lifetime> {
     element_scanner_results_view_data: Dependency<ElementScannerResultsViewData>,
     selection_freeze_checkstate: CheckState,
     element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
-    address_splitter_position_x: f32,
+    data_type_splitter_position_x: f32,
     value_splitter_position_x: f32,
     previous_value_splitter_position_x: f32,
 }
@@ -30,7 +30,7 @@ impl<'lifetime> ElementScannerResultsActionBarView<'lifetime> {
         app_context: Arc<AppContext>,
         selection_freeze_checkstate: CheckState,
         element_sanner_result_frame_action: &'lifetime mut ElementScannerResultFrameAction,
-        address_splitter_position_x: f32,
+        data_type_splitter_position_x: f32,
         value_splitter_position_x: f32,
         previous_value_splitter_position_x: f32,
     ) -> Self {
@@ -43,7 +43,7 @@ impl<'lifetime> ElementScannerResultsActionBarView<'lifetime> {
             element_scanner_results_view_data,
             selection_freeze_checkstate,
             element_sanner_result_frame_action,
-            address_splitter_position_x,
+            data_type_splitter_position_x,
             value_splitter_position_x,
             previous_value_splitter_position_x,
         }
@@ -59,6 +59,8 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        const DATA_TYPE_ACTION_BUTTON_PADDING: f32 = 4.0;
+
         let theme = &self.app_context.theme;
         let button_size = vec2(36.0, 28.0);
 
@@ -104,7 +106,10 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
 
             let y_center = allocated_size_rectangle.center().y - button_size.y * 0.5;
             let add_selection_response = user_interface.put(
-                Rect::from_min_size(pos2(self.address_splitter_position_x, y_center), button_size),
+                Rect::from_min_size(
+                    pos2(self.data_type_splitter_position_x + DATA_TYPE_ACTION_BUTTON_PADDING, y_center),
+                    button_size,
+                ),
                 Button::new_from_theme(theme)
                     .background_color(Color32::TRANSPARENT)
                     .with_tooltip_text("Add selection to project."),
@@ -116,8 +121,8 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 *self.element_sanner_result_frame_action = ElementScannerResultFrameAction::AddSelection;
             }
 
-            let delete_selection_response = user_interface.add_sized(
-                button_size,
+            let delete_selection_response = user_interface.put(
+                Rect::from_min_size(pos2(add_selection_response.rect.max.x, y_center), button_size),
                 Button::new_from_theme(theme)
                     .background_color(Color32::TRANSPARENT)
                     .with_tooltip_text("Delete selection from results."),
