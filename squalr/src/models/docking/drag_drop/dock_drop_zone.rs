@@ -22,14 +22,20 @@ pub struct DockDragOverlay {
 }
 
 impl DockDragOverlay {
-    pub fn from_window_rectangles(
+    pub fn from_window_rectangles<F>(
         target_window_rectangles: &[(String, Rect)],
         pointer_position: Pos2,
-    ) -> Self {
+        mut allow_drop_direction: F,
+    ) -> Self
+    where
+        F: FnMut(&str, DockReparentDirection) -> bool,
+    {
         let mut drop_zones = Vec::new();
 
         for (target_window_identifier, target_window_rect) in target_window_rectangles {
-            drop_zones.extend(DockDropZone::build_for_window(target_window_identifier, *target_window_rect));
+            drop_zones.extend(DockDropZone::build_for_window(target_window_identifier, *target_window_rect, |direction| {
+                allow_drop_direction(target_window_identifier, direction)
+            }));
         }
 
         let hovered_drop_target = drop_zones
@@ -59,10 +65,14 @@ impl DockDropZone {
     const MIN_PREVIEW_MARGIN_PX: f32 = 6.0;
     const MAX_PREVIEW_MARGIN_PX: f32 = 12.0;
 
-    fn build_for_window(
+    fn build_for_window<F>(
         target_window_identifier: &str,
         target_window_rect: Rect,
-    ) -> Vec<Self> {
+        mut allow_drop_direction: F,
+    ) -> Vec<Self>
+    where
+        F: FnMut(DockReparentDirection) -> bool,
+    {
         let button_side_px = (target_window_rect.size().min_elem() * Self::BUTTON_SCALE_FACTOR).clamp(Self::MIN_BUTTON_SIDE_PX, Self::DEFAULT_BUTTON_SIDE_PX);
         let button_spacing_px = (button_side_px * Self::BUTTON_SPACING_FACTOR).clamp(4.0, 8.0);
         let target_center = target_window_rect.center();
@@ -87,6 +97,7 @@ impl DockDropZone {
             ),
         ]
         .into_iter()
+        .filter(|(direction, _)| allow_drop_direction(*direction))
         .map(|(direction, button_center)| {
             let drop_target = DockDropTarget {
                 target_window_identifier: target_window_identifier.to_string(),
@@ -130,7 +141,7 @@ mod tests {
     #[test]
     fn hovered_drop_target_matches_hovered_button() {
         let target_window_rect = Rect::from_min_max(pos2(100.0, 100.0), pos2(400.0, 300.0));
-        let initial_overlay = DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], target_window_rect.center());
+        let initial_overlay = DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], target_window_rect.center(), |_, _| true);
         let center_drop_zone = initial_overlay
             .drop_zones
             .iter()
@@ -138,7 +149,10 @@ mod tests {
             .cloned()
             .expect("expected center drop zone");
 
-        let hovered_overlay = DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], center_drop_zone.button_rect.center());
+        let hovered_overlay =
+            DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], center_drop_zone.button_rect.center(), |_, _| {
+                true
+            });
 
         assert_eq!(
             hovered_overlay.hovered_drop_target,
@@ -158,7 +172,8 @@ mod tests {
     #[test]
     fn split_preview_rectangles_cover_expected_half() {
         let target_window_rect = Rect::from_min_max(pos2(100.0, 100.0), pos2(500.0, 300.0));
-        let dock_drag_overlay = DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], target_window_rect.center());
+        let dock_drag_overlay =
+            DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], target_window_rect.center(), |_, _| true);
 
         let left_drop_zone = dock_drag_overlay
             .drop_zones
@@ -173,5 +188,21 @@ mod tests {
 
         assert!(left_drop_zone.preview_rect.max.x <= target_window_rect.center().x);
         assert!(top_drop_zone.preview_rect.max.y <= target_window_rect.center().y);
+    }
+
+    #[test]
+    fn filtered_directions_are_omitted_from_overlay() {
+        let target_window_rect = Rect::from_min_max(pos2(100.0, 100.0), pos2(500.0, 300.0));
+        let dock_drag_overlay =
+            DockDragOverlay::from_window_rectangles(&[("target".to_string(), target_window_rect)], target_window_rect.center(), |_, direction| {
+                direction != DockReparentDirection::Tab
+            });
+
+        assert!(
+            dock_drag_overlay
+                .drop_zones
+                .iter()
+                .all(|dock_drop_zone| dock_drop_zone.drop_target.direction != DockReparentDirection::Tab)
+        );
     }
 }

@@ -1,3 +1,4 @@
+use crate::models::docking::drag_drop::dock_tab_drop_target::DockTabDropTarget;
 use epaint::Pos2;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -6,6 +7,7 @@ pub struct DockDragState {
     pointer_press_origin: Pos2,
     current_pointer_position: Option<Pos2>,
     has_crossed_activation_distance: bool,
+    hovered_tab_drop_target: Option<DockTabDropTarget>,
 }
 
 impl DockDragState {
@@ -20,6 +22,7 @@ impl DockDragState {
             pointer_press_origin,
             current_pointer_position: Some(pointer_press_origin),
             has_crossed_activation_distance: false,
+            hovered_tab_drop_target: None,
         }
     }
 
@@ -40,6 +43,21 @@ impl DockDragState {
 
     pub fn current_pointer_position(&self) -> Option<Pos2> {
         self.current_pointer_position
+    }
+
+    pub fn clear_hovered_tab_drop_target(&mut self) {
+        self.hovered_tab_drop_target = None;
+    }
+
+    pub fn set_hovered_tab_drop_target(
+        &mut self,
+        hovered_tab_drop_target: DockTabDropTarget,
+    ) {
+        self.hovered_tab_drop_target = Some(hovered_tab_drop_target);
+    }
+
+    pub fn hovered_tab_drop_target(&self) -> Option<&DockTabDropTarget> {
+        self.hovered_tab_drop_target.as_ref()
     }
 
     pub fn is_drop_overlay_visible(&self) -> bool {

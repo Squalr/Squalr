@@ -1,9 +1,11 @@
 use crate::models::docking::drag_drop::dock_drag_state::DockDragState;
 use crate::models::docking::drag_drop::dock_drop_zone::{DockDragOverlay, DockDropTarget};
+use crate::models::docking::drag_drop::dock_tab_drop_target::DockTabDropTarget;
 use crate::models::docking::hierarchy::dock_layout::DockLayout;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::models::docking::hierarchy::types::dock_tab_insertion_direction::DockTabInsertionDirection;
 #[cfg(not(test))]
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use epaint::{Pos2, Rect, pos2, vec2};
@@ -163,6 +165,26 @@ impl DockingManager {
         reparent_succeeded
     }
 
+    pub fn reparent_window_relative_to_tab(
+        &mut self,
+        source_window_identifier: &str,
+        target_window_identifier: &str,
+        tab_insertion_direction: DockTabInsertionDirection,
+    ) -> bool {
+        if source_window_identifier == target_window_identifier {
+            return true;
+        }
+
+        let root = self.main_window_layout.get_root_mut();
+        let reparent_succeeded = root.reparent_window_relative_to_tab(source_window_identifier, target_window_identifier, tab_insertion_direction);
+
+        if reparent_succeeded {
+            self.persist_layout();
+        }
+
+        reparent_succeeded
+    }
+
     pub fn begin_drag(
         &mut self,
         source_window_identifier: &str,
@@ -186,6 +208,35 @@ impl DockingManager {
         }
     }
 
+    pub fn is_drag_drop_active(&self) -> bool {
+        self.active_drag_state
+            .as_ref()
+            .is_some_and(DockDragState::is_drop_overlay_visible)
+    }
+
+    pub fn clear_hovered_tab_drop_target(&mut self) {
+        if let Some(active_drag_state) = self.active_drag_state.as_mut() {
+            active_drag_state.clear_hovered_tab_drop_target();
+        }
+    }
+
+    pub fn set_hovered_tab_drop_target(
+        &mut self,
+        hovered_tab_drop_target: DockTabDropTarget,
+    ) {
+        if let Some(active_drag_state) = self.active_drag_state.as_mut() {
+            if active_drag_state.is_drop_overlay_visible() {
+                active_drag_state.set_hovered_tab_drop_target(hovered_tab_drop_target);
+            }
+        }
+    }
+
+    pub fn hovered_tab_drop_target(&self) -> Option<&DockTabDropTarget> {
+        self.active_drag_state
+            .as_ref()
+            .and_then(DockDragState::hovered_tab_drop_target)
+    }
+
     pub fn active_dragged_window_id(&self) -> Option<&str> {
         self.active_drag_state
             .as_ref()
@@ -205,7 +256,13 @@ impl DockingManager {
         let current_pointer_position = active_drag_state.current_pointer_position()?;
         let target_window_rectangles = self.collect_rendered_window_rectangles(root_screen_rect);
 
-        Some(DockDragOverlay::from_window_rectangles(&target_window_rectangles, current_pointer_position))
+        Some(DockDragOverlay::from_window_rectangles(
+            &target_window_rectangles,
+            current_pointer_position,
+            |target_window_identifier, direction| {
+                self.should_display_drop_zone(&active_drag_state.source_window_identifier, target_window_identifier, direction)
+            },
+        ))
     }
 
     pub fn finish_drag(
@@ -215,12 +272,20 @@ impl DockingManager {
         let Some(active_drag_state) = self.active_drag_state.clone() else {
             return false;
         };
-
         let maybe_drop_target = self.resolve_drop_target(root_screen_rect);
+        let hovered_tab_drop_target = active_drag_state.hovered_tab_drop_target().cloned();
         self.active_drag_state = None;
 
         if !active_drag_state.is_drop_overlay_visible() {
             return false;
+        }
+
+        if let Some(hovered_tab_drop_target) = hovered_tab_drop_target {
+            return self.reparent_window_relative_to_tab(
+                &active_drag_state.source_window_identifier,
+                &hovered_tab_drop_target.target_window_identifier,
+                hovered_tab_drop_target.tab_insertion_direction,
+            );
         }
 
         let Some(dock_drop_target) = maybe_drop_target else {
@@ -265,6 +330,28 @@ impl DockingManager {
             .collect()
     }
 
+    fn should_display_drop_zone(
+        &self,
+        source_window_identifier: &str,
+        target_window_identifier: &str,
+        direction: DockReparentDirection,
+    ) -> bool {
+        let dock_root = self.main_window_layout.get_root();
+        let source_is_in_tab_group = dock_root.is_window_in_tab_group(source_window_identifier);
+        let targets_same_dock_panel =
+            source_window_identifier == target_window_identifier || dock_root.are_windows_in_same_tab_group(source_window_identifier, target_window_identifier);
+
+        if !targets_same_dock_panel {
+            return true;
+        }
+
+        if direction == DockReparentDirection::Tab {
+            return false;
+        }
+
+        source_is_in_tab_group
+    }
+
     #[cfg(not(test))]
     fn persist_layout(&self) {
         DockableWindowSettings::set_dock_layout_settings(self.main_window_layout.get_root());
@@ -272,4 +359,62 @@ impl DockingManager {
 
     #[cfg(test)]
     fn persist_layout(&self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DockingManager;
+    use crate::models::docking::hierarchy::{
+        dock_node::DockNode,
+        types::{dock_reparent_direction::DockReparentDirection, dock_split_child::DockSplitChild, dock_split_direction::DockSplitDirection},
+    };
+
+    fn build_test_manager() -> DockingManager {
+        DockingManager::new(DockNode::Split {
+            direction: DockSplitDirection::VerticalDivider,
+            children: vec![
+                DockSplitChild {
+                    node: DockNode::Tab {
+                        tabs: vec![
+                            DockNode::Window {
+                                window_identifier: "tab_a".to_string(),
+                                is_visible: true,
+                            },
+                            DockNode::Window {
+                                window_identifier: "tab_b".to_string(),
+                                is_visible: true,
+                            },
+                        ],
+                        active_tab_id: "tab_a".to_string(),
+                    },
+                    ratio: 0.5,
+                },
+                DockSplitChild {
+                    node: DockNode::Window {
+                        window_identifier: "solo".to_string(),
+                        is_visible: true,
+                    },
+                    ratio: 0.5,
+                },
+            ],
+        })
+    }
+
+    #[test]
+    fn same_tab_group_hides_center_drop_but_keeps_cardinal_targets() {
+        let docking_manager = build_test_manager();
+
+        assert!(!docking_manager.should_display_drop_zone("tab_a", "tab_b", DockReparentDirection::Tab));
+        assert!(docking_manager.should_display_drop_zone("tab_a", "tab_b", DockReparentDirection::Left));
+        assert!(docking_manager.should_display_drop_zone("tab_a", "tab_a", DockReparentDirection::Right));
+    }
+
+    #[test]
+    fn standalone_window_hides_all_self_drop_targets() {
+        let docking_manager = build_test_manager();
+
+        assert!(!docking_manager.should_display_drop_zone("solo", "solo", DockReparentDirection::Tab));
+        assert!(!docking_manager.should_display_drop_zone("solo", "solo", DockReparentDirection::Left));
+        assert!(docking_manager.should_display_drop_zone("solo", "tab_a", DockReparentDirection::Tab));
+    }
 }
