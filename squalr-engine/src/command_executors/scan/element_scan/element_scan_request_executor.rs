@@ -1,5 +1,4 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
-use crate::command_executors::scan::scan_result_deletion_lifecycle::clear_deleted_scan_result_indices;
 use crate::command_executors::scan::scan_results_metadata_collector::collect_scan_results_metadata;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
@@ -78,7 +77,16 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
                 })),
             );
             ElementScanExecutor::execute_scan(process_info, snapshot.clone(), element_scan_plan, true, &scan_execution_context);
-            clear_deleted_scan_result_indices(&snapshot);
+
+            match snapshot.write() {
+                Ok(mut snapshot_guard) => {
+                    snapshot_guard.clear_deleted_scan_result_indices();
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire write lock on snapshot to clear deleted scan result indices: {}", error);
+                }
+            }
+
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 
             ElementScanResponse {
