@@ -27,11 +27,7 @@ Version placeholder: `${VERSION}` without `v` prefix.
 - `squalr-${VERSION}-macos-aarch64.zip`
 
 ### Android (`android-aarch64`)
-- `squalr.apk`
-- `squalr-cli`
-- `README-android.md`
-- `install-android.sh`
-- `install-android.ps1`
+- `squalr-${VERSION}-android-aarch64.zip`
 
 ## Publish Stage
 - Aggregates all platform artifacts from workflow artifacts.

@@ -27,15 +27,21 @@ mod windows_shortcut_manager {
     use crate::app_provisioner::installer::install_shortcut_options::InstallShortcutOptions;
     use anyhow::{Context, Result, anyhow};
     use std::path::{Path, PathBuf};
-    use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile};
-    use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
-    use windows::core::{HSTRING, Interface};
+    use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
+    use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
+    use windows::Win32::System::Com::{
+        CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile,
+    };
+    use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
+    use windows::Win32::UI::Shell::{FOLDERID_Programs, IShellLinkW, KNOWN_FOLDER_FLAG, SHGetKnownFolderPath, ShellLink};
+    use windows::core::{HSTRING, Interface, PWSTR};
 
     pub(super) struct WindowsShortcutManager {}
 
     impl WindowsShortcutManager {
         const SHORTCUT_DISPLAY_NAME: &'static str = "Squalr";
         const SHORTCUT_DESCRIPTION: &'static str = "Launch Squalr.";
+        const APP_USER_MODEL_ID: &'static str = "com.squalr.desktop";
         const GUI_EXECUTABLE_NAME: &'static str = "squalr.exe";
 
         pub(super) fn sync_shortcuts(
@@ -89,12 +95,7 @@ mod windows_shortcut_manager {
         }
 
         fn resolve_start_menu_shortcut_path() -> Result<PathBuf> {
-            let start_menu_programs_directory = dirs::data_dir()
-                .context("Failed to resolve the roaming application data directory for the Start Menu shortcut")?
-                .join("Microsoft")
-                .join("Windows")
-                .join("Start Menu")
-                .join("Programs");
+            let start_menu_programs_directory = KnownFolderPath::to_path_buf(FOLDERID_Programs, "the Start Menu Programs directory")?;
 
             Ok(start_menu_programs_directory.join(Self::shortcut_file_name()))
         }
@@ -144,6 +145,19 @@ mod windows_shortcut_manager {
                     .context("Failed to set the shell link icon")?;
             }
 
+            let property_store: IPropertyStore = shell_link
+                .cast()
+                .context("Failed to acquire the shell link property store interface")?;
+            let app_user_model_id = PROPVARIANT::from(Self::APP_USER_MODEL_ID);
+            unsafe {
+                property_store
+                    .SetValue(&PKEY_AppUserModel_ID, &app_user_model_id)
+                    .context("Failed to set the shell link AppUserModelID")?;
+                property_store
+                    .Commit()
+                    .context("Failed to commit the shell link property store")?;
+            }
+
             let persist_file: IPersistFile = shell_link
                 .cast()
                 .context("Failed to acquire the shell link persist file interface")?;
@@ -180,6 +194,30 @@ mod windows_shortcut_manager {
         fn drop(&mut self) {
             unsafe {
                 CoUninitialize();
+            }
+        }
+    }
+
+    struct KnownFolderPath(PWSTR);
+
+    impl KnownFolderPath {
+        fn to_path_buf(
+            folder_id: windows::core::GUID,
+            display_name: &str,
+        ) -> Result<PathBuf> {
+            let known_folder_path =
+                Self(unsafe { SHGetKnownFolderPath(&folder_id, KNOWN_FOLDER_FLAG(0), None) }.with_context(|| format!("Failed to resolve {}", display_name))?);
+            let path_string =
+                unsafe { known_folder_path.0.to_string() }.map_err(|error| anyhow!("Failed to convert {} to UTF-16 text: {}", display_name, error))?;
+
+            Ok(PathBuf::from(path_string))
+        }
+    }
+
+    impl Drop for KnownFolderPath {
+        fn drop(&mut self) {
+            unsafe {
+                CoTaskMemFree(Some(self.0.0.cast()));
             }
         }
     }

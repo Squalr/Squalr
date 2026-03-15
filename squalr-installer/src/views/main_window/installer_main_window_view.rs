@@ -158,14 +158,21 @@ impl InstallerMainWindowView {
                                 });
                         }
 
-                        Frame::new()
-                            .fill(self.installer_theme.color_background_primary)
-                            .stroke(Stroke::new(1.0, self.installer_theme.color_border_panel))
-                            .inner_margin(Margin::same(8))
-                            .show(user_interface, |user_interface| {
-                                let installer_log_view = InstallerLogView::new(self.installer_theme.clone());
-                                installer_log_view.show(user_interface, installer_state);
-                            });
+                        let remaining_log_height = user_interface.available_height().max(0.0);
+                        user_interface.allocate_ui_with_layout(
+                            eframe::egui::vec2(user_interface.available_width(), remaining_log_height),
+                            Layout::top_down(Align::Min),
+                            |user_interface| {
+                                Frame::new()
+                                    .fill(self.installer_theme.color_background_primary)
+                                    .stroke(Stroke::new(1.0, self.installer_theme.color_border_panel))
+                                    .inner_margin(Margin::same(8))
+                                    .show(user_interface, |user_interface| {
+                                        let installer_log_view = InstallerLogView::new(self.installer_theme.clone());
+                                        installer_log_view.show(user_interface, installer_state, remaining_log_height);
+                                    });
+                            },
+                        );
                     });
             },
         );

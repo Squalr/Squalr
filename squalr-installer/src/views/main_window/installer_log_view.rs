@@ -16,6 +16,7 @@ impl InstallerLogView {
         &self,
         user_interface: &mut Ui,
         installer_state: &InstallerUiState,
+        available_height: f32,
     ) {
         Frame::new()
             .fill(self.installer_theme.color_background_primary)
@@ -45,7 +46,7 @@ impl InstallerLogView {
                     .stroke(Stroke::new(1.0, self.installer_theme.color_border_panel))
                     .inner_margin(Margin::same(8))
                     .show(user_interface, |user_interface| {
-                        user_interface.set_min_height(290.0);
+                        user_interface.set_min_height(available_height.max(0.0));
                         user_interface.set_min_width(user_interface.available_width());
 
                         ScrollArea::vertical()
