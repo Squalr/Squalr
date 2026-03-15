@@ -1,6 +1,6 @@
 [package]
 name = "squalr-engine"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Zachary Canann"]
 edition = "2024"
 # build = "build.rs"
