@@ -1,24 +1,19 @@
-use crate::installer_runtime::launch_app;
 use crate::theme::InstallerTheme;
-use eframe::egui::{Align, CornerRadius, Layout, Response, RichText, Sense, Ui, ViewportCommand, Widget};
-use std::path::PathBuf;
+use eframe::egui::{Align, CornerRadius, Layout, Response, RichText, Sense, Ui, Widget};
 
 #[derive(Clone)]
 pub(crate) struct InstallerFooterView {
     installer_theme: InstallerTheme,
-    install_complete: bool,
     install_directory: String,
 }
 
 impl InstallerFooterView {
     pub(crate) fn new(
         installer_theme: InstallerTheme,
-        install_complete: bool,
         install_directory: String,
     ) -> Self {
         Self {
             installer_theme,
-            install_complete,
             install_directory,
         }
     }
@@ -61,15 +56,6 @@ impl Widget for InstallerFooterView {
                 .font(self.installer_theme.fonts.font_normal.clone())
                 .color(self.installer_theme.color_foreground),
         );
-
-        footer_user_interface.add_space(footer_user_interface.available_width());
-
-        if self.install_complete && footer_user_interface.button("Launch Squalr").clicked() {
-            launch_app(PathBuf::from(self.install_directory));
-            footer_user_interface
-                .ctx()
-                .send_viewport_cmd(ViewportCommand::Close);
-        }
 
         response
     }
