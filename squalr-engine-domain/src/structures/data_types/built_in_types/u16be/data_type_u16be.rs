@@ -73,7 +73,7 @@ impl DataType for DataTypeU16be {
     ) -> Result<AnonymousValueString, DataTypeError> {
         let anonymous_value_string = PrimitiveDataTypeNumeric::anonymize(
             value_bytes,
-            |value_bytes| PrimitiveType::from_le_bytes([value_bytes[0], value_bytes[1]]),
+            |value_bytes| PrimitiveType::from_be_bytes([value_bytes[0], value_bytes[1]]),
             anonymous_value_string_format,
         )?;
 
