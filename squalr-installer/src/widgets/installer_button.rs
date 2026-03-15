@@ -39,22 +39,6 @@ impl<'label> InstallerButton<'label> {
             sense: Sense::click(),
         }
     }
-
-    pub(crate) fn background_color(
-        mut self,
-        background_color: Color32,
-    ) -> Self {
-        self.background_color = background_color;
-        self
-    }
-
-    pub(crate) fn border_color(
-        mut self,
-        border_color: Color32,
-    ) -> Self {
-        self.border_color = border_color;
-        self
-    }
 }
 
 impl Widget for InstallerButton<'_> {

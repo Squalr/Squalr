@@ -1,4 +1,4 @@
-use crate::installer_runtime::{install_phase_string, installer_status_string, launch_app};
+use crate::installer_runtime::{install_phase_string, installer_status_string};
 use crate::theme::InstallerTheme;
 use crate::ui_assets::InstallerIconLibrary;
 use crate::ui_state::InstallerUiState;
@@ -7,10 +7,15 @@ use crate::views::main_window::installer_log_view::InstallerLogView;
 use crate::views::main_window::installer_title_bar_view::InstallerTitleBarView;
 use crate::widgets::installer_button::InstallerButton;
 use crate::widgets::installer_checkbox::InstallerCheckbox;
-use eframe::egui::{Align, Frame, Layout, Margin, RichText, Stroke, TextEdit, Ui, ViewportCommand, vec2};
+use eframe::egui::{Align, Frame, Layout, Margin, RichText, Stroke, TextEdit, Ui, vec2};
+use std::path::PathBuf;
 
 const ACTION_BUTTON_WIDTH: f32 = 140.0;
 const ACTION_BUTTON_HEIGHT: f32 = 28.0;
+
+pub(crate) enum InstallerMainWindowAction {
+    LaunchInstalledApp(PathBuf),
+}
 
 #[derive(Clone)]
 pub(crate) struct InstallerMainWindowView {
@@ -33,8 +38,9 @@ impl InstallerMainWindowView {
         &self,
         user_interface: &mut Ui,
         installer_state: &mut InstallerUiState,
-    ) {
+    ) -> Option<InstallerMainWindowAction> {
         let previous_item_spacing = user_interface.style().spacing.item_spacing;
+        let mut pending_action = None;
         user_interface.style_mut().spacing.item_spacing = eframe::egui::vec2(0.0, 0.0);
 
         let installer_footer_view = InstallerFooterView::new(self.installer_theme.clone(), installer_state.install_directory_input.clone());
@@ -93,18 +99,27 @@ impl InstallerMainWindowView {
 
                                     if installer_state.install_complete {
                                         user_interface.add_space(8.0);
-                                        let launch_button_clicked = self.show_action_button_row(
-                                            user_interface,
-                                            InstallerButton::new_from_theme(&self.installer_theme, "Launch Squalr")
-                                                .background_color(self.installer_theme.color_background_control_success)
-                                                .border_color(self.installer_theme.color_background_control_success_dark),
-                                        );
+                                        let launch_button_clicked = self
+                                            .show_action_button_row(user_interface, InstallerButton::new_from_theme(&self.installer_theme, "Launch Squalr"));
 
                                         if launch_button_clicked {
-                                            if let Ok(install_directory) = installer_state.resolve_install_directory() {
-                                                launch_app(install_directory);
-                                                user_interface.ctx().send_viewport_cmd(ViewportCommand::Close);
+                                            match installer_state.resolve_install_directory() {
+                                                Ok(install_directory) => {
+                                                    pending_action = Some(InstallerMainWindowAction::LaunchInstalledApp(install_directory));
+                                                }
+                                                Err(error_message) => {
+                                                    installer_state.install_configuration_error = Some(error_message);
+                                                }
                                             }
+                                        }
+
+                                        if let Some(configuration_error) = installer_state.install_configuration_error.as_ref() {
+                                            user_interface.add_space(4.0);
+                                            user_interface.label(
+                                                RichText::new(configuration_error)
+                                                    .font(self.installer_theme.fonts.font_normal.clone())
+                                                    .color(self.installer_theme.color_foreground_error),
+                                            );
                                         }
                                     }
                                 });
@@ -193,6 +208,7 @@ impl InstallerMainWindowView {
 
         user_interface.add(installer_footer_view);
         user_interface.style_mut().spacing.item_spacing = previous_item_spacing;
+        pending_action
     }
 
     fn show_action_button_row<'label>(
