@@ -1,6 +1,6 @@
 [package]
 name = "squalr-tui"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Zachary Canann"]
 edition = "2024"
 # build = "build.rs"
