@@ -16,10 +16,12 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: drag footer tabs into other dock panels, confirm self-center drop is hidden for same-panel targets, and confirm standalone windows hide all self-drop targets while multi-tab panels keep cardinal self-drops.
+- Need human verification: dragging a docked window onto an existing tab group inserts it as the first tab, dragging footer tabs reorders left/right based on hover half, footer tabs can still be dragged into other dock panels, self-center drop stays hidden for same-panel targets, and standalone windows still hide all self-drop targets while multi-tab panels keep cardinal self-drops.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
 - Footer tab buttons now start dock drags, so inactive tabs can be moved without first selecting them.
 - Drop overlay filtering now treats the current tab group as the same dock panel: center self-drops are hidden there, and cardinal self-drops remain only when the source window is part of a multi-tab group.
+- Center drops into an existing tab group now insert the dragged window at tab index 0 and activate it.
+- Footer tab drag hover now resolves against the hovered tab button itself: left half inserts before the target tab, right half inserts after it, with a footer-edge preview strip during drag.

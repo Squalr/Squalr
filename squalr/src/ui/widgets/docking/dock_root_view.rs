@@ -42,6 +42,7 @@ impl Widget for DockRootView {
             .rect_filled(available_size_rect, CornerRadius::ZERO, theme.background_panel);
 
         let mut dock_drag_overlay = None;
+        let mut has_hovered_tab_drop_target = false;
         let is_drag_release_frame = user_interface
             .ctx()
             .input(|input_state| input_state.pointer.primary_released());
@@ -52,15 +53,10 @@ impl Widget for DockRootView {
                 .get_main_window_layout_mut()
                 .set_available_size(available_size_rect.width(), available_size_rect.height());
             docking_manager.update_drag_pointer_position(pointer_position);
+            docking_manager.clear_hovered_tab_drop_target();
 
             if docking_manager.active_dragged_window_id().is_some() {
                 user_interface.ctx().request_repaint();
-            }
-
-            if is_drag_release_frame {
-                docking_manager.finish_drag(available_size_rect);
-            } else {
-                dock_drag_overlay = docking_manager.get_drag_overlay(available_size_rect);
             }
         }
 
@@ -97,10 +93,19 @@ impl Widget for DockRootView {
             }
         }
 
+        if let Ok(mut docking_manager) = docking_manager.try_write() {
+            if is_drag_release_frame {
+                docking_manager.finish_drag(available_size_rect);
+            } else {
+                dock_drag_overlay = docking_manager.get_drag_overlay(available_size_rect);
+                has_hovered_tab_drop_target = docking_manager.hovered_tab_drop_target().is_some();
+            }
+        }
+
         if let Some(dock_drag_overlay) = dock_drag_overlay {
             paint_drag_overlay(user_interface, theme, &dock_drag_overlay);
 
-            if dock_drag_overlay.hovered_drop_target.is_some() {
+            if dock_drag_overlay.hovered_drop_target.is_some() || has_hovered_tab_drop_target {
                 user_interface.ctx().set_cursor_icon(CursorIcon::Move);
             } else {
                 user_interface.ctx().set_cursor_icon(CursorIcon::NoDrop);

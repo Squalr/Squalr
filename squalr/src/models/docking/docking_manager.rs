@@ -1,9 +1,11 @@
 use crate::models::docking::drag_drop::dock_drag_state::DockDragState;
 use crate::models::docking::drag_drop::dock_drop_zone::{DockDragOverlay, DockDropTarget};
+use crate::models::docking::drag_drop::dock_tab_drop_target::DockTabDropTarget;
 use crate::models::docking::hierarchy::dock_layout::DockLayout;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
 use crate::models::docking::hierarchy::types::dock_splitter_drag_direction::DockSplitterDragDirection;
+use crate::models::docking::hierarchy::types::dock_tab_insertion_direction::DockTabInsertionDirection;
 #[cfg(not(test))]
 use crate::models::docking::settings::dockable_window_settings::DockableWindowSettings;
 use epaint::{Pos2, Rect, pos2, vec2};
@@ -163,6 +165,26 @@ impl DockingManager {
         reparent_succeeded
     }
 
+    pub fn reparent_window_relative_to_tab(
+        &mut self,
+        source_window_identifier: &str,
+        target_window_identifier: &str,
+        tab_insertion_direction: DockTabInsertionDirection,
+    ) -> bool {
+        if source_window_identifier == target_window_identifier {
+            return true;
+        }
+
+        let root = self.main_window_layout.get_root_mut();
+        let reparent_succeeded = root.reparent_window_relative_to_tab(source_window_identifier, target_window_identifier, tab_insertion_direction);
+
+        if reparent_succeeded {
+            self.persist_layout();
+        }
+
+        reparent_succeeded
+    }
+
     pub fn begin_drag(
         &mut self,
         source_window_identifier: &str,
@@ -184,6 +206,35 @@ impl DockingManager {
         if let Some(active_drag_state) = self.active_drag_state.as_mut() {
             active_drag_state.update_pointer_position(current_pointer_position);
         }
+    }
+
+    pub fn is_drag_drop_active(&self) -> bool {
+        self.active_drag_state
+            .as_ref()
+            .is_some_and(DockDragState::is_drop_overlay_visible)
+    }
+
+    pub fn clear_hovered_tab_drop_target(&mut self) {
+        if let Some(active_drag_state) = self.active_drag_state.as_mut() {
+            active_drag_state.clear_hovered_tab_drop_target();
+        }
+    }
+
+    pub fn set_hovered_tab_drop_target(
+        &mut self,
+        hovered_tab_drop_target: DockTabDropTarget,
+    ) {
+        if let Some(active_drag_state) = self.active_drag_state.as_mut() {
+            if active_drag_state.is_drop_overlay_visible() {
+                active_drag_state.set_hovered_tab_drop_target(hovered_tab_drop_target);
+            }
+        }
+    }
+
+    pub fn hovered_tab_drop_target(&self) -> Option<&DockTabDropTarget> {
+        self.active_drag_state
+            .as_ref()
+            .and_then(DockDragState::hovered_tab_drop_target)
     }
 
     pub fn active_dragged_window_id(&self) -> Option<&str> {
@@ -221,12 +272,20 @@ impl DockingManager {
         let Some(active_drag_state) = self.active_drag_state.clone() else {
             return false;
         };
-
         let maybe_drop_target = self.resolve_drop_target(root_screen_rect);
+        let hovered_tab_drop_target = active_drag_state.hovered_tab_drop_target().cloned();
         self.active_drag_state = None;
 
         if !active_drag_state.is_drop_overlay_visible() {
             return false;
+        }
+
+        if let Some(hovered_tab_drop_target) = hovered_tab_drop_target {
+            return self.reparent_window_relative_to_tab(
+                &active_drag_state.source_window_identifier,
+                &hovered_tab_drop_target.target_window_identifier,
+                hovered_tab_drop_target.tab_insertion_direction,
+            );
         }
 
         let Some(dock_drop_target) = maybe_drop_target else {
