@@ -76,7 +76,17 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
                     memory_read_provider.read_bytes(opened_process_info, address, values)
                 })),
             );
-            ElementScanExecutor::execute_scan(process_info, snapshot, element_scan_plan, true, &scan_execution_context);
+            ElementScanExecutor::execute_scan(process_info, snapshot.clone(), element_scan_plan, true, &scan_execution_context);
+
+            match snapshot.write() {
+                Ok(mut snapshot_guard) => {
+                    snapshot_guard.clear_deleted_scan_result_indices();
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire write lock on snapshot to clear deleted scan result indices: {}", error);
+                }
+            }
+
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 
             ElementScanResponse {

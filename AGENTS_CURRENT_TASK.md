@@ -16,11 +16,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification that removing the dead `squalr-engine-api/src/structures/data_types` source tree does not affect any external tooling or docs that referenced files outside the Cargo module graph.
+- 
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- `squalr-engine-api/src/structures/data_types/mod.rs` is the live API surface and already re-exports `squalr_engine_domain::structures::data_types::*`; the deleted API-side `data_types` implementation files were orphaned and not part of the compiled module graph.
-- Scan consumers still build against the domain-backed data type implementations. Verified with `cargo test -p squalr-engine-scanning --all-targets` and `cargo check -p squalr-engine --all-targets`.
-- `cargo test -p squalr-engine-api -p squalr-engine-scanning --all-targets` still reports an unrelated existing failure on Windows in `squalr-engine-api/src/utils/file_system/file_system_utils.rs` for `/tmp/test` absolute-path detection.
+- 

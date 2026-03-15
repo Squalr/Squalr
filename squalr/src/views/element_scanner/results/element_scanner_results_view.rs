@@ -382,7 +382,7 @@ impl Widget for ElementScannerResultsView {
                     self.app_context.clone(),
                     selection_freeze_checkstate,
                     &mut element_sanner_result_frame_action,
-                    faux_address_splitter_position_x,
+                    faux_data_type_splitter_position_x,
                     value_splitter_position_x,
                     previous_value_splitter_position_x,
                 ));
