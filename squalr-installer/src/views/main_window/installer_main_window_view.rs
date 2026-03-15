@@ -9,6 +9,9 @@ use crate::widgets::installer_button::InstallerButton;
 use crate::widgets::installer_checkbox::InstallerCheckbox;
 use eframe::egui::{Align, Frame, Layout, Margin, RichText, Stroke, TextEdit, Ui, ViewportCommand, vec2};
 
+const ACTION_BUTTON_WIDTH: f32 = 140.0;
+const ACTION_BUTTON_HEIGHT: f32 = 28.0;
+
 #[derive(Clone)]
 pub(crate) struct InstallerMainWindowView {
     installer_theme: InstallerTheme,
@@ -90,21 +93,19 @@ impl InstallerMainWindowView {
 
                                     if installer_state.install_complete {
                                         user_interface.add_space(8.0);
-                                        user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
-                                            let launch_button_response = user_interface.add_sized(
-                                                vec2(140.0, 28.0),
-                                                InstallerButton::new_from_theme(&self.installer_theme, "Launch Squalr")
-                                                    .background_color(self.installer_theme.color_background_control_success)
-                                                    .border_color(self.installer_theme.color_background_control_success_dark),
-                                            );
+                                        let launch_button_clicked = self.show_action_button_row(
+                                            user_interface,
+                                            InstallerButton::new_from_theme(&self.installer_theme, "Launch Squalr")
+                                                .background_color(self.installer_theme.color_background_control_success)
+                                                .border_color(self.installer_theme.color_background_control_success_dark),
+                                        );
 
-                                            if launch_button_response.clicked() {
-                                                if let Ok(install_directory) = installer_state.resolve_install_directory() {
-                                                    launch_app(install_directory);
-                                                    user_interface.ctx().send_viewport_cmd(ViewportCommand::Close);
-                                                }
+                                        if launch_button_clicked {
+                                            if let Ok(install_directory) = installer_state.resolve_install_directory() {
+                                                launch_app(install_directory);
+                                                user_interface.ctx().send_viewport_cmd(ViewportCommand::Close);
                                             }
-                                        });
+                                        }
                                     }
                                 });
                         } else {
@@ -168,30 +169,22 @@ impl InstallerMainWindowView {
                                     }
 
                                     user_interface.add_space(4.0);
-                                    user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
-                                        let install_button_response = user_interface
-                                            .add_sized(vec2(140.0, 28.0), InstallerButton::new_from_theme(&self.installer_theme, "Install Squalr"));
+                                    let install_button_clicked =
+                                        self.show_action_button_row(user_interface, InstallerButton::new_from_theme(&self.installer_theme, "Install Squalr"));
 
-                                        if install_button_response.clicked() {
-                                            installer_state.install_permission_granted = true;
-                                        }
-                                    });
+                                    if install_button_clicked {
+                                        installer_state.install_permission_granted = true;
+                                    }
                                 });
                         }
 
                         let remaining_log_height = user_interface.available_height().max(0.0);
                         user_interface.allocate_ui_with_layout(
-                            eframe::egui::vec2(user_interface.available_width(), remaining_log_height),
+                            vec2(user_interface.available_width(), remaining_log_height),
                             Layout::top_down(Align::Min),
                             |user_interface| {
-                                Frame::new()
-                                    .fill(self.installer_theme.color_background_primary)
-                                    .stroke(Stroke::new(1.0, self.installer_theme.color_border_panel))
-                                    .inner_margin(Margin::same(8))
-                                    .show(user_interface, |user_interface| {
-                                        let installer_log_view = InstallerLogView::new(self.installer_theme.clone());
-                                        installer_log_view.show(user_interface, installer_state, remaining_log_height);
-                                    });
+                                let installer_log_view = InstallerLogView::new(self.installer_theme.clone());
+                                installer_log_view.show(user_interface, installer_state);
                             },
                         );
                     });
@@ -200,5 +193,23 @@ impl InstallerMainWindowView {
 
         user_interface.add(installer_footer_view);
         user_interface.style_mut().spacing.item_spacing = previous_item_spacing;
+    }
+
+    fn show_action_button_row<'label>(
+        &self,
+        user_interface: &mut Ui,
+        installer_button: InstallerButton<'label>,
+    ) -> bool {
+        user_interface
+            .allocate_ui_with_layout(
+                vec2(user_interface.available_width(), ACTION_BUTTON_HEIGHT),
+                Layout::left_to_right(Align::Center),
+                |user_interface| {
+                    user_interface
+                        .add_sized(vec2(ACTION_BUTTON_WIDTH, ACTION_BUTTON_HEIGHT), installer_button)
+                        .clicked()
+                },
+            )
+            .inner
     }
 }

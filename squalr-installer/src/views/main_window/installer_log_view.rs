@@ -1,6 +1,6 @@
 use crate::theme::InstallerTheme;
 use crate::ui_state::InstallerUiState;
-use eframe::egui::{Align, Color32, Frame, Layout, Margin, RichText, ScrollArea, Stroke, Ui};
+use eframe::egui::{Align, Color32, Frame, Layout, Margin, RichText, ScrollArea, Stroke, Ui, vec2};
 
 #[derive(Clone)]
 pub(crate) struct InstallerLogView {
@@ -16,7 +16,6 @@ impl InstallerLogView {
         &self,
         user_interface: &mut Ui,
         installer_state: &InstallerUiState,
-        available_height: f32,
     ) {
         Frame::new()
             .fill(self.installer_theme.color_background_primary)
@@ -41,36 +40,43 @@ impl InstallerLogView {
                     }
                 });
 
-                Frame::new()
-                    .fill(self.installer_theme.color_log_background)
-                    .stroke(Stroke::new(1.0, self.installer_theme.color_border_panel))
-                    .inner_margin(Margin::same(8))
-                    .show(user_interface, |user_interface| {
-                        user_interface.set_min_height(available_height.max(0.0));
-                        user_interface.set_min_width(user_interface.available_width());
-
-                        ScrollArea::vertical()
-                            .id_salt("installer_log_scroll")
-                            .auto_shrink([false, false])
-                            .stick_to_bottom(true)
+                let remaining_log_height = user_interface.available_height().max(0.0);
+                user_interface.allocate_ui_with_layout(
+                    vec2(user_interface.available_width(), remaining_log_height),
+                    Layout::top_down(Align::Min),
+                    |user_interface| {
+                        Frame::new()
+                            .fill(self.installer_theme.color_log_background)
+                            .stroke(Stroke::new(1.0, self.installer_theme.color_border_panel))
+                            .inner_margin(Margin::same(8))
                             .show(user_interface, |user_interface| {
-                                if installer_state.installer_logs.is_empty() {
-                                    user_interface.label(
-                                        RichText::new("Waiting for installer output.")
-                                            .font(self.installer_theme.fonts.font_ubuntu_mono_normal.clone())
-                                            .color(self.installer_theme.color_foreground_preview),
-                                    );
-                                } else {
-                                    for installer_log_line in installer_state.installer_logs.lines() {
-                                        user_interface.label(
-                                            RichText::new(installer_log_line)
-                                                .font(self.installer_theme.fonts.font_ubuntu_mono_normal.clone())
-                                                .color(log_color_for_line(installer_log_line, &self.installer_theme)),
-                                        );
-                                    }
-                                }
+                                let scroll_area_height = user_interface.available_height().max(0.0);
+
+                                ScrollArea::vertical()
+                                    .id_salt("installer_log_scroll")
+                                    .auto_shrink([false, false])
+                                    .stick_to_bottom(true)
+                                    .max_height(scroll_area_height)
+                                    .show(user_interface, |user_interface| {
+                                        if installer_state.installer_logs.is_empty() {
+                                            user_interface.label(
+                                                RichText::new("Waiting for installer output.")
+                                                    .font(self.installer_theme.fonts.font_ubuntu_mono_normal.clone())
+                                                    .color(self.installer_theme.color_foreground_preview),
+                                            );
+                                        } else {
+                                            for installer_log_line in installer_state.installer_logs.lines() {
+                                                user_interface.label(
+                                                    RichText::new(installer_log_line)
+                                                        .font(self.installer_theme.fonts.font_ubuntu_mono_normal.clone())
+                                                        .color(log_color_for_line(installer_log_line, &self.installer_theme)),
+                                                );
+                                            }
+                                        }
+                                    });
                             });
-                    });
+                    },
+                );
             });
     }
 }
