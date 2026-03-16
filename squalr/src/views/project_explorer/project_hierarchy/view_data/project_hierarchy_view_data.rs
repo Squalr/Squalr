@@ -466,6 +466,8 @@ impl ProjectHierarchyViewData {
             parent_directory_path,
             project_item_name: directory_name,
             project_item_type: ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID.to_string(),
+            pointer: None,
+            data_type_id: None,
         };
         let app_context_clone = app_context.clone();
         let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
@@ -1041,6 +1043,7 @@ mod tests {
     use super::ProjectHierarchyViewData;
     use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_tree_entry::ProjectHierarchyTreeEntry;
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+    use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
         project_item_type_pointer::ProjectItemTypePointer,
@@ -1179,7 +1182,8 @@ mod tests {
 
     #[test]
     fn build_preview_value_for_pointer_without_display_value_returns_unknown() {
-        let pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", "", "");
+        let pointer = Pointer::new(0x10, vec![0x20], "game.exe".to_string());
+        let pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u8");
 
         let preview_value = ProjectHierarchyViewData::build_preview_value(&pointer_project_item);
 
@@ -1188,7 +1192,9 @@ mod tests {
 
     #[test]
     fn build_preview_value_for_pointer_with_display_value_returns_display_value() {
-        let pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", "", "0x1234 -> 0x5678");
+        let pointer = Pointer::new(0x10, vec![0x20], "game.exe".to_string());
+        let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u8");
+        ProjectItemTypePointer::set_field_freeze_data_value_interpreter(&mut pointer_project_item, "0x1234 -> 0x5678");
 
         let preview_value = ProjectHierarchyViewData::build_preview_value(&pointer_project_item);
 

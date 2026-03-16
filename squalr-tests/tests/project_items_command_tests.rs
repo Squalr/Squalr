@@ -371,6 +371,8 @@ fn project_items_create_request_dispatches_unprivileged_command_and_invokes_type
         parent_directory_path: PathBuf::from("Addresses"),
         project_item_name: "New Folder".to_string(),
         project_item_type: "directory".to_string(),
+        pointer: None,
+        data_type_id: None,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();

@@ -25,7 +25,12 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
 
         if !self.is_frozen {
             for freeze_target in &self.freeze_targets {
-                let pointer = Pointer::new(freeze_target.address, vec![], freeze_target.module_name.clone());
+                let pointer = Pointer::new_with_size(
+                    freeze_target.address,
+                    freeze_target.pointer_offsets.clone(),
+                    freeze_target.module_name.clone(),
+                    freeze_target.pointer_size,
+                );
                 freeze_list_registry_guard.set_address_unfrozen(&pointer);
             }
 
@@ -66,10 +71,41 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
             };
 
             let mut valued_struct = symbolic_struct_definition.get_default_valued_struct(&symbol_registry);
-            let module_base_address = os_providers
-                .memory_query
-                .resolve_module(&modules, &freeze_target.module_name);
-            let absolute_address = module_base_address.saturating_add(freeze_target.address);
+            let pointer = Pointer::new_with_size(
+                freeze_target.address,
+                freeze_target.pointer_offsets.clone(),
+                freeze_target.module_name.clone(),
+                freeze_target.pointer_size,
+            );
+            let Some(absolute_address) = pointer.resolve_final_address(
+                |module_name| os_providers.memory_query.resolve_module(&modules, module_name),
+                |address, pointer_size| {
+                    let mut pointer_bytes = vec![0_u8; pointer_size.get_size_in_bytes() as usize];
+
+                    if !os_providers
+                        .memory_read
+                        .read_bytes(&opened_process_info, address, &mut pointer_bytes)
+                    {
+                        return None;
+                    }
+
+                    match pointer_size {
+                        squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer32 => {
+                            let pointer_bytes: [u8; 4] = pointer_bytes.as_slice().try_into().ok()?;
+
+                            Some(u32::from_le_bytes(pointer_bytes) as u64)
+                        }
+                        squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer64 => {
+                            let pointer_bytes: [u8; 8] = pointer_bytes.as_slice().try_into().ok()?;
+
+                            Some(u64::from_le_bytes(pointer_bytes))
+                        }
+                    }
+                },
+            ) else {
+                failed_freeze_target_count = failed_freeze_target_count.saturating_add(1);
+                continue;
+            };
             if !os_providers
                 .memory_read
                 .read_struct(&opened_process_info, absolute_address, &mut valued_struct)
@@ -78,7 +114,6 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
                 continue;
             }
 
-            let pointer = Pointer::new(freeze_target.address, vec![], freeze_target.module_name.clone());
             freeze_list_registry_guard.set_address_frozen(pointer, valued_struct.get_bytes());
         }
 

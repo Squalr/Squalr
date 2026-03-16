@@ -203,7 +203,6 @@ impl Widget for MainToolbarView {
             | PointerScannerView::WINDOW_ID
             | ElementScannerView::WINDOW_ID
             | SettingsView::WINDOW_ID
-            | PointerScannerView::WINDOW_ID
             // | "window_disassembly"
             // | "window_code_tracer"
             => {

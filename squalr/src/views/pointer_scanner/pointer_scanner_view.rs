@@ -1,17 +1,37 @@
 use crate::app_context::AppContext;
-use eframe::egui::{Response, Sense, Ui, Widget};
+use crate::views::pointer_scanner::pointer_scanner_results_view::PointerScannerResultsView;
+use crate::views::pointer_scanner::pointer_scanner_toolbar_view::PointerScannerToolbarView;
+use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
+use eframe::egui::{Align, Layout, Response, Ui, Widget};
+use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct PointerScannerView {
-    app_context: Arc<AppContext>,
+    _app_context: Arc<AppContext>,
+    _pointer_scanner_view_data: Dependency<PointerScannerViewData>,
+    pointer_scanner_toolbar_view: PointerScannerToolbarView,
+    pointer_scanner_results_view: PointerScannerResultsView,
 }
 
 impl PointerScannerView {
     pub const WINDOW_ID: &'static str = "window_pointer_scanner";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        Self { app_context }
+        let pointer_scanner_view_data = app_context
+            .dependency_container
+            .register(PointerScannerViewData::new());
+        let pointer_scanner_toolbar_view = PointerScannerToolbarView::new(app_context.clone());
+        let pointer_scanner_results_view = PointerScannerResultsView::new(app_context.clone());
+
+        PointerScannerViewData::initialize(pointer_scanner_view_data.clone(), app_context.engine_unprivileged_state.clone());
+
+        Self {
+            _app_context: app_context,
+            _pointer_scanner_view_data: pointer_scanner_view_data,
+            pointer_scanner_toolbar_view,
+            pointer_scanner_results_view,
+        }
     }
 }
 
@@ -20,8 +40,11 @@ impl Widget for PointerScannerView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::empty());
-
-        response
+        user_interface
+            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                user_interface.add(self.pointer_scanner_toolbar_view.clone());
+                user_interface.add(self.pointer_scanner_results_view.clone());
+            })
+            .response
     }
 }

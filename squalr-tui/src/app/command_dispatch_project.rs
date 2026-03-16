@@ -307,6 +307,8 @@ impl AppShell {
             parent_directory_path,
             project_item_name: project_item_name.clone(),
             project_item_type: "directory".to_string(),
+            pointer: None,
+            data_type_id: None,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_create_request.send(engine_unprivileged_state, move |project_items_create_response| {

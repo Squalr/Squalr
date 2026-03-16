@@ -7,7 +7,9 @@ use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCom
 use squalr_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
 use squalr_engine_api::commands::project_items::activate::project_items_activate_response::ProjectItemsActivateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
+use squalr_engine_api::structures::projects::project_items::built_in_types::{
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -104,25 +106,51 @@ fn collect_project_item_paths_for_activation(
 fn create_memory_freeze_target(
     project_item: &mut squalr_engine_api::structures::projects::project_items::project_item::ProjectItem
 ) -> Option<MemoryFreezeTarget> {
-    if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-        return None;
-    }
-
-    let address = ProjectItemTypeAddress::get_field_address(project_item);
-    let module_name = ProjectItemTypeAddress::get_field_module(project_item);
-    let data_type_id = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item)?
-        .get_symbolic_struct_namespace()
+    let project_item_type_id = project_item
+        .get_item_type()
+        .get_project_item_type_id()
         .to_string();
 
-    if data_type_id.trim().is_empty() {
-        return None;
+    if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+        let address = ProjectItemTypeAddress::get_field_address(project_item);
+        let module_name = ProjectItemTypeAddress::get_field_module(project_item);
+        let data_type_id = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item)?
+            .get_symbolic_struct_namespace()
+            .to_string();
+
+        if data_type_id.trim().is_empty() {
+            return None;
+        }
+
+        return Some(MemoryFreezeTarget {
+            address,
+            module_name,
+            data_type_id,
+            pointer_offsets: Vec::new(),
+            pointer_size: Default::default(),
+        });
     }
 
-    Some(MemoryFreezeTarget {
-        address,
-        module_name,
-        data_type_id,
-    })
+    if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+        let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
+        let data_type_id = ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item)?
+            .get_symbolic_struct_namespace()
+            .to_string();
+
+        if data_type_id.trim().is_empty() {
+            return None;
+        }
+
+        return Some(MemoryFreezeTarget {
+            address: pointer.get_address(),
+            module_name: pointer.get_module_name().to_string(),
+            data_type_id,
+            pointer_offsets: pointer.get_offsets().to_vec(),
+            pointer_size: pointer.get_pointer_size(),
+        });
+    }
+
+    None
 }
 
 fn dispatch_memory_freeze_request(
@@ -188,8 +216,11 @@ fn dispatch_memory_freeze_request(
 mod tests {
     use super::{collect_project_item_paths_for_activation, create_memory_freeze_target};
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+    use squalr_engine_api::structures::memory::pointer::Pointer;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+        project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use std::path::PathBuf;
@@ -249,5 +280,19 @@ mod tests {
         let freeze_target = create_memory_freeze_target(&mut directory_project_item);
 
         assert!(freeze_target.is_none());
+    }
+
+    #[test]
+    fn create_memory_freeze_target_uses_pointer_project_item_values() {
+        let pointer = Pointer::new_with_size(0x44, vec![0x10, -0x8], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u8");
+
+        let freeze_target = create_memory_freeze_target(&mut pointer_project_item).expect("Expected pointer project item to produce a freeze target.");
+
+        assert_eq!(freeze_target.address, 0x44);
+        assert_eq!(freeze_target.module_name, "game.exe");
+        assert_eq!(freeze_target.data_type_id, "u8");
+        assert_eq!(freeze_target.pointer_offsets, vec![0x10, -0x8]);
+        assert_eq!(freeze_target.pointer_size, PointerScanPointerSize::Pointer64);
     }
 }

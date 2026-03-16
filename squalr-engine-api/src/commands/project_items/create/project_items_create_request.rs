@@ -3,6 +3,7 @@ use crate::commands::project_items::project_items_command::ProjectItemsCommand;
 use crate::commands::project_items::project_items_response::ProjectItemsResponse;
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use crate::structures::memory::pointer::Pointer;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -17,6 +18,14 @@ pub struct ProjectItemsCreateRequest {
 
     #[structopt(short = "t", long, default_value = "directory")]
     pub project_item_type: String,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub pointer: Option<Pointer>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub data_type_id: Option<String>,
 }
 
 impl UnprivilegedCommandRequest for ProjectItemsCreateRequest {

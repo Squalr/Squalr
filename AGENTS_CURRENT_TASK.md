@@ -16,24 +16,15 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Build pointer scanner view data and actions in the GUI, using the element scanner window structure as the visual baseline. The top area should own target address entry, pointer size selection, max depth, offset radius, action buttons, and scan status.
-- Build a pointer results tree view in the GUI, styled consistently with existing scan panes but using project-explorer-style lazy expansion semantics. Include columns for module/base, offset chain, resolved address, depth, and static-vs-heap state.
-- Add pointer result actions that matter for workflows: validate against a new target, copy/export a chain, and add the selected chain to the project as a pointer item.
-- Extend `ProjectItemTypePointer` and related project/struct-view plumbing to persist an actual pointer chain instead of only a preview string, then resolve/freeze through that chain at runtime.
-- Add remaining focused tests around GUI pointer actions and pointer project item persistence/runtime resolution. Command parsing, session serialization, level building, static classification, and validation pruning now have coverage.
+- Need human verification: exercise the live pointer-scan workflow against a real opened process in the GUI, including start, lazy expansion, validation, copy/export, add-to-project, project preview refresh, and freezing through the persisted pointer chain.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- `squalr/src/views/pointer_scanner/pointer_scanner_view.rs` is an empty placeholder window. The docking entry and toolbar button already exist, but there is no pointer-specific view data, controls, or results presentation yet.
-- Pointer scanning now has dedicated API/session types: `PointerScanSession`, `PointerScanNode`, `PointerScanLevel`, and `PointerScanSummary`. The engine stores the active session in `EnginePrivilegedState` instead of reusing flat `ScanResultsMetadata`.
-- The top-level CLI/API command is now subcommand-based: `pointer-scan start|summary|expand|validate`. `start` accepts `target_address`, `pointer_size`, `max_depth`, and `offset_radius`.
-- Engine query commands for pointer scan summaries and lazy child expansion now exist and read from the stored session. CLI pointer scan responses also log summaries and expanded nodes.
-- Pointer project items are not modeled yet. `ProjectItemTypePointer` only stores a display string for preview/freeze text, while `Pointer` stores offsets as `Vec<u8>`, which is too narrow for real pointer-chain offsets.
-- Existing reusable UI patterns:
-  - `ElementScannerView` already provides the overall window structure for toolbar + results + footer.
-  - `ProjectHierarchyViewData` already demonstrates the lazy tree expansion pattern the pointer results pane should mimic.
-- `PointerScanExecutor` now walks snapshot memory with native-width aligned loads, expands parent chains by matching pointer values within the configured radius, classifies static nodes via module lookup, and materializes root-oriented `PointerScanSession` levels/nodes instead of returning an empty placeholder session.
-- `squalr-engine-scanning/src/pointer_scans/pointer_scan_validator.rs` now performs live validation scans. It rebuilds heap levels from the new target over current usermode memory, re-resolves static nodes by `module_name + module_offset`, rebuilds the stored `PointerScanSession`, and prunes chains that no longer validate.
-- `squalr-engine/src/command_executors/pointer_scan/validate/pointer_scan_validate_request_executor.rs` now runs the real validator, replaces the active session, and reports an actual `pruned_node_count` instead of the old "not implemented" stub.
-- The current session builder path-expands chains to fit the one-parent `PointerScanNode` model, so shared subchains are duplicated in-session rather than represented as a DAG.
+- Pointer scanning uses dedicated API/session types: `PointerScanSession`, `PointerScanNode`, `PointerScanLevel`, and `PointerScanSummary`. The active session is stored in `EnginePrivilegedState`, and the top-level command surface is `pointer-scan start|summary|expand|validate`.
+- `PointerScanExecutor` now walks snapshot memory with native-width aligned loads, expands parent chains within the configured radius, classifies static nodes via module lookup, and materializes root-oriented session levels/nodes. Validation rebuilds heap levels from a new target, re-resolves static nodes by `module_name + module_offset`, replaces the active session, and reports actual prune counts.
+- The GUI pointer scanner now has a real window composed of a toolbar plus lazy tree results. The toolbar owns target address, pointer size, max depth, offset radius, start/refresh/validate actions, copy/export, add-to-project, and status text. The results pane uses project-explorer-style expansion and shows module/base, offset chain, resolved address, depth, and static-vs-heap state.
+- Pointer project items now persist a real chain: root `address`, `module`, `pointer_offsets` as `Vec<i64>`, `pointer_size`, symbolic struct reference, and preview display value. Pointer project item creation is supported through the unprivileged create command and writes a real `.json` project item under the hidden project root.
+- Project item preview refresh now resolves stored pointer chains at runtime before reading values. Freeze activation, freeze request execution, and the periodic freeze task also resolve full pointer chains before reading or writing memory.
+- Focused coverage now exists for pointer session serialization, level building, static classification, validation pruning, pointer project item persistence, pointer freeze-target creation, pointer runtime chain resolution, and GUI pointer action helpers for copy/export/add-to-project.
+- The current session builder still path-expands chains to fit the one-parent `PointerScanNode` model, so shared subchains are duplicated in-session instead of represented as a DAG.
