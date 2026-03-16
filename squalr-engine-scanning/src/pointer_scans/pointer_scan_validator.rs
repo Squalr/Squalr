@@ -32,12 +32,6 @@ struct PointerChainValidationStep {
     module_offset: u64,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
-struct ValidationCacheKey {
-    step: PointerChainValidationStep,
-    required_target_address: u64,
-}
-
 #[derive(Clone, Debug, Default)]
 struct PointerScanLevelAccumulator {
     node_ids: Vec<u64>,
@@ -112,7 +106,6 @@ impl PointerScanValidator {
             return Self::create_empty_session(pointer_scan_session, validation_target_address);
         }
 
-        let mut validation_cache = HashMap::new();
         let mut rebuilt_pointer_chains = Vec::new();
 
         for pointer_chain_validation_step in &pointer_chain_validation_steps {
@@ -125,7 +118,6 @@ impl PointerScanValidator {
                 memory_regions,
                 modules,
                 scan_execution_context,
-                &mut validation_cache,
             ));
 
             if scan_execution_context.should_cancel() {
@@ -216,142 +208,181 @@ impl PointerScanValidator {
         memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
-        validation_cache: &mut HashMap<ValidationCacheKey, Vec<RebuiltPointerNode>>,
     ) -> Vec<Vec<RebuiltPointerNode>> {
-        let Some(last_pointer_chain_index) = pointer_chain_validation_steps.len().checked_sub(1) else {
-            return Vec::new();
-        };
-
-        Self::rebuild_pointer_chains_from_leaf(
+        let Some(step_matches_by_required_target) = Self::collect_step_matches_for_pointer_chain(
             process_info,
             pointer_chain_validation_steps,
-            last_pointer_chain_index,
             validation_target_address,
             pointer_size,
             offset_radius,
             memory_regions,
             modules,
             scan_execution_context,
-            validation_cache,
-        )
+        ) else {
+            return Vec::new();
+        };
+
+        Self::rebuild_pointer_chains_from_step_matches(&step_matches_by_required_target)
     }
 
-    fn rebuild_pointer_chains_from_leaf(
+    fn collect_step_matches_for_pointer_chain(
         process_info: OpenedProcessInfo,
         pointer_chain_validation_steps: &[PointerChainValidationStep],
-        pointer_chain_index: usize,
-        required_target_address: u64,
+        validation_target_address: u64,
         pointer_size: PointerScanPointerSize,
         offset_radius: u64,
         memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
-        validation_cache: &mut HashMap<ValidationCacheKey, Vec<RebuiltPointerNode>>,
-    ) -> Vec<Vec<RebuiltPointerNode>> {
-        if scan_execution_context.should_cancel() {
+    ) -> Option<Vec<HashMap<u64, Vec<RebuiltPointerNode>>>> {
+        let mut step_matches_by_required_target_reversed = Vec::with_capacity(pointer_chain_validation_steps.len());
+        let mut required_target_addresses = vec![validation_target_address];
+
+        for pointer_chain_validation_step in pointer_chain_validation_steps.iter().rev() {
+            if scan_execution_context.should_cancel() {
+                return None;
+            }
+
+            required_target_addresses.sort_unstable();
+            required_target_addresses.dedup();
+
+            if required_target_addresses.is_empty() {
+                return None;
+            }
+
+            let step_matches_by_required_target = match pointer_chain_validation_step.to_pointer_scan_node_type() {
+                PointerScanNodeType::Static => Self::validate_static_pointer_nodes_for_targets(
+                    process_info.clone(),
+                    pointer_chain_validation_step,
+                    &required_target_addresses,
+                    pointer_size,
+                    offset_radius,
+                    modules,
+                    scan_execution_context,
+                ),
+                PointerScanNodeType::Heap => Self::scan_memory_regions_for_heap_pointer_nodes_by_target(
+                    process_info.clone(),
+                    &required_target_addresses,
+                    pointer_size,
+                    offset_radius,
+                    memory_regions,
+                    modules,
+                    scan_execution_context,
+                ),
+            };
+
+            if step_matches_by_required_target.is_empty() {
+                return None;
+            }
+
+            required_target_addresses = step_matches_by_required_target
+                .values()
+                .flat_map(|rebuilt_pointer_nodes| {
+                    rebuilt_pointer_nodes
+                        .iter()
+                        .map(|rebuilt_pointer_node| rebuilt_pointer_node.pointer_address)
+                })
+                .collect();
+
+            step_matches_by_required_target_reversed.push(step_matches_by_required_target);
+        }
+
+        step_matches_by_required_target_reversed.reverse();
+
+        Some(step_matches_by_required_target_reversed)
+    }
+
+    fn rebuild_pointer_chains_from_step_matches(step_matches_by_required_target: &[HashMap<u64, Vec<RebuiltPointerNode>>]) -> Vec<Vec<RebuiltPointerNode>> {
+        if step_matches_by_required_target.is_empty() {
             return Vec::new();
         }
 
-        let rebuilt_pointer_nodes = Self::discover_matching_pointer_nodes(
-            process_info.clone(),
-            &pointer_chain_validation_steps[pointer_chain_index],
-            required_target_address,
-            pointer_size,
-            offset_radius,
-            memory_regions,
-            modules,
-            scan_execution_context,
-            validation_cache,
-        );
-
-        if pointer_chain_index == 0 {
-            return rebuilt_pointer_nodes
-                .into_iter()
-                .map(|rebuilt_pointer_node| vec![rebuilt_pointer_node])
-                .collect();
-        }
-
+        let rebuilt_pointer_nodes_by_pointer_address = step_matches_by_required_target
+            .iter()
+            .map(Self::build_rebuilt_pointer_nodes_by_pointer_address)
+            .collect::<Vec<_>>();
         let mut rebuilt_pointer_chains = Vec::new();
+        let mut active_rebuilt_pointer_chain = Vec::with_capacity(step_matches_by_required_target.len());
 
-        for rebuilt_pointer_node in rebuilt_pointer_nodes {
-            let parent_pointer_chains = Self::rebuild_pointer_chains_from_leaf(
-                process_info.clone(),
-                pointer_chain_validation_steps,
-                pointer_chain_index - 1,
-                rebuilt_pointer_node.pointer_address,
-                pointer_size,
-                offset_radius,
-                memory_regions,
-                modules,
-                scan_execution_context,
-                validation_cache,
-            );
-
-            for mut parent_pointer_chain in parent_pointer_chains {
-                parent_pointer_chain.push(rebuilt_pointer_node.clone());
-                rebuilt_pointer_chains.push(parent_pointer_chain);
+        for root_rebuilt_pointer_nodes in step_matches_by_required_target[0].values() {
+            for root_rebuilt_pointer_node in root_rebuilt_pointer_nodes {
+                Self::append_rebuilt_pointer_chains_from_node(
+                    root_rebuilt_pointer_node.clone(),
+                    0,
+                    &rebuilt_pointer_nodes_by_pointer_address,
+                    &mut active_rebuilt_pointer_chain,
+                    &mut rebuilt_pointer_chains,
+                );
             }
         }
+
+        Self::sort_and_deduplicate_pointer_chains(&mut rebuilt_pointer_chains);
 
         rebuilt_pointer_chains
     }
 
-    fn discover_matching_pointer_nodes(
-        process_info: OpenedProcessInfo,
-        pointer_chain_validation_step: &PointerChainValidationStep,
-        required_target_address: u64,
-        pointer_size: PointerScanPointerSize,
-        offset_radius: u64,
-        memory_regions: &[NormalizedRegion],
-        modules: &[NormalizedModule],
-        scan_execution_context: &ScanExecutionContext,
-        validation_cache: &mut HashMap<ValidationCacheKey, Vec<RebuiltPointerNode>>,
-    ) -> Vec<RebuiltPointerNode> {
-        let validation_cache_key = ValidationCacheKey {
-            step: pointer_chain_validation_step.clone(),
-            required_target_address,
-        };
+    fn append_rebuilt_pointer_chains_from_node(
+        rebuilt_pointer_node: RebuiltPointerNode,
+        pointer_chain_step_index: usize,
+        rebuilt_pointer_nodes_by_pointer_address: &[HashMap<u64, Vec<RebuiltPointerNode>>],
+        active_rebuilt_pointer_chain: &mut Vec<RebuiltPointerNode>,
+        rebuilt_pointer_chains: &mut Vec<Vec<RebuiltPointerNode>>,
+    ) {
+        active_rebuilt_pointer_chain.push(rebuilt_pointer_node.clone());
 
-        if let Some(rebuilt_pointer_nodes) = validation_cache.get(&validation_cache_key) {
-            return rebuilt_pointer_nodes.clone();
+        if pointer_chain_step_index + 1 >= rebuilt_pointer_nodes_by_pointer_address.len() {
+            rebuilt_pointer_chains.push(active_rebuilt_pointer_chain.clone());
+            active_rebuilt_pointer_chain.pop();
+
+            return;
         }
 
-        let rebuilt_pointer_nodes = match pointer_chain_validation_step.to_pointer_scan_node_type() {
-            PointerScanNodeType::Static => Self::validate_static_pointer_nodes(
-                process_info,
-                pointer_chain_validation_step,
-                required_target_address,
-                pointer_size,
-                offset_radius,
-                modules,
-                scan_execution_context,
-            ),
-            PointerScanNodeType::Heap => Self::scan_memory_regions_for_heap_pointer_nodes(
-                process_info,
-                required_target_address,
-                pointer_size,
-                offset_radius,
-                memory_regions,
-                modules,
-                scan_execution_context,
-            ),
-        };
+        if let Some(child_rebuilt_pointer_nodes) =
+            rebuilt_pointer_nodes_by_pointer_address[pointer_chain_step_index + 1].get(&rebuilt_pointer_node.resolved_target_address)
+        {
+            for child_rebuilt_pointer_node in child_rebuilt_pointer_nodes {
+                Self::append_rebuilt_pointer_chains_from_node(
+                    child_rebuilt_pointer_node.clone(),
+                    pointer_chain_step_index + 1,
+                    rebuilt_pointer_nodes_by_pointer_address,
+                    active_rebuilt_pointer_chain,
+                    rebuilt_pointer_chains,
+                );
+            }
+        }
 
-        validation_cache.insert(validation_cache_key, rebuilt_pointer_nodes.clone());
-
-        rebuilt_pointer_nodes
+        active_rebuilt_pointer_chain.pop();
     }
 
-    fn validate_static_pointer_nodes(
+    fn build_rebuilt_pointer_nodes_by_pointer_address(
+        step_matches_by_required_target: &HashMap<u64, Vec<RebuiltPointerNode>>
+    ) -> HashMap<u64, Vec<RebuiltPointerNode>> {
+        let mut rebuilt_pointer_nodes_by_pointer_address = HashMap::new();
+
+        for rebuilt_pointer_nodes in step_matches_by_required_target.values() {
+            for rebuilt_pointer_node in rebuilt_pointer_nodes {
+                rebuilt_pointer_nodes_by_pointer_address
+                    .entry(rebuilt_pointer_node.pointer_address)
+                    .or_insert_with(Vec::new)
+                    .push(rebuilt_pointer_node.clone());
+            }
+        }
+
+        Self::sort_and_deduplicate_rebuilt_pointer_node_map(&mut rebuilt_pointer_nodes_by_pointer_address);
+
+        rebuilt_pointer_nodes_by_pointer_address
+    }
+
+    fn validate_static_pointer_nodes_for_targets(
         process_info: OpenedProcessInfo,
         pointer_chain_validation_step: &PointerChainValidationStep,
-        required_target_address: u64,
+        required_target_addresses: &[u64],
         pointer_size: PointerScanPointerSize,
         offset_radius: u64,
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
-    ) -> Vec<RebuiltPointerNode> {
-        let mut rebuilt_pointer_nodes = Vec::new();
+    ) -> HashMap<u64, Vec<RebuiltPointerNode>> {
+        let mut rebuilt_pointer_nodes_by_required_target = HashMap::new();
 
         for module in modules
             .iter()
@@ -367,52 +398,55 @@ impl PointerScanValidator {
 
             let lower_target_bound = pointer_value.saturating_sub(offset_radius);
             let upper_target_bound = pointer_value.saturating_add(offset_radius);
+            let matching_target_start_index = required_target_addresses.partition_point(|target_address| *target_address < lower_target_bound);
+            let matching_target_end_index = required_target_addresses.partition_point(|target_address| *target_address <= upper_target_bound);
 
-            if required_target_address < lower_target_bound || required_target_address > upper_target_bound {
-                continue;
+            for required_target_address in &required_target_addresses[matching_target_start_index..matching_target_end_index] {
+                let Some(pointer_offset) = Self::calculate_pointer_offset(*required_target_address, pointer_value) else {
+                    continue;
+                };
+
+                rebuilt_pointer_nodes_by_required_target
+                    .entry(*required_target_address)
+                    .or_insert_with(Vec::new)
+                    .push(RebuiltPointerNode {
+                        pointer_scan_node_type: PointerScanNodeType::Static,
+                        pointer_address,
+                        pointer_value,
+                        resolved_target_address: *required_target_address,
+                        pointer_offset,
+                        module_name: module.get_module_name().to_string(),
+                        module_offset: pointer_chain_validation_step.module_offset,
+                    });
             }
-
-            let Some(pointer_offset) = Self::calculate_pointer_offset(required_target_address, pointer_value) else {
-                continue;
-            };
-
-            rebuilt_pointer_nodes.push(RebuiltPointerNode {
-                pointer_scan_node_type: PointerScanNodeType::Static,
-                pointer_address,
-                pointer_value,
-                resolved_target_address: required_target_address,
-                pointer_offset,
-                module_name: module.get_module_name().to_string(),
-                module_offset: pointer_chain_validation_step.module_offset,
-            });
         }
 
-        rebuilt_pointer_nodes.sort_by(Self::compare_rebuilt_pointer_nodes);
-        rebuilt_pointer_nodes.dedup();
-        rebuilt_pointer_nodes
+        Self::sort_and_deduplicate_rebuilt_pointer_node_map(&mut rebuilt_pointer_nodes_by_required_target);
+
+        rebuilt_pointer_nodes_by_required_target
     }
 
-    fn scan_memory_regions_for_heap_pointer_nodes(
+    fn scan_memory_regions_for_heap_pointer_nodes_by_target(
         process_info: OpenedProcessInfo,
-        required_target_address: u64,
+        required_target_addresses: &[u64],
         pointer_size: PointerScanPointerSize,
         offset_radius: u64,
         memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
-    ) -> Vec<RebuiltPointerNode> {
-        let mut rebuilt_pointer_nodes = Vec::new();
+    ) -> HashMap<u64, Vec<RebuiltPointerNode>> {
+        let mut rebuilt_pointer_nodes_by_required_target = HashMap::new();
 
         for memory_region in memory_regions {
-            Self::scan_memory_region_for_heap_pointer_nodes(
+            Self::scan_memory_region_for_heap_pointer_nodes_by_target(
                 &process_info,
                 memory_region,
-                required_target_address,
+                required_target_addresses,
                 pointer_size,
                 offset_radius,
                 modules,
                 scan_execution_context,
-                &mut rebuilt_pointer_nodes,
+                &mut rebuilt_pointer_nodes_by_required_target,
             );
 
             if scan_execution_context.should_cancel() {
@@ -420,20 +454,20 @@ impl PointerScanValidator {
             }
         }
 
-        rebuilt_pointer_nodes.sort_by(Self::compare_rebuilt_pointer_nodes);
-        rebuilt_pointer_nodes.dedup();
-        rebuilt_pointer_nodes
+        Self::sort_and_deduplicate_rebuilt_pointer_node_map(&mut rebuilt_pointer_nodes_by_required_target);
+
+        rebuilt_pointer_nodes_by_required_target
     }
 
-    fn scan_memory_region_for_heap_pointer_nodes(
+    fn scan_memory_region_for_heap_pointer_nodes_by_target(
         process_info: &OpenedProcessInfo,
         memory_region: &NormalizedRegion,
-        required_target_address: u64,
+        required_target_addresses: &[u64],
         pointer_size: PointerScanPointerSize,
         offset_radius: u64,
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
-        rebuilt_pointer_nodes: &mut Vec<RebuiltPointerNode>,
+        rebuilt_pointer_nodes_by_required_target: &mut HashMap<u64, Vec<RebuiltPointerNode>>,
     ) {
         let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
         let pointer_alignment = pointer_size_in_bytes as u64;
@@ -483,26 +517,32 @@ impl PointerScanValidator {
 
                     let lower_target_bound = pointer_value.saturating_sub(offset_radius);
                     let upper_target_bound = pointer_value.saturating_add(offset_radius);
+                    let matching_target_start_index = required_target_addresses.partition_point(|target_address| *target_address < lower_target_bound);
+                    let matching_target_end_index = required_target_addresses.partition_point(|target_address| *target_address <= upper_target_bound);
 
-                    if required_target_address >= lower_target_bound && required_target_address <= upper_target_bound {
+                    if matching_target_start_index < matching_target_end_index {
                         let pointer_address = scan_address.saturating_add(pointer_value_offset as u64);
                         let (pointer_scan_node_type, _module_name, _module_offset) = Self::classify_pointer_address(pointer_address, modules);
 
                         if pointer_scan_node_type == PointerScanNodeType::Heap {
-                            let Some(pointer_offset) = Self::calculate_pointer_offset(required_target_address, pointer_value) else {
-                                pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes);
-                                continue;
-                            };
+                            for required_target_address in &required_target_addresses[matching_target_start_index..matching_target_end_index] {
+                                let Some(pointer_offset) = Self::calculate_pointer_offset(*required_target_address, pointer_value) else {
+                                    continue;
+                                };
 
-                            rebuilt_pointer_nodes.push(RebuiltPointerNode {
-                                pointer_scan_node_type: PointerScanNodeType::Heap,
-                                pointer_address,
-                                pointer_value,
-                                resolved_target_address: required_target_address,
-                                pointer_offset,
-                                module_name: String::new(),
-                                module_offset: 0,
-                            });
+                                rebuilt_pointer_nodes_by_required_target
+                                    .entry(*required_target_address)
+                                    .or_insert_with(Vec::new)
+                                    .push(RebuiltPointerNode {
+                                        pointer_scan_node_type: PointerScanNodeType::Heap,
+                                        pointer_address,
+                                        pointer_value,
+                                        resolved_target_address: *required_target_address,
+                                        pointer_offset,
+                                        module_name: String::new(),
+                                        module_offset: 0,
+                                    });
+                            }
                         }
                     }
 
@@ -511,6 +551,13 @@ impl PointerScanValidator {
             }
 
             scan_address = scan_address.saturating_add(scan_chunk_size as u64);
+        }
+    }
+
+    fn sort_and_deduplicate_rebuilt_pointer_node_map(rebuilt_pointer_nodes_by_target: &mut HashMap<u64, Vec<RebuiltPointerNode>>) {
+        for rebuilt_pointer_nodes in rebuilt_pointer_nodes_by_target.values_mut() {
+            rebuilt_pointer_nodes.sort_by(Self::compare_rebuilt_pointer_nodes);
+            rebuilt_pointer_nodes.dedup();
         }
     }
 
@@ -883,6 +930,43 @@ mod tests {
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
     }
 
+    #[test]
+    fn scan_memory_regions_for_heap_pointer_nodes_by_target_matches_multiple_targets_in_one_pass() {
+        let multi_target_validation_memory_map = Arc::new(build_multi_target_validation_memory_map());
+        let scan_execution_context = ScanExecutionContext::new(
+            None,
+            None,
+            Some(Arc::new({
+                let multi_target_validation_memory_map = multi_target_validation_memory_map.clone();
+
+                move |_opened_process_info, address, values| read_memory_from_map(&multi_target_validation_memory_map, address, values)
+            })),
+        );
+        let rebuilt_pointer_nodes_by_target = PointerScanValidator::scan_memory_regions_for_heap_pointer_nodes_by_target(
+            OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
+            &[0x4010, 0x5010],
+            PointerScanPointerSize::Pointer64,
+            0x10,
+            &[NormalizedRegion::new(0x3000, 0x40)],
+            &[],
+            &scan_execution_context,
+        );
+
+        let first_target_matches = rebuilt_pointer_nodes_by_target
+            .get(&0x4010)
+            .expect("Expected matches for the first validation target.");
+        assert_eq!(first_target_matches.len(), 1);
+        assert_eq!(first_target_matches[0].pointer_address, 0x3000);
+        assert_eq!(first_target_matches[0].pointer_offset, 0x10);
+
+        let second_target_matches = rebuilt_pointer_nodes_by_target
+            .get(&0x5010)
+            .expect("Expected matches for the second validation target.");
+        assert_eq!(second_target_matches.len(), 1);
+        assert_eq!(second_target_matches[0].pointer_address, 0x3008);
+        assert_eq!(second_target_matches[0].pointer_offset, 0x10);
+    }
+
     fn build_original_pointer_scan_session() -> PointerScanSession {
         let original_memory_map = Arc::new(build_original_pointer_scan_memory_map());
         let scan_execution_context = ScanExecutionContext::new(
@@ -963,6 +1047,15 @@ mod tests {
             NormalizedRegion::new(0x5000, 0x40),
             NormalizedRegion::new(0x7000, 0x40),
         ]
+    }
+
+    fn build_multi_target_validation_memory_map() -> HashMap<u64, u8> {
+        let mut memory_map = HashMap::new();
+
+        write_pointer_bytes(&mut memory_map, 0x3000, 0x4000_u64);
+        write_pointer_bytes(&mut memory_map, 0x3008, 0x5000_u64);
+
+        memory_map
     }
 
     fn write_pointer_bytes(

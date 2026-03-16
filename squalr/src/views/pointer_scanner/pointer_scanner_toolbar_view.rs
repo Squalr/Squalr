@@ -1,11 +1,13 @@
 use crate::app_context::AppContext;
+use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::{
     button::Button, data_type_selector::data_type_selector_view::DataTypeSelectorView, data_value_box::data_value_box_view::DataValueBoxView,
 };
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
+use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Align2, Color32, Response, RichText, Sense, Ui, UiBuilder, Widget, vec2};
-use epaint::{CornerRadius, Stroke, StrokeKind};
+use eframe::egui::{Color32, Response, RichText, Sense, Ui, UiBuilder, Widget, vec2};
+use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
@@ -15,6 +17,7 @@ use std::sync::Arc;
 pub struct PointerScannerToolbarView {
     app_context: Arc<AppContext>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
+    process_selector_view_data: Dependency<ProcessSelectorViewData>,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
 }
 
@@ -23,6 +26,9 @@ impl PointerScannerToolbarView {
         let pointer_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<PointerScannerViewData>();
+        let process_selector_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProcessSelectorViewData>();
         let project_hierarchy_view_data = app_context
             .dependency_container
             .get_dependency::<ProjectHierarchyViewData>();
@@ -30,18 +36,19 @@ impl PointerScannerToolbarView {
         Self {
             app_context,
             pointer_scanner_view_data,
+            process_selector_view_data,
             project_hierarchy_view_data,
         }
     }
 
     pub fn get_height(&self) -> f32 {
-        130.0
+        116.0
     }
 
-    fn draw_action_button(
+    fn draw_icon_button(
         &self,
         user_interface: &mut Ui,
-        label: &str,
+        icon_handle: &TextureHandle,
         tooltip_text: &str,
         size: [f32; 2],
         fill_color: Color32,
@@ -53,14 +60,7 @@ impl PointerScannerToolbarView {
                 .background_color(fill_color)
                 .with_tooltip_text(tooltip_text),
         );
-
-        user_interface.painter().text(
-            button_response.rect.center(),
-            Align2::CENTER_CENTER,
-            label,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
-        );
+        IconDraw::draw_sized(user_interface, button_response.rect.center(), vec2(16.0, 16.0), icon_handle);
 
         button_response
     }
@@ -85,7 +85,7 @@ impl Widget for PointerScannerToolbarView {
         );
 
         let mut should_start_scan = false;
-        let mut should_validate_scan = false;
+        let mut should_reset_scan = false;
         let mut should_refresh_summary = false;
         let mut should_copy_chain = false;
         let mut should_export_chain = false;
@@ -93,6 +93,15 @@ impl Widget for PointerScannerToolbarView {
         let mut copy_text = None;
         let mut export_text = None;
         let mut project_item_create_request = None;
+        let opened_process_bitness = self
+            .process_selector_view_data
+            .read("Pointer scanner toolbar view opened process")
+            .and_then(|process_selector_view_data| {
+                process_selector_view_data
+                    .opened_process
+                    .as_ref()
+                    .map(|opened_process| opened_process.get_bitness())
+            });
 
         {
             let mut pointer_scanner_view_data = match self
@@ -102,12 +111,22 @@ impl Widget for PointerScannerToolbarView {
                 Some(pointer_scanner_view_data) => pointer_scanner_view_data,
                 None => return response,
             };
+            if let Some(process_bitness) = opened_process_bitness {
+                pointer_scanner_view_data.synchronize_pointer_size_with_process_bitness(process_bitness);
+            }
 
             let builder = UiBuilder::new().max_rect(toolbar_rectangle);
             let unsigned_data_type = DataTypeRef::new("u64");
+            let action_button_size = [36.0, 28.0];
+            let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
+            let start_scan_tooltip = if has_active_pointer_scan_session {
+                "Validate the active pointer scan session with the validation target address."
+            } else {
+                "Start a new pointer scan session."
+            };
 
             user_interface.scope_builder(builder, |user_interface| {
-                user_interface.add_space(8.0);
+                user_interface.add_space(6.0);
 
                 user_interface.horizontal_wrapped(|user_interface| {
                     user_interface.label("Pointer Size");
@@ -117,8 +136,8 @@ impl Widget for PointerScannerToolbarView {
                             &mut pointer_scanner_view_data.pointer_size_data_type_selection,
                             "pointer_scanner_pointer_size",
                         )
-                        .width(92.0)
-                        .height(32.0)
+                        .width(84.0)
+                        .height(28.0)
                         .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
                         .stacked_list()
                         .hide_placeholder_entries(),
@@ -141,12 +160,12 @@ impl Widget for PointerScannerToolbarView {
                             "Enter target address...",
                             "pointer_scanner_target_address",
                         )
-                        .width(192.0)
-                        .height(32.0)
+                        .width(184.0)
+                        .height(28.0)
                         .use_format_text_colors(false),
                     );
 
-                    user_interface.add_space(8.0);
+                    user_interface.add_space(6.0);
                     user_interface.label("Depth");
                     user_interface.add(
                         DataValueBoxView::new(
@@ -159,11 +178,11 @@ impl Widget for PointerScannerToolbarView {
                             "pointer_scanner_max_depth",
                         )
                         .width(84.0)
-                        .height(32.0)
+                        .height(28.0)
                         .use_format_text_colors(false),
                     );
 
-                    user_interface.add_space(8.0);
+                    user_interface.add_space(6.0);
                     user_interface.label("Offset");
                     user_interface.add(
                         DataValueBoxView::new(
@@ -176,12 +195,12 @@ impl Widget for PointerScannerToolbarView {
                             "pointer_scanner_offset_radius",
                         )
                         .width(108.0)
-                        .height(32.0)
+                        .height(28.0)
                         .use_format_text_colors(false),
                     );
                 });
 
-                user_interface.add_space(8.0);
+                user_interface.add_space(6.0);
 
                 user_interface.horizontal_wrapped(|user_interface| {
                     let pointer_size_data_type = pointer_scanner_view_data
@@ -200,32 +219,50 @@ impl Widget for PointerScannerToolbarView {
                             "Enter validation address...",
                             "pointer_scanner_validation_target_address",
                         )
-                        .width(192.0)
-                        .height(32.0)
+                        .width(184.0)
+                        .height(28.0)
                         .use_format_text_colors(false),
                     );
 
-                    user_interface.add_space(8.0);
+                    user_interface.add_space(6.0);
 
                     if self
-                        .draw_action_button(
+                        .draw_icon_button(
                             user_interface,
-                            "Start",
-                            "Start a new pointer scan session.",
-                            [72.0, 32.0],
-                            theme.background_control_primary,
+                            &theme.icon_library.icon_handle_scan_new,
+                            "Clear the active pointer scan session.",
+                            action_button_size,
+                            Color32::TRANSPARENT,
                         )
                         .clicked()
                     {
+                        should_reset_scan = true;
+                    }
+
+                    if self
+                        .draw_icon_button(
+                            user_interface,
+                            &theme.icon_library.icon_handle_navigation_right_arrow,
+                            start_scan_tooltip,
+                            action_button_size,
+                            Color32::TRANSPARENT,
+                        )
+                        .clicked()
+                    {
+                        if !has_active_pointer_scan_session {
+                            if let Some(process_bitness) = opened_process_bitness {
+                                pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                            }
+                        }
                         should_start_scan = true;
                     }
 
                     if self
-                        .draw_action_button(
+                        .draw_icon_button(
                             user_interface,
-                            "Refresh",
+                            &theme.icon_library.icon_handle_navigation_refresh,
                             "Refresh the active pointer scan summary.",
-                            [80.0, 32.0],
+                            action_button_size,
                             Color32::TRANSPARENT,
                         )
                         .clicked()
@@ -234,24 +271,11 @@ impl Widget for PointerScannerToolbarView {
                     }
 
                     if self
-                        .draw_action_button(
+                        .draw_icon_button(
                             user_interface,
-                            "Validate",
-                            "Validate the active pointer scan session with a new target.",
-                            [84.0, 32.0],
-                            theme.background_control_primary,
-                        )
-                        .clicked()
-                    {
-                        should_validate_scan = true;
-                    }
-
-                    if self
-                        .draw_action_button(
-                            user_interface,
-                            "Copy",
+                            &theme.icon_library.icon_handle_common_edit,
                             "Copy the selected pointer chain text.",
-                            [68.0, 32.0],
+                            action_button_size,
                             Color32::TRANSPARENT,
                         )
                         .clicked()
@@ -260,11 +284,11 @@ impl Widget for PointerScannerToolbarView {
                     }
 
                     if self
-                        .draw_action_button(
+                        .draw_icon_button(
                             user_interface,
-                            "Export",
+                            &theme.icon_library.icon_handle_file_system_save,
                             "Copy the selected pointer chain metadata to the clipboard.",
-                            [76.0, 32.0],
+                            action_button_size,
                             Color32::TRANSPARENT,
                         )
                         .clicked()
@@ -273,12 +297,12 @@ impl Widget for PointerScannerToolbarView {
                     }
 
                     if self
-                        .draw_action_button(
+                        .draw_icon_button(
                             user_interface,
-                            "Add To Project",
+                            &theme.icon_library.icon_handle_project_pointer_type,
                             "Persist the selected pointer chain to the current project.",
-                            [126.0, 32.0],
-                            theme.background_control_primary,
+                            action_button_size,
+                            Color32::TRANSPARENT,
                         )
                         .clicked()
                     {
@@ -286,22 +310,22 @@ impl Widget for PointerScannerToolbarView {
                     }
                 });
 
-                user_interface.add_space(8.0);
+                user_interface.add_space(6.0);
                 user_interface.label(
                     RichText::new(&pointer_scanner_view_data.status_message)
                         .font(theme.font_library.font_noto_sans.font_small.clone())
                         .color(theme.foreground),
                 );
-                user_interface.add_space(8.0);
+                user_interface.add_space(6.0);
             });
+        }
+
+        if should_reset_scan {
+            PointerScannerViewData::reset_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
         if should_start_scan {
             PointerScannerViewData::start_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
-        }
-
-        if should_validate_scan {
-            PointerScannerViewData::validate_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
         if should_refresh_summary {

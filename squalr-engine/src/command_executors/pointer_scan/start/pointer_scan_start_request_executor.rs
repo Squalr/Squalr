@@ -3,6 +3,9 @@ use crate::command_executors::snapshot_region_builder::merge_memory_regions_into
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
+use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
@@ -26,6 +29,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
 
             return PointerScanStartResponse::default();
         };
+        let effective_pointer_size = resolve_pointer_size_for_process_bitness(self.pointer_size, &process_info);
 
         let symbol_registry = engine_privileged_state.get_symbol_registry();
         let symbol_registry_guard = match symbol_registry.read() {
@@ -36,7 +40,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 return PointerScanStartResponse::default();
             }
         };
-        let target_address_data_type_ref = self.pointer_size.to_data_type_ref();
+        let target_address_data_type_ref = effective_pointer_size.to_data_type_ref();
         let target_address_data_value = match symbol_registry_guard.deanonymize_value_string(&target_address_data_type_ref, &self.target_address) {
             Ok(target_address_data_value) => target_address_data_value,
             Err(error) => {
@@ -45,14 +49,14 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 return PointerScanStartResponse::default();
             }
         };
-        let Some(target_address) = self.pointer_size.read_address_value(&target_address_data_value) else {
-            log::error!("Failed to decode pointer scan target address using pointer size {}.", self.pointer_size);
+        let Some(target_address) = effective_pointer_size.read_address_value(&target_address_data_value) else {
+            log::error!("Failed to decode pointer scan target address using pointer size {}.", effective_pointer_size);
 
             return PointerScanStartResponse::default();
         };
         let pointer_scan_parameters = PointerScanParameters::new(
             target_address,
-            self.pointer_size,
+            effective_pointer_size,
             self.offset_radius,
             self.max_depth,
             ScanSettingsConfig::get_is_single_threaded_scan(),
@@ -103,6 +107,29 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             pointer_scan_summary: Some(pointer_scan_summary),
         }
     }
+}
+
+fn resolve_pointer_size_for_process_bitness(
+    requested_pointer_size: PointerScanPointerSize,
+    process_info: &OpenedProcessInfo,
+) -> PointerScanPointerSize {
+    let process_pointer_size = match process_info.get_bitness() {
+        Bitness::Bit32 => PointerScanPointerSize::Pointer32,
+        Bitness::Bit64 => PointerScanPointerSize::Pointer64,
+    };
+
+    if requested_pointer_size != process_pointer_size {
+        log::warn!(
+            "Pointer scan requested {} for process {} (PID {}) but the process is {:?}; using {} instead.",
+            requested_pointer_size,
+            process_info.get_name(),
+            process_info.get_process_id_raw(),
+            process_info.get_bitness(),
+            process_pointer_size,
+        );
+    }
+
+    process_pointer_size
 }
 
 #[cfg(test)]
@@ -367,6 +394,54 @@ mod tests {
         );
     }
 
+    #[test]
+    fn execute_uses_opened_process_bitness_for_pointer_scans() {
+        let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = Arc::new(RwLock::new(TestEngineBindings));
+        let os_providers = EngineOsProviders::new(
+            Arc::new(TestProcessQueryProvider),
+            Arc::new(TestMemoryQueryProvider {
+                module_descriptors: vec![(String::from("game.exe"), 0x1000, 0x100)],
+                usermode_memory_regions: vec![
+                    NormalizedRegion::new(0x1000, 0x40),
+                    NormalizedRegion::new(0x2000, 0x40),
+                    NormalizedRegion::new(0x3000, 0x40),
+                ],
+            }),
+            Arc::new(TestMemoryReadProvider {
+                memory_bytes_by_address: build_pointer_scan_memory_map_32(),
+            }),
+            Arc::new(TestMemoryWriteProvider),
+        );
+        let engine_privileged_state = EnginePrivilegedState::new(engine_bindings, os_providers).expect("Expected the test engine state to initialize.");
+
+        engine_privileged_state
+            .get_process_manager()
+            .set_opened_process(OpenedProcessInfo::new(
+                std::process::id(),
+                String::from("pointer-test-32"),
+                1,
+                Bitness::Bit32,
+                None,
+            ));
+
+        let pointer_scan_start_response = PointerScanStartRequest {
+            target_address: AnonymousValueString::new(String::from("0x3010"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
+            pointer_size: PointerScanPointerSize::Pointer64,
+            max_depth: 3,
+            offset_radius: 0x20,
+        }
+        .execute(&engine_privileged_state);
+        let pointer_scan_summary = pointer_scan_start_response
+            .pointer_scan_summary
+            .expect("Expected the pointer scan summary.");
+
+        assert_eq!(pointer_scan_summary.get_pointer_size(), PointerScanPointerSize::Pointer32);
+        assert_eq!(pointer_scan_summary.get_root_node_count(), 2);
+        assert_eq!(pointer_scan_summary.get_total_node_count(), 3);
+        assert_eq!(pointer_scan_summary.get_total_static_node_count(), 2);
+        assert_eq!(pointer_scan_summary.get_total_heap_node_count(), 1);
+    }
+
     fn build_pointer_scan_memory_map() -> HashMap<u64, u8> {
         let mut memory_bytes_by_address = HashMap::new();
 
@@ -377,10 +452,30 @@ mod tests {
         memory_bytes_by_address
     }
 
+    fn build_pointer_scan_memory_map_32() -> HashMap<u64, u8> {
+        let mut memory_bytes_by_address = HashMap::new();
+
+        write_pointer_bytes_32(&mut memory_bytes_by_address, 0x1010, 0x1FF0_u32);
+        write_pointer_bytes_32(&mut memory_bytes_by_address, 0x1030, 0x3020_u32);
+        write_pointer_bytes_32(&mut memory_bytes_by_address, 0x2000, 0x3000_u32);
+
+        memory_bytes_by_address
+    }
+
     fn write_pointer_bytes(
         memory_bytes_by_address: &mut HashMap<u64, u8>,
         address: u64,
         value: u64,
+    ) {
+        for (byte_index, byte_value) in value.to_le_bytes().iter().enumerate() {
+            memory_bytes_by_address.insert(address.saturating_add(byte_index as u64), *byte_value);
+        }
+    }
+
+    fn write_pointer_bytes_32(
+        memory_bytes_by_address: &mut HashMap<u64, u8>,
+        address: u64,
+        value: u32,
     ) {
         for (byte_index, byte_value) in value.to_le_bytes().iter().enumerate() {
             memory_bytes_by_address.insert(address.saturating_add(byte_index as u64), *byte_value);

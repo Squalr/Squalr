@@ -4,6 +4,13 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerS
 
 pub fn handle_pointer_scan_response(pointer_scan_response: PointerScanResponse) {
     match pointer_scan_response {
+        PointerScanResponse::Reset { pointer_scan_reset_response } => {
+            if pointer_scan_reset_response.success {
+                log::info!("Cleared the active pointer scan session.");
+            } else {
+                log::error!("Failed to clear the active pointer scan session.");
+            }
+        }
         PointerScanResponse::Start { pointer_scan_start_response } => {
             if let Some(pointer_scan_summary) = pointer_scan_start_response.pointer_scan_summary.as_ref() {
                 log_pointer_scan_summary("Started pointer scan session", pointer_scan_summary);

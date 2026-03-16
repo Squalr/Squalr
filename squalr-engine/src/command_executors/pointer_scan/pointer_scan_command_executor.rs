@@ -13,6 +13,9 @@ impl PrivilegedCommandExecutor for PointerScanCommand {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
         match self {
+            PointerScanCommand::Reset { pointer_scan_reset_request } => pointer_scan_reset_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             PointerScanCommand::Start { pointer_scan_start_request } => pointer_scan_start_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

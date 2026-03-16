@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::ui::draw::icon_draw::IconDraw;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use eframe::egui::{Align2, CursorIcon, Response, ScrollArea, Sense, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind};
@@ -12,7 +13,7 @@ pub struct PointerScannerResultsView {
 }
 
 impl PointerScannerResultsView {
-    const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
+    const COLUMN_SEPARATOR_THICKNESS: f32 = 2.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
@@ -66,7 +67,7 @@ impl PointerScannerResultsView {
         user_interface: &mut Ui,
     ) {
         let theme = &self.app_context.theme;
-        let header_height = 28.0;
+        let header_height = 26.0;
         let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), header_height), Sense::hover());
         let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(header_rectangle);
 
@@ -81,7 +82,7 @@ impl PointerScannerResultsView {
         );
         self.draw_column_separators(user_interface, header_rectangle);
 
-        let header_font = theme.font_library.font_noto_sans.font_header.clone();
+        let header_font = theme.font_library.font_noto_sans.font_normal.clone();
         let header_y = header_rectangle.center().y;
 
         user_interface.painter().text(
@@ -121,11 +122,11 @@ impl PointerScannerResultsView {
         toggled_node_id: &mut Option<u64>,
     ) {
         let theme = &self.app_context.theme;
-        let row_height = 24.0;
+        let row_height = 22.0;
         let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
         let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(row_rectangle);
-        let indent_width = 18.0 * pointer_scanner_tree_row.tree_depth as f32;
-        let toggle_rectangle = Rect::from_min_size(pos2(module_base_x + indent_width, row_rectangle.center().y - 8.0), vec2(16.0, 16.0));
+        let indent_width = 16.0 * pointer_scanner_tree_row.tree_depth as f32;
+        let toggle_rectangle = Rect::from_min_size(pos2(module_base_x + indent_width, row_rectangle.center().y - 6.0), vec2(12.0, 12.0));
         let toggle_response = if pointer_scanner_tree_row.has_children {
             user_interface.interact(
                 toggle_rectangle,
@@ -164,22 +165,20 @@ impl PointerScannerResultsView {
         self.draw_column_separators(user_interface, row_rectangle);
 
         if pointer_scanner_tree_row.has_children {
-            let toggle_text = if pointer_scanner_tree_row.is_expanded { "v" } else { ">" };
+            let toggle_icon = if pointer_scanner_tree_row.is_expanded {
+                &theme.icon_library.icon_handle_navigation_down_arrow_small
+            } else {
+                &theme.icon_library.icon_handle_navigation_right_arrow_small
+            };
 
-            user_interface.painter().text(
-                toggle_rectangle.center(),
-                Align2::CENTER_CENTER,
-                toggle_text,
-                theme.font_library.font_noto_sans.font_normal.clone(),
-                theme.foreground,
-            );
+            IconDraw::draw_sized(user_interface, toggle_rectangle.center(), vec2(10.0, 10.0), toggle_icon);
         }
 
-        let text_x = module_base_x + indent_width + if pointer_scanner_tree_row.has_children { 20.0 } else { 0.0 };
+        let text_x = module_base_x + indent_width + if pointer_scanner_tree_row.has_children { 16.0 } else { 0.0 };
         let row_center_y = row_rectangle.center().y;
         let module_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
         let value_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
-        let state_font = theme.font_library.font_noto_sans.font_normal.clone();
+        let state_font = theme.font_library.font_noto_sans.font_small.clone();
         let state_color = if pointer_scanner_tree_row.state_text == "Static" {
             theme.selected_border
         } else {

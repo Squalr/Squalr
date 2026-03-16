@@ -1,6 +1,7 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
+use squalr_engine_api::commands::pointer_scan::reset::pointer_scan_reset_request::PointerScanResetRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_request::PointerScanSummaryRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
@@ -11,6 +12,7 @@ use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
@@ -146,6 +148,28 @@ impl PointerScannerViewData {
         pointer_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
+        let should_validate_scan = {
+            let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner start scan mode") {
+                Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
+                None => return,
+            };
+
+            pointer_scanner_view_data_guard.has_active_session()
+        };
+
+        if should_validate_scan {
+            Self::validate_scan(pointer_scanner_view_data, engine_unprivileged_state);
+
+            return;
+        }
+
+        Self::start_new_scan(pointer_scanner_view_data, engine_unprivileged_state);
+    }
+
+    fn start_new_scan(
+        pointer_scanner_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
         let (target_address_input, pointer_size, max_depth, offset_radius, session_request_revision) = {
             let mut pointer_scanner_view_data_guard = match pointer_scanner_view_data.write("Pointer scanner start scan") {
                 Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
@@ -209,6 +233,39 @@ impl PointerScannerViewData {
 
             if should_expand_root_nodes {
                 Self::request_expand(pointer_scanner_view_data_clone, engine_unprivileged_state_clone, None);
+            }
+        });
+    }
+
+    pub fn reset_scan(
+        pointer_scanner_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
+        {
+            let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner reset scan") {
+                Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
+                None => return,
+            };
+
+            if pointer_scanner_view_data_guard.is_querying_summary
+                || pointer_scanner_view_data_guard.is_starting_scan
+                || pointer_scanner_view_data_guard.is_validating_scan
+            {
+                return;
+            }
+        }
+
+        let pointer_scan_reset_request = PointerScanResetRequest {};
+        let pointer_scanner_view_data_clone = pointer_scanner_view_data.clone();
+
+        pointer_scan_reset_request.send(&engine_unprivileged_state, move |pointer_scan_reset_response| {
+            if !pointer_scan_reset_response.success {
+                log::error!("Failed to clear the active pointer scan session.");
+                return;
+            }
+
+            if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner reset scan response") {
+                pointer_scanner_view_data_guard.apply_summary(None);
             }
         });
     }
@@ -638,6 +695,10 @@ impl PointerScannerViewData {
         self.build_pointer_chain_text(selected_node_id)
     }
 
+    pub fn has_active_session(&self) -> bool {
+        self.pointer_scan_summary.is_some()
+    }
+
     fn build_selected_leaf_pointer(&self) -> Option<Pointer> {
         let selected_node_id = self.selected_node_id?;
         let selected_pointer_scan_node = self.nodes_by_id.get(&selected_node_id)?;
@@ -752,6 +813,36 @@ impl PointerScannerViewData {
         AnonymousValueString::new(value_text, AnonymousValueStringFormat::Decimal, ContainerType::None)
     }
 
+    pub fn synchronize_pointer_size_with_process_bitness(
+        &mut self,
+        process_bitness: Bitness,
+    ) {
+        if self.pointer_scan_summary.is_some() {
+            return;
+        }
+
+        self.apply_pointer_size_from_process_bitness(process_bitness);
+    }
+
+    pub fn force_pointer_size_from_process_bitness(
+        &mut self,
+        process_bitness: Bitness,
+    ) {
+        self.apply_pointer_size_from_process_bitness(process_bitness);
+    }
+
+    fn apply_pointer_size_from_process_bitness(
+        &mut self,
+        process_bitness: Bitness,
+    ) {
+        self.pointer_size = match process_bitness {
+            Bitness::Bit32 => PointerScanPointerSize::Pointer32,
+            Bitness::Bit64 => PointerScanPointerSize::Pointer64,
+        };
+        self.pointer_size_data_type_selection
+            .replace_selected_data_types(vec![Self::pointer_size_data_type_ref(self.pointer_size)]);
+    }
+
     fn pointer_size_data_type_ref(pointer_size: PointerScanPointerSize) -> DataTypeRef {
         match pointer_size {
             PointerScanPointerSize::Pointer32 => DataTypeRef::new("u32"),
@@ -778,6 +869,7 @@ mod tests {
     use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
@@ -1040,5 +1132,79 @@ mod tests {
                 .get_anonymous_value_string(),
             "0x100"
         );
+    }
+
+    #[test]
+    fn synchronize_pointer_size_with_process_bitness_updates_default_selection_without_session() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+
+        pointer_scanner_view_data.synchronize_pointer_size_with_process_bitness(Bitness::Bit32);
+
+        assert_eq!(pointer_scanner_view_data.pointer_size, PointerScanPointerSize::Pointer32);
+        assert_eq!(
+            pointer_scanner_view_data
+                .pointer_size_data_type_selection
+                .active_data_type()
+                .get_data_type_id(),
+            "u32"
+        );
+    }
+
+    #[test]
+    fn synchronize_pointer_size_with_process_bitness_preserves_active_session_selection() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.apply_summary(Some(create_pointer_scan_summary(7, 0x3010)));
+
+        pointer_scanner_view_data.synchronize_pointer_size_with_process_bitness(Bitness::Bit32);
+
+        assert_eq!(pointer_scanner_view_data.pointer_size, PointerScanPointerSize::Pointer64);
+        assert_eq!(
+            pointer_scanner_view_data
+                .pointer_size_data_type_selection
+                .active_data_type()
+                .get_data_type_id(),
+            "u64"
+        );
+    }
+
+    #[test]
+    fn force_pointer_size_from_process_bitness_overrides_stale_selection() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.apply_summary(Some(create_pointer_scan_summary(7, 0x3010)));
+
+        pointer_scanner_view_data.force_pointer_size_from_process_bitness(Bitness::Bit32);
+
+        assert_eq!(pointer_scanner_view_data.pointer_size, PointerScanPointerSize::Pointer32);
+        assert_eq!(
+            pointer_scanner_view_data
+                .pointer_size_data_type_selection
+                .active_data_type()
+                .get_data_type_id(),
+            "u32"
+        );
+    }
+
+    #[test]
+    fn apply_summary_none_clears_the_active_pointer_scan_session_state() {
+        let mut pointer_scanner_view_data = create_pointer_scanner_view_data();
+
+        pointer_scanner_view_data.apply_summary(None);
+
+        assert!(pointer_scanner_view_data.pointer_scan_summary.is_none());
+        assert!(pointer_scanner_view_data.root_node_ids.is_empty());
+        assert!(pointer_scanner_view_data.nodes_by_id.is_empty());
+        assert!(pointer_scanner_view_data.child_node_ids_by_parent_id.is_empty());
+        assert!(pointer_scanner_view_data.expanded_node_ids.is_empty());
+        assert_eq!(pointer_scanner_view_data.status_message, "No pointer scan session.");
+    }
+
+    #[test]
+    fn has_active_session_reflects_pointer_scan_summary_presence() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        assert!(!pointer_scanner_view_data.has_active_session());
+
+        pointer_scanner_view_data.apply_summary(Some(create_pointer_scan_summary(9, 0x4010)));
+
+        assert!(pointer_scanner_view_data.has_active_session());
     }
 }

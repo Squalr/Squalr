@@ -1,4 +1,5 @@
 use crate::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
+use crate::commands::pointer_scan::reset::pointer_scan_reset_request::PointerScanResetRequest;
 use crate::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use crate::commands::pointer_scan::summary::pointer_scan_summary_request::PointerScanSummaryRequest;
 use crate::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
@@ -7,6 +8,10 @@ use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub enum PointerScanCommand {
+    Reset {
+        #[structopt(flatten)]
+        pointer_scan_reset_request: PointerScanResetRequest,
+    },
     Start {
         #[structopt(flatten)]
         pointer_scan_start_request: PointerScanStartRequest,
