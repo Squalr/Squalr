@@ -1,9 +1,9 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_session::os::PageRetrievalMode;
 use std::sync::Arc;
 
@@ -58,30 +58,9 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
         // Additionally, we must track the page boundaries at which the merge took place.
         // Doing this allows us to ensure that we do not try to read memory across a page boundary later when collecting values.
         // This prevents issues where one page may deallocate, which would otherwise cause the read for an adjacent page to fail!
-        let mut merged_snapshot_regions = vec![];
-        let mut page_boundaries = vec![];
-        let mut iter = memory_pages.into_iter();
-        let current_region = iter.next();
+        let merged_snapshot_regions = merge_memory_regions_into_snapshot_regions(memory_pages);
 
-        if let Some(mut current_region) = current_region {
-            loop {
-                let Some(region) = iter.next() else {
-                    break;
-                };
-
-                if current_region.get_end_address() == region.get_base_address() {
-                    current_region.set_end_address(region.get_end_address());
-                    page_boundaries.push(region.get_base_address());
-                } else {
-                    merged_snapshot_regions.push(SnapshotRegion::new(current_region, std::mem::take(&mut page_boundaries)));
-                    current_region = region;
-                }
-            }
-
-            // Push the last region.
-            merged_snapshot_regions.push(SnapshotRegion::new(current_region, page_boundaries));
-
-            // Update snapshot with new merged regions.
+        if !merged_snapshot_regions.is_empty() {
             snapshot.set_snapshot_regions(merged_snapshot_regions);
 
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: true });

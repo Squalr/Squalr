@@ -118,8 +118,8 @@ impl BaseSystemConversions {
 
         padded.extend(bytes);
 
-        // Swap endian if requested.
-        if is_big_endian {
+        // The padded buffer is currently big-endian. Reverse it only when the caller expects little-endian bytes.
+        if !is_big_endian {
             padded.reverse();
         }
 
@@ -141,5 +141,26 @@ impl BaseSystemConversions {
             .chars()
             .filter(|char| !char.is_whitespace() && *char != ',')
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BaseSystemConversions;
+
+    #[test]
+    fn convert_to_primitive_aligned_bytes_returns_little_endian_bytes_when_requested() {
+        let primitive_bytes =
+            BaseSystemConversions::convert_to_primitive_aligned_bytes::<u32>("0x1234", 16, false).expect("Expected hexadecimal conversion to succeed.");
+
+        assert_eq!(primitive_bytes, 0x1234_u32.to_le_bytes());
+    }
+
+    #[test]
+    fn convert_to_primitive_aligned_bytes_returns_big_endian_bytes_when_requested() {
+        let primitive_bytes =
+            BaseSystemConversions::convert_to_primitive_aligned_bytes::<u32>("0x1234", 16, true).expect("Expected hexadecimal conversion to succeed.");
+
+        assert_eq!(primitive_bytes, 0x1234_u32.to_be_bytes());
     }
 }

@@ -205,7 +205,7 @@ impl PointerScannerResultsView {
             Align2::LEFT_CENTER,
             &pointer_scanner_tree_row.resolved_address_text,
             value_font.clone(),
-            theme.hexadecimal_green,
+            theme.foreground,
         );
         user_interface.painter().text(
             pos2(depth_x, row_center_y),

@@ -84,23 +84,25 @@ impl PrimitiveDataTypeNumeric {
                     return Err(DataTypeError::ParseError(format!("Failed to parse binary value '{}': {}", value_string, error)));
                 }
             },
-            AnonymousValueStringFormat::Hexadecimal => match ConversionsFromHexadecimal::hex_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
-                Ok(value_bytes) => {
-                    if value_bytes.len() < primitive_size {
-                        return Err(DataTypeError::ParseError(format!(
-                            "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
-                            value_string,
-                            value_bytes.len(),
-                            primitive_size,
-                            type_name::<T>()
-                        )));
+            AnonymousValueStringFormat::Address | AnonymousValueStringFormat::Hexadecimal => {
+                match ConversionsFromHexadecimal::hex_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
+                    Ok(value_bytes) => {
+                        if value_bytes.len() < primitive_size {
+                            return Err(DataTypeError::ParseError(format!(
+                                "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
+                                value_string,
+                                value_bytes.len(),
+                                primitive_size,
+                                type_name::<T>()
+                            )));
+                        }
+                        value_bytes
                     }
-                    value_bytes
+                    Err(error) => {
+                        return Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, error)));
+                    }
                 }
-                Err(error) => {
-                    return Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, error)));
-                }
-            },
+            }
             _ => match value_string.parse::<T>() {
                 Ok(value) => {
                     if is_big_endian {
@@ -160,5 +162,23 @@ impl PrimitiveDataTypeNumeric {
         };
 
         Ok(AnonymousValueString::new(value_string, anonymous_value_string_format, container_type))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PrimitiveDataTypeNumeric;
+    use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
+    use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use crate::structures::data_values::container_type::ContainerType;
+
+    #[test]
+    fn deanonymize_supports_address_format_using_little_endian_bytes() {
+        let anonymous_value_string = AnonymousValueString::new(String::from("0x3010"), AnonymousValueStringFormat::Address, ContainerType::None);
+
+        let value_bytes =
+            PrimitiveDataTypeNumeric::deanonymize::<u64>(&anonymous_value_string, false).expect("Expected the address-formatted numeric value to parse.");
+
+        assert_eq!(value_bytes, 0x3010_u64.to_le_bytes());
     }
 }

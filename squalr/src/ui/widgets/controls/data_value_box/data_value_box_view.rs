@@ -22,6 +22,7 @@ pub struct DataValueBoxView<'lifetime> {
     id: &'lifetime str,
     allow_read_only_interpretation: bool,
     use_preview_foreground: bool,
+    use_format_text_colors: bool,
     width: f32,
     height: f32,
     icon_padding: f32,
@@ -55,6 +56,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             id,
             allow_read_only_interpretation: false,
             use_preview_foreground: false,
+            use_format_text_colors: true,
             width: 212.0,
             height: 28.0,
 
@@ -107,6 +109,14 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         self
     }
 
+    pub fn use_format_text_colors(
+        mut self,
+        use_format_text_colors: bool,
+    ) -> Self {
+        self.use_format_text_colors = use_format_text_colors;
+        self
+    }
+
     pub fn height(
         mut self,
         height: f32,
@@ -152,25 +162,28 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             true => theme.foreground_preview,
             false => theme.foreground,
         };
-        let binary_color = match self.use_preview_foreground {
-            true => theme.binary_blue_preview,
-            false => theme.binary_blue,
-        };
-        let hexadecimal_color = match self.use_preview_foreground {
-            true => theme.hexadecimal_green_preview,
-            false => theme.hexadecimal_green,
-        };
         let text_color = match is_valid {
-            true => match self.anonymous_value_string.get_anonymous_value_string_format() {
-                AnonymousValueStringFormat::Bool => foreground_color,
-                AnonymousValueStringFormat::String => foreground_color,
-                AnonymousValueStringFormat::Binary => binary_color,
-                AnonymousValueStringFormat::Decimal => foreground_color,
-                AnonymousValueStringFormat::Hexadecimal => hexadecimal_color,
-                AnonymousValueStringFormat::Address => hexadecimal_color,
-                AnonymousValueStringFormat::DataTypeRef => foreground_color,
-                AnonymousValueStringFormat::Enumeration => foreground_color,
-            },
+            true => {
+                if self.use_format_text_colors {
+                    match self.anonymous_value_string.get_anonymous_value_string_format() {
+                        AnonymousValueStringFormat::Bool => foreground_color,
+                        AnonymousValueStringFormat::String => foreground_color,
+                        AnonymousValueStringFormat::Binary => match self.use_preview_foreground {
+                            true => theme.binary_blue_preview,
+                            false => theme.binary_blue,
+                        },
+                        AnonymousValueStringFormat::Decimal => foreground_color,
+                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => match self.use_preview_foreground {
+                            true => theme.hexadecimal_green_preview,
+                            false => theme.hexadecimal_green,
+                        },
+                        AnonymousValueStringFormat::DataTypeRef => foreground_color,
+                        AnonymousValueStringFormat::Enumeration => foreground_color,
+                    }
+                } else {
+                    foreground_color
+                }
+            }
             false => theme.error_red,
         };
 

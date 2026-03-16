@@ -65,12 +65,12 @@ impl PointerScannerViewData {
         let pointer_size = PointerScanPointerSize::Pointer64;
 
         Self {
-            target_address_input: Self::create_address_input(String::new()),
-            validation_target_address_input: Self::create_address_input(String::new()),
+            target_address_input: Self::create_hex_input(String::new()),
+            validation_target_address_input: Self::create_hex_input(String::new()),
             pointer_size,
             pointer_size_data_type_selection: DataTypeSelection::new(Self::pointer_size_data_type_ref(pointer_size)),
             max_depth_input: Self::create_unsigned_input(String::from("5")),
-            offset_radius_input: Self::create_unsigned_input(String::from("256")),
+            offset_radius_input: Self::create_hex_input(Self::format_hexadecimal(2048)),
             status_message: String::from("No pointer scan session."),
             pointer_scan_summary: None,
             root_node_ids: Vec::new(),
@@ -432,7 +432,11 @@ impl PointerScannerViewData {
     }
 
     pub fn format_address(address: u64) -> String {
-        format!("0x{:X}", address)
+        Self::format_hexadecimal(address)
+    }
+
+    pub fn format_hexadecimal(value: u64) -> String {
+        format!("0x{:X}", value)
     }
 
     pub fn set_scan_target_from_project_address(
@@ -442,8 +446,8 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner set scan target from project address") {
             let formatted_address = Self::format_address(address);
-            pointer_scanner_view_data_guard.target_address_input = Self::create_address_input(formatted_address.clone());
-            pointer_scanner_view_data_guard.validation_target_address_input = Self::create_address_input(formatted_address);
+            pointer_scanner_view_data_guard.target_address_input = Self::create_hex_input(formatted_address.clone());
+            pointer_scanner_view_data_guard.validation_target_address_input = Self::create_hex_input(formatted_address);
             pointer_scanner_view_data_guard.status_message = if module_name.trim().is_empty() {
                 String::from("Pointer scanner target autofilled from the project explorer.")
             } else {
@@ -517,13 +521,13 @@ impl PointerScannerViewData {
 
         if let Some(pointer_scan_summary) = pointer_scan_summary {
             let formatted_target_address = Self::format_address(pointer_scan_summary.get_target_address());
-            self.target_address_input = Self::create_address_input(formatted_target_address.clone());
-            self.validation_target_address_input = Self::create_address_input(formatted_target_address);
+            self.target_address_input = Self::create_hex_input(formatted_target_address.clone());
+            self.validation_target_address_input = Self::create_hex_input(formatted_target_address);
             self.pointer_size = pointer_scan_summary.get_pointer_size();
             self.pointer_size_data_type_selection
                 .replace_selected_data_types(vec![Self::pointer_size_data_type_ref(self.pointer_size)]);
             self.max_depth_input = Self::create_unsigned_input(pointer_scan_summary.get_max_depth().to_string());
-            self.offset_radius_input = Self::create_unsigned_input(pointer_scan_summary.get_offset_radius().to_string());
+            self.offset_radius_input = Self::create_hex_input(Self::format_hexadecimal(pointer_scan_summary.get_offset_radius()));
             self.status_message = Self::format_summary_status(&pointer_scan_summary);
         } else {
             self.status_message = String::from("No pointer scan session.");
@@ -740,8 +744,8 @@ impl PointerScannerViewData {
         )
     }
 
-    fn create_address_input(address_text: String) -> AnonymousValueString {
-        AnonymousValueString::new(address_text, AnonymousValueStringFormat::Address, ContainerType::None)
+    fn create_hex_input(value_text: String) -> AnonymousValueString {
+        AnonymousValueString::new(value_text, AnonymousValueStringFormat::Hexadecimal, ContainerType::None)
     }
 
     fn create_unsigned_input(value_text: String) -> AnonymousValueString {
@@ -773,6 +777,7 @@ mod tests {
     use super::PointerScannerViewData;
     use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
@@ -978,5 +983,62 @@ mod tests {
         assert!(pointer_scanner_view_data.nodes_by_id.is_empty());
         assert!(pointer_scanner_view_data.pending_parent_node_ids.is_empty());
         assert!(pointer_scanner_view_data.loaded_parent_node_ids.is_empty());
+    }
+
+    #[test]
+    fn new_defaults_pointer_targets_and_offset_to_hexadecimal_inputs() {
+        let pointer_scanner_view_data = PointerScannerViewData::new();
+
+        assert_eq!(
+            pointer_scanner_view_data
+                .target_address_input
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+        assert_eq!(
+            pointer_scanner_view_data
+                .validation_target_address_input
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+        assert_eq!(
+            pointer_scanner_view_data
+                .offset_radius_input
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+        assert_eq!(
+            pointer_scanner_view_data
+                .offset_radius_input
+                .get_anonymous_value_string(),
+            "0x800"
+        );
+    }
+
+    #[test]
+    fn apply_summary_formats_offset_radius_as_hexadecimal_input() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        let pointer_scan_summary = create_pointer_scan_summary(7, 0x3010);
+
+        pointer_scanner_view_data.apply_summary(Some(pointer_scan_summary));
+
+        assert_eq!(
+            pointer_scanner_view_data
+                .target_address_input
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+        assert_eq!(
+            pointer_scanner_view_data
+                .target_address_input
+                .get_anonymous_value_string(),
+            "0x3010"
+        );
+        assert_eq!(
+            pointer_scanner_view_data
+                .offset_radius_input
+                .get_anonymous_value_string(),
+            "0x100"
+        );
     }
 }

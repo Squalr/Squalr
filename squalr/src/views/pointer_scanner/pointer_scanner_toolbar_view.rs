@@ -35,7 +35,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        122.0
+        130.0
     }
 
     fn draw_action_button(
@@ -118,7 +118,7 @@ impl Widget for PointerScannerToolbarView {
                             "pointer_scanner_pointer_size",
                         )
                         .width(92.0)
-                        .height(28.0)
+                        .height(32.0)
                         .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
                         .stacked_list()
                         .hide_placeholder_entries(),
@@ -141,7 +141,9 @@ impl Widget for PointerScannerToolbarView {
                             "Enter target address...",
                             "pointer_scanner_target_address",
                         )
-                        .width(192.0),
+                        .width(192.0)
+                        .height(32.0)
+                        .use_format_text_colors(false),
                     );
 
                     user_interface.add_space(8.0);
@@ -156,11 +158,13 @@ impl Widget for PointerScannerToolbarView {
                             "Depth",
                             "pointer_scanner_max_depth",
                         )
-                        .width(84.0),
+                        .width(84.0)
+                        .height(32.0)
+                        .use_format_text_colors(false),
                     );
 
                     user_interface.add_space(8.0);
-                    user_interface.label("Radius");
+                    user_interface.label("Offset");
                     user_interface.add(
                         DataValueBoxView::new(
                             self.app_context.clone(),
@@ -168,10 +172,12 @@ impl Widget for PointerScannerToolbarView {
                             &unsigned_data_type,
                             false,
                             true,
-                            "Radius",
+                            "Offset",
                             "pointer_scanner_offset_radius",
                         )
-                        .width(108.0),
+                        .width(108.0)
+                        .height(32.0)
+                        .use_format_text_colors(false),
                     );
                 });
 
@@ -194,7 +200,9 @@ impl Widget for PointerScannerToolbarView {
                             "Enter validation address...",
                             "pointer_scanner_validation_target_address",
                         )
-                        .width(192.0),
+                        .width(192.0)
+                        .height(32.0)
+                        .use_format_text_colors(false),
                     );
 
                     user_interface.add_space(8.0);
@@ -204,7 +212,7 @@ impl Widget for PointerScannerToolbarView {
                             user_interface,
                             "Start",
                             "Start a new pointer scan session.",
-                            [72.0, 28.0],
+                            [72.0, 32.0],
                             theme.background_control_primary,
                         )
                         .clicked()
@@ -217,7 +225,7 @@ impl Widget for PointerScannerToolbarView {
                             user_interface,
                             "Refresh",
                             "Refresh the active pointer scan summary.",
-                            [80.0, 28.0],
+                            [80.0, 32.0],
                             Color32::TRANSPARENT,
                         )
                         .clicked()
@@ -230,7 +238,7 @@ impl Widget for PointerScannerToolbarView {
                             user_interface,
                             "Validate",
                             "Validate the active pointer scan session with a new target.",
-                            [84.0, 28.0],
+                            [84.0, 32.0],
                             theme.background_control_primary,
                         )
                         .clicked()
@@ -243,7 +251,7 @@ impl Widget for PointerScannerToolbarView {
                             user_interface,
                             "Copy",
                             "Copy the selected pointer chain text.",
-                            [68.0, 28.0],
+                            [68.0, 32.0],
                             Color32::TRANSPARENT,
                         )
                         .clicked()
@@ -256,7 +264,7 @@ impl Widget for PointerScannerToolbarView {
                             user_interface,
                             "Export",
                             "Copy the selected pointer chain metadata to the clipboard.",
-                            [76.0, 28.0],
+                            [76.0, 32.0],
                             Color32::TRANSPARENT,
                         )
                         .clicked()
@@ -269,7 +277,7 @@ impl Widget for PointerScannerToolbarView {
                             user_interface,
                             "Add To Project",
                             "Persist the selected pointer chain to the current project.",
-                            [126.0, 28.0],
+                            [126.0, 32.0],
                             theme.background_control_primary,
                         )
                         .clicked()
@@ -282,7 +290,7 @@ impl Widget for PointerScannerToolbarView {
                 user_interface.label(
                     RichText::new(&pointer_scanner_view_data.status_message)
                         .font(theme.font_library.font_noto_sans.font_small.clone())
-                        .color(theme.foreground_preview),
+                        .color(theme.foreground),
                 );
                 user_interface.add_space(8.0);
             });
