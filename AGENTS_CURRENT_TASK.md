@@ -16,13 +16,11 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Replace the placeholder pointer scan session returned by `PointerScanExecutor` with the real README algorithm. Level 0/session plumbing now exists, but node discovery, parent-child graph building, and static-vs-heap separation are still missing.
-- Implement real pointer validation scans in the privileged engine. The `validate` command surface exists and returns session summaries, but it currently reports "not implemented" and does not prune chains.
 - Build pointer scanner view data and actions in the GUI, using the element scanner window structure as the visual baseline. The top area should own target address entry, pointer size selection, max depth, offset radius, action buttons, and scan status.
 - Build a pointer results tree view in the GUI, styled consistently with existing scan panes but using project-explorer-style lazy expansion semantics. Include columns for module/base, offset chain, resolved address, depth, and static-vs-heap state.
 - Add pointer result actions that matter for workflows: validate against a new target, copy/export a chain, and add the selected chain to the project as a pointer item.
 - Extend `ProjectItemTypePointer` and related project/struct-view plumbing to persist an actual pointer chain instead of only a preview string, then resolve/freeze through that chain at runtime.
-- Add focused tests for pointer command parsing, pointer session/result serialization, level-building logic, static/module classification, validation pruning, and project item persistence.
+- Add remaining focused tests around GUI pointer actions and pointer project item persistence/runtime resolution. Command parsing, session serialization, level building, static classification, and validation pruning now have coverage.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -31,11 +29,11 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Pointer scanning now has dedicated API/session types: `PointerScanSession`, `PointerScanNode`, `PointerScanLevel`, and `PointerScanSummary`. The engine stores the active session in `EnginePrivilegedState` instead of reusing flat `ScanResultsMetadata`.
 - The top-level CLI/API command is now subcommand-based: `pointer-scan start|summary|expand|validate`. `start` accepts `target_address`, `pointer_size`, `max_depth`, and `offset_radius`.
 - Engine query commands for pointer scan summaries and lazy child expansion now exist and read from the stored session. CLI pointer scan responses also log summaries and expanded nodes.
-- `squalr-engine-scanning/src/pointer_scans/pointer_scan_executor_task.rs` still only recollects snapshot values and returns an empty placeholder session. The real pointer discovery walk is still commented out.
-- The `validate` command currently only resolves/parses the new target address and reports a "not implemented" status. It does not prune or rebuild pointer levels yet.
 - Pointer project items are not modeled yet. `ProjectItemTypePointer` only stores a display string for preview/freeze text, while `Pointer` stores offsets as `Vec<u8>`, which is too narrow for real pointer-chain offsets.
 - Existing reusable UI patterns:
   - `ElementScannerView` already provides the overall window structure for toolbar + results + footer.
   - `ProjectHierarchyViewData` already demonstrates the lazy tree expansion pattern the pointer results pane should mimic.
 - `PointerScanExecutor` now walks snapshot memory with native-width aligned loads, expands parent chains by matching pointer values within the configured radius, classifies static nodes via module lookup, and materializes root-oriented `PointerScanSession` levels/nodes instead of returning an empty placeholder session.
+- `squalr-engine-scanning/src/pointer_scans/pointer_scan_validator.rs` now performs live validation scans. It rebuilds heap levels from the new target over current usermode memory, re-resolves static nodes by `module_name + module_offset`, rebuilds the stored `PointerScanSession`, and prunes chains that no longer validate.
+- `squalr-engine/src/command_executors/pointer_scan/validate/pointer_scan_validate_request_executor.rs` now runs the real validator, replaces the active session, and reports an actual `pruned_node_count` instead of the old "not implemented" stub.
 - The current session builder path-expands chains to fit the one-parent `PointerScanNode` model, so shared subchains are duplicated in-session rather than represented as a DAG.
