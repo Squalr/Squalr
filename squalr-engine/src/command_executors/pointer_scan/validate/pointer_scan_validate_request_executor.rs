@@ -1,0 +1,90 @@
+use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::engine_privileged_state::EnginePrivilegedState;
+use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
+use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
+use std::sync::Arc;
+
+impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
+    type ResponseType = PointerScanValidateResponse;
+
+    fn execute(
+        &self,
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+    ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        let pointer_scan_session_store = engine_privileged_state.get_pointer_scan_session();
+        let pointer_scan_session_guard = match pointer_scan_session_store.read() {
+            Ok(pointer_scan_session_guard) => pointer_scan_session_guard,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on pointer scan session store: {}", error);
+
+                return PointerScanValidateResponse {
+                    validation_performed: false,
+                    validation_target_address: None,
+                    pruned_node_count: 0,
+                    status_message: "Failed to access the active pointer scan session.".to_string(),
+                    pointer_scan_summary: None,
+                };
+            }
+        };
+        let Some(pointer_scan_session) = pointer_scan_session_guard.as_ref() else {
+            return PointerScanValidateResponse {
+                validation_performed: false,
+                validation_target_address: None,
+                pruned_node_count: 0,
+                status_message: "No active pointer scan session is available.".to_string(),
+                pointer_scan_summary: None,
+            };
+        };
+
+        if pointer_scan_session.get_session_id() != self.session_id {
+            return PointerScanValidateResponse {
+                validation_performed: false,
+                validation_target_address: None,
+                pruned_node_count: 0,
+                status_message: format!("Pointer scan session {} was not found.", self.session_id),
+                pointer_scan_summary: None,
+            };
+        }
+
+        let symbol_registry = engine_privileged_state.get_symbol_registry();
+        let symbol_registry_guard = match symbol_registry.read() {
+            Ok(symbol_registry_guard) => symbol_registry_guard,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
+
+                return PointerScanValidateResponse {
+                    validation_performed: false,
+                    validation_target_address: None,
+                    pruned_node_count: 0,
+                    status_message: "Failed to access the symbol registry for validation.".to_string(),
+                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                };
+            }
+        };
+        let pointer_size = pointer_scan_session.get_pointer_size();
+        let validation_target_data_type_ref = pointer_size.to_data_type_ref();
+        let validation_target_data_value = match symbol_registry_guard.deanonymize_value_string(&validation_target_data_type_ref, &self.target_address) {
+            Ok(validation_target_data_value) => validation_target_data_value,
+            Err(error) => {
+                log::error!("Failed to deanonymize pointer scan validation target address: {}", error);
+
+                return PointerScanValidateResponse {
+                    validation_performed: false,
+                    validation_target_address: None,
+                    pruned_node_count: 0,
+                    status_message: "Failed to parse the validation target address.".to_string(),
+                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                };
+            }
+        };
+        let validation_target_address = pointer_size.read_address_value(&validation_target_data_value);
+
+        PointerScanValidateResponse {
+            validation_performed: false,
+            validation_target_address,
+            pruned_node_count: 0,
+            status_message: "Pointer scan validation is not implemented yet.".to_string(),
+            pointer_scan_summary: Some(pointer_scan_session.summarize()),
+        }
+    }
+}

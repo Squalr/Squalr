@@ -16,11 +16,8 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Define a dedicated pointer scan session model and result types. Do not reuse flat `ScanResult` pagination for pointer chains; store pointer levels, parent-child relationships, static-vs-heap classification, and summary counts explicitly.
-- Expand the pointer scan command surface to match the README algorithm. Keep `target_address`, pointer size, max depth, and offset radius, then add the follow-up request/response types needed for validation scans and lazy result expansion.
-- Implement the privileged pointer scan pipeline in `squalr-engine-scanning`. Seed level 0 from the target address, walk outward level-by-level, separate static/module-backed matches from heap matches, and persist the full chain graph instead of only refreshing snapshot bytes.
-- Add engine query commands for pointer scan summaries and child expansion. The GUI needs cheap summary reads plus on-demand tree expansion rather than eager materialization of every chain.
-- Implement CLI pointer scan output handlers around the new query API so pointer scan commands are inspectable outside the GUI.
+- Replace the placeholder pointer scan session returned by `PointerScanExecutor` with the real README algorithm. Level 0/session plumbing now exists, but node discovery, parent-child graph building, and static-vs-heap separation are still missing.
+- Implement real pointer validation scans in the privileged engine. The `validate` command surface exists and returns session summaries, but it currently reports "not implemented" and does not prune chains.
 - Build pointer scanner view data and actions in the GUI, using the element scanner window structure as the visual baseline. The top area should own target address entry, pointer size selection, max depth, offset radius, action buttons, and scan status.
 - Build a pointer results tree view in the GUI, styled consistently with existing scan panes but using project-explorer-style lazy expansion semantics. Include columns for module/base, offset chain, resolved address, depth, and static-vs-heap state.
 - Add pointer result actions that matter for workflows: validate against a new target, copy/export a chain, and add the selected chain to the project as a pointer item.
@@ -31,12 +28,11 @@ Our current task, from `README.md`, is:
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
 - `squalr/src/views/pointer_scanner/pointer_scanner_view.rs` is an empty placeholder window. The docking entry and toolbar button already exist, but there is no pointer-specific view data, controls, or results presentation yet.
-- `PointerScanRequest` currently exposes only `target_address`, `pointer_data_type_ref`, `max_depth`, and `offset_size`. There is no validation-scan request, no result-query request, and no lazy-expansion command surface.
-- `PointerScanResponse` currently reuses `ScanResultsMetadata`, which fits flat element scans but not pointer chains. Pointer scanning needs its own summary/query model.
-- `PointerScanRequestExecutor` deanonymizes the target address, then passes the same snapshot for both statics and heaps. That is only a stub path today and does not match the README pointer-level algorithm.
-- `squalr-engine-scanning/src/pointer_scans/pointer_scan_executor_task.rs` currently only recollects snapshot values. The actual pointer discovery logic is still commented out.
-- `PointerScanLevel` only stores raw `SnapshotRegionFilter` vectors and currently exposes misleading `get_*` methods that consume the stored data. This type will need redesign once real pointer levels are persisted.
-- CLI pointer scan handling is effectively absent: `squalr-cli/src/response_handlers/pointer_scan/mod.rs` is a no-op.
+- Pointer scanning now has dedicated API/session types: `PointerScanSession`, `PointerScanNode`, `PointerScanLevel`, and `PointerScanSummary`. The engine stores the active session in `EnginePrivilegedState` instead of reusing flat `ScanResultsMetadata`.
+- The top-level CLI/API command is now subcommand-based: `pointer-scan start|summary|expand|validate`. `start` accepts `target_address`, `pointer_size`, `max_depth`, and `offset_radius`.
+- Engine query commands for pointer scan summaries and lazy child expansion now exist and read from the stored session. CLI pointer scan responses also log summaries and expanded nodes.
+- `squalr-engine-scanning/src/pointer_scans/pointer_scan_executor_task.rs` still only recollects snapshot values and returns an empty placeholder session. The real pointer discovery walk is still commented out.
+- The `validate` command currently only resolves/parses the new target address and reports a "not implemented" status. It does not prune or rebuild pointer levels yet.
 - Pointer project items are not modeled yet. `ProjectItemTypePointer` only stores a display string for preview/freeze text, while `Pointer` stores offsets as `Vec<u8>`, which is too narrow for real pointer-chain offsets.
 - Existing reusable UI patterns:
   - `ElementScannerView` already provides the overall window structure for toolbar + results + footer.

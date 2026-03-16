@@ -1,23 +1,21 @@
-use crate::commands::privileged_command_response::PrivilegedCommandResponse;
-use crate::commands::privileged_command_response::TypedPrivilegedCommandResponse;
-use crate::structures::scan_results::scan_results_metadata::ScanResultsMetadata;
+use crate::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
+use crate::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
+use crate::commands::pointer_scan::summary::pointer_scan_summary_response::PointerScanSummaryResponse;
+use crate::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct PointerScanResponse {
-    pub scan_results_metadata: ScanResultsMetadata,
-}
-
-impl TypedPrivilegedCommandResponse for PointerScanResponse {
-    fn to_engine_response(&self) -> PrivilegedCommandResponse {
-        PrivilegedCommandResponse::PointerScan(self.clone())
-    }
-
-    fn from_engine_response(response: PrivilegedCommandResponse) -> Result<Self, PrivilegedCommandResponse> {
-        if let PrivilegedCommandResponse::PointerScan(pointer_scan_response) = response {
-            Ok(pointer_scan_response)
-        } else {
-            Err(response)
-        }
-    }
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum PointerScanResponse {
+    Start {
+        pointer_scan_start_response: PointerScanStartResponse,
+    },
+    Summary {
+        pointer_scan_summary_response: PointerScanSummaryResponse,
+    },
+    Expand {
+        pointer_scan_expand_response: PointerScanExpandResponse,
+    },
+    Validate {
+        pointer_scan_validate_response: PointerScanValidateResponse,
+    },
 }

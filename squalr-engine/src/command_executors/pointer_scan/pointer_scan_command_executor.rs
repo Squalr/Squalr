@@ -12,8 +12,19 @@ impl PrivilegedCommandExecutor for PointerScanCommand {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandExecutor>::ResponseType {
-        self.pointer_scan_request
-            .execute(engine_privileged_state)
-            .to_engine_response()
+        match self {
+            PointerScanCommand::Start { pointer_scan_start_request } => pointer_scan_start_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            PointerScanCommand::Summary { pointer_scan_summary_request } => pointer_scan_summary_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            PointerScanCommand::Expand { pointer_scan_expand_request } => pointer_scan_expand_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+            PointerScanCommand::Validate { pointer_scan_validate_request } => pointer_scan_validate_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
+        }
     }
 }

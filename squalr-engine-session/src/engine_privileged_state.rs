@@ -12,8 +12,10 @@ use squalr_engine_api::registries::project_item_types::project_item_type_registr
 use squalr_engine_api::registries::registry_context::RegistryContext;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 /// Tracks critical privileged engine session state for command execution and event dispatch.
@@ -26,6 +28,12 @@ pub struct EnginePrivilegedState {
 
     /// The current snapshot of process memory, including any scan results.
     snapshot: Arc<RwLock<Snapshot>>,
+
+    /// The active pointer scan session and tree state.
+    pointer_scan_session: Arc<RwLock<Option<PointerScanSession>>>,
+
+    /// Monotonically increasing identifier for new pointer scan sessions.
+    next_pointer_scan_session_id: AtomicU64,
 
     /// Defines functionality that can be invoked by the engine for the GUI or CLI to handle.
     engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
@@ -46,6 +54,7 @@ impl EnginePrivilegedState {
         let process_manager = ProcessManager::new(event_emitter.clone());
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
+        let pointer_scan_session = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
 
         SnapshotScanResultFreezeTask::start_task(
@@ -58,6 +67,8 @@ impl EnginePrivilegedState {
             process_manager,
             task_manager,
             snapshot,
+            pointer_scan_session,
+            next_pointer_scan_session_id: AtomicU64::new(0),
             engine_bindings,
             registries,
             os_providers,
@@ -83,6 +94,16 @@ impl EnginePrivilegedState {
     /// Gets the current snapshot, which contains all captured memory and scan results.
     pub fn get_snapshot(&self) -> Arc<RwLock<Snapshot>> {
         self.snapshot.clone()
+    }
+
+    /// Gets the active pointer scan session, if any.
+    pub fn get_pointer_scan_session(&self) -> Arc<RwLock<Option<PointerScanSession>>> {
+        self.pointer_scan_session.clone()
+    }
+
+    /// Allocates a stable identifier for a new pointer scan session.
+    pub fn allocate_pointer_scan_session_id(&self) -> u64 {
+        self.next_pointer_scan_session_id.fetch_add(1, Ordering::SeqCst) + 1
     }
 
     /// Gets all engine registries.

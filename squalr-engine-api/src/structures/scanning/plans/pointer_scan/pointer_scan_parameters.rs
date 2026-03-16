@@ -1,10 +1,11 @@
-use crate::structures::data_values::data_value::DataValue;
+use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
 /// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
 pub struct PointerScanParameters {
-    target_address: DataValue,
-    offset_size: u64,
+    target_address: u64,
+    pointer_size: PointerScanPointerSize,
+    offset_radius: u64,
     max_depth: u64,
     is_single_thread_scan: bool,
 
@@ -15,27 +16,33 @@ pub struct PointerScanParameters {
 
 impl PointerScanParameters {
     pub fn new(
-        target_address: DataValue,
-        offset_size: u64,
+        target_address: u64,
+        pointer_size: PointerScanPointerSize,
+        offset_radius: u64,
         max_depth: u64,
         is_single_thread_scan: bool,
         debug_perform_validation_scan: bool,
     ) -> Self {
         Self {
             target_address,
-            offset_size,
+            pointer_size,
+            offset_radius,
             max_depth,
             is_single_thread_scan,
             debug_perform_validation_scan,
         }
     }
 
-    pub fn get_target_address(&self) -> &DataValue {
-        &self.target_address
+    pub fn get_target_address(&self) -> u64 {
+        self.target_address
     }
 
-    pub fn get_offset_size(&self) -> u64 {
-        self.offset_size
+    pub fn get_pointer_size(&self) -> PointerScanPointerSize {
+        self.pointer_size
+    }
+
+    pub fn get_offset_radius(&self) -> u64 {
+        self.offset_radius
     }
 
     pub fn get_max_depth(&self) -> u64 {

@@ -1,5 +1,6 @@
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
@@ -14,28 +15,31 @@ impl PointerScanExecutor {
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
+        pointer_scan_session_id: u64,
         pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
-    ) {
+    ) -> PointerScanSession {
         Self::scan_task(
             process_info,
             statics_snapshot,
             heaps_snapshot,
+            pointer_scan_session_id,
             pointer_scan_parameters,
             with_logging,
             scan_execution_context,
-        );
+        )
     }
 
     fn scan_task(
         process_info: OpenedProcessInfo,
         statics_snapshot: Arc<RwLock<Snapshot>>,
         heaps_snapshot: Arc<RwLock<Snapshot>>,
-        _pointer_scan_parameters: PointerScanParameters,
+        pointer_scan_session_id: u64,
+        pointer_scan_parameters: PointerScanParameters,
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
-    ) {
+    ) -> PointerScanSession {
         if with_logging {
             log::info!("Performing pointer scan...");
         }
@@ -167,5 +171,17 @@ impl PointerScanExecutor {
             log::info!("Scan complete in: {:?}", duration);
             log::info!("Total scan time: {:?}", total_duration);
         }*/
+        PointerScanSession::new(
+            pointer_scan_session_id,
+            pointer_scan_parameters.get_target_address(),
+            pointer_scan_parameters.get_pointer_size(),
+            pointer_scan_parameters.get_max_depth(),
+            pointer_scan_parameters.get_offset_radius(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            0,
+            0,
+        )
     }
 }

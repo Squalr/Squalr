@@ -1,6 +1,12 @@
+use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
+use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
 use squalr_engine_api::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
-use squalr_engine_api::commands::pointer_scan::pointer_scan_request::PointerScanRequest;
-use squalr_engine_api::commands::pointer_scan::pointer_scan_response::PointerScanResponse;
+use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
+use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
+use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_request::PointerScanSummaryRequest;
+use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_response::PointerScanSummaryResponse;
+use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
+use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -19,6 +25,7 @@ use squalr_engine_api::commands::struct_scan::struct_scan_request::StructScanReq
 use squalr_engine_api::commands::struct_scan::struct_scan_response::StructScanResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
@@ -296,23 +303,23 @@ fn element_scan_request_does_not_invoke_callback_when_response_variant_is_wrong(
 }
 
 #[test]
-fn pointer_scan_request_dispatches_pointer_scan_command_and_invokes_typed_callback() {
+fn pointer_scan_start_request_dispatches_pointer_scan_command_and_invokes_typed_callback() {
     let bindings = MockEngineBindings::new(
-        PointerScanResponse::default().to_engine_response(),
+        PointerScanStartResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
-    let pointer_scan_request = PointerScanRequest {
+    let pointer_scan_start_request = PointerScanStartRequest {
         target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("4096;address;")
             .expect("anonymous value string should parse"),
-        pointer_data_type_ref: DataTypeRef::new("u64"),
+        pointer_size: PointerScanPointerSize::Pointer64,
         max_depth: 5,
-        offset_size: 8,
+        offset_radius: 8,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
-    pointer_scan_request.send_unprivileged(&bindings, move |_pointer_scan_response| {
+    pointer_scan_start_request.send_unprivileged(&bindings, move |_pointer_scan_start_response| {
         callback_invoked_clone.store(true, Ordering::SeqCst);
     });
 
@@ -324,46 +331,41 @@ fn pointer_scan_request_dispatches_pointer_scan_command_and_invokes_typed_callba
     assert_eq!(dispatched_commands_guard.len(), 1);
 
     match &dispatched_commands_guard[0] {
-        PrivilegedCommand::PointerScan(PointerScanCommand {
-            pointer_scan_request: captured_pointer_scan_request,
+        PrivilegedCommand::PointerScan(PointerScanCommand::Start {
+            pointer_scan_start_request: captured_pointer_scan_start_request,
         }) => {
             assert_eq!(
-                captured_pointer_scan_request
+                captured_pointer_scan_start_request
                     .target_address
                     .get_anonymous_value_string(),
                 "4096"
             );
-            assert_eq!(
-                captured_pointer_scan_request
-                    .pointer_data_type_ref
-                    .get_data_type_id(),
-                "u64"
-            );
-            assert_eq!(captured_pointer_scan_request.max_depth, 5);
-            assert_eq!(captured_pointer_scan_request.offset_size, 8);
+            assert_eq!(captured_pointer_scan_start_request.pointer_size, PointerScanPointerSize::Pointer64);
+            assert_eq!(captured_pointer_scan_start_request.max_depth, 5);
+            assert_eq!(captured_pointer_scan_start_request.offset_radius, 8);
         }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
 }
 
 #[test]
-fn pointer_scan_request_does_not_invoke_callback_when_response_variant_is_wrong() {
+fn pointer_scan_start_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
         ScanCollectValuesResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
-    let pointer_scan_request = PointerScanRequest {
+    let pointer_scan_start_request = PointerScanStartRequest {
         target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("4096;address;")
             .expect("anonymous value string should parse"),
-        pointer_data_type_ref: DataTypeRef::new("u64"),
+        pointer_size: PointerScanPointerSize::Pointer64,
         max_depth: 5,
-        offset_size: 8,
+        offset_radius: 8,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
-    pointer_scan_request.send_unprivileged(&bindings, move |_pointer_scan_response| {
+    pointer_scan_start_request.send_unprivileged(&bindings, move |_pointer_scan_start_response| {
         callback_invoked_clone.store(true, Ordering::SeqCst);
     });
 
@@ -375,7 +377,154 @@ fn pointer_scan_request_does_not_invoke_callback_when_response_variant_is_wrong(
     assert_eq!(dispatched_commands_guard.len(), 1);
 
     match &dispatched_commands_guard[0] {
-        PrivilegedCommand::PointerScan(PointerScanCommand { .. }) => {}
+        PrivilegedCommand::PointerScan(PointerScanCommand::Start { .. }) => {}
+        dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
+    }
+}
+
+#[test]
+fn pointer_scan_summary_request_dispatches_pointer_scan_command_and_invokes_typed_callback() {
+    let bindings = MockEngineBindings::new(
+        PointerScanSummaryResponse::default().to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
+    let dispatched_commands = bindings.get_dispatched_commands();
+    let pointer_scan_summary_request = PointerScanSummaryRequest { session_id: Some(3) };
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    pointer_scan_summary_request.send_unprivileged(&bindings, move |_pointer_scan_summary_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(callback_invoked.load(Ordering::SeqCst));
+
+    let dispatched_commands_guard = dispatched_commands
+        .lock()
+        .expect("command capture lock should be available");
+    assert_eq!(dispatched_commands_guard.len(), 1);
+
+    match &dispatched_commands_guard[0] {
+        PrivilegedCommand::PointerScan(PointerScanCommand::Summary {
+            pointer_scan_summary_request: captured_pointer_scan_summary_request,
+        }) => {
+            assert_eq!(captured_pointer_scan_summary_request.session_id, Some(3));
+        }
+        dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
+    }
+}
+
+#[test]
+fn pointer_scan_expand_request_dispatches_pointer_scan_command_and_invokes_typed_callback() {
+    let bindings = MockEngineBindings::new(
+        PointerScanExpandResponse {
+            session_id: 7,
+            parent_node_id: Some(11),
+            pointer_scan_nodes: Vec::new(),
+        }
+        .to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
+    let dispatched_commands = bindings.get_dispatched_commands();
+    let pointer_scan_expand_request = PointerScanExpandRequest {
+        session_id: 7,
+        parent_node_id: Some(11),
+    };
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    pointer_scan_expand_request.send_unprivileged(&bindings, move |_pointer_scan_expand_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(callback_invoked.load(Ordering::SeqCst));
+
+    let dispatched_commands_guard = dispatched_commands
+        .lock()
+        .expect("command capture lock should be available");
+    assert_eq!(dispatched_commands_guard.len(), 1);
+
+    match &dispatched_commands_guard[0] {
+        PrivilegedCommand::PointerScan(PointerScanCommand::Expand {
+            pointer_scan_expand_request: captured_pointer_scan_expand_request,
+        }) => {
+            assert_eq!(captured_pointer_scan_expand_request.session_id, 7);
+            assert_eq!(captured_pointer_scan_expand_request.parent_node_id, Some(11));
+        }
+        dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
+    }
+}
+
+#[test]
+fn pointer_scan_validate_request_dispatches_pointer_scan_command_and_invokes_typed_callback() {
+    let bindings = MockEngineBindings::new(
+        PointerScanValidateResponse::default().to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
+    let dispatched_commands = bindings.get_dispatched_commands();
+    let pointer_scan_validate_request = PointerScanValidateRequest {
+        session_id: 9,
+        target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("8192;address;")
+            .expect("anonymous value string should parse"),
+    };
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    pointer_scan_validate_request.send_unprivileged(&bindings, move |_pointer_scan_validate_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(callback_invoked.load(Ordering::SeqCst));
+
+    let dispatched_commands_guard = dispatched_commands
+        .lock()
+        .expect("command capture lock should be available");
+    assert_eq!(dispatched_commands_guard.len(), 1);
+
+    match &dispatched_commands_guard[0] {
+        PrivilegedCommand::PointerScan(PointerScanCommand::Validate {
+            pointer_scan_validate_request: captured_pointer_scan_validate_request,
+        }) => {
+            assert_eq!(captured_pointer_scan_validate_request.session_id, 9);
+            assert_eq!(
+                captured_pointer_scan_validate_request
+                    .target_address
+                    .get_anonymous_value_string(),
+                "8192"
+            );
+        }
+        dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
+    }
+}
+
+#[test]
+fn pointer_scan_validate_request_does_not_invoke_callback_when_response_variant_is_wrong() {
+    let bindings = MockEngineBindings::new(
+        ScanCollectValuesResponse::default().to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
+    let dispatched_commands = bindings.get_dispatched_commands();
+    let pointer_scan_validate_request = PointerScanValidateRequest {
+        session_id: 9,
+        target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("8192;address;")
+            .expect("anonymous value string should parse"),
+    };
+    let callback_invoked = Arc::new(AtomicBool::new(false));
+    let callback_invoked_clone = callback_invoked.clone();
+
+    pointer_scan_validate_request.send_unprivileged(&bindings, move |_pointer_scan_validate_response| {
+        callback_invoked_clone.store(true, Ordering::SeqCst);
+    });
+
+    assert!(!callback_invoked.load(Ordering::SeqCst));
+
+    let dispatched_commands_guard = dispatched_commands
+        .lock()
+        .expect("command capture lock should be available");
+    assert_eq!(dispatched_commands_guard.len(), 1);
+
+    match &dispatched_commands_guard[0] {
+        PrivilegedCommand::PointerScan(PointerScanCommand::Validate { .. }) => {}
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
 }
@@ -433,7 +582,7 @@ fn struct_scan_request_dispatches_struct_scan_command_and_invokes_typed_callback
 #[test]
 fn struct_scan_request_does_not_invoke_callback_when_response_variant_is_wrong() {
     let bindings = MockEngineBindings::new(
-        PointerScanResponse::default().to_engine_response(),
+        PointerScanStartResponse::default().to_engine_response(),
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
@@ -471,13 +620,14 @@ fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
         PrivilegedCommand::from_iter_safe([
             "squalr-cli",
             "pointer-scan",
+            "start",
             "--target-address",
             "4096;address;",
-            "--pointer-data-type-ref",
-            "u64",
+            "--pointer-size",
+            "8",
             "--max-depth",
             "5",
-            "--offset-size",
+            "--offset-radius",
             "8",
         ])
     });
@@ -488,14 +638,63 @@ fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
     assert!(parsed_command_result.is_ok());
 
     match parsed_command_result.expect("command should parse successfully") {
-        PrivilegedCommand::PointerScan(PointerScanCommand { pointer_scan_request }) => {
-            assert_eq!(pointer_scan_request.target_address.get_anonymous_value_string(), "4096");
-            assert_eq!(pointer_scan_request.pointer_data_type_ref.get_data_type_id(), "u64");
-            assert_eq!(pointer_scan_request.max_depth, 5);
-            assert_eq!(pointer_scan_request.offset_size, 8);
+        PrivilegedCommand::PointerScan(PointerScanCommand::Start { pointer_scan_start_request }) => {
+            assert_eq!(
+                pointer_scan_start_request
+                    .target_address
+                    .get_anonymous_value_string(),
+                "4096"
+            );
+            assert_eq!(pointer_scan_start_request.pointer_size, PointerScanPointerSize::Pointer64);
+            assert_eq!(pointer_scan_start_request.max_depth, 5);
+            assert_eq!(pointer_scan_start_request.offset_radius, 8);
         }
         parsed_command => panic!("unexpected parsed command: {parsed_command:?}"),
     }
+}
+
+#[test]
+fn privileged_command_parser_accepts_pointer_scan_summary_subcommand() {
+    let parse_result = std::panic::catch_unwind(|| PrivilegedCommand::from_iter_safe(["squalr-cli", "pointer-scan", "summary", "--session-id", "7"]));
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_ok());
+}
+
+#[test]
+fn privileged_command_parser_accepts_pointer_scan_expand_subcommand() {
+    let parse_result = std::panic::catch_unwind(|| {
+        PrivilegedCommand::from_iter_safe([
+            "squalr-cli",
+            "pointer-scan",
+            "expand",
+            "--session-id",
+            "7",
+            "--parent-node-id",
+            "11",
+        ])
+    });
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_ok());
+}
+
+#[test]
+fn privileged_command_parser_accepts_pointer_scan_validate_subcommand() {
+    let parse_result = std::panic::catch_unwind(|| {
+        PrivilegedCommand::from_iter_safe([
+            "squalr-cli",
+            "pointer-scan",
+            "validate",
+            "--session-id",
+            "7",
+            "--target-address",
+            "8192;address;",
+        ])
+    });
+
+    assert!(parse_result.is_ok());
+    assert!(parse_result.expect("parser should not panic").is_ok());
 }
 
 #[test]
@@ -661,13 +860,14 @@ fn privileged_command_parser_accepts_pointer_scan_alias_pscan() {
         PrivilegedCommand::from_iter_safe([
             "squalr-cli",
             "pscan",
+            "start",
             "--target-address",
             "4096;address;",
-            "--pointer-data-type-ref",
+            "--pointer-size",
             "u64",
             "--max-depth",
             "5",
-            "--offset-size",
+            "--offset-radius",
             "8",
         ])
     });
@@ -702,13 +902,14 @@ fn privileged_command_parser_rejects_nested_scan_pointer_scan_subcommand() {
             "squalr-cli",
             "scan",
             "pointer-scan",
+            "start",
             "--target-address",
             "4096;address;",
-            "--pointer-data-type-ref",
+            "--pointer-size",
             "u64",
             "--max-depth",
             "5",
-            "--offset-size",
+            "--offset-radius",
             "8",
         ])
     });
