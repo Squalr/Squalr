@@ -52,11 +52,13 @@ impl PointerScannerToolbarView {
         tooltip_text: &str,
         size: [f32; 2],
         fill_color: Color32,
+        disabled: bool,
     ) -> Response {
         let theme = &self.app_context.theme;
         let button_response = user_interface.add_sized(
             size,
             Button::new_from_theme(theme)
+                .disabled(disabled)
                 .background_color(fill_color)
                 .with_tooltip_text(tooltip_text),
         );
@@ -119,6 +121,10 @@ impl Widget for PointerScannerToolbarView {
             let unsigned_data_type = DataTypeRef::new("u64");
             let action_button_size = [36.0, 28.0];
             let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
+            let are_session_actions_disabled = pointer_scanner_view_data.is_querying_summary
+                || pointer_scanner_view_data.is_starting_scan
+                || pointer_scanner_view_data.is_validating_scan
+                || pointer_scanner_view_data.is_resetting_scan;
             let start_scan_tooltip = if has_active_pointer_scan_session {
                 "Validate the active pointer scan session with the validation target address."
             } else {
@@ -233,6 +239,7 @@ impl Widget for PointerScannerToolbarView {
                             "Clear the active pointer scan session.",
                             action_button_size,
                             Color32::TRANSPARENT,
+                            are_session_actions_disabled,
                         )
                         .clicked()
                     {
@@ -246,6 +253,7 @@ impl Widget for PointerScannerToolbarView {
                             start_scan_tooltip,
                             action_button_size,
                             Color32::TRANSPARENT,
+                            are_session_actions_disabled,
                         )
                         .clicked()
                     {
@@ -264,6 +272,7 @@ impl Widget for PointerScannerToolbarView {
                             "Refresh the active pointer scan summary.",
                             action_button_size,
                             Color32::TRANSPARENT,
+                            are_session_actions_disabled,
                         )
                         .clicked()
                     {
@@ -277,6 +286,7 @@ impl Widget for PointerScannerToolbarView {
                             "Copy the selected pointer chain text.",
                             action_button_size,
                             Color32::TRANSPARENT,
+                            false,
                         )
                         .clicked()
                     {
@@ -290,6 +300,7 @@ impl Widget for PointerScannerToolbarView {
                             "Copy the selected pointer chain metadata to the clipboard.",
                             action_button_size,
                             Color32::TRANSPARENT,
+                            false,
                         )
                         .clicked()
                     {
@@ -303,6 +314,7 @@ impl Widget for PointerScannerToolbarView {
                             "Persist the selected pointer chain to the current project.",
                             action_button_size,
                             Color32::TRANSPARENT,
+                            false,
                         )
                         .clicked()
                     {

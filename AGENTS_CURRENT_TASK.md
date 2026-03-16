@@ -18,7 +18,7 @@ Our current task, from `README.md`, is:
 
 - Need human verification: exercise the live GUI pointer-scanner toolbar flow after the reset/start UX change and the deferred root-expand fix, including `New` clearing the active session, the primary action using the normal start icon, that same primary action switching to validation when a session already exists, and that start/summary/validate no longer hang before the root nodes populate.
 - Need human verification: run a large live pointer validation against a real opened process and confirm the per-step binary-search target matching no longer hangs / "deadlocks" and still reports sensible prune counts.
-
+    - No. Hard deadlock again. Undo whatever you did to "patch the deadlock" and try again. This is a hard UI thread deadlock. This means obviously you are holding an important lock before the dispatch, that the callback is probably trying to use.
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -31,6 +31,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Pointer project items now persist a real chain: root `address`, `module`, `pointer_offsets` as `Vec<i64>`, `pointer_size`, symbolic struct reference, and preview display value. Pointer project item creation is supported through the unprivileged create command and writes a real `.json` project item under the hidden project root.
 - Project item preview refresh now resolves stored pointer chains at runtime before reading values. Freeze activation, freeze request execution, and the periodic freeze task also resolve full pointer chains before reading or writing memory.
 - Focused coverage now exists for pointer session serialization, level building, static classification, validation pruning, pointer project item persistence, pointer freeze-target creation, pointer runtime chain resolution, GUI pointer action helpers for copy/export/add-to-project, stale async pointer-scanner responses, and address-item pointer-scan context-menu extraction.
+- Pointer-scanner reset now invalidates in-flight summary/start/validate revisions before late callbacks can restore a cleared session, clears the local tree immediately on `New`, and keeps `New` / `Start|Validate` / refresh actions disabled while reset is still in flight. Focused coverage now includes the reset-vs-summary race.
 - Pointer-scanner toolbar defaults now use hex-oriented target / validation / offset inputs, rename `Radius` to `Offset`, default the offset to `0x800`, force foreground text styling, and slightly increase toolbar control height to reduce the cramped row layout.
 - Pointer-scan start now builds a dedicated user-mode snapshot instead of depending on the shared scan snapshot, so starting a pointer scan no longer requires a prior `scan new` or populated global snapshot.
 - Shared snapshot-region merge logic now lives in `squalr-engine/src/command_executors/snapshot_region_builder.rs` and is reused by both `scan new` and pointer-scan start.

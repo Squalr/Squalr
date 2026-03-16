@@ -58,6 +58,7 @@ pub struct PointerScannerViewData {
     pub is_querying_summary: bool,
     pub is_starting_scan: bool,
     pub is_validating_scan: bool,
+    pub is_resetting_scan: bool,
     latest_session_request_revision: u64,
     next_session_request_revision: u64,
     session_state_revision: u64,
@@ -87,6 +88,7 @@ impl PointerScannerViewData {
             is_querying_summary: false,
             is_starting_scan: false,
             is_validating_scan: false,
+            is_resetting_scan: false,
             latest_session_request_revision: 0,
             next_session_request_revision: 1,
             session_state_revision: 0,
@@ -114,6 +116,7 @@ impl PointerScannerViewData {
             if pointer_scanner_view_data_guard.is_querying_summary
                 || pointer_scanner_view_data_guard.is_starting_scan
                 || pointer_scanner_view_data_guard.is_validating_scan
+                || pointer_scanner_view_data_guard.is_resetting_scan
             {
                 return;
             }
@@ -152,6 +155,10 @@ impl PointerScannerViewData {
                 None => return,
             };
 
+            if pointer_scanner_view_data_guard.is_resetting_scan {
+                return;
+            }
+
             pointer_scanner_view_data_guard.has_active_session()
         };
 
@@ -174,7 +181,7 @@ impl PointerScannerViewData {
                 None => return,
             };
 
-            if pointer_scanner_view_data_guard.is_starting_scan {
+            if pointer_scanner_view_data_guard.is_starting_scan || pointer_scanner_view_data_guard.is_resetting_scan {
                 return;
             }
 
@@ -235,31 +242,52 @@ impl PointerScannerViewData {
         pointer_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        {
-            let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner reset scan") {
+        let session_request_revision = {
+            let mut pointer_scanner_view_data_guard = match pointer_scanner_view_data.write("Pointer scanner reset scan") {
                 Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
                 None => return,
             };
 
-            if pointer_scanner_view_data_guard.is_querying_summary
-                || pointer_scanner_view_data_guard.is_starting_scan
+            if pointer_scanner_view_data_guard.is_starting_scan
                 || pointer_scanner_view_data_guard.is_validating_scan
+                || pointer_scanner_view_data_guard.is_resetting_scan
             {
                 return;
             }
-        }
+
+            pointer_scanner_view_data_guard.is_querying_summary = false;
+            pointer_scanner_view_data_guard.is_resetting_scan = true;
+
+            let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.apply_summary(None);
+
+            session_request_revision
+        };
 
         let pointer_scan_reset_request = PointerScanResetRequest {};
         let pointer_scanner_view_data_clone = pointer_scanner_view_data.clone();
+        let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
 
         pointer_scan_reset_request.send(&engine_unprivileged_state, move |pointer_scan_reset_response| {
-            if !pointer_scan_reset_response.success {
-                log::error!("Failed to clear the active pointer scan session.");
-                return;
-            }
+            let mut should_refresh_summary = false;
 
             if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner reset scan response") {
-                pointer_scanner_view_data_guard.apply_summary(None);
+                pointer_scanner_view_data_guard.is_resetting_scan = false;
+
+                if !pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                    return;
+                }
+
+                if !pointer_scan_reset_response.success {
+                    log::error!("Failed to clear the active pointer scan session.");
+                    should_refresh_summary = true;
+                } else {
+                    pointer_scanner_view_data_guard.apply_summary(None);
+                }
+            }
+
+            if should_refresh_summary {
+                Self::request_summary(pointer_scanner_view_data_clone, engine_unprivileged_state_clone, None);
             }
         });
     }
@@ -282,7 +310,7 @@ impl PointerScannerViewData {
                 return;
             };
 
-            if pointer_scanner_view_data_guard.is_validating_scan {
+            if pointer_scanner_view_data_guard.is_validating_scan || pointer_scanner_view_data_guard.is_resetting_scan {
                 return;
             }
 
@@ -895,6 +923,7 @@ mod tests {
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
     use squalr_engine_api::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
+    use squalr_engine_api::commands::pointer_scan::reset::pointer_scan_reset_response::PointerScanResetResponse;
     use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_request::PointerScanSummaryRequest;
     use squalr_engine_api::commands::pointer_scan::summary::pointer_scan_summary_response::PointerScanSummaryResponse;
     use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
@@ -915,6 +944,11 @@ mod tests {
     use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
     use std::sync::{Arc, Mutex, RwLock};
 
+    struct DeferredPointerScannerCommand {
+        privileged_command: PrivilegedCommand,
+        callback: Option<Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>>,
+    }
+
     struct TestPointerScannerBindings {
         dispatched_commands: Arc<Mutex<Vec<PrivilegedCommand>>>,
     }
@@ -928,6 +962,46 @@ mod tests {
 
         fn get_dispatched_commands(&self) -> Arc<Mutex<Vec<PrivilegedCommand>>> {
             self.dispatched_commands.clone()
+        }
+    }
+
+    struct DeferredTestPointerScannerBindings {
+        queued_commands: Arc<Mutex<Vec<DeferredPointerScannerCommand>>>,
+    }
+
+    impl DeferredTestPointerScannerBindings {
+        fn new() -> Self {
+            Self {
+                queued_commands: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn get_queued_commands(&self) -> Arc<Mutex<Vec<DeferredPointerScannerCommand>>> {
+            self.queued_commands.clone()
+        }
+
+        fn respond_to_first_matching(
+            queued_commands: &Arc<Mutex<Vec<DeferredPointerScannerCommand>>>,
+            predicate: impl Fn(&PrivilegedCommand) -> bool,
+            response: PrivilegedCommandResponse,
+        ) {
+            let callback = {
+                let mut queued_commands_guard = queued_commands
+                    .lock()
+                    .expect("Expected the deferred pointer scanner queued commands lock.");
+                let queued_command_index = queued_commands_guard
+                    .iter()
+                    .position(|queued_command| predicate(&queued_command.privileged_command))
+                    .expect("Expected a queued pointer scanner command matching the predicate.");
+                let mut queued_command = queued_commands_guard.remove(queued_command_index);
+
+                queued_command
+                    .callback
+                    .take()
+                    .expect("Expected the deferred pointer scanner callback.")
+            };
+
+            callback(response);
         }
     }
 
@@ -989,6 +1063,48 @@ mod tests {
             _callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
         ) -> Result<(), EngineBindingError> {
             Err(EngineBindingError::unavailable("dispatching unprivileged pointer scanner test command"))
+        }
+
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+            let (_event_sender, event_receiver) = unbounded();
+
+            Ok(event_receiver)
+        }
+    }
+
+    impl EngineApiUnprivilegedBindings for DeferredTestPointerScannerBindings {
+        fn dispatch_privileged_command(
+            &self,
+            engine_command: PrivilegedCommand,
+            callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            match self.queued_commands.lock() {
+                Ok(mut queued_commands) => {
+                    queued_commands.push(DeferredPointerScannerCommand {
+                        privileged_command: engine_command,
+                        callback: Some(callback),
+                    });
+                }
+                Err(error) => {
+                    return Err(EngineBindingError::lock_failure(
+                        "capturing deferred pointer scanner commands",
+                        error.to_string(),
+                    ));
+                }
+            }
+
+            Ok(())
+        }
+
+        fn dispatch_unprivileged_command(
+            &self,
+            _engine_command: UnprivilegedCommand,
+            _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+            _callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            Err(EngineBindingError::unavailable(
+                "dispatching unprivileged deferred pointer scanner test command",
+            ))
         }
 
         fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
@@ -1172,6 +1288,79 @@ mod tests {
             .read("Pointer scanner queued expand request test")
             .expect("Expected the pointer scanner view data read guard.");
         assert_eq!(pointer_scanner_view_data_guard.root_node_ids, vec![1]);
+    }
+
+    #[test]
+    fn reset_scan_cancels_inflight_summary_and_ignores_stale_summary_responses() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+        let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
+        let queued_commands = deferred_pointer_scanner_bindings.get_queued_commands();
+        let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(deferred_pointer_scanner_bindings));
+        let engine_unprivileged_state = EngineUnprivilegedState::new(engine_bindings);
+
+        PointerScannerViewData::request_summary(pointer_scanner_view_data.clone(), engine_unprivileged_state.clone(), Some(7));
+        PointerScannerViewData::reset_scan(pointer_scanner_view_data.clone(), engine_unprivileged_state.clone());
+
+        {
+            let queued_commands_guard = queued_commands
+                .lock()
+                .expect("Expected the deferred pointer scanner queued commands lock after reset.");
+            assert_eq!(queued_commands_guard.len(), 2);
+            assert!(matches!(
+                queued_commands_guard
+                    .first()
+                    .map(|queued_command| &queued_command.privileged_command),
+                Some(PrivilegedCommand::PointerScan(PointerScanCommand::Summary {
+                    pointer_scan_summary_request: PointerScanSummaryRequest { session_id: Some(7) },
+                }))
+            ));
+            assert!(matches!(
+                queued_commands_guard
+                    .get(1)
+                    .map(|queued_command| &queued_command.privileged_command),
+                Some(PrivilegedCommand::PointerScan(PointerScanCommand::Reset { .. }))
+            ));
+        }
+
+        {
+            let pointer_scanner_view_data_guard = pointer_scanner_view_data
+                .read("Pointer scanner reset scan in-flight state test")
+                .expect("Expected the pointer scanner view data read guard after reset.");
+            assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
+            assert!(pointer_scanner_view_data_guard.is_resetting_scan);
+            assert!(!pointer_scanner_view_data_guard.is_querying_summary);
+        }
+
+        DeferredTestPointerScannerBindings::respond_to_first_matching(
+            &queued_commands,
+            |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Summary { .. })),
+            PointerScanSummaryResponse {
+                pointer_scan_summary: Some(create_pointer_scan_summary(7, 0x4010)),
+            }
+            .to_engine_response(),
+        );
+
+        {
+            let pointer_scanner_view_data_guard = pointer_scanner_view_data
+                .read("Pointer scanner stale summary response test")
+                .expect("Expected the pointer scanner view data read guard after the stale summary response.");
+            assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
+            assert!(pointer_scanner_view_data_guard.is_resetting_scan);
+        }
+
+        DeferredTestPointerScannerBindings::respond_to_first_matching(
+            &queued_commands,
+            |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Reset { .. })),
+            PointerScanResetResponse { success: true }.to_engine_response(),
+        );
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner reset scan completed state test")
+            .expect("Expected the pointer scanner view data read guard after the reset response.");
+        assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
+        assert!(!pointer_scanner_view_data_guard.is_resetting_scan);
+        assert_eq!(pointer_scanner_view_data_guard.status_message, "No pointer scan session.");
     }
 
     #[test]
