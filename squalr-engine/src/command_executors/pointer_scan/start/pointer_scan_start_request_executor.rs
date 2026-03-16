@@ -54,6 +54,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
 
             return PointerScanStartResponse::default();
         };
+        drop(symbol_registry_guard);
         let pointer_scan_parameters = PointerScanParameters::new(
             target_address,
             effective_pointer_size,

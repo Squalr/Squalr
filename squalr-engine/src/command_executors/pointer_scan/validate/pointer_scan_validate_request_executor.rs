@@ -103,6 +103,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 pointer_scan_summary: Some(pointer_scan_session.summarize()),
             };
         };
+        drop(symbol_registry_guard);
 
         let modules = engine_privileged_state
             .get_os_providers()
