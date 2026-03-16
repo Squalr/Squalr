@@ -16,8 +16,10 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: exercise the live GUI pointer-scanner toolbar flow after the reset/start UX change, deferred root-expand fix, and background-thread start / validate / expand dispatch change, including `New` clearing the active session, the primary action using the normal start icon, that same primary action switching to validation when a session already exists, and the window staying responsive while root nodes populate for refreshes, fresh starts, and validations.
+- Need human verification: exercise the live GUI pointer-scanner toolbar flow after the reset/start UX change, deferred root-expand fix, and background-thread summary / reset / start / validate / expand dispatch change, including `New` clearing the active session, the primary action using the normal start icon, that same primary action switching to validation when a session already exists, and the window staying responsive while root nodes populate for refreshes, fresh starts, and validations.
+- Need human verification: reproduce the owner report where pointer-scan logs show `Performing pointer scan...` and memory reads complete but the GUI appears idle, and confirm the session summary plus root population now arrive instead of stalling after value collection.
 - Need human verification: run a large live pointer validation against a real opened process and confirm the per-step binary-search target matching still reports sensible prune counts while the GUI remains responsive and no hard UI-thread deadlock reappears.
+
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
@@ -36,6 +38,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Shared snapshot-region merge logic now lives in `squalr-engine/src/command_executors/snapshot_region_builder.rs` and is reused by both `scan new` and pointer-scan start.
 - Numeric base conversions were corrected so binary / hex / address inputs produce bytes in the requested endianness, fixing pointer target parsing for hex-style addresses such as `0x3010`.
 - GUI pointer-scanner summary/start/validate callbacks no longer dispatch `pointer-scan expand` inline. Root expansion is now queued in `PointerScannerViewData` and drained during the next `PointerScannerView` pass, which is the current candidate fix for the reported start-time lock hang in standalone GUI mode.
-- GUI pointer-scanner start / validate / expand requests now dispatch from named background threads instead of the egui thread. This keeps standalone privileged command execution from freezing the UI, and spawn / dispatch failures clear the relevant pending flags so toolbar actions do not get stuck disabled.
+- Standalone `dispatch_privileged_command` executes work on the caller thread unless the GUI moves it elsewhere, so GUI pointer-scanner summary / reset / start / validate / expand requests now dispatch from named background threads instead of the egui thread. Focused coverage now asserts pending summary/reset/start/validate state while those requests are queued, along with the deferred root-expand path.
 - Pointer-scan start and validate executors now drop the symbol-registry read guard immediately after parsing the target address, so the expensive scan / validation work no longer holds that shared lock.
 - The current session builder still path-expands chains to fit the one-parent `PointerScanNode` model, so shared subchains are duplicated in-session instead of represented as a DAG.
+- Owner repro note: on 2026-03-15 22:54:31 the live logs showed `Performing pointer scan...` and value collection finishing for process `20408` (`34.8MB` read) before the GUI appeared to make no obvious progress; this still needs live verification after the full background-thread dispatch change.

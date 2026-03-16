@@ -129,26 +129,31 @@ impl PointerScannerViewData {
 
         let pointer_scan_summary_request = PointerScanSummaryRequest { session_id };
         let pointer_scanner_view_data_clone = pointer_scanner_view_data.clone();
+        let pointer_scanner_view_data_for_dispatch = pointer_scanner_view_data.clone();
 
-        let did_dispatch = pointer_scan_summary_request.send(&engine_unprivileged_state, move |pointer_scan_summary_response| {
-            let pointer_scan_summary = pointer_scan_summary_response.pointer_scan_summary.clone();
+        let did_spawn_thread = Self::spawn_request_thread("pointer-scan-summary", move || {
+            let did_dispatch = pointer_scan_summary_request.send(&engine_unprivileged_state, move |pointer_scan_summary_response| {
+                let pointer_scan_summary = pointer_scan_summary_response.pointer_scan_summary.clone();
 
-            if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner request summary response") {
-                pointer_scanner_view_data_guard.is_querying_summary = false;
+                if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner request summary response") {
+                    pointer_scanner_view_data_guard.is_querying_summary = false;
 
-                if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
-                    pointer_scanner_view_data_guard.apply_summary(pointer_scan_summary.clone());
-                    if pointer_scan_summary.is_some() {
-                        pointer_scanner_view_data_guard.queue_expand_request(None);
+                    if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                        pointer_scanner_view_data_guard.apply_summary(pointer_scan_summary.clone());
+                        if pointer_scan_summary.is_some() {
+                            pointer_scanner_view_data_guard.queue_expand_request(None);
+                        }
                     }
                 }
+            });
+
+            if !did_dispatch {
+                Self::clear_summary_request_state(pointer_scanner_view_data_for_dispatch, "Pointer scanner request summary dispatch failure");
             }
         });
 
-        if !did_dispatch {
-            if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner request summary dispatch failure") {
-                pointer_scanner_view_data_guard.is_querying_summary = false;
-            }
+        if !did_spawn_thread {
+            Self::clear_summary_request_state(pointer_scanner_view_data, "Pointer scanner request summary thread spawn failure");
         }
     }
 
@@ -284,35 +289,40 @@ impl PointerScannerViewData {
 
         let pointer_scan_reset_request = PointerScanResetRequest {};
         let pointer_scanner_view_data_clone = pointer_scanner_view_data.clone();
+        let pointer_scanner_view_data_for_dispatch = pointer_scanner_view_data.clone();
         let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
 
-        let did_dispatch = pointer_scan_reset_request.send(&engine_unprivileged_state, move |pointer_scan_reset_response| {
-            let mut should_refresh_summary = false;
+        let did_spawn_thread = Self::spawn_request_thread("pointer-scan-reset", move || {
+            let did_dispatch = pointer_scan_reset_request.send(&engine_unprivileged_state, move |pointer_scan_reset_response| {
+                let mut should_refresh_summary = false;
 
-            if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner reset scan response") {
-                pointer_scanner_view_data_guard.is_resetting_scan = false;
+                if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner reset scan response") {
+                    pointer_scanner_view_data_guard.is_resetting_scan = false;
 
-                if !pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
-                    return;
+                    if !pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                        return;
+                    }
+
+                    if !pointer_scan_reset_response.success {
+                        log::error!("Failed to clear the active pointer scan session.");
+                        should_refresh_summary = true;
+                    } else {
+                        pointer_scanner_view_data_guard.apply_summary(None);
+                    }
                 }
 
-                if !pointer_scan_reset_response.success {
-                    log::error!("Failed to clear the active pointer scan session.");
-                    should_refresh_summary = true;
-                } else {
-                    pointer_scanner_view_data_guard.apply_summary(None);
+                if should_refresh_summary {
+                    Self::request_summary(pointer_scanner_view_data_clone, engine_unprivileged_state_clone, None);
                 }
-            }
+            });
 
-            if should_refresh_summary {
-                Self::request_summary(pointer_scanner_view_data_clone, engine_unprivileged_state_clone, None);
+            if !did_dispatch {
+                Self::clear_reset_scan_request_state(pointer_scanner_view_data_for_dispatch, "Pointer scanner reset scan dispatch failure");
             }
         });
 
-        if !did_dispatch {
-            if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner reset scan dispatch failure") {
-                pointer_scanner_view_data_guard.is_resetting_scan = false;
-            }
+        if !did_spawn_thread {
+            Self::clear_reset_scan_request_state(pointer_scanner_view_data, "Pointer scanner reset scan thread spawn failure");
         }
     }
 
@@ -942,12 +952,30 @@ impl PointerScannerViewData {
         }
     }
 
+    fn clear_summary_request_state(
+        pointer_scanner_view_data: Dependency<Self>,
+        error_context: &'static str,
+    ) {
+        if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
+            pointer_scanner_view_data_guard.is_querying_summary = false;
+        }
+    }
+
     fn clear_validate_scan_request_state(
         pointer_scanner_view_data: Dependency<Self>,
         error_context: &'static str,
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_validating_scan = false;
+        }
+    }
+
+    fn clear_reset_scan_request_state(
+        pointer_scanner_view_data: Dependency<Self>,
+        error_context: &'static str,
+    ) {
+        if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
+            pointer_scanner_view_data_guard.is_resetting_scan = false;
         }
     }
 
@@ -1048,22 +1076,6 @@ mod tests {
         callback: Option<Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>>,
     }
 
-    struct TestPointerScannerBindings {
-        dispatched_commands: Arc<Mutex<Vec<PrivilegedCommand>>>,
-    }
-
-    impl TestPointerScannerBindings {
-        fn new() -> Self {
-            Self {
-                dispatched_commands: Arc::new(Mutex::new(Vec::new())),
-            }
-        }
-
-        fn get_dispatched_commands(&self) -> Arc<Mutex<Vec<PrivilegedCommand>>> {
-            self.dispatched_commands.clone()
-        }
-    }
-
     struct DeferredTestPointerScannerBindings {
         queued_commands: Arc<Mutex<Vec<DeferredPointerScannerCommand>>>,
     }
@@ -1101,73 +1113,6 @@ mod tests {
             };
 
             callback(response);
-        }
-    }
-
-    impl EngineApiUnprivilegedBindings for TestPointerScannerBindings {
-        fn dispatch_privileged_command(
-            &self,
-            engine_command: PrivilegedCommand,
-            callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
-        ) -> Result<(), EngineBindingError> {
-            match self.dispatched_commands.lock() {
-                Ok(mut dispatched_commands) => {
-                    dispatched_commands.push(engine_command.clone());
-                }
-                Err(error) => {
-                    return Err(EngineBindingError::lock_failure(
-                        "capturing pointer scanner dispatched commands",
-                        error.to_string(),
-                    ));
-                }
-            }
-
-            let engine_response = match &engine_command {
-                PrivilegedCommand::PointerScan(PointerScanCommand::Summary { pointer_scan_summary_request }) => PointerScanSummaryResponse {
-                    pointer_scan_summary: pointer_scan_summary_request
-                        .session_id
-                        .map(|session_id| create_pointer_scan_summary(session_id, 0x3010)),
-                }
-                .to_engine_response(),
-                PrivilegedCommand::PointerScan(PointerScanCommand::Expand { pointer_scan_expand_request }) => PointerScanExpandResponse {
-                    session_id: pointer_scan_expand_request.session_id,
-                    parent_node_id: pointer_scan_expand_request.parent_node_id,
-                    pointer_scan_nodes: vec![PointerScanNode::new(
-                        1,
-                        None,
-                        PointerScanNodeType::Static,
-                        1,
-                        0x1010,
-                        0x1FF0,
-                        0x3010,
-                        0x10,
-                        "game.exe".to_string(),
-                        0x10,
-                        Vec::new(),
-                    )],
-                }
-                .to_engine_response(),
-                _ => return Err(EngineBindingError::unavailable("dispatching unsupported pointer scanner test command")),
-            };
-
-            callback(engine_response);
-
-            Ok(())
-        }
-
-        fn dispatch_unprivileged_command(
-            &self,
-            _engine_command: UnprivilegedCommand,
-            _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
-            _callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
-        ) -> Result<(), EngineBindingError> {
-            Err(EngineBindingError::unavailable("dispatching unprivileged pointer scanner test command"))
-        }
-
-        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
-            let (_event_sender, event_receiver) = unbounded();
-
-            Ok(event_receiver)
         }
     }
 
@@ -1365,58 +1310,127 @@ mod tests {
     }
 
     #[test]
-    fn request_summary_queues_root_expand_until_the_next_view_pass() {
+    fn request_summary_dispatches_on_background_thread_and_queues_root_expand_until_the_next_view_pass() {
         let dependency_container = DependencyContainer::new();
         let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
-        let test_pointer_scanner_bindings = TestPointerScannerBindings::new();
-        let dispatched_commands = test_pointer_scanner_bindings.get_dispatched_commands();
-        let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(test_pointer_scanner_bindings));
+        let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
+        let queued_commands = deferred_pointer_scanner_bindings.get_queued_commands();
+        let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(deferred_pointer_scanner_bindings));
         let engine_unprivileged_state = EngineUnprivilegedState::new(engine_bindings);
 
         PointerScannerViewData::request_summary(pointer_scanner_view_data.clone(), engine_unprivileged_state.clone(), Some(7));
         wait_for_condition("pointer scanner summary dispatch", || {
-            dispatched_commands
+            queued_commands
                 .lock()
-                .map(|dispatched_commands_guard| dispatched_commands_guard.len() >= 1)
+                .map(|queued_commands_guard| queued_commands_guard.len() >= 1)
                 .unwrap_or(false)
         });
 
-        let dispatched_commands_after_summary = dispatched_commands
+        {
+            let pointer_scanner_view_data_guard = pointer_scanner_view_data
+                .read("Pointer scanner summary pending state test")
+                .expect("Expected the pointer scanner view data read guard while the summary request is pending.");
+            assert!(pointer_scanner_view_data_guard.is_querying_summary);
+            assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
+        }
+
+        let queued_commands_after_summary = queued_commands
             .lock()
-            .expect("Expected the pointer scanner dispatched commands lock.");
-        assert_eq!(dispatched_commands_after_summary.len(), 1);
+            .expect("Expected the deferred pointer scanner queued commands lock after summary.");
+        assert_eq!(queued_commands_after_summary.len(), 1);
         assert!(matches!(
-            dispatched_commands_after_summary.first(),
+            queued_commands_after_summary
+                .first()
+                .map(|queued_command| &queued_command.privileged_command),
             Some(PrivilegedCommand::PointerScan(PointerScanCommand::Summary {
                 pointer_scan_summary_request: PointerScanSummaryRequest { session_id: Some(7) },
             }))
         ));
-        drop(dispatched_commands_after_summary);
+        drop(queued_commands_after_summary);
+
+        DeferredTestPointerScannerBindings::respond_to_first_matching(
+            &queued_commands,
+            |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Summary { .. })),
+            PointerScanSummaryResponse {
+                pointer_scan_summary: Some(create_pointer_scan_summary(7, 0x3010)),
+            }
+            .to_engine_response(),
+        );
+
+        wait_for_condition("pointer scanner summary response application", || {
+            pointer_scanner_view_data
+                .read("Pointer scanner summary response wait")
+                .map(|pointer_scanner_view_data_guard| {
+                    !pointer_scanner_view_data_guard.is_querying_summary
+                        && pointer_scanner_view_data_guard
+                            .pointer_scan_summary
+                            .as_ref()
+                            .map(PointerScanSummary::get_session_id)
+                            == Some(7)
+                        && pointer_scanner_view_data_guard
+                            .queued_parent_node_ids
+                            .contains(&None)
+                })
+                .unwrap_or(false)
+        });
 
         PointerScannerViewData::dispatch_queued_expand_requests(pointer_scanner_view_data.clone(), engine_unprivileged_state);
         wait_for_condition("pointer scanner expand dispatch", || {
-            dispatched_commands
+            queued_commands
                 .lock()
-                .map(|dispatched_commands_guard| dispatched_commands_guard.len() >= 2)
+                .map(|queued_commands_guard| {
+                    queued_commands_guard.iter().any(|queued_command| {
+                        matches!(
+                            queued_command.privileged_command,
+                            PrivilegedCommand::PointerScan(PointerScanCommand::Expand { .. })
+                        )
+                    })
+                })
                 .unwrap_or(false)
         });
+
+        let queued_commands_after_expand = queued_commands
+            .lock()
+            .expect("Expected the deferred pointer scanner queued commands lock after expand dispatch.");
+        assert_eq!(queued_commands_after_expand.len(), 1);
+        assert!(matches!(
+            queued_commands_after_expand
+                .first()
+                .map(|queued_command| &queued_command.privileged_command),
+            Some(PrivilegedCommand::PointerScan(PointerScanCommand::Expand { pointer_scan_expand_request }))
+                if pointer_scan_expand_request.parent_node_id.is_none()
+        ));
+        drop(queued_commands_after_expand);
+
+        DeferredTestPointerScannerBindings::respond_to_first_matching(
+            &queued_commands,
+            |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Expand { .. })),
+            PointerScanExpandResponse {
+                session_id: 7,
+                parent_node_id: None,
+                pointer_scan_nodes: vec![PointerScanNode::new(
+                    1,
+                    None,
+                    PointerScanNodeType::Static,
+                    1,
+                    0x1010,
+                    0x1FF0,
+                    0x3010,
+                    0x10,
+                    "game.exe".to_string(),
+                    0x10,
+                    Vec::new(),
+                )],
+            }
+            .to_engine_response(),
+        );
+
         wait_for_condition("pointer scanner root nodes after expand", || {
             pointer_scanner_view_data
                 .read("Pointer scanner root nodes after queued expand")
                 .map(|pointer_scanner_view_data_guard| pointer_scanner_view_data_guard.root_node_ids == vec![1])
                 .unwrap_or(false)
         });
-
-        let dispatched_commands_after_expand = dispatched_commands
-            .lock()
-            .expect("Expected the pointer scanner dispatched commands lock after expand dispatch.");
-        assert_eq!(dispatched_commands_after_expand.len(), 2);
-        assert!(matches!(
-            dispatched_commands_after_expand.get(1),
-            Some(PrivilegedCommand::PointerScan(PointerScanCommand::Expand { pointer_scan_expand_request }))
-                if pointer_scan_expand_request.parent_node_id.is_none()
-        ));
-        drop(dispatched_commands_after_expand);
 
         let pointer_scanner_view_data_guard = pointer_scanner_view_data
             .read("Pointer scanner queued expand request test")
@@ -1435,6 +1449,12 @@ mod tests {
 
         PointerScannerViewData::request_summary(pointer_scanner_view_data.clone(), engine_unprivileged_state.clone(), Some(7));
         PointerScannerViewData::reset_scan(pointer_scanner_view_data.clone(), engine_unprivileged_state.clone());
+        wait_for_condition("pointer scanner summary and reset dispatch", || {
+            queued_commands
+                .lock()
+                .map(|queued_commands_guard| queued_commands_guard.len() >= 2)
+                .unwrap_or(false)
+        });
 
         {
             let queued_commands_guard = queued_commands
