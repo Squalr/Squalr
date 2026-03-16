@@ -16,7 +16,7 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: exercise the live GUI pointer-scanner toolbar flow after the reset/start UX change, including `New` clearing the active session, the primary action using the normal start icon, and that same primary action switching to validation when a session already exists.
+- Need human verification: exercise the live GUI pointer-scanner toolbar flow after the reset/start UX change and the deferred root-expand fix, including `New` clearing the active session, the primary action using the normal start icon, that same primary action switching to validation when a session already exists, and that start/summary/validate no longer hang before the root nodes populate.
 - Need human verification: run a large live pointer validation against a real opened process and confirm the per-step binary-search target matching no longer hangs / "deadlocks" and still reports sensible prune counts.
 
 ## Important Information
@@ -35,4 +35,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Pointer-scan start now builds a dedicated user-mode snapshot instead of depending on the shared scan snapshot, so starting a pointer scan no longer requires a prior `scan new` or populated global snapshot.
 - Shared snapshot-region merge logic now lives in `squalr-engine/src/command_executors/snapshot_region_builder.rs` and is reused by both `scan new` and pointer-scan start.
 - Numeric base conversions were corrected so binary / hex / address inputs produce bytes in the requested endianness, fixing pointer target parsing for hex-style addresses such as `0x3010`.
+- GUI pointer-scanner summary/start/validate callbacks no longer dispatch `pointer-scan expand` inline. Root expansion is now queued in `PointerScannerViewData` and drained during the next `PointerScannerView` pass, which is the current candidate fix for the reported start-time lock hang in standalone GUI mode.
 - The current session builder still path-expands chains to fit the one-parent `PointerScanNode` model, so shared subchains are duplicated in-session instead of represented as a DAG.

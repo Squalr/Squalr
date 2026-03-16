@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct PointerScannerView {
-    _app_context: Arc<AppContext>,
-    _pointer_scanner_view_data: Dependency<PointerScannerViewData>,
+    app_context: Arc<AppContext>,
+    pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     pointer_scanner_toolbar_view: PointerScannerToolbarView,
     pointer_scanner_results_view: PointerScannerResultsView,
 }
@@ -27,8 +27,8 @@ impl PointerScannerView {
         PointerScannerViewData::initialize(pointer_scanner_view_data.clone(), app_context.engine_unprivileged_state.clone());
 
         Self {
-            _app_context: app_context,
-            _pointer_scanner_view_data: pointer_scanner_view_data,
+            app_context,
+            pointer_scanner_view_data,
             pointer_scanner_toolbar_view,
             pointer_scanner_results_view,
         }
@@ -43,6 +43,10 @@ impl Widget for PointerScannerView {
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.pointer_scanner_toolbar_view.clone());
+                PointerScannerViewData::dispatch_queued_expand_requests(
+                    self.pointer_scanner_view_data.clone(),
+                    self.app_context.engine_unprivileged_state.clone(),
+                );
                 user_interface.add(self.pointer_scanner_results_view.clone());
             })
             .response
