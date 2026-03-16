@@ -1,6 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::widgets::controls::button::Button,
+    views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
     views::project_explorer::project_hierarchy::{
         project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
         project_item_entry_view::ProjectItemEntryView,
@@ -37,6 +38,7 @@ pub struct ProjectHierarchyView {
     app_context: Arc<AppContext>,
     project_hierarchy_toolbar_view: ProjectHierarchyToolbarView,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+    pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
 }
 
@@ -49,12 +51,16 @@ impl ProjectHierarchyView {
         let struct_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<StructViewerViewData>();
+        let pointer_scanner_view_data = app_context
+            .dependency_container
+            .get_dependency::<PointerScannerViewData>();
         ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data.clone(), app_context.clone());
 
         Self {
             app_context,
             project_hierarchy_toolbar_view,
             project_hierarchy_view_data,
+            pointer_scanner_view_data,
             struct_viewer_view_data,
         }
     }
@@ -179,6 +185,25 @@ mod tests {
 
         assert!(should_apply_struct_field_edit);
     }
+
+    #[test]
+    fn build_pointer_scanner_context_action_returns_address_item_values() {
+        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+
+        let pointer_scanner_context_action = ProjectHierarchyView::build_pointer_scanner_context_action(&project_item);
+
+        assert_eq!(pointer_scanner_context_action, Some((0x1234, "game.exe".to_string())));
+    }
+
+    #[test]
+    fn build_pointer_scanner_context_action_ignores_non_address_items() {
+        let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
+        let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
+
+        let pointer_scanner_context_action = ProjectHierarchyView::build_pointer_scanner_context_action(&project_item);
+
+        assert!(pointer_scanner_context_action.is_none());
+    }
 }
 
 impl Widget for ProjectHierarchyView {
@@ -262,7 +287,16 @@ impl Widget for ProjectHierarchyView {
                                     }
 
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
+                                    let pointer_scanner_context_action = Self::build_pointer_scanner_context_action(&tree_entry.project_item);
                                     row_response.context_menu(|user_interface| {
+                                        if let Some((address, module_name)) = pointer_scanner_context_action.clone() {
+                                            if user_interface.button("Pointer Scan").clicked() {
+                                                project_hierarchy_frame_action =
+                                                    ProjectHierarchyFrameAction::OpenPointerScannerForAddress { address, module_name };
+                                                user_interface.close();
+                                            }
+                                        }
+
                                         if user_interface.button("New Folder").clicked() {
                                             project_hierarchy_frame_action = ProjectHierarchyFrameAction::CreateDirectory(tree_entry_project_item_path.clone());
                                             user_interface.close();
@@ -469,6 +503,9 @@ impl Widget for ProjectHierarchyView {
             }
             ProjectHierarchyFrameAction::CreateDirectory(target_project_item_path) => {
                 ProjectHierarchyViewData::create_directory(self.project_hierarchy_view_data.clone(), self.app_context.clone(), target_project_item_path);
+            }
+            ProjectHierarchyFrameAction::OpenPointerScannerForAddress { address, module_name } => {
+                self.focus_pointer_scanner_for_address(address, &module_name);
             }
             ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
                 ProjectHierarchyViewData::request_delete_confirmation(self.project_hierarchy_view_data.clone(), project_item_paths);
@@ -758,6 +795,40 @@ impl ProjectHierarchyView {
             module_name,
             value: edited_data_value.get_value_bytes().clone(),
         })
+    }
+
+    fn build_pointer_scanner_context_action(project_item: &ProjectItem) -> Option<(u64, String)> {
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            return None;
+        }
+
+        let mut project_item = project_item.clone();
+
+        Some((
+            ProjectItemTypeAddress::get_field_address(&mut project_item),
+            ProjectItemTypeAddress::get_field_module(&mut project_item),
+        ))
+    }
+
+    fn focus_pointer_scanner_for_address(
+        &self,
+        address: u64,
+        module_name: &str,
+    ) {
+        PointerScannerViewData::set_scan_target_from_project_address(self.pointer_scanner_view_data.clone(), address, module_name);
+
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                if let Some(pointer_scanner_dock_node) = docking_manager.get_node_by_id_mut(PointerScannerView::WINDOW_ID) {
+                    pointer_scanner_dock_node.set_visible(true);
+                }
+
+                docking_manager.select_tab_by_window_id(PointerScannerView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire docking manager while opening the pointer scanner: {}", error);
+            }
+        }
     }
 
     fn resolve_tree_entry_icon(

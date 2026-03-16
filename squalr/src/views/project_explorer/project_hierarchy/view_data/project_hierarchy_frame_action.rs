@@ -11,5 +11,9 @@ pub enum ProjectHierarchyFrameAction {
     ToggleDirectoryExpansion(PathBuf),
     SetProjectItemActivation(PathBuf, bool),
     CreateDirectory(PathBuf),
+    OpenPointerScannerForAddress {
+        address: u64,
+        module_name: String,
+    },
     RequestDeleteConfirmation(Vec<PathBuf>),
 }

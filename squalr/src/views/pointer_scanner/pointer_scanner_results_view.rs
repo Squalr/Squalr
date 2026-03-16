@@ -12,6 +12,8 @@ pub struct PointerScannerResultsView {
 }
 
 impl PointerScannerResultsView {
+    const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
             .dependency_container
@@ -23,6 +25,42 @@ impl PointerScannerResultsView {
         }
     }
 
+    fn column_positions(rectangle: Rect) -> (f32, f32, f32, f32, f32) {
+        let total_width = rectangle.width();
+        let module_base_x = rectangle.min.x + 12.0;
+        let offset_chain_x = rectangle.min.x + total_width * 0.36;
+        let resolved_address_x = rectangle.min.x + total_width * 0.66;
+        let depth_x = rectangle.min.x + total_width * 0.83;
+        let state_x = rectangle.min.x + total_width * 0.91;
+
+        (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x)
+    }
+
+    fn draw_column_separators(
+        &self,
+        user_interface: &mut Ui,
+        rectangle: Rect,
+    ) {
+        let theme = &self.app_context.theme;
+        let (_module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(rectangle);
+
+        for separator_x in [
+            offset_chain_x - 10.0,
+            resolved_address_x - 10.0,
+            depth_x - 10.0,
+            state_x - 10.0,
+        ] {
+            let separator_rectangle = Rect::from_min_max(
+                pos2(separator_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, rectangle.min.y),
+                pos2(separator_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, rectangle.max.y),
+            );
+
+            user_interface
+                .painter()
+                .rect_filled(separator_rectangle, CornerRadius::ZERO, theme.background_control);
+        }
+    }
+
     fn draw_header(
         &self,
         user_interface: &mut Ui,
@@ -30,12 +68,7 @@ impl PointerScannerResultsView {
         let theme = &self.app_context.theme;
         let header_height = 28.0;
         let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), header_height), Sense::hover());
-        let total_width = header_rectangle.width();
-        let module_base_x = header_rectangle.min.x + 12.0;
-        let offset_chain_x = header_rectangle.min.x + total_width * 0.38;
-        let resolved_address_x = header_rectangle.min.x + total_width * 0.67;
-        let depth_x = header_rectangle.min.x + total_width * 0.83;
-        let state_x = header_rectangle.min.x + total_width * 0.91;
+        let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(header_rectangle);
 
         user_interface
             .painter()
@@ -46,6 +79,7 @@ impl PointerScannerResultsView {
             Stroke::new(1.0, theme.background_control),
             StrokeKind::Inside,
         );
+        self.draw_column_separators(user_interface, header_rectangle);
 
         let header_font = theme.font_library.font_noto_sans.font_header.clone();
         let header_y = header_rectangle.center().y;
@@ -89,12 +123,7 @@ impl PointerScannerResultsView {
         let theme = &self.app_context.theme;
         let row_height = 24.0;
         let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
-        let total_width = row_rectangle.width();
-        let module_base_x = row_rectangle.min.x + 12.0;
-        let offset_chain_x = row_rectangle.min.x + total_width * 0.38;
-        let resolved_address_x = row_rectangle.min.x + total_width * 0.67;
-        let depth_x = row_rectangle.min.x + total_width * 0.83;
-        let state_x = row_rectangle.min.x + total_width * 0.91;
+        let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(row_rectangle);
         let indent_width = 18.0 * pointer_scanner_tree_row.tree_depth as f32;
         let toggle_rectangle = Rect::from_min_size(pos2(module_base_x + indent_width, row_rectangle.center().y - 8.0), vec2(16.0, 16.0));
         let toggle_response = if pointer_scanner_tree_row.has_children {
@@ -132,6 +161,7 @@ impl PointerScannerResultsView {
             Stroke::new(1.0, theme.background_control),
             StrokeKind::Inside,
         );
+        self.draw_column_separators(user_interface, row_rectangle);
 
         if pointer_scanner_tree_row.has_children {
             let toggle_text = if pointer_scanner_tree_row.is_expanded { "v" } else { ">" };
@@ -147,7 +177,9 @@ impl PointerScannerResultsView {
 
         let text_x = module_base_x + indent_width + if pointer_scanner_tree_row.has_children { 20.0 } else { 0.0 };
         let row_center_y = row_rectangle.center().y;
-        let text_font = theme.font_library.font_noto_sans.font_normal.clone();
+        let module_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
+        let value_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
+        let state_font = theme.font_library.font_noto_sans.font_normal.clone();
         let state_color = if pointer_scanner_tree_row.state_text == "Static" {
             theme.selected_border
         } else {
@@ -158,35 +190,35 @@ impl PointerScannerResultsView {
             pos2(text_x, row_center_y),
             Align2::LEFT_CENTER,
             &pointer_scanner_tree_row.module_base_text,
-            text_font.clone(),
+            module_font.clone(),
             theme.foreground,
         );
         user_interface.painter().text(
             pos2(offset_chain_x, row_center_y),
             Align2::LEFT_CENTER,
             &pointer_scanner_tree_row.offset_chain_text,
-            text_font.clone(),
+            value_font.clone(),
             theme.foreground,
         );
         user_interface.painter().text(
             pos2(resolved_address_x, row_center_y),
             Align2::LEFT_CENTER,
             &pointer_scanner_tree_row.resolved_address_text,
-            text_font.clone(),
-            theme.foreground,
+            value_font.clone(),
+            theme.hexadecimal_green,
         );
         user_interface.painter().text(
             pos2(depth_x, row_center_y),
             Align2::LEFT_CENTER,
             &pointer_scanner_tree_row.depth_text,
-            text_font.clone(),
+            value_font.clone(),
             theme.foreground,
         );
         user_interface.painter().text(
             pos2(state_x, row_center_y),
             Align2::LEFT_CENTER,
             &pointer_scanner_tree_row.state_text,
-            text_font,
+            state_font,
             state_color,
         );
 
