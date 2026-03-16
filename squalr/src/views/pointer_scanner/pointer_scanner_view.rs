@@ -21,6 +21,12 @@ impl PointerScannerView {
         let pointer_scanner_view_data = app_context
             .dependency_container
             .register(PointerScannerViewData::new());
+        if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner register repaint callback") {
+            let pointer_scanner_context = app_context.context.clone();
+            pointer_scanner_view_data_guard.set_repaint_request_callback(Arc::new(move || {
+                pointer_scanner_context.request_repaint();
+            }));
+        }
         let pointer_scanner_toolbar_view = PointerScannerToolbarView::new(app_context.clone());
         let pointer_scanner_results_view = PointerScannerResultsView::new(app_context.clone());
 

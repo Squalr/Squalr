@@ -24,6 +24,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
+type RepaintRequestCallback = Arc<dyn Fn() + Send + Sync>;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PointerScannerTreeRow {
     pub node_id: u64,
@@ -63,6 +65,7 @@ pub struct PointerScannerViewData {
     latest_session_request_revision: u64,
     next_session_request_revision: u64,
     session_state_revision: u64,
+    repaint_request_callback: Option<RepaintRequestCallback>,
 }
 
 impl PointerScannerViewData {
@@ -93,7 +96,15 @@ impl PointerScannerViewData {
             latest_session_request_revision: 0,
             next_session_request_revision: 1,
             session_state_revision: 0,
+            repaint_request_callback: None,
         }
+    }
+
+    pub fn set_repaint_request_callback(
+        &mut self,
+        repaint_request_callback: RepaintRequestCallback,
+    ) {
+        self.repaint_request_callback = Some(repaint_request_callback);
     }
 
     pub fn initialize(
@@ -123,8 +134,10 @@ impl PointerScannerViewData {
             }
 
             pointer_scanner_view_data_guard.is_querying_summary = true;
+            let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.request_repaint();
 
-            pointer_scanner_view_data_guard.begin_session_request()
+            session_request_revision
         };
 
         let pointer_scan_summary_request = PointerScanSummaryRequest { session_id };
@@ -144,6 +157,8 @@ impl PointerScannerViewData {
                             pointer_scanner_view_data_guard.queue_expand_request(None);
                         }
                     }
+
+                    pointer_scanner_view_data_guard.request_repaint();
                 }
             });
 
@@ -217,13 +232,15 @@ impl PointerScannerViewData {
             };
 
             pointer_scanner_view_data_guard.is_starting_scan = true;
+            let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.request_repaint();
 
             (
                 pointer_scanner_view_data_guard.target_address_input.clone(),
                 pointer_scanner_view_data_guard.pointer_size,
                 max_depth,
                 offset_radius,
-                pointer_scanner_view_data_guard.begin_session_request(),
+                session_request_revision,
             )
         };
         let pointer_scan_start_request = PointerScanStartRequest {
@@ -248,6 +265,8 @@ impl PointerScannerViewData {
                             pointer_scanner_view_data_guard.queue_expand_request(None);
                         }
                     }
+
+                    pointer_scanner_view_data_guard.request_repaint();
                 }
             });
 
@@ -283,6 +302,7 @@ impl PointerScannerViewData {
 
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.apply_summary(None);
+            pointer_scanner_view_data_guard.request_repaint();
 
             session_request_revision
         };
@@ -309,6 +329,8 @@ impl PointerScannerViewData {
                     } else {
                         pointer_scanner_view_data_guard.apply_summary(None);
                     }
+
+                    pointer_scanner_view_data_guard.request_repaint();
                 }
 
                 if should_refresh_summary {
@@ -349,13 +371,15 @@ impl PointerScannerViewData {
             }
 
             pointer_scanner_view_data_guard.is_validating_scan = true;
+            let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.request_repaint();
 
             (
                 session_id,
                 pointer_scanner_view_data_guard
                     .validation_target_address_input
                     .clone(),
-                pointer_scanner_view_data_guard.begin_session_request(),
+                session_request_revision,
             )
         };
         let pointer_scan_validate_request = PointerScanValidateRequest {
@@ -392,6 +416,8 @@ impl PointerScannerViewData {
                             };
                         }
                     }
+
+                    pointer_scanner_view_data_guard.request_repaint();
                 }
             });
 
@@ -468,6 +494,7 @@ impl PointerScannerViewData {
             pointer_scanner_view_data_guard
                 .pending_parent_node_ids
                 .insert(parent_node_id);
+            pointer_scanner_view_data_guard.request_repaint();
 
             (session_id, pointer_scanner_view_data_guard.session_state_revision)
         };
@@ -479,6 +506,7 @@ impl PointerScannerViewData {
             let did_dispatch = pointer_scan_expand_request.send(&engine_unprivileged_state, move |pointer_scan_expand_response| {
                 if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner request expand response") {
                     pointer_scanner_view_data_guard.apply_expand_response(session_state_revision, pointer_scan_expand_response);
+                    pointer_scanner_view_data_guard.request_repaint();
                 }
             });
 
@@ -514,11 +542,13 @@ impl PointerScannerViewData {
                 pointer_scanner_view_data_guard
                     .expanded_node_ids
                     .remove(&node_id);
+                pointer_scanner_view_data_guard.request_repaint();
                 false
             } else {
                 pointer_scanner_view_data_guard
                     .expanded_node_ids
                     .insert(node_id);
+                pointer_scanner_view_data_guard.request_repaint();
                 true
             }
         };
@@ -534,6 +564,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner select node") {
             pointer_scanner_view_data_guard.selected_node_id = Some(node_id);
+            pointer_scanner_view_data_guard.request_repaint();
         }
     }
 
@@ -949,6 +980,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_starting_scan = false;
+            pointer_scanner_view_data_guard.request_repaint();
         }
     }
 
@@ -958,6 +990,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_querying_summary = false;
+            pointer_scanner_view_data_guard.request_repaint();
         }
     }
 
@@ -967,6 +1000,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_validating_scan = false;
+            pointer_scanner_view_data_guard.request_repaint();
         }
     }
 
@@ -976,6 +1010,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_resetting_scan = false;
+            pointer_scanner_view_data_guard.request_repaint();
         }
     }
 
@@ -988,6 +1023,13 @@ impl PointerScannerViewData {
             pointer_scanner_view_data_guard
                 .pending_parent_node_ids
                 .remove(&parent_node_id);
+            pointer_scanner_view_data_guard.request_repaint();
+        }
+    }
+
+    fn request_repaint(&self) {
+        if let Some(repaint_request_callback) = &self.repaint_request_callback {
+            repaint_request_callback();
         }
     }
 
@@ -1068,6 +1110,7 @@ mod tests {
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
     use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::{Duration, Instant};
 
@@ -1228,6 +1271,16 @@ mod tests {
         pointer_scanner_view_data
     }
 
+    fn attach_repaint_counter(pointer_scanner_view_data: &mut PointerScannerViewData) -> Arc<AtomicUsize> {
+        let repaint_request_count = Arc::new(AtomicUsize::new(0));
+        let repaint_request_count_clone = repaint_request_count.clone();
+        pointer_scanner_view_data.set_repaint_request_callback(Arc::new(move || {
+            repaint_request_count_clone.fetch_add(1, Ordering::Relaxed);
+        }));
+
+        repaint_request_count
+    }
+
     #[test]
     fn build_project_item_create_request_uses_leaf_chain_pointer() {
         let dependency_container = DependencyContainer::new();
@@ -1312,7 +1365,9 @@ mod tests {
     #[test]
     fn request_summary_dispatches_on_background_thread_and_queues_root_expand_until_the_next_view_pass() {
         let dependency_container = DependencyContainer::new();
-        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        let repaint_request_count = attach_repaint_counter(&mut pointer_scanner_view_data);
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
         let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
         let queued_commands = deferred_pointer_scanner_bindings.get_queued_commands();
         let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(deferred_pointer_scanner_bindings));
@@ -1348,6 +1403,8 @@ mod tests {
         ));
         drop(queued_commands_after_summary);
 
+        let repaint_request_count_before_summary_response = repaint_request_count.load(Ordering::Relaxed);
+
         DeferredTestPointerScannerBindings::respond_to_first_matching(
             &queued_commands,
             |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Summary { .. })),
@@ -1372,6 +1429,9 @@ mod tests {
                             .contains(&None)
                 })
                 .unwrap_or(false)
+        });
+        wait_for_condition("pointer scanner summary response repaint request", || {
+            repaint_request_count.load(Ordering::Relaxed) > repaint_request_count_before_summary_response
         });
 
         PointerScannerViewData::dispatch_queued_expand_requests(pointer_scanner_view_data.clone(), engine_unprivileged_state);
@@ -1402,6 +1462,8 @@ mod tests {
         ));
         drop(queued_commands_after_expand);
 
+        let repaint_request_count_before_expand_response = repaint_request_count.load(Ordering::Relaxed);
+
         DeferredTestPointerScannerBindings::respond_to_first_matching(
             &queued_commands,
             |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Expand { .. })),
@@ -1430,6 +1492,9 @@ mod tests {
                 .read("Pointer scanner root nodes after queued expand")
                 .map(|pointer_scanner_view_data_guard| pointer_scanner_view_data_guard.root_node_ids == vec![1])
                 .unwrap_or(false)
+        });
+        wait_for_condition("pointer scanner expand response repaint request", || {
+            repaint_request_count.load(Ordering::Relaxed) > repaint_request_count_before_expand_response
         });
 
         let pointer_scanner_view_data_guard = pointer_scanner_view_data
@@ -1521,6 +1586,7 @@ mod tests {
     fn start_scan_dispatches_on_background_thread_and_applies_response() {
         let dependency_container = DependencyContainer::new();
         let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        let repaint_request_count = attach_repaint_counter(&mut pointer_scanner_view_data);
         pointer_scanner_view_data.target_address_input = PointerScannerViewData::create_hex_input("0x3010".to_string());
         let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
         let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
@@ -1556,6 +1622,8 @@ mod tests {
             assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
         }
 
+        let repaint_request_count_before_start_response = repaint_request_count.load(Ordering::Relaxed);
+
         DeferredTestPointerScannerBindings::respond_to_first_matching(
             &queued_commands,
             |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Start { .. })),
@@ -1577,6 +1645,9 @@ mod tests {
                             == Some(11)
                 })
                 .unwrap_or(false)
+        });
+        wait_for_condition("pointer scanner start response repaint request", || {
+            repaint_request_count.load(Ordering::Relaxed) > repaint_request_count_before_start_response
         });
     }
 
