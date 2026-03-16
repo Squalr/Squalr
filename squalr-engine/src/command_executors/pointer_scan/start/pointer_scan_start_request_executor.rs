@@ -55,6 +55,10 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             ScanSettingsConfig::get_is_single_threaded_scan(),
             ScanSettingsConfig::get_debug_perform_validation_scan(),
         );
+        let modules = engine_privileged_state
+            .get_os_providers()
+            .memory_query
+            .get_modules(&process_info);
         let snapshot = engine_privileged_state.get_snapshot();
         let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
         let scan_execution_context = ScanExecutionContext::new(
@@ -71,6 +75,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             snapshot,
             pointer_scan_session_id,
             pointer_scan_parameters,
+            &modules,
             true,
             &scan_execution_context,
         );

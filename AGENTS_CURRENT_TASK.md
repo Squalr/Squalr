@@ -37,3 +37,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Existing reusable UI patterns:
   - `ElementScannerView` already provides the overall window structure for toolbar + results + footer.
   - `ProjectHierarchyViewData` already demonstrates the lazy tree expansion pattern the pointer results pane should mimic.
+- `PointerScanExecutor` now walks snapshot memory with native-width aligned loads, expands parent chains by matching pointer values within the configured radius, classifies static nodes via module lookup, and materializes root-oriented `PointerScanSession` levels/nodes instead of returning an empty placeholder session.
+- The current session builder path-expands chains to fit the one-parent `PointerScanNode` model, so shared subchains are duplicated in-session rather than represented as a DAG.
