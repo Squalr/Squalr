@@ -1,6 +1,6 @@
 [package]
 name = "squalr-installer"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Zachary Canann"]
 edition = "2024"
 # build = "build.rs"
