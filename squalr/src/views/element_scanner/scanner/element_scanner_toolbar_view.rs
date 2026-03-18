@@ -224,7 +224,7 @@ impl Widget for ElementScannerToolbarView {
         if should_perform_new_scan {
             ElementScannerViewData::reset_scan(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_collect_values {
-            ElementScannerViewData::collect_values(self.app_context.engine_unprivileged_state.clone());
+            ElementScannerViewData::collect_values(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_start_scan {
             ElementScannerViewData::start_scan(self.element_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         } else if should_add_new_scan_constraint {

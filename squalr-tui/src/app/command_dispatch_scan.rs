@@ -124,7 +124,13 @@ impl AppShell {
             .has_pending_scan_request = true;
         self.app_state.element_scanner_pane_state.status_message = "Collecting scan values.".to_string();
 
-        let scan_collect_values_request = ScanCollectValuesRequest {};
+        let selected_data_type_refs = self
+            .app_state
+            .element_scanner_pane_state
+            .selected_data_type_refs();
+        let scan_collect_values_request = ScanCollectValuesRequest {
+            data_type_refs: selected_data_type_refs.clone(),
+        };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         let request_dispatched = scan_collect_values_request.send(engine_unprivileged_state, move |scan_collect_values_response| {
             let _ = response_sender.send(scan_collect_values_response);
@@ -140,12 +146,23 @@ impl AppShell {
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(scan_collect_values_response) => {
+                let had_scan_results = self.app_state.element_scanner_pane_state.has_scan_results;
                 self.app_state.element_scanner_pane_state.last_result_count = scan_collect_values_response.scan_results_metadata.result_count;
                 self.app_state
                     .element_scanner_pane_state
                     .last_total_size_in_bytes = scan_collect_values_response
                     .scan_results_metadata
                     .total_size_in_bytes;
+                if had_scan_results
+                    || (!selected_data_type_refs.is_empty()
+                        && scan_collect_values_response
+                            .scan_results_metadata
+                            .total_size_in_bytes
+                            > 0)
+                {
+                    self.app_state.element_scanner_pane_state.has_scan_results = true;
+                    self.query_scan_results_current_page(squalr_engine);
+                }
                 self.app_state.element_scanner_pane_state.status_message = format!(
                     "Collected values for {} results.",
                     scan_collect_values_response.scan_results_metadata.result_count

@@ -75,10 +75,34 @@ impl ElementScannerViewData {
         });
     }
 
-    pub fn collect_values(engine_unprivileged_state: Arc<EngineUnprivilegedState>) {
-        let collect_values_request = ScanCollectValuesRequest {};
+    pub fn collect_values(
+        element_scanner_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+    ) {
+        let data_type_refs = element_scanner_view_data
+            .read("Element scanner view data collect values")
+            .map(|element_scanner_view_data| {
+                element_scanner_view_data
+                    .data_type_selection
+                    .scan_data_type_refs()
+            })
+            .unwrap_or_default();
+        let element_scanner_view_data_clone = element_scanner_view_data.clone();
+        let did_request_new_scan = !data_type_refs.is_empty();
+        let collect_values_request = ScanCollectValuesRequest { data_type_refs };
 
-        collect_values_request.send(&engine_unprivileged_state, |_scan_collect_values_response| {});
+        collect_values_request.send(&engine_unprivileged_state, move |scan_collect_values_response| {
+            if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data collect values response") {
+                let did_collect_snapshot_values = scan_collect_values_response
+                    .scan_results_metadata
+                    .total_size_in_bytes
+                    > 0;
+
+                if element_scanner_view_data.view_state == ElementScannerViewState::HasResults || (did_request_new_scan && did_collect_snapshot_values) {
+                    element_scanner_view_data.view_state = ElementScannerViewState::HasResults;
+                }
+            }
+        });
     }
 
     pub fn start_scan(

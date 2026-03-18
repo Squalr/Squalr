@@ -175,7 +175,9 @@ fn scan_collect_values_request_dispatches_collect_values_command_and_invokes_typ
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
-    let scan_collect_values_request = ScanCollectValuesRequest {};
+    let scan_collect_values_request = ScanCollectValuesRequest {
+        data_type_refs: vec![DataTypeRef::new("i32"), DataTypeRef::new("f32")],
+    };
 
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
@@ -193,8 +195,12 @@ fn scan_collect_values_request_dispatches_collect_values_command_and_invokes_typ
 
     match &dispatched_commands_guard[0] {
         PrivilegedCommand::Scan(ScanCommand::CollectValues {
-            scan_value_collector_request: _,
-        }) => {}
+            scan_value_collector_request: captured_collect_values_request,
+        }) => {
+            assert_eq!(captured_collect_values_request.data_type_refs.len(), 2);
+            assert_eq!(captured_collect_values_request.data_type_refs[0].get_data_type_id(), "i32");
+            assert_eq!(captured_collect_values_request.data_type_refs[1].get_data_type_id(), "f32");
+        }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
 }
@@ -206,7 +212,9 @@ fn scan_collect_values_request_does_not_invoke_callback_when_response_variant_is
         ProjectListResponse::default().to_engine_response(),
     );
     let dispatched_commands = bindings.get_dispatched_commands();
-    let scan_collect_values_request = ScanCollectValuesRequest {};
+    let scan_collect_values_request = ScanCollectValuesRequest {
+        data_type_refs: vec![DataTypeRef::new("u8")],
+    };
 
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
