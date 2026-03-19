@@ -20,6 +20,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::Poi
 use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
@@ -569,14 +570,51 @@ impl PointerScannerViewData {
     }
 
     pub fn build_visible_rows(pointer_scanner_view_data: Dependency<Self>) -> Vec<PointerScannerTreeRow> {
+        let visible_row_count = Self::get_visible_row_count(pointer_scanner_view_data.clone());
+
+        Self::build_visible_rows_in_range(pointer_scanner_view_data, 0..visible_row_count)
+    }
+
+    pub fn get_visible_row_count(pointer_scanner_view_data: Dependency<Self>) -> usize {
         let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner build visible rows") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
+            None => return 0,
+        };
+
+        pointer_scanner_view_data_guard
+            .root_node_ids
+            .iter()
+            .map(|root_node_id| pointer_scanner_view_data_guard.count_visible_rows(*root_node_id))
+            .sum()
+    }
+
+    pub fn build_visible_rows_in_range(
+        pointer_scanner_view_data: Dependency<Self>,
+        row_range: Range<usize>,
+    ) -> Vec<PointerScannerTreeRow> {
+        if row_range.is_empty() {
+            return Vec::new();
+        }
+
+        let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner build visible rows in range") {
             Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
             None => return Vec::new(),
         };
         let mut pointer_scanner_tree_rows = Vec::new();
+        let mut visible_row_index = 0_usize;
 
         for root_node_id in &pointer_scanner_view_data_guard.root_node_ids {
-            pointer_scanner_view_data_guard.append_visible_rows(*root_node_id, 0, &mut pointer_scanner_tree_rows);
+            let should_stop = pointer_scanner_view_data_guard.append_visible_rows_in_range(
+                *root_node_id,
+                0,
+                &row_range,
+                &mut visible_row_index,
+                &mut pointer_scanner_tree_rows,
+            );
+
+            if should_stop {
+                break;
+            }
         }
 
         pointer_scanner_tree_rows
@@ -798,19 +836,16 @@ impl PointerScannerViewData {
         }
     }
 
-    fn append_visible_rows(
+    fn build_tree_row(
         &self,
         node_id: u64,
         tree_depth: usize,
-        pointer_scanner_tree_rows: &mut Vec<PointerScannerTreeRow>,
-    ) {
-        let Some(pointer_scan_node) = self.nodes_by_id.get(&node_id) else {
-            return;
-        };
+    ) -> Option<PointerScannerTreeRow> {
+        let pointer_scan_node = self.nodes_by_id.get(&node_id)?;
         let is_expanded = self.expanded_node_ids.contains(&node_id);
         let is_selected = self.selected_node_id == Some(node_id);
 
-        pointer_scanner_tree_rows.push(PointerScannerTreeRow {
+        Some(PointerScannerTreeRow {
             node_id,
             tree_depth,
             has_children: pointer_scan_node.has_children(),
@@ -821,17 +856,76 @@ impl PointerScannerViewData {
             resolved_address_text: Self::format_address(pointer_scan_node.get_resolved_target_address()),
             depth_text: pointer_scan_node.get_depth().to_string(),
             state_text: Self::format_pointer_scan_node_type(pointer_scan_node.get_pointer_scan_node_type()).to_string(),
-        });
+        })
+    }
+
+    fn append_visible_rows_in_range(
+        &self,
+        node_id: u64,
+        tree_depth: usize,
+        row_range: &Range<usize>,
+        visible_row_index: &mut usize,
+        pointer_scanner_tree_rows: &mut Vec<PointerScannerTreeRow>,
+    ) -> bool {
+        let Some(pointer_scanner_tree_row) = self.build_tree_row(node_id, tree_depth) else {
+            return false;
+        };
+        let current_row_index = *visible_row_index;
+        *visible_row_index = visible_row_index.saturating_add(1);
+
+        if current_row_index >= row_range.end {
+            return true;
+        }
+
+        let is_expanded = pointer_scanner_tree_row.is_expanded;
+
+        if row_range.contains(&current_row_index) {
+            pointer_scanner_tree_rows.push(pointer_scanner_tree_row);
+        }
 
         if !is_expanded {
-            return;
+            return false;
         }
 
         if let Some(child_node_ids) = self.child_node_ids_by_parent_id.get(&node_id) {
             for child_node_id in child_node_ids {
-                self.append_visible_rows(*child_node_id, tree_depth.saturating_add(1), pointer_scanner_tree_rows);
+                if self.append_visible_rows_in_range(
+                    *child_node_id,
+                    tree_depth.saturating_add(1),
+                    row_range,
+                    visible_row_index,
+                    pointer_scanner_tree_rows,
+                ) {
+                    return true;
+                }
             }
         }
+
+        false
+    }
+
+    fn count_visible_rows(
+        &self,
+        node_id: u64,
+    ) -> usize {
+        if !self.nodes_by_id.contains_key(&node_id) {
+            return 0;
+        }
+
+        let mut visible_row_count = 1_usize;
+
+        if self.expanded_node_ids.contains(&node_id) {
+            if let Some(child_node_ids) = self.child_node_ids_by_parent_id.get(&node_id) {
+                visible_row_count = visible_row_count.saturating_add(
+                    child_node_ids
+                        .iter()
+                        .map(|child_node_id| self.count_visible_rows(*child_node_id))
+                        .sum(),
+                );
+            }
+        }
+
+        visible_row_count
     }
 
     fn build_selected_chain_text(&self) -> Option<String> {
@@ -1349,6 +1443,54 @@ mod tests {
         assert!(pointer_scanner_tree_rows[0].is_expanded);
         assert_eq!(pointer_scanner_tree_rows[1].tree_depth, 1);
         assert!(pointer_scanner_tree_rows[1].is_selected);
+    }
+
+    #[test]
+    fn get_visible_row_count_tracks_expanded_children() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(create_pointer_scanner_view_data());
+
+        assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data.clone()), 2);
+
+        if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner collapse root for row count test") {
+            pointer_scanner_view_data_guard.expanded_node_ids.remove(&1);
+        }
+
+        assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data), 1);
+    }
+
+    #[test]
+    fn build_visible_rows_in_range_returns_only_requested_slice() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = create_pointer_scanner_view_data();
+        pointer_scanner_view_data.root_node_ids = vec![1, 3];
+        pointer_scanner_view_data.nodes_by_id.insert(
+            3,
+            PointerScanNode::new(
+                3,
+                None,
+                PointerScanNodeType::Static,
+                1,
+                0x4000,
+                0x5000,
+                0x5010,
+                0x10,
+                "engine.dll".to_string(),
+                0x40,
+                Vec::new(),
+            ),
+        );
+        pointer_scanner_view_data.selected_node_id = Some(3);
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+
+        let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows_in_range(pointer_scanner_view_data.clone(), 1..3);
+
+        assert_eq!(pointer_scanner_tree_rows.len(), 2);
+        assert_eq!(pointer_scanner_tree_rows[0].node_id, 2);
+        assert_eq!(pointer_scanner_tree_rows[0].tree_depth, 1);
+        assert_eq!(pointer_scanner_tree_rows[1].node_id, 3);
+        assert!(pointer_scanner_tree_rows[1].is_selected);
+        assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data), 3);
     }
 
     #[test]

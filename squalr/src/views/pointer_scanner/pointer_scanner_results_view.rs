@@ -14,6 +14,7 @@ pub struct PointerScannerResultsView {
 
 impl PointerScannerResultsView {
     const COLUMN_SEPARATOR_THICKNESS: f32 = 2.0;
+    const ROW_HEIGHT: f32 = 22.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
@@ -122,8 +123,7 @@ impl PointerScannerResultsView {
         toggled_node_id: &mut Option<u64>,
     ) {
         let theme = &self.app_context.theme;
-        let row_height = 22.0;
-        let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
+        let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
         let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(row_rectangle);
         let indent_width = 16.0 * pointer_scanner_tree_row.tree_depth as f32;
         let toggle_rectangle = Rect::from_min_size(pos2(module_base_x + indent_width, row_rectangle.center().y - 6.0), vec2(12.0, 12.0));
@@ -244,7 +244,7 @@ impl Widget for PointerScannerResultsView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows(self.pointer_scanner_view_data.clone());
+        let visible_row_count = PointerScannerViewData::get_visible_row_count(self.pointer_scanner_view_data.clone());
         let mut clicked_node_id = None;
         let mut toggled_node_id = None;
         let response = user_interface
@@ -257,7 +257,10 @@ impl Widget for PointerScannerResultsView {
                     ScrollArea::vertical()
                         .id_salt("pointer_scanner_rows")
                         .auto_shrink([false, false])
-                        .show(user_interface, |user_interface| {
+                        .show_rows(user_interface, Self::ROW_HEIGHT, visible_row_count, |user_interface, row_range| {
+                            let pointer_scanner_tree_rows =
+                                PointerScannerViewData::build_visible_rows_in_range(self.pointer_scanner_view_data.clone(), row_range);
+
                             for pointer_scanner_tree_row in &pointer_scanner_tree_rows {
                                 self.draw_row(user_interface, pointer_scanner_tree_row, &mut clicked_node_id, &mut toggled_node_id);
                             }
