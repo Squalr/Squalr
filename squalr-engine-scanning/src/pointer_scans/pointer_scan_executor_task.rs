@@ -11,7 +11,7 @@ use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_p
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 
 pub struct PointerScanExecutor;
@@ -186,56 +186,32 @@ impl PointerScanExecutor {
         modules: &[NormalizedModule],
         with_logging: bool,
     ) -> PointerScanSession {
-        let pointer_chains = Self::discover_pointer_chains(&snapshots, pointer_scan_parameters, modules, with_logging);
+        let discovered_pointer_nodes_by_level = Self::discover_pointer_nodes_by_level(&snapshots, pointer_scan_parameters, modules, with_logging);
 
-        if pointer_chains.is_empty() {
+        if discovered_pointer_nodes_by_level.is_empty() {
             if with_logging {
-                log::info!("Pointer scan found no pointer chains.");
+                log::info!("Pointer scan found no reachable pointer nodes.");
             }
 
             return Self::create_empty_session(pointer_scan_session_id, pointer_scan_parameters);
         }
 
+        let root_oriented_pointer_nodes_by_level = discovered_pointer_nodes_by_level
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
+        let discovery_level_count = root_oriented_pointer_nodes_by_level.len();
         let mut pointer_scan_nodes = Vec::new();
-        let mut root_node_ids = Vec::new();
-        let mut level_accumulators = Vec::new();
         let mut next_node_id = 1_u64;
         let mut total_static_node_count = 0_u64;
         let mut total_heap_node_count = 0_u64;
 
-        for pointer_chain in pointer_chains {
-            let chain_node_ids = (0..pointer_chain.len())
-                .map(|_| {
-                    let allocated_node_id = next_node_id;
-                    next_node_id = next_node_id.saturating_add(1);
+        for (pointer_level_index, discovered_pointer_nodes) in root_oriented_pointer_nodes_by_level.iter().enumerate() {
+            let depth = pointer_level_index as u64 + 1;
 
-                    allocated_node_id
-                })
-                .collect::<Vec<_>>();
-
-            if let Some(root_node_id) = chain_node_ids.first().copied() {
-                root_node_ids.push(root_node_id);
-            }
-
-            for (pointer_chain_index, discovered_pointer_node) in pointer_chain.iter().enumerate() {
-                while level_accumulators.len() <= pointer_chain_index {
-                    level_accumulators.push(PointerScanLevelAccumulator::default());
-                }
-
-                let depth = pointer_chain_index as u64 + 1;
-                let node_id = chain_node_ids[pointer_chain_index];
-                let parent_node_id = if pointer_chain_index == 0 {
-                    None
-                } else {
-                    Some(chain_node_ids[pointer_chain_index - 1])
-                };
-                let child_node_ids = if pointer_chain_index + 1 < chain_node_ids.len() {
-                    vec![chain_node_ids[pointer_chain_index + 1]]
-                } else {
-                    Vec::new()
-                };
-
-                level_accumulators[pointer_chain_index].track_node(node_id, discovered_pointer_node.pointer_scan_node_type);
+            for discovered_pointer_node in discovered_pointer_nodes {
+                let node_id = next_node_id;
+                next_node_id = next_node_id.saturating_add(1);
 
                 match discovered_pointer_node.pointer_scan_node_type {
                     PointerScanNodeType::Static => {
@@ -246,9 +222,9 @@ impl PointerScanExecutor {
                     }
                 }
 
-                pointer_scan_nodes.push(PointerScanNode::new(
+                let mut pointer_scan_node = PointerScanNode::new(
                     node_id,
-                    parent_node_id,
+                    None,
                     discovered_pointer_node.pointer_scan_node_type,
                     depth,
                     discovered_pointer_node.pointer_address,
@@ -257,28 +233,20 @@ impl PointerScanExecutor {
                     discovered_pointer_node.pointer_offset,
                     discovered_pointer_node.module_name.clone(),
                     discovered_pointer_node.module_offset,
-                    child_node_ids,
-                ));
+                    Vec::new(),
+                );
+                pointer_scan_node.set_discovery_depth(discovery_level_count.saturating_sub(pointer_level_index) as u64);
+                pointer_scan_nodes.push(pointer_scan_node);
             }
         }
 
-        let pointer_scan_levels: Vec<PointerScanLevel> = level_accumulators
-            .into_iter()
-            .enumerate()
-            .map(|(pointer_chain_index, level_accumulator)| {
-                PointerScanLevel::new(
-                    pointer_chain_index as u64 + 1,
-                    level_accumulator.node_ids,
-                    level_accumulator.static_node_count,
-                    level_accumulator.heap_node_count,
-                )
-            })
-            .collect();
+        Self::attach_graph_child_node_ids(&mut pointer_scan_nodes);
+        let (root_node_ids, pointer_scan_levels) = Self::build_root_oriented_levels(&mut pointer_scan_nodes);
 
         if with_logging {
             for pointer_scan_level in &pointer_scan_levels {
                 log::info!(
-                    "Pointer scan level {} materialized {} nodes (static {} / heap {}).",
+                    "Pointer scan level {} retained {} unique nodes (static {} / heap {}).",
                     pointer_scan_level.get_depth(),
                     pointer_scan_level.get_node_count(),
                     pointer_scan_level.get_static_node_count(),
@@ -301,7 +269,7 @@ impl PointerScanExecutor {
         )
     }
 
-    fn discover_pointer_chains(
+    fn discover_pointer_nodes_by_level(
         snapshots: &[&Snapshot],
         pointer_scan_parameters: &PointerScanParameters,
         modules: &[NormalizedModule],
@@ -314,8 +282,8 @@ impl PointerScanExecutor {
         }
 
         let target_address = pointer_scan_parameters.get_target_address();
-        let mut completed_pointer_chains = Vec::new();
-        let mut active_pointer_chains = vec![Vec::new()];
+        let mut frontier_target_addresses = vec![target_address];
+        let mut discovered_pointer_nodes_by_level = Vec::new();
         let total_snapshot_region_count = snapshots
             .iter()
             .map(|snapshot| snapshot.get_snapshot_regions().len())
@@ -323,13 +291,19 @@ impl PointerScanExecutor {
 
         for pointer_chain_depth in 0..max_depth {
             let level_number = pointer_chain_depth.saturating_add(1);
-            let mut frontier_target_addresses = active_pointer_chains
-                .iter()
-                .map(|pointer_chain| Self::get_frontier_target_address(pointer_chain, target_address))
-                .collect::<Vec<_>>();
-
             frontier_target_addresses.sort_unstable();
             frontier_target_addresses.dedup();
+
+            if frontier_target_addresses.is_empty() {
+                if with_logging {
+                    log::info!(
+                        "Pointer scan stopped after level {} because no frontier targets remained.",
+                        level_number.saturating_sub(1)
+                    );
+                }
+
+                break;
+            }
 
             if with_logging {
                 log::info!(
@@ -348,40 +322,31 @@ impl PointerScanExecutor {
                 pointer_scan_parameters.get_offset_radius(),
                 modules,
             );
-
-            let mut next_active_pointer_chains = Vec::new();
-            let current_active_pointer_chains = std::mem::take(&mut active_pointer_chains);
-
-            for active_pointer_chain in current_active_pointer_chains.into_iter() {
-                let frontier_target_address = Self::get_frontier_target_address(&active_pointer_chain, target_address);
-
-                if let Some(pointer_matches) = pointer_matches_by_target.get(&frontier_target_address) {
-                    for discovered_pointer_node in pointer_matches {
-                        let mut next_pointer_chain = Vec::with_capacity(active_pointer_chain.len().saturating_add(1));
-
-                        next_pointer_chain.push(discovered_pointer_node.clone());
-                        next_pointer_chain.extend(active_pointer_chain.iter().cloned());
-                        next_active_pointer_chains.push(next_pointer_chain);
-                    }
-                } else if !active_pointer_chain.is_empty() {
-                    completed_pointer_chains.push(active_pointer_chain);
-                }
-            }
+            let mut discovered_pointer_nodes = pointer_matches_by_target
+                .values()
+                .flat_map(|pointer_matches| pointer_matches.iter().cloned())
+                .collect::<Vec<_>>();
+            discovered_pointer_nodes.sort_by(Self::compare_discovered_pointer_nodes);
+            discovered_pointer_nodes.dedup();
 
             if with_logging {
-                let discovered_pointer_node_count = pointer_matches_by_target.values().map(Vec::len).sum::<usize>();
+                let next_frontier_target_count = discovered_pointer_nodes
+                    .iter()
+                    .map(|discovered_pointer_node| discovered_pointer_node.pointer_address)
+                    .collect::<Vec<_>>()
+                    .len();
 
                 log::info!(
-                    "Pointer scan level {}/{}: matched {} frontier targets, discovered {} pointer nodes, and produced {} active chains.",
+                    "Pointer scan level {}/{}: matched {} frontier targets, retained {} unique pointer nodes, and produced {} next frontier targets before deduplication.",
                     level_number,
                     max_depth,
                     pointer_matches_by_target.len(),
-                    discovered_pointer_node_count,
-                    next_active_pointer_chains.len(),
+                    discovered_pointer_nodes.len(),
+                    next_frontier_target_count,
                 );
             }
 
-            if next_active_pointer_chains.is_empty() {
+            if discovered_pointer_nodes.is_empty() {
                 if with_logging {
                     log::info!(
                         "Pointer scan stopped after level {} because no deeper pointer candidates were found.",
@@ -392,34 +357,27 @@ impl PointerScanExecutor {
                 break;
             }
 
-            active_pointer_chains = next_active_pointer_chains;
+            frontier_target_addresses = discovered_pointer_nodes
+                .iter()
+                .map(|discovered_pointer_node| discovered_pointer_node.pointer_address)
+                .collect();
+            discovered_pointer_nodes_by_level.push(discovered_pointer_nodes);
         }
 
-        completed_pointer_chains.extend(
-            active_pointer_chains
-                .into_iter()
-                .filter(|pointer_chain| !pointer_chain.is_empty()),
-        );
-        Self::sort_and_deduplicate_pointer_chains(&mut completed_pointer_chains);
-
         if with_logging {
+            let discovered_pointer_node_count = discovered_pointer_nodes_by_level
+                .iter()
+                .map(Vec::len)
+                .sum::<usize>();
+
             log::info!(
-                "Pointer scan discovered {} candidate pointer chains before session materialization.",
-                completed_pointer_chains.len()
+                "Pointer scan discovered {} unique reachable pointer nodes across {} levels before any tree expansion.",
+                discovered_pointer_node_count,
+                discovered_pointer_nodes_by_level.len(),
             );
         }
 
-        completed_pointer_chains
-    }
-
-    fn get_frontier_target_address(
-        pointer_chain: &[DiscoveredPointerNode],
-        target_address: u64,
-    ) -> u64 {
-        pointer_chain
-            .first()
-            .map(|discovered_pointer_node| discovered_pointer_node.pointer_address)
-            .unwrap_or(target_address)
+        discovered_pointer_nodes_by_level
     }
 
     fn scan_snapshots_for_pointer_targets(
@@ -571,26 +529,107 @@ impl PointerScanExecutor {
         }
     }
 
-    fn sort_and_deduplicate_pointer_chains(pointer_chains: &mut Vec<Vec<DiscoveredPointerNode>>) {
-        pointer_chains.sort_by(Self::compare_pointer_chains);
-        pointer_chains.dedup();
+    fn attach_graph_child_node_ids(pointer_scan_nodes: &mut [PointerScanNode]) {
+        let mut graph_child_node_ids_by_depth_and_pointer_address: HashMap<(u64, u64), Vec<u64>> = HashMap::new();
+
+        for pointer_scan_node in pointer_scan_nodes.iter() {
+            graph_child_node_ids_by_depth_and_pointer_address
+                .entry((pointer_scan_node.get_depth(), pointer_scan_node.get_pointer_address()))
+                .or_default()
+                .push(pointer_scan_node.get_node_id());
+        }
+
+        for pointer_scan_node in pointer_scan_nodes.iter_mut() {
+            let child_node_ids = graph_child_node_ids_by_depth_and_pointer_address
+                .get(&(pointer_scan_node.get_depth().saturating_add(1), pointer_scan_node.get_resolved_target_address()))
+                .cloned()
+                .unwrap_or_default();
+
+            pointer_scan_node.set_child_node_ids(child_node_ids);
+        }
     }
 
-    fn compare_pointer_chains(
-        left_pointer_chain: &Vec<DiscoveredPointerNode>,
-        right_pointer_chain: &Vec<DiscoveredPointerNode>,
-    ) -> Ordering {
-        left_pointer_chain
-            .len()
-            .cmp(&right_pointer_chain.len())
-            .then_with(|| {
-                left_pointer_chain
-                    .iter()
-                    .zip(right_pointer_chain.iter())
-                    .map(|(left_pointer_node, right_pointer_node)| Self::compare_discovered_pointer_nodes(left_pointer_node, right_pointer_node))
-                    .find(|ordering| *ordering != Ordering::Equal)
-                    .unwrap_or(Ordering::Equal)
+    fn build_root_oriented_levels(pointer_scan_nodes: &mut [PointerScanNode]) -> (Vec<u64>, Vec<PointerScanLevel>) {
+        let mut parent_count_by_node_id: HashMap<u64, usize> = HashMap::new();
+
+        for pointer_scan_node in pointer_scan_nodes.iter() {
+            for child_node_id in pointer_scan_node.get_child_node_ids() {
+                *parent_count_by_node_id.entry(*child_node_id).or_default() += 1;
+            }
+        }
+
+        let root_node_ids = pointer_scan_nodes
+            .iter()
+            .filter(|pointer_scan_node| !parent_count_by_node_id.contains_key(&pointer_scan_node.get_node_id()))
+            .map(PointerScanNode::get_node_id)
+            .collect::<Vec<_>>();
+        let mut assigned_depth_by_node_id = HashMap::new();
+        let mut breadth_first_queue = VecDeque::new();
+
+        for root_node_id in &root_node_ids {
+            assigned_depth_by_node_id.insert(*root_node_id, 1_u64);
+            breadth_first_queue.push_back(*root_node_id);
+        }
+
+        while let Some(parent_node_id) = breadth_first_queue.pop_front() {
+            let Some(parent_depth) = assigned_depth_by_node_id.get(&parent_node_id).copied() else {
+                continue;
+            };
+            let Some(parent_pointer_scan_node) = pointer_scan_nodes
+                .iter()
+                .find(|pointer_scan_node| pointer_scan_node.get_node_id() == parent_node_id)
+            else {
+                continue;
+            };
+
+            for child_node_id in parent_pointer_scan_node.get_child_node_ids() {
+                let next_depth = parent_depth.saturating_add(1);
+
+                if assigned_depth_by_node_id
+                    .get(child_node_id)
+                    .map(|existing_depth| *existing_depth <= next_depth)
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+
+                assigned_depth_by_node_id.insert(*child_node_id, next_depth);
+                breadth_first_queue.push_back(*child_node_id);
+            }
+        }
+
+        let mut level_accumulators = Vec::new();
+
+        for pointer_scan_node in pointer_scan_nodes.iter_mut() {
+            let assigned_depth = assigned_depth_by_node_id
+                .get(&pointer_scan_node.get_node_id())
+                .copied()
+                .unwrap_or(1);
+
+            pointer_scan_node.set_depth(assigned_depth);
+
+            while level_accumulators.len() < assigned_depth as usize {
+                level_accumulators.push(PointerScanLevelAccumulator::default());
+            }
+
+            level_accumulators[assigned_depth.saturating_sub(1) as usize]
+                .track_node(pointer_scan_node.get_node_id(), pointer_scan_node.get_pointer_scan_node_type());
+        }
+
+        let pointer_scan_levels = level_accumulators
+            .into_iter()
+            .enumerate()
+            .map(|(pointer_level_index, level_accumulator)| {
+                PointerScanLevel::new(
+                    pointer_level_index as u64 + 1,
+                    level_accumulator.node_ids,
+                    level_accumulator.static_node_count,
+                    level_accumulator.heap_node_count,
+                )
             })
+            .collect::<Vec<_>>();
+
+        (root_node_ids, pointer_scan_levels)
     }
 
     fn compare_discovered_pointer_nodes(
@@ -688,7 +727,7 @@ mod tests {
         );
         let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot()));
         let pointer_scan_parameters = PointerScanParameters::new(0x3010, PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
-        let pointer_scan_session = PointerScanExecutor::execute_scan(
+        let mut pointer_scan_session = PointerScanExecutor::execute_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             snapshot.clone(),
             snapshot,

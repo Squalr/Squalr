@@ -11,9 +11,9 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state.get_pointer_scan_session().read() {
-            Ok(pointer_scan_session_guard) => {
-                if let Some(pointer_scan_session) = pointer_scan_session_guard.as_ref() {
+        match engine_privileged_state.get_pointer_scan_session().write() {
+            Ok(mut pointer_scan_session_guard) => {
+                if let Some(pointer_scan_session) = pointer_scan_session_guard.as_mut() {
                     if pointer_scan_session.get_session_id() == self.session_id {
                         return PointerScanExpandResponse {
                             session_id: self.session_id,
@@ -30,7 +30,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
                 }
             }
             Err(error) => {
-                log::error!("Failed to acquire read lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
 
                 PointerScanExpandResponse {
                     session_id: self.session_id,

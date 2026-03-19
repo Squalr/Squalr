@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PointerScanNode {
     node_id: u64,
+    graph_node_id: u64,
+    discovery_depth: u64,
     parent_node_id: Option<u64>,
     pointer_scan_node_type: PointerScanNodeType,
     depth: u64,
@@ -14,6 +16,7 @@ pub struct PointerScanNode {
     module_name: String,
     module_offset: u64,
     child_node_ids: Vec<u64>,
+    has_children: bool,
 }
 
 impl PointerScanNode {
@@ -30,8 +33,12 @@ impl PointerScanNode {
         module_offset: u64,
         child_node_ids: Vec<u64>,
     ) -> Self {
+        let has_children = !child_node_ids.is_empty();
+
         Self {
             node_id,
+            graph_node_id: node_id,
+            discovery_depth: depth,
             parent_node_id,
             pointer_scan_node_type,
             depth,
@@ -42,11 +49,44 @@ impl PointerScanNode {
             module_name,
             module_offset,
             child_node_ids,
+            has_children,
+        }
+    }
+
+    pub fn new_materialized(
+        node_id: u64,
+        depth: u64,
+        parent_node_id: Option<u64>,
+        graph_node: &Self,
+    ) -> Self {
+        Self {
+            node_id,
+            graph_node_id: graph_node.graph_node_id,
+            discovery_depth: graph_node.discovery_depth,
+            parent_node_id,
+            pointer_scan_node_type: graph_node.pointer_scan_node_type,
+            depth,
+            pointer_address: graph_node.pointer_address,
+            pointer_value: graph_node.pointer_value,
+            resolved_target_address: graph_node.resolved_target_address,
+            pointer_offset: graph_node.pointer_offset,
+            module_name: graph_node.module_name.clone(),
+            module_offset: graph_node.module_offset,
+            child_node_ids: Vec::new(),
+            has_children: graph_node.has_children,
         }
     }
 
     pub fn get_node_id(&self) -> u64 {
         self.node_id
+    }
+
+    pub fn get_graph_node_id(&self) -> u64 {
+        self.graph_node_id
+    }
+
+    pub fn get_discovery_depth(&self) -> u64 {
+        self.discovery_depth
     }
 
     pub fn get_parent_node_id(&self) -> Option<u64> {
@@ -59,6 +99,20 @@ impl PointerScanNode {
 
     pub fn get_depth(&self) -> u64 {
         self.depth
+    }
+
+    pub fn set_depth(
+        &mut self,
+        depth: u64,
+    ) {
+        self.depth = depth;
+    }
+
+    pub fn set_discovery_depth(
+        &mut self,
+        discovery_depth: u64,
+    ) {
+        self.discovery_depth = discovery_depth;
     }
 
     pub fn get_pointer_address(&self) -> u64 {
@@ -89,7 +143,15 @@ impl PointerScanNode {
         &self.child_node_ids
     }
 
+    pub fn set_child_node_ids(
+        &mut self,
+        child_node_ids: Vec<u64>,
+    ) {
+        self.has_children = !child_node_ids.is_empty();
+        self.child_node_ids = child_node_ids;
+    }
+
     pub fn has_children(&self) -> bool {
-        !self.child_node_ids.is_empty()
+        self.has_children
     }
 }
