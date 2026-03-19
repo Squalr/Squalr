@@ -18,6 +18,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScan
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
+use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -52,6 +53,9 @@ pub struct PointerScannerViewData {
     pub status_message: String,
     pub pointer_scan_summary: Option<PointerScanSummary>,
     pub root_node_ids: Vec<u64>,
+    root_page_size: u64,
+    current_root_page_index: u64,
+    cached_last_root_page_index: u64,
     pub nodes_by_id: HashMap<u64, PointerScanNode>,
     pub child_node_ids_by_parent_id: HashMap<u64, Vec<u64>>,
     pub expanded_node_ids: HashSet<u64>,
@@ -83,6 +87,9 @@ impl PointerScannerViewData {
             status_message: String::from("No pointer scan session."),
             pointer_scan_summary: None,
             root_node_ids: Vec::new(),
+            root_page_size: ScanSettings::default().results_page_size as u64,
+            current_root_page_index: 0,
+            cached_last_root_page_index: 0,
             nodes_by_id: HashMap::new(),
             child_node_ids_by_parent_id: HashMap::new(),
             expanded_node_ids: HashSet::new(),
@@ -591,6 +598,71 @@ impl PointerScannerViewData {
         Self::build_visible_rows_in_range(pointer_scanner_view_data, 0..visible_row_count)
     }
 
+    pub fn navigate_first_root_page(pointer_scanner_view_data: Dependency<Self>) {
+        Self::set_root_page_index(pointer_scanner_view_data, 0);
+    }
+
+    pub fn navigate_last_root_page(pointer_scanner_view_data: Dependency<Self>) {
+        let cached_last_root_page_index = match pointer_scanner_view_data.read("Pointer scanner root navigation last") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard.cached_last_root_page_index,
+            None => return,
+        };
+
+        Self::set_root_page_index(pointer_scanner_view_data, cached_last_root_page_index);
+    }
+
+    pub fn navigate_previous_root_page(pointer_scanner_view_data: Dependency<Self>) {
+        let current_root_page_index = match pointer_scanner_view_data.read("Pointer scanner root navigation previous") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard.current_root_page_index,
+            None => return,
+        };
+
+        Self::set_root_page_index(pointer_scanner_view_data, current_root_page_index.saturating_sub(1));
+    }
+
+    pub fn navigate_next_root_page(pointer_scanner_view_data: Dependency<Self>) {
+        let current_root_page_index = match pointer_scanner_view_data.read("Pointer scanner root navigation next") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard.current_root_page_index,
+            None => return,
+        };
+
+        Self::set_root_page_index(pointer_scanner_view_data, current_root_page_index.saturating_add(1));
+    }
+
+    pub fn set_root_page_index_string(
+        pointer_scanner_view_data: Dependency<Self>,
+        new_page_index_text: &str,
+    ) {
+        let new_page_index = new_page_index_text
+            .chars()
+            .take_while(|character| character.is_ascii_digit())
+            .collect::<String>()
+            .parse::<u64>()
+            .unwrap_or(0);
+
+        Self::set_root_page_index(pointer_scanner_view_data, new_page_index);
+    }
+
+    pub fn build_root_page_label(pointer_scanner_view_data: Dependency<Self>) -> String {
+        let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner build root page label") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
+            None => return String::from("0"),
+        };
+
+        pointer_scanner_view_data_guard
+            .current_root_page_index
+            .to_string()
+    }
+
+    pub fn build_root_page_stats_text(pointer_scanner_view_data: Dependency<Self>) -> String {
+        let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner build root page stats") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
+            None => return String::from("Roots 0-0 of 0"),
+        };
+
+        pointer_scanner_view_data_guard.build_root_page_stats_text_internal()
+    }
+
     pub fn get_visible_row_count(pointer_scanner_view_data: Dependency<Self>) -> usize {
         let pointer_scanner_view_data_guard = match pointer_scanner_view_data.read("Pointer scanner build visible rows") {
             Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
@@ -598,7 +670,7 @@ impl PointerScannerViewData {
         };
 
         pointer_scanner_view_data_guard
-            .root_node_ids
+            .active_root_node_ids()
             .iter()
             .map(|root_node_id| pointer_scanner_view_data_guard.count_visible_rows(*root_node_id))
             .sum()
@@ -619,7 +691,7 @@ impl PointerScannerViewData {
         let mut pointer_scanner_tree_rows = Vec::new();
         let mut visible_row_index = 0_usize;
 
-        for root_node_id in &pointer_scanner_view_data_guard.root_node_ids {
+        for root_node_id in pointer_scanner_view_data_guard.active_root_node_ids() {
             let should_stop = pointer_scanner_view_data_guard.append_visible_rows_in_range(
                 *root_node_id,
                 0,
@@ -767,6 +839,8 @@ impl PointerScannerViewData {
         self.pending_parent_node_ids.clear();
         self.queued_parent_node_ids.clear();
         self.selected_node_id = None;
+        self.current_root_page_index = 0;
+        self.cached_last_root_page_index = 0;
 
         if let Some(pointer_scan_summary) = pointer_scan_summary {
             let formatted_target_address = Self::format_address(pointer_scan_summary.get_target_address());
@@ -845,11 +919,128 @@ impl PointerScannerViewData {
                 .insert(parent_node_id, node_ids);
         } else {
             self.root_node_ids = node_ids;
+            self.refresh_root_pagination();
         }
 
         if self.selected_node_id.is_none() {
-            self.selected_node_id = self.root_node_ids.first().copied();
+            self.selected_node_id = self.active_root_node_ids().first().copied();
         }
+    }
+
+    fn set_root_page_index(
+        pointer_scanner_view_data: Dependency<Self>,
+        new_root_page_index: u64,
+    ) {
+        let mut pointer_scanner_view_data_guard = match pointer_scanner_view_data.write("Pointer scanner set root page index") {
+            Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
+            None => return,
+        };
+        let bounded_root_page_index = new_root_page_index.clamp(0, pointer_scanner_view_data_guard.cached_last_root_page_index);
+
+        if bounded_root_page_index == pointer_scanner_view_data_guard.current_root_page_index {
+            return;
+        }
+
+        pointer_scanner_view_data_guard.current_root_page_index = bounded_root_page_index;
+        pointer_scanner_view_data_guard.ensure_selection_on_active_root_page();
+        pointer_scanner_view_data_guard.request_repaint();
+    }
+
+    fn refresh_root_pagination(&mut self) {
+        let root_page_size = self.root_page_size.max(1);
+        self.cached_last_root_page_index = if self.root_node_ids.is_empty() {
+            0
+        } else {
+            (self.root_node_ids.len().saturating_sub(1) / root_page_size as usize) as u64
+        };
+        self.current_root_page_index = self
+            .current_root_page_index
+            .clamp(0, self.cached_last_root_page_index);
+        self.ensure_selection_on_active_root_page();
+    }
+
+    fn active_root_node_ids(&self) -> &[u64] {
+        if self.root_node_ids.is_empty() {
+            return &self.root_node_ids[0..0];
+        }
+
+        let root_page_size = self.root_page_size.max(1) as usize;
+        let start_index = (self.current_root_page_index as usize).saturating_mul(root_page_size);
+        let bounded_start_index = start_index.min(self.root_node_ids.len());
+        let end_index = bounded_start_index
+            .saturating_add(root_page_size)
+            .min(self.root_node_ids.len());
+
+        &self.root_node_ids[bounded_start_index..end_index]
+    }
+
+    fn ensure_selection_on_active_root_page(&mut self) {
+        let should_keep_selection = self
+            .selected_node_id
+            .map(|selected_node_id| self.is_node_visible_on_active_root_page(selected_node_id))
+            .unwrap_or(false);
+
+        if should_keep_selection {
+            return;
+        }
+
+        self.selected_node_id = self.active_root_node_ids().first().copied();
+    }
+
+    fn is_node_visible_on_active_root_page(
+        &self,
+        node_id: u64,
+    ) -> bool {
+        let Some(root_node_id) = self.find_root_node_id_for_node(node_id) else {
+            return false;
+        };
+
+        self.active_root_node_ids().contains(&root_node_id)
+    }
+
+    fn find_root_node_id_for_node(
+        &self,
+        node_id: u64,
+    ) -> Option<u64> {
+        let mut current_node_id = Some(node_id);
+
+        while let Some(node_id) = current_node_id {
+            let pointer_scan_node = self.nodes_by_id.get(&node_id)?;
+
+            if pointer_scan_node.get_parent_node_id().is_none() {
+                return Some(node_id);
+            }
+
+            current_node_id = pointer_scan_node.get_parent_node_id();
+        }
+
+        None
+    }
+
+    fn build_root_page_stats_text_internal(&self) -> String {
+        let total_root_count = self
+            .pointer_scan_summary
+            .as_ref()
+            .map(PointerScanSummary::get_root_node_count)
+            .unwrap_or(self.root_node_ids.len() as u64);
+
+        if total_root_count == 0 {
+            return String::from("Roots 0-0 of 0");
+        }
+
+        if self.root_node_ids.is_empty() {
+            return format!("Roots loading (0 of {})", total_root_count);
+        }
+
+        let root_page_size = self.root_page_size.max(1) as usize;
+        let start_index = (self.current_root_page_index as usize)
+            .saturating_mul(root_page_size)
+            .min(self.root_node_ids.len());
+        let end_index = start_index
+            .saturating_add(root_page_size)
+            .min(self.root_node_ids.len());
+
+        format!("Roots {}-{} of {}", start_index.saturating_add(1), end_index, total_root_count)
     }
 
     fn build_tree_row(
@@ -1558,6 +1749,145 @@ mod tests {
         assert_eq!(pointer_scanner_tree_rows[1].node_id, 3);
         assert!(pointer_scanner_tree_rows[1].is_selected);
         assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data), 3);
+    }
+
+    #[test]
+    fn root_pagination_limits_visible_rows_to_the_active_root_page() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = create_pointer_scanner_view_data();
+        pointer_scanner_view_data.pointer_scan_summary = Some(PointerScanSummary::new(
+            7,
+            0x3010,
+            PointerScanPointerSize::Pointer64,
+            5,
+            0x100,
+            2,
+            2,
+            1,
+            2,
+            Vec::new(),
+        ));
+        pointer_scanner_view_data.root_node_ids = vec![1, 3];
+        pointer_scanner_view_data.root_page_size = 1;
+        pointer_scanner_view_data.nodes_by_id.insert(
+            3,
+            PointerScanNode::new(
+                3,
+                None,
+                PointerScanNodeType::Static,
+                1,
+                0x4000,
+                0x4FF0,
+                0x5000,
+                0x20,
+                "engine.dll".to_string(),
+                0x40,
+                Vec::new(),
+            ),
+        );
+        pointer_scanner_view_data.refresh_root_pagination();
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+
+        let first_page_rows = PointerScannerViewData::build_visible_rows(pointer_scanner_view_data.clone());
+
+        assert_eq!(
+            first_page_rows
+                .iter()
+                .map(|pointer_scanner_tree_row| pointer_scanner_tree_row.node_id)
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data.clone()), 2);
+
+        PointerScannerViewData::navigate_next_root_page(pointer_scanner_view_data.clone());
+
+        let second_page_rows = PointerScannerViewData::build_visible_rows(pointer_scanner_view_data.clone());
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner root pagination active page test")
+            .expect("Expected the pointer scanner view data read guard after paging roots.");
+
+        assert_eq!(
+            second_page_rows
+                .iter()
+                .map(|pointer_scanner_tree_row| pointer_scanner_tree_row.node_id)
+                .collect::<Vec<_>>(),
+            vec![3]
+        );
+        assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data.clone()), 1);
+        assert_eq!(pointer_scanner_view_data_guard.selected_node_id, Some(3));
+        assert_eq!(pointer_scanner_view_data_guard.current_root_page_index, 1);
+    }
+
+    #[test]
+    fn root_pagination_stats_follow_loaded_roots_and_loading_state() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.apply_summary(Some(PointerScanSummary::new(
+            7,
+            0x3010,
+            PointerScanPointerSize::Pointer64,
+            5,
+            0x100,
+            2,
+            1,
+            0,
+            1,
+            Vec::new(),
+        )));
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+
+        assert_eq!(
+            PointerScannerViewData::build_root_page_stats_text(pointer_scanner_view_data.clone()),
+            "Roots loading (0 of 2)"
+        );
+
+        if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner root pagination loading test") {
+            pointer_scanner_view_data_guard.root_node_ids = vec![1, 3];
+            pointer_scanner_view_data_guard.root_page_size = 1;
+            pointer_scanner_view_data_guard.nodes_by_id.insert(
+                1,
+                PointerScanNode::new(
+                    1,
+                    None,
+                    PointerScanNodeType::Static,
+                    1,
+                    0x1010,
+                    0x1FF0,
+                    0x2000,
+                    0x10,
+                    "game.exe".to_string(),
+                    0x10,
+                    Vec::new(),
+                ),
+            );
+            pointer_scanner_view_data_guard.nodes_by_id.insert(
+                3,
+                PointerScanNode::new(
+                    3,
+                    None,
+                    PointerScanNodeType::Static,
+                    1,
+                    0x4000,
+                    0x4FF0,
+                    0x5000,
+                    0x20,
+                    "engine.dll".to_string(),
+                    0x40,
+                    Vec::new(),
+                ),
+            );
+            pointer_scanner_view_data_guard.refresh_root_pagination();
+        }
+
+        assert_eq!(
+            PointerScannerViewData::build_root_page_stats_text(pointer_scanner_view_data.clone()),
+            "Roots 1-1 of 2"
+        );
+
+        PointerScannerViewData::set_root_page_index_string(pointer_scanner_view_data.clone(), "99");
+
+        assert_eq!(PointerScannerViewData::build_root_page_label(pointer_scanner_view_data.clone()), "1");
+        assert_eq!(PointerScannerViewData::build_root_page_stats_text(pointer_scanner_view_data), "Roots 2-2 of 2");
     }
 
     #[test]
