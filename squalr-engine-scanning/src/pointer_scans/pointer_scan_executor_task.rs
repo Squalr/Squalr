@@ -88,7 +88,13 @@ impl PointerScanExecutor {
         scan_execution_context: &ScanExecutionContext,
     ) -> PointerScanSession {
         if with_logging {
-            log::info!("Performing pointer scan...");
+            log::info!(
+                "Performing pointer scan for target 0x{:X} using {} pointers, max depth {}, and offset {}.",
+                pointer_scan_parameters.get_target_address(),
+                pointer_scan_parameters.get_pointer_size(),
+                pointer_scan_parameters.get_max_depth(),
+                pointer_scan_parameters.get_offset_radius(),
+            );
         }
 
         Self::collect_pointer_scan_values(
@@ -111,7 +117,7 @@ impl PointerScanExecutor {
                 }
             };
 
-            Self::build_pointer_scan_session(vec![&*snapshot_guard], pointer_scan_session_id, &pointer_scan_parameters, modules)
+            Self::build_pointer_scan_session(vec![&*snapshot_guard], pointer_scan_session_id, &pointer_scan_parameters, modules, with_logging)
         } else {
             let statics_snapshot_guard = match statics_snapshot.read() {
                 Ok(statics_snapshot_guard) => statics_snapshot_guard,
@@ -139,6 +145,7 @@ impl PointerScanExecutor {
                 pointer_scan_session_id,
                 &pointer_scan_parameters,
                 modules,
+                with_logging,
             )
         };
 
@@ -177,10 +184,15 @@ impl PointerScanExecutor {
         pointer_scan_session_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
         modules: &[NormalizedModule],
+        with_logging: bool,
     ) -> PointerScanSession {
-        let pointer_chains = Self::discover_pointer_chains(&snapshots, pointer_scan_parameters, modules);
+        let pointer_chains = Self::discover_pointer_chains(&snapshots, pointer_scan_parameters, modules, with_logging);
 
         if pointer_chains.is_empty() {
+            if with_logging {
+                log::info!("Pointer scan found no pointer chains.");
+            }
+
             return Self::create_empty_session(pointer_scan_session_id, pointer_scan_parameters);
         }
 
@@ -250,7 +262,7 @@ impl PointerScanExecutor {
             }
         }
 
-        let pointer_scan_levels = level_accumulators
+        let pointer_scan_levels: Vec<PointerScanLevel> = level_accumulators
             .into_iter()
             .enumerate()
             .map(|(pointer_chain_index, level_accumulator)| {
@@ -262,6 +274,18 @@ impl PointerScanExecutor {
                 )
             })
             .collect();
+
+        if with_logging {
+            for pointer_scan_level in &pointer_scan_levels {
+                log::info!(
+                    "Pointer scan level {} materialized {} nodes (static {} / heap {}).",
+                    pointer_scan_level.get_depth(),
+                    pointer_scan_level.get_node_count(),
+                    pointer_scan_level.get_static_node_count(),
+                    pointer_scan_level.get_heap_node_count(),
+                );
+            }
+        }
 
         PointerScanSession::new(
             pointer_scan_session_id,
@@ -281,6 +305,7 @@ impl PointerScanExecutor {
         snapshots: &[&Snapshot],
         pointer_scan_parameters: &PointerScanParameters,
         modules: &[NormalizedModule],
+        with_logging: bool,
     ) -> Vec<Vec<DiscoveredPointerNode>> {
         let max_depth = pointer_scan_parameters.get_max_depth();
 
@@ -291,8 +316,13 @@ impl PointerScanExecutor {
         let target_address = pointer_scan_parameters.get_target_address();
         let mut completed_pointer_chains = Vec::new();
         let mut active_pointer_chains = vec![Vec::new()];
+        let total_snapshot_region_count = snapshots
+            .iter()
+            .map(|snapshot| snapshot.get_snapshot_regions().len())
+            .sum::<usize>();
 
-        for _pointer_chain_depth in 0..max_depth {
+        for pointer_chain_depth in 0..max_depth {
+            let level_number = pointer_chain_depth.saturating_add(1);
             let mut frontier_target_addresses = active_pointer_chains
                 .iter()
                 .map(|pointer_chain| Self::get_frontier_target_address(pointer_chain, target_address))
@@ -300,6 +330,16 @@ impl PointerScanExecutor {
 
             frontier_target_addresses.sort_unstable();
             frontier_target_addresses.dedup();
+
+            if with_logging {
+                log::info!(
+                    "Pointer scan level {}/{}: scanning {} snapshot regions for {} frontier targets.",
+                    level_number,
+                    max_depth,
+                    total_snapshot_region_count,
+                    frontier_target_addresses.len(),
+                );
+            }
 
             let pointer_matches_by_target = Self::scan_snapshots_for_pointer_targets(
                 snapshots,
@@ -328,7 +368,27 @@ impl PointerScanExecutor {
                 }
             }
 
+            if with_logging {
+                let discovered_pointer_node_count = pointer_matches_by_target.values().map(Vec::len).sum::<usize>();
+
+                log::info!(
+                    "Pointer scan level {}/{}: matched {} frontier targets, discovered {} pointer nodes, and produced {} active chains.",
+                    level_number,
+                    max_depth,
+                    pointer_matches_by_target.len(),
+                    discovered_pointer_node_count,
+                    next_active_pointer_chains.len(),
+                );
+            }
+
             if next_active_pointer_chains.is_empty() {
+                if with_logging {
+                    log::info!(
+                        "Pointer scan stopped after level {} because no deeper pointer candidates were found.",
+                        level_number
+                    );
+                }
+
                 break;
             }
 
@@ -341,6 +401,13 @@ impl PointerScanExecutor {
                 .filter(|pointer_chain| !pointer_chain.is_empty()),
         );
         Self::sort_and_deduplicate_pointer_chains(&mut completed_pointer_chains);
+
+        if with_logging {
+            log::info!(
+                "Pointer scan discovered {} candidate pointer chains before session materialization.",
+                completed_pointer_chains.len()
+            );
+        }
 
         completed_pointer_chains
     }

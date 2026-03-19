@@ -39,6 +39,14 @@ struct PointerScanLevelAccumulator {
     heap_node_count: u64,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct PointerValidationStepLogContext {
+    signature_number: usize,
+    signature_count: usize,
+    step_number: usize,
+    step_count: usize,
+}
+
 impl PointerScanLevelAccumulator {
     fn track_node(
         &mut self,
@@ -106,9 +114,25 @@ impl PointerScanValidator {
             return Self::create_empty_session(pointer_scan_session, validation_target_address);
         }
 
+        if with_logging {
+            log::info!(
+                "Pointer scan validation will replay {} distinct pointer-chain signatures.",
+                pointer_chain_validation_steps.len()
+            );
+        }
+
         let mut rebuilt_pointer_chains = Vec::new();
 
-        for pointer_chain_validation_step in &pointer_chain_validation_steps {
+        for (signature_index, pointer_chain_validation_step) in pointer_chain_validation_steps.iter().enumerate() {
+            if with_logging {
+                log::info!(
+                    "Pointer scan validation signature {}/{}: replaying {} steps.",
+                    signature_index + 1,
+                    pointer_chain_validation_steps.len(),
+                    pointer_chain_validation_step.len(),
+                );
+            }
+
             rebuilt_pointer_chains.extend(Self::rebuild_pointer_chains_for_step_sequence(
                 process_info.clone(),
                 pointer_chain_validation_step,
@@ -118,6 +142,9 @@ impl PointerScanValidator {
                 memory_regions,
                 modules,
                 scan_execution_context,
+                with_logging,
+                signature_index + 1,
+                pointer_chain_validation_steps.len(),
             ));
 
             if scan_execution_context.should_cancel() {
@@ -208,6 +235,9 @@ impl PointerScanValidator {
         memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
+        with_logging: bool,
+        signature_number: usize,
+        signature_count: usize,
     ) -> Vec<Vec<RebuiltPointerNode>> {
         let Some(step_matches_by_required_target) = Self::collect_step_matches_for_pointer_chain(
             process_info,
@@ -218,6 +248,9 @@ impl PointerScanValidator {
             memory_regions,
             modules,
             scan_execution_context,
+            with_logging,
+            signature_number,
+            signature_count,
         ) else {
             return Vec::new();
         };
@@ -234,11 +267,14 @@ impl PointerScanValidator {
         memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
+        with_logging: bool,
+        signature_number: usize,
+        signature_count: usize,
     ) -> Option<Vec<HashMap<u64, Vec<RebuiltPointerNode>>>> {
         let mut step_matches_by_required_target_reversed = Vec::with_capacity(pointer_chain_validation_steps.len());
         let mut required_target_addresses = vec![validation_target_address];
 
-        for pointer_chain_validation_step in pointer_chain_validation_steps.iter().rev() {
+        for (reverse_step_index, pointer_chain_validation_step) in pointer_chain_validation_steps.iter().rev().enumerate() {
             if scan_execution_context.should_cancel() {
                 return None;
             }
@@ -247,10 +283,38 @@ impl PointerScanValidator {
             required_target_addresses.dedup();
 
             if required_target_addresses.is_empty() {
+                if with_logging {
+                    log::info!(
+                        "Pointer scan validation signature {}/{} stopped before step replay because no required targets remained.",
+                        signature_number,
+                        signature_count,
+                    );
+                }
+
                 return None;
             }
 
-            let step_matches_by_required_target = match pointer_chain_validation_step.to_pointer_scan_node_type() {
+            let validation_step_log_context = PointerValidationStepLogContext {
+                signature_number,
+                signature_count,
+                step_number: reverse_step_index + 1,
+                step_count: pointer_chain_validation_steps.len(),
+            };
+            let pointer_scan_node_type = pointer_chain_validation_step.to_pointer_scan_node_type();
+
+            if with_logging {
+                log::info!(
+                    "Pointer scan validation signature {}/{} step {}/{} ({}): checking {} required targets.",
+                    validation_step_log_context.signature_number,
+                    validation_step_log_context.signature_count,
+                    validation_step_log_context.step_number,
+                    validation_step_log_context.step_count,
+                    Self::format_pointer_scan_node_type(pointer_scan_node_type),
+                    required_target_addresses.len(),
+                );
+            }
+
+            let step_matches_by_required_target = match pointer_scan_node_type {
                 PointerScanNodeType::Static => Self::validate_static_pointer_nodes_for_targets(
                     process_info.clone(),
                     pointer_chain_validation_step,
@@ -268,11 +332,42 @@ impl PointerScanValidator {
                     memory_regions,
                     modules,
                     scan_execution_context,
+                    with_logging,
+                    &validation_step_log_context,
                 ),
             };
 
             if step_matches_by_required_target.is_empty() {
+                if with_logging {
+                    log::info!(
+                        "Pointer scan validation signature {}/{} step {}/{} ({}): found no matches.",
+                        validation_step_log_context.signature_number,
+                        validation_step_log_context.signature_count,
+                        validation_step_log_context.step_number,
+                        validation_step_log_context.step_count,
+                        Self::format_pointer_scan_node_type(pointer_scan_node_type),
+                    );
+                }
+
                 return None;
+            }
+
+            if with_logging {
+                let rebuilt_pointer_node_count = step_matches_by_required_target
+                    .values()
+                    .map(Vec::len)
+                    .sum::<usize>();
+
+                log::info!(
+                    "Pointer scan validation signature {}/{} step {}/{} ({}): matched {} targets and rebuilt {} nodes.",
+                    validation_step_log_context.signature_number,
+                    validation_step_log_context.signature_count,
+                    validation_step_log_context.step_number,
+                    validation_step_log_context.step_count,
+                    Self::format_pointer_scan_node_type(pointer_scan_node_type),
+                    step_matches_by_required_target.len(),
+                    rebuilt_pointer_node_count,
+                );
             }
 
             required_target_addresses = step_matches_by_required_target
@@ -434,10 +529,36 @@ impl PointerScanValidator {
         memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
+        with_logging: bool,
+        validation_step_log_context: &PointerValidationStepLogContext,
     ) -> HashMap<u64, Vec<RebuiltPointerNode>> {
         let mut rebuilt_pointer_nodes_by_required_target = HashMap::new();
 
-        for memory_region in memory_regions {
+        if with_logging {
+            log::info!(
+                "Pointer scan validation signature {}/{} step {}/{} (heap): scanning {} memory regions.",
+                validation_step_log_context.signature_number,
+                validation_step_log_context.signature_count,
+                validation_step_log_context.step_number,
+                validation_step_log_context.step_count,
+                memory_regions.len(),
+            );
+        }
+
+        for (memory_region_index, memory_region) in memory_regions.iter().enumerate() {
+            if with_logging && Self::should_log_memory_region_progress(memory_region_index, memory_regions.len()) {
+                log::info!(
+                    "Pointer scan validation signature {}/{} step {}/{} (heap): region {}/{} at 0x{:X}.",
+                    validation_step_log_context.signature_number,
+                    validation_step_log_context.signature_count,
+                    validation_step_log_context.step_number,
+                    validation_step_log_context.step_count,
+                    memory_region_index + 1,
+                    memory_regions.len(),
+                    memory_region.get_base_address(),
+                );
+            }
+
             Self::scan_memory_region_for_heap_pointer_nodes_by_target(
                 &process_info,
                 memory_region,
@@ -457,6 +578,17 @@ impl PointerScanValidator {
         Self::sort_and_deduplicate_rebuilt_pointer_node_map(&mut rebuilt_pointer_nodes_by_required_target);
 
         rebuilt_pointer_nodes_by_required_target
+    }
+
+    fn should_log_memory_region_progress(
+        memory_region_index: usize,
+        memory_region_count: usize,
+    ) -> bool {
+        if memory_region_count == 0 {
+            return false;
+        }
+
+        memory_region_count <= 8 || memory_region_index == 0 || memory_region_index + 1 == memory_region_count || (memory_region_index + 1) % 128 == 0
     }
 
     fn scan_memory_region_for_heap_pointer_nodes_by_target(
@@ -710,6 +842,13 @@ impl PointerScanValidator {
         }
     }
 
+    fn format_pointer_scan_node_type(pointer_scan_node_type: PointerScanNodeType) -> &'static str {
+        match pointer_scan_node_type {
+            PointerScanNodeType::Heap => "heap",
+            PointerScanNodeType::Static => "static",
+        }
+    }
+
     fn calculate_pointer_offset(
         target_address: u64,
         pointer_value: u64,
@@ -831,7 +970,7 @@ impl PointerScanValidator {
 
 #[cfg(test)]
 mod tests {
-    use super::PointerScanValidator;
+    use super::{PointerScanValidator, PointerValidationStepLogContext};
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
@@ -950,6 +1089,13 @@ mod tests {
             &[NormalizedRegion::new(0x3000, 0x40)],
             &[],
             &scan_execution_context,
+            false,
+            &PointerValidationStepLogContext {
+                signature_number: 1,
+                signature_count: 1,
+                step_number: 1,
+                step_count: 1,
+            },
         );
 
         let first_target_matches = rebuilt_pointer_nodes_by_target

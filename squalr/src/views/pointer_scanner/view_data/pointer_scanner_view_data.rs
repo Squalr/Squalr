@@ -136,6 +136,7 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_querying_summary = true;
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.status_message = Self::format_refreshing_summary_status(session_id);
             pointer_scanner_view_data_guard.request_repaint();
 
             session_request_revision
@@ -214,6 +215,8 @@ impl PointerScannerViewData {
             }
 
             let Some(max_depth) = Self::parse_unsigned_input(&pointer_scanner_view_data_guard.max_depth_input) else {
+                pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan: invalid max depth.");
+                pointer_scanner_view_data_guard.request_repaint();
                 log::error!(
                     "Invalid pointer scan max depth: {}",
                     pointer_scanner_view_data_guard
@@ -223,6 +226,8 @@ impl PointerScannerViewData {
                 return;
             };
             let Some(offset_radius) = Self::parse_unsigned_input(&pointer_scanner_view_data_guard.offset_radius_input) else {
+                pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan: invalid offset.");
+                pointer_scanner_view_data_guard.request_repaint();
                 log::error!(
                     "Invalid pointer scan offset radius: {}",
                     pointer_scanner_view_data_guard
@@ -234,6 +239,12 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_starting_scan = true;
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.status_message = Self::format_starting_scan_status(
+                &pointer_scanner_view_data_guard.target_address_input,
+                pointer_scanner_view_data_guard.pointer_size,
+                max_depth,
+                offset_radius,
+            );
             pointer_scanner_view_data_guard.request_repaint();
 
             (
@@ -303,6 +314,7 @@ impl PointerScannerViewData {
 
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.apply_summary(None);
+            pointer_scanner_view_data_guard.status_message = Self::format_resetting_scan_status();
             pointer_scanner_view_data_guard.request_repaint();
 
             session_request_revision
@@ -363,6 +375,8 @@ impl PointerScannerViewData {
                 .as_ref()
                 .map(PointerScanSummary::get_session_id)
             else {
+                pointer_scanner_view_data_guard.status_message = String::from("Cannot validate pointer scan without an active session.");
+                pointer_scanner_view_data_guard.request_repaint();
                 log::error!("Cannot validate pointer scan without an active pointer scan session.");
                 return;
             };
@@ -373,6 +387,8 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_validating_scan = true;
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
+            pointer_scanner_view_data_guard.status_message =
+                Self::format_validating_scan_status(session_id, &pointer_scanner_view_data_guard.validation_target_address_input);
             pointer_scanner_view_data_guard.request_repaint();
 
             (
@@ -1044,6 +1060,53 @@ impl PointerScannerViewData {
         )
     }
 
+    fn format_refreshing_summary_status(session_id: Option<u64>) -> String {
+        match session_id {
+            Some(session_id) => format!("Refreshing pointer scan session {}...", session_id),
+            None => String::from("Refreshing pointer scan summary..."),
+        }
+    }
+
+    fn format_starting_scan_status(
+        target_address_input: &AnonymousValueString,
+        pointer_size: PointerScanPointerSize,
+        max_depth: u64,
+        offset_radius: u64,
+    ) -> String {
+        format!(
+            "Starting pointer scan | Target {} | Pointer Size {} | Depth {} | Offset {}",
+            Self::format_status_input_value(target_address_input),
+            pointer_size,
+            max_depth,
+            Self::format_hexadecimal(offset_radius),
+        )
+    }
+
+    fn format_validating_scan_status(
+        session_id: u64,
+        validation_target_address_input: &AnonymousValueString,
+    ) -> String {
+        format!(
+            "Validating pointer scan session {} | Target {}",
+            session_id,
+            Self::format_status_input_value(validation_target_address_input),
+        )
+    }
+
+    fn format_resetting_scan_status() -> String {
+        String::from("Clearing pointer scan session...")
+    }
+
+    fn format_status_input_value(anonymous_value_string: &AnonymousValueString) -> String {
+        let input_text = anonymous_value_string.get_anonymous_value_string().trim();
+
+        if input_text.is_empty() {
+            String::from("<empty>")
+        } else {
+            input_text.to_string()
+        }
+    }
+
     fn create_hex_input(value_text: String) -> AnonymousValueString {
         AnonymousValueString::new(value_text, AnonymousValueStringFormat::Hexadecimal, ContainerType::None)
     }
@@ -1074,6 +1137,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_starting_scan = false;
+            pointer_scanner_view_data_guard.status_message = String::from("Pointer scan start failed. See logs.");
             pointer_scanner_view_data_guard.request_repaint();
         }
     }
@@ -1084,6 +1148,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_querying_summary = false;
+            pointer_scanner_view_data_guard.status_message = String::from("Pointer scan summary refresh failed. See logs.");
             pointer_scanner_view_data_guard.request_repaint();
         }
     }
@@ -1094,6 +1159,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_validating_scan = false;
+            pointer_scanner_view_data_guard.status_message = String::from("Pointer scan validation failed. See logs.");
             pointer_scanner_view_data_guard.request_repaint();
         }
     }
@@ -1104,6 +1170,7 @@ impl PointerScannerViewData {
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write(error_context) {
             pointer_scanner_view_data_guard.is_resetting_scan = false;
+            pointer_scanner_view_data_guard.status_message = String::from("Pointer scan reset failed. See logs.");
             pointer_scanner_view_data_guard.request_repaint();
         }
     }
@@ -1762,6 +1829,10 @@ mod tests {
                 .expect("Expected the pointer scanner view data read guard while the start request is pending.");
             assert!(pointer_scanner_view_data_guard.is_starting_scan);
             assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
+            assert_eq!(
+                pointer_scanner_view_data_guard.status_message,
+                "Starting pointer scan | Target 0x3010 | Pointer Size u64 | Depth 5 | Offset 0x800"
+            );
         }
 
         let repaint_request_count_before_start_response = repaint_request_count.load(Ordering::Relaxed);
@@ -1837,6 +1908,10 @@ mod tests {
                     .map(PointerScanSummary::get_session_id),
                 Some(7)
             );
+            assert_eq!(
+                pointer_scanner_view_data_guard.status_message,
+                "Validating pointer scan session 7 | Target 0x4010"
+            );
         }
 
         DeferredTestPointerScannerBindings::respond_to_first_matching(
@@ -1899,6 +1974,25 @@ mod tests {
         assert!(pointer_scanner_view_data.root_node_ids.is_empty());
         assert!(pointer_scanner_view_data.nodes_by_id.is_empty());
         assert!(pointer_scanner_view_data.pending_parent_node_ids.is_empty());
+    }
+
+    #[test]
+    fn start_scan_with_invalid_max_depth_surfaces_status_message() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.max_depth_input = PointerScannerViewData::create_unsigned_input("abc".to_string());
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+        let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
+        let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(deferred_pointer_scanner_bindings));
+        let engine_unprivileged_state = EngineUnprivilegedState::new(engine_bindings);
+
+        PointerScannerViewData::start_scan(pointer_scanner_view_data.clone(), engine_unprivileged_state);
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner invalid max depth status test")
+            .expect("Expected the pointer scanner view data read guard after invalid max depth.");
+        assert_eq!(pointer_scanner_view_data_guard.status_message, "Cannot start pointer scan: invalid max depth.");
+        assert!(!pointer_scanner_view_data_guard.is_starting_scan);
     }
 
     #[test]
