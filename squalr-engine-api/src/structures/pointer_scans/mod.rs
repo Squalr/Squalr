@@ -1,4 +1,6 @@
+pub mod pointer_scan_candidate;
 pub mod pointer_scan_level;
+pub mod pointer_scan_level_candidates;
 pub mod pointer_scan_level_summary;
 pub mod pointer_scan_node;
 pub mod pointer_scan_node_type;

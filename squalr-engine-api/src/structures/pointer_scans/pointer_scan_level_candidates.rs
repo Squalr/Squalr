@@ -1,0 +1,76 @@
+use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PointerScanLevelCandidates {
+    discovery_depth: u64,
+    static_candidates: Vec<PointerScanCandidate>,
+    heap_candidates: Vec<PointerScanCandidate>,
+}
+
+impl PointerScanLevelCandidates {
+    pub fn new(
+        discovery_depth: u64,
+        mut static_candidates: Vec<PointerScanCandidate>,
+        mut heap_candidates: Vec<PointerScanCandidate>,
+    ) -> Self {
+        static_candidates.sort_by_key(PointerScanCandidate::get_pointer_address);
+        heap_candidates.sort_by_key(PointerScanCandidate::get_pointer_address);
+
+        Self {
+            discovery_depth,
+            static_candidates,
+            heap_candidates,
+        }
+    }
+
+    pub fn get_discovery_depth(&self) -> u64 {
+        self.discovery_depth
+    }
+
+    pub fn get_static_candidates(&self) -> &Vec<PointerScanCandidate> {
+        &self.static_candidates
+    }
+
+    pub fn get_heap_candidates(&self) -> &Vec<PointerScanCandidate> {
+        &self.heap_candidates
+    }
+
+    pub fn get_node_count(&self) -> u64 {
+        self.get_static_node_count()
+            .saturating_add(self.get_heap_node_count())
+    }
+
+    pub fn get_static_node_count(&self) -> u64 {
+        self.static_candidates.len() as u64
+    }
+
+    pub fn get_heap_node_count(&self) -> u64 {
+        self.heap_candidates.len() as u64
+    }
+
+    pub fn find_heap_candidate_by_address(
+        &self,
+        pointer_address: u64,
+    ) -> Option<&PointerScanCandidate> {
+        self.heap_candidates
+            .binary_search_by_key(&pointer_address, PointerScanCandidate::get_pointer_address)
+            .ok()
+            .and_then(|candidate_index| self.heap_candidates.get(candidate_index))
+    }
+
+    pub fn find_heap_candidates_in_range(
+        &self,
+        lower_bound: u64,
+        upper_bound: u64,
+    ) -> &[PointerScanCandidate] {
+        let start_index = self
+            .heap_candidates
+            .partition_point(|candidate| candidate.get_pointer_address() < lower_bound);
+        let end_index = self
+            .heap_candidates
+            .partition_point(|candidate| candidate.get_pointer_address() <= upper_bound);
+
+        &self.heap_candidates[start_index..end_index]
+    }
+}

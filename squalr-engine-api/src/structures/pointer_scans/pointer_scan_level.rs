@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PointerScanLevel {
     depth: u64,
-    node_ids: Vec<u64>,
+    node_count: u64,
     static_node_count: u64,
     heap_node_count: u64,
 }
@@ -11,13 +11,13 @@ pub struct PointerScanLevel {
 impl PointerScanLevel {
     pub fn new(
         depth: u64,
-        node_ids: Vec<u64>,
+        node_count: u64,
         static_node_count: u64,
         heap_node_count: u64,
     ) -> Self {
         Self {
             depth,
-            node_ids,
+            node_count,
             static_node_count,
             heap_node_count,
         }
@@ -27,12 +27,8 @@ impl PointerScanLevel {
         self.depth
     }
 
-    pub fn get_node_ids(&self) -> &Vec<u64> {
-        &self.node_ids
-    }
-
     pub fn get_node_count(&self) -> u64 {
-        self.node_ids.len() as u64
+        self.node_count
     }
 
     pub fn get_static_node_count(&self) -> u64 {
