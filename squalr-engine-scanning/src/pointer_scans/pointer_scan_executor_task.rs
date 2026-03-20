@@ -16,12 +16,12 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerS
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
-const POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
+const POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
+const POINTER_SCAN_TARGET_TASKS_PER_WORKER: usize = 4;
 
 pub struct PointerScanExecutor;
 
@@ -275,12 +275,8 @@ impl PointerScanExecutor {
         let target_address = pointer_scan_parameters.get_target_address();
         let mut frontier_target_addresses = vec![target_address];
         let mut discovered_pointer_levels = Vec::new();
-        let snapshot_regions = snapshots
-            .iter()
-            .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
-            .collect::<Vec<_>>();
-        let snapshot_region_scan_tasks = Self::build_snapshot_region_scan_tasks(&snapshot_regions, pointer_scan_parameters.get_pointer_size());
-        let total_snapshot_region_count = snapshot_regions.len();
+        let (snapshot_region_scan_tasks, total_snapshot_region_count, snapshot_task_byte_size) =
+            Self::build_snapshot_region_scan_tasks(snapshots, pointer_scan_parameters.get_pointer_size());
         let total_snapshot_region_scan_task_count = snapshot_region_scan_tasks.len();
 
         for pointer_chain_depth in 0..max_depth {
@@ -307,11 +303,12 @@ impl PointerScanExecutor {
 
             if with_logging {
                 log::info!(
-                    "Pointer scan level {}/{}: scanning {} snapshot regions across {} scan tasks for {} frontier targets merged into {} ranges with {} kernel.",
+                    "Pointer scan level {}/{}: scanning {} snapshot regions across {} scan tasks ({} bytes/task) for {} frontier targets merged into {} ranges with {} kernel.",
                     level_number,
                     max_depth,
                     total_snapshot_region_count,
                     total_snapshot_region_scan_task_count,
+                    snapshot_task_byte_size,
                     frontier_target_addresses.len(),
                     frontier_target_ranges.get_range_count(),
                     range_search_kernel.get_name(),
@@ -451,15 +448,23 @@ impl PointerScanExecutor {
     }
 
     fn build_snapshot_region_scan_tasks<'a>(
-        snapshot_regions: &[&'a SnapshotRegion],
+        snapshots: &[&'a Snapshot],
         pointer_size: squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-    ) -> Vec<SnapshotRegionScanTask<'a>> {
+    ) -> (Vec<SnapshotRegionScanTask<'a>>, usize, usize) {
         let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
-        let task_byte_size = POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE
-            .max(pointer_size_in_bytes)
-            .saturating_sub(POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE % pointer_size_in_bytes.max(1));
-        let estimated_task_count = snapshot_regions
+        let total_snapshot_region_count = snapshots
             .iter()
+            .map(|snapshot| snapshot.get_snapshot_regions().len())
+            .sum::<usize>();
+        let total_snapshot_byte_count = snapshots
+            .iter()
+            .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
+            .map(|snapshot_region| snapshot_region.get_current_values().len())
+            .sum::<usize>();
+        let task_byte_size = Self::calculate_snapshot_task_byte_size(total_snapshot_byte_count, total_snapshot_region_count, pointer_size_in_bytes);
+        let estimated_task_count = snapshots
+            .iter()
+            .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
             .map(|snapshot_region| {
                 let current_value_byte_count = snapshot_region.get_current_values().len();
 
@@ -475,27 +480,68 @@ impl PointerScanExecutor {
             .sum();
         let mut snapshot_region_scan_tasks = Vec::with_capacity(estimated_task_count);
 
-        for snapshot_region in snapshot_regions {
-            let current_values = snapshot_region.get_current_values().as_slice();
-            let mut task_start_offset = 0_usize;
+        for snapshot in snapshots {
+            for snapshot_region in snapshot.get_snapshot_regions() {
+                let current_values = snapshot_region.get_current_values().as_slice();
+                let mut task_start_offset = 0_usize;
 
-            while task_start_offset < current_values.len() {
-                let remaining_byte_count = current_values.len().saturating_sub(task_start_offset);
-                let task_byte_count = remaining_byte_count.min(task_byte_size.max(pointer_size_in_bytes));
-                let task_end_offset = task_start_offset.saturating_add(task_byte_count);
+                while task_start_offset < current_values.len() {
+                    let remaining_byte_count = current_values.len().saturating_sub(task_start_offset);
+                    let task_byte_count = remaining_byte_count.min(task_byte_size.max(pointer_size_in_bytes));
+                    let task_end_offset = task_start_offset.saturating_add(task_byte_count);
 
-                snapshot_region_scan_tasks.push(SnapshotRegionScanTask {
-                    base_address: snapshot_region
-                        .get_base_address()
-                        .saturating_add(task_start_offset as u64),
-                    current_values: &current_values[task_start_offset..task_end_offset],
-                });
+                    snapshot_region_scan_tasks.push(SnapshotRegionScanTask {
+                        base_address: snapshot_region
+                            .get_base_address()
+                            .saturating_add(task_start_offset as u64),
+                        current_values: &current_values[task_start_offset..task_end_offset],
+                    });
 
-                task_start_offset = task_end_offset;
+                    task_start_offset = task_end_offset;
+                }
             }
         }
 
-        snapshot_region_scan_tasks
+        (snapshot_region_scan_tasks, total_snapshot_region_count, task_byte_size)
+    }
+
+    fn calculate_snapshot_task_byte_size(
+        total_snapshot_byte_count: usize,
+        total_snapshot_region_count: usize,
+        pointer_size_in_bytes: usize,
+    ) -> usize {
+        Self::calculate_snapshot_task_byte_size_for_worker_count(
+            total_snapshot_byte_count,
+            total_snapshot_region_count,
+            pointer_size_in_bytes,
+            rayon::current_num_threads(),
+        )
+    }
+
+    fn calculate_snapshot_task_byte_size_for_worker_count(
+        total_snapshot_byte_count: usize,
+        total_snapshot_region_count: usize,
+        pointer_size_in_bytes: usize,
+        worker_count: usize,
+    ) -> usize {
+        let pointer_alignment = pointer_size_in_bytes.max(1);
+        let minimum_task_byte_size = POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE.max(pointer_alignment);
+        let target_task_count = total_snapshot_region_count
+            .max(
+                worker_count
+                    .max(1)
+                    .saturating_mul(POINTER_SCAN_TARGET_TASKS_PER_WORKER),
+            )
+            .max(1);
+        let target_task_byte_size = total_snapshot_byte_count
+            .saturating_add(target_task_count.saturating_sub(1))
+            .checked_div(target_task_count)
+            .unwrap_or(0)
+            .max(minimum_task_byte_size);
+
+        target_task_byte_size
+            .max(pointer_alignment)
+            .saturating_sub(target_task_byte_size.max(pointer_alignment) % pointer_alignment)
     }
 
     fn merge_discovered_pointer_levels(
@@ -726,27 +772,45 @@ mod tests {
 
     #[test]
     fn build_snapshot_region_scan_tasks_splits_large_regions() {
+        let mut snapshot = Snapshot::new();
         let mut snapshot_region = SnapshotRegion::new(
-            NormalizedRegion::new(0x1003, (super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE * 2 + 16) as u64),
+            NormalizedRegion::new(0x1003, (super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE * 2 + 16) as u64),
             Vec::new(),
         );
-        snapshot_region.current_values = vec![0_u8; super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE * 2 + 16];
+        snapshot_region.current_values = vec![0_u8; super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE * 2 + 16];
+        snapshot.set_snapshot_regions(vec![snapshot_region]);
 
-        let snapshot_region_scan_tasks = PointerScanExecutor::build_snapshot_region_scan_tasks(&[&snapshot_region], PointerScanPointerSize::Pointer64);
+        let (snapshot_region_scan_tasks, total_snapshot_region_count, task_byte_size) =
+            PointerScanExecutor::build_snapshot_region_scan_tasks(&[&snapshot], PointerScanPointerSize::Pointer64);
 
+        assert_eq!(total_snapshot_region_count, 1);
+        assert_eq!(task_byte_size, super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE);
         assert_eq!(snapshot_region_scan_tasks.len(), 3);
         assert_eq!(snapshot_region_scan_tasks[0].base_address, 0x1003);
-        assert_eq!(snapshot_region_scan_tasks[0].current_values.len(), super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE);
+        assert_eq!(
+            snapshot_region_scan_tasks[0].current_values.len(),
+            super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE
+        );
         assert_eq!(
             snapshot_region_scan_tasks[1].base_address,
-            0x1003_u64.saturating_add(super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE as u64)
+            0x1003_u64.saturating_add(super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE as u64)
         );
-        assert_eq!(snapshot_region_scan_tasks[1].current_values.len(), super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE);
+        assert_eq!(
+            snapshot_region_scan_tasks[1].current_values.len(),
+            super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE
+        );
         assert_eq!(
             snapshot_region_scan_tasks[2].base_address,
-            0x1003_u64.saturating_add((super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE * 2) as u64)
+            0x1003_u64.saturating_add((super::POINTER_SCAN_MIN_SNAPSHOT_TASK_BYTE_SIZE * 2) as u64)
         );
         assert_eq!(snapshot_region_scan_tasks[2].current_values.len(), 16);
+    }
+
+    #[test]
+    fn calculate_snapshot_task_byte_size_grows_with_total_snapshot_size() {
+        let task_byte_size = PointerScanExecutor::calculate_snapshot_task_byte_size_for_worker_count(64 * 1024 * 1024, 1, 8, 8);
+
+        assert_eq!(task_byte_size, 2 * 1024 * 1024);
     }
 
     fn build_pointer_scan_snapshot() -> Snapshot {
