@@ -243,6 +243,7 @@ impl PointerScanExecutor {
             ));
             all_pointer_scan_level_candidates.push(discovered_level_candidates);
         }
+        let root_count_start_time = Instant::now();
         let root_node_count = Self::count_root_nodes(&all_pointer_scan_level_candidates, pointer_scan_parameters.get_offset_radius());
 
         if with_logging {
@@ -255,6 +256,7 @@ impl PointerScanExecutor {
                     pointer_scan_level.get_heap_node_count(),
                 );
             }
+            log::info!("Pointer scan root summarization time: {:?}", root_count_start_time.elapsed());
         }
 
         PointerScanSession::new(
@@ -475,28 +477,30 @@ impl PointerScanExecutor {
         let mut root_node_count = 0_u64;
 
         for pointer_scan_level_candidates in pointer_scan_levels.iter().rev() {
+            let child_target_ranges = pointer_scan_level_candidates
+                .get_discovery_depth()
+                .checked_sub(2)
+                .and_then(|child_level_index| pointer_scan_levels.get(child_level_index as usize))
+                .map(|child_pointer_scan_level_candidates| {
+                    PointerScanTargetRangeSet::from_target_addresses(
+                        &child_pointer_scan_level_candidates
+                            .get_heap_candidates()
+                            .iter()
+                            .map(PointerScanCandidate::get_pointer_address)
+                            .collect::<Vec<_>>(),
+                        offset_radius,
+                    )
+                });
+
             for static_candidate in pointer_scan_level_candidates.get_static_candidates() {
                 if static_candidate.get_discovery_depth() <= 1 {
                     root_node_count = root_node_count.saturating_add(1);
                     continue;
                 }
 
-                let has_matching_child = pointer_scan_level_candidates
-                    .get_discovery_depth()
-                    .checked_sub(2)
-                    .and_then(|child_level_index| pointer_scan_levels.get(child_level_index as usize))
-                    .map(|child_pointer_scan_level_candidates| {
-                        let lower_bound = static_candidate
-                            .get_pointer_value()
-                            .saturating_sub(offset_radius);
-                        let upper_bound = static_candidate
-                            .get_pointer_value()
-                            .saturating_add(offset_radius);
-
-                        !child_pointer_scan_level_candidates
-                            .find_heap_candidates_in_range(lower_bound, upper_bound)
-                            .is_empty()
-                    })
+                let has_matching_child = child_target_ranges
+                    .as_ref()
+                    .map(|child_target_ranges| child_target_ranges.contains_value_binary(static_candidate.get_pointer_value()))
                     .unwrap_or(false);
 
                 if has_matching_child {

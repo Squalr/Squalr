@@ -207,44 +207,15 @@ impl PointerScanSession {
 
         let page_start_index = bounded_page_index.saturating_mul(page_size);
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
-        let mut remaining_skip_count = page_start_index;
-        let mut remaining_take_count = page_node_count;
-        let mut materialized_node_ids = Vec::new();
+        let root_page_candidates = self.collect_root_page_candidates(page_start_index, page_node_count);
+        let mut materialized_node_ids = Vec::with_capacity(root_page_candidates.len());
 
-        for level_index in 0..self.pointer_scan_level_candidates.len() {
-            let static_candidates = self.pointer_scan_level_candidates[level_index]
-                .get_static_candidates()
-                .clone();
+        for root_page_candidate in &root_page_candidates {
+            let Some(materialized_root_node_id) = self.materialize_root_pointer_scan_node(root_page_candidate) else {
+                continue;
+            };
 
-            for static_candidate in &static_candidates {
-                if !self.is_displayable_root_candidate(static_candidate) {
-                    continue;
-                }
-
-                if remaining_skip_count > 0 {
-                    remaining_skip_count = remaining_skip_count.saturating_sub(1);
-                    continue;
-                }
-
-                let Some(materialized_root_node_id) = self.materialize_root_pointer_scan_node(static_candidate) else {
-                    continue;
-                };
-
-                materialized_node_ids.push(materialized_root_node_id);
-                remaining_take_count = remaining_take_count.saturating_sub(1);
-
-                if remaining_take_count == 0 {
-                    self.materialized_node_ids_by_page_key
-                        .insert(page_key, materialized_node_ids.clone());
-
-                    return MaterializedPointerScanNodePage {
-                        page_index: bounded_page_index,
-                        last_page_index,
-                        total_node_count,
-                        node_ids: materialized_node_ids,
-                    };
-                }
-            }
+            materialized_node_ids.push(materialized_root_node_id);
         }
 
         self.materialized_node_ids_by_page_key
@@ -256,6 +227,42 @@ impl PointerScanSession {
             total_node_count,
             node_ids: materialized_node_ids,
         }
+    }
+
+    fn collect_root_page_candidates(
+        &self,
+        page_start_index: u64,
+        page_node_count: u64,
+    ) -> Vec<PointerScanCandidate> {
+        if page_node_count == 0 {
+            return Vec::new();
+        }
+
+        let mut remaining_skip_count = page_start_index;
+        let mut remaining_take_count = page_node_count;
+        let mut root_page_candidates = Vec::with_capacity(page_node_count as usize);
+
+        for pointer_scan_level_candidates in &self.pointer_scan_level_candidates {
+            for static_candidate in pointer_scan_level_candidates.get_static_candidates() {
+                if !self.is_displayable_root_candidate(static_candidate) {
+                    continue;
+                }
+
+                if remaining_skip_count > 0 {
+                    remaining_skip_count = remaining_skip_count.saturating_sub(1);
+                    continue;
+                }
+
+                root_page_candidates.push(static_candidate.clone());
+                remaining_take_count = remaining_take_count.saturating_sub(1);
+
+                if remaining_take_count == 0 {
+                    return root_page_candidates;
+                }
+            }
+        }
+
+        root_page_candidates
     }
 
     fn materialize_child_node_page(
