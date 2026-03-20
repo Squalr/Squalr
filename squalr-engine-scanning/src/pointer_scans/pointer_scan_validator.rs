@@ -67,6 +67,8 @@ impl PointerScanValidator {
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
 
         for level_index in 0..level_count {
+            let level_number = level_index + 1;
+            let is_terminal_level = level_number >= level_count;
             if scan_execution_context.should_cancel() {
                 break;
             }
@@ -88,7 +90,7 @@ impl PointerScanValidator {
             let required_target_ranges = PointerScanTargetRangeSet::from_target_addresses(&required_target_addresses, pointer_scan_session.get_offset_radius());
             let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, pointer_scan_session.get_pointer_size());
             let validation_level_log_context = PointerValidationLevelLogContext {
-                level_number: level_index + 1,
+                level_number,
                 level_count,
             };
             let level_start_time = Instant::now();
@@ -119,15 +121,19 @@ impl PointerScanValidator {
                 modules,
                 scan_execution_context,
             );
-            let rebuilt_heap_candidates = Self::scan_memory_regions_for_heap_pointer_candidates_by_target(
-                &process_info,
-                &range_search_kernel,
-                memory_regions,
-                modules,
-                scan_execution_context,
-                with_logging,
-                &validation_level_log_context,
-            );
+            let rebuilt_heap_candidates = if is_terminal_level {
+                Vec::new()
+            } else {
+                Self::scan_memory_regions_for_heap_pointer_candidates_by_target(
+                    &process_info,
+                    &range_search_kernel,
+                    memory_regions,
+                    modules,
+                    scan_execution_context,
+                    with_logging,
+                    &validation_level_log_context,
+                )
+            };
 
             if rebuilt_static_candidates.is_empty() && rebuilt_heap_candidates.is_empty() {
                 if with_logging {
@@ -148,7 +154,11 @@ impl PointerScanValidator {
                     level_start_time.elapsed(),
                     rebuilt_static_candidates.len(),
                     rebuilt_heap_candidates.len(),
-                    rebuilt_heap_candidates.len(),
+                    if is_terminal_level {
+                        0
+                    } else {
+                        rebuilt_heap_candidates.len()
+                    },
                 );
             }
 

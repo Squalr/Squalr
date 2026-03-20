@@ -296,6 +296,7 @@ impl PointerScanExecutor {
 
         for pointer_chain_depth in 0..max_depth {
             let level_number = pointer_chain_depth.saturating_add(1);
+            let is_terminal_level = level_number >= max_depth;
             frontier_target_addresses.sort_unstable();
             frontier_target_addresses.dedup();
 
@@ -327,7 +328,8 @@ impl PointerScanExecutor {
                 );
             }
 
-            let discovered_pointer_level = Self::scan_snapshots_for_pointer_targets(snapshots, &range_search_kernel, modules);
+            let discovered_pointer_level =
+                Self::scan_snapshots_for_pointer_targets(snapshots, &range_search_kernel, modules, !is_terminal_level);
             let level_duration = level_start_time.elapsed();
 
             if with_logging {
@@ -338,7 +340,11 @@ impl PointerScanExecutor {
                     level_duration,
                     discovered_pointer_level.static_candidates.len(),
                     discovered_pointer_level.heap_candidates.len(),
-                    discovered_pointer_level.heap_candidates.len(),
+                    if is_terminal_level {
+                        0
+                    } else {
+                        discovered_pointer_level.heap_candidates.len()
+                    },
                 );
             }
 
@@ -382,6 +388,7 @@ impl PointerScanExecutor {
         snapshots: &[&Snapshot],
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
+        retain_heap_candidates: bool,
     ) -> DiscoveredPointerLevel {
         if range_search_kernel.is_empty() {
             return DiscoveredPointerLevel::default();
@@ -393,7 +400,9 @@ impl PointerScanExecutor {
             .collect::<Vec<_>>();
         let mut discovered_pointer_level = snapshot_regions
             .par_iter()
-            .map(|snapshot_region| Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules))
+            .map(|snapshot_region| {
+                Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules, retain_heap_candidates)
+            })
             .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels);
 
         discovered_pointer_level
@@ -412,6 +421,7 @@ impl PointerScanExecutor {
         snapshot_region: &SnapshotRegion,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
+        retain_heap_candidates: bool,
     ) -> DiscoveredPointerLevel {
         let mut discovered_pointer_level = DiscoveredPointerLevel::default();
 
@@ -429,9 +439,11 @@ impl PointerScanExecutor {
                 PointerScanNodeType::Static => discovered_pointer_level
                     .static_candidates
                     .push(discovered_pointer_candidate),
-                PointerScanNodeType::Heap => discovered_pointer_level
-                    .heap_candidates
-                    .push(discovered_pointer_candidate),
+                PointerScanNodeType::Heap => {
+                    if retain_heap_candidates {
+                        discovered_pointer_level.heap_candidates.push(discovered_pointer_candidate);
+                    }
+                }
             }
         }
 
@@ -672,6 +684,40 @@ mod tests {
         assert!(!direct_static_root.has_children());
     }
 
+    #[test]
+    fn execute_scan_omits_terminal_heap_candidates() {
+        let memory_map = Arc::new(build_terminal_heap_pointer_scan_memory_map());
+        let scan_execution_context = ScanExecutionContext::new(
+            None,
+            None,
+            Some(Arc::new({
+                let memory_map = memory_map.clone();
+
+                move |_opened_process_info, address, values| read_memory_from_map(&memory_map, address, values)
+            })),
+        );
+        let snapshot = Arc::new(RwLock::new(build_terminal_heap_pointer_scan_snapshot()));
+        let pointer_scan_parameters = PointerScanParameters::new(0x3010, PointerScanPointerSize::Pointer64, 0x20, 2, true, false);
+        let pointer_scan_session = PointerScanExecutor::execute_scan(
+            OpenedProcessInfo::new(8, "pointer-terminal-heap-test".to_string(), 0, Bitness::Bit64, None),
+            snapshot.clone(),
+            snapshot,
+            42,
+            pointer_scan_parameters,
+            &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
+            false,
+            &scan_execution_context,
+        );
+
+        let pointer_scan_levels = pointer_scan_session.get_pointer_scan_levels();
+
+        assert_eq!(pointer_scan_levels.len(), 2);
+        assert_eq!(pointer_scan_levels[0].get_heap_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
+        assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
+        assert_eq!(pointer_scan_session.get_total_heap_node_count(), 1);
+    }
+
     fn build_pointer_scan_snapshot() -> Snapshot {
         let mut snapshot = Snapshot::new();
 
@@ -684,12 +730,35 @@ mod tests {
         snapshot
     }
 
+    fn build_terminal_heap_pointer_scan_snapshot() -> Snapshot {
+        let mut snapshot = Snapshot::new();
+
+        snapshot.set_snapshot_regions(vec![
+            SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x40), Vec::new()),
+            SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x40), Vec::new()),
+            SnapshotRegion::new(NormalizedRegion::new(0x4000, 0x40), Vec::new()),
+        ]);
+
+        snapshot
+    }
+
     fn build_pointer_scan_memory_map() -> HashMap<u64, u8> {
         let mut memory_map = HashMap::new();
 
         write_pointer_bytes(&mut memory_map, 0x1010, 0x1FF0_u64);
         write_pointer_bytes(&mut memory_map, 0x1030, 0x3020_u64);
         write_pointer_bytes(&mut memory_map, 0x2000, 0x3000_u64);
+
+        memory_map
+    }
+
+    fn build_terminal_heap_pointer_scan_memory_map() -> HashMap<u64, u8> {
+        let mut memory_map = HashMap::new();
+
+        write_pointer_bytes(&mut memory_map, 0x1030, 0x3020_u64);
+        write_pointer_bytes(&mut memory_map, 0x1020, 0x2000_u64);
+        write_pointer_bytes(&mut memory_map, 0x2000, 0x3000_u64);
+        write_pointer_bytes(&mut memory_map, 0x4000, 0x2000_u64);
 
         memory_map
     }
