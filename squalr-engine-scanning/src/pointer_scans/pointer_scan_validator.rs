@@ -15,7 +15,6 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::Pointe
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::mem::size_of;
 use std::time::Instant;
@@ -139,7 +138,7 @@ impl PointerScanValidator {
             }
 
             if !is_terminal_level {
-                required_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
+                required_target_ranges = PointerScanTargetRangeSet::from_target_addresses_iter(
                     rebuilt_heap_candidates
                         .iter()
                         .map(|rebuilt_pointer_candidate| rebuilt_pointer_candidate.pointer_address),
@@ -211,9 +210,6 @@ impl PointerScanValidator {
                 }
             }
         }
-
-        Self::sort_and_deduplicate_rebuilt_pointer_candidates(&mut rebuilt_pointer_candidates);
-
         rebuilt_pointer_candidates
     }
 
@@ -225,7 +221,7 @@ impl PointerScanValidator {
         with_logging: bool,
         validation_level_log_context: &PointerValidationLevelLogContext,
     ) -> Vec<RebuiltPointerCandidate> {
-        let mut rebuilt_pointer_candidates = memory_regions
+        let rebuilt_pointer_candidates = memory_regions
             .par_iter()
             .enumerate()
             .fold(
@@ -259,9 +255,6 @@ impl PointerScanValidator {
                 left_candidates.append(&mut right_candidates);
                 left_candidates
             });
-
-        Self::sort_and_deduplicate_rebuilt_pointer_candidates(&mut rebuilt_pointer_candidates);
-
         rebuilt_pointer_candidates
     }
 
@@ -338,11 +331,6 @@ impl PointerScanValidator {
 
             scan_address = scan_address.saturating_add(scan_chunk_size as u64);
         }
-    }
-
-    fn sort_and_deduplicate_rebuilt_pointer_candidates(rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>) {
-        rebuilt_pointer_candidates.par_sort_unstable_by(Self::compare_rebuilt_pointer_candidates);
-        rebuilt_pointer_candidates.dedup();
     }
 
     fn read_pointer_value_at_address(
@@ -526,42 +514,6 @@ impl PointerScanValidator {
         }
 
         modules_by_name
-    }
-
-    fn compare_rebuilt_pointer_candidates(
-        left_pointer_node: &RebuiltPointerCandidate,
-        right_pointer_node: &RebuiltPointerCandidate,
-    ) -> Ordering {
-        left_pointer_node
-            .pointer_address
-            .cmp(&right_pointer_node.pointer_address)
-            .then_with(|| {
-                left_pointer_node
-                    .pointer_value
-                    .cmp(&right_pointer_node.pointer_value)
-            })
-            .then_with(|| {
-                left_pointer_node
-                    .module_name
-                    .cmp(&right_pointer_node.module_name)
-            })
-            .then_with(|| {
-                left_pointer_node
-                    .module_offset
-                    .cmp(&right_pointer_node.module_offset)
-            })
-            .then_with(|| {
-                let left_node_class = match left_pointer_node.pointer_scan_node_type {
-                    PointerScanNodeType::Heap => 0_u8,
-                    PointerScanNodeType::Static => 1_u8,
-                };
-                let right_node_class = match right_pointer_node.pointer_scan_node_type {
-                    PointerScanNodeType::Heap => 0_u8,
-                    PointerScanNodeType::Static => 1_u8,
-                };
-
-                left_node_class.cmp(&right_node_class)
-            })
     }
 }
 

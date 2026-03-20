@@ -16,7 +16,6 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerS
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
@@ -187,6 +186,9 @@ impl PointerScanExecutor {
             let mut static_candidates = Vec::with_capacity(discovered_pointer_level.static_candidates.len());
 
             for discovered_pointer_candidate in &discovered_pointer_level.static_candidates {
+                let Some(module) = modules.get(discovered_pointer_candidate.module_index) else {
+                    continue;
+                };
                 root_tracker.record_static_candidate(discovery_depth, discovered_pointer_candidate.pointer_value);
                 static_candidates.push(PointerScanCandidate::new(
                     next_candidate_id,
@@ -194,7 +196,7 @@ impl PointerScanExecutor {
                     PointerScanNodeType::Static,
                     discovered_pointer_candidate.pointer_address,
                     discovered_pointer_candidate.pointer_value,
-                    discovered_pointer_candidate.module_name.clone(),
+                    module.get_module_name().to_string(),
                     discovered_pointer_candidate.module_offset,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
@@ -341,7 +343,7 @@ impl PointerScanExecutor {
             }
 
             if !is_terminal_level {
-                frontier_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
+                frontier_target_ranges = PointerScanTargetRangeSet::from_target_addresses_iter(
                     discovered_pointer_level
                         .heap_candidates
                         .iter()
@@ -379,7 +381,7 @@ impl PointerScanExecutor {
             return DiscoveredPointerLevel::default();
         }
 
-        let mut discovered_pointer_level = snapshot_region_scan_tasks
+        snapshot_region_scan_tasks
             .par_iter()
             .fold(
                 DiscoveredPointerLevel::default,
@@ -395,18 +397,7 @@ impl PointerScanExecutor {
                     worker_discovered_pointer_level
                 },
             )
-            .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels);
-
-        discovered_pointer_level
-            .static_candidates
-            .par_sort_unstable_by(Self::compare_discovered_pointer_candidates);
-        discovered_pointer_level.static_candidates.dedup();
-        discovered_pointer_level
-            .heap_candidates
-            .par_sort_unstable_by(Self::compare_discovered_pointer_candidates);
-        discovered_pointer_level.heap_candidates.dedup();
-
-        discovered_pointer_level
+            .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels)
     }
 
     fn scan_snapshot_region_for_pointer_targets(
@@ -420,26 +411,24 @@ impl PointerScanExecutor {
             snapshot_region_scan_task.base_address,
             snapshot_region_scan_task.current_values,
             |pointer_match| {
-                let (pointer_scan_node_type, module_name, module_offset) = Self::classify_pointer_address(pointer_match.get_pointer_address(), modules);
-                let discovered_pointer_candidate = DiscoveredPointerCandidate {
-                    pointer_scan_node_type,
-                    pointer_address: pointer_match.get_pointer_address(),
-                    pointer_value: pointer_match.get_pointer_value(),
-                    module_name,
-                    module_offset,
-                };
-
-                match pointer_scan_node_type {
-                    PointerScanNodeType::Static => discovered_pointer_level
+                if let Some((module_index, module_offset)) = Self::classify_static_pointer_address(pointer_match.get_pointer_address(), modules) {
+                    discovered_pointer_level
                         .static_candidates
-                        .push(discovered_pointer_candidate),
-                    PointerScanNodeType::Heap => {
-                        if retain_heap_candidates {
-                            discovered_pointer_level
-                                .heap_candidates
-                                .push(discovered_pointer_candidate);
-                        }
-                    }
+                        .push(DiscoveredPointerCandidate {
+                            pointer_address: pointer_match.get_pointer_address(),
+                            pointer_value: pointer_match.get_pointer_value(),
+                            module_index,
+                            module_offset,
+                        });
+                } else if retain_heap_candidates {
+                    discovered_pointer_level
+                        .heap_candidates
+                        .push(DiscoveredPointerCandidate {
+                            pointer_address: pointer_match.get_pointer_address(),
+                            pointer_value: pointer_match.get_pointer_value(),
+                            module_index: 0,
+                            module_offset: 0,
+                        });
                 }
             },
         );
@@ -556,58 +545,15 @@ impl PointerScanExecutor {
         left_discovered_pointer_level
     }
 
-    fn classify_pointer_address(
+    fn classify_static_pointer_address(
         pointer_address: u64,
         modules: &[NormalizedModule],
-    ) -> (PointerScanNodeType, String, u64) {
-        if let Some(module) = modules
-            .iter()
-            .find(|module| module.contains_address(pointer_address))
-        {
-            (
-                PointerScanNodeType::Static,
-                module.get_module_name().to_string(),
-                pointer_address.saturating_sub(module.get_base_address()),
-            )
-        } else {
-            (PointerScanNodeType::Heap, String::new(), 0)
-        }
-    }
-
-    fn compare_discovered_pointer_candidates(
-        left_pointer_node: &DiscoveredPointerCandidate,
-        right_pointer_node: &DiscoveredPointerCandidate,
-    ) -> Ordering {
-        left_pointer_node
-            .pointer_address
-            .cmp(&right_pointer_node.pointer_address)
-            .then_with(|| {
-                left_pointer_node
-                    .pointer_value
-                    .cmp(&right_pointer_node.pointer_value)
-            })
-            .then_with(|| {
-                left_pointer_node
-                    .module_name
-                    .cmp(&right_pointer_node.module_name)
-            })
-            .then_with(|| {
-                left_pointer_node
-                    .module_offset
-                    .cmp(&right_pointer_node.module_offset)
-            })
-            .then_with(|| {
-                let left_node_class = match left_pointer_node.pointer_scan_node_type {
-                    PointerScanNodeType::Heap => 0_u8,
-                    PointerScanNodeType::Static => 1_u8,
-                };
-                let right_node_class = match right_pointer_node.pointer_scan_node_type {
-                    PointerScanNodeType::Heap => 0_u8,
-                    PointerScanNodeType::Static => 1_u8,
-                };
-
-                left_node_class.cmp(&right_node_class)
-            })
+    ) -> Option<(usize, u64)> {
+        modules.iter().enumerate().find_map(|(module_index, module)| {
+            module
+                .contains_address(pointer_address)
+                .then_some((module_index, pointer_address.saturating_sub(module.get_base_address())))
+        })
     }
 
     fn create_empty_session(
