@@ -1,6 +1,6 @@
-use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
 use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
 use crate::pointer_scans::structures::rebuilt_pointer_candidate::RebuiltPointerCandidate;
 use crate::pointer_scans::structures::rebuilt_pointer_level::RebuiltPointerLevel;
@@ -569,8 +569,8 @@ impl PointerScanValidator {
 mod tests {
     use super::{PointerScanValidator, PointerValidationLevelLogContext};
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
-    use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
     use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+    use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;

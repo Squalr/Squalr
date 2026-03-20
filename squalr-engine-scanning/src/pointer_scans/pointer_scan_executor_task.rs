@@ -1,6 +1,6 @@
-use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
 use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
 use crate::pointer_scans::structures::discovered_pointer_candidate::DiscoveredPointerCandidate;
 use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
