@@ -246,20 +246,33 @@ impl PointerScanValidator {
         let mut rebuilt_pointer_candidates = memory_regions
             .par_iter()
             .enumerate()
-            .map(|(memory_region_index, memory_region)| {
-                if with_logging && Self::should_log_memory_region_progress(memory_region_index, memory_regions.len()) {
-                    log::info!(
-                        "Pointer scan validation level {}/{} (heap): region {}/{} at 0x{:X}.",
-                        validation_level_log_context.level_number,
-                        validation_level_log_context.level_count,
-                        memory_region_index + 1,
-                        memory_regions.len(),
-                        memory_region.get_base_address(),
-                    );
-                }
+            .fold(
+                || (Vec::new(), vec![0_u8; VALIDATION_SCAN_CHUNK_SIZE]),
+                |(mut worker_rebuilt_pointer_candidates, mut worker_scan_buffer), (memory_region_index, memory_region)| {
+                    if with_logging && Self::should_log_memory_region_progress(memory_region_index, memory_regions.len()) {
+                        log::info!(
+                            "Pointer scan validation level {}/{} (heap): region {}/{} at 0x{:X}.",
+                            validation_level_log_context.level_number,
+                            validation_level_log_context.level_count,
+                            memory_region_index + 1,
+                            memory_regions.len(),
+                            memory_region.get_base_address(),
+                        );
+                    }
 
-                Self::scan_memory_region_for_heap_pointer_candidates_by_target(process_info, memory_region, range_search_kernel, scan_execution_context)
-            })
+                    Self::scan_memory_region_for_heap_pointer_candidates_by_target(
+                        process_info,
+                        memory_region,
+                        range_search_kernel,
+                        scan_execution_context,
+                        &mut worker_scan_buffer,
+                        &mut worker_rebuilt_pointer_candidates,
+                    );
+
+                    (worker_rebuilt_pointer_candidates, worker_scan_buffer)
+                },
+            )
+            .map(|(worker_rebuilt_pointer_candidates, _worker_scan_buffer)| worker_rebuilt_pointer_candidates)
             .reduce(Vec::new, |mut left_candidates, mut right_candidates| {
                 left_candidates.append(&mut right_candidates);
                 left_candidates
@@ -286,12 +299,13 @@ impl PointerScanValidator {
         memory_region: &NormalizedRegion,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         scan_execution_context: &ScanExecutionContext,
-    ) -> Vec<RebuiltPointerCandidate> {
+        scan_buffer: &mut Vec<u8>,
+        rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>,
+    ) {
         let pointer_size_in_bytes = range_search_kernel.get_pointer_size().get_size_in_bytes() as usize;
         let pointer_alignment = pointer_size_in_bytes as u64;
         let region_base_address = memory_region.get_base_address();
         let region_end_address = memory_region.get_end_address();
-        let mut rebuilt_pointer_candidates = Vec::new();
         let alignment_remainder = region_base_address % pointer_alignment;
         let mut scan_address = if alignment_remainder == 0 {
             region_base_address
@@ -300,10 +314,8 @@ impl PointerScanValidator {
         };
 
         if scan_address.saturating_add(pointer_size_in_bytes as u64) > region_end_address {
-            return rebuilt_pointer_candidates;
+            return;
         }
-
-        let mut scan_buffer = vec![0_u8; VALIDATION_SCAN_CHUNK_SIZE];
 
         while scan_address.saturating_add(pointer_size_in_bytes as u64) <= region_end_address {
             let remaining_region_bytes = region_end_address.saturating_sub(scan_address) as usize;
@@ -344,8 +356,6 @@ impl PointerScanValidator {
 
             scan_address = scan_address.saturating_add(scan_chunk_size as u64);
         }
-
-        rebuilt_pointer_candidates
     }
 
     fn sort_and_deduplicate_rebuilt_pointer_candidates(rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>) {

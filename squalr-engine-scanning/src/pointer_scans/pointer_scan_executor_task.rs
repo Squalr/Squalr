@@ -404,9 +404,20 @@ impl PointerScanExecutor {
 
         let mut discovered_pointer_level = snapshot_region_scan_tasks
             .par_iter()
-            .map(|snapshot_region_scan_task| {
-                Self::scan_snapshot_region_for_pointer_targets(snapshot_region_scan_task, range_search_kernel, modules, retain_heap_candidates)
-            })
+            .fold(
+                DiscoveredPointerLevel::default,
+                |mut worker_discovered_pointer_level, snapshot_region_scan_task| {
+                    Self::scan_snapshot_region_for_pointer_targets(
+                        snapshot_region_scan_task,
+                        range_search_kernel,
+                        modules,
+                        retain_heap_candidates,
+                        &mut worker_discovered_pointer_level,
+                    );
+
+                    worker_discovered_pointer_level
+                },
+            )
             .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels);
 
         discovered_pointer_level
@@ -426,9 +437,8 @@ impl PointerScanExecutor {
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
         retain_heap_candidates: bool,
-    ) -> DiscoveredPointerLevel {
-        let mut discovered_pointer_level = DiscoveredPointerLevel::default();
-
+        discovered_pointer_level: &mut DiscoveredPointerLevel,
+    ) {
         range_search_kernel.scan_region_with_visitor(
             snapshot_region_scan_task.base_address,
             snapshot_region_scan_task.current_values,
@@ -456,8 +466,6 @@ impl PointerScanExecutor {
                 }
             },
         );
-
-        discovered_pointer_level
     }
 
     fn build_snapshot_region_scan_tasks<'a>(
