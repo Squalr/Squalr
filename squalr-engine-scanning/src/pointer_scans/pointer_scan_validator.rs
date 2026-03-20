@@ -2,6 +2,7 @@ use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSear
 use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
+use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
@@ -12,6 +13,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::Poi
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::mem::size_of;
 use std::time::Instant;
 
@@ -67,6 +69,7 @@ impl PointerScanValidator {
         let mut required_target_addresses = vec![validation_target_address];
         let mut rebuilt_pointer_levels = Vec::new();
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
+        let heap_memory_regions = Self::build_heap_memory_regions(memory_regions, modules);
 
         for level_index in 0..level_count {
             let level_number = level_index + 1;
@@ -102,11 +105,11 @@ impl PointerScanValidator {
 
             if with_logging {
                 log::info!(
-                    "Pointer scan validation level {}/{}: checking {} static nodes and scanning {} memory regions for {} frontier targets merged into {} ranges with {} kernel.",
+                    "Pointer scan validation level {}/{}: checking {} static nodes and scanning {} heap memory regions for {} frontier targets merged into {} ranges with {} kernel.",
                     validation_level_log_context.level_number,
                     validation_level_log_context.level_count,
                     static_pointer_scan_candidates.len(),
-                    memory_regions.len(),
+                    heap_memory_regions.len(),
                     required_target_addresses.len(),
                     required_target_ranges.get_range_count(),
                     range_search_kernel.get_name(),
@@ -126,8 +129,7 @@ impl PointerScanValidator {
                 Self::scan_memory_regions_for_heap_pointer_candidates_by_target(
                     &process_info,
                     &range_search_kernel,
-                    memory_regions,
-                    modules,
+                    &heap_memory_regions,
                     scan_execution_context,
                     with_logging,
                     &validation_level_log_context,
@@ -197,12 +199,14 @@ impl PointerScanValidator {
         scan_execution_context: &ScanExecutionContext,
     ) -> Vec<RebuiltPointerCandidate> {
         let mut rebuilt_pointer_candidates = Vec::new();
+        let modules_by_name = Self::group_modules_by_name(modules);
 
         for static_pointer_scan_candidate in static_pointer_scan_candidates {
-            for module in modules
-                .iter()
-                .filter(|module| module.get_module_name() == static_pointer_scan_candidate.get_module_name())
-            {
+            let Some(candidate_modules) = modules_by_name.get(static_pointer_scan_candidate.get_module_name()) else {
+                continue;
+            };
+
+            for module in candidate_modules {
                 let pointer_address = module
                     .get_base_address()
                     .saturating_add(static_pointer_scan_candidate.get_module_offset());
@@ -234,38 +238,31 @@ impl PointerScanValidator {
         process_info: &OpenedProcessInfo,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         memory_regions: &[NormalizedRegion],
-        modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
         with_logging: bool,
         validation_level_log_context: &PointerValidationLevelLogContext,
     ) -> Vec<RebuiltPointerCandidate> {
-        let mut rebuilt_pointer_candidates = Vec::new();
+        let mut rebuilt_pointer_candidates = memory_regions
+            .par_iter()
+            .enumerate()
+            .map(|(memory_region_index, memory_region)| {
+                if with_logging && Self::should_log_memory_region_progress(memory_region_index, memory_regions.len()) {
+                    log::info!(
+                        "Pointer scan validation level {}/{} (heap): region {}/{} at 0x{:X}.",
+                        validation_level_log_context.level_number,
+                        validation_level_log_context.level_count,
+                        memory_region_index + 1,
+                        memory_regions.len(),
+                        memory_region.get_base_address(),
+                    );
+                }
 
-        for (memory_region_index, memory_region) in memory_regions.iter().enumerate() {
-            if with_logging && Self::should_log_memory_region_progress(memory_region_index, memory_regions.len()) {
-                log::info!(
-                    "Pointer scan validation level {}/{} (heap): region {}/{} at 0x{:X}.",
-                    validation_level_log_context.level_number,
-                    validation_level_log_context.level_count,
-                    memory_region_index + 1,
-                    memory_regions.len(),
-                    memory_region.get_base_address(),
-                );
-            }
-
-            Self::scan_memory_region_for_heap_pointer_candidates_by_target(
-                process_info,
-                memory_region,
-                range_search_kernel,
-                modules,
-                scan_execution_context,
-                &mut rebuilt_pointer_candidates,
-            );
-
-            if scan_execution_context.should_cancel() {
-                break;
-            }
-        }
+                Self::scan_memory_region_for_heap_pointer_candidates_by_target(process_info, memory_region, range_search_kernel, scan_execution_context)
+            })
+            .reduce(Vec::new, |mut left_candidates, mut right_candidates| {
+                left_candidates.append(&mut right_candidates);
+                left_candidates
+            });
 
         Self::sort_and_deduplicate_rebuilt_pointer_candidates(&mut rebuilt_pointer_candidates);
 
@@ -287,14 +284,13 @@ impl PointerScanValidator {
         process_info: &OpenedProcessInfo,
         memory_region: &NormalizedRegion,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
-        modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
-        rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>,
-    ) {
+    ) -> Vec<RebuiltPointerCandidate> {
         let pointer_size_in_bytes = range_search_kernel.get_pointer_size().get_size_in_bytes() as usize;
         let pointer_alignment = pointer_size_in_bytes as u64;
         let region_base_address = memory_region.get_base_address();
         let region_end_address = memory_region.get_end_address();
+        let mut rebuilt_pointer_candidates = Vec::new();
         let alignment_remainder = region_base_address % pointer_alignment;
         let mut scan_address = if alignment_remainder == 0 {
             region_base_address
@@ -303,8 +299,10 @@ impl PointerScanValidator {
         };
 
         if scan_address.saturating_add(pointer_size_in_bytes as u64) > region_end_address {
-            return;
+            return rebuilt_pointer_candidates;
         }
+
+        let mut scan_buffer = vec![0_u8; VALIDATION_SCAN_CHUNK_SIZE];
 
         while scan_address.saturating_add(pointer_size_in_bytes as u64) <= region_end_address {
             let remaining_region_bytes = region_end_address.saturating_sub(scan_address) as usize;
@@ -324,32 +322,33 @@ impl PointerScanValidator {
                 break;
             }
 
-            let mut current_values = vec![0_u8; scan_chunk_size];
-            let read_succeeded = scan_execution_context.read_bytes(process_info, scan_address, &mut current_values);
+            let current_values = &mut scan_buffer[..scan_chunk_size];
+            let read_succeeded = scan_execution_context.read_bytes(process_info, scan_address, current_values);
 
             if read_succeeded {
-                for pointer_match in range_search_kernel.scan_region(scan_address, &current_values) {
-                    let pointer_address = pointer_match.get_pointer_address();
-                    let (pointer_scan_node_type, _module_name, _module_offset) = Self::classify_pointer_address(pointer_address, modules);
-
-                    if pointer_scan_node_type == PointerScanNodeType::Heap {
-                        rebuilt_pointer_candidates.push(RebuiltPointerCandidate {
-                            pointer_scan_node_type: PointerScanNodeType::Heap,
-                            pointer_address,
-                            pointer_value: pointer_match.get_pointer_value(),
-                            module_name: String::new(),
-                            module_offset: 0,
-                        });
-                    }
+                for pointer_match in range_search_kernel.scan_region(scan_address, current_values) {
+                    rebuilt_pointer_candidates.push(RebuiltPointerCandidate {
+                        pointer_scan_node_type: PointerScanNodeType::Heap,
+                        pointer_address: pointer_match.get_pointer_address(),
+                        pointer_value: pointer_match.get_pointer_value(),
+                        module_name: String::new(),
+                        module_offset: 0,
+                    });
                 }
+            }
+
+            if scan_execution_context.should_cancel() {
+                break;
             }
 
             scan_address = scan_address.saturating_add(scan_chunk_size as u64);
         }
+
+        rebuilt_pointer_candidates
     }
 
     fn sort_and_deduplicate_rebuilt_pointer_candidates(rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>) {
-        rebuilt_pointer_candidates.sort_by(Self::compare_rebuilt_pointer_candidates);
+        rebuilt_pointer_candidates.par_sort_unstable_by(Self::compare_rebuilt_pointer_candidates);
         rebuilt_pointer_candidates.dedup();
     }
 
@@ -465,22 +464,75 @@ impl PointerScanValidator {
         )
     }
 
-    fn classify_pointer_address(
-        pointer_address: u64,
+    fn build_heap_memory_regions(
+        memory_regions: &[NormalizedRegion],
         modules: &[NormalizedModule],
-    ) -> (PointerScanNodeType, String, u64) {
-        if let Some(module) = modules
-            .iter()
-            .find(|module| module.contains_address(pointer_address))
-        {
-            (
-                PointerScanNodeType::Static,
-                module.get_module_name().to_string(),
-                pointer_address.saturating_sub(module.get_base_address()),
-            )
-        } else {
-            (PointerScanNodeType::Heap, String::new(), 0)
+    ) -> Vec<NormalizedRegion> {
+        if modules.is_empty() {
+            return memory_regions.to_vec();
         }
+
+        let mut module_regions = modules
+            .iter()
+            .map(NormalizedModule::get_base_region)
+            .cloned()
+            .collect::<Vec<_>>();
+        module_regions.sort_by_key(NormalizedRegion::get_base_address);
+
+        let mut heap_memory_regions = Vec::new();
+
+        for memory_region in memory_regions {
+            let mut next_heap_region_base_address = memory_region.get_base_address();
+            let memory_region_end_address = memory_region.get_end_address();
+
+            for module_region in &module_regions {
+                let module_base_address = module_region.get_base_address();
+                let module_end_address = module_region.get_end_address();
+
+                if module_end_address <= next_heap_region_base_address {
+                    continue;
+                }
+
+                if module_base_address >= memory_region_end_address {
+                    break;
+                }
+
+                if next_heap_region_base_address < module_base_address {
+                    heap_memory_regions.push(NormalizedRegion::new(
+                        next_heap_region_base_address,
+                        module_base_address.saturating_sub(next_heap_region_base_address),
+                    ));
+                }
+
+                next_heap_region_base_address = next_heap_region_base_address.max(module_end_address);
+
+                if next_heap_region_base_address >= memory_region_end_address {
+                    break;
+                }
+            }
+
+            if next_heap_region_base_address < memory_region_end_address {
+                heap_memory_regions.push(NormalizedRegion::new(
+                    next_heap_region_base_address,
+                    memory_region_end_address.saturating_sub(next_heap_region_base_address),
+                ));
+            }
+        }
+
+        heap_memory_regions
+    }
+
+    fn group_modules_by_name<'a>(modules: &'a [NormalizedModule]) -> HashMap<&'a str, Vec<&'a NormalizedModule>> {
+        let mut modules_by_name = HashMap::new();
+
+        for module in modules {
+            modules_by_name
+                .entry(module.get_module_name())
+                .or_insert_with(Vec::new)
+                .push(module);
+        }
+
+        modules_by_name
     }
 
     fn compare_rebuilt_pointer_candidates(
@@ -653,7 +705,6 @@ mod tests {
             &OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &range_search_kernel,
             &[NormalizedRegion::new(0x3000, 0x40)],
-            &[],
             &scan_execution_context,
             false,
             &PointerValidationLevelLogContext {
@@ -673,6 +724,30 @@ mod tests {
                 .iter()
                 .any(|rebuilt_pointer_candidate| { rebuilt_pointer_candidate.pointer_address == 0x3008 && rebuilt_pointer_candidate.pointer_value == 0x5000 })
         );
+    }
+
+    #[test]
+    fn build_heap_memory_regions_excludes_module_ranges() {
+        let heap_memory_regions = PointerScanValidator::build_heap_memory_regions(
+            &[
+                NormalizedRegion::new(0x1000, 0x500),
+                NormalizedRegion::new(0x2000, 0x100),
+            ],
+            &[
+                NormalizedModule::new("game.exe", 0x1100, 0x100),
+                NormalizedModule::new("engine.dll", 0x1300, 0x80),
+            ],
+        );
+
+        assert_eq!(heap_memory_regions.len(), 4);
+        assert_eq!(heap_memory_regions[0].get_base_address(), 0x1000);
+        assert_eq!(heap_memory_regions[0].get_region_size(), 0x100);
+        assert_eq!(heap_memory_regions[1].get_base_address(), 0x1200);
+        assert_eq!(heap_memory_regions[1].get_region_size(), 0x100);
+        assert_eq!(heap_memory_regions[2].get_base_address(), 0x1380);
+        assert_eq!(heap_memory_regions[2].get_region_size(), 0x180);
+        assert_eq!(heap_memory_regions[3].get_base_address(), 0x2000);
+        assert_eq!(heap_memory_regions[3].get_region_size(), 0x100);
     }
 
     fn build_original_pointer_scan_session() -> PointerScanSession {

@@ -285,10 +285,11 @@ impl PointerScanExecutor {
         let target_address = pointer_scan_parameters.get_target_address();
         let mut frontier_target_addresses = vec![target_address];
         let mut discovered_pointer_levels = Vec::new();
-        let total_snapshot_region_count = snapshots
+        let snapshot_regions = snapshots
             .iter()
-            .map(|snapshot| snapshot.get_snapshot_regions().len())
-            .sum::<usize>();
+            .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
+            .collect::<Vec<_>>();
+        let total_snapshot_region_count = snapshot_regions.len();
 
         for pointer_chain_depth in 0..max_depth {
             let level_number = pointer_chain_depth.saturating_add(1);
@@ -324,7 +325,8 @@ impl PointerScanExecutor {
                 );
             }
 
-            let discovered_pointer_level = Self::scan_snapshots_for_pointer_targets(snapshots, &range_search_kernel, modules, !is_terminal_level);
+            let discovered_pointer_level =
+                Self::scan_snapshot_regions_for_pointer_targets(&snapshot_regions, &range_search_kernel, modules, !is_terminal_level);
             let level_duration = level_start_time.elapsed();
 
             if with_logging {
@@ -379,8 +381,8 @@ impl PointerScanExecutor {
         discovered_pointer_levels
     }
 
-    fn scan_snapshots_for_pointer_targets(
-        snapshots: &[&Snapshot],
+    fn scan_snapshot_regions_for_pointer_targets(
+        snapshot_regions: &[&SnapshotRegion],
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
         retain_heap_candidates: bool,
@@ -389,10 +391,6 @@ impl PointerScanExecutor {
             return DiscoveredPointerLevel::default();
         }
 
-        let snapshot_regions = snapshots
-            .iter()
-            .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
-            .collect::<Vec<_>>();
         let mut discovered_pointer_level = snapshot_regions
             .par_iter()
             .map(|snapshot_region| Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules, retain_heap_candidates))
@@ -400,11 +398,11 @@ impl PointerScanExecutor {
 
         discovered_pointer_level
             .static_candidates
-            .sort_by(Self::compare_discovered_pointer_candidates);
+            .par_sort_unstable_by(Self::compare_discovered_pointer_candidates);
         discovered_pointer_level.static_candidates.dedup();
         discovered_pointer_level
             .heap_candidates
-            .sort_by(Self::compare_discovered_pointer_candidates);
+            .par_sort_unstable_by(Self::compare_discovered_pointer_candidates);
         discovered_pointer_level.heap_candidates.dedup();
 
         discovered_pointer_level
