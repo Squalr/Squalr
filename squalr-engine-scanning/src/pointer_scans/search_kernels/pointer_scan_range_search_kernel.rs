@@ -1,8 +1,8 @@
-use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::search_kernels::pointer_scan_range_search_kernel_kind::PointerScanRangeSearchKernelKind;
 use crate::pointer_scans::search_kernels::pointer_scan_scalar_search_kernel::scan_region_scalar;
 use crate::pointer_scans::search_kernels::pointer_scan_simd_linear_search_kernel::scan_region_simd_linear;
 pub use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
+use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
 pub struct PointerScanRangeSearchKernel<'a> {
@@ -125,7 +125,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
 #[cfg(test)]
 mod tests {
     use super::PointerScanRangeSearchKernel;
-    use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+    use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
     #[test]

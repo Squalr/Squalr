@@ -1,8 +1,8 @@
-use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
-use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
 use crate::pointer_scans::structures::discovered_pointer_candidate::DiscoveredPointerCandidate;
 use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
+use crate::pointer_scans::structures::pointer_scan_root_tracker::PointerScanRootTracker;
+use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
@@ -94,7 +94,9 @@ impl PointerScanExecutor {
                 }
             };
 
-            Self::build_pointer_scan_session(vec![&*snapshot_guard], pointer_scan_session_id, &pointer_scan_parameters, modules, with_logging)
+            let snapshots = [&*snapshot_guard];
+
+            Self::build_pointer_scan_session(&snapshots, pointer_scan_session_id, &pointer_scan_parameters, modules, with_logging)
         } else {
             let statics_snapshot_guard = match statics_snapshot.read() {
                 Ok(statics_snapshot_guard) => statics_snapshot_guard,
@@ -117,13 +119,9 @@ impl PointerScanExecutor {
                 }
             };
 
-            Self::build_pointer_scan_session(
-                vec![&*statics_snapshot_guard, &*heaps_snapshot_guard],
-                pointer_scan_session_id,
-                &pointer_scan_parameters,
-                modules,
-                with_logging,
-            )
+            let snapshots = [&*statics_snapshot_guard, &*heaps_snapshot_guard];
+
+            Self::build_pointer_scan_session(&snapshots, pointer_scan_session_id, &pointer_scan_parameters, modules, with_logging)
         };
         let discovery_duration = discovery_start_time.elapsed();
 
@@ -161,13 +159,13 @@ impl PointerScanExecutor {
     }
 
     fn build_pointer_scan_session(
-        snapshots: Vec<&Snapshot>,
+        snapshots: &[&Snapshot],
         pointer_scan_session_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
         modules: &[NormalizedModule],
         with_logging: bool,
     ) -> PointerScanSession {
-        let discovered_pointer_levels = Self::discover_pointer_levels(&snapshots, pointer_scan_parameters, modules, with_logging);
+        let discovered_pointer_levels = Self::discover_pointer_levels(snapshots, pointer_scan_parameters, modules, with_logging);
 
         if discovered_pointer_levels.is_empty() {
             if with_logging {
@@ -272,8 +270,8 @@ impl PointerScanExecutor {
             return Vec::new();
         }
 
-        let target_address = pointer_scan_parameters.get_target_address();
-        let mut frontier_target_addresses = vec![target_address];
+        let mut frontier_target_ranges =
+            PointerScanTargetRangeSet::from_target_addresses(&[pointer_scan_parameters.get_target_address()], pointer_scan_parameters.get_offset_radius());
         let mut discovered_pointer_levels = Vec::new();
         let (snapshot_region_scan_tasks, total_snapshot_region_count, snapshot_task_byte_size) =
             Self::build_snapshot_region_scan_tasks(snapshots, pointer_scan_parameters.get_pointer_size());
@@ -282,10 +280,8 @@ impl PointerScanExecutor {
         for pointer_chain_depth in 0..max_depth {
             let level_number = pointer_chain_depth.saturating_add(1);
             let is_terminal_level = level_number >= max_depth;
-            frontier_target_addresses.sort_unstable();
-            frontier_target_addresses.dedup();
 
-            if frontier_target_addresses.is_empty() {
+            if frontier_target_ranges.is_empty() {
                 if with_logging {
                     log::info!(
                         "Pointer scan stopped after level {} because no frontier targets remained.",
@@ -296,8 +292,6 @@ impl PointerScanExecutor {
                 break;
             }
 
-            let frontier_target_ranges =
-                PointerScanTargetRangeSet::from_sorted_target_addresses(&frontier_target_addresses, pointer_scan_parameters.get_offset_radius());
             let range_search_kernel = PointerScanRangeSearchKernel::new(&frontier_target_ranges, pointer_scan_parameters.get_pointer_size());
             let level_start_time = Instant::now();
 
@@ -309,7 +303,7 @@ impl PointerScanExecutor {
                     total_snapshot_region_count,
                     total_snapshot_region_scan_task_count,
                     snapshot_task_byte_size,
-                    frontier_target_addresses.len(),
+                    frontier_target_ranges.get_source_target_count(),
                     frontier_target_ranges.get_range_count(),
                     range_search_kernel.get_name(),
                 );
@@ -346,11 +340,15 @@ impl PointerScanExecutor {
                 break;
             }
 
-            frontier_target_addresses = discovered_pointer_level
-                .heap_candidates
-                .iter()
-                .map(|discovered_pointer_candidate| discovered_pointer_candidate.pointer_address)
-                .collect();
+            if !is_terminal_level {
+                frontier_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
+                    discovered_pointer_level
+                        .heap_candidates
+                        .iter()
+                        .map(|discovered_pointer_candidate| discovered_pointer_candidate.pointer_address),
+                    pointer_scan_parameters.get_offset_radius(),
+                );
+            }
             discovered_pointer_levels.push(discovered_pointer_level);
         }
 

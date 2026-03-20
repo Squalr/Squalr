@@ -1,7 +1,9 @@
 pub(crate) mod discovered_pointer_candidate;
 pub(crate) mod discovered_pointer_level;
 pub(crate) mod pointer_scan_region_match;
+pub(crate) mod pointer_scan_root_tracker;
 pub(crate) mod pointer_scan_target_range_bucket;
+pub(crate) mod pointer_scan_target_ranges;
 pub(crate) mod pointer_validation_level_log_context;
 pub(crate) mod rebuilt_pointer_candidate;
 pub(crate) mod rebuilt_pointer_level;

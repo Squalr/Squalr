@@ -1,6 +1,6 @@
-use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
-use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
+use crate::pointer_scans::structures::pointer_scan_root_tracker::PointerScanRootTracker;
+use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
 use crate::pointer_scans::structures::rebuilt_pointer_candidate::RebuiltPointerCandidate;
 use crate::pointer_scans::structures::rebuilt_pointer_level::RebuiltPointerLevel;
@@ -48,7 +48,8 @@ impl PointerScanValidator {
             return Self::create_empty_session(pointer_scan_session, validation_target_address);
         }
 
-        let mut required_target_addresses = vec![validation_target_address];
+        let mut required_target_ranges =
+            PointerScanTargetRangeSet::from_target_addresses(&[validation_target_address], pointer_scan_session.get_offset_radius());
         let mut rebuilt_pointer_levels = Vec::new();
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
         let heap_memory_regions = Self::build_heap_memory_regions(memory_regions, modules);
@@ -60,10 +61,7 @@ impl PointerScanValidator {
                 break;
             }
 
-            required_target_addresses.sort_unstable();
-            required_target_addresses.dedup();
-
-            if required_target_addresses.is_empty() {
+            if required_target_ranges.is_empty() {
                 if with_logging {
                     log::info!(
                         "Pointer scan validation stopped after level {} because no frontier targets remained.",
@@ -74,17 +72,15 @@ impl PointerScanValidator {
                 break;
             }
 
-            let required_target_ranges =
-                PointerScanTargetRangeSet::from_sorted_target_addresses(&required_target_addresses, pointer_scan_session.get_offset_radius());
             let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, pointer_scan_session.get_pointer_size());
             let validation_level_log_context = PointerValidationLevelLogContext { level_number, level_count };
             let level_start_time = Instant::now();
+            let empty_static_pointer_scan_candidates: &[PointerScanCandidate] = &[];
             let static_pointer_scan_candidates = pointer_scan_session
                 .get_pointer_scan_level_candidates()
                 .get(level_index)
                 .map(PointerScanLevelCandidates::get_static_candidates)
-                .cloned()
-                .unwrap_or_default();
+                .map_or(empty_static_pointer_scan_candidates, Vec::as_slice);
 
             if with_logging {
                 log::info!(
@@ -93,7 +89,7 @@ impl PointerScanValidator {
                     validation_level_log_context.level_count,
                     static_pointer_scan_candidates.len(),
                     heap_memory_regions.len(),
-                    required_target_addresses.len(),
+                    required_target_ranges.get_source_target_count(),
                     required_target_ranges.get_range_count(),
                     range_search_kernel.get_name(),
                 );
@@ -101,7 +97,7 @@ impl PointerScanValidator {
 
             let rebuilt_static_candidates = Self::validate_static_pointer_candidates_for_targets(
                 &process_info,
-                &static_pointer_scan_candidates,
+                static_pointer_scan_candidates,
                 &range_search_kernel,
                 modules,
                 scan_execution_context,
@@ -142,10 +138,14 @@ impl PointerScanValidator {
                 );
             }
 
-            required_target_addresses = rebuilt_heap_candidates
-                .iter()
-                .map(|rebuilt_pointer_candidate| rebuilt_pointer_candidate.pointer_address)
-                .collect();
+            if !is_terminal_level {
+                required_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
+                    rebuilt_heap_candidates
+                        .iter()
+                        .map(|rebuilt_pointer_candidate| rebuilt_pointer_candidate.pointer_address),
+                    pointer_scan_session.get_offset_radius(),
+                );
+            }
             rebuilt_pointer_levels.push(RebuiltPointerLevel {
                 static_candidates: rebuilt_static_candidates,
                 heap_candidates: rebuilt_heap_candidates,
@@ -569,8 +569,8 @@ impl PointerScanValidator {
 mod tests {
     use super::{PointerScanValidator, PointerValidationLevelLogContext};
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
-    use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
     use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
+    use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;

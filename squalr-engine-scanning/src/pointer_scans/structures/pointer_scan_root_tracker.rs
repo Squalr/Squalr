@@ -1,4 +1,4 @@
-use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 
 pub struct PointerScanRootTracker {
@@ -35,13 +35,10 @@ impl PointerScanRootTracker {
             return;
         }
 
-        let heap_candidate_addresses = heap_candidates
-            .iter()
-            .map(PointerScanCandidate::get_pointer_address)
-            .collect::<Vec<_>>();
-
-        self.prior_heap_target_ranges = Some(PointerScanTargetRangeSet::from_sorted_target_addresses(
-            &heap_candidate_addresses,
+        self.prior_heap_target_ranges = Some(PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
+            heap_candidates
+                .iter()
+                .map(PointerScanCandidate::get_pointer_address),
             self.offset_radius,
         ));
     }

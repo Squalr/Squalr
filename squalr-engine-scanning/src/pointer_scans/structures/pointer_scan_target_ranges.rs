@@ -26,61 +26,71 @@ impl PointerScanTargetRangeSet {
         let mut sorted_target_addresses = target_addresses.to_vec();
         sorted_target_addresses.sort_unstable();
 
-        Self::from_sorted_target_addresses_with_source_count(&sorted_target_addresses, source_target_count, offset_radius)
+        Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses.iter().copied(), source_target_count, offset_radius)
     }
 
-    pub fn from_sorted_target_addresses(
-        sorted_target_addresses: &[u64],
+    pub fn from_sorted_target_addresses_iter<SortedTargetAddresses>(
+        sorted_target_addresses: SortedTargetAddresses,
         offset_radius: u64,
-    ) -> Self {
-        Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses, sorted_target_addresses.len(), offset_radius)
+    ) -> Self
+    where
+        SortedTargetAddresses: IntoIterator<Item = u64>,
+    {
+        Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses, 0, offset_radius)
     }
 
-    fn from_sorted_target_addresses_with_source_count(
-        sorted_target_addresses: &[u64],
+    fn from_sorted_target_addresses_with_source_count<SortedTargetAddresses>(
+        sorted_target_addresses: SortedTargetAddresses,
         source_target_count: usize,
         offset_radius: u64,
-    ) -> Self {
-        if sorted_target_addresses.is_empty() {
-            return Self::default();
-        }
-
-        let mut target_ranges: Vec<NormalizedRegion> = Vec::with_capacity(sorted_target_addresses.len());
+    ) -> Self
+    where
+        SortedTargetAddresses: IntoIterator<Item = u64>,
+    {
+        let sorted_target_addresses = sorted_target_addresses.into_iter();
+        let estimated_target_count = sorted_target_addresses
+            .size_hint()
+            .1
+            .unwrap_or(source_target_count);
+        let mut target_ranges: Vec<NormalizedRegion> = Vec::with_capacity(estimated_target_count);
+        let mut lower_bounds: Vec<u64> = Vec::with_capacity(estimated_target_count);
+        let mut upper_bounds: Vec<u64> = Vec::with_capacity(estimated_target_count);
         let mut previous_target_address = None;
+        let mut unique_target_count = 0_usize;
 
-        for &target_address in sorted_target_addresses {
+        for target_address in sorted_target_addresses {
             if previous_target_address == Some(target_address) {
                 continue;
             }
 
             previous_target_address = Some(target_address);
-            let next_target_range = Self::create_target_range(target_address.saturating_sub(offset_radius), target_address.saturating_add(offset_radius));
+            unique_target_count = unique_target_count.saturating_add(1);
+            let next_lower_bound = target_address.saturating_sub(offset_radius);
+            let next_upper_bound = target_address.saturating_add(offset_radius);
 
-            if let Some(last_target_range) = target_ranges.last_mut() {
-                if Self::get_lower_bound(&next_target_range) <= Self::get_upper_bound(last_target_range).saturating_add(1) {
-                    *last_target_range = Self::create_target_range(
-                        Self::get_lower_bound(last_target_range),
-                        Self::get_upper_bound(last_target_range).max(Self::get_upper_bound(&next_target_range)),
-                    );
+            if let (Some(last_target_range), Some(last_lower_bound), Some(last_upper_bound)) =
+                (target_ranges.last_mut(), lower_bounds.last(), upper_bounds.last_mut())
+            {
+                if next_lower_bound <= last_upper_bound.saturating_add(1) {
+                    *last_upper_bound = (*last_upper_bound).max(next_upper_bound);
+                    *last_target_range = Self::create_target_range(*last_lower_bound, *last_upper_bound);
                     continue;
                 }
             }
 
-            target_ranges.push(next_target_range);
+            target_ranges.push(Self::create_target_range(next_lower_bound, next_upper_bound));
+            lower_bounds.push(next_lower_bound);
+            upper_bounds.push(next_upper_bound);
         }
 
-        let lower_bounds = target_ranges
-            .iter()
-            .map(Self::get_lower_bound)
-            .collect::<Vec<_>>();
-        let upper_bounds = target_ranges
-            .iter()
-            .map(Self::get_upper_bound)
-            .collect::<Vec<_>>();
-        let target_range_buckets = Self::build_target_range_buckets(&target_ranges);
+        if target_ranges.is_empty() {
+            return Self::default();
+        }
+
+        let target_range_buckets = Self::build_target_range_buckets(&lower_bounds, &upper_bounds);
 
         Self {
-            source_target_count,
+            source_target_count: if source_target_count == 0 { unique_target_count } else { source_target_count },
             target_ranges,
             lower_bounds,
             upper_bounds,
@@ -150,12 +160,15 @@ impl PointerScanTargetRangeSet {
         )
     }
 
-    fn build_target_range_buckets(target_ranges: &[NormalizedRegion]) -> Vec<PointerScanTargetRangeBucket> {
+    fn build_target_range_buckets(
+        lower_bounds: &[u64],
+        upper_bounds: &[u64],
+    ) -> Vec<PointerScanTargetRangeBucket> {
         let mut target_range_buckets: Vec<PointerScanTargetRangeBucket> = Vec::new();
 
-        for (target_range_index, target_range) in target_ranges.iter().enumerate() {
-            let lower_bucket_key = Self::get_lower_bound(target_range) >> TARGET_RANGE_BUCKET_SHIFT;
-            let upper_bucket_key = Self::get_upper_bound(target_range) >> TARGET_RANGE_BUCKET_SHIFT;
+        for (target_range_index, (&lower_bound, &upper_bound)) in lower_bounds.iter().zip(upper_bounds.iter()).enumerate() {
+            let lower_bucket_key = lower_bound >> TARGET_RANGE_BUCKET_SHIFT;
+            let upper_bucket_key = upper_bound >> TARGET_RANGE_BUCKET_SHIFT;
 
             for bucket_key in lower_bucket_key..=upper_bucket_key {
                 if let Some(last_target_range_bucket) = target_range_buckets.last_mut() {
@@ -238,14 +251,6 @@ impl PointerScanTargetRangeSet {
         upper_bound: u64,
     ) -> NormalizedRegion {
         NormalizedRegion::new(lower_bound, upper_bound.saturating_sub(lower_bound))
-    }
-
-    fn get_lower_bound(target_range: &NormalizedRegion) -> u64 {
-        target_range.get_base_address()
-    }
-
-    fn get_upper_bound(target_range: &NormalizedRegion) -> u64 {
-        target_range.get_end_address()
     }
 }
 

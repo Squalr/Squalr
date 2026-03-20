@@ -1,7 +1,7 @@
-use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::{read_pointer_lane_values_u32, read_pointer_lane_values_u64};
 use crate::pointer_scans::search_kernels::pointer_scan_scalar_search_kernel::scan_region_scalar;
 use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
+use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use std::mem::size_of;
 use std::simd::Simd;
