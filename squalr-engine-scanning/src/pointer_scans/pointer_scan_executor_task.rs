@@ -1,19 +1,21 @@
+use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
+use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
+use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 pub struct PointerScanExecutor;
 
@@ -28,7 +30,6 @@ struct DiscoveredPointerCandidate {
 
 #[derive(Clone, Debug, Default)]
 struct DiscoveredPointerLevel {
-    matched_frontier_targets: HashSet<u64>,
     static_candidates: Vec<DiscoveredPointerCandidate>,
     heap_candidates: Vec<DiscoveredPointerCandidate>,
 }
@@ -67,6 +68,8 @@ impl PointerScanExecutor {
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
     ) -> PointerScanSession {
+        let total_start_time = Instant::now();
+
         if with_logging {
             log::info!(
                 "Performing pointer scan for target 0x{:X} using {} pointers, max depth {}, and offset {}.",
@@ -77,6 +80,7 @@ impl PointerScanExecutor {
             );
         }
 
+        let value_collection_start_time = Instant::now();
         Self::collect_pointer_scan_values(
             process_info.clone(),
             statics_snapshot.clone(),
@@ -84,7 +88,9 @@ impl PointerScanExecutor {
             with_logging,
             scan_execution_context,
         );
+        let value_collection_duration = value_collection_start_time.elapsed();
 
+        let discovery_start_time = Instant::now();
         let pointer_scan_session = if Arc::ptr_eq(&statics_snapshot, &heaps_snapshot) {
             let snapshot_guard = match statics_snapshot.read() {
                 Ok(snapshot_guard) => snapshot_guard,
@@ -128,6 +134,7 @@ impl PointerScanExecutor {
                 with_logging,
             )
         };
+        let discovery_duration = discovery_start_time.elapsed();
 
         if with_logging {
             let pointer_scan_summary = pointer_scan_session.summarize();
@@ -139,6 +146,9 @@ impl PointerScanExecutor {
                 pointer_scan_summary.get_total_static_node_count(),
                 pointer_scan_summary.get_total_heap_node_count(),
             );
+            log::info!("Pointer scan value collection time: {:?}", value_collection_duration);
+            log::info!("Pointer scan reachability discovery time: {:?}", discovery_duration);
+            log::info!("Total pointer scan time: {:?}", total_start_time.elapsed());
         }
 
         pointer_scan_session
@@ -267,6 +277,7 @@ impl PointerScanExecutor {
         modules: &[NormalizedModule],
         with_logging: bool,
     ) -> Vec<DiscoveredPointerLevel> {
+        let discovery_start_time = Instant::now();
         let max_depth = pointer_scan_parameters.get_max_depth();
 
         if max_depth == 0 {
@@ -297,30 +308,32 @@ impl PointerScanExecutor {
                 break;
             }
 
+            let frontier_target_ranges =
+                PointerScanTargetRangeSet::from_target_addresses(&frontier_target_addresses, pointer_scan_parameters.get_offset_radius());
+            let range_search_kernel = PointerScanRangeSearchKernel::new(&frontier_target_ranges, pointer_scan_parameters.get_pointer_size());
+            let level_start_time = Instant::now();
+
             if with_logging {
                 log::info!(
-                    "Pointer scan level {}/{}: scanning {} snapshot regions for {} frontier targets.",
+                    "Pointer scan level {}/{}: scanning {} snapshot regions for {} frontier targets merged into {} ranges with {} kernel.",
                     level_number,
                     max_depth,
                     total_snapshot_region_count,
                     frontier_target_addresses.len(),
+                    frontier_target_ranges.get_range_count(),
+                    range_search_kernel.get_name(),
                 );
             }
 
-            let discovered_pointer_level = Self::scan_snapshots_for_pointer_targets(
-                snapshots,
-                &frontier_target_addresses,
-                pointer_scan_parameters.get_pointer_size(),
-                pointer_scan_parameters.get_offset_radius(),
-                modules,
-            );
+            let discovered_pointer_level = Self::scan_snapshots_for_pointer_targets(snapshots, &range_search_kernel, modules);
+            let level_duration = level_start_time.elapsed();
 
             if with_logging {
                 log::info!(
-                    "Pointer scan level {}/{}: matched {} frontier targets, retained {} static nodes and {} heap nodes, and produced {} next frontier targets.",
+                    "Pointer scan level {}/{} complete in {:?}: retained {} static nodes and {} heap nodes, and produced {} next frontier targets.",
                     level_number,
                     max_depth,
-                    discovered_pointer_level.matched_frontier_targets.len(),
+                    level_duration,
                     discovered_pointer_level.static_candidates.len(),
                     discovered_pointer_level.heap_candidates.len(),
                     discovered_pointer_level.heap_candidates.len(),
@@ -357,6 +370,7 @@ impl PointerScanExecutor {
                 discovered_pointer_node_count,
                 discovered_pointer_levels.len(),
             );
+            log::info!("Pointer scan reachability levels built in: {:?}", discovery_start_time.elapsed());
         }
 
         discovered_pointer_levels
@@ -364,29 +378,21 @@ impl PointerScanExecutor {
 
     fn scan_snapshots_for_pointer_targets(
         snapshots: &[&Snapshot],
-        frontier_target_addresses: &[u64],
-        pointer_size: PointerScanPointerSize,
-        offset_radius: u64,
+        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
     ) -> DiscoveredPointerLevel {
-        let mut discovered_pointer_level = DiscoveredPointerLevel::default();
-
-        if frontier_target_addresses.is_empty() {
-            return discovered_pointer_level;
+        if range_search_kernel.is_empty() {
+            return DiscoveredPointerLevel::default();
         }
 
-        for snapshot in snapshots {
-            for snapshot_region in snapshot.get_snapshot_regions() {
-                Self::scan_snapshot_region_for_pointer_targets(
-                    snapshot_region,
-                    frontier_target_addresses,
-                    pointer_size,
-                    offset_radius,
-                    modules,
-                    &mut discovered_pointer_level,
-                );
-            }
-        }
+        let snapshot_regions = snapshots
+            .iter()
+            .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
+            .collect::<Vec<_>>();
+        let mut discovered_pointer_level = snapshot_regions
+            .par_iter()
+            .map(|snapshot_region| Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules))
+            .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels);
 
         discovered_pointer_level
             .static_candidates
@@ -402,79 +408,46 @@ impl PointerScanExecutor {
 
     fn scan_snapshot_region_for_pointer_targets(
         snapshot_region: &SnapshotRegion,
-        frontier_target_addresses: &[u64],
-        pointer_size: PointerScanPointerSize,
-        offset_radius: u64,
+        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
-        discovered_pointer_level: &mut DiscoveredPointerLevel,
-    ) {
-        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
-        let current_values = snapshot_region.get_current_values();
+    ) -> DiscoveredPointerLevel {
+        let mut discovered_pointer_level = DiscoveredPointerLevel::default();
 
-        if current_values.len() < pointer_size_in_bytes {
-            return;
-        }
-
-        let base_address = snapshot_region.get_base_address();
-        let pointer_alignment = pointer_size_in_bytes as u64;
-        let alignment_remainder = base_address % pointer_alignment;
-        let start_offset = if alignment_remainder == 0 {
-            0_usize
-        } else {
-            (pointer_alignment.saturating_sub(alignment_remainder)) as usize
-        };
-
-        if start_offset.saturating_add(pointer_size_in_bytes) > current_values.len() {
-            return;
-        }
-
-        let mut pointer_value_offset = start_offset;
-
-        while pointer_value_offset.saturating_add(pointer_size_in_bytes) <= current_values.len() {
-            let value_slice = &current_values[pointer_value_offset..pointer_value_offset + pointer_size_in_bytes];
-            let Some(pointer_value) = Self::read_pointer_value(value_slice, pointer_size) else {
-                pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes);
-                continue;
+        for pointer_match in range_search_kernel.scan_region(snapshot_region.get_base_address(), snapshot_region.get_current_values()) {
+            let (pointer_scan_node_type, module_name, module_offset) = Self::classify_pointer_address(pointer_match.get_pointer_address(), modules);
+            let discovered_pointer_candidate = DiscoveredPointerCandidate {
+                pointer_scan_node_type,
+                pointer_address: pointer_match.get_pointer_address(),
+                pointer_value: pointer_match.get_pointer_value(),
+                module_name,
+                module_offset,
             };
 
-            let lower_target_bound = pointer_value.saturating_sub(offset_radius);
-            let upper_target_bound = pointer_value.saturating_add(offset_radius);
-            let matching_target_start_index = frontier_target_addresses.partition_point(|target_address| *target_address < lower_target_bound);
-            let matching_target_end_index = frontier_target_addresses.partition_point(|target_address| *target_address <= upper_target_bound);
-
-            if matching_target_start_index < matching_target_end_index {
-                let pointer_address = base_address.saturating_add(pointer_value_offset as u64);
-                let (pointer_scan_node_type, module_name, module_offset) = Self::classify_pointer_address(pointer_address, modules);
-
-                discovered_pointer_level.matched_frontier_targets.extend(
-                    frontier_target_addresses[matching_target_start_index..matching_target_end_index]
-                        .iter()
-                        .copied(),
-                );
-                let discovered_pointer_candidate = DiscoveredPointerCandidate {
-                    pointer_scan_node_type,
-                    pointer_address,
-                    pointer_value,
-                    module_name,
-                    module_offset,
-                };
-
-                match pointer_scan_node_type {
-                    PointerScanNodeType::Static => {
-                        discovered_pointer_level
-                            .static_candidates
-                            .push(discovered_pointer_candidate);
-                    }
-                    PointerScanNodeType::Heap => {
-                        discovered_pointer_level
-                            .heap_candidates
-                            .push(discovered_pointer_candidate);
-                    }
-                }
+            match pointer_scan_node_type {
+                PointerScanNodeType::Static => discovered_pointer_level
+                    .static_candidates
+                    .push(discovered_pointer_candidate),
+                PointerScanNodeType::Heap => discovered_pointer_level
+                    .heap_candidates
+                    .push(discovered_pointer_candidate),
             }
-
-            pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes);
         }
+
+        discovered_pointer_level
+    }
+
+    fn merge_discovered_pointer_levels(
+        mut left_discovered_pointer_level: DiscoveredPointerLevel,
+        mut right_discovered_pointer_level: DiscoveredPointerLevel,
+    ) -> DiscoveredPointerLevel {
+        left_discovered_pointer_level
+            .static_candidates
+            .append(&mut right_discovered_pointer_level.static_candidates);
+        left_discovered_pointer_level
+            .heap_candidates
+            .append(&mut right_discovered_pointer_level.heap_candidates);
+
+        left_discovered_pointer_level
     }
 
     fn classify_pointer_address(
@@ -492,24 +465,6 @@ impl PointerScanExecutor {
             )
         } else {
             (PointerScanNodeType::Heap, String::new(), 0)
-        }
-    }
-
-    fn read_pointer_value(
-        pointer_bytes: &[u8],
-        pointer_size: PointerScanPointerSize,
-    ) -> Option<u64> {
-        match pointer_size {
-            PointerScanPointerSize::Pointer32 => {
-                let pointer_bytes: [u8; 4] = pointer_bytes.try_into().ok()?;
-
-                Some(u32::from_le_bytes(pointer_bytes) as u64)
-            }
-            PointerScanPointerSize::Pointer64 => {
-                let pointer_bytes: [u8; 8] = pointer_bytes.try_into().ok()?;
-
-                Some(u64::from_le_bytes(pointer_bytes))
-            }
         }
     }
 
