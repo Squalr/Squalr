@@ -11,6 +11,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::Poi
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use std::cmp::Ordering;
+use std::mem::size_of;
 use std::time::Instant;
 
 const VALIDATION_SCAN_CHUNK_SIZE: usize = 64 * 1024;
@@ -89,10 +90,7 @@ impl PointerScanValidator {
 
             let required_target_ranges = PointerScanTargetRangeSet::from_target_addresses(&required_target_addresses, pointer_scan_session.get_offset_radius());
             let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, pointer_scan_session.get_pointer_size());
-            let validation_level_log_context = PointerValidationLevelLogContext {
-                level_number,
-                level_count,
-            };
+            let validation_level_log_context = PointerValidationLevelLogContext { level_number, level_count };
             let level_start_time = Instant::now();
             let static_pointer_scan_candidates = pointer_scan_session
                 .get_pointer_scan_level_candidates()
@@ -154,11 +152,7 @@ impl PointerScanValidator {
                     level_start_time.elapsed(),
                     rebuilt_static_candidates.len(),
                     rebuilt_heap_candidates.len(),
-                    if is_terminal_level {
-                        0
-                    } else {
-                        rebuilt_heap_candidates.len()
-                    },
+                    if is_terminal_level { 0 } else { rebuilt_heap_candidates.len() },
                 );
             }
 
@@ -364,13 +358,17 @@ impl PointerScanValidator {
         pointer_address: u64,
         pointer_size: PointerScanPointerSize,
     ) -> Option<u64> {
-        let mut pointer_bytes = vec![0_u8; pointer_size.get_size_in_bytes() as usize];
+        let pointer_byte_count = pointer_size.get_size_in_bytes() as usize;
+        let mut pointer_bytes = [0_u8; size_of::<u64>()];
 
-        if !scan_execution_context.read_bytes(process_info, pointer_address, &mut pointer_bytes) {
+        if !scan_execution_context.read_bytes(process_info, pointer_address, &mut pointer_bytes[..pointer_byte_count]) {
             return None;
         }
 
-        Self::read_pointer_value(&pointer_bytes, pointer_size)
+        match pointer_size {
+            PointerScanPointerSize::Pointer32 => Some(u32::from_le_bytes(pointer_bytes[..size_of::<u32>()].try_into().ok()?) as u64),
+            PointerScanPointerSize::Pointer64 => Some(u64::from_le_bytes(pointer_bytes)),
+        }
     }
 
     fn build_pointer_scan_session(
@@ -526,24 +524,6 @@ impl PointerScanValidator {
             )
         } else {
             (PointerScanNodeType::Heap, String::new(), 0)
-        }
-    }
-
-    fn read_pointer_value(
-        pointer_bytes: &[u8],
-        pointer_size: PointerScanPointerSize,
-    ) -> Option<u64> {
-        match pointer_size {
-            PointerScanPointerSize::Pointer32 => {
-                let pointer_bytes: [u8; 4] = pointer_bytes.try_into().ok()?;
-
-                Some(u32::from_le_bytes(pointer_bytes) as u64)
-            }
-            PointerScanPointerSize::Pointer64 => {
-                let pointer_bytes: [u8; 8] = pointer_bytes.try_into().ok()?;
-
-                Some(u64::from_le_bytes(pointer_bytes))
-            }
         }
     }
 

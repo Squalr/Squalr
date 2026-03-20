@@ -1,6 +1,7 @@
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use std::mem::size_of;
+use std::ptr;
 use std::simd::Simd;
 use std::simd::cmp::SimdPartialOrd;
 
@@ -82,6 +83,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         self.target_range_set.is_empty()
     }
 
+    #[inline(always)]
     pub fn contains_pointer_value(
         &self,
         pointer_value: u64,
@@ -140,14 +142,12 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
     {
         let pointer_size_in_bytes = self.pointer_size.get_size_in_bytes() as usize;
         let mut pointer_matches = Vec::new();
+        let current_values_ptr = current_values.as_ptr();
         let mut pointer_value_offset = start_offset;
 
         while pointer_value_offset.saturating_add(pointer_size_in_bytes) <= current_values.len() {
-            let value_slice = &current_values[pointer_value_offset..pointer_value_offset + pointer_size_in_bytes];
-            let Some(pointer_value) = Self::read_pointer_value(value_slice, self.pointer_size) else {
-                pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes);
-                continue;
-            };
+            // The loop guard guarantees a full pointer-sized unaligned load.
+            let pointer_value = unsafe { Self::read_pointer_value_unchecked(current_values_ptr.add(pointer_value_offset), self.pointer_size) };
 
             if matches_pointer_value(pointer_value) {
                 pointer_matches.push(PointerScanRegionMatch::new(
@@ -183,19 +183,12 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         const SIMD_LANE_COUNT: usize = 16;
         let pointer_size_in_bytes = size_of::<u32>();
         let mut pointer_matches = Vec::new();
+        let current_values_ptr = current_values.as_ptr();
         let mut pointer_value_offset = start_offset;
 
         while pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT) <= current_values.len() {
-            let mut lane_values = [0_u32; SIMD_LANE_COUNT];
-
-            for lane_index in 0..SIMD_LANE_COUNT {
-                let value_offset = pointer_value_offset + lane_index * pointer_size_in_bytes;
-                let value_slice: [u8; 4] = current_values[value_offset..value_offset + pointer_size_in_bytes]
-                    .try_into()
-                    .expect("Expected pointer-sized bytes for SIMD u32 pointer scan.");
-                lane_values[lane_index] = u32::from_le_bytes(value_slice);
-            }
-
+            // The loop guard guarantees a full SIMD-width unaligned load.
+            let lane_values = unsafe { Self::read_pointer_lane_values_u32::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset)) };
             let pointer_values = Simd::<u32, SIMD_LANE_COUNT>::from_array(lane_values);
             let mut matching_lane_mask = 0_u64;
 
@@ -242,19 +235,12 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         const SIMD_LANE_COUNT: usize = 8;
         let pointer_size_in_bytes = size_of::<u64>();
         let mut pointer_matches = Vec::new();
+        let current_values_ptr = current_values.as_ptr();
         let mut pointer_value_offset = start_offset;
 
         while pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT) <= current_values.len() {
-            let mut lane_values = [0_u64; SIMD_LANE_COUNT];
-
-            for lane_index in 0..SIMD_LANE_COUNT {
-                let value_offset = pointer_value_offset + lane_index * pointer_size_in_bytes;
-                let value_slice: [u8; 8] = current_values[value_offset..value_offset + pointer_size_in_bytes]
-                    .try_into()
-                    .expect("Expected pointer-sized bytes for SIMD u64 pointer scan.");
-                lane_values[lane_index] = u64::from_le_bytes(value_slice);
-            }
-
+            // The loop guard guarantees a full SIMD-width unaligned load.
+            let lane_values = unsafe { Self::read_pointer_lane_values_u64::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset)) };
             let pointer_values = Simd::<u64, SIMD_LANE_COUNT>::from_array(lane_values);
             let mut matching_lane_mask = 0_u64;
 
@@ -288,22 +274,35 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         pointer_matches
     }
 
-    fn read_pointer_value(
-        pointer_bytes: &[u8],
+    #[inline(always)]
+    unsafe fn read_pointer_value_unchecked(
+        pointer_bytes_ptr: *const u8,
         pointer_size: PointerScanPointerSize,
-    ) -> Option<u64> {
+    ) -> u64 {
         match pointer_size {
-            PointerScanPointerSize::Pointer32 => {
-                let pointer_bytes: [u8; 4] = pointer_bytes.try_into().ok()?;
-
-                Some(u32::from_le_bytes(pointer_bytes) as u64)
-            }
-            PointerScanPointerSize::Pointer64 => {
-                let pointer_bytes: [u8; 8] = pointer_bytes.try_into().ok()?;
-
-                Some(u64::from_le_bytes(pointer_bytes))
-            }
+            PointerScanPointerSize::Pointer32 => u32::from_le(unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const u32) }) as u64,
+            PointerScanPointerSize::Pointer64 => u64::from_le(unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const u64) }),
         }
+    }
+
+    #[inline(always)]
+    unsafe fn read_pointer_lane_values_u32<const SIMD_LANE_COUNT: usize>(pointer_bytes_ptr: *const u8) -> [u32; SIMD_LANE_COUNT] {
+        let lane_values = unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const [u32; SIMD_LANE_COUNT]) };
+
+        #[cfg(target_endian = "big")]
+        let lane_values = lane_values.map(u32::from_le);
+
+        lane_values
+    }
+
+    #[inline(always)]
+    unsafe fn read_pointer_lane_values_u64<const SIMD_LANE_COUNT: usize>(pointer_bytes_ptr: *const u8) -> [u64; SIMD_LANE_COUNT] {
+        let lane_values = unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const [u64; SIMD_LANE_COUNT]) };
+
+        #[cfg(target_endian = "big")]
+        let lane_values = lane_values.map(u64::from_le);
+
+        lane_values
     }
 }
 

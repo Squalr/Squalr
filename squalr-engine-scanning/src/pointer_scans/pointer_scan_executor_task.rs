@@ -328,8 +328,7 @@ impl PointerScanExecutor {
                 );
             }
 
-            let discovered_pointer_level =
-                Self::scan_snapshots_for_pointer_targets(snapshots, &range_search_kernel, modules, !is_terminal_level);
+            let discovered_pointer_level = Self::scan_snapshots_for_pointer_targets(snapshots, &range_search_kernel, modules, !is_terminal_level);
             let level_duration = level_start_time.elapsed();
 
             if with_logging {
@@ -400,9 +399,7 @@ impl PointerScanExecutor {
             .collect::<Vec<_>>();
         let mut discovered_pointer_level = snapshot_regions
             .par_iter()
-            .map(|snapshot_region| {
-                Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules, retain_heap_candidates)
-            })
+            .map(|snapshot_region| Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules, retain_heap_candidates))
             .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels);
 
         discovered_pointer_level
@@ -441,7 +438,9 @@ impl PointerScanExecutor {
                     .push(discovered_pointer_candidate),
                 PointerScanNodeType::Heap => {
                     if retain_heap_candidates {
-                        discovered_pointer_level.heap_candidates.push(discovered_pointer_candidate);
+                        discovered_pointer_level
+                            .heap_candidates
+                            .push(discovered_pointer_candidate);
                     }
                 }
             }
