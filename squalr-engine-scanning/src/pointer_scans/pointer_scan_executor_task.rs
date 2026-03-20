@@ -1,6 +1,9 @@
 use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
 use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+use crate::pointer_scans::structures::discovered_pointer_candidate::DiscoveredPointerCandidate;
+use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
+use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
 use rayon::prelude::*;
@@ -21,27 +24,6 @@ use std::time::Instant;
 const POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
 
 pub struct PointerScanExecutor;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct DiscoveredPointerCandidate {
-    pointer_scan_node_type: PointerScanNodeType,
-    pointer_address: u64,
-    pointer_value: u64,
-    module_name: String,
-    module_offset: u64,
-}
-
-#[derive(Clone, Debug, Default)]
-struct DiscoveredPointerLevel {
-    static_candidates: Vec<DiscoveredPointerCandidate>,
-    heap_candidates: Vec<DiscoveredPointerCandidate>,
-}
-
-#[derive(Clone, Copy)]
-struct SnapshotRegionScanTask<'a> {
-    base_address: u64,
-    current_values: &'a [u8],
-}
 
 /// Implementation of a task that discovers pointer chains against the provided snapshot values.
 impl PointerScanExecutor {

@@ -1,49 +1,8 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PointerScanTargetRange {
-    lower_bound: u64,
-    upper_bound: u64,
-}
+pub use crate::pointer_scans::structures::pointer_scan_target_range::PointerScanTargetRange;
+use crate::pointer_scans::structures::pointer_scan_target_range_bucket::PointerScanTargetRangeBucket;
 
 const TARGET_RANGE_BUCKET_SHIFT: u32 = 16;
 const TARGET_RANGE_BUCKET_LINEAR_SEARCH_THRESHOLD: usize = 8;
-
-impl PointerScanTargetRange {
-    pub fn new(
-        lower_bound: u64,
-        upper_bound: u64,
-    ) -> Self {
-        Self { lower_bound, upper_bound }
-    }
-
-    pub fn get_lower_bound(&self) -> u64 {
-        self.lower_bound
-    }
-
-    pub fn get_upper_bound(&self) -> u64 {
-        self.upper_bound
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PointerScanTargetRangeBucket {
-    bucket_key: u64,
-    start_range_index: usize,
-    end_range_index_exclusive: usize,
-}
-
-impl PointerScanTargetRangeBucket {
-    fn new(
-        bucket_key: u64,
-        start_range_index: usize,
-        end_range_index_exclusive: usize,
-    ) -> Self {
-        Self {
-            bucket_key,
-            start_range_index,
-            end_range_index_exclusive,
-        }
-    }
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PointerScanTargetRangeSet {
@@ -175,21 +134,21 @@ impl PointerScanTargetRangeSet {
         let matching_bucket_index = self.find_matching_bucket_index(pointer_value)?;
         let target_range_bucket = self.target_range_buckets.get(matching_bucket_index)?;
         let bucket_range_count = target_range_bucket
-            .end_range_index_exclusive
-            .saturating_sub(target_range_bucket.start_range_index);
+            .get_end_range_index_exclusive()
+            .saturating_sub(target_range_bucket.get_start_range_index());
 
         if bucket_range_count <= TARGET_RANGE_BUCKET_LINEAR_SEARCH_THRESHOLD {
             return self.find_matching_range_index_linear_in_bounds(
                 pointer_value,
-                target_range_bucket.start_range_index,
-                target_range_bucket.end_range_index_exclusive,
+                target_range_bucket.get_start_range_index(),
+                target_range_bucket.get_end_range_index_exclusive(),
             );
         }
 
         self.find_matching_range_index_binary_in_bounds(
             pointer_value,
-            target_range_bucket.start_range_index,
-            target_range_bucket.end_range_index_exclusive,
+            target_range_bucket.get_start_range_index(),
+            target_range_bucket.get_end_range_index_exclusive(),
         )
     }
 
@@ -202,8 +161,8 @@ impl PointerScanTargetRangeSet {
 
             for bucket_key in lower_bucket_key..=upper_bucket_key {
                 if let Some(last_target_range_bucket) = target_range_buckets.last_mut() {
-                    if last_target_range_bucket.bucket_key == bucket_key {
-                        last_target_range_bucket.end_range_index_exclusive = target_range_index.saturating_add(1);
+                    if last_target_range_bucket.get_bucket_key() == bucket_key {
+                        last_target_range_bucket.set_end_range_index_exclusive(target_range_index.saturating_add(1));
                         continue;
                     }
                 }
@@ -226,10 +185,10 @@ impl PointerScanTargetRangeSet {
         let bucket_key = pointer_value >> TARGET_RANGE_BUCKET_SHIFT;
         let matching_bucket_index = self
             .target_range_buckets
-            .partition_point(|target_range_bucket| target_range_bucket.bucket_key < bucket_key);
+            .partition_point(|target_range_bucket| target_range_bucket.get_bucket_key() < bucket_key);
         let target_range_bucket = self.target_range_buckets.get(matching_bucket_index)?;
 
-        (target_range_bucket.bucket_key == bucket_key).then_some(matching_bucket_index)
+        (target_range_bucket.get_bucket_key() == bucket_key).then_some(matching_bucket_index)
     }
 
     fn find_matching_range_index_linear_in_bounds(

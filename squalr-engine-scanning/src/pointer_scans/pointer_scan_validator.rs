@@ -1,6 +1,9 @@
 use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
 use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
+use crate::pointer_scans::structures::rebuilt_pointer_candidate::RebuiltPointerCandidate;
+use crate::pointer_scans::structures::rebuilt_pointer_level::RebuiltPointerLevel;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
@@ -20,27 +23,6 @@ use std::time::Instant;
 const VALIDATION_SCAN_CHUNK_SIZE: usize = 64 * 1024;
 
 pub struct PointerScanValidator;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct RebuiltPointerCandidate {
-    pointer_scan_node_type: PointerScanNodeType,
-    pointer_address: u64,
-    pointer_value: u64,
-    module_name: String,
-    module_offset: u64,
-}
-
-#[derive(Clone, Debug, Default)]
-struct RebuiltPointerLevel {
-    static_candidates: Vec<RebuiltPointerCandidate>,
-    heap_candidates: Vec<RebuiltPointerCandidate>,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct PointerValidationLevelLogContext {
-    level_number: usize,
-    level_count: usize,
-}
 
 impl PointerScanValidator {
     pub fn validate_scan(
