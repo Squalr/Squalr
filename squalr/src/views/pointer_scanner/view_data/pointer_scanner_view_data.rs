@@ -843,7 +843,7 @@ impl PointerScannerViewData {
     ) -> Option<ProjectItemsCreateRequest> {
         let pointer_scanner_view_data_guard = pointer_scanner_view_data.read("Pointer scanner build project item create request")?;
         let pointer = pointer_scanner_view_data_guard.build_selected_leaf_pointer()?;
-        let project_item_name = pointer_scanner_view_data_guard.build_selected_chain_text()?;
+        let project_item_name = pointer_scanner_view_data_guard.build_selected_project_item_name()?;
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
@@ -867,7 +867,7 @@ impl PointerScannerViewData {
         }
 
         let pointer = pointer_scanner_view_data_guard.build_pointer_for_node(node_id)?;
-        let project_item_name = pointer_scanner_view_data_guard.build_pointer_chain_text(node_id)?;
+        let project_item_name = pointer_scanner_view_data_guard.build_project_item_name(node_id)?;
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
@@ -1226,6 +1226,12 @@ impl PointerScannerViewData {
         self.build_pointer_chain_text(selected_node_id)
     }
 
+    fn build_selected_project_item_name(&self) -> Option<String> {
+        let selected_node_id = self.selected_node_id?;
+
+        self.build_project_item_name(selected_node_id)
+    }
+
     pub fn has_active_session(&self) -> bool {
         self.pointer_scan_summary.is_some()
     }
@@ -1304,6 +1310,20 @@ impl PointerScannerViewData {
         }
 
         Some(pointer_chain_segments.join(" -> "))
+    }
+
+    fn build_project_item_name(
+        &self,
+        node_id: u64,
+    ) -> Option<String> {
+        let pointer_chain = self.collect_node_path(node_id)?;
+        let root_pointer_scan_node = pointer_chain.first()?;
+        let pointer_depth = pointer_chain
+            .iter()
+            .filter(|pointer_scan_node| Self::should_include_node_offset_in_chain(pointer_scan_node))
+            .count();
+
+        Some(format!("{} [{}]", Self::build_module_base_text(root_pointer_scan_node), pointer_depth))
     }
 
     fn build_pointer_context_text(
@@ -1790,11 +1810,23 @@ mod tests {
             .expect("Expected pointer payload.");
 
         assert_eq!(project_item_create_request.project_item_type, "pointer");
-        assert_eq!(project_item_create_request.project_item_name, "game.exe+0x10 -> +0x10 -> -0x10");
+        assert_eq!(project_item_create_request.project_item_name, "game.exe+0x10 [2]");
         assert_eq!(pointer.get_address(), 0x10);
         assert_eq!(pointer.get_module_name(), "game.exe");
         assert_eq!(pointer.get_offsets(), &[0x10, -0x10]);
         assert_eq!(pointer.get_pointer_size(), PointerScanPointerSize::Pointer64);
+    }
+
+    #[test]
+    fn build_project_item_create_request_for_node_uses_condensed_pointer_name() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(create_pointer_scanner_view_data());
+
+        let project_item_create_request =
+            PointerScannerViewData::build_project_item_create_request_for_node(pointer_scanner_view_data, 3, Some("project_items/Pointers".into()))
+                .expect("Expected leaf-node project item request.");
+
+        assert_eq!(project_item_create_request.project_item_name, "game.exe+0x10 [2]");
     }
 
     #[test]

@@ -110,6 +110,16 @@ impl ValuedStruct {
         }
     }
 
+    pub fn remove_field(
+        &mut self,
+        field_name: &str,
+    ) -> bool {
+        let field_count_before_removal = self.fields.len();
+        self.fields.retain(|field| field.get_name() != field_name);
+
+        self.fields.len() != field_count_before_removal
+    }
+
     pub fn get_bytes(&self) -> Vec<u8> {
         self.fields.iter().flat_map(|field| field.get_bytes()).collect()
     }
@@ -237,5 +247,19 @@ mod tests {
         assert!(combined_struct.get_field("value").is_some());
         assert!(combined_struct.get_field("only_first").is_none());
         assert_eq!(combined_struct.get_fields().len(), 1);
+    }
+
+    #[test]
+    fn remove_field_drops_matching_field_name() {
+        let mut valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU8::get_value_from_primitive(10).to_named_valued_struct_field("value".to_string(), false),
+            DataTypeU8::get_value_from_primitive(20).to_named_valued_struct_field("other".to_string(), false),
+        ]);
+
+        let did_remove_field = valued_struct.remove_field("value");
+
+        assert!(did_remove_field);
+        assert!(valued_struct.get_field("value").is_none());
+        assert!(valued_struct.get_field("other").is_some());
     }
 }
