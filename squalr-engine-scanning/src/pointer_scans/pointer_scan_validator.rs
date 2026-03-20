@@ -445,7 +445,7 @@ impl PointerScanValidator {
             pointer_scan_level_candidates.push(level_candidates);
         }
 
-        let root_node_count = Self::count_root_display_nodes(&pointer_scan_level_candidates, original_pointer_scan_session.get_offset_radius());
+        let root_node_count = Self::count_root_nodes(&pointer_scan_level_candidates, original_pointer_scan_session.get_offset_radius());
 
         PointerScanSession::new(
             original_pointer_scan_session.get_session_id(),
@@ -479,7 +479,7 @@ impl PointerScanValidator {
         )
     }
 
-    fn count_root_display_nodes(
+    fn count_root_nodes(
         pointer_scan_levels: &[PointerScanLevelCandidates],
         offset_radius: u64,
     ) -> u64 {
@@ -498,18 +498,20 @@ impl PointerScanValidator {
                 let upper_bound = static_candidate
                     .get_pointer_value()
                     .saturating_add(offset_radius);
-                let matching_child_node_count = pointer_scan_level_candidates
+                let has_matching_child = pointer_scan_level_candidates
                     .get_discovery_depth()
                     .checked_sub(2)
                     .and_then(|child_level_index| pointer_scan_levels.get(child_level_index as usize))
                     .map(|child_pointer_scan_level_candidates| {
-                        child_pointer_scan_level_candidates
+                        !child_pointer_scan_level_candidates
                             .find_heap_candidates_in_range(lower_bound, upper_bound)
-                            .len() as u64
+                            .is_empty()
                     })
-                    .unwrap_or(0);
+                    .unwrap_or(false);
 
-                root_node_count = root_node_count.saturating_add(matching_child_node_count);
+                if has_matching_child {
+                    root_node_count = root_node_count.saturating_add(1);
+                }
             }
         }
 
@@ -641,15 +643,22 @@ mod tests {
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(root_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
-        assert_eq!(root_nodes[0].get_resolved_target_address(), 0x3000);
-        assert_eq!(root_nodes[0].get_pointer_offset(), 0x10);
+        assert_eq!(root_nodes[0].get_resolved_target_address(), 0x2FF0);
+        assert_eq!(root_nodes[0].get_pointer_offset(), 0);
 
         let child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
-        assert_eq!(child_nodes[0].get_pointer_address(), 0x3000);
-        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
-        assert_eq!(child_nodes[0].get_resolved_target_address(), 0x4010);
+        assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
+        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
+        assert_eq!(child_nodes[0].get_resolved_target_address(), 0x3000);
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
+
+        let grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        assert_eq!(grandchild_nodes.len(), 1);
+        assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
+        assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
+        assert_eq!(grandchild_nodes[0].get_resolved_target_address(), 0x4010);
+        assert_eq!(grandchild_nodes[0].get_pointer_offset(), 0x10);
     }
 
     #[test]
@@ -686,8 +695,13 @@ mod tests {
 
         let child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
-        assert_eq!(child_nodes[0].get_pointer_address(), 0x7000);
-        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
+        assert_eq!(child_nodes[0].get_pointer_address(), 0x5010);
+        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
+
+        let grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        assert_eq!(grandchild_nodes.len(), 1);
+        assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x7000);
+        assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
     }
 
     #[test]

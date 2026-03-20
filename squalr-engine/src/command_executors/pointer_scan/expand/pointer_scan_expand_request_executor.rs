@@ -15,10 +15,16 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
             Ok(mut pointer_scan_session_guard) => {
                 if let Some(pointer_scan_session) = pointer_scan_session_guard.as_mut() {
                     if pointer_scan_session.get_session_id() == self.session_id {
+                        let (pointer_scan_nodes, page_index, last_page_index, total_node_count) =
+                            pointer_scan_session.get_expanded_node_page(self.parent_node_id, self.page_index, self.page_size);
+
                         return PointerScanExpandResponse {
                             session_id: self.session_id,
                             parent_node_id: self.parent_node_id,
-                            pointer_scan_nodes: pointer_scan_session.get_expanded_nodes(self.parent_node_id),
+                            page_index,
+                            last_page_index,
+                            total_node_count,
+                            pointer_scan_nodes,
                         };
                     }
                 }
@@ -26,6 +32,9 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
                 PointerScanExpandResponse {
                     session_id: self.session_id,
                     parent_node_id: self.parent_node_id,
+                    page_index: 0,
+                    last_page_index: 0,
+                    total_node_count: 0,
                     pointer_scan_nodes: Vec::new(),
                 }
             }
@@ -35,6 +44,9 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
                 PointerScanExpandResponse {
                     session_id: self.session_id,
                     parent_node_id: self.parent_node_id,
+                    page_index: 0,
+                    last_page_index: 0,
+                    total_node_count: 0,
                     pointer_scan_nodes: Vec::new(),
                 }
             }

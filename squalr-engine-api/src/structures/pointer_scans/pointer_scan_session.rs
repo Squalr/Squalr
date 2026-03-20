@@ -8,6 +8,21 @@ use crate::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
+struct MaterializedPointerScanPageKey {
+    parent_node_id: Option<u64>,
+    page_index: u64,
+    page_size: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct MaterializedPointerScanNodePage {
+    page_index: u64,
+    last_page_index: u64,
+    total_node_count: u64,
+    node_ids: Vec<u64>,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PointerScanSession {
     session_id: u64,
@@ -21,10 +36,9 @@ pub struct PointerScanSession {
     total_node_count: u64,
     total_static_node_count: u64,
     total_heap_node_count: u64,
-    expanded_root_node_ids: Vec<u64>,
-    expanded_child_node_ids_by_parent_id: HashMap<u64, Vec<u64>>,
-    expanded_pointer_scan_nodes: HashMap<u64, PointerScanNode>,
-    next_expanded_node_id: u64,
+    materialized_node_ids_by_page_key: HashMap<MaterializedPointerScanPageKey, Vec<u64>>,
+    materialized_pointer_scan_nodes: HashMap<u64, PointerScanNode>,
+    next_materialized_node_id: u64,
 }
 
 impl PointerScanSession {
@@ -57,10 +71,9 @@ impl PointerScanSession {
             total_node_count,
             total_static_node_count,
             total_heap_node_count,
-            expanded_root_node_ids: Vec::new(),
-            expanded_child_node_ids_by_parent_id: HashMap::new(),
-            expanded_pointer_scan_nodes: HashMap::new(),
-            next_expanded_node_id: 1,
+            materialized_node_ids_by_page_key: HashMap::new(),
+            materialized_pointer_scan_nodes: HashMap::new(),
+            next_materialized_node_id: 1,
         }
     }
 
@@ -136,110 +149,254 @@ impl PointerScanSession {
         )
     }
 
+    pub fn get_expanded_node_page(
+        &mut self,
+        parent_node_id: Option<u64>,
+        page_index: u64,
+        page_size: u64,
+    ) -> (Vec<PointerScanNode>, u64, u64, u64) {
+        let bounded_page_size = page_size.max(1);
+        let requested_page = match parent_node_id {
+            Some(parent_node_id) => self.materialize_child_node_page(parent_node_id, page_index, bounded_page_size),
+            None => self.materialize_root_node_page(page_index, bounded_page_size),
+        };
+
+        let pointer_scan_nodes = requested_page
+            .node_ids
+            .iter()
+            .filter_map(|node_id| self.find_materialized_node(*node_id).cloned())
+            .collect::<Vec<_>>();
+
+        (
+            pointer_scan_nodes,
+            requested_page.page_index,
+            requested_page.last_page_index,
+            requested_page.total_node_count,
+        )
+    }
+
     pub fn get_expanded_nodes(
         &mut self,
         parent_node_id: Option<u64>,
     ) -> Vec<PointerScanNode> {
-        let expanded_node_ids = match parent_node_id {
-            Some(parent_node_id) => match self.expanded_child_node_ids_by_parent_id.get(&parent_node_id) {
-                Some(expanded_node_ids) => expanded_node_ids.clone(),
-                None => self.materialize_expanded_nodes_for_parent(Some(parent_node_id)),
-            },
-            None => {
-                if self.expanded_root_node_ids.is_empty() {
-                    self.materialize_expanded_nodes_for_parent(None)
-                } else {
-                    self.expanded_root_node_ids.clone()
+        self.get_expanded_node_page(parent_node_id, 0, u64::MAX).0
+    }
+
+    fn materialize_root_node_page(
+        &mut self,
+        page_index: u64,
+        page_size: u64,
+    ) -> MaterializedPointerScanNodePage {
+        let total_node_count = self.root_node_count;
+        let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
+        let bounded_page_index = page_index.clamp(0, last_page_index);
+        let page_key = MaterializedPointerScanPageKey {
+            parent_node_id: None,
+            page_index: bounded_page_index,
+            page_size,
+        };
+
+        if let Some(materialized_node_ids) = self.materialized_node_ids_by_page_key.get(&page_key) {
+            return MaterializedPointerScanNodePage {
+                page_index: bounded_page_index,
+                last_page_index,
+                total_node_count,
+                node_ids: materialized_node_ids.clone(),
+            };
+        }
+
+        let page_start_index = bounded_page_index.saturating_mul(page_size);
+        let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
+        let mut remaining_skip_count = page_start_index;
+        let mut remaining_take_count = page_node_count;
+        let mut materialized_node_ids = Vec::new();
+
+        for level_index in (0..self.pointer_scan_level_candidates.len()).rev() {
+            let static_candidates = self.pointer_scan_level_candidates[level_index]
+                .get_static_candidates()
+                .clone();
+
+            for static_candidate in &static_candidates {
+                if !self.is_displayable_root_candidate(static_candidate) {
+                    continue;
+                }
+
+                if remaining_skip_count > 0 {
+                    remaining_skip_count = remaining_skip_count.saturating_sub(1);
+                    continue;
+                }
+
+                let Some(materialized_root_node_id) = self.materialize_root_pointer_scan_node(static_candidate) else {
+                    continue;
+                };
+
+                materialized_node_ids.push(materialized_root_node_id);
+                remaining_take_count = remaining_take_count.saturating_sub(1);
+
+                if remaining_take_count == 0 {
+                    self.materialized_node_ids_by_page_key
+                        .insert(page_key, materialized_node_ids.clone());
+
+                    return MaterializedPointerScanNodePage {
+                        page_index: bounded_page_index,
+                        last_page_index,
+                        total_node_count,
+                        node_ids: materialized_node_ids,
+                    };
                 }
             }
-        };
-
-        expanded_node_ids
-            .into_iter()
-            .filter_map(|expanded_node_id| self.find_expanded_node(expanded_node_id).cloned())
-            .collect()
-    }
-
-    fn materialize_expanded_nodes_for_parent(
-        &mut self,
-        parent_node_id: Option<u64>,
-    ) -> Vec<u64> {
-        let expanded_node_ids = match parent_node_id {
-            Some(parent_node_id) => self.materialize_child_nodes_for_parent(parent_node_id),
-            None => self.materialize_root_nodes(),
-        };
-
-        match parent_node_id {
-            Some(parent_node_id) => {
-                self.expanded_child_node_ids_by_parent_id
-                    .insert(parent_node_id, expanded_node_ids.clone());
-            }
-            None => {
-                self.expanded_root_node_ids = expanded_node_ids.clone();
-            }
         }
 
-        expanded_node_ids
-    }
+        self.materialized_node_ids_by_page_key
+            .insert(page_key, materialized_node_ids.clone());
 
-    fn materialize_root_nodes(&mut self) -> Vec<u64> {
-        let mut expanded_node_ids = Vec::new();
-        let static_candidates = self
-            .pointer_scan_level_candidates
-            .iter()
-            .rev()
-            .flat_map(|pointer_scan_level_candidates| {
-                pointer_scan_level_candidates
-                    .get_static_candidates()
-                    .iter()
-                    .cloned()
-            })
-            .collect::<Vec<_>>();
-
-        for static_candidate in &static_candidates {
-            expanded_node_ids.extend(self.materialize_display_nodes_for_candidate(static_candidate, 1, None));
+        MaterializedPointerScanNodePage {
+            page_index: bounded_page_index,
+            last_page_index,
+            total_node_count,
+            node_ids: materialized_node_ids,
         }
-
-        expanded_node_ids
     }
 
-    fn materialize_child_nodes_for_parent(
+    fn materialize_child_node_page(
         &mut self,
         parent_node_id: u64,
-    ) -> Vec<u64> {
-        let Some(parent_expanded_node) = self.find_expanded_node(parent_node_id).cloned() else {
-            return Vec::new();
+        page_index: u64,
+        page_size: u64,
+    ) -> MaterializedPointerScanNodePage {
+        let Some(parent_materialized_node) = self.find_materialized_node(parent_node_id).cloned() else {
+            return MaterializedPointerScanNodePage::default();
         };
-        let child_discovery_depth = parent_expanded_node.get_discovery_depth().saturating_sub(1);
+
+        if parent_materialized_node.get_parent_node_id().is_none() {
+            return self.materialize_root_child_node_page(parent_node_id, &parent_materialized_node, page_index, page_size);
+        }
+
+        let child_discovery_depth = parent_materialized_node.get_discovery_depth().saturating_sub(1);
 
         if child_discovery_depth == 0 {
-            return Vec::new();
+            return MaterializedPointerScanNodePage::default();
         }
 
         let Some(pointer_scan_level_candidates) = self.find_level_candidates(child_discovery_depth) else {
-            return Vec::new();
+            return MaterializedPointerScanNodePage::default();
         };
         let Some(heap_candidate) = pointer_scan_level_candidates
-            .find_heap_candidate_by_address(parent_expanded_node.get_resolved_target_address())
+            .find_heap_candidate_by_address(parent_materialized_node.get_resolved_target_address())
             .cloned()
         else {
-            return Vec::new();
+            return MaterializedPointerScanNodePage::default();
+        };
+        let total_node_count = self.count_display_nodes_for_candidate(&heap_candidate);
+        let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
+        let bounded_page_index = page_index.clamp(0, last_page_index);
+        let page_key = MaterializedPointerScanPageKey {
+            parent_node_id: Some(parent_node_id),
+            page_index: bounded_page_index,
+            page_size,
         };
 
-        self.materialize_display_nodes_for_candidate(&heap_candidate, parent_expanded_node.get_depth().saturating_add(1), Some(parent_node_id))
+        if let Some(materialized_node_ids) = self.materialized_node_ids_by_page_key.get(&page_key) {
+            return MaterializedPointerScanNodePage {
+                page_index: bounded_page_index,
+                last_page_index,
+                total_node_count,
+                node_ids: materialized_node_ids.clone(),
+            };
+        }
+
+        let page_start_index = bounded_page_index.saturating_mul(page_size);
+        let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
+        let materialized_node_ids = self.materialize_display_node_page_for_candidate(
+            &heap_candidate,
+            parent_materialized_node.get_depth().saturating_add(1),
+            Some(parent_node_id),
+            page_start_index,
+            page_node_count,
+        );
+
+        self.materialized_node_ids_by_page_key
+            .insert(page_key, materialized_node_ids.clone());
+
+        MaterializedPointerScanNodePage {
+            page_index: bounded_page_index,
+            last_page_index,
+            total_node_count,
+            node_ids: materialized_node_ids,
+        }
     }
 
-    fn materialize_display_nodes_for_candidate(
+    fn materialize_root_child_node_page(
+        &mut self,
+        parent_node_id: u64,
+        parent_materialized_node: &PointerScanNode,
+        page_index: u64,
+        page_size: u64,
+    ) -> MaterializedPointerScanNodePage {
+        if !parent_materialized_node.has_children() {
+            return MaterializedPointerScanNodePage::default();
+        }
+
+        let root_pointer_scan_candidate = Self::rebuild_candidate_from_materialized_node(parent_materialized_node);
+        let total_node_count = self.count_display_nodes_for_candidate(&root_pointer_scan_candidate);
+        let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
+        let bounded_page_index = page_index.clamp(0, last_page_index);
+        let page_key = MaterializedPointerScanPageKey {
+            parent_node_id: Some(parent_node_id),
+            page_index: bounded_page_index,
+            page_size,
+        };
+
+        if let Some(materialized_node_ids) = self.materialized_node_ids_by_page_key.get(&page_key) {
+            return MaterializedPointerScanNodePage {
+                page_index: bounded_page_index,
+                last_page_index,
+                total_node_count,
+                node_ids: materialized_node_ids.clone(),
+            };
+        }
+
+        let page_start_index = bounded_page_index.saturating_mul(page_size);
+        let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
+        let materialized_node_ids = self.materialize_display_node_page_for_candidate(
+            &root_pointer_scan_candidate,
+            parent_materialized_node.get_depth().saturating_add(1),
+            Some(parent_node_id),
+            page_start_index,
+            page_node_count,
+        );
+
+        self.materialized_node_ids_by_page_key
+            .insert(page_key, materialized_node_ids.clone());
+
+        MaterializedPointerScanNodePage {
+            page_index: bounded_page_index,
+            last_page_index,
+            total_node_count,
+            node_ids: materialized_node_ids,
+        }
+    }
+
+    fn materialize_display_node_page_for_candidate(
         &mut self,
         pointer_scan_candidate: &PointerScanCandidate,
         display_depth: u64,
         parent_node_id: Option<u64>,
+        page_start_index: u64,
+        page_node_count: u64,
     ) -> Vec<u64> {
+        if page_node_count == 0 {
+            return Vec::new();
+        }
+
         if pointer_scan_candidate.get_discovery_depth() <= 1 {
+            if page_start_index > 0 {
+                return Vec::new();
+            }
             let Some(pointer_offset) = Self::calculate_pointer_offset(self.target_address, pointer_scan_candidate.get_pointer_value()) else {
                 return Vec::new();
             };
-            let expanded_pointer_scan_node = self.create_materialized_pointer_scan_node(
+            let materialized_pointer_scan_node = self.create_materialized_pointer_scan_node(
                 pointer_scan_candidate,
                 self.target_address,
                 pointer_offset,
@@ -248,7 +405,7 @@ impl PointerScanSession {
                 parent_node_id,
             );
 
-            return vec![expanded_pointer_scan_node];
+            return vec![materialized_pointer_scan_node];
         }
 
         let lower_bound = pointer_scan_candidate
@@ -260,20 +417,24 @@ impl PointerScanSession {
         let Some(next_pointer_scan_level_candidates) = self.find_level_candidates(pointer_scan_candidate.get_discovery_depth().saturating_sub(1)) else {
             return Vec::new();
         };
-        let child_target_addresses = next_pointer_scan_level_candidates
-            .find_heap_candidates_in_range(lower_bound, upper_bound)
+        let matching_child_candidates = next_pointer_scan_level_candidates.find_heap_candidates_in_range(lower_bound, upper_bound);
+        let page_start_index = page_start_index as usize;
+        let page_end_index = page_start_index
+            .saturating_add(page_node_count as usize)
+            .min(matching_child_candidates.len());
+        let resolved_target_addresses = matching_child_candidates[page_start_index..page_end_index]
             .iter()
             .map(PointerScanCandidate::get_pointer_address)
             .collect::<Vec<_>>();
 
-        child_target_addresses
+        resolved_target_addresses
             .iter()
-            .filter_map(|child_target_address| {
-                let pointer_offset = Self::calculate_pointer_offset(*child_target_address, pointer_scan_candidate.get_pointer_value())?;
+            .filter_map(|resolved_target_address| {
+                let pointer_offset = Self::calculate_pointer_offset(*resolved_target_address, pointer_scan_candidate.get_pointer_value())?;
 
                 Some(self.create_materialized_pointer_scan_node(
                     pointer_scan_candidate,
-                    *child_target_address,
+                    *resolved_target_address,
                     pointer_offset,
                     true,
                     display_depth,
@@ -281,6 +442,61 @@ impl PointerScanSession {
                 ))
             })
             .collect()
+    }
+
+    fn count_display_nodes_for_candidate(
+        &self,
+        pointer_scan_candidate: &PointerScanCandidate,
+    ) -> u64 {
+        if pointer_scan_candidate.get_discovery_depth() <= 1 {
+            return 1;
+        }
+
+        let lower_bound = pointer_scan_candidate
+            .get_pointer_value()
+            .saturating_sub(self.offset_radius);
+        let upper_bound = pointer_scan_candidate
+            .get_pointer_value()
+            .saturating_add(self.offset_radius);
+
+        self.find_level_candidates(pointer_scan_candidate.get_discovery_depth().saturating_sub(1))
+            .map(|next_pointer_scan_level_candidates| {
+                next_pointer_scan_level_candidates
+                    .find_heap_candidates_in_range(lower_bound, upper_bound)
+                    .len() as u64
+            })
+            .unwrap_or(0)
+    }
+
+    fn is_displayable_root_candidate(
+        &self,
+        pointer_scan_candidate: &PointerScanCandidate,
+    ) -> bool {
+        if pointer_scan_candidate.get_discovery_depth() <= 1 {
+            true
+        } else {
+            self.count_display_nodes_for_candidate(pointer_scan_candidate) > 0
+        }
+    }
+
+    fn materialize_root_pointer_scan_node(
+        &mut self,
+        pointer_scan_candidate: &PointerScanCandidate,
+    ) -> Option<u64> {
+        if !self.is_displayable_root_candidate(pointer_scan_candidate) {
+            return None;
+        }
+
+        let has_children = pointer_scan_candidate.get_discovery_depth() > 1;
+        let (resolved_target_address, pointer_offset) = if has_children {
+            (pointer_scan_candidate.get_pointer_value(), 0)
+        } else {
+            let pointer_offset = Self::calculate_pointer_offset(self.target_address, pointer_scan_candidate.get_pointer_value())?;
+
+            (self.target_address, pointer_offset)
+        };
+
+        Some(self.create_materialized_pointer_scan_node(pointer_scan_candidate, resolved_target_address, pointer_offset, has_children, 1, None))
     }
 
     fn create_materialized_pointer_scan_node(
@@ -292,10 +508,10 @@ impl PointerScanSession {
         display_depth: u64,
         parent_node_id: Option<u64>,
     ) -> u64 {
-        let expanded_node_id = self.next_expanded_node_id;
-        self.next_expanded_node_id = self.next_expanded_node_id.saturating_add(1);
-        let expanded_pointer_scan_node = PointerScanNode::new_materialized(
-            expanded_node_id,
+        let materialized_node_id = self.next_materialized_node_id;
+        self.next_materialized_node_id = self.next_materialized_node_id.saturating_add(1);
+        let materialized_pointer_scan_node = PointerScanNode::new_materialized(
+            materialized_node_id,
             pointer_scan_candidate.get_candidate_id(),
             pointer_scan_candidate.get_discovery_depth(),
             display_depth,
@@ -309,10 +525,22 @@ impl PointerScanSession {
             pointer_scan_candidate.get_module_offset(),
             has_children,
         );
-        self.expanded_pointer_scan_nodes
-            .insert(expanded_node_id, expanded_pointer_scan_node);
+        self.materialized_pointer_scan_nodes
+            .insert(materialized_node_id, materialized_pointer_scan_node);
 
-        expanded_node_id
+        materialized_node_id
+    }
+
+    fn rebuild_candidate_from_materialized_node(pointer_scan_node: &PointerScanNode) -> PointerScanCandidate {
+        PointerScanCandidate::new(
+            pointer_scan_node.get_graph_node_id(),
+            pointer_scan_node.get_discovery_depth(),
+            pointer_scan_node.get_pointer_scan_node_type(),
+            pointer_scan_node.get_pointer_address(),
+            pointer_scan_node.get_pointer_value(),
+            pointer_scan_node.get_module_name().to_string(),
+            pointer_scan_node.get_module_offset(),
+        )
     }
 
     fn find_level_candidates(
@@ -324,11 +552,25 @@ impl PointerScanSession {
             .and_then(|level_index| self.pointer_scan_level_candidates.get(level_index as usize))
     }
 
-    fn find_expanded_node(
+    fn find_materialized_node(
         &self,
         node_id: u64,
     ) -> Option<&PointerScanNode> {
-        self.expanded_pointer_scan_nodes.get(&node_id)
+        self.materialized_pointer_scan_nodes.get(&node_id)
+    }
+
+    fn calculate_last_page_index(
+        total_node_count: u64,
+        page_size: u64,
+    ) -> u64 {
+        if total_node_count == 0 || page_size == 0 {
+            0
+        } else {
+            total_node_count
+                .saturating_sub(1)
+                .checked_div(page_size)
+                .unwrap_or(0)
+        }
     }
 
     fn calculate_pointer_offset(
@@ -472,8 +714,13 @@ mod tests {
 
         let child_nodes = pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
-        assert_eq!(child_nodes[0].get_graph_node_id(), 2);
+        assert_eq!(child_nodes[0].get_graph_node_id(), 3);
         assert_eq!(child_nodes[0].get_parent_node_id(), Some(root_nodes[0].get_node_id()));
+
+        let grandchild_nodes = pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        assert_eq!(grandchild_nodes.len(), 1);
+        assert_eq!(grandchild_nodes[0].get_graph_node_id(), 2);
+        assert_eq!(grandchild_nodes[0].get_parent_node_id(), Some(child_nodes[0].get_node_id()));
     }
 
     #[test]
@@ -496,9 +743,18 @@ mod tests {
         assert_eq!(root_nodes.len(), 2);
         assert_eq!(first_child_nodes.len(), 1);
         assert_eq!(second_child_nodes.len(), 1);
-        assert_eq!(first_child_nodes[0].get_graph_node_id(), second_child_nodes[0].get_graph_node_id());
-        assert_ne!(first_child_nodes[0].get_node_id(), second_child_nodes[0].get_node_id());
+        assert_ne!(first_child_nodes[0].get_graph_node_id(), second_child_nodes[0].get_graph_node_id());
         assert_eq!(first_child_nodes[0].get_parent_node_id(), Some(root_nodes[0].get_node_id()));
         assert_eq!(second_child_nodes[0].get_parent_node_id(), Some(root_nodes[1].get_node_id()));
+
+        let first_grandchild_nodes = pointer_scan_session.get_expanded_nodes(Some(first_child_nodes[0].get_node_id()));
+        let second_grandchild_nodes = pointer_scan_session.get_expanded_nodes(Some(second_child_nodes[0].get_node_id()));
+
+        assert_eq!(first_grandchild_nodes.len(), 1);
+        assert_eq!(second_grandchild_nodes.len(), 1);
+        assert_eq!(first_grandchild_nodes[0].get_graph_node_id(), second_grandchild_nodes[0].get_graph_node_id());
+        assert_ne!(first_grandchild_nodes[0].get_node_id(), second_grandchild_nodes[0].get_node_id());
+        assert_eq!(first_grandchild_nodes[0].get_parent_node_id(), Some(first_child_nodes[0].get_node_id()));
+        assert_eq!(second_grandchild_nodes[0].get_parent_node_id(), Some(second_child_nodes[0].get_node_id()));
     }
 }

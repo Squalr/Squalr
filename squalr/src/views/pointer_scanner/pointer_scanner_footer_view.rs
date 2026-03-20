@@ -50,8 +50,10 @@ impl Widget for PointerScannerFooterView {
 
         let theme = &self.app_context.theme;
         let font_id = theme.font_library.font_noto_sans.font_normal.clone();
-        let page_label_text = PointerScannerViewData::build_root_page_label(self.pointer_scanner_view_data.clone());
-        let stats_text = PointerScannerViewData::build_root_page_stats_text(self.pointer_scanner_view_data.clone());
+        let page_label_text = PointerScannerViewData::build_page_label(self.pointer_scanner_view_data.clone());
+        let stats_text = PointerScannerViewData::build_page_stats_text(self.pointer_scanner_view_data.clone());
+        let context_text = PointerScannerViewData::build_current_context_text(self.pointer_scanner_view_data.clone());
+        let can_navigate_back = PointerScannerViewData::can_navigate_back(self.pointer_scanner_view_data.clone());
 
         user_interface
             .painter()
@@ -79,9 +81,11 @@ impl Widget for PointerScannerFooterView {
 
         let previous_page_button_x = center_x - page_box_width * 0.5 - spacing - button_width;
         let first_page_button_x = previous_page_button_x - button_width;
+        let back_button_x = first_page_button_x - button_width - spacing;
         let next_page_button_x = center_x + page_box_width * 0.5 + spacing;
         let last_page_button_x = next_page_button_x + button_width;
 
+        let mut should_navigate_back = false;
         let mut should_navigate_first_page = false;
         let mut should_navigate_previous_page = false;
         let mut should_navigate_next_page = false;
@@ -90,6 +94,19 @@ impl Widget for PointerScannerFooterView {
 
         let top_row_builder = UiBuilder::new().max_rect(top_row).sense(Sense::click());
         let mut top_row_user_interface = user_interface.new_child(top_row_builder);
+
+        let back_button_rectangle = Rect::from_min_size(pos2(back_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
+        let back_button = top_row_user_interface.put(
+            back_button_rectangle,
+            Button::new_from_theme(theme)
+                .disabled(!can_navigate_back)
+                .background_color(Color32::TRANSPARENT)
+                .with_tooltip_text("Return to the previous pointer context."),
+        );
+        IconDraw::draw(&top_row_user_interface, back_button.rect, &theme.icon_library.icon_handle_navigation_left_arrow);
+        if back_button.clicked() {
+            should_navigate_back = true;
+        }
 
         let page_number_edit_rectangle = Rect::from_center_size(pos2(center_x, center_y), vec2(page_box_width, page_box_height));
         let page_number_edit_response = top_row_user_interface.put(
@@ -108,7 +125,7 @@ impl Widget for PointerScannerFooterView {
             first_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
-                .with_tooltip_text("First root page."),
+                .with_tooltip_text("First page in the current pointer context."),
         );
         IconDraw::draw(
             &top_row_user_interface,
@@ -125,7 +142,7 @@ impl Widget for PointerScannerFooterView {
             previous_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
-                .with_tooltip_text("Previous root page."),
+                .with_tooltip_text("Previous page in the current pointer context."),
         );
         IconDraw::draw(
             &top_row_user_interface,
@@ -141,7 +158,7 @@ impl Widget for PointerScannerFooterView {
             next_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
-                .with_tooltip_text("Next root page."),
+                .with_tooltip_text("Next page in the current pointer context."),
         );
         IconDraw::draw(
             &top_row_user_interface,
@@ -157,7 +174,7 @@ impl Widget for PointerScannerFooterView {
             last_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
-                .with_tooltip_text("Last root page."),
+                .with_tooltip_text("Last page in the current pointer context."),
         );
         IconDraw::draw(
             &top_row_user_interface,
@@ -171,19 +188,25 @@ impl Widget for PointerScannerFooterView {
         let bottom_row_builder = UiBuilder::new().max_rect(bottom_row);
         let mut bottom_row_user_interface = user_interface.new_child(bottom_row_builder);
         bottom_row_user_interface.centered_and_justified(|user_interface| {
-            user_interface.label(RichText::new(stats_text).font(font_id).color(theme.foreground));
+            user_interface.label(
+                RichText::new(format!("{context_text} | {stats_text}"))
+                    .font(font_id)
+                    .color(theme.foreground),
+            );
         });
 
-        if should_navigate_first_page {
-            PointerScannerViewData::navigate_first_root_page(self.pointer_scanner_view_data.clone());
+        if should_navigate_back {
+            PointerScannerViewData::navigate_back(self.pointer_scanner_view_data.clone());
+        } else if should_navigate_first_page {
+            PointerScannerViewData::navigate_first_page(self.pointer_scanner_view_data.clone());
         } else if should_navigate_previous_page {
-            PointerScannerViewData::navigate_previous_root_page(self.pointer_scanner_view_data.clone());
+            PointerScannerViewData::navigate_previous_page(self.pointer_scanner_view_data.clone());
         } else if should_navigate_next_page {
-            PointerScannerViewData::navigate_next_root_page(self.pointer_scanner_view_data.clone());
+            PointerScannerViewData::navigate_next_page(self.pointer_scanner_view_data.clone());
         } else if should_navigate_last_page {
-            PointerScannerViewData::navigate_last_root_page(self.pointer_scanner_view_data.clone());
+            PointerScannerViewData::navigate_last_page(self.pointer_scanner_view_data.clone());
         } else if page_number_edit_response.changed() {
-            PointerScannerViewData::set_root_page_index_string(self.pointer_scanner_view_data.clone(), &page_label_text);
+            PointerScannerViewData::set_page_index_string(self.pointer_scanner_view_data.clone(), &page_label_text);
         }
 
         response

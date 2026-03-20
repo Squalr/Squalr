@@ -233,7 +233,7 @@ impl PointerScanExecutor {
             ));
             all_pointer_scan_level_candidates.push(discovered_level_candidates);
         }
-        let root_node_count = Self::count_root_display_nodes(&all_pointer_scan_level_candidates, pointer_scan_parameters.get_offset_radius());
+        let root_node_count = Self::count_root_nodes(&all_pointer_scan_level_candidates, pointer_scan_parameters.get_offset_radius());
 
         if with_logging {
             for pointer_scan_level in &pointer_scan_levels {
@@ -513,7 +513,7 @@ impl PointerScanExecutor {
         }
     }
 
-    fn count_root_display_nodes(
+    fn count_root_nodes(
         pointer_scan_levels: &[PointerScanLevelCandidates],
         offset_radius: u64,
     ) -> u64 {
@@ -526,24 +526,27 @@ impl PointerScanExecutor {
                     continue;
                 }
 
-                let lower_bound = static_candidate
-                    .get_pointer_value()
-                    .saturating_sub(offset_radius);
-                let upper_bound = static_candidate
-                    .get_pointer_value()
-                    .saturating_add(offset_radius);
-                let matching_child_node_count = pointer_scan_level_candidates
+                let has_matching_child = pointer_scan_level_candidates
                     .get_discovery_depth()
                     .checked_sub(2)
                     .and_then(|child_level_index| pointer_scan_levels.get(child_level_index as usize))
                     .map(|child_pointer_scan_level_candidates| {
-                        child_pointer_scan_level_candidates
-                            .find_heap_candidates_in_range(lower_bound, upper_bound)
-                            .len() as u64
-                    })
-                    .unwrap_or(0);
+                        let lower_bound = static_candidate
+                            .get_pointer_value()
+                            .saturating_sub(offset_radius);
+                        let upper_bound = static_candidate
+                            .get_pointer_value()
+                            .saturating_add(offset_radius);
 
-                root_node_count = root_node_count.saturating_add(matching_child_node_count);
+                        !child_pointer_scan_level_candidates
+                            .find_heap_candidates_in_range(lower_bound, upper_bound)
+                            .is_empty()
+                    })
+                    .unwrap_or(false);
+
+                if has_matching_child {
+                    root_node_count = root_node_count.saturating_add(1);
+                }
             }
         }
 
@@ -679,18 +682,27 @@ mod tests {
         assert_eq!(static_chain_root.get_depth(), 1);
         assert_eq!(static_chain_root.get_module_name(), "game.exe");
         assert_eq!(static_chain_root.get_module_offset(), 0x10);
-        assert_eq!(static_chain_root.get_resolved_target_address(), 0x2000);
-        assert_eq!(static_chain_root.get_pointer_offset(), 0x10);
+        assert_eq!(static_chain_root.get_resolved_target_address(), 0x1FF0);
+        assert_eq!(static_chain_root.get_pointer_offset(), 0);
         assert!(static_chain_root.has_children());
 
         let child_nodes = pointer_scan_session.get_expanded_nodes(Some(static_chain_root.get_node_id()));
         assert_eq!(child_nodes.len(), 1);
-        assert_eq!(child_nodes[0].get_pointer_address(), 0x2000);
-        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
+        assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
+        assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(child_nodes[0].get_depth(), 2);
-        assert_eq!(child_nodes[0].get_resolved_target_address(), 0x3010);
+        assert_eq!(child_nodes[0].get_resolved_target_address(), 0x2000);
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
-        assert!(!child_nodes[0].has_children());
+        assert!(child_nodes[0].has_children());
+
+        let grandchild_nodes = pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        assert_eq!(grandchild_nodes.len(), 1);
+        assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x2000);
+        assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
+        assert_eq!(grandchild_nodes[0].get_depth(), 3);
+        assert_eq!(grandchild_nodes[0].get_resolved_target_address(), 0x3010);
+        assert_eq!(grandchild_nodes[0].get_pointer_offset(), 0x10);
+        assert!(!grandchild_nodes[0].has_children());
 
         assert_eq!(direct_static_root.get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(direct_static_root.get_depth(), 1);

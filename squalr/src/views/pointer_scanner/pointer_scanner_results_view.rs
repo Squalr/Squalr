@@ -2,15 +2,17 @@ use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::views::pointer_scanner::pointer_scanner_footer_view::PointerScannerFooterView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
+use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
 use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind};
-use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::{commands::unprivileged_command_request::UnprivilegedCommandRequest, dependency_injection::dependency::Dependency};
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct PointerScannerResultsView {
     app_context: Arc<AppContext>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
+    project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
     pointer_scanner_footer_view: PointerScannerFooterView,
 }
 
@@ -23,24 +25,29 @@ impl PointerScannerResultsView {
         let pointer_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<PointerScannerViewData>();
+        let project_hierarchy_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProjectHierarchyViewData>();
         let pointer_scanner_footer_view = PointerScannerFooterView::new(app_context.clone());
 
         Self {
             app_context,
             pointer_scanner_view_data,
+            project_hierarchy_view_data,
             pointer_scanner_footer_view,
         }
     }
 
-    fn column_positions(rectangle: Rect) -> (f32, f32, f32, f32, f32) {
+    fn column_positions(rectangle: Rect) -> (f32, f32, f32, f32, f32, f32) {
         let total_width = rectangle.width();
-        let module_base_x = rectangle.min.x + 12.0;
-        let offset_chain_x = rectangle.min.x + total_width * 0.36;
-        let resolved_address_x = rectangle.min.x + total_width * 0.66;
-        let depth_x = rectangle.min.x + total_width * 0.83;
-        let state_x = rectangle.min.x + total_width * 0.91;
+        let location_x = rectangle.min.x + 12.0;
+        let offset_x = rectangle.min.x + total_width * 0.34;
+        let resolved_address_x = rectangle.min.x + total_width * 0.57;
+        let depth_x = rectangle.min.x + total_width * 0.76;
+        let state_x = rectangle.min.x + total_width * 0.84;
+        let action_x = rectangle.min.x + total_width * 0.92;
 
-        (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x)
+        (location_x, offset_x, resolved_address_x, depth_x, state_x, action_x)
     }
 
     fn draw_column_separators(
@@ -49,13 +56,14 @@ impl PointerScannerResultsView {
         rectangle: Rect,
     ) {
         let theme = &self.app_context.theme;
-        let (_module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(rectangle);
+        let (_location_x, offset_x, resolved_address_x, depth_x, state_x, action_x) = Self::column_positions(rectangle);
 
         for separator_x in [
-            offset_chain_x - 10.0,
+            offset_x - 10.0,
             resolved_address_x - 10.0,
             depth_x - 10.0,
             state_x - 10.0,
+            action_x - 10.0,
         ] {
             let separator_rectangle = Rect::from_min_max(
                 pos2(separator_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, rectangle.min.y),
@@ -72,9 +80,11 @@ impl PointerScannerResultsView {
         &self,
         user_interface: &mut Ui,
         header_rectangle: Rect,
+        is_root_context: bool,
     ) {
         let theme = &self.app_context.theme;
-        let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(header_rectangle);
+        let (location_x, offset_x, resolved_address_x, depth_x, state_x, action_x) = Self::column_positions(header_rectangle);
+        let primary_label = if is_root_context { "Root" } else { "Offset" };
 
         user_interface
             .painter()
@@ -90,19 +100,15 @@ impl PointerScannerResultsView {
         let header_y = header_rectangle.center().y;
 
         user_interface.painter().text(
-            pos2(module_base_x, header_y),
+            pos2(location_x, header_y),
             Align2::LEFT_CENTER,
-            "Module / Base",
+            primary_label,
             header_font.clone(),
             theme.foreground,
         );
-        user_interface.painter().text(
-            pos2(offset_chain_x, header_y),
-            Align2::LEFT_CENTER,
-            "Offset Chain",
-            header_font.clone(),
-            theme.foreground,
-        );
+        user_interface
+            .painter()
+            .text(pos2(offset_x, header_y), Align2::LEFT_CENTER, "Pointer", header_font.clone(), theme.foreground);
         user_interface.painter().text(
             pos2(resolved_address_x, header_y),
             Align2::LEFT_CENTER,
@@ -116,6 +122,13 @@ impl PointerScannerResultsView {
         user_interface
             .painter()
             .text(pos2(state_x, header_y), Align2::LEFT_CENTER, "State", header_font, theme.foreground);
+        user_interface.painter().text(
+            pos2(action_x, header_y),
+            Align2::LEFT_CENTER,
+            "Action",
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
     }
 
     fn draw_row(
@@ -123,28 +136,28 @@ impl PointerScannerResultsView {
         user_interface: &mut Ui,
         pointer_scanner_tree_row: &PointerScannerTreeRow,
         clicked_node_id: &mut Option<u64>,
-        toggled_node_id: &mut Option<u64>,
+        entered_node_id: &mut Option<u64>,
+        added_node_id: &mut Option<u64>,
     ) {
         let theme = &self.app_context.theme;
         let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
-        let (module_base_x, offset_chain_x, resolved_address_x, depth_x, state_x) = Self::column_positions(row_rectangle);
-        let indent_width = 16.0 * pointer_scanner_tree_row.tree_depth as f32;
-        let toggle_rectangle = Rect::from_min_size(pos2(module_base_x + indent_width, row_rectangle.center().y - 6.0), vec2(12.0, 12.0));
-        let toggle_response = if pointer_scanner_tree_row.has_children {
+        let (location_x, offset_x, resolved_address_x, depth_x, state_x, action_x) = Self::column_positions(row_rectangle);
+        let action_rectangle = Rect::from_center_size(pos2(action_x + 10.0, row_rectangle.center().y), vec2(16.0, 16.0));
+        let action_response = if pointer_scanner_tree_row.has_children {
             user_interface.interact(
-                toggle_rectangle,
+                action_rectangle,
                 user_interface
                     .id()
-                    .with(("pointer_scanner_toggle", pointer_scanner_tree_row.node_id)),
+                    .with(("pointer_scanner_enter", pointer_scanner_tree_row.node_id)),
                 Sense::click(),
             )
         } else {
             user_interface.interact(
-                toggle_rectangle,
+                action_rectangle,
                 user_interface
                     .id()
-                    .with(("pointer_scanner_toggle_disabled", pointer_scanner_tree_row.node_id)),
-                Sense::hover(),
+                    .with(("pointer_scanner_add", pointer_scanner_tree_row.node_id)),
+                Sense::click(),
             )
         };
 
@@ -167,16 +180,21 @@ impl PointerScannerResultsView {
         );
 
         if pointer_scanner_tree_row.has_children {
-            let toggle_icon = if pointer_scanner_tree_row.is_expanded {
-                &theme.icon_library.icon_handle_navigation_down_arrow_small
-            } else {
-                &theme.icon_library.icon_handle_navigation_right_arrow_small
-            };
-
-            IconDraw::draw_sized(user_interface, toggle_rectangle.center(), vec2(10.0, 10.0), toggle_icon);
+            IconDraw::draw_sized(
+                user_interface,
+                action_rectangle.center(),
+                vec2(10.0, 10.0),
+                &theme.icon_library.icon_handle_navigation_right_arrow_small,
+            );
+        } else {
+            IconDraw::draw_sized(
+                user_interface,
+                action_rectangle.center(),
+                vec2(12.0, 12.0),
+                &theme.icon_library.icon_handle_project_pointer_type,
+            );
         }
 
-        let text_x = module_base_x + indent_width + if pointer_scanner_tree_row.has_children { 16.0 } else { 0.0 };
         let row_center_y = row_rectangle.center().y;
         let module_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
         let value_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
@@ -188,16 +206,16 @@ impl PointerScannerResultsView {
         };
 
         user_interface.painter().text(
-            pos2(text_x, row_center_y),
+            pos2(location_x, row_center_y),
             Align2::LEFT_CENTER,
-            &pointer_scanner_tree_row.module_base_text,
+            &pointer_scanner_tree_row.location_text,
             module_font.clone(),
             theme.foreground,
         );
         user_interface.painter().text(
-            pos2(offset_chain_x, row_center_y),
+            pos2(offset_x, row_center_y),
             Align2::LEFT_CENTER,
-            &pointer_scanner_tree_row.offset_chain_text,
+            &pointer_scanner_tree_row.offset_text,
             value_font.clone(),
             theme.foreground,
         );
@@ -232,11 +250,19 @@ impl PointerScannerResultsView {
         }
 
         if row_response.double_clicked() && pointer_scanner_tree_row.has_children {
-            *toggled_node_id = Some(pointer_scanner_tree_row.node_id);
+            *entered_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
-        if toggle_response.clicked() {
-            *toggled_node_id = Some(pointer_scanner_tree_row.node_id);
+        if row_response.double_clicked() && !pointer_scanner_tree_row.has_children {
+            *added_node_id = Some(pointer_scanner_tree_row.node_id);
+        }
+
+        if action_response.clicked() {
+            if pointer_scanner_tree_row.has_children {
+                *entered_node_id = Some(pointer_scanner_tree_row.node_id);
+            } else {
+                *added_node_id = Some(pointer_scanner_tree_row.node_id);
+            }
         }
     }
 }
@@ -247,8 +273,10 @@ impl Widget for PointerScannerResultsView {
         user_interface: &mut Ui,
     ) -> Response {
         let visible_row_count = PointerScannerViewData::get_visible_row_count(self.pointer_scanner_view_data.clone());
+        let is_root_context = PointerScannerViewData::is_root_context(self.pointer_scanner_view_data.clone());
         let mut clicked_node_id = None;
-        let mut toggled_node_id = None;
+        let mut entered_node_id = None;
+        let mut added_node_id = None;
         let footer_height = PointerScannerFooterView::FOOTER_HEIGHT;
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::hover());
 
@@ -285,7 +313,7 @@ impl Widget for PointerScannerResultsView {
                 .layout(Layout::top_down(Align::Min))
                 .sense(Sense::hover());
             let mut header_user_interface = user_interface.new_child(header_builder);
-            self.draw_header(&mut header_user_interface, header_rectangle);
+            self.draw_header(&mut header_user_interface, header_rectangle, is_root_context);
         }
 
         if content_rectangle.height() > 0.0 {
@@ -302,7 +330,13 @@ impl Widget for PointerScannerResultsView {
                     let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows_in_range(self.pointer_scanner_view_data.clone(), row_range);
 
                     for pointer_scanner_tree_row in &pointer_scanner_tree_rows {
-                        self.draw_row(user_interface, pointer_scanner_tree_row, &mut clicked_node_id, &mut toggled_node_id);
+                        self.draw_row(
+                            user_interface,
+                            pointer_scanner_tree_row,
+                            &mut clicked_node_id,
+                            &mut entered_node_id,
+                            &mut added_node_id,
+                        );
                     }
                 });
         }
@@ -322,12 +356,22 @@ impl Widget for PointerScannerResultsView {
             PointerScannerViewData::select_node(self.pointer_scanner_view_data.clone(), clicked_node_id);
         }
 
-        if let Some(toggled_node_id) = toggled_node_id {
-            PointerScannerViewData::toggle_node_expansion(
-                self.pointer_scanner_view_data.clone(),
-                self.app_context.engine_unprivileged_state.clone(),
-                toggled_node_id,
-            );
+        if let Some(entered_node_id) = entered_node_id {
+            PointerScannerViewData::navigate_into_node_context(self.pointer_scanner_view_data.clone(), entered_node_id);
+        }
+
+        if let Some(added_node_id) = added_node_id {
+            let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
+
+            if let Some(project_item_create_request) =
+                PointerScannerViewData::build_project_item_create_request_for_node(self.pointer_scanner_view_data.clone(), added_node_id, target_directory_path)
+            {
+                project_item_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
+                    if !project_items_create_response.success {
+                        log::error!("Failed to add pointer chain to the project.");
+                    }
+                });
+            }
         }
 
         response

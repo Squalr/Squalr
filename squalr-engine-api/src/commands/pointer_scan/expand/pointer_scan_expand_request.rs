@@ -11,6 +11,10 @@ pub struct PointerScanExpandRequest {
     pub session_id: u64,
     #[structopt(long)]
     pub parent_node_id: Option<u64>,
+    #[structopt(long, default_value = "0")]
+    pub page_index: u64,
+    #[structopt(long, default_value = "22")]
+    pub page_size: u64,
 }
 
 impl PrivilegedCommandRequest for PointerScanExpandRequest {
