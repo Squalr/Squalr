@@ -211,7 +211,7 @@ impl PointerScanSession {
         let mut remaining_take_count = page_node_count;
         let mut materialized_node_ids = Vec::new();
 
-        for level_index in (0..self.pointer_scan_level_candidates.len()).rev() {
+        for level_index in 0..self.pointer_scan_level_candidates.len() {
             let static_candidates = self.pointer_scan_level_candidates[level_index]
                 .get_static_candidates()
                 .clone();
@@ -589,6 +589,7 @@ mod tests {
     use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use crate::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
     use crate::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
+    use crate::structures::pointer_scans::pointer_scan_node::PointerScanNode;
     use crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
@@ -705,22 +706,35 @@ mod tests {
         let root_nodes = pointer_scan_session.get_expanded_nodes(None);
 
         assert_eq!(root_nodes.len(), 2);
-        assert_eq!(root_nodes[0].get_graph_node_id(), 3);
-        assert_eq!(root_nodes[0].get_resolved_target_address(), 0x2000);
-        assert!(root_nodes[0].has_children());
-        assert_eq!(root_nodes[1].get_graph_node_id(), 1);
-        assert_eq!(root_nodes[1].get_resolved_target_address(), 0x3010);
-        assert!(!root_nodes[1].has_children());
+        assert_eq!(root_nodes[0].get_graph_node_id(), 1);
+        assert_eq!(root_nodes[0].get_resolved_target_address(), 0x3010);
+        assert!(!root_nodes[0].has_children());
+        assert_eq!(root_nodes[1].get_graph_node_id(), 3);
+        assert_eq!(root_nodes[1].get_resolved_target_address(), 0x2000);
+        assert!(root_nodes[1].has_children());
 
-        let child_nodes = pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
+        let child_nodes = pointer_scan_session.get_expanded_nodes(Some(root_nodes[1].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_graph_node_id(), 3);
-        assert_eq!(child_nodes[0].get_parent_node_id(), Some(root_nodes[0].get_node_id()));
+        assert_eq!(child_nodes[0].get_parent_node_id(), Some(root_nodes[1].get_node_id()));
 
         let grandchild_nodes = pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_graph_node_id(), 2);
         assert_eq!(grandchild_nodes[0].get_parent_node_id(), Some(child_nodes[0].get_node_id()));
+    }
+
+    #[test]
+    fn pointer_scan_session_orders_root_pages_by_shortest_chain_first() {
+        let mut pointer_scan_session = create_pointer_scan_session();
+
+        let root_nodes = pointer_scan_session.get_expanded_nodes(None);
+        let root_discovery_depths = root_nodes
+            .iter()
+            .map(PointerScanNode::get_discovery_depth)
+            .collect::<Vec<_>>();
+
+        assert_eq!(root_discovery_depths, vec![1, 2]);
     }
 
     #[test]
