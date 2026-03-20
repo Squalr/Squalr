@@ -100,10 +100,24 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         base_address: u64,
         current_values: &[u8],
     ) -> Vec<PointerScanRegionMatch> {
+        let mut pointer_matches = Vec::new();
+        self.scan_region_with_visitor(base_address, current_values, |pointer_match| pointer_matches.push(pointer_match));
+
+        pointer_matches
+    }
+
+    pub fn scan_region_with_visitor<VisitMatch>(
+        &self,
+        base_address: u64,
+        current_values: &[u8],
+        mut visit_match: VisitMatch,
+    ) where
+        VisitMatch: FnMut(PointerScanRegionMatch),
+    {
         let pointer_size_in_bytes = self.pointer_size.get_size_in_bytes() as usize;
 
         if current_values.len() < pointer_size_in_bytes {
-            return Vec::new();
+            return;
         }
 
         let pointer_alignment = pointer_size_in_bytes as u64;
@@ -115,32 +129,40 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         };
 
         if start_offset.saturating_add(pointer_size_in_bytes) > current_values.len() {
-            return Vec::new();
+            return;
         }
 
         match self.kernel_kind {
-            PointerScanRangeSearchKernelKind::ScalarLinear => self.scan_region_scalar(base_address, current_values, start_offset, |pointer_value| {
-                self.target_range_set.contains_value_linear(pointer_value)
-            }),
-            PointerScanRangeSearchKernelKind::ScalarBinary => self.scan_region_scalar(base_address, current_values, start_offset, |pointer_value| {
-                self.target_range_set.contains_value_binary(pointer_value)
-            }),
-            PointerScanRangeSearchKernelKind::SimdLinear => self.scan_region_simd_linear(base_address, current_values, start_offset),
+            PointerScanRangeSearchKernelKind::ScalarLinear => self.scan_region_scalar(
+                base_address,
+                current_values,
+                start_offset,
+                |pointer_value| self.target_range_set.contains_value_linear(pointer_value),
+                &mut visit_match,
+            ),
+            PointerScanRangeSearchKernelKind::ScalarBinary => self.scan_region_scalar(
+                base_address,
+                current_values,
+                start_offset,
+                |pointer_value| self.target_range_set.contains_value_binary(pointer_value),
+                &mut visit_match,
+            ),
+            PointerScanRangeSearchKernelKind::SimdLinear => self.scan_region_simd_linear(base_address, current_values, start_offset, &mut visit_match),
         }
     }
 
-    fn scan_region_scalar<MatchesPointerValue>(
+    fn scan_region_scalar<MatchesPointerValue, VisitMatch>(
         &self,
         base_address: u64,
         current_values: &[u8],
         start_offset: usize,
         mut matches_pointer_value: MatchesPointerValue,
-    ) -> Vec<PointerScanRegionMatch>
-    where
+        visit_match: &mut VisitMatch,
+    ) where
         MatchesPointerValue: FnMut(u64) -> bool,
+        VisitMatch: FnMut(PointerScanRegionMatch),
     {
         let pointer_size_in_bytes = self.pointer_size.get_size_in_bytes() as usize;
-        let mut pointer_matches = Vec::new();
         let current_values_ptr = current_values.as_ptr();
         let mut pointer_value_offset = start_offset;
 
@@ -149,7 +171,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
             let pointer_value = unsafe { Self::read_pointer_value_unchecked(current_values_ptr.add(pointer_value_offset), self.pointer_size) };
 
             if matches_pointer_value(pointer_value) {
-                pointer_matches.push(PointerScanRegionMatch::new(
+                visit_match(PointerScanRegionMatch::new(
                     base_address.saturating_add(pointer_value_offset as u64),
                     pointer_value,
                 ));
@@ -157,31 +179,34 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
 
             pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes);
         }
-
-        pointer_matches
     }
 
-    fn scan_region_simd_linear(
+    fn scan_region_simd_linear<VisitMatch>(
         &self,
         base_address: u64,
         current_values: &[u8],
         start_offset: usize,
-    ) -> Vec<PointerScanRegionMatch> {
+        visit_match: &mut VisitMatch,
+    ) where
+        VisitMatch: FnMut(PointerScanRegionMatch),
+    {
         match self.pointer_size {
-            PointerScanPointerSize::Pointer32 => self.scan_region_simd_linear_u32(base_address, current_values, start_offset),
-            PointerScanPointerSize::Pointer64 => self.scan_region_simd_linear_u64(base_address, current_values, start_offset),
+            PointerScanPointerSize::Pointer32 => self.scan_region_simd_linear_u32(base_address, current_values, start_offset, visit_match),
+            PointerScanPointerSize::Pointer64 => self.scan_region_simd_linear_u64(base_address, current_values, start_offset, visit_match),
         }
     }
 
-    fn scan_region_simd_linear_u32(
+    fn scan_region_simd_linear_u32<VisitMatch>(
         &self,
         base_address: u64,
         current_values: &[u8],
         start_offset: usize,
-    ) -> Vec<PointerScanRegionMatch> {
+        visit_match: &mut VisitMatch,
+    ) where
+        VisitMatch: FnMut(PointerScanRegionMatch),
+    {
         const SIMD_LANE_COUNT: usize = 16;
         let pointer_size_in_bytes = size_of::<u32>();
-        let mut pointer_matches = Vec::new();
         let current_values_ptr = current_values.as_ptr();
         let mut pointer_value_offset = start_offset;
 
@@ -208,7 +233,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
                         continue;
                     }
 
-                    pointer_matches.push(PointerScanRegionMatch::new(
+                    visit_match(PointerScanRegionMatch::new(
                         base_address.saturating_add((pointer_value_offset + lane_index * pointer_size_in_bytes) as u64),
                         lane_values[lane_index] as u64,
                     ));
@@ -218,22 +243,26 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
             pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT);
         }
 
-        pointer_matches.extend(self.scan_region_scalar(base_address, current_values, pointer_value_offset, |pointer_value| {
-            self.target_range_set.contains_value_linear(pointer_value)
-        }));
-
-        pointer_matches
+        self.scan_region_scalar(
+            base_address,
+            current_values,
+            pointer_value_offset,
+            |pointer_value| self.target_range_set.contains_value_linear(pointer_value),
+            visit_match,
+        );
     }
 
-    fn scan_region_simd_linear_u64(
+    fn scan_region_simd_linear_u64<VisitMatch>(
         &self,
         base_address: u64,
         current_values: &[u8],
         start_offset: usize,
-    ) -> Vec<PointerScanRegionMatch> {
+        visit_match: &mut VisitMatch,
+    ) where
+        VisitMatch: FnMut(PointerScanRegionMatch),
+    {
         const SIMD_LANE_COUNT: usize = 8;
         let pointer_size_in_bytes = size_of::<u64>();
-        let mut pointer_matches = Vec::new();
         let current_values_ptr = current_values.as_ptr();
         let mut pointer_value_offset = start_offset;
 
@@ -256,7 +285,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
                         continue;
                     }
 
-                    pointer_matches.push(PointerScanRegionMatch::new(
+                    visit_match(PointerScanRegionMatch::new(
                         base_address.saturating_add((pointer_value_offset + lane_index * pointer_size_in_bytes) as u64),
                         lane_values[lane_index],
                     ));
@@ -266,11 +295,13 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
             pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT);
         }
 
-        pointer_matches.extend(self.scan_region_scalar(base_address, current_values, pointer_value_offset, |pointer_value| {
-            self.target_range_set.contains_value_linear(pointer_value)
-        }));
-
-        pointer_matches
+        self.scan_region_scalar(
+            base_address,
+            current_values,
+            pointer_value_offset,
+            |pointer_value| self.target_range_set.contains_value_linear(pointer_value),
+            visit_match,
+        );
     }
 
     unsafe fn read_pointer_value_unchecked(

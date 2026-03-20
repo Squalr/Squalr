@@ -319,7 +319,7 @@ impl PointerScanExecutor {
             }
 
             let frontier_target_ranges =
-                PointerScanTargetRangeSet::from_target_addresses(&frontier_target_addresses, pointer_scan_parameters.get_offset_radius());
+                PointerScanTargetRangeSet::from_sorted_target_addresses(&frontier_target_addresses, pointer_scan_parameters.get_offset_radius());
             let range_search_kernel = PointerScanRangeSearchKernel::new(&frontier_target_ranges, pointer_scan_parameters.get_pointer_size());
             let level_start_time = Instant::now();
 
@@ -429,29 +429,33 @@ impl PointerScanExecutor {
     ) -> DiscoveredPointerLevel {
         let mut discovered_pointer_level = DiscoveredPointerLevel::default();
 
-        for pointer_match in range_search_kernel.scan_region(snapshot_region_scan_task.base_address, snapshot_region_scan_task.current_values) {
-            let (pointer_scan_node_type, module_name, module_offset) = Self::classify_pointer_address(pointer_match.get_pointer_address(), modules);
-            let discovered_pointer_candidate = DiscoveredPointerCandidate {
-                pointer_scan_node_type,
-                pointer_address: pointer_match.get_pointer_address(),
-                pointer_value: pointer_match.get_pointer_value(),
-                module_name,
-                module_offset,
-            };
+        range_search_kernel.scan_region_with_visitor(
+            snapshot_region_scan_task.base_address,
+            snapshot_region_scan_task.current_values,
+            |pointer_match| {
+                let (pointer_scan_node_type, module_name, module_offset) = Self::classify_pointer_address(pointer_match.get_pointer_address(), modules);
+                let discovered_pointer_candidate = DiscoveredPointerCandidate {
+                    pointer_scan_node_type,
+                    pointer_address: pointer_match.get_pointer_address(),
+                    pointer_value: pointer_match.get_pointer_value(),
+                    module_name,
+                    module_offset,
+                };
 
-            match pointer_scan_node_type {
-                PointerScanNodeType::Static => discovered_pointer_level
-                    .static_candidates
-                    .push(discovered_pointer_candidate),
-                PointerScanNodeType::Heap => {
-                    if retain_heap_candidates {
-                        discovered_pointer_level
-                            .heap_candidates
-                            .push(discovered_pointer_candidate);
+                match pointer_scan_node_type {
+                    PointerScanNodeType::Static => discovered_pointer_level
+                        .static_candidates
+                        .push(discovered_pointer_candidate),
+                    PointerScanNodeType::Heap => {
+                        if retain_heap_candidates {
+                            discovered_pointer_level
+                                .heap_candidates
+                                .push(discovered_pointer_candidate);
+                        }
                     }
                 }
-            }
-        }
+            },
+        );
 
         discovered_pointer_level
     }
@@ -464,7 +468,22 @@ impl PointerScanExecutor {
         let task_byte_size = POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE
             .max(pointer_size_in_bytes)
             .saturating_sub(POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE % pointer_size_in_bytes.max(1));
-        let mut snapshot_region_scan_tasks = Vec::new();
+        let estimated_task_count = snapshot_regions
+            .iter()
+            .map(|snapshot_region| {
+                let current_value_byte_count = snapshot_region.get_current_values().len();
+
+                if current_value_byte_count == 0 {
+                    0
+                } else {
+                    current_value_byte_count
+                        .saturating_add(task_byte_size.saturating_sub(1))
+                        .checked_div(task_byte_size)
+                        .unwrap_or(0)
+                }
+            })
+            .sum();
+        let mut snapshot_region_scan_tasks = Vec::with_capacity(estimated_task_count);
 
         for snapshot_region in snapshot_regions {
             let current_values = snapshot_region.get_current_values().as_slice();

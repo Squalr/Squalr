@@ -92,7 +92,8 @@ impl PointerScanValidator {
                 break;
             }
 
-            let required_target_ranges = PointerScanTargetRangeSet::from_target_addresses(&required_target_addresses, pointer_scan_session.get_offset_radius());
+            let required_target_ranges =
+                PointerScanTargetRangeSet::from_sorted_target_addresses(&required_target_addresses, pointer_scan_session.get_offset_radius());
             let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, pointer_scan_session.get_pointer_size());
             let validation_level_log_context = PointerValidationLevelLogContext { level_number, level_count };
             let level_start_time = Instant::now();
@@ -326,7 +327,7 @@ impl PointerScanValidator {
             let read_succeeded = scan_execution_context.read_bytes(process_info, scan_address, current_values);
 
             if read_succeeded {
-                for pointer_match in range_search_kernel.scan_region(scan_address, current_values) {
+                range_search_kernel.scan_region_with_visitor(scan_address, current_values, |pointer_match| {
                     rebuilt_pointer_candidates.push(RebuiltPointerCandidate {
                         pointer_scan_node_type: PointerScanNodeType::Heap,
                         pointer_address: pointer_match.get_pointer_address(),
@@ -334,7 +335,7 @@ impl PointerScanValidator {
                         module_name: String::new(),
                         module_offset: 0,
                     });
-                }
+                });
             }
 
             if scan_execution_context.should_cancel() {
