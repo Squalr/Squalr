@@ -83,7 +83,6 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         self.target_range_set.is_empty()
     }
 
-    #[inline(always)]
     pub fn contains_pointer_value(
         &self,
         pointer_value: u64,
@@ -274,7 +273,6 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         pointer_matches
     }
 
-    #[inline(always)]
     unsafe fn read_pointer_value_unchecked(
         pointer_bytes_ptr: *const u8,
         pointer_size: PointerScanPointerSize,
@@ -285,7 +283,6 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         }
     }
 
-    #[inline(always)]
     unsafe fn read_pointer_lane_values_u32<const SIMD_LANE_COUNT: usize>(pointer_bytes_ptr: *const u8) -> [u32; SIMD_LANE_COUNT] {
         let lane_values = unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const [u32; SIMD_LANE_COUNT]) };
 
@@ -295,7 +292,6 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         lane_values
     }
 
-    #[inline(always)]
     unsafe fn read_pointer_lane_values_u64<const SIMD_LANE_COUNT: usize>(pointer_bytes_ptr: *const u8) -> [u64; SIMD_LANE_COUNT] {
         let lane_values = unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const [u64; SIMD_LANE_COUNT]) };
 

@@ -66,11 +66,35 @@ impl PointerScanTargetRangeSet {
         let source_target_count = target_addresses.len();
         let mut sorted_target_addresses = target_addresses.to_vec();
         sorted_target_addresses.sort_unstable();
-        sorted_target_addresses.dedup();
+
+        Self::from_sorted_target_addresses_with_source_count(&sorted_target_addresses, source_target_count, offset_radius)
+    }
+
+    pub fn from_sorted_target_addresses(
+        sorted_target_addresses: &[u64],
+        offset_radius: u64,
+    ) -> Self {
+        Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses, sorted_target_addresses.len(), offset_radius)
+    }
+
+    fn from_sorted_target_addresses_with_source_count(
+        sorted_target_addresses: &[u64],
+        source_target_count: usize,
+        offset_radius: u64,
+    ) -> Self {
+        if sorted_target_addresses.is_empty() {
+            return Self::default();
+        }
 
         let mut target_ranges: Vec<PointerScanTargetRange> = Vec::with_capacity(sorted_target_addresses.len());
+        let mut previous_target_address = None;
 
-        for target_address in sorted_target_addresses {
+        for &target_address in sorted_target_addresses {
+            if previous_target_address == Some(target_address) {
+                continue;
+            }
+
+            previous_target_address = Some(target_address);
             let next_target_range = PointerScanTargetRange::new(target_address.saturating_sub(offset_radius), target_address.saturating_add(offset_radius));
 
             if let Some(last_target_range) = target_ranges.last_mut() {
@@ -123,7 +147,6 @@ impl PointerScanTargetRangeSet {
         self.target_ranges.is_empty()
     }
 
-    #[inline(always)]
     pub fn contains_value_linear(
         &self,
         pointer_value: u64,
@@ -131,7 +154,6 @@ impl PointerScanTargetRangeSet {
         self.find_matching_range_index_linear(pointer_value).is_some()
     }
 
-    #[inline(always)]
     pub fn contains_value_binary(
         &self,
         pointer_value: u64,
@@ -139,7 +161,6 @@ impl PointerScanTargetRangeSet {
         self.find_matching_range_index_binary(pointer_value).is_some()
     }
 
-    #[inline(always)]
     pub fn find_matching_range_index_linear(
         &self,
         pointer_value: u64,
@@ -147,7 +168,6 @@ impl PointerScanTargetRangeSet {
         self.find_matching_range_index_linear_in_bounds(pointer_value, 0, self.target_ranges.len())
     }
 
-    #[inline(always)]
     pub fn find_matching_range_index_binary(
         &self,
         pointer_value: u64,
@@ -199,7 +219,6 @@ impl PointerScanTargetRangeSet {
         target_range_buckets
     }
 
-    #[inline(always)]
     fn find_matching_bucket_index(
         &self,
         pointer_value: u64,
@@ -213,7 +232,6 @@ impl PointerScanTargetRangeSet {
         (target_range_bucket.bucket_key == bucket_key).then_some(matching_bucket_index)
     }
 
-    #[inline(always)]
     fn find_matching_range_index_linear_in_bounds(
         &self,
         pointer_value: u64,
@@ -237,7 +255,6 @@ impl PointerScanTargetRangeSet {
         None
     }
 
-    #[inline(always)]
     fn find_matching_range_index_binary_in_bounds(
         &self,
         pointer_value: u64,

@@ -1,4 +1,5 @@
 use crate::pointer_scans::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
+use crate::pointer_scans::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
@@ -191,45 +192,41 @@ impl PointerScanExecutor {
         let mut next_candidate_id = 1_u64;
         let mut total_static_node_count = 0_u64;
         let mut total_heap_node_count = 0_u64;
+        let mut root_tracker = PointerScanRootTracker::new(pointer_scan_parameters.get_offset_radius());
 
         for (pointer_level_index, discovered_pointer_level) in discovered_pointer_levels.iter().enumerate() {
             let discovery_depth = pointer_level_index as u64 + 1;
-            let static_candidates = discovered_pointer_level
-                .static_candidates
-                .iter()
-                .map(|discovered_pointer_candidate| {
-                    let pointer_scan_candidate = PointerScanCandidate::new(
-                        next_candidate_id,
-                        discovery_depth,
-                        PointerScanNodeType::Static,
-                        discovered_pointer_candidate.pointer_address,
-                        discovered_pointer_candidate.pointer_value,
-                        discovered_pointer_candidate.module_name.clone(),
-                        discovered_pointer_candidate.module_offset,
-                    );
-                    next_candidate_id = next_candidate_id.saturating_add(1);
+            let mut static_candidates = Vec::with_capacity(discovered_pointer_level.static_candidates.len());
 
-                    pointer_scan_candidate
-                })
-                .collect::<Vec<_>>();
-            let heap_candidates = discovered_pointer_level
-                .heap_candidates
-                .iter()
-                .map(|discovered_pointer_candidate| {
-                    let pointer_scan_candidate = PointerScanCandidate::new(
-                        next_candidate_id,
-                        discovery_depth,
-                        PointerScanNodeType::Heap,
-                        discovered_pointer_candidate.pointer_address,
-                        discovered_pointer_candidate.pointer_value,
-                        String::new(),
-                        0,
-                    );
-                    next_candidate_id = next_candidate_id.saturating_add(1);
+            for discovered_pointer_candidate in &discovered_pointer_level.static_candidates {
+                root_tracker.record_static_candidate(discovery_depth, discovered_pointer_candidate.pointer_value);
+                static_candidates.push(PointerScanCandidate::new(
+                    next_candidate_id,
+                    discovery_depth,
+                    PointerScanNodeType::Static,
+                    discovered_pointer_candidate.pointer_address,
+                    discovered_pointer_candidate.pointer_value,
+                    discovered_pointer_candidate.module_name.clone(),
+                    discovered_pointer_candidate.module_offset,
+                ));
+                next_candidate_id = next_candidate_id.saturating_add(1);
+            }
 
-                    pointer_scan_candidate
-                })
-                .collect::<Vec<_>>();
+            let mut heap_candidates = Vec::with_capacity(discovered_pointer_level.heap_candidates.len());
+
+            for discovered_pointer_candidate in &discovered_pointer_level.heap_candidates {
+                heap_candidates.push(PointerScanCandidate::new(
+                    next_candidate_id,
+                    discovery_depth,
+                    PointerScanNodeType::Heap,
+                    discovered_pointer_candidate.pointer_address,
+                    discovered_pointer_candidate.pointer_value,
+                    String::new(),
+                    0,
+                ));
+                next_candidate_id = next_candidate_id.saturating_add(1);
+            }
+
             let discovered_level_candidates = PointerScanLevelCandidates::new(discovery_depth, static_candidates, heap_candidates);
 
             total_static_node_count = total_static_node_count.saturating_add(discovered_level_candidates.get_static_node_count());
@@ -241,10 +238,10 @@ impl PointerScanExecutor {
                 discovered_level_candidates.get_static_node_count(),
                 discovered_level_candidates.get_heap_node_count(),
             ));
+            root_tracker.advance_to_next_level(discovered_level_candidates.get_heap_candidates());
             all_pointer_scan_level_candidates.push(discovered_level_candidates);
         }
-        let root_count_start_time = Instant::now();
-        let root_node_count = Self::count_root_nodes(&all_pointer_scan_level_candidates, pointer_scan_parameters.get_offset_radius());
+        let root_node_count = root_tracker.get_root_node_count();
 
         if with_logging {
             for pointer_scan_level in &pointer_scan_levels {
@@ -256,7 +253,6 @@ impl PointerScanExecutor {
                     pointer_scan_level.get_heap_node_count(),
                 );
             }
-            log::info!("Pointer scan root summarization time: {:?}", root_count_start_time.elapsed());
         }
 
         PointerScanSession::new(
@@ -479,48 +475,6 @@ impl PointerScanExecutor {
         } else {
             (PointerScanNodeType::Heap, String::new(), 0)
         }
-    }
-
-    fn count_root_nodes(
-        pointer_scan_levels: &[PointerScanLevelCandidates],
-        offset_radius: u64,
-    ) -> u64 {
-        let mut root_node_count = 0_u64;
-
-        for pointer_scan_level_candidates in pointer_scan_levels.iter().rev() {
-            let child_target_ranges = pointer_scan_level_candidates
-                .get_discovery_depth()
-                .checked_sub(2)
-                .and_then(|child_level_index| pointer_scan_levels.get(child_level_index as usize))
-                .map(|child_pointer_scan_level_candidates| {
-                    PointerScanTargetRangeSet::from_target_addresses(
-                        &child_pointer_scan_level_candidates
-                            .get_heap_candidates()
-                            .iter()
-                            .map(PointerScanCandidate::get_pointer_address)
-                            .collect::<Vec<_>>(),
-                        offset_radius,
-                    )
-                });
-
-            for static_candidate in pointer_scan_level_candidates.get_static_candidates() {
-                if static_candidate.get_discovery_depth() <= 1 {
-                    root_node_count = root_node_count.saturating_add(1);
-                    continue;
-                }
-
-                let has_matching_child = child_target_ranges
-                    .as_ref()
-                    .map(|child_target_ranges| child_target_ranges.contains_value_binary(static_candidate.get_pointer_value()))
-                    .unwrap_or(false);
-
-                if has_matching_child {
-                    root_node_count = root_node_count.saturating_add(1);
-                }
-            }
-        }
-
-        root_node_count
     }
 
     fn compare_discovered_pointer_candidates(
