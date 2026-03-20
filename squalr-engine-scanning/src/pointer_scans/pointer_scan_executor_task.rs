@@ -18,6 +18,8 @@ use std::cmp::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
+const POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
+
 pub struct PointerScanExecutor;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -33,6 +35,12 @@ struct DiscoveredPointerCandidate {
 struct DiscoveredPointerLevel {
     static_candidates: Vec<DiscoveredPointerCandidate>,
     heap_candidates: Vec<DiscoveredPointerCandidate>,
+}
+
+#[derive(Clone, Copy)]
+struct SnapshotRegionScanTask<'a> {
+    base_address: u64,
+    current_values: &'a [u8],
 }
 
 /// Implementation of a task that discovers pointer chains against the provided snapshot values.
@@ -289,7 +297,9 @@ impl PointerScanExecutor {
             .iter()
             .flat_map(|snapshot| snapshot.get_snapshot_regions().iter())
             .collect::<Vec<_>>();
+        let snapshot_region_scan_tasks = Self::build_snapshot_region_scan_tasks(&snapshot_regions, pointer_scan_parameters.get_pointer_size());
         let total_snapshot_region_count = snapshot_regions.len();
+        let total_snapshot_region_scan_task_count = snapshot_region_scan_tasks.len();
 
         for pointer_chain_depth in 0..max_depth {
             let level_number = pointer_chain_depth.saturating_add(1);
@@ -315,10 +325,11 @@ impl PointerScanExecutor {
 
             if with_logging {
                 log::info!(
-                    "Pointer scan level {}/{}: scanning {} snapshot regions for {} frontier targets merged into {} ranges with {} kernel.",
+                    "Pointer scan level {}/{}: scanning {} snapshot regions across {} scan tasks for {} frontier targets merged into {} ranges with {} kernel.",
                     level_number,
                     max_depth,
                     total_snapshot_region_count,
+                    total_snapshot_region_scan_task_count,
                     frontier_target_addresses.len(),
                     frontier_target_ranges.get_range_count(),
                     range_search_kernel.get_name(),
@@ -326,7 +337,7 @@ impl PointerScanExecutor {
             }
 
             let discovered_pointer_level =
-                Self::scan_snapshot_regions_for_pointer_targets(&snapshot_regions, &range_search_kernel, modules, !is_terminal_level);
+                Self::scan_snapshot_regions_for_pointer_targets(&snapshot_region_scan_tasks, &range_search_kernel, modules, !is_terminal_level);
             let level_duration = level_start_time.elapsed();
 
             if with_logging {
@@ -382,7 +393,7 @@ impl PointerScanExecutor {
     }
 
     fn scan_snapshot_regions_for_pointer_targets(
-        snapshot_regions: &[&SnapshotRegion],
+        snapshot_region_scan_tasks: &[SnapshotRegionScanTask<'_>],
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
         retain_heap_candidates: bool,
@@ -391,9 +402,11 @@ impl PointerScanExecutor {
             return DiscoveredPointerLevel::default();
         }
 
-        let mut discovered_pointer_level = snapshot_regions
+        let mut discovered_pointer_level = snapshot_region_scan_tasks
             .par_iter()
-            .map(|snapshot_region| Self::scan_snapshot_region_for_pointer_targets(snapshot_region, range_search_kernel, modules, retain_heap_candidates))
+            .map(|snapshot_region_scan_task| {
+                Self::scan_snapshot_region_for_pointer_targets(snapshot_region_scan_task, range_search_kernel, modules, retain_heap_candidates)
+            })
             .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels);
 
         discovered_pointer_level
@@ -409,14 +422,14 @@ impl PointerScanExecutor {
     }
 
     fn scan_snapshot_region_for_pointer_targets(
-        snapshot_region: &SnapshotRegion,
+        snapshot_region_scan_task: &SnapshotRegionScanTask<'_>,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
         retain_heap_candidates: bool,
     ) -> DiscoveredPointerLevel {
         let mut discovered_pointer_level = DiscoveredPointerLevel::default();
 
-        for pointer_match in range_search_kernel.scan_region(snapshot_region.get_base_address(), snapshot_region.get_current_values()) {
+        for pointer_match in range_search_kernel.scan_region(snapshot_region_scan_task.base_address, snapshot_region_scan_task.current_values) {
             let (pointer_scan_node_type, module_name, module_offset) = Self::classify_pointer_address(pointer_match.get_pointer_address(), modules);
             let discovered_pointer_candidate = DiscoveredPointerCandidate {
                 pointer_scan_node_type,
@@ -441,6 +454,39 @@ impl PointerScanExecutor {
         }
 
         discovered_pointer_level
+    }
+
+    fn build_snapshot_region_scan_tasks<'a>(
+        snapshot_regions: &[&'a SnapshotRegion],
+        pointer_size: squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+    ) -> Vec<SnapshotRegionScanTask<'a>> {
+        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
+        let task_byte_size = POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE
+            .max(pointer_size_in_bytes)
+            .saturating_sub(POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE % pointer_size_in_bytes.max(1));
+        let mut snapshot_region_scan_tasks = Vec::new();
+
+        for snapshot_region in snapshot_regions {
+            let current_values = snapshot_region.get_current_values().as_slice();
+            let mut task_start_offset = 0_usize;
+
+            while task_start_offset < current_values.len() {
+                let remaining_byte_count = current_values.len().saturating_sub(task_start_offset);
+                let task_byte_count = remaining_byte_count.min(task_byte_size.max(pointer_size_in_bytes));
+                let task_end_offset = task_start_offset.saturating_add(task_byte_count);
+
+                snapshot_region_scan_tasks.push(SnapshotRegionScanTask {
+                    base_address: snapshot_region
+                        .get_base_address()
+                        .saturating_add(task_start_offset as u64),
+                    current_values: &current_values[task_start_offset..task_end_offset],
+                });
+
+                task_start_offset = task_end_offset;
+            }
+        }
+
+        snapshot_region_scan_tasks
     }
 
     fn merge_discovered_pointer_levels(
@@ -667,6 +713,31 @@ mod tests {
         assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
         assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
         assert_eq!(pointer_scan_session.get_total_heap_node_count(), 1);
+    }
+
+    #[test]
+    fn build_snapshot_region_scan_tasks_splits_large_regions() {
+        let mut snapshot_region = SnapshotRegion::new(
+            NormalizedRegion::new(0x1003, (super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE * 2 + 16) as u64),
+            Vec::new(),
+        );
+        snapshot_region.current_values = vec![0_u8; super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE * 2 + 16];
+
+        let snapshot_region_scan_tasks = PointerScanExecutor::build_snapshot_region_scan_tasks(&[&snapshot_region], PointerScanPointerSize::Pointer64);
+
+        assert_eq!(snapshot_region_scan_tasks.len(), 3);
+        assert_eq!(snapshot_region_scan_tasks[0].base_address, 0x1003);
+        assert_eq!(snapshot_region_scan_tasks[0].current_values.len(), super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE);
+        assert_eq!(
+            snapshot_region_scan_tasks[1].base_address,
+            0x1003_u64.saturating_add(super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE as u64)
+        );
+        assert_eq!(snapshot_region_scan_tasks[1].current_values.len(), super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE);
+        assert_eq!(
+            snapshot_region_scan_tasks[2].base_address,
+            0x1003_u64.saturating_add((super::POINTER_SCAN_SNAPSHOT_TASK_BYTE_SIZE * 2) as u64)
+        );
+        assert_eq!(snapshot_region_scan_tasks[2].current_values.len(), 16);
     }
 
     fn build_pointer_scan_snapshot() -> Snapshot {

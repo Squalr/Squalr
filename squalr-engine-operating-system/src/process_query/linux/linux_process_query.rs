@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use sysinfo::{ProcessesToUpdate, System};
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 
 pub struct LinuxProcessQuery;
 
@@ -718,8 +718,7 @@ impl ProcessQueryer for LinuxProcessQuery {
     }
 
     fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        let mut system = System::new_all();
-        system.refresh_processes(ProcessesToUpdate::All, true);
+        let system = System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().without_tasks()));
         let display_server_socket_inodes = Self::collect_display_server_socket_inodes();
         let desktop_entry_icon_lookup = if process_query_options.fetch_icons {
             Self::build_desktop_entry_icon_lookup()

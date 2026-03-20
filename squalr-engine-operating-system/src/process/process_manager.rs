@@ -1,4 +1,3 @@
-use crate::process_query::{process_query_options::ProcessQueryOptions, process_queryer::ProcessQuery};
 use squalr_engine_api::{
     events::{
         engine_event::{EngineEvent, EngineEventRequest},
@@ -11,7 +10,9 @@ use std::{
     thread,
     time::Duration,
 };
-use sysinfo::Pid;
+use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+
+const OPEN_PROCESS_DEATH_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 pub struct ProcessManager {
     opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
@@ -81,8 +82,10 @@ impl ProcessManager {
         opened_process: Arc<RwLock<Option<OpenedProcessInfo>>>,
     ) {
         std::thread::spawn(move || {
+            let mut system = System::new();
+
             loop {
-                thread::sleep(Duration::from_millis(100));
+                thread::sleep(OPEN_PROCESS_DEATH_POLL_INTERVAL);
 
                 let opened_process_id = {
                     let read_result = opened_process.read();
@@ -97,18 +100,7 @@ impl ProcessManager {
                     }
                 };
 
-                let process_query_options = ProcessQueryOptions {
-                    required_process_id: Some(Pid::from_u32(opened_process_id)),
-                    search_name: None,
-                    require_windowed: false,
-                    match_case: false,
-                    fetch_icons: false,
-                    limit: Some(1),
-                };
-
-                let processes = ProcessQuery::get_processes(process_query_options);
-
-                if processes.len() <= 0 {
+                if !Self::is_process_alive(&mut system, opened_process_id) {
                     if let Ok(mut opened_process) = opened_process.write() {
                         *opened_process = None;
                         log::info!("Process no longer open, detaching.");
@@ -117,5 +109,31 @@ impl ProcessManager {
                 }
             }
         });
+    }
+
+    fn is_process_alive(
+        system: &mut System,
+        process_id: u32,
+    ) -> bool {
+        let pid = Pid::from_u32(process_id);
+        let monitored_processes = [pid];
+        let refresh_kind = ProcessRefreshKind::nothing().without_tasks();
+
+        system.refresh_processes_specifics(ProcessesToUpdate::Some(&monitored_processes), true, refresh_kind);
+
+        system.process(pid).is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProcessManager;
+    use sysinfo::System;
+
+    #[test]
+    fn process_liveness_check_finds_current_process() {
+        let mut system = System::new();
+
+        assert!(ProcessManager::is_process_alive(&mut system, std::process::id()));
     }
 }
