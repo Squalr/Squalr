@@ -302,21 +302,27 @@ impl Widget for ProjectHierarchyView {
                                             user_interface.close();
                                         }
 
-                                        if user_interface.button("Delete").clicked() {
-                                            let selected_project_item_paths_in_order = self
-                                                .project_hierarchy_view_data
-                                                .read("Project hierarchy selected project items for context menu delete")
-                                                .map(|project_hierarchy_view_data| {
-                                                    project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order()
-                                                })
-                                                .unwrap_or_default();
-                                            let project_item_paths_for_delete = if selected_project_item_paths_in_order.contains(&tree_entry_project_item_path)
-                                                && selected_project_item_paths_in_order.len() > 1
-                                            {
-                                                selected_project_item_paths_in_order
-                                            } else {
-                                                vec![tree_entry_project_item_path.clone()]
-                                            };
+                                        let selected_project_item_paths_in_order = self
+                                            .project_hierarchy_view_data
+                                            .read("Project hierarchy selected project items for context menu delete")
+                                            .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
+                                            .unwrap_or_default();
+                                        let project_item_paths_for_delete = if selected_project_item_paths_in_order.contains(&tree_entry_project_item_path)
+                                            && selected_project_item_paths_in_order.len() > 1
+                                        {
+                                            selected_project_item_paths_in_order
+                                        } else {
+                                            vec![tree_entry_project_item_path.clone()]
+                                        };
+                                        let can_delete_project_item_paths = ProjectHierarchyViewData::has_deletable_project_item_paths(
+                                            self.project_hierarchy_view_data.clone(),
+                                            &project_item_paths_for_delete,
+                                        );
+
+                                        if user_interface
+                                            .add_enabled(can_delete_project_item_paths, eframe::egui::Button::new("Delete"))
+                                            .clicked()
+                                        {
                                             project_hierarchy_frame_action =
                                                 ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete);
                                             user_interface.close();

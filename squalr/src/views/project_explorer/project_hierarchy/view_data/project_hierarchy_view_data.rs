@@ -283,8 +283,15 @@ impl ProjectHierarchyViewData {
             Some(project_hierarchy_view_data) => project_hierarchy_view_data,
             None => return,
         };
+        let filtered_project_item_paths = project_hierarchy_view_data.filter_deletable_project_item_paths(project_item_paths);
 
-        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths };
+        if filtered_project_item_paths.is_empty() {
+            return;
+        }
+
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::DeleteConfirmation {
+            project_item_paths: filtered_project_item_paths,
+        };
     }
 
     pub fn cancel_take_over(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
@@ -416,18 +423,26 @@ impl ProjectHierarchyViewData {
         app_context: Arc<AppContext>,
         project_item_paths: Vec<PathBuf>,
     ) {
-        if project_item_paths.is_empty() {
-            Self::cancel_take_over(project_hierarchy_view_data);
+        let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter delete project items") {
+            Some(mut project_hierarchy_view_data) => {
+                let filtered_project_item_paths = project_hierarchy_view_data.filter_deletable_project_item_paths(project_item_paths);
 
-            return;
-        }
+                if filtered_project_item_paths.is_empty() {
+                    project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+                    return;
+                }
 
-        if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Project hierarchy begin delete project items") {
-            project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Deleting;
-            project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
-        }
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Deleting;
+                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
 
-        let project_items_delete_request = ProjectItemsDeleteRequest { project_item_paths };
+                filtered_project_item_paths
+            }
+            None => return,
+        };
+
+        let project_items_delete_request = ProjectItemsDeleteRequest {
+            project_item_paths: filtered_project_item_paths,
+        };
         let app_context_clone = app_context.clone();
         let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
 
@@ -445,6 +460,27 @@ impl ProjectHierarchyViewData {
 
             Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
         });
+    }
+
+    pub fn has_deletable_selected_project_item(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has deletable selected project item")
+            .map(|project_hierarchy_view_data| {
+                let selected_project_item_paths = project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order();
+
+                project_hierarchy_view_data.contains_deletable_project_item_paths(&selected_project_item_paths)
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn has_deletable_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has deletable project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_deletable_project_item_paths(project_item_paths))
+            .unwrap_or(false)
     }
 
     pub fn create_directory(
@@ -942,6 +978,35 @@ impl ProjectHierarchyViewData {
         }
     }
 
+    fn filter_deletable_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .filter(|project_item_path| !self.is_protected_project_item_path(project_item_path))
+            .collect()
+    }
+
+    fn contains_deletable_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_item_paths
+            .iter()
+            .any(|project_item_path| !self.is_protected_project_item_path(project_item_path))
+    }
+
+    fn is_protected_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        Self::resolve_project_root_path(self.opened_project_info.as_ref(), &self.project_items)
+            .as_ref()
+            .map(|root_project_item_path| root_project_item_path == project_item_path)
+            .unwrap_or(false)
+    }
+
     fn retain_valid_selection(&mut self) {
         let valid_project_item_paths: HashSet<PathBuf> = self
             .tree_entries
@@ -1041,7 +1106,9 @@ impl ProjectHierarchyViewData {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyViewData;
+    use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_take_over_state::ProjectHierarchyTakeOverState;
     use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_tree_entry::ProjectHierarchyTreeEntry;
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -1049,6 +1116,7 @@ mod tests {
         project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+    use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
     use std::path::{Path, PathBuf};
 
     fn create_directory_project_item(project_item_path: &Path) -> (ProjectItemRef, ProjectItem) {
@@ -1080,6 +1148,10 @@ mod tests {
             has_children: false,
             is_expanded: false,
         }
+    }
+
+    fn create_project_info(project_directory_path: &Path) -> ProjectInfo {
+        ProjectInfo::new(project_directory_path.join(Project::PROJECT_FILE), None, ProjectManifest::new(vec![]))
     }
 
     #[test]
@@ -1269,5 +1341,76 @@ mod tests {
         let dragged_project_item_paths = project_hierarchy_view_data.collect_dragged_project_item_paths(&second_child_path);
 
         assert_eq!(dragged_project_item_paths, vec![second_child_path]);
+    }
+
+    #[test]
+    fn request_delete_confirmation_ignores_hidden_project_root() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_project_item_path = hidden_project_root_path.join("Addresses").join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&hidden_project_root_path),
+            (
+                ProjectItemRef::new(child_project_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        ProjectHierarchyViewData::request_delete_confirmation(
+            project_hierarchy_view_data.clone(),
+            vec![hidden_project_root_path, child_project_item_path.clone()],
+        );
+
+        let project_hierarchy_view_data = project_hierarchy_view_data
+            .read("Project hierarchy delete confirmation root filter test")
+            .expect("Expected project hierarchy view data after requesting delete confirmation.");
+
+        match &project_hierarchy_view_data.take_over_state {
+            ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
+                assert_eq!(project_item_paths, &vec![child_project_item_path]);
+            }
+            _ => panic!("Expected delete confirmation state for the remaining child project item."),
+        }
+    }
+
+    #[test]
+    fn request_delete_confirmation_ignores_root_only_selection() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![create_directory_project_item(&hidden_project_root_path)];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        ProjectHierarchyViewData::request_delete_confirmation(project_hierarchy_view_data.clone(), vec![hidden_project_root_path]);
+
+        let project_hierarchy_view_data = project_hierarchy_view_data
+            .read("Project hierarchy delete confirmation root-only filter test")
+            .expect("Expected project hierarchy view data after requesting delete confirmation.");
+
+        assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
+    }
+
+    #[test]
+    fn has_deletable_selected_project_item_returns_false_for_root_only_selection() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![create_directory_project_item(&hidden_project_root_path)];
+        project_hierarchy_view_data.tree_entries = vec![create_directory_tree_entry(&hidden_project_root_path, 0)];
+        project_hierarchy_view_data
+            .selected_project_item_paths
+            .insert(hidden_project_root_path.clone());
+        project_hierarchy_view_data.selected_project_item_path = Some(hidden_project_root_path);
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        assert!(!ProjectHierarchyViewData::has_deletable_selected_project_item(project_hierarchy_view_data));
     }
 }

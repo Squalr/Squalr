@@ -53,19 +53,17 @@ impl Widget for ProjectHierarchyToolbarView {
 
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
-            let (has_selected_project_item, is_busy, has_take_over_state) = self
+            let has_deletable_selected_project_item = ProjectHierarchyViewData::has_deletable_selected_project_item(self.project_hierarchy_view_data.clone());
+            let (is_busy, has_take_over_state) = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy toolbar state")
                 .map(|project_hierarchy_view_data| {
                     (
-                        !project_hierarchy_view_data
-                            .selected_project_item_paths
-                            .is_empty(),
                         project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None,
                         project_hierarchy_view_data.take_over_state != ProjectHierarchyTakeOverState::None,
                     )
                 })
-                .unwrap_or((false, false, false));
+                .unwrap_or((false, false));
 
             // Close project.
             let button_refresh = user_interface.add_sized(
@@ -86,7 +84,7 @@ impl Widget for ProjectHierarchyToolbarView {
                 Button::new_from_theme(&theme)
                     .with_tooltip_text("Delete selected project item.")
                     .background_color(Color32::TRANSPARENT)
-                    .disabled(!has_selected_project_item || is_busy || has_take_over_state),
+                    .disabled(!has_deletable_selected_project_item || is_busy || has_take_over_state),
             );
             IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
 
