@@ -1,13 +1,13 @@
-pub use crate::pointer_scans::structures::pointer_scan_target_range::PointerScanTargetRange;
 use crate::pointer_scans::structures::pointer_scan_target_range_bucket::PointerScanTargetRangeBucket;
+use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 
 const TARGET_RANGE_BUCKET_SHIFT: u32 = 16;
 const TARGET_RANGE_BUCKET_LINEAR_SEARCH_THRESHOLD: usize = 8;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct PointerScanTargetRangeSet {
     source_target_count: usize,
-    target_ranges: Vec<PointerScanTargetRange>,
+    target_ranges: Vec<NormalizedRegion>,
     lower_bounds: Vec<u64>,
     upper_bounds: Vec<u64>,
     target_range_buckets: Vec<PointerScanTargetRangeBucket>,
@@ -45,7 +45,7 @@ impl PointerScanTargetRangeSet {
             return Self::default();
         }
 
-        let mut target_ranges: Vec<PointerScanTargetRange> = Vec::with_capacity(sorted_target_addresses.len());
+        let mut target_ranges: Vec<NormalizedRegion> = Vec::with_capacity(sorted_target_addresses.len());
         let mut previous_target_address = None;
 
         for &target_address in sorted_target_addresses {
@@ -54,15 +54,13 @@ impl PointerScanTargetRangeSet {
             }
 
             previous_target_address = Some(target_address);
-            let next_target_range = PointerScanTargetRange::new(target_address.saturating_sub(offset_radius), target_address.saturating_add(offset_radius));
+            let next_target_range = Self::create_target_range(target_address.saturating_sub(offset_radius), target_address.saturating_add(offset_radius));
 
             if let Some(last_target_range) = target_ranges.last_mut() {
-                if next_target_range.get_lower_bound() <= last_target_range.get_upper_bound().saturating_add(1) {
-                    *last_target_range = PointerScanTargetRange::new(
-                        last_target_range.get_lower_bound(),
-                        last_target_range
-                            .get_upper_bound()
-                            .max(next_target_range.get_upper_bound()),
+                if Self::get_lower_bound(&next_target_range) <= Self::get_upper_bound(last_target_range).saturating_add(1) {
+                    *last_target_range = Self::create_target_range(
+                        Self::get_lower_bound(last_target_range),
+                        Self::get_upper_bound(last_target_range).max(Self::get_upper_bound(&next_target_range)),
                     );
                     continue;
                 }
@@ -73,11 +71,11 @@ impl PointerScanTargetRangeSet {
 
         let lower_bounds = target_ranges
             .iter()
-            .map(PointerScanTargetRange::get_lower_bound)
+            .map(Self::get_lower_bound)
             .collect::<Vec<_>>();
         let upper_bounds = target_ranges
             .iter()
-            .map(PointerScanTargetRange::get_upper_bound)
+            .map(Self::get_upper_bound)
             .collect::<Vec<_>>();
         let target_range_buckets = Self::build_target_range_buckets(&target_ranges);
 
@@ -98,7 +96,7 @@ impl PointerScanTargetRangeSet {
         self.target_ranges.len()
     }
 
-    pub fn get_target_ranges(&self) -> &[PointerScanTargetRange] {
+    pub fn get_target_ranges(&self) -> &[NormalizedRegion] {
         &self.target_ranges
     }
 
@@ -152,12 +150,12 @@ impl PointerScanTargetRangeSet {
         )
     }
 
-    fn build_target_range_buckets(target_ranges: &[PointerScanTargetRange]) -> Vec<PointerScanTargetRangeBucket> {
+    fn build_target_range_buckets(target_ranges: &[NormalizedRegion]) -> Vec<PointerScanTargetRangeBucket> {
         let mut target_range_buckets: Vec<PointerScanTargetRangeBucket> = Vec::new();
 
         for (target_range_index, target_range) in target_ranges.iter().enumerate() {
-            let lower_bucket_key = target_range.get_lower_bound() >> TARGET_RANGE_BUCKET_SHIFT;
-            let upper_bucket_key = target_range.get_upper_bound() >> TARGET_RANGE_BUCKET_SHIFT;
+            let lower_bucket_key = Self::get_lower_bound(target_range) >> TARGET_RANGE_BUCKET_SHIFT;
+            let upper_bucket_key = Self::get_upper_bound(target_range) >> TARGET_RANGE_BUCKET_SHIFT;
 
             for bucket_key in lower_bucket_key..=upper_bucket_key {
                 if let Some(last_target_range_bucket) = target_range_buckets.last_mut() {
@@ -234,25 +232,38 @@ impl PointerScanTargetRangeSet {
 
         (pointer_value <= upper_bound).then_some(target_range_index)
     }
+
+    fn create_target_range(
+        lower_bound: u64,
+        upper_bound: u64,
+    ) -> NormalizedRegion {
+        NormalizedRegion::new(lower_bound, upper_bound.saturating_sub(lower_bound))
+    }
+
+    fn get_lower_bound(target_range: &NormalizedRegion) -> u64 {
+        target_range.get_base_address()
+    }
+
+    fn get_upper_bound(target_range: &NormalizedRegion) -> u64 {
+        target_range.get_end_address()
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PointerScanTargetRange, PointerScanTargetRangeSet};
+    use super::PointerScanTargetRangeSet;
+    use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 
     #[test]
     fn target_range_set_merges_overlapping_expanded_frontiers() {
         let target_range_set = PointerScanTargetRangeSet::from_target_addresses(&[0x3000, 0x3080, 0x4000], 0x100);
+        let target_ranges = target_range_set.get_target_ranges();
 
         assert_eq!(target_range_set.get_source_target_count(), 3);
         assert_eq!(target_range_set.get_range_count(), 2);
-        assert_eq!(
-            target_range_set.get_target_ranges(),
-            &[
-                PointerScanTargetRange::new(0x2F00, 0x3180),
-                PointerScanTargetRange::new(0x3F00, 0x4100),
-            ],
-        );
+        assert_eq!(target_ranges.len(), 2);
+        assert!(target_ranges[0] == NormalizedRegion::new(0x2F00, 0x280));
+        assert!(target_ranges[1] == NormalizedRegion::new(0x3F00, 0x200));
     }
 
     #[test]

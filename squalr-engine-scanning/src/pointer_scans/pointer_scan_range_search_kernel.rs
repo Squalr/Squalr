@@ -192,10 +192,10 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
             let mut matching_lane_mask = 0_u64;
 
             for target_range in self.target_range_set.get_target_ranges() {
-                let Ok(lower_bound) = u32::try_from(target_range.get_lower_bound()) else {
+                let Ok(lower_bound) = u32::try_from(target_range.get_base_address()) else {
                     continue;
                 };
-                let upper_bound = u32::try_from(target_range.get_upper_bound()).unwrap_or(u32::MAX);
+                let upper_bound = u32::try_from(target_range.get_end_address()).unwrap_or(u32::MAX);
                 let lower_bound_vector = Simd::splat(lower_bound);
                 let upper_bound_vector = Simd::splat(upper_bound);
 
@@ -248,8 +248,8 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
             let mut matching_lane_mask = 0_u64;
 
             for target_range in self.target_range_set.get_target_ranges() {
-                let lower_bound_vector = Simd::splat(target_range.get_lower_bound());
-                let upper_bound_vector = Simd::splat(target_range.get_upper_bound());
+                let lower_bound_vector = Simd::splat(target_range.get_base_address());
+                let upper_bound_vector = Simd::splat(target_range.get_end_address());
 
                 matching_lane_mask |= (pointer_values.simd_ge(lower_bound_vector) & pointer_values.simd_le(upper_bound_vector)).to_bitmask();
             }
