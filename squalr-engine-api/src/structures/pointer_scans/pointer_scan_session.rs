@@ -241,10 +241,17 @@ impl PointerScanSession {
         let mut remaining_skip_count = page_start_index;
         let mut remaining_take_count = page_node_count;
         let mut root_page_candidates = Vec::with_capacity(page_node_count as usize);
+        let child_candidate_ranges_by_level = self.build_child_candidate_ranges_by_level();
 
         for pointer_scan_level_candidates in &self.pointer_scan_level_candidates {
+            let child_candidate_ranges = pointer_scan_level_candidates
+                .get_discovery_depth()
+                .checked_sub(2)
+                .and_then(|child_level_index| child_candidate_ranges_by_level.get(child_level_index as usize))
+                .map(Vec::as_slice);
+
             for static_candidate in pointer_scan_level_candidates.get_static_candidates() {
-                if !self.is_displayable_root_candidate(static_candidate) {
+                if !Self::is_displayable_root_candidate_for_ranges(static_candidate, child_candidate_ranges) {
                     continue;
                 }
 
@@ -263,6 +270,70 @@ impl PointerScanSession {
         }
 
         root_page_candidates
+    }
+
+    fn build_child_candidate_ranges_by_level(&self) -> Vec<Vec<(u64, u64)>> {
+        self.pointer_scan_level_candidates
+            .iter()
+            .map(|pointer_scan_level_candidates| Self::build_merged_candidate_ranges(pointer_scan_level_candidates.get_heap_candidates(), self.offset_radius))
+            .collect()
+    }
+
+    fn build_merged_candidate_ranges(
+        heap_candidates: &[PointerScanCandidate],
+        offset_radius: u64,
+    ) -> Vec<(u64, u64)> {
+        let mut merged_candidate_ranges: Vec<(u64, u64)> = Vec::new();
+
+        for heap_candidate in heap_candidates {
+            let next_candidate_range = (
+                heap_candidate
+                    .get_pointer_address()
+                    .saturating_sub(offset_radius),
+                heap_candidate
+                    .get_pointer_address()
+                    .saturating_add(offset_radius),
+            );
+
+            if let Some(last_candidate_range) = merged_candidate_ranges.last_mut() {
+                if next_candidate_range.0 <= last_candidate_range.1.saturating_add(1) {
+                    last_candidate_range.1 = last_candidate_range.1.max(next_candidate_range.1);
+                    continue;
+                }
+            }
+
+            merged_candidate_ranges.push(next_candidate_range);
+        }
+
+        merged_candidate_ranges
+    }
+
+    fn is_displayable_root_candidate_for_ranges(
+        pointer_scan_candidate: &PointerScanCandidate,
+        child_candidate_ranges: Option<&[(u64, u64)]>,
+    ) -> bool {
+        if pointer_scan_candidate.get_discovery_depth() <= 1 {
+            return true;
+        }
+
+        child_candidate_ranges
+            .map(|child_candidate_ranges| Self::ranges_contain_value(child_candidate_ranges, pointer_scan_candidate.get_pointer_value()))
+            .unwrap_or(false)
+    }
+
+    fn ranges_contain_value(
+        merged_candidate_ranges: &[(u64, u64)],
+        pointer_value: u64,
+    ) -> bool {
+        let matching_range_index = merged_candidate_ranges.partition_point(|(lower_bound, _upper_bound)| *lower_bound <= pointer_value);
+
+        if matching_range_index == 0 {
+            return false;
+        }
+
+        let (_lower_bound, upper_bound) = merged_candidate_ranges[matching_range_index.saturating_sub(1)];
+
+        pointer_value <= upper_bound
     }
 
     fn materialize_child_node_page(
@@ -475,25 +546,10 @@ impl PointerScanSession {
             .unwrap_or(0)
     }
 
-    fn is_displayable_root_candidate(
-        &self,
-        pointer_scan_candidate: &PointerScanCandidate,
-    ) -> bool {
-        if pointer_scan_candidate.get_discovery_depth() <= 1 {
-            true
-        } else {
-            self.count_display_nodes_for_candidate(pointer_scan_candidate) > 0
-        }
-    }
-
     fn materialize_root_pointer_scan_node(
         &mut self,
         pointer_scan_candidate: &PointerScanCandidate,
     ) -> Option<u64> {
-        if !self.is_displayable_root_candidate(pointer_scan_candidate) {
-            return None;
-        }
-
         let has_children = pointer_scan_candidate.get_discovery_depth() > 1;
         let (resolved_target_address, pointer_offset) = if has_children {
             (pointer_scan_candidate.get_pointer_value(), 0)
