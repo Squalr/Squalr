@@ -5,5 +5,6 @@ pub(crate) mod pointer_scan_target_range_bucket;
 pub(crate) mod pointer_scan_target_ranges;
 pub(crate) mod pointer_validation_level_log_context;
 pub(crate) mod snapshot_region_scan_task;
+pub(crate) mod snapshot_region_scan_task_kind;
 pub(crate) mod validated_pointer_candidate;
 pub(crate) mod validated_pointer_level;

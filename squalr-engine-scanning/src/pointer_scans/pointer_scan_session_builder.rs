@@ -37,7 +37,7 @@ impl PointerScanSessionBuilder {
 
         for (pointer_level_index, discovered_pointer_level) in discovered_pointer_levels.iter().enumerate() {
             let discovery_depth = pointer_level_index as u64 + 1;
-            let level_candidates = Self::build_level_candidates(discovery_depth, discovered_pointer_level, modules, &mut next_candidate_id);
+            let level_candidates = Self::build_level_candidates(discovery_depth, discovered_pointer_level, &mut next_candidate_id);
 
             total_static_node_count = total_static_node_count.saturating_add(level_candidates.get_static_node_count());
             total_heap_node_count = total_heap_node_count.saturating_add(level_candidates.get_heap_node_count());
@@ -100,16 +100,11 @@ impl PointerScanSessionBuilder {
     fn build_level_candidates(
         discovery_depth: u64,
         discovered_pointer_level: &DiscoveredPointerLevel,
-        modules: &[NormalizedModule],
         next_candidate_id: &mut u64,
     ) -> PointerScanLevelCandidates {
         let mut static_candidates = Vec::with_capacity(discovered_pointer_level.static_candidates.len());
 
         for discovered_pointer_candidate in &discovered_pointer_level.static_candidates {
-            if modules.get(discovered_pointer_candidate.module_index).is_none() {
-                continue;
-            }
-
             static_candidates.push(PointerScanCandidate::new(
                 *next_candidate_id,
                 discovery_depth,

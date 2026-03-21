@@ -3,6 +3,7 @@ use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::rea
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
+use crate::pointer_scans::structures::snapshot_region_scan_task_kind::SnapshotRegionScanTaskKind;
 use crate::pointer_scans::structures::validated_pointer_candidate::ValidatedPointerCandidate;
 use crate::pointer_scans::structures::validated_pointer_level::ValidatedPointerLevel;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
@@ -215,9 +216,13 @@ impl PointerScanValidator {
                 let mut validated_heap_candidates = Vec::new();
 
                 range_search_kernel.scan_region_with_visitor(
-                    validation_heap_scan_task.base_address,
+                    validation_heap_scan_task.scan_base_address,
                     validation_heap_scan_task.current_values,
                     |pointer_match| {
+                        if pointer_match.get_pointer_address() >= validation_heap_scan_task.scan_end_address {
+                            return;
+                        }
+
                         validated_heap_candidates.push(ValidatedPointerCandidate {
                             pointer_address: pointer_match.get_pointer_address(),
                             pointer_value: pointer_match.get_pointer_value(),
@@ -372,6 +377,7 @@ impl PointerScanValidator {
                         uncovered_range_base_address,
                         module_base_address.min(validation_snapshot_region_end_address),
                         task_byte_size,
+                        pointer_size_in_bytes,
                         &mut validation_heap_scan_tasks,
                     );
                 }
@@ -389,6 +395,7 @@ impl PointerScanValidator {
                     uncovered_range_base_address,
                     validation_snapshot_region_end_address,
                     task_byte_size,
+                    pointer_size_in_bytes,
                     &mut validation_heap_scan_tasks,
                 );
             }
@@ -402,6 +409,7 @@ impl PointerScanValidator {
         range_base_address: u64,
         range_end_address: u64,
         task_byte_size: usize,
+        pointer_size_in_bytes: usize,
         validation_heap_scan_tasks: &mut Vec<SnapshotRegionScanTask<'a>>,
     ) {
         if range_end_address <= range_base_address {
@@ -410,17 +418,26 @@ impl PointerScanValidator {
 
         let range_start_offset = range_base_address.saturating_sub(validation_snapshot_region.get_base_address()) as usize;
         let range_end_offset = range_end_address.saturating_sub(validation_snapshot_region.get_base_address()) as usize;
-        let range_current_values = &validation_snapshot_region.get_current_values()[range_start_offset..range_end_offset];
-        let mut task_start_offset = 0_usize;
+        let current_values = validation_snapshot_region.get_current_values().as_slice();
+        let mut task_start_offset = range_start_offset;
 
-        while task_start_offset < range_current_values.len() {
-            let remaining_byte_count = range_current_values.len().saturating_sub(task_start_offset);
+        while task_start_offset < range_end_offset {
+            let remaining_byte_count = range_end_offset.saturating_sub(task_start_offset);
             let task_byte_count = remaining_byte_count.min(task_byte_size);
             let task_end_offset = task_start_offset.saturating_add(task_byte_count);
+            let task_read_end_offset = task_end_offset
+                .saturating_add(pointer_size_in_bytes.saturating_sub(1))
+                .min(current_values.len());
 
             validation_heap_scan_tasks.push(SnapshotRegionScanTask {
-                base_address: range_base_address.saturating_add(task_start_offset as u64),
-                current_values: &range_current_values[task_start_offset..task_end_offset],
+                scan_base_address: validation_snapshot_region
+                    .get_base_address()
+                    .saturating_add(task_start_offset as u64),
+                scan_end_address: validation_snapshot_region
+                    .get_base_address()
+                    .saturating_add(task_end_offset as u64),
+                current_values: &current_values[task_start_offset..task_read_end_offset],
+                task_kind: SnapshotRegionScanTaskKind::Heap,
             });
 
             task_start_offset = task_end_offset;
