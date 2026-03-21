@@ -1,6 +1,10 @@
+use crate::pointer_scans::structures::pointer_validation_heap_candidate_index::PointerValidationHeapCandidateIndex;
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
-use crate::pointer_scans::structures::rebuilt_pointer_candidate::RebuiltPointerCandidate;
-use crate::pointer_scans::structures::rebuilt_pointer_level::RebuiltPointerLevel;
+use crate::pointer_scans::structures::pointer_validation_snapshot_region_index::PointerValidationSnapshotRegionIndex;
+use crate::pointer_scans::structures::validated_pointer_candidate::ValidatedPointerCandidate;
+use crate::pointer_scans::structures::validated_pointer_candidate_key::ValidatedPointerCandidateKey;
+use crate::pointer_scans::structures::validated_pointer_candidate_state::ValidatedPointerCandidateState;
+use crate::pointer_scans::structures::validated_pointer_level::ValidatedPointerLevel;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
@@ -12,18 +16,22 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::Poi
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
-use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::sync::Mutex;
 use std::time::Instant;
 
-const POINTER_VALIDATION_ROOT_CHUNK_SIZE: usize = 64;
+const POINTER_VALIDATION_MEMO_SHARDS_PER_WORKER: usize = 8;
+
+type PointerValidationMemo = Vec<Mutex<HashMap<ValidatedPointerCandidateKey, ValidatedPointerCandidateState>>>;
 
 struct PointerValidationContext<'a> {
     original_pointer_scan_session: &'a PointerScanSession,
-    validation_snapshot_regions: &'a [SnapshotRegion],
+    validation_snapshot_region_index: PointerValidationSnapshotRegionIndex<'a>,
     current_modules_by_name: Vec<(&'a str, u64)>,
-    sorted_original_heap_candidates_by_level: Vec<Vec<&'a PointerScanCandidate>>,
+    original_heap_candidate_indices_by_level: Vec<PointerValidationHeapCandidateIndex<'a>>,
+    original_candidates_by_id: Vec<Option<&'a PointerScanCandidate>>,
     validation_target_address: u64,
     offset_radius: u64,
     pointer_size: PointerScanPointerSize,
@@ -44,30 +52,50 @@ impl<'a> PointerValidationContext<'a> {
             .collect::<Vec<_>>();
         current_modules_by_name.sort_unstable_by(|left_module, right_module| left_module.0.cmp(right_module.0));
 
-        let sorted_original_heap_candidates_by_level = original_pointer_scan_session
+        let original_heap_candidate_indices_by_level = original_pointer_scan_session
             .get_pointer_scan_level_candidates()
             .iter()
-            .map(|pointer_scan_level_candidates| {
-                let mut sorted_heap_candidates = pointer_scan_level_candidates
-                    .get_heap_candidates()
-                    .iter()
-                    .collect::<Vec<_>>();
-                sorted_heap_candidates.sort_unstable_by_key(|pointer_scan_candidate| pointer_scan_candidate.get_pointer_address());
-
-                sorted_heap_candidates
-            })
+            .map(|pointer_scan_level_candidates| PointerValidationHeapCandidateIndex::new(pointer_scan_level_candidates.get_heap_candidates()))
             .collect::<Vec<_>>();
+        let mut original_candidates_by_id = vec![None; original_pointer_scan_session.get_total_node_count() as usize + 1];
+
+        for pointer_scan_level_candidates in original_pointer_scan_session.get_pointer_scan_level_candidates() {
+            for pointer_scan_candidate in pointer_scan_level_candidates
+                .get_static_candidates()
+                .iter()
+                .chain(pointer_scan_level_candidates.get_heap_candidates().iter())
+            {
+                let candidate_index = pointer_scan_candidate.get_candidate_id() as usize;
+
+                if candidate_index >= original_candidates_by_id.len() {
+                    original_candidates_by_id.resize(candidate_index.saturating_add(1), None);
+                }
+
+                original_candidates_by_id[candidate_index] = Some(pointer_scan_candidate);
+            }
+        }
 
         Self {
             original_pointer_scan_session,
-            validation_snapshot_regions: validation_snapshot.get_snapshot_regions().as_slice(),
+            validation_snapshot_region_index: PointerValidationSnapshotRegionIndex::new(validation_snapshot.get_snapshot_regions().as_slice()),
             current_modules_by_name,
-            sorted_original_heap_candidates_by_level,
+            original_heap_candidate_indices_by_level,
+            original_candidates_by_id,
             validation_target_address,
             offset_radius: original_pointer_scan_session.get_offset_radius(),
             pointer_size: original_pointer_scan_session.get_pointer_size(),
             scan_execution_context,
         }
+    }
+
+    fn find_original_pointer_scan_candidate(
+        &self,
+        candidate_id: u64,
+    ) -> Option<&'a PointerScanCandidate> {
+        self.original_candidates_by_id
+            .get(candidate_id as usize)
+            .copied()
+            .flatten()
     }
 }
 
@@ -104,8 +132,8 @@ impl PointerScanValidator {
             modules,
             scan_execution_context,
         );
+        let validation_memo = Self::create_validation_memo();
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
-        let mut rebuilt_pointer_levels = Self::create_empty_rebuilt_pointer_levels(level_count);
 
         for (level_index, pointer_scan_level_candidates) in pointer_scan_session
             .get_pointer_scan_level_candidates()
@@ -131,78 +159,45 @@ impl PointerScanValidator {
                 );
             }
 
-            let rebuilt_pointer_level_chunks = pointer_scan_level_candidates
+            let retained_static_root_count = pointer_scan_level_candidates
                 .get_static_candidates()
-                .par_chunks(POINTER_VALIDATION_ROOT_CHUNK_SIZE)
-                .map(|static_pointer_scan_candidate_chunk| {
-                    let mut worker_rebuilt_pointer_levels = Self::create_empty_rebuilt_pointer_levels(level_count);
+                .par_iter()
+                .filter(|static_pointer_scan_candidate| {
+                    let Some(current_pointer_address) = Self::resolve_current_static_pointer_address(static_pointer_scan_candidate, &validation_context) else {
+                        return false;
+                    };
 
-                    for static_pointer_scan_candidate in static_pointer_scan_candidate_chunk {
-                        if validation_context.scan_execution_context.should_cancel() {
-                            break;
-                        }
-
-                        Self::validate_static_candidate(
-                            static_pointer_scan_candidate,
-                            level_index,
-                            &validation_context,
-                            &mut worker_rebuilt_pointer_levels,
-                        );
-                    }
-
-                    worker_rebuilt_pointer_levels
+                    Self::validate_pointer_candidate_context(
+                        static_pointer_scan_candidate,
+                        level_index,
+                        current_pointer_address,
+                        &validation_context,
+                        &validation_memo,
+                    )
+                    .is_some()
                 })
-                .collect::<Vec<_>>();
-            let mut level_rebuilt_pointer_levels = Self::create_empty_rebuilt_pointer_levels(level_count);
-
-            for rebuilt_pointer_level_chunk in &rebuilt_pointer_level_chunks {
-                for (level_rebuilt_pointer_candidates, rebuilt_pointer_level) in level_rebuilt_pointer_levels
-                    .iter_mut()
-                    .zip(rebuilt_pointer_level_chunk.iter())
-                {
-                    level_rebuilt_pointer_candidates
-                        .static_candidates
-                        .reserve(rebuilt_pointer_level.static_candidates.len());
-                    level_rebuilt_pointer_candidates
-                        .heap_candidates
-                        .reserve(rebuilt_pointer_level.heap_candidates.len());
-                }
-            }
-
-            for mut rebuilt_pointer_level_chunk in rebuilt_pointer_level_chunks {
-                Self::append_rebuilt_pointer_levels(&mut level_rebuilt_pointer_levels, &mut rebuilt_pointer_level_chunk);
-            }
-            Self::deduplicate_rebuilt_pointer_levels(&mut level_rebuilt_pointer_levels);
+                .count() as u64;
 
             if with_logging {
-                let retained_static_root_count = level_rebuilt_pointer_levels[level_index]
-                    .static_candidates
-                    .len();
-                let rebuilt_heap_node_count = level_rebuilt_pointer_levels
-                    .iter()
-                    .map(|rebuilt_pointer_level| rebuilt_pointer_level.heap_candidates.len() as u64)
-                    .sum::<u64>();
+                let memoized_heap_node_count = Self::count_validated_heap_contexts(&validation_context, &validation_memo);
 
                 log::info!(
-                    "Pointer scan validation level {}/{} complete in {:?}: retained {} static roots and rebuilt {} descendant heap nodes.",
+                    "Pointer scan validation level {}/{} complete in {:?}: retained {} static roots and memoized {} descendant heap contexts so far.",
                     validation_level_log_context.level_number,
                     validation_level_log_context.level_count,
                     level_start_time.elapsed(),
                     retained_static_root_count,
-                    rebuilt_heap_node_count,
+                    memoized_heap_node_count,
                 );
             }
-
-            Self::append_rebuilt_pointer_levels(&mut rebuilt_pointer_levels, &mut level_rebuilt_pointer_levels);
         }
 
-        Self::deduplicate_rebuilt_pointer_levels(&mut rebuilt_pointer_levels);
-        Self::truncate_empty_trailing_levels(&mut rebuilt_pointer_levels);
+        let validated_pointer_levels = Self::collect_validated_pointer_levels(&validation_context, &validation_memo, level_count);
 
-        let validated_pointer_scan_session = if rebuilt_pointer_levels.is_empty() {
+        let validated_pointer_scan_session = if validated_pointer_levels.is_empty() {
             Self::create_empty_session(pointer_scan_session, validation_target_address)
         } else {
-            Self::build_pointer_scan_session(pointer_scan_session, validation_target_address, rebuilt_pointer_levels)
+            Self::build_pointer_scan_session(pointer_scan_session, validation_target_address, validated_pointer_levels)
         };
 
         if with_logging {
@@ -221,106 +216,68 @@ impl PointerScanValidator {
         validated_pointer_scan_session
     }
 
-    fn validate_static_candidate(
-        static_pointer_scan_candidate: &PointerScanCandidate,
-        level_index: usize,
-        validation_context: &PointerValidationContext<'_>,
-        rebuilt_pointer_levels: &mut [RebuiltPointerLevel],
-    ) -> bool {
-        let Some(current_pointer_address) = Self::resolve_current_static_pointer_address(static_pointer_scan_candidate, validation_context) else {
-            return false;
-        };
-        let Some(current_pointer_value) = Self::read_pointer_value_at_address(
-            validation_context.validation_snapshot_regions,
-            current_pointer_address,
-            validation_context.pointer_size,
-        ) else {
-            return false;
-        };
-
-        if !Self::validate_candidate_children(
-            static_pointer_scan_candidate,
-            level_index,
-            current_pointer_value,
-            validation_context,
-            rebuilt_pointer_levels,
-        ) {
-            return false;
-        }
-
-        let Some(module_name) = validation_context
-            .original_pointer_scan_session
-            .get_module_name(static_pointer_scan_candidate.get_module_index())
-        else {
-            return false;
-        };
-
-        rebuilt_pointer_levels[level_index]
-            .static_candidates
-            .push(RebuiltPointerCandidate {
-                pointer_scan_node_type: PointerScanNodeType::Static,
-                pointer_address: current_pointer_address,
-                pointer_value: current_pointer_value,
-                module_name: module_name.to_string(),
-                module_offset: static_pointer_scan_candidate.get_module_offset(),
-            });
-
-        true
-    }
-
-    fn validate_heap_candidate(
-        heap_pointer_scan_candidate: &PointerScanCandidate,
+    fn validate_pointer_candidate_context(
+        pointer_scan_candidate: &PointerScanCandidate,
         level_index: usize,
         current_pointer_address: u64,
         validation_context: &PointerValidationContext<'_>,
-        rebuilt_pointer_levels: &mut [RebuiltPointerLevel],
-    ) -> bool {
-        let Some(current_pointer_value) = Self::read_pointer_value_at_address(
-            validation_context.validation_snapshot_regions,
-            current_pointer_address,
-            validation_context.pointer_size,
-        ) else {
-            return false;
-        };
-
-        if !Self::validate_candidate_children(
-            heap_pointer_scan_candidate,
-            level_index,
-            current_pointer_value,
-            validation_context,
-            rebuilt_pointer_levels,
-        ) {
-            return false;
+        validation_memo: &PointerValidationMemo,
+    ) -> Option<u64> {
+        if validation_context.scan_execution_context.should_cancel() {
+            return None;
         }
 
-        rebuilt_pointer_levels[level_index]
-            .heap_candidates
-            .push(RebuiltPointerCandidate {
-                pointer_scan_node_type: PointerScanNodeType::Heap,
-                pointer_address: current_pointer_address,
-                pointer_value: current_pointer_value,
-                module_name: String::new(),
-                module_offset: 0,
-            });
+        let validated_pointer_candidate_key =
+            ValidatedPointerCandidateKey::new(level_index, pointer_scan_candidate.get_candidate_id(), current_pointer_address);
 
-        true
+        if let Some(validated_pointer_candidate_state) = Self::get_validation_memo_state(validation_memo, &validated_pointer_candidate_key) {
+            return match validated_pointer_candidate_state {
+                ValidatedPointerCandidateState::Invalid => None,
+                ValidatedPointerCandidateState::Valid { current_pointer_value } => Some(current_pointer_value),
+            };
+        }
+
+        let Some(current_pointer_value) = validation_context
+            .validation_snapshot_region_index
+            .read_pointer_value_at_address(current_pointer_address, validation_context.pointer_size)
+        else {
+            Self::insert_validation_memo_state(validation_memo, validated_pointer_candidate_key, ValidatedPointerCandidateState::Invalid);
+
+            return None;
+        };
+
+        let is_valid = if level_index == 0 {
+            Self::pointer_value_reaches_target(
+                current_pointer_value,
+                validation_context.validation_target_address,
+                validation_context.offset_radius,
+            )
+        } else {
+            Self::validate_pointer_candidate_children(pointer_scan_candidate, level_index, current_pointer_value, validation_context, validation_memo)
+        };
+
+        if !is_valid {
+            Self::insert_validation_memo_state(validation_memo, validated_pointer_candidate_key, ValidatedPointerCandidateState::Invalid);
+
+            return None;
+        }
+
+        Self::insert_validation_memo_state(
+            validation_memo,
+            validated_pointer_candidate_key,
+            ValidatedPointerCandidateState::Valid { current_pointer_value },
+        );
+
+        Some(current_pointer_value)
     }
 
-    fn validate_candidate_children(
+    fn validate_pointer_candidate_children(
         original_pointer_scan_candidate: &PointerScanCandidate,
         level_index: usize,
         current_pointer_value: u64,
         validation_context: &PointerValidationContext<'_>,
-        rebuilt_pointer_levels: &mut [RebuiltPointerLevel],
+        validation_memo: &PointerValidationMemo,
     ) -> bool {
-        if level_index == 0 {
-            return Self::pointer_value_reaches_target(
-                current_pointer_value,
-                validation_context.validation_target_address,
-                validation_context.offset_radius,
-            );
-        }
-
         let child_level_index = level_index.saturating_sub(1);
         let lower_bound = original_pointer_scan_candidate
             .get_pointer_value()
@@ -328,14 +285,10 @@ impl PointerScanValidator {
         let upper_bound = original_pointer_scan_candidate
             .get_pointer_value()
             .saturating_add(validation_context.offset_radius);
-        let original_child_heap_candidates = Self::find_original_heap_candidates_in_range(
-            &validation_context.sorted_original_heap_candidates_by_level[child_level_index],
-            lower_bound,
-            upper_bound,
-        );
-        let mut has_valid_child = false;
 
-        for child_heap_pointer_scan_candidate in original_child_heap_candidates {
+        for child_heap_pointer_scan_candidate in
+            validation_context.original_heap_candidate_indices_by_level[child_level_index].find_candidates_in_range(lower_bound, upper_bound)
+        {
             if validation_context.scan_execution_context.should_cancel() {
                 return false;
             }
@@ -348,18 +301,20 @@ impl PointerScanValidator {
                 continue;
             };
 
-            if Self::validate_heap_candidate(
+            if Self::validate_pointer_candidate_context(
                 child_heap_pointer_scan_candidate,
                 child_level_index,
                 rebased_child_pointer_address,
                 validation_context,
-                rebuilt_pointer_levels,
-            ) {
-                has_valid_child = true;
+                validation_memo,
+            )
+            .is_some()
+            {
+                return true;
             }
         }
 
-        has_valid_child
+        false
     }
 
     fn resolve_current_static_pointer_address(
@@ -385,17 +340,6 @@ impl PointerScanValidator {
             .map(|(_module_name, module_base_address)| *module_base_address)
     }
 
-    fn find_original_heap_candidates_in_range<'a>(
-        sorted_original_heap_candidates: &'a [&'a PointerScanCandidate],
-        lower_bound: u64,
-        upper_bound: u64,
-    ) -> &'a [&'a PointerScanCandidate] {
-        let start_index = sorted_original_heap_candidates.partition_point(|pointer_scan_candidate| pointer_scan_candidate.get_pointer_address() < lower_bound);
-        let end_index = sorted_original_heap_candidates.partition_point(|pointer_scan_candidate| pointer_scan_candidate.get_pointer_address() <= upper_bound);
-
-        &sorted_original_heap_candidates[start_index..end_index]
-    }
-
     fn rebase_child_pointer_address(
         current_parent_pointer_value: u64,
         original_parent_pointer_value: u64,
@@ -415,163 +359,228 @@ impl PointerScanValidator {
         pointer_value >= target_address.saturating_sub(offset_radius) && pointer_value <= target_address.saturating_add(offset_radius)
     }
 
-    fn read_pointer_value_at_address(
-        validation_snapshot_regions: &[SnapshotRegion],
-        pointer_address: u64,
-        pointer_size: PointerScanPointerSize,
-    ) -> Option<u64> {
-        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
-        let snapshot_region_index = validation_snapshot_regions
-            .partition_point(|snapshot_region| snapshot_region.get_base_address() <= pointer_address)
-            .checked_sub(1)?;
-        let snapshot_region = validation_snapshot_regions.get(snapshot_region_index)?;
-        let pointer_end_address = pointer_address.saturating_add(pointer_size_in_bytes as u64);
+    fn create_validation_memo() -> PointerValidationMemo {
+        let validation_memo_shard_count = rayon::current_num_threads()
+            .max(1)
+            .saturating_mul(POINTER_VALIDATION_MEMO_SHARDS_PER_WORKER);
 
-        if pointer_address < snapshot_region.get_base_address() || pointer_end_address > snapshot_region.get_end_address() {
-            return None;
-        }
-
-        let byte_offset = pointer_address.saturating_sub(snapshot_region.get_base_address()) as usize;
-        let pointer_bytes = snapshot_region
-            .get_current_values()
-            .get(byte_offset..byte_offset.saturating_add(pointer_size_in_bytes))?;
-
-        match pointer_size {
-            PointerScanPointerSize::Pointer32 => {
-                let pointer_bytes: [u8; 4] = pointer_bytes.try_into().ok()?;
-
-                Some(u32::from_le_bytes(pointer_bytes) as u64)
-            }
-            PointerScanPointerSize::Pointer64 => {
-                let pointer_bytes: [u8; 8] = pointer_bytes.try_into().ok()?;
-
-                Some(u64::from_le_bytes(pointer_bytes))
-            }
-        }
+        (0..validation_memo_shard_count)
+            .map(|_| Mutex::new(HashMap::new()))
+            .collect()
     }
 
-    fn create_empty_rebuilt_pointer_levels(level_count: usize) -> Vec<RebuiltPointerLevel> {
-        vec![RebuiltPointerLevel::default(); level_count]
+    fn get_validation_memo_state(
+        validation_memo: &PointerValidationMemo,
+        validated_pointer_candidate_key: &ValidatedPointerCandidateKey,
+    ) -> Option<ValidatedPointerCandidateState> {
+        let memo_shard_index = Self::get_validation_memo_shard_index(validation_memo, validated_pointer_candidate_key);
+        let validation_memo_shard = validation_memo.get(memo_shard_index)?;
+        let validation_memo_shard_guard = match validation_memo_shard.lock() {
+            Ok(validation_memo_shard_guard) => validation_memo_shard_guard,
+            Err(poisoned_validation_memo_shard_guard) => poisoned_validation_memo_shard_guard.into_inner(),
+        };
+
+        validation_memo_shard_guard
+            .get(validated_pointer_candidate_key)
+            .copied()
     }
 
-    fn append_rebuilt_pointer_levels(
-        left_rebuilt_pointer_levels: &mut [RebuiltPointerLevel],
-        right_rebuilt_pointer_levels: &mut [RebuiltPointerLevel],
+    fn insert_validation_memo_state(
+        validation_memo: &PointerValidationMemo,
+        validated_pointer_candidate_key: ValidatedPointerCandidateKey,
+        validated_pointer_candidate_state: ValidatedPointerCandidateState,
     ) {
-        for (left_rebuilt_pointer_level, right_rebuilt_pointer_level) in left_rebuilt_pointer_levels
-            .iter_mut()
-            .zip(right_rebuilt_pointer_levels.iter_mut())
-        {
-            left_rebuilt_pointer_level
+        let memo_shard_index = Self::get_validation_memo_shard_index(validation_memo, &validated_pointer_candidate_key);
+        let Some(validation_memo_shard) = validation_memo.get(memo_shard_index) else {
+            return;
+        };
+        let mut validation_memo_shard_guard = match validation_memo_shard.lock() {
+            Ok(validation_memo_shard_guard) => validation_memo_shard_guard,
+            Err(poisoned_validation_memo_shard_guard) => poisoned_validation_memo_shard_guard.into_inner(),
+        };
+
+        validation_memo_shard_guard
+            .entry(validated_pointer_candidate_key)
+            .or_insert(validated_pointer_candidate_state);
+    }
+
+    fn get_validation_memo_shard_index(
+        validation_memo: &PointerValidationMemo,
+        validated_pointer_candidate_key: &ValidatedPointerCandidateKey,
+    ) -> usize {
+        if validation_memo.is_empty() {
+            return 0;
+        }
+
+        let mut hasher = DefaultHasher::new();
+        validated_pointer_candidate_key.hash(&mut hasher);
+
+        (hasher.finish() as usize) % validation_memo.len()
+    }
+
+    fn count_validated_heap_contexts(
+        validation_context: &PointerValidationContext<'_>,
+        validation_memo: &PointerValidationMemo,
+    ) -> u64 {
+        let mut validated_heap_context_count = 0_u64;
+
+        for validation_memo_shard in validation_memo {
+            let validation_memo_shard_guard = match validation_memo_shard.lock() {
+                Ok(validation_memo_shard_guard) => validation_memo_shard_guard,
+                Err(poisoned_validation_memo_shard_guard) => poisoned_validation_memo_shard_guard.into_inner(),
+            };
+
+            for (validated_pointer_candidate_key, validated_pointer_candidate_state) in validation_memo_shard_guard.iter() {
+                if !matches!(validated_pointer_candidate_state, ValidatedPointerCandidateState::Valid { .. }) {
+                    continue;
+                }
+
+                let Some(original_pointer_scan_candidate) =
+                    validation_context.find_original_pointer_scan_candidate(validated_pointer_candidate_key.candidate_id)
+                else {
+                    continue;
+                };
+
+                if original_pointer_scan_candidate.get_pointer_scan_node_type() == PointerScanNodeType::Heap {
+                    validated_heap_context_count = validated_heap_context_count.saturating_add(1);
+                }
+            }
+        }
+
+        validated_heap_context_count
+    }
+
+    fn collect_validated_pointer_levels(
+        validation_context: &PointerValidationContext<'_>,
+        validation_memo: &PointerValidationMemo,
+        level_count: usize,
+    ) -> Vec<ValidatedPointerLevel> {
+        let mut validated_pointer_levels = vec![ValidatedPointerLevel::default(); level_count];
+
+        for validation_memo_shard in validation_memo {
+            let validation_memo_shard_guard = match validation_memo_shard.lock() {
+                Ok(validation_memo_shard_guard) => validation_memo_shard_guard,
+                Err(poisoned_validation_memo_shard_guard) => poisoned_validation_memo_shard_guard.into_inner(),
+            };
+
+            for (validated_pointer_candidate_key, validated_pointer_candidate_state) in validation_memo_shard_guard.iter() {
+                let ValidatedPointerCandidateState::Valid { current_pointer_value } = *validated_pointer_candidate_state else {
+                    continue;
+                };
+                let Some(original_pointer_scan_candidate) =
+                    validation_context.find_original_pointer_scan_candidate(validated_pointer_candidate_key.candidate_id)
+                else {
+                    continue;
+                };
+                let Some(validated_pointer_level) = validated_pointer_levels.get_mut(validated_pointer_candidate_key.level_index) else {
+                    continue;
+                };
+                let validated_pointer_candidate = ValidatedPointerCandidate {
+                    pointer_address: validated_pointer_candidate_key.current_pointer_address,
+                    pointer_value: current_pointer_value,
+                    module_index: original_pointer_scan_candidate.get_module_index(),
+                    module_offset: original_pointer_scan_candidate.get_module_offset(),
+                };
+
+                match original_pointer_scan_candidate.get_pointer_scan_node_type() {
+                    PointerScanNodeType::Static => validated_pointer_level
+                        .static_candidates
+                        .push(validated_pointer_candidate),
+                    PointerScanNodeType::Heap => validated_pointer_level
+                        .heap_candidates
+                        .push(validated_pointer_candidate),
+                }
+            }
+        }
+
+        Self::sort_and_deduplicate_validated_pointer_levels(&mut validated_pointer_levels);
+        Self::truncate_empty_trailing_levels(&mut validated_pointer_levels);
+
+        validated_pointer_levels
+    }
+
+    fn sort_and_deduplicate_validated_pointer_levels(validated_pointer_levels: &mut [ValidatedPointerLevel]) {
+        for validated_pointer_level in validated_pointer_levels {
+            validated_pointer_level
                 .static_candidates
-                .append(&mut right_rebuilt_pointer_level.static_candidates);
-            left_rebuilt_pointer_level
+                .sort_unstable_by_key(|validated_pointer_candidate| {
+                    (
+                        validated_pointer_candidate.module_index,
+                        validated_pointer_candidate.module_offset,
+                        validated_pointer_candidate.pointer_address,
+                    )
+                });
+            validated_pointer_level
+                .static_candidates
+                .dedup_by_key(|validated_pointer_candidate| {
+                    (
+                        validated_pointer_candidate.module_index,
+                        validated_pointer_candidate.module_offset,
+                        validated_pointer_candidate.pointer_address,
+                    )
+                });
+            validated_pointer_level
                 .heap_candidates
-                .append(&mut right_rebuilt_pointer_level.heap_candidates);
+                .sort_unstable_by_key(|validated_pointer_candidate| validated_pointer_candidate.pointer_address);
+            validated_pointer_level
+                .heap_candidates
+                .dedup_by_key(|validated_pointer_candidate| validated_pointer_candidate.pointer_address);
         }
     }
 
-    fn deduplicate_rebuilt_pointer_levels(rebuilt_pointer_levels: &mut [RebuiltPointerLevel]) {
-        for rebuilt_pointer_level in rebuilt_pointer_levels {
-            rebuilt_pointer_level
-                .static_candidates
-                .sort_unstable_by(|left_static_candidate, right_static_candidate| {
-                    match left_static_candidate
-                        .module_name
-                        .cmp(&right_static_candidate.module_name)
-                    {
-                        Ordering::Equal => match left_static_candidate
-                            .module_offset
-                            .cmp(&right_static_candidate.module_offset)
-                        {
-                            Ordering::Equal => left_static_candidate
-                                .pointer_address
-                                .cmp(&right_static_candidate.pointer_address),
-                            ordering => ordering,
-                        },
-                        ordering => ordering,
-                    }
-                });
-            rebuilt_pointer_level
-                .static_candidates
-                .dedup_by(|left_static_candidate, right_static_candidate| {
-                    left_static_candidate.module_name == right_static_candidate.module_name
-                        && left_static_candidate.module_offset == right_static_candidate.module_offset
-                        && left_static_candidate.pointer_address == right_static_candidate.pointer_address
-                });
-            rebuilt_pointer_level
-                .heap_candidates
-                .sort_unstable_by_key(|heap_candidate| heap_candidate.pointer_address);
-            rebuilt_pointer_level
-                .heap_candidates
-                .dedup_by_key(|heap_candidate| heap_candidate.pointer_address);
-        }
-    }
-
-    fn truncate_empty_trailing_levels(rebuilt_pointer_levels: &mut Vec<RebuiltPointerLevel>) {
-        while rebuilt_pointer_levels
+    fn truncate_empty_trailing_levels(validated_pointer_levels: &mut Vec<ValidatedPointerLevel>) {
+        while validated_pointer_levels
             .last()
-            .is_some_and(|rebuilt_pointer_level| rebuilt_pointer_level.static_candidates.is_empty() && rebuilt_pointer_level.heap_candidates.is_empty())
+            .is_some_and(|validated_pointer_level| validated_pointer_level.static_candidates.is_empty() && validated_pointer_level.heap_candidates.is_empty())
         {
-            rebuilt_pointer_levels.pop();
+            validated_pointer_levels.pop();
         }
     }
 
     fn build_pointer_scan_session(
         original_pointer_scan_session: &PointerScanSession,
         validation_target_address: u64,
-        rebuilt_pointer_levels: Vec<RebuiltPointerLevel>,
+        validated_pointer_levels: Vec<ValidatedPointerLevel>,
     ) -> PointerScanSession {
         let mut pointer_scan_levels = Vec::new();
         let mut pointer_scan_level_candidates = Vec::new();
         let mut next_candidate_id = 1_u64;
         let mut total_static_node_count = 0_u64;
         let mut total_heap_node_count = 0_u64;
-        let mut module_names = Vec::new();
-        let mut module_indices_by_name = HashMap::new();
 
-        for (level_index, rebuilt_pointer_level) in rebuilt_pointer_levels.iter().enumerate() {
+        for (level_index, validated_pointer_level) in validated_pointer_levels.iter().enumerate() {
             let discovery_depth = level_index as u64 + 1;
-            let mut static_candidates = Vec::with_capacity(rebuilt_pointer_level.static_candidates.len());
+            let mut static_candidates = Vec::with_capacity(validated_pointer_level.static_candidates.len());
 
-            for rebuilt_pointer_candidate in &rebuilt_pointer_level.static_candidates {
-                let module_index = if let Some(module_index) = module_indices_by_name.get(rebuilt_pointer_candidate.module_name.as_str()) {
-                    *module_index
-                } else {
-                    let next_module_index = module_names.len();
-                    module_names.push(rebuilt_pointer_candidate.module_name.clone());
-                    module_indices_by_name.insert(rebuilt_pointer_candidate.module_name.clone(), next_module_index);
-                    next_module_index
-                };
-
+            for validated_pointer_candidate in &validated_pointer_level.static_candidates {
                 static_candidates.push(PointerScanCandidate::new(
                     next_candidate_id,
                     discovery_depth,
                     PointerScanNodeType::Static,
-                    rebuilt_pointer_candidate.pointer_address,
-                    rebuilt_pointer_candidate.pointer_value,
-                    module_index,
-                    rebuilt_pointer_candidate.module_offset,
+                    validated_pointer_candidate.pointer_address,
+                    validated_pointer_candidate.pointer_value,
+                    validated_pointer_candidate.module_index,
+                    validated_pointer_candidate.module_offset,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
             }
 
-            let mut heap_candidates = Vec::with_capacity(rebuilt_pointer_level.heap_candidates.len());
+            let mut heap_candidates = Vec::with_capacity(validated_pointer_level.heap_candidates.len());
 
-            for rebuilt_pointer_candidate in &rebuilt_pointer_level.heap_candidates {
+            for validated_pointer_candidate in &validated_pointer_level.heap_candidates {
                 heap_candidates.push(PointerScanCandidate::new(
                     next_candidate_id,
                     discovery_depth,
                     PointerScanNodeType::Heap,
-                    rebuilt_pointer_candidate.pointer_address,
-                    rebuilt_pointer_candidate.pointer_value,
+                    validated_pointer_candidate.pointer_address,
+                    validated_pointer_candidate.pointer_value,
                     0,
                     0,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
             }
 
-            let level_candidates = PointerScanLevelCandidates::new(discovery_depth, static_candidates, heap_candidates);
+            let level_candidates = PointerScanLevelCandidates::new_presorted(discovery_depth, static_candidates, heap_candidates);
 
             total_static_node_count = total_static_node_count.saturating_add(level_candidates.get_static_node_count());
             total_heap_node_count = total_heap_node_count.saturating_add(level_candidates.get_heap_node_count());
@@ -592,7 +601,7 @@ impl PointerScanValidator {
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
-            module_names,
+            original_pointer_scan_session.get_module_names().clone(),
             pointer_scan_levels,
             pointer_scan_level_candidates,
             root_node_count,
@@ -629,6 +638,9 @@ mod tests {
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
@@ -767,6 +779,50 @@ mod tests {
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
     }
 
+    #[test]
+    fn validate_scan_deduplicates_shared_live_heap_children() {
+        let original_pointer_scan_session = build_shared_child_original_pointer_scan_session();
+        let validation_memory_map = Arc::new(build_shared_child_validation_memory_map());
+        let scan_execution_context = ScanExecutionContext::new(
+            None,
+            None,
+            Some(Arc::new({
+                let validation_memory_map = validation_memory_map.clone();
+
+                move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
+            })),
+        );
+        let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
+            OpenedProcessInfo::new(9, "pointer-shared-child-test".to_string(), 0, Bitness::Bit64, None),
+            &original_pointer_scan_session,
+            0x4010,
+            &build_snapshot_from_memory_map(&build_shared_child_validation_memory_regions(), &validation_memory_map),
+            &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
+            &scan_execution_context,
+            false,
+        );
+
+        assert_eq!(validated_pointer_scan_session.get_root_node_count(), 2);
+        assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
+
+        let root_nodes = validated_pointer_scan_session.get_expanded_nodes(None);
+        assert_eq!(root_nodes.len(), 2);
+
+        let first_child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
+        let second_child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[1].get_node_id()));
+
+        assert_eq!(first_child_nodes.len(), 1);
+        assert_eq!(second_child_nodes.len(), 1);
+
+        let first_grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(first_child_nodes[0].get_node_id()));
+        let second_grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(second_child_nodes[0].get_node_id()));
+
+        assert_eq!(first_grandchild_nodes.len(), 1);
+        assert_eq!(second_grandchild_nodes.len(), 1);
+        assert_eq!(first_grandchild_nodes[0].get_pointer_address(), 0x3000);
+        assert_eq!(second_grandchild_nodes[0].get_pointer_address(), 0x3000);
+    }
+
     fn build_original_pointer_scan_session() -> PointerScanSession {
         let original_memory_map = Arc::new(build_original_pointer_scan_memory_map());
         let scan_execution_context = ScanExecutionContext::new(
@@ -790,6 +846,47 @@ mod tests {
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
             &scan_execution_context,
+        )
+    }
+
+    fn build_shared_child_original_pointer_scan_session() -> PointerScanSession {
+        PointerScanSession::new(
+            43,
+            0x4010,
+            PointerScanPointerSize::Pointer64,
+            2,
+            0x20,
+            vec!["game.exe".to_string()],
+            vec![
+                PointerScanLevel::new(1, 1, 0, 1),
+                PointerScanLevel::new(2, 2, 2, 0),
+            ],
+            vec![
+                PointerScanLevelCandidates::new(
+                    1,
+                    Vec::new(),
+                    vec![PointerScanCandidate::new(
+                        1,
+                        1,
+                        PointerScanNodeType::Heap,
+                        0x3000,
+                        0x4000,
+                        0,
+                        0,
+                    )],
+                ),
+                PointerScanLevelCandidates::new(
+                    2,
+                    vec![
+                        PointerScanCandidate::new(2, 2, PointerScanNodeType::Static, 0x1010, 0x3000, 0, 0x10),
+                        PointerScanCandidate::new(3, 2, PointerScanNodeType::Static, 0x1020, 0x3000, 0, 0x20),
+                    ],
+                    Vec::new(),
+                ),
+            ],
+            2,
+            2,
+            1,
         )
     }
 
@@ -868,6 +965,23 @@ mod tests {
         vec![
             NormalizedRegion::new(0x1000, 0x40),
             NormalizedRegion::new(0x3000, 0x600),
+        ]
+    }
+
+    fn build_shared_child_validation_memory_map() -> HashMap<u64, u8> {
+        let mut memory_map = HashMap::new();
+
+        write_pointer_bytes(&mut memory_map, 0x1010, 0x3000_u64);
+        write_pointer_bytes(&mut memory_map, 0x1020, 0x3000_u64);
+        write_pointer_bytes(&mut memory_map, 0x3000, 0x4000_u64);
+
+        memory_map
+    }
+
+    fn build_shared_child_validation_memory_regions() -> Vec<NormalizedRegion> {
+        vec![
+            NormalizedRegion::new(0x1000, 0x40),
+            NormalizedRegion::new(0x3000, 0x40),
         ]
     }
 

@@ -111,6 +111,10 @@ impl PointerScanSession {
         self.module_names.get(module_index).map(String::as_str)
     }
 
+    pub fn get_module_names(&self) -> &Vec<String> {
+        &self.module_names
+    }
+
     pub fn get_module_index_by_name(
         &self,
         module_name: &str,
