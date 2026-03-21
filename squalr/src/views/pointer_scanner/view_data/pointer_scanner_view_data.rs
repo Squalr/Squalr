@@ -33,11 +33,10 @@ pub struct PointerScannerTreeRow {
     pub node_id: u64,
     pub has_children: bool,
     pub is_selected: bool,
-    pub location_text: String,
-    pub offset_text: String,
+    pub primary_text: String,
+    pub value_text: String,
     pub resolved_address_text: String,
     pub depth_text: String,
-    pub state_text: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1216,22 +1215,20 @@ impl PointerScannerViewData {
         let pointer_scan_node = self.nodes_by_id.get(&node_id)?;
         let is_selected = self.selected_node_id == Some(node_id);
         let is_root_context = self.current_context_parent_node_id.is_none();
-        let location_text = if is_root_context {
+        let primary_text = if is_root_context {
             Self::build_module_base_text(pointer_scan_node)
         } else {
             Self::format_pointer_offset(pointer_scan_node.get_pointer_offset())
         };
-        let offset_text = Self::format_address(pointer_scan_node.get_pointer_address());
-
+        let value_text = Self::format_address(pointer_scan_node.get_pointer_value());
         Some(PointerScannerTreeRow {
             node_id,
             has_children: pointer_scan_node.has_children(),
             is_selected,
-            location_text,
-            offset_text,
+            primary_text,
+            value_text,
             resolved_address_text: Self::format_address(pointer_scan_node.get_resolved_target_address()),
-            depth_text: pointer_scan_node.get_depth().to_string(),
-            state_text: Self::format_pointer_scan_node_type(pointer_scan_node.get_pointer_scan_node_type()).to_string(),
+            depth_text: format!("{} of {}", pointer_scan_node.get_depth(), pointer_scan_node.get_branch_total_depth()),
         })
     }
 
@@ -1965,8 +1962,9 @@ mod tests {
         let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows(pointer_scanner_view_data);
 
         assert_eq!(pointer_scanner_tree_rows.len(), 2);
-        assert_eq!(pointer_scanner_tree_rows[0].location_text, "game.exe+0x10");
-        assert_eq!(pointer_scanner_tree_rows[0].offset_text, "0x1010");
+        assert_eq!(pointer_scanner_tree_rows[0].primary_text, "game.exe+0x10");
+        assert_eq!(pointer_scanner_tree_rows[0].value_text, "0x1FF0");
+        assert_eq!(pointer_scanner_tree_rows[0].depth_text, "1 of 1");
         assert!(pointer_scanner_tree_rows[1].is_selected);
     }
 
@@ -1984,6 +1982,55 @@ mod tests {
         }
 
         assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data), 1);
+    }
+
+    #[test]
+    fn build_visible_rows_uses_stable_branch_total_depth_for_child_contexts() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.current_context_parent_node_id = Some(1);
+        pointer_scanner_view_data.current_context_node_ids = vec![2];
+
+        let mut root_node = PointerScanNode::new(
+            1,
+            None,
+            PointerScanNodeType::Static,
+            1,
+            0x1010,
+            0x2000,
+            0x3000,
+            0x10,
+            "game.exe".to_string(),
+            0x10,
+            vec![2],
+        );
+        root_node.set_branch_total_depth(5);
+
+        let mut child_node = PointerScanNode::new(
+            2,
+            Some(1),
+            PointerScanNodeType::Heap,
+            2,
+            0x2010,
+            0x2200,
+            0x3000,
+            0x20,
+            String::new(),
+            0,
+            vec![3],
+        );
+        child_node.set_discovery_depth(4);
+        child_node.set_branch_total_depth(5);
+
+        pointer_scanner_view_data.nodes_by_id.insert(1, root_node);
+        pointer_scanner_view_data.nodes_by_id.insert(2, child_node);
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+
+        let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows(pointer_scanner_view_data);
+
+        assert_eq!(pointer_scanner_tree_rows.len(), 1);
+        assert_eq!(pointer_scanner_tree_rows[0].primary_text, "+0x20");
+        assert_eq!(pointer_scanner_tree_rows[0].depth_text, "2 of 5");
     }
 
     #[test]

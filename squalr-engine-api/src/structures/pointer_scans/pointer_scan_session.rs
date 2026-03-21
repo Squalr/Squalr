@@ -329,7 +329,8 @@ impl PointerScanSession {
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
         let materialized_node_ids = self.materialize_display_node_page(
             heap_candidate.get_candidate_id(),
-            heap_candidate.get_discovery_depth(),
+            child_discovery_depth,
+            parent_materialized_node.get_branch_total_depth(),
             heap_candidate.get_pointer_scan_node_type(),
             heap_candidate.get_pointer_address(),
             heap_candidate.get_pointer_value(),
@@ -363,8 +364,13 @@ impl PointerScanSession {
             return MaterializedPointerScanNodePage::default();
         }
 
-        let total_node_count =
-            self.count_display_nodes_for_pointer_value(parent_materialized_node.get_discovery_depth(), parent_materialized_node.get_pointer_value());
+        let child_discovery_depth = parent_materialized_node.get_discovery_depth().saturating_sub(1);
+
+        if child_discovery_depth == 0 {
+            return MaterializedPointerScanNodePage::default();
+        }
+
+        let total_node_count = self.count_display_nodes_for_pointer_value(child_discovery_depth, parent_materialized_node.get_pointer_value());
         let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
         let bounded_page_index = page_index.clamp(0, last_page_index);
         let page_key = MaterializedPointerScanPageKey {
@@ -386,7 +392,8 @@ impl PointerScanSession {
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
         let materialized_node_ids = self.materialize_display_node_page(
             parent_materialized_node.get_graph_node_id(),
-            parent_materialized_node.get_discovery_depth(),
+            child_discovery_depth,
+            parent_materialized_node.get_branch_total_depth(),
             parent_materialized_node.get_pointer_scan_node_type(),
             parent_materialized_node.get_pointer_address(),
             parent_materialized_node.get_pointer_value(),
@@ -413,6 +420,7 @@ impl PointerScanSession {
         &mut self,
         candidate_id: u64,
         discovery_depth: u64,
+        branch_total_depth: u64,
         pointer_scan_node_type: crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType,
         pointer_address: u64,
         pointer_value: u64,
@@ -437,6 +445,7 @@ impl PointerScanSession {
             let materialized_pointer_scan_node = self.create_materialized_pointer_scan_node(
                 candidate_id,
                 discovery_depth,
+                branch_total_depth,
                 pointer_scan_node_type,
                 pointer_address,
                 pointer_value,
@@ -475,6 +484,7 @@ impl PointerScanSession {
                 Some(self.create_materialized_pointer_scan_node(
                     candidate_id,
                     discovery_depth,
+                    branch_total_depth,
                     pointer_scan_node_type,
                     pointer_address,
                     pointer_value,
@@ -534,6 +544,7 @@ impl PointerScanSession {
         Some(self.create_materialized_pointer_scan_node(
             candidate_id,
             discovery_depth,
+            discovery_depth,
             pointer_scan_node_type,
             pointer_address,
             pointer_value,
@@ -551,6 +562,7 @@ impl PointerScanSession {
         &mut self,
         candidate_id: u64,
         discovery_depth: u64,
+        branch_total_depth: u64,
         pointer_scan_node_type: crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType,
         pointer_address: u64,
         pointer_value: u64,
@@ -568,6 +580,7 @@ impl PointerScanSession {
             materialized_node_id,
             candidate_id,
             discovery_depth,
+            branch_total_depth,
             display_depth,
             parent_node_id,
             pointer_scan_node_type,

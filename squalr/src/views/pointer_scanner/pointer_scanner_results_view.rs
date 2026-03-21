@@ -3,7 +3,7 @@ use crate::ui::draw::icon_draw::IconDraw;
 use crate::views::pointer_scanner::pointer_scanner_footer_view::PointerScannerFooterView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Align, Align2, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind};
 use squalr_engine_api::{commands::unprivileged_command_request::UnprivilegedCommandRequest, dependency_injection::dependency::Dependency};
 use std::sync::Arc;
@@ -19,7 +19,14 @@ pub struct PointerScannerResultsView {
 impl PointerScannerResultsView {
     const COLUMN_SEPARATOR_THICKNESS: f32 = 2.0;
     const HEADER_HEIGHT: f32 = 26.0;
-    const ROW_HEIGHT: f32 = 22.0;
+    const ROW_HEIGHT: f32 = 28.0;
+    const OUTER_HORIZONTAL_PADDING: f32 = 8.0;
+    const COLUMN_PADDING: f32 = 8.0;
+    const PRIMARY_COLUMN_WIDTH_RATIO: f32 = 0.39;
+    const VALUE_COLUMN_WIDTH_RATIO: f32 = 0.21;
+    const RESOLVED_COLUMN_WIDTH_RATIO: f32 = 0.24;
+    const DISCLOSURE_ICON_SIZE: f32 = 10.0;
+    const DISCLOSURE_TEXT_SPACING: f32 = 6.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
@@ -38,16 +45,65 @@ impl PointerScannerResultsView {
         }
     }
 
-    fn column_positions(rectangle: Rect) -> (f32, f32, f32, f32, f32, f32) {
-        let total_width = rectangle.width();
-        let location_x = rectangle.min.x + 12.0;
-        let offset_x = rectangle.min.x + total_width * 0.34;
-        let resolved_address_x = rectangle.min.x + total_width * 0.57;
-        let depth_x = rectangle.min.x + total_width * 0.76;
-        let state_x = rectangle.min.x + total_width * 0.84;
-        let action_x = rectangle.min.x + total_width * 0.92;
+    fn column_rectangles(rectangle: Rect) -> [Rect; 4] {
+        let separator_total_width = Self::COLUMN_SEPARATOR_THICKNESS * 3.0;
+        let content_width = (rectangle.width() - Self::OUTER_HORIZONTAL_PADDING * 2.0 - separator_total_width).max(0.0);
+        let primary_column_width = content_width * Self::PRIMARY_COLUMN_WIDTH_RATIO;
+        let value_column_width = content_width * Self::VALUE_COLUMN_WIDTH_RATIO;
+        let resolved_column_width = content_width * Self::RESOLVED_COLUMN_WIDTH_RATIO;
+        let depth_column_width = (content_width - primary_column_width - value_column_width - resolved_column_width).max(0.0);
+        let primary_column_min_x = rectangle.min.x + Self::OUTER_HORIZONTAL_PADDING;
+        let value_column_min_x = primary_column_min_x + primary_column_width + Self::COLUMN_SEPARATOR_THICKNESS;
+        let resolved_column_min_x = value_column_min_x + value_column_width + Self::COLUMN_SEPARATOR_THICKNESS;
+        let depth_column_min_x = resolved_column_min_x + resolved_column_width + Self::COLUMN_SEPARATOR_THICKNESS;
 
-        (location_x, offset_x, resolved_address_x, depth_x, state_x, action_x)
+        [
+            Rect::from_min_max(
+                pos2(primary_column_min_x, rectangle.min.y),
+                pos2(primary_column_min_x + primary_column_width, rectangle.max.y),
+            ),
+            Rect::from_min_max(
+                pos2(value_column_min_x, rectangle.min.y),
+                pos2(value_column_min_x + value_column_width, rectangle.max.y),
+            ),
+            Rect::from_min_max(
+                pos2(resolved_column_min_x, rectangle.min.y),
+                pos2(resolved_column_min_x + resolved_column_width, rectangle.max.y),
+            ),
+            Rect::from_min_max(
+                pos2(depth_column_min_x, rectangle.min.y),
+                pos2(depth_column_min_x + depth_column_width, rectangle.max.y),
+            ),
+        ]
+    }
+
+    fn draw_clipped_text(
+        &self,
+        user_interface: &mut Ui,
+        clip_rectangle: Rect,
+        text: &str,
+        font_id: FontId,
+        color: Color32,
+    ) {
+        let clipped_text_rectangle = clip_rectangle.intersect(user_interface.clip_rect());
+        let clipped_painter = user_interface.painter().with_clip_rect(clipped_text_rectangle);
+        clipped_painter.text(
+            pos2(clipped_text_rectangle.min.x, clipped_text_rectangle.center().y),
+            Align2::LEFT_CENTER,
+            text,
+            font_id,
+            color,
+        );
+    }
+
+    fn inset_text_rectangle(column_rectangle: Rect) -> Rect {
+        Rect::from_min_max(
+            pos2(column_rectangle.min.x + Self::COLUMN_PADDING, column_rectangle.min.y),
+            pos2(
+                (column_rectangle.max.x - Self::COLUMN_PADDING).max(column_rectangle.min.x + Self::COLUMN_PADDING),
+                column_rectangle.max.y,
+            ),
+        )
     }
 
     fn draw_column_separators(
@@ -56,14 +112,17 @@ impl PointerScannerResultsView {
         rectangle: Rect,
     ) {
         let theme = &self.app_context.theme;
-        let (_location_x, offset_x, resolved_address_x, depth_x, state_x, action_x) = Self::column_positions(rectangle);
+        let [
+            primary_column_rectangle,
+            value_column_rectangle,
+            resolved_column_rectangle,
+            _depth_column_rectangle,
+        ] = Self::column_rectangles(rectangle);
 
         for separator_x in [
-            offset_x - 10.0,
-            resolved_address_x - 10.0,
-            depth_x - 10.0,
-            state_x - 10.0,
-            action_x - 10.0,
+            primary_column_rectangle.max.x,
+            value_column_rectangle.max.x,
+            resolved_column_rectangle.max.x,
         ] {
             let separator_rectangle = Rect::from_min_max(
                 pos2(separator_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, rectangle.min.y),
@@ -83,8 +142,13 @@ impl PointerScannerResultsView {
         is_root_context: bool,
     ) {
         let theme = &self.app_context.theme;
-        let (location_x, offset_x, resolved_address_x, depth_x, state_x, action_x) = Self::column_positions(header_rectangle);
-        let primary_label = if is_root_context { "Root" } else { "Offset" };
+        let [
+            primary_column_rectangle,
+            value_column_rectangle,
+            resolved_column_rectangle,
+            depth_column_rectangle,
+        ] = Self::column_rectangles(header_rectangle);
+        let primary_label = if is_root_context { "Module" } else { "Offset" };
 
         user_interface
             .painter()
@@ -97,36 +161,33 @@ impl PointerScannerResultsView {
         );
 
         let header_font = theme.font_library.font_noto_sans.font_normal.clone();
-        let header_y = header_rectangle.center().y;
 
-        user_interface.painter().text(
-            pos2(location_x, header_y),
-            Align2::LEFT_CENTER,
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(primary_column_rectangle),
             primary_label,
             header_font.clone(),
             theme.foreground,
         );
-        user_interface
-            .painter()
-            .text(pos2(offset_x, header_y), Align2::LEFT_CENTER, "Pointer", header_font.clone(), theme.foreground);
-        user_interface.painter().text(
-            pos2(resolved_address_x, header_y),
-            Align2::LEFT_CENTER,
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(value_column_rectangle),
+            "Value",
+            header_font.clone(),
+            theme.foreground,
+        );
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(resolved_column_rectangle),
             "Resolved",
             header_font.clone(),
             theme.foreground,
         );
-        user_interface
-            .painter()
-            .text(pos2(depth_x, header_y), Align2::LEFT_CENTER, "Depth", header_font.clone(), theme.foreground);
-        user_interface
-            .painter()
-            .text(pos2(state_x, header_y), Align2::LEFT_CENTER, "State", header_font, theme.foreground);
-        user_interface.painter().text(
-            pos2(action_x, header_y),
-            Align2::LEFT_CENTER,
-            "Action",
-            theme.font_library.font_noto_sans.font_normal.clone(),
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(depth_column_rectangle),
+            "Depth",
+            header_font,
             theme.foreground,
         );
     }
@@ -140,25 +201,31 @@ impl PointerScannerResultsView {
         added_node_id: &mut Option<u64>,
     ) {
         let theme = &self.app_context.theme;
-        let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
-        let (location_x, offset_x, resolved_address_x, depth_x, state_x, action_x) = Self::column_positions(row_rectangle);
-        let action_rectangle = Rect::from_center_size(pos2(action_x + 10.0, row_rectangle.center().y), vec2(16.0, 16.0));
-        let action_response = if pointer_scanner_tree_row.has_children {
+        let visible_row_width = user_interface.clip_rect().width().max(0.0);
+        let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(visible_row_width, Self::ROW_HEIGHT), Sense::click());
+        let [
+            primary_column_rectangle,
+            value_column_rectangle,
+            resolved_column_rectangle,
+            depth_column_rectangle,
+        ] = Self::column_rectangles(row_rectangle);
+        let disclosure_icon_rectangle = Rect::from_center_size(
+            pos2(
+                primary_column_rectangle.min.x + Self::COLUMN_PADDING + Self::DISCLOSURE_ICON_SIZE * 0.5,
+                row_rectangle.center().y,
+            ),
+            vec2(Self::DISCLOSURE_ICON_SIZE, Self::DISCLOSURE_ICON_SIZE),
+        );
+        let disclosure_response = if pointer_scanner_tree_row.has_children {
             user_interface.interact(
-                action_rectangle,
+                disclosure_icon_rectangle,
                 user_interface
                     .id()
                     .with(("pointer_scanner_enter", pointer_scanner_tree_row.node_id)),
                 Sense::click(),
             )
         } else {
-            user_interface.interact(
-                action_rectangle,
-                user_interface
-                    .id()
-                    .with(("pointer_scanner_add", pointer_scanner_tree_row.node_id)),
-                Sense::click(),
-            )
+            user_interface.allocate_rect(disclosure_icon_rectangle, Sense::hover())
         };
 
         let row_background = if pointer_scanner_tree_row.is_selected {
@@ -182,63 +249,54 @@ impl PointerScannerResultsView {
         if pointer_scanner_tree_row.has_children {
             IconDraw::draw_sized(
                 user_interface,
-                action_rectangle.center(),
-                vec2(10.0, 10.0),
+                disclosure_icon_rectangle.center(),
+                vec2(Self::DISCLOSURE_ICON_SIZE, Self::DISCLOSURE_ICON_SIZE),
                 &theme.icon_library.icon_handle_navigation_right_arrow_small,
-            );
-        } else {
-            IconDraw::draw_sized(
-                user_interface,
-                action_rectangle.center(),
-                vec2(12.0, 12.0),
-                &theme.icon_library.icon_handle_project_pointer_type,
             );
         }
 
-        let row_center_y = row_rectangle.center().y;
         let module_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
         let value_font = theme.font_library.font_ubuntu_mono_bold.font_normal.clone();
-        let state_font = theme.font_library.font_noto_sans.font_small.clone();
-        let state_color = if pointer_scanner_tree_row.state_text == "Static" {
-            theme.selected_border
+        let primary_text_min_x = if pointer_scanner_tree_row.has_children {
+            disclosure_icon_rectangle.max.x + Self::DISCLOSURE_TEXT_SPACING
         } else {
-            theme.foreground
+            primary_column_rectangle.min.x + Self::COLUMN_PADDING
         };
+        let primary_text_rectangle = Rect::from_min_max(
+            pos2(primary_text_min_x, primary_column_rectangle.min.y),
+            pos2(
+                (primary_column_rectangle.max.x - Self::COLUMN_PADDING).max(primary_text_min_x),
+                primary_column_rectangle.max.y,
+            ),
+        );
 
-        user_interface.painter().text(
-            pos2(location_x, row_center_y),
-            Align2::LEFT_CENTER,
-            &pointer_scanner_tree_row.location_text,
+        self.draw_clipped_text(
+            user_interface,
+            primary_text_rectangle,
+            &pointer_scanner_tree_row.primary_text,
             module_font.clone(),
             theme.foreground,
         );
-        user_interface.painter().text(
-            pos2(offset_x, row_center_y),
-            Align2::LEFT_CENTER,
-            &pointer_scanner_tree_row.offset_text,
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(value_column_rectangle),
+            &pointer_scanner_tree_row.value_text,
             value_font.clone(),
             theme.foreground,
         );
-        user_interface.painter().text(
-            pos2(resolved_address_x, row_center_y),
-            Align2::LEFT_CENTER,
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(resolved_column_rectangle),
             &pointer_scanner_tree_row.resolved_address_text,
             value_font.clone(),
             theme.foreground,
         );
-        user_interface.painter().text(
-            pos2(depth_x, row_center_y),
-            Align2::LEFT_CENTER,
+        self.draw_clipped_text(
+            user_interface,
+            Self::inset_text_rectangle(depth_column_rectangle),
             &pointer_scanner_tree_row.depth_text,
-            value_font.clone(),
+            value_font,
             theme.foreground,
-        );
-        user_interface.painter().text(
-            pos2(state_x, row_center_y),
-            Align2::LEFT_CENTER,
-            &pointer_scanner_tree_row.state_text,
-            state_font,
-            state_color,
         );
 
         if row_response.hovered() {
@@ -249,20 +307,16 @@ impl PointerScannerResultsView {
             *clicked_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
-        if (row_response.double_clicked() || action_response.double_clicked()) && pointer_scanner_tree_row.has_children {
+        if (row_response.double_clicked() || disclosure_response.double_clicked()) && pointer_scanner_tree_row.has_children {
             *entered_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
-        if (row_response.double_clicked() || action_response.double_clicked()) && !pointer_scanner_tree_row.has_children {
+        if row_response.double_clicked() && !pointer_scanner_tree_row.has_children {
             *added_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
-        if action_response.clicked() {
-            if pointer_scanner_tree_row.has_children {
-                *entered_node_id = Some(pointer_scanner_tree_row.node_id);
-            } else {
-                *added_node_id = Some(pointer_scanner_tree_row.node_id);
-            }
+        if disclosure_response.clicked() && pointer_scanner_tree_row.has_children {
+            *entered_node_id = Some(pointer_scanner_tree_row.node_id);
         }
     }
 }

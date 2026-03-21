@@ -6,6 +6,7 @@ pub struct PointerScanNode {
     node_id: u64,
     graph_node_id: u64,
     discovery_depth: u64,
+    branch_total_depth: u64,
     parent_node_id: Option<u64>,
     pointer_scan_node_type: PointerScanNodeType,
     depth: u64,
@@ -39,6 +40,7 @@ impl PointerScanNode {
             node_id,
             graph_node_id: node_id,
             discovery_depth: depth,
+            branch_total_depth: depth,
             parent_node_id,
             pointer_scan_node_type,
             depth,
@@ -57,6 +59,7 @@ impl PointerScanNode {
         node_id: u64,
         graph_node_id: u64,
         discovery_depth: u64,
+        branch_total_depth: u64,
         depth: u64,
         parent_node_id: Option<u64>,
         pointer_scan_node_type: PointerScanNodeType,
@@ -72,6 +75,7 @@ impl PointerScanNode {
             node_id,
             graph_node_id,
             discovery_depth,
+            branch_total_depth,
             parent_node_id,
             pointer_scan_node_type,
             depth,
@@ -98,6 +102,10 @@ impl PointerScanNode {
         self.discovery_depth
     }
 
+    pub fn get_branch_total_depth(&self) -> u64 {
+        self.branch_total_depth
+    }
+
     pub fn get_parent_node_id(&self) -> Option<u64> {
         self.parent_node_id
     }
@@ -122,6 +130,13 @@ impl PointerScanNode {
         discovery_depth: u64,
     ) {
         self.discovery_depth = discovery_depth;
+    }
+
+    pub fn set_branch_total_depth(
+        &mut self,
+        branch_total_depth: u64,
+    ) {
+        self.branch_total_depth = branch_total_depth;
     }
 
     pub fn get_pointer_address(&self) -> u64 {
