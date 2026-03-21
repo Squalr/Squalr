@@ -22,10 +22,13 @@ pub struct PointerScannerToolbarView {
 }
 
 impl PointerScannerToolbarView {
-    const CONTROL_HEIGHT: f32 = 32.0;
-    const ROW_SPACING: f32 = 8.0;
+    const CONTROL_HEIGHT: f32 = 28.0;
+    const ROW_SPACING: f32 = 6.0;
+    const LEADING_ROW_PADDING: f32 = 8.0;
     const GROUP_SPACING: f32 = 16.0;
     const LABEL_TO_CONTROL_SPACING: f32 = 8.0;
+    const STATUS_HEIGHT: f32 = 24.0;
+    const BOTTOM_PADDING: f32 = 4.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
@@ -47,7 +50,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        120.0
+        Self::CONTROL_HEIGHT * 2.0 + Self::STATUS_HEIGHT + Self::ROW_SPACING * 3.0 + Self::BOTTOM_PADDING
     }
 
     fn draw_icon_button(
@@ -174,7 +177,7 @@ impl Widget for PointerScannerToolbarView {
                             &mut pointer_scanner_view_data.target_address_input
                         };
 
-                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
                         self.draw_field_label(user_interface, target_label, 52.0);
                         user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
                         user_interface.add(
@@ -215,7 +218,7 @@ impl Widget for PointerScannerToolbarView {
 
                 user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
                     user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
-                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
                         self.draw_field_label(user_interface, "Depth", 44.0);
                         user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
                         user_interface.add(
@@ -317,14 +320,18 @@ impl Widget for PointerScannerToolbarView {
 
                 user_interface.add_space(Self::ROW_SPACING);
 
-                user_interface.horizontal_wrapped(|user_interface| {
-                    user_interface.add_space(Self::GROUP_SPACING);
-                    user_interface.label(
-                        RichText::new(&pointer_scanner_view_data.status_message)
-                            .font(theme.font_library.font_noto_sans.font_normal.clone())
-                            .color(theme.foreground),
-                    );
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::STATUS_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.label(
+                            RichText::new(&pointer_scanner_view_data.status_message)
+                                .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                .color(theme.foreground),
+                        );
+                    });
                 });
+
+                user_interface.add_space(Self::BOTTOM_PADDING);
             });
         }
 
