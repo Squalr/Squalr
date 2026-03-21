@@ -215,7 +215,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         );
         let text_pos = pos2(text_rectangle.min.x + text_left_padding, text_rectangle.center().y);
 
-        user_interface.painter().text(
+        let text_painter = user_interface
+            .painter()
+            .with_clip_rect(text_rectangle.shrink2(vec2(text_left_padding, 0.0)));
+
+        text_painter.text(
             text_pos,
             Align2::LEFT_CENTER,
             self.field_presentation.display_name(),

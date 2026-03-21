@@ -42,7 +42,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        116.0
+        84.0
     }
 
     fn draw_icon_button(
@@ -117,6 +117,12 @@ impl Widget for PointerScannerToolbarView {
             let unsigned_data_type = DataTypeRef::new("u64");
             let action_button_size = [36.0, 28.0];
             let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
+            let target_label = if has_active_pointer_scan_session { "Validate" } else { "Target" };
+            let target_placeholder = if has_active_pointer_scan_session {
+                "Enter validation address..."
+            } else {
+                "Enter target address..."
+            };
             let are_session_actions_disabled = pointer_scanner_view_data.is_querying_summary
                 || pointer_scanner_view_data.is_starting_scan
                 || pointer_scanner_view_data.is_validating_scan
@@ -131,6 +137,33 @@ impl Widget for PointerScannerToolbarView {
                 user_interface.add_space(6.0);
 
                 user_interface.horizontal_wrapped(|user_interface| {
+                    let pointer_size_data_type = pointer_scanner_view_data
+                        .pointer_size_data_type_selection
+                        .visible_data_type()
+                        .clone();
+                    let active_target_input = if has_active_pointer_scan_session {
+                        &mut pointer_scanner_view_data.validation_target_address_input
+                    } else {
+                        &mut pointer_scanner_view_data.target_address_input
+                    };
+
+                    user_interface.label(target_label);
+                    user_interface.add(
+                        DataValueBoxView::new(
+                            self.app_context.clone(),
+                            active_target_input,
+                            &pointer_size_data_type,
+                            false,
+                            true,
+                            target_placeholder,
+                            "pointer_scanner_active_target_address",
+                        )
+                        .width(184.0)
+                        .height(28.0)
+                        .use_format_text_colors(false),
+                    );
+
+                    user_interface.add_space(8.0);
                     user_interface.label("Pointer Size");
                     user_interface.add(
                         DataTypeSelectorView::new(
@@ -145,27 +178,6 @@ impl Widget for PointerScannerToolbarView {
                         .hide_placeholder_entries(),
                     );
                     pointer_scanner_view_data.synchronize_pointer_size_from_selection();
-                    let pointer_size_data_type = pointer_scanner_view_data
-                        .pointer_size_data_type_selection
-                        .visible_data_type()
-                        .clone();
-
-                    user_interface.add_space(8.0);
-                    user_interface.label("Target");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.target_address_input,
-                            &pointer_size_data_type,
-                            false,
-                            true,
-                            "Enter target address...",
-                            "pointer_scanner_target_address",
-                        )
-                        .width(184.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
 
                     user_interface.add_space(6.0);
                     user_interface.label("Depth");
@@ -205,29 +217,6 @@ impl Widget for PointerScannerToolbarView {
                 user_interface.add_space(6.0);
 
                 user_interface.horizontal_wrapped(|user_interface| {
-                    let pointer_size_data_type = pointer_scanner_view_data
-                        .pointer_size_data_type_selection
-                        .visible_data_type()
-                        .clone();
-
-                    user_interface.label("Validate");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.validation_target_address_input,
-                            &pointer_size_data_type,
-                            false,
-                            true,
-                            "Enter validation address...",
-                            "pointer_scanner_validation_target_address",
-                        )
-                        .width(184.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
-
-                    user_interface.add_space(6.0);
-
                     if self
                         .draw_icon_button(
                             user_interface,

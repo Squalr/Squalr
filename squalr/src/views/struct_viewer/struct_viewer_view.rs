@@ -89,9 +89,10 @@ impl Widget for StructViewerView {
 
                             for (field_row_index, field) in struct_fields.into_iter().enumerate() {
                                 let is_selected = selected_field_name.as_deref().unwrap_or_default() == field.get_name();
-                                let validation_data_type_ref = field
-                                    .get_data_value()
-                                    .map(|data_value| data_value.get_data_type_ref());
+                                let validation_data_type_ref = struct_viewer_view_data
+                                    .field_validation_data_type_refs
+                                    .get(field.get_name())
+                                    .cloned();
                                 let field_display_values = field_display_values_map
                                     .get(field.get_name())
                                     .map(Vec::as_slice);
@@ -116,7 +117,7 @@ impl Widget for StructViewerView {
                                             field_edit_value,
                                             field_display_values,
                                             None,
-                                            validation_data_type_ref,
+                                            validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
@@ -136,7 +137,7 @@ impl Widget for StructViewerView {
                                             None,
                                             field_display_values,
                                             field_data_type_selection,
-                                            validation_data_type_ref,
+                                            validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
                                             value_splitter_x + BAR_THICKNESS,
                                         ));

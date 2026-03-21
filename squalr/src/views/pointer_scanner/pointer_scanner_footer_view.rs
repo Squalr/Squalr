@@ -101,9 +101,13 @@ impl Widget for PointerScannerFooterView {
             Button::new_from_theme(theme)
                 .disabled(!can_navigate_back)
                 .background_color(Color32::TRANSPARENT)
-                .with_tooltip_text("Return to the previous pointer context."),
+                .with_tooltip_text("Return to the parent pointer context."),
         );
-        IconDraw::draw(&top_row_user_interface, back_button.rect, &theme.icon_library.icon_handle_navigation_left_arrow);
+        IconDraw::draw(
+            &top_row_user_interface,
+            back_button.rect,
+            &theme.icon_library.icon_handle_navigation_up_arrow_small,
+        );
         if back_button.clicked() {
             should_navigate_back = true;
         }

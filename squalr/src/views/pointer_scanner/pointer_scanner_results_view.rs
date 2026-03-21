@@ -249,11 +249,11 @@ impl PointerScannerResultsView {
             *clicked_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
-        if row_response.double_clicked() && pointer_scanner_tree_row.has_children {
+        if (row_response.double_clicked() || action_response.double_clicked()) && pointer_scanner_tree_row.has_children {
             *entered_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
-        if row_response.double_clicked() && !pointer_scanner_tree_row.has_children {
+        if (row_response.double_clicked() || action_response.double_clicked()) && !pointer_scanner_tree_row.has_children {
             *added_node_id = Some(pointer_scanner_tree_row.node_id);
         }
 
