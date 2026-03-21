@@ -1,11 +1,17 @@
+use crate::command_executors::pointer_scan::pointer_scan_target_resolver::PointerScanTargetResolver;
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::scanners::value_collector_task::ValueCollector;
 use squalr_engine_session::os::PageRetrievalMode;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
     type ResponseType = PointerScanValidateResponse;
@@ -63,48 +69,6 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             };
         }
 
-        let symbol_registry = engine_privileged_state.get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(symbol_registry_guard) => symbol_registry_guard,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return PointerScanValidateResponse {
-                    validation_performed: false,
-                    validation_target_address: None,
-                    pruned_node_count: 0,
-                    status_message: "Failed to access the symbol registry for validation.".to_string(),
-                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
-                };
-            }
-        };
-        let pointer_size = pointer_scan_session.get_pointer_size();
-        let validation_target_data_type_ref = pointer_size.to_data_type_ref();
-        let validation_target_data_value = match symbol_registry_guard.deanonymize_value_string(&validation_target_data_type_ref, &self.target_address) {
-            Ok(validation_target_data_value) => validation_target_data_value,
-            Err(error) => {
-                log::error!("Failed to deanonymize pointer scan validation target address: {}", error);
-
-                return PointerScanValidateResponse {
-                    validation_performed: false,
-                    validation_target_address: None,
-                    pruned_node_count: 0,
-                    status_message: "Failed to parse the validation target address.".to_string(),
-                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
-                };
-            }
-        };
-        let Some(validation_target_address) = pointer_size.read_address_value(&validation_target_data_value) else {
-            return PointerScanValidateResponse {
-                validation_performed: false,
-                validation_target_address: None,
-                pruned_node_count: 0,
-                status_message: "Failed to decode the validation target address.".to_string(),
-                pointer_scan_summary: Some(pointer_scan_session.summarize()),
-            };
-        };
-        drop(symbol_registry_guard);
-
         let modules = engine_privileged_state
             .get_os_providers()
             .memory_query
@@ -121,11 +85,57 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 memory_read_provider.read_bytes(opened_process_info, address, values)
             })),
         );
+        let mut validation_snapshot = Snapshot::new();
+        validation_snapshot.set_snapshot_regions(merge_memory_regions_into_snapshot_regions(memory_regions));
+        let validation_snapshot = Arc::new(RwLock::new(validation_snapshot));
+
+        ValueCollector::collect_values(process_info.clone(), validation_snapshot.clone(), true, &scan_execution_context);
+
+        let resolved_targets = match PointerScanTargetResolver::resolve_targets(
+            &self.target,
+            pointer_scan_session.get_pointer_size(),
+            validation_snapshot.clone(),
+            process_info.clone(),
+            ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
+            ScanSettingsConfig::get_floating_point_tolerance(),
+            ScanSettingsConfig::get_is_single_threaded_scan(),
+            ScanSettingsConfig::get_debug_perform_validation_scan(),
+            &scan_execution_context,
+        ) {
+            Ok(resolved_targets) => resolved_targets,
+            Err(error) => {
+                log::error!("{}", error);
+                return PointerScanValidateResponse {
+                    validation_performed: false,
+                    validation_target_address: None,
+                    pruned_node_count: 0,
+                    status_message: error,
+                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                };
+            }
+        };
+        let validation_target_address = resolved_targets.target_descriptor.get_target_address();
+
+        let validation_snapshot_guard = match validation_snapshot.read() {
+            Ok(validation_snapshot_guard) => validation_snapshot_guard,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on validation snapshot: {}", error);
+
+                return PointerScanValidateResponse {
+                    validation_performed: false,
+                    validation_target_address: None,
+                    pruned_node_count: 0,
+                    status_message: "Failed to access the validation snapshot.".to_string(),
+                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                };
+            }
+        };
         let validated_pointer_scan_session = PointerScanValidator::validate_scan(
             process_info,
             &pointer_scan_session,
-            validation_target_address,
-            &memory_regions,
+            resolved_targets.target_descriptor,
+            resolved_targets.target_addresses,
+            &validation_snapshot_guard,
             &modules,
             &scan_execution_context,
             true,
@@ -146,11 +156,13 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
 
         PointerScanValidateResponse {
             validation_performed: true,
-            validation_target_address: Some(validation_target_address),
+            validation_target_address,
             pruned_node_count,
             status_message: format!(
-                "Validated pointer scan session {} against 0x{:X}. Pruned {} nodes.",
-                self.session_id, validation_target_address, pruned_node_count
+                "Validated pointer scan session {} against {}. Pruned {} nodes.",
+                self.session_id,
+                validated_pointer_scan_summary.get_target_descriptor(),
+                pruned_node_count
             ),
             pointer_scan_summary: Some(validated_pointer_scan_summary),
         }

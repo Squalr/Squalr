@@ -2,7 +2,11 @@ use crate::project::serialization::serializable_project_file::SerializableProjec
 use squalr_engine_api::structures::projects::{
     project::Project,
     project_info::ProjectInfo,
-    project_items::{built_in_types::project_item_type_directory::ProjectItemTypeDirectory, project_item::ProjectItem, project_item_ref::ProjectItemRef},
+    project_items::{
+        built_in_types::{project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer},
+        project_item::ProjectItem,
+        project_item_ref::ProjectItemRef,
+    },
 };
 use std::{collections::HashMap, path::Path};
 
@@ -57,7 +61,11 @@ impl SerializableProjectFile for Project {
                     load_recursive(&entry_path, project_items)?;
                 } else if is_project_item_file_path(&entry_path) {
                     let item_ref = ProjectItemRef::new(entry_path.clone());
-                    let project_item = ProjectItem::load_from_path(&entry_path)?;
+                    let mut project_item = ProjectItem::load_from_path(&entry_path)?;
+
+                    if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+                        ProjectItemTypePointer::normalize_pointer_fields(&mut project_item);
+                    }
 
                     project_items.insert(item_ref, project_item);
                 } else {

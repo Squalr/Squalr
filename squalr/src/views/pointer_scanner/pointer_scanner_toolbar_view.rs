@@ -6,7 +6,7 @@ use crate::ui::widgets::controls::{
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Color32, Response, RichText, Sense, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Color32, Response, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -22,6 +22,12 @@ pub struct PointerScannerToolbarView {
 }
 
 impl PointerScannerToolbarView {
+    const CONTROL_HEIGHT: f32 = 28.0;
+    const ROW_SPACING: f32 = 6.0;
+    const LEADING_ROW_PADDING: f32 = 8.0;
+    const GROUP_SPACING: f32 = 8.0;
+    const BOTTOM_PADDING: f32 = 4.0;
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
             .dependency_container
@@ -42,7 +48,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        116.0
+        Self::CONTROL_HEIGHT * 3.0 + Self::ROW_SPACING * 3.0 + Self::BOTTOM_PADDING
     }
 
     fn draw_icon_button(
@@ -88,12 +94,8 @@ impl Widget for PointerScannerToolbarView {
 
         let mut should_start_scan = false;
         let mut should_reset_scan = false;
-        let mut should_refresh_summary = false;
-        let mut should_copy_chain = false;
-        let mut should_export_chain = false;
+        let mut should_start_value_scan = false;
         let mut should_add_to_project = false;
-        let mut copy_text = None;
-        let mut export_text = None;
         let mut project_item_create_request = None;
         let opened_process_bitness = self
             .process_selector_view_data
@@ -121,6 +123,11 @@ impl Widget for PointerScannerToolbarView {
             let unsigned_data_type = DataTypeRef::new("u64");
             let action_button_size = [36.0, 28.0];
             let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
+            let target_placeholder = if has_active_pointer_scan_session {
+                "Enter validation address..."
+            } else {
+                "Enter target address..."
+            };
             let are_session_actions_disabled = pointer_scanner_view_data.is_querying_summary
                 || pointer_scanner_view_data.is_starting_scan
                 || pointer_scanner_view_data.is_validating_scan
@@ -132,203 +139,209 @@ impl Widget for PointerScannerToolbarView {
             };
 
             user_interface.scope_builder(builder, |user_interface| {
-                user_interface.add_space(6.0);
+                user_interface.add_space(Self::ROW_SPACING);
 
-                user_interface.horizontal_wrapped(|user_interface| {
-                    user_interface.label("Pointer Size");
-                    user_interface.add(
-                        DataTypeSelectorView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.pointer_size_data_type_selection,
-                            "pointer_scanner_pointer_size",
-                        )
-                        .width(84.0)
-                        .height(28.0)
-                        .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
-                        .stacked_list()
-                        .hide_placeholder_entries(),
-                    );
-                    pointer_scanner_view_data.synchronize_pointer_size_from_selection();
-                    let pointer_size_data_type = pointer_scanner_view_data
-                        .pointer_size_data_type_selection
-                        .visible_data_type()
-                        .clone();
-
-                    user_interface.add_space(8.0);
-                    user_interface.label("Target");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.target_address_input,
-                            &pointer_size_data_type,
-                            false,
-                            true,
-                            "Enter target address...",
-                            "pointer_scanner_target_address",
-                        )
-                        .width(184.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
-
-                    user_interface.add_space(6.0);
-                    user_interface.label("Depth");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.max_depth_input,
-                            &unsigned_data_type,
-                            false,
-                            true,
-                            "Depth",
-                            "pointer_scanner_max_depth",
-                        )
-                        .width(84.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
-
-                    user_interface.add_space(6.0);
-                    user_interface.label("Offset");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.offset_radius_input,
-                            &unsigned_data_type,
-                            false,
-                            true,
-                            "Offset",
-                            "pointer_scanner_offset_radius",
-                        )
-                        .width(108.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
-                });
-
-                user_interface.add_space(6.0);
-
-                user_interface.horizontal_wrapped(|user_interface| {
-                    let pointer_size_data_type = pointer_scanner_view_data
-                        .pointer_size_data_type_selection
-                        .visible_data_type()
-                        .clone();
-
-                    user_interface.label("Validate");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.validation_target_address_input,
-                            &pointer_size_data_type,
-                            false,
-                            true,
-                            "Enter validation address...",
-                            "pointer_scanner_validation_target_address",
-                        )
-                        .width(184.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
-
-                    user_interface.add_space(6.0);
-
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_scan_new,
-                            "Clear the active pointer scan session.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            are_session_actions_disabled,
-                        )
-                        .clicked()
-                    {
-                        should_reset_scan = true;
-                    }
-
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_navigation_right_arrow,
-                            start_scan_tooltip,
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            are_session_actions_disabled,
-                        )
-                        .clicked()
-                    {
-                        if !has_active_pointer_scan_session {
-                            if let Some(process_bitness) = opened_process_bitness {
-                                pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
-                            }
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_scan_new,
+                                "Clear the active pointer scan session.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            should_reset_scan = true;
                         }
-                        should_start_scan = true;
-                    }
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_navigation_refresh,
-                            "Refresh the active pointer scan summary.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            are_session_actions_disabled,
-                        )
-                        .clicked()
-                    {
-                        should_refresh_summary = true;
-                    }
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.max_depth_input,
+                                &unsigned_data_type,
+                                false,
+                                true,
+                                "Depth",
+                                "pointer_scanner_max_depth",
+                            )
+                            .width(84.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_common_edit,
-                            "Copy the selected pointer chain text.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            false,
-                        )
-                        .clicked()
-                    {
-                        should_copy_chain = true;
-                    }
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.offset_radius_input,
+                                &unsigned_data_type,
+                                false,
+                                true,
+                                "Offset",
+                                "pointer_scanner_offset_radius",
+                            )
+                            .width(100.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_file_system_save,
-                            "Copy the selected pointer chain metadata to the clipboard.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            false,
-                        )
-                        .clicked()
-                    {
-                        should_export_chain = true;
-                    }
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataTypeSelectorView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.pointer_size_data_type_selection,
+                                "pointer_scanner_pointer_size",
+                            )
+                            .width(96.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
+                            .stacked_list()
+                            .hide_placeholder_entries(),
+                        );
+                        pointer_scanner_view_data.synchronize_pointer_size_from_selection();
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_project_pointer_type,
-                            "Persist the selected pointer chain to the current project.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            false,
-                        )
-                        .clicked()
-                    {
-                        should_add_to_project = true;
-                    }
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataTypeSelectorView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.target_data_type_selection,
+                                "pointer_scanner_target_data_type",
+                            )
+                            .width(132.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .hide_placeholder_entries(),
+                        );
+                    });
                 });
 
-                user_interface.add_space(6.0);
-                user_interface.label(
-                    RichText::new(&pointer_scanner_view_data.status_message)
-                        .font(theme.font_library.font_noto_sans.font_small.clone())
-                        .color(theme.foreground),
-                );
-                user_interface.add_space(6.0);
+                user_interface.add_space(Self::ROW_SPACING);
+
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        let pointer_size_data_type = pointer_scanner_view_data
+                            .pointer_size_data_type_selection
+                            .visible_data_type()
+                            .clone();
+                        let active_target_input = if has_active_pointer_scan_session {
+                            &mut pointer_scanner_view_data.validation_target_address_input
+                        } else {
+                            &mut pointer_scanner_view_data.target_address_input
+                        };
+
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                active_target_input,
+                                &pointer_size_data_type,
+                                false,
+                                true,
+                                target_placeholder,
+                                "pointer_scanner_active_target_address",
+                            )
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_preview_foreground(true)
+                            .use_format_text_colors(false),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_right_arrow,
+                                start_scan_tooltip,
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            if !has_active_pointer_scan_session {
+                                if let Some(process_bitness) = opened_process_bitness {
+                                    pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                }
+                            }
+                            should_start_scan = true;
+                        }
+
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_add,
+                                "Persist the selected pointer chain to the current project.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                false,
+                            )
+                            .clicked()
+                        {
+                            should_add_to_project = true;
+                        }
+                    });
+                });
+
+                user_interface.add_space(Self::ROW_SPACING);
+
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        let value_data_type_ref = pointer_scanner_view_data
+                            .target_data_type_selection
+                            .active_data_type()
+                            .clone();
+                        let active_value_input = if has_active_pointer_scan_session {
+                            &mut pointer_scanner_view_data.validation_target_value_input
+                        } else {
+                            &mut pointer_scanner_view_data.target_value_input
+                        };
+                        let value_placeholder = if has_active_pointer_scan_session {
+                            "Enter validation value..."
+                        } else {
+                            "Enter target value..."
+                        };
+
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                active_value_input,
+                                &value_data_type_ref,
+                                false,
+                                true,
+                                value_placeholder,
+                                "pointer_scanner_active_target_value",
+                            )
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_preview_foreground(true)
+                            .use_format_text_colors(false),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_right_arrow,
+                                "Start or validate a value-seeded pointer scan session.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            if !has_active_pointer_scan_session {
+                                if let Some(process_bitness) = opened_process_bitness {
+                                    pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                }
+                            }
+                            should_start_value_scan = true;
+                        }
+                    });
+                });
+                user_interface.add_space(Self::BOTTOM_PADDING);
             });
         }
 
@@ -340,30 +353,14 @@ impl Widget for PointerScannerToolbarView {
             PointerScannerViewData::start_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
-        if should_refresh_summary {
-            PointerScannerViewData::request_summary(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone(), None);
-        }
-
-        if should_copy_chain {
-            copy_text = PointerScannerViewData::build_copy_text(self.pointer_scanner_view_data.clone());
-        }
-
-        if should_export_chain {
-            export_text = PointerScannerViewData::build_export_text(self.pointer_scanner_view_data.clone());
+        if should_start_value_scan {
+            PointerScannerViewData::start_value_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
         if should_add_to_project {
             let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
             project_item_create_request =
                 PointerScannerViewData::build_project_item_create_request(self.pointer_scanner_view_data.clone(), target_directory_path);
-        }
-
-        if let Some(copy_text) = copy_text {
-            self.app_context.context.copy_text(copy_text);
-        }
-
-        if let Some(export_text) = export_text {
-            self.app_context.context.copy_text(export_text);
         }
 
         if let Some(project_item_create_request) = project_item_create_request {

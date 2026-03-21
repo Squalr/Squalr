@@ -47,14 +47,18 @@ impl Widget for PointerScannerView {
         user_interface: &mut Ui,
     ) -> Response {
         user_interface
-            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                user_interface.add(self.pointer_scanner_toolbar_view.clone());
-                PointerScannerViewData::dispatch_queued_expand_requests(
-                    self.pointer_scanner_view_data.clone(),
-                    self.app_context.engine_unprivileged_state.clone(),
-                );
-                user_interface.add(self.pointer_scanner_results_view.clone());
+            .scope(|user_interface| {
+                user_interface
+                    .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                        user_interface.add(self.pointer_scanner_toolbar_view.clone());
+                        PointerScannerViewData::dispatch_queued_expand_requests(
+                            self.pointer_scanner_view_data.clone(),
+                            self.app_context.engine_unprivileged_state.clone(),
+                        );
+                        user_interface.add(self.pointer_scanner_results_view.clone());
+                    })
+                    .response
             })
-            .response
+            .inner
     }
 }

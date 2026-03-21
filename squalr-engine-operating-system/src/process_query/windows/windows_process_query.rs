@@ -8,7 +8,7 @@ use squalr_engine_api::structures::processes::process_icon::ProcessIcon;
 use squalr_engine_api::structures::processes::process_info::ProcessInfo;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use sysinfo::{Pid, ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 use windows_sys::Win32::Foundation::{CloseHandle, FALSE, HANDLE, HWND, LPARAM, TRUE};
 use windows_sys::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, GetDC, HGDIOBJ, SelectObject,
@@ -272,8 +272,7 @@ impl ProcessQueryer for WindowsProcessQuery {
     }
 
     fn get_processes(process_query_options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        let mut system = System::new_all();
-        system.refresh_processes(ProcessesToUpdate::All, true);
+        let system = System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().without_tasks()));
 
         system
             .processes()

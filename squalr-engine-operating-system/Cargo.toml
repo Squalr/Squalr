@@ -1,6 +1,6 @@
 [package]
 name = "squalr-engine-operating-system"
-version = "0.1.6"
+version = "0.2.0"
 authors = ["Zachary Canann"]
 edition = "2024"
 

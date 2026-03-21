@@ -19,6 +19,11 @@ use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;
 
+struct PointerPreviewEvaluation {
+    resolved_target_address: Option<(u64, String)>,
+    evaluated_path: String,
+}
+
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
 
@@ -112,6 +117,10 @@ fn refresh_pointer_project_item_display_value(
     symbol_registry: &SymbolRegistry,
 ) {
     let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
+    let pointer_preview_evaluation = evaluate_pointer_for_preview(engine_unprivileged_state, &pointer);
+
+    ProjectItemTypePointer::set_field_evaluated_pointer_path(project_item, &pointer_preview_evaluation.evaluated_path);
+
     let Some(symbolic_struct_reference) = ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item) else {
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, "");
         return;
@@ -123,7 +132,7 @@ fn refresh_pointer_project_item_display_value(
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
-    let Some((resolved_address, resolved_module_name)) = resolve_pointer_target_address_for_read(engine_unprivileged_state, &pointer) else {
+    let Some((resolved_address, resolved_module_name)) = pointer_preview_evaluation.resolved_target_address else {
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -179,20 +188,53 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
     set_display_value(&freeze_display_value);
 }
 
-fn resolve_pointer_target_address_for_read(
+fn evaluate_pointer_for_preview(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     pointer: &Pointer,
-) -> Option<(u64, String)> {
+) -> PointerPreviewEvaluation {
+    let mut evaluated_path_segments = vec![format_pointer_root_segment(pointer)];
     let mut current_address = pointer.get_address();
     let mut current_module_name = pointer.get_module_name().to_string();
 
     for pointer_offset in pointer.get_offsets() {
-        let pointer_value = read_pointer_value(engine_unprivileged_state, current_address, &current_module_name, pointer.get_pointer_size())?;
-        current_address = Pointer::apply_pointer_offset(pointer_value, *pointer_offset)?;
+        let Some(pointer_value) = read_pointer_value(engine_unprivileged_state, current_address, &current_module_name, pointer.get_pointer_size()) else {
+            evaluated_path_segments.push(String::from("??"));
+
+            return PointerPreviewEvaluation {
+                resolved_target_address: None,
+                evaluated_path: evaluated_path_segments.join(" -> "),
+            };
+        };
+        let Some(next_address) = Pointer::apply_pointer_offset(pointer_value, *pointer_offset) else {
+            evaluated_path_segments.push(String::from("??"));
+
+            return PointerPreviewEvaluation {
+                resolved_target_address: None,
+                evaluated_path: evaluated_path_segments.join(" -> "),
+            };
+        };
+
+        current_address = next_address;
         current_module_name.clear();
+        evaluated_path_segments.push(format_pointer_address_segment(current_address));
     }
 
-    Some((current_address, current_module_name))
+    PointerPreviewEvaluation {
+        resolved_target_address: Some((current_address, current_module_name)),
+        evaluated_path: evaluated_path_segments.join(" -> "),
+    }
+}
+
+fn format_pointer_root_segment(pointer: &Pointer) -> String {
+    if pointer.get_module_name().is_empty() {
+        format_pointer_address_segment(pointer.get_address())
+    } else {
+        format!("{}+0x{:X}", pointer.get_module_name(), pointer.get_address())
+    }
+}
+
+fn format_pointer_address_segment(address: u64) -> String {
+    format!("0x{:X}", address)
 }
 
 fn read_pointer_value(
@@ -273,7 +315,7 @@ fn dispatch_memory_read_request(
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_pointer_target_address_for_read;
+    use super::{evaluate_pointer_for_preview, refresh_pointer_project_item_display_value};
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
@@ -286,9 +328,12 @@ mod tests {
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
     use squalr_engine_api::events::engine_event::EngineEvent;
-    use squalr_engine_api::structures::data_types::built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64};
+    use squalr_engine_api::structures::data_types::built_in_types::{
+        u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64,
+    };
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer;
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::sync::{Arc, Mutex, RwLock};
@@ -385,6 +430,23 @@ mod tests {
         }
     }
 
+    fn create_value_memory_read_response(
+        data_value: squalr_engine_api::structures::data_values::data_value::DataValue,
+        success: bool,
+    ) -> MemoryReadResponse {
+        let valued_struct = if success {
+            ValuedStruct::new_anonymous(vec![data_value.to_named_valued_struct_field("value".to_string(), true)])
+        } else {
+            ValuedStruct::default()
+        };
+
+        MemoryReadResponse {
+            valued_struct,
+            address: 0,
+            success,
+        }
+    }
+
     fn create_execution_context(mock_memory_read_bindings: MockMemoryReadBindings) -> Arc<dyn EngineExecutionContext> {
         let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(mock_memory_read_bindings));
 
@@ -392,7 +454,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_pointer_target_address_for_read_resolves_full_chain_and_clears_module_after_first_hop() {
+    fn evaluate_pointer_for_preview_resolves_full_chain_and_clears_module_after_first_hop() {
         let mock_memory_read_bindings =
             MockMemoryReadBindings::new(
                 |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
@@ -405,7 +467,7 @@ mod tests {
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
 
-        let resolved_target_address = resolve_pointer_target_address_for_read(&engine_execution_context, &pointer);
+        let resolved_target_address = evaluate_pointer_for_preview(&engine_execution_context, &pointer).resolved_target_address;
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
             .expect("Expected captured pointer preview memory reads.");
@@ -427,7 +489,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_pointer_target_address_for_read_returns_none_when_intermediate_read_fails() {
+    fn evaluate_pointer_for_preview_returns_none_when_intermediate_read_fails() {
         let mock_memory_read_bindings =
             MockMemoryReadBindings::new(
                 |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
@@ -439,8 +501,153 @@ mod tests {
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x10, 0x8], "game.exe".to_string(), PointerScanPointerSize::Pointer32);
 
-        let resolved_target_address = resolve_pointer_target_address_for_read(&engine_execution_context, &pointer);
+        let resolved_target_address = evaluate_pointer_for_preview(&engine_execution_context, &pointer).resolved_target_address;
 
         assert!(resolved_target_address.is_none());
+    }
+
+    #[test]
+    fn evaluate_pointer_for_preview_records_materialized_pointer_path() {
+        let mock_memory_read_bindings =
+            MockMemoryReadBindings::new(
+                |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
+                    (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer64, true),
+                    (0x2020, "") => create_pointer_memory_read_response(0x3000, PointerScanPointerSize::Pointer64, true),
+                    unexpected_request => panic!("Unexpected memory read request: {unexpected_request:?}"),
+                },
+            );
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+
+        let pointer_preview_evaluation = evaluate_pointer_for_preview(&engine_execution_context, &pointer);
+
+        assert_eq!(pointer_preview_evaluation.resolved_target_address, Some((0x2FF0, String::new())));
+        assert_eq!(pointer_preview_evaluation.evaluated_path, "game.exe+0x1000 -> 0x2020 -> 0x2FF0");
+    }
+
+    #[test]
+    fn evaluate_pointer_for_preview_marks_failed_hops() {
+        let mock_memory_read_bindings =
+            MockMemoryReadBindings::new(
+                |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
+                    (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer32, true),
+                    (0x2010, "") => create_pointer_memory_read_response(0, PointerScanPointerSize::Pointer32, false),
+                    unexpected_request => panic!("Unexpected memory read request: {unexpected_request:?}"),
+                },
+            );
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let pointer = Pointer::new_with_size(0x1000, vec![0x10, 0x8], "game.exe".to_string(), PointerScanPointerSize::Pointer32);
+
+        let pointer_preview_evaluation = evaluate_pointer_for_preview(&engine_execution_context, &pointer);
+
+        assert_eq!(pointer_preview_evaluation.resolved_target_address, None);
+        assert_eq!(pointer_preview_evaluation.evaluated_path, "game.exe+0x1000 -> 0x2010 -> ??");
+    }
+
+    #[test]
+    fn refresh_pointer_project_item_display_value_reads_final_value_from_resolved_address() {
+        let mock_memory_read_bindings =
+            MockMemoryReadBindings::new(
+                |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
+                    (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer64, true),
+                    (0x2020, "") => create_pointer_memory_read_response(0x3000, PointerScanPointerSize::Pointer64, true),
+                    (0x2FF0, "") => create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x1234), true),
+                    unexpected_request => panic!("Unexpected memory read request: {unexpected_request:?}"),
+                },
+            );
+        let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::get_instance();
+        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u16");
+
+        refresh_pointer_project_item_display_value(&engine_execution_context, &mut pointer_project_item, &symbol_registry);
+
+        let captured_memory_read_requests = captured_memory_read_requests
+            .lock()
+            .expect("Expected captured pointer preview memory reads.");
+
+        assert_eq!(
+            *captured_memory_read_requests,
+            vec![
+                CapturedMemoryReadRequest {
+                    address: 0x1000,
+                    module_name: "game.exe".to_string(),
+                },
+                CapturedMemoryReadRequest {
+                    address: 0x2020,
+                    module_name: String::new(),
+                },
+                CapturedMemoryReadRequest {
+                    address: 0x2FF0,
+                    module_name: String::new(),
+                },
+            ]
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_evaluated_pointer_path(&pointer_project_item),
+            "game.exe+0x1000 -> 0x2020 -> 0x2FF0"
+        );
+        assert_eq!(ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&pointer_project_item), "4660");
+    }
+
+    #[test]
+    fn refresh_pointer_project_item_display_value_still_reads_final_value_after_project_item_round_trip() {
+        let mock_memory_read_bindings =
+            MockMemoryReadBindings::new(
+                |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
+                    (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer64, true),
+                    (0x2020, "") => create_pointer_memory_read_response(0x3000, PointerScanPointerSize::Pointer64, true),
+                    (0x2FF0, "") => create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x1234), true),
+                    unexpected_request => panic!("Unexpected memory read request: {unexpected_request:?}"),
+                },
+            );
+        let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::get_instance();
+        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u16");
+        let serialized_pointer_project_item = serde_json::to_string(&pointer_project_item).expect("Expected pointer project item serialization to succeed.");
+        let mut deserialized_pointer_project_item =
+            serde_json::from_str::<squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>(&serialized_pointer_project_item)
+                .expect("Expected pointer project item deserialization to succeed.");
+
+        refresh_pointer_project_item_display_value(&engine_execution_context, &mut deserialized_pointer_project_item, &symbol_registry);
+
+        let captured_memory_read_requests = captured_memory_read_requests
+            .lock()
+            .expect("Expected captured pointer preview memory reads.");
+
+        assert_eq!(
+            *captured_memory_read_requests,
+            vec![
+                CapturedMemoryReadRequest {
+                    address: 0x1000,
+                    module_name: "game.exe".to_string(),
+                },
+                CapturedMemoryReadRequest {
+                    address: 0x2020,
+                    module_name: String::new(),
+                },
+                CapturedMemoryReadRequest {
+                    address: 0x2FF0,
+                    module_name: String::new(),
+                },
+            ]
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_evaluated_pointer_path(&deserialized_pointer_project_item),
+            "game.exe+0x1000 -> 0x2020 -> 0x2FF0"
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&deserialized_pointer_project_item),
+            "4660"
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(&deserialized_pointer_project_item)
+                .expect("Expected symbolic struct reference after project-item round trip.")
+                .get_symbolic_struct_namespace(),
+            "u16"
+        );
     }
 }

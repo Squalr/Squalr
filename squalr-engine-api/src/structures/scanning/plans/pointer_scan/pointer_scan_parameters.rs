@@ -3,7 +3,6 @@ use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPoin
 /// Represents the scan arguments for an element-wise scan.
 #[derive(Debug, Clone)]
 pub struct PointerScanParameters {
-    target_address: u64,
     pointer_size: PointerScanPointerSize,
     offset_radius: u64,
     max_depth: u64,
@@ -16,7 +15,6 @@ pub struct PointerScanParameters {
 
 impl PointerScanParameters {
     pub fn new(
-        target_address: u64,
         pointer_size: PointerScanPointerSize,
         offset_radius: u64,
         max_depth: u64,
@@ -24,17 +22,12 @@ impl PointerScanParameters {
         debug_perform_validation_scan: bool,
     ) -> Self {
         Self {
-            target_address,
             pointer_size,
             offset_radius,
             max_depth,
             is_single_thread_scan,
             debug_perform_validation_scan,
         }
-    }
-
-    pub fn get_target_address(&self) -> u64 {
-        self.target_address
     }
 
     pub fn get_pointer_size(&self) -> PointerScanPointerSize {

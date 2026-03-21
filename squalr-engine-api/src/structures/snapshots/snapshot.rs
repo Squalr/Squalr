@@ -1,3 +1,4 @@
+use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::scan_results::{scan_result_data_type_count::ScanResultDataTypeCount, scan_result_valued::ScanResultValued};
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -261,6 +262,37 @@ impl Snapshot {
         }
 
         (effective_page_index, scan_results_page)
+    }
+
+    pub fn collect_scan_result_addresses_for_data_type(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> Vec<u64> {
+        let symbol_registry = SymbolRegistry::get_instance();
+        let data_type_size_in_bytes = symbol_registry.get_unit_size_in_bytes(data_type_ref);
+        let mut scan_result_addresses = Vec::new();
+
+        for snapshot_region in &self.snapshot_regions {
+            let Some(snapshot_region_filter_collection) = snapshot_region
+                .get_scan_results()
+                .get_scan_results_by_data_type(data_type_ref)
+            else {
+                continue;
+            };
+            let memory_alignment = (snapshot_region_filter_collection.get_memory_alignment() as u64).max(1);
+
+            for snapshot_region_filter in snapshot_region_filter_collection.iter() {
+                let filter_base_address = snapshot_region_filter.get_base_address();
+                let filter_result_count =
+                    snapshot_region_filter.get_element_count(data_type_size_in_bytes, snapshot_region_filter_collection.get_memory_alignment());
+
+                for result_index in 0..filter_result_count {
+                    scan_result_addresses.push(filter_base_address.saturating_add(result_index.saturating_mul(memory_alignment)));
+                }
+            }
+        }
+
+        scan_result_addresses
     }
 }
 

@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 pub struct PointerScanExpandResponse {
     pub session_id: u64,
     pub parent_node_id: Option<u64>,
+    pub page_index: u64,
+    pub last_page_index: u64,
+    pub total_node_count: u64,
     pub pointer_scan_nodes: Vec<PointerScanNode>,
 }
 

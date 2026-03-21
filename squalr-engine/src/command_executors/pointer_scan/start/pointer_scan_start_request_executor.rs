@@ -1,9 +1,11 @@
+use crate::command_executors::pointer_scan::pointer_scan_target_resolver::PointerScanTargetResolver;
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
 use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
 use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
@@ -30,39 +32,6 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             return PointerScanStartResponse::default();
         };
         let effective_pointer_size = resolve_pointer_size_for_process_bitness(self.pointer_size, &process_info);
-
-        let symbol_registry = engine_privileged_state.get_symbol_registry();
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(symbol_registry_guard) => symbol_registry_guard,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return PointerScanStartResponse::default();
-            }
-        };
-        let target_address_data_type_ref = effective_pointer_size.to_data_type_ref();
-        let target_address_data_value = match symbol_registry_guard.deanonymize_value_string(&target_address_data_type_ref, &self.target_address) {
-            Ok(target_address_data_value) => target_address_data_value,
-            Err(error) => {
-                log::error!("Failed to deanonymize pointer scan target address: {}", error);
-
-                return PointerScanStartResponse::default();
-            }
-        };
-        let Some(target_address) = effective_pointer_size.read_address_value(&target_address_data_value) else {
-            log::error!("Failed to decode pointer scan target address using pointer size {}.", effective_pointer_size);
-
-            return PointerScanStartResponse::default();
-        };
-        drop(symbol_registry_guard);
-        let pointer_scan_parameters = PointerScanParameters::new(
-            target_address,
-            effective_pointer_size,
-            self.offset_radius,
-            self.max_depth,
-            ScanSettingsConfig::get_is_single_threaded_scan(),
-            ScanSettingsConfig::get_debug_perform_validation_scan(),
-        );
         let modules = engine_privileged_state
             .get_os_providers()
             .memory_query
@@ -82,16 +51,47 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 memory_read_provider.read_bytes(opened_process_info, address, values)
             })),
         );
+        let pointer_scan_parameters = PointerScanParameters::new(
+            effective_pointer_size,
+            self.offset_radius,
+            self.max_depth,
+            ScanSettingsConfig::get_is_single_threaded_scan(),
+            ScanSettingsConfig::get_debug_perform_validation_scan(),
+        );
+        PointerScanExecutor::collect_pointer_scan_values(
+            process_info.clone(),
+            pointer_scan_snapshot.clone(),
+            pointer_scan_snapshot.clone(),
+            true,
+            &scan_execution_context,
+        );
+        let resolved_targets = match PointerScanTargetResolver::resolve_targets(
+            &self.target,
+            effective_pointer_size,
+            pointer_scan_snapshot.clone(),
+            process_info.clone(),
+            ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
+            ScanSettingsConfig::get_floating_point_tolerance(),
+            ScanSettingsConfig::get_is_single_threaded_scan(),
+            ScanSettingsConfig::get_debug_perform_validation_scan(),
+            &scan_execution_context,
+        ) {
+            Ok(resolved_targets) => resolved_targets,
+            Err(error) => {
+                log::error!("{}", error);
+                return PointerScanStartResponse::default();
+            }
+        };
         let pointer_scan_session_id = engine_privileged_state.allocate_pointer_scan_session_id();
-        let pointer_scan_session = PointerScanExecutor::execute_scan(
-            process_info,
+        let pointer_scan_session = PointerScanExecutor::execute_scan_with_precollected_values(
             pointer_scan_snapshot.clone(),
             pointer_scan_snapshot,
             pointer_scan_session_id,
             pointer_scan_parameters,
+            resolved_targets.target_descriptor,
+            resolved_targets.target_addresses,
             &modules,
             true,
-            &scan_execution_context,
         );
         let pointer_scan_summary = pointer_scan_session.summarize();
 
@@ -144,6 +144,7 @@ mod tests {
     use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::events::engine_event::EngineEvent;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
     use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
     use squalr_engine_api::structures::data_values::container_type::ContainerType;
@@ -152,6 +153,7 @@ mod tests {
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
     use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
     use squalr_engine_api::structures::processes::process_info::ProcessInfo;
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
@@ -371,7 +373,11 @@ mod tests {
         );
 
         let pointer_scan_start_response = PointerScanStartRequest {
-            target_address: AnonymousValueString::new(String::from("0x3010"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
+            target: PointerScanTargetRequest::address(AnonymousValueString::new(
+                String::from("0x3010"),
+                AnonymousValueStringFormat::Hexadecimal,
+                ContainerType::None,
+            )),
             pointer_size: PointerScanPointerSize::Pointer64,
             max_depth: 3,
             offset_radius: 0x20,
@@ -426,7 +432,11 @@ mod tests {
             ));
 
         let pointer_scan_start_response = PointerScanStartRequest {
-            target_address: AnonymousValueString::new(String::from("0x3010"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
+            target: PointerScanTargetRequest::address(AnonymousValueString::new(
+                String::from("0x3010"),
+                AnonymousValueStringFormat::Hexadecimal,
+                ContainerType::None,
+            )),
             pointer_size: PointerScanPointerSize::Pointer64,
             max_depth: 3,
             offset_radius: 0x20,
@@ -441,6 +451,68 @@ mod tests {
         assert_eq!(pointer_scan_summary.get_total_node_count(), 3);
         assert_eq!(pointer_scan_summary.get_total_static_node_count(), 2);
         assert_eq!(pointer_scan_summary.get_total_heap_node_count(), 1);
+    }
+
+    #[test]
+    fn execute_supports_value_seeded_pointer_scans() {
+        let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = Arc::new(RwLock::new(TestEngineBindings));
+        let os_providers = EngineOsProviders::new(
+            Arc::new(TestProcessQueryProvider),
+            Arc::new(TestMemoryQueryProvider {
+                module_descriptors: vec![(String::from("game.exe"), 0x1000, 0x100)],
+                usermode_memory_regions: vec![
+                    NormalizedRegion::new(0x1000, 0x40),
+                    NormalizedRegion::new(0x2000, 0x40),
+                    NormalizedRegion::new(0x3000, 0x40),
+                ],
+            }),
+            Arc::new(TestMemoryReadProvider {
+                memory_bytes_by_address: build_pointer_scan_memory_map(),
+            }),
+            Arc::new(TestMemoryWriteProvider),
+        );
+        let engine_privileged_state = EnginePrivilegedState::new(engine_bindings, os_providers).expect("Expected the test engine state to initialize.");
+
+        engine_privileged_state
+            .get_process_manager()
+            .set_opened_process(OpenedProcessInfo::new(
+                std::process::id(),
+                String::from("pointer-test-value"),
+                1,
+                Bitness::Bit64,
+                None,
+            ));
+
+        let pointer_scan_start_response = PointerScanStartRequest {
+            target: PointerScanTargetRequest::value(
+                AnonymousValueString::new(String::from("0x3000"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
+                DataTypeRef::new("u64"),
+            ),
+            pointer_size: PointerScanPointerSize::Pointer64,
+            max_depth: 2,
+            offset_radius: 0x20,
+        }
+        .execute(&engine_privileged_state);
+        let pointer_scan_summary = pointer_scan_start_response
+            .pointer_scan_summary
+            .expect("Expected the pointer scan summary.");
+
+        assert_eq!(pointer_scan_summary.get_root_node_count(), 1);
+        assert_eq!(pointer_scan_summary.get_total_static_node_count(), 1);
+        assert_eq!(pointer_scan_summary.get_total_heap_node_count(), 0);
+        assert_eq!(
+            pointer_scan_summary
+                .get_target_descriptor()
+                .get_target_address_count(),
+            1
+        );
+        assert_eq!(
+            pointer_scan_summary
+                .get_target_descriptor()
+                .get_data_type_ref()
+                .map(DataTypeRef::get_data_type_id),
+            Some("u64")
+        );
     }
 
     fn build_pointer_scan_memory_map() -> HashMap<u64, u8> {

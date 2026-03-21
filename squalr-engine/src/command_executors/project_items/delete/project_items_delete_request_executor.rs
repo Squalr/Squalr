@@ -5,7 +5,7 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
@@ -63,6 +63,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
 
         for project_item_path in &self.project_item_paths {
             let resolved_project_item_path = resolve_project_item_path(&project_directory_path, project_item_path);
+
+            if is_protected_project_item_path(&project_directory_path, &resolved_project_item_path) {
+                log::warn!("Refusing to delete protected project path {:?}.", resolved_project_item_path);
+                operation_success = false;
+                continue;
+            }
 
             if !resolved_project_item_path.exists() {
                 continue;
@@ -133,5 +139,94 @@ fn reload_opened_project(
             log::error!("Failed to reload project after project item mutation: {}", error);
             false
         }
+    }
+}
+
+fn is_protected_project_item_path(
+    project_directory_path: &Path,
+    resolved_project_item_path: &Path,
+) -> bool {
+    let normalized_project_directory_path = normalize_project_item_path(project_directory_path);
+    let normalized_hidden_project_root_path = normalize_project_item_path(&project_directory_path.join(Project::PROJECT_DIR));
+    let normalized_resolved_project_item_path = normalize_project_item_path(resolved_project_item_path);
+
+    normalized_resolved_project_item_path == normalized_project_directory_path || normalized_resolved_project_item_path == normalized_hidden_project_root_path
+}
+
+fn normalize_project_item_path(path: &Path) -> PathBuf {
+    let mut normalized_path = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                let has_normalizable_parent = normalized_path
+                    .components()
+                    .next_back()
+                    .map(|last_component| !matches!(last_component, Component::ParentDir | Component::RootDir | Component::Prefix(_)))
+                    .unwrap_or(false);
+
+                if has_normalizable_parent {
+                    normalized_path.pop();
+                } else {
+                    normalized_path.push(component.as_os_str());
+                }
+            }
+            _ => normalized_path.push(component.as_os_str()),
+        }
+    }
+
+    normalized_path
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_protected_project_item_path, normalize_project_item_path};
+    use squalr_engine_api::structures::projects::project::Project;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn is_protected_project_item_path_rejects_hidden_project_root() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+
+        assert!(is_protected_project_item_path(&project_directory_path, &hidden_project_root_path));
+    }
+
+    #[test]
+    fn is_protected_project_item_path_rejects_project_directory() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+
+        assert!(is_protected_project_item_path(&project_directory_path, &project_directory_path));
+    }
+
+    #[test]
+    fn is_protected_project_item_path_allows_normal_project_items() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_item_path = project_directory_path
+            .join(Project::PROJECT_DIR)
+            .join("Addresses")
+            .join("health.json");
+
+        assert!(!is_protected_project_item_path(&project_directory_path, &project_item_path));
+    }
+
+    #[test]
+    fn is_protected_project_item_path_rejects_hidden_project_root_with_relative_segments() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path
+            .join(Project::PROJECT_DIR)
+            .join(".")
+            .join("Child")
+            .join("..");
+
+        assert!(is_protected_project_item_path(&project_directory_path, &hidden_project_root_path));
+    }
+
+    #[test]
+    fn normalize_project_item_path_collapses_relative_segments() {
+        let normalized_path = normalize_project_item_path(Path::new("C:/Projects/TestProject/project_items/./Child/.."));
+
+        assert_eq!(normalized_path, PathBuf::from("C:/Projects/TestProject/project_items"));
     }
 }

@@ -11,14 +11,20 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state.get_pointer_scan_session().read() {
-            Ok(pointer_scan_session_guard) => {
-                if let Some(pointer_scan_session) = pointer_scan_session_guard.as_ref() {
+        match engine_privileged_state.get_pointer_scan_session().write() {
+            Ok(mut pointer_scan_session_guard) => {
+                if let Some(pointer_scan_session) = pointer_scan_session_guard.as_mut() {
                     if pointer_scan_session.get_session_id() == self.session_id {
+                        let (pointer_scan_nodes, page_index, last_page_index, total_node_count) =
+                            pointer_scan_session.get_expanded_node_page(self.parent_node_id, self.page_index, self.page_size);
+
                         return PointerScanExpandResponse {
                             session_id: self.session_id,
                             parent_node_id: self.parent_node_id,
-                            pointer_scan_nodes: pointer_scan_session.get_expanded_nodes(self.parent_node_id),
+                            page_index,
+                            last_page_index,
+                            total_node_count,
+                            pointer_scan_nodes,
                         };
                     }
                 }
@@ -26,15 +32,21 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
                 PointerScanExpandResponse {
                     session_id: self.session_id,
                     parent_node_id: self.parent_node_id,
+                    page_index: 0,
+                    last_page_index: 0,
+                    total_node_count: 0,
                     pointer_scan_nodes: Vec::new(),
                 }
             }
             Err(error) => {
-                log::error!("Failed to acquire read lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
 
                 PointerScanExpandResponse {
                     session_id: self.session_id,
                     parent_node_id: self.parent_node_id,
+                    page_index: 0,
+                    last_page_index: 0,
+                    total_node_count: 0,
                     pointer_scan_nodes: Vec::new(),
                 }
             }

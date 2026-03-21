@@ -21,12 +21,14 @@ pub struct ProjectItemTypePointer {}
 impl ProjectItemTypePointer {
     pub const PROJECT_ITEM_TYPE_ID: &str = "pointer";
     pub const DEFAULT_PROJECT_ITEM_NAME: &str = "New Pointer";
-    pub const PROPERTY_ADDRESS: &str = "address";
+    pub const PROPERTY_OFFSET: &str = "offset";
+    pub const LEGACY_PROPERTY_ADDRESS: &str = "address";
     pub const PROPERTY_MODULE: &str = "module";
     pub const PROPERTY_POINTER_OFFSETS: &str = "pointer_offsets";
     pub const PROPERTY_POINTER_SIZE: &str = "pointer_size";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
+    pub const PROPERTY_EVALUATED_POINTER_PATH: &str = "evaluated_pointer_path";
 
     pub fn new_project_item(
         name: &str,
@@ -40,7 +42,7 @@ impl ProjectItemTypePointer {
 
         project_item.set_field_description(description);
         Self::set_field_module(&mut project_item, pointer.get_module_name());
-        Self::set_field_address(&mut project_item, pointer.get_address());
+        Self::set_field_offset(&mut project_item, pointer.get_address());
         Self::set_field_pointer_offsets(&mut project_item, pointer.get_offsets());
         Self::set_field_pointer_size(&mut project_item, pointer.get_pointer_size());
         Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
@@ -49,46 +51,88 @@ impl ProjectItemTypePointer {
         project_item
     }
 
-    pub fn get_field_address(project_item: &ProjectItem) -> u64 {
-        let data_value = match project_item
+    pub fn normalize_pointer_fields(project_item: &mut ProjectItem) {
+        let legacy_field_data = project_item
             .get_properties()
-            .get_field(Self::PROPERTY_ADDRESS)
-            .and_then(|field| field.get_data_value())
+            .get_field(Self::LEGACY_PROPERTY_ADDRESS)
+            .map(|field| field.get_field_data().clone());
+
+        if project_item
+            .get_properties()
+            .get_field(Self::PROPERTY_OFFSET)
+            .is_none()
         {
-            Some(data_value) => data_value,
-            None => return 0,
-        };
-        let value_bytes = data_value.get_value_bytes();
-
-        match value_bytes.len() {
-            8 => {
-                let Ok(address_bytes) = <[u8; 8]>::try_from(value_bytes.as_slice()) else {
-                    return 0;
-                };
-
-                u64::from_le_bytes(address_bytes)
+            if let Some(legacy_field_data) = legacy_field_data {
+                project_item
+                    .get_properties_mut()
+                    .set_field_data(Self::PROPERTY_OFFSET, legacy_field_data, false);
             }
-            4 => {
-                let Ok(address_bytes) = <[u8; 4]>::try_from(value_bytes.as_slice()) else {
-                    return 0;
-                };
-
-                u32::from_le_bytes(address_bytes) as u64
-            }
-            _ => 0,
         }
+
+        project_item
+            .get_properties_mut()
+            .remove_field(Self::LEGACY_PROPERTY_ADDRESS);
+    }
+
+    pub fn get_field_offset(project_item: &ProjectItem) -> u64 {
+        Self::read_u64_field(project_item, Self::PROPERTY_OFFSET)
+            .or_else(|| Self::read_u64_field(project_item, Self::LEGACY_PROPERTY_ADDRESS))
+            .unwrap_or(0)
+    }
+
+    pub fn set_field_offset(
+        project_item: &mut ProjectItem,
+        offset: u64,
+    ) {
+        let offset_data_value = DataTypeU64::get_value_from_primitive(offset);
+        let field_data = ValuedStructFieldData::Value(offset_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_OFFSET, field_data, false);
+        project_item
+            .get_properties_mut()
+            .remove_field(Self::LEGACY_PROPERTY_ADDRESS);
+    }
+
+    pub fn get_field_address(project_item: &ProjectItem) -> u64 {
+        Self::get_field_offset(project_item)
     }
 
     pub fn set_field_address(
         project_item: &mut ProjectItem,
         address: u64,
     ) {
-        let address_data_value = DataTypeU64::get_value_from_primitive(address);
-        let field_data = ValuedStructFieldData::Value(address_data_value);
+        Self::set_field_offset(project_item, address);
+    }
 
-        project_item
-            .get_properties_mut()
-            .set_field_data(Self::PROPERTY_ADDRESS, field_data, false);
+    fn read_u64_field(
+        project_item: &ProjectItem,
+        field_name: &str,
+    ) -> Option<u64> {
+        let data_value = project_item
+            .get_properties()
+            .get_field(field_name)
+            .and_then(|field| field.get_data_value())?;
+        let value_bytes = data_value.get_value_bytes();
+
+        match value_bytes.len() {
+            8 => {
+                let Ok(address_bytes) = <[u8; 8]>::try_from(value_bytes.as_slice()) else {
+                    return None;
+                };
+
+                Some(u64::from_le_bytes(address_bytes))
+            }
+            4 => {
+                let Ok(address_bytes) = <[u8; 4]>::try_from(value_bytes.as_slice()) else {
+                    return None;
+                };
+
+                Some(u32::from_le_bytes(address_bytes) as u64)
+            }
+            _ => None,
+        }
     }
 
     pub fn get_field_module(project_item: &ProjectItem) -> String {
@@ -162,7 +206,7 @@ impl ProjectItemTypePointer {
 
     pub fn get_field_pointer(project_item: &ProjectItem) -> Pointer {
         Pointer::new_with_size(
-            Self::get_field_address(project_item),
+            Self::get_field_offset(project_item),
             Self::get_field_pointer_offsets(project_item),
             Self::get_field_module(project_item),
             Self::get_field_pointer_size(project_item),
@@ -183,6 +227,22 @@ impl ProjectItemTypePointer {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
+    }
+
+    pub fn get_field_evaluated_pointer_path(project_item: &ProjectItem) -> String {
+        Self::read_string_field(project_item, Self::PROPERTY_EVALUATED_POINTER_PATH)
+    }
+
+    pub fn set_field_evaluated_pointer_path(
+        project_item: &mut ProjectItem,
+        evaluated_pointer_path: &str,
+    ) {
+        let evaluated_pointer_path_data_value = DataTypeStringUtf8::get_value_from_primitive_string(evaluated_pointer_path);
+        let field_data = ValuedStructFieldData::Value(evaluated_pointer_path_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_EVALUATED_POINTER_PATH, field_data, true);
     }
 
     pub fn get_field_symbolic_struct_definition_reference(project_item: &ProjectItem) -> Option<SymbolicStructRef> {
@@ -251,8 +311,10 @@ impl ProjectItemType for ProjectItemTypePointer {
 #[cfg(test)]
 mod tests {
     use super::ProjectItemTypePointer;
+    use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
     use crate::structures::memory::pointer::Pointer;
     use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use crate::structures::structs::valued_struct_field::ValuedStructFieldData;
 
     #[test]
     fn new_project_item_uses_new_pointer_for_empty_name() {
@@ -281,5 +343,54 @@ mod tests {
         assert_eq!(persisted_pointer, pointer);
         assert_eq!(symbolic_struct_reference.get_symbolic_struct_namespace(), "u16");
         assert_eq!(ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&project_item), "");
+    }
+
+    #[test]
+    fn new_project_item_persists_offset_property_name() {
+        let pointer = Pointer::new_with_size(0x10, vec![0x20], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let project_item = ProjectItemTypePointer::new_project_item("Pointer Name", &pointer, "", "u8");
+
+        assert!(
+            project_item
+                .get_properties()
+                .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
+                .is_some()
+        );
+        assert!(
+            project_item
+                .get_properties()
+                .get_field(ProjectItemTypePointer::LEGACY_PROPERTY_ADDRESS)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn normalize_pointer_fields_migrates_legacy_address_property() {
+        let pointer = Pointer::new_with_size(0x44, vec![0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let mut project_item = ProjectItemTypePointer::new_project_item("Pointer Name", &pointer, "", "u8");
+        let legacy_offset_data = ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(0x88));
+
+        project_item
+            .get_properties_mut()
+            .remove_field(ProjectItemTypePointer::PROPERTY_OFFSET);
+        project_item
+            .get_properties_mut()
+            .set_field_data(ProjectItemTypePointer::LEGACY_PROPERTY_ADDRESS, legacy_offset_data, false);
+
+        ProjectItemTypePointer::normalize_pointer_fields(&mut project_item);
+
+        assert_eq!(ProjectItemTypePointer::get_field_offset(&project_item), 0x88);
+        assert!(
+            project_item
+                .get_properties()
+                .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
+                .is_some()
+        );
+        assert!(
+            project_item
+                .get_properties()
+                .get_field(ProjectItemTypePointer::LEGACY_PROPERTY_ADDRESS)
+                .is_none()
+        );
     }
 }

@@ -17,7 +17,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::os::raw::c_int;
 use std::sync::{LazyLock, RwLock};
-use sysinfo::{Pid, ProcessesToUpdate, System};
+use sysinfo::{Pid, ProcessRefreshKind, RefreshKind, System};
 
 pub struct MacOsProcessQuery {}
 static PROCESS_ICON_CACHE: LazyLock<RwLock<HashMap<String, Option<ProcessIcon>>>> = LazyLock::new(|| RwLock::new(HashMap::new()));
@@ -313,12 +313,10 @@ impl ProcessQueryer for MacOsProcessQuery {
     }
 
     fn get_processes(options: ProcessQueryOptions) -> Vec<ProcessInfo> {
-        let mut system = System::new_all();
+        let system = System::new_with_specifics(RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing().without_tasks()));
         let mut matched_processes = Vec::new();
         let window_owner_process_ids = Self::collect_window_owner_process_ids();
         let process_limit = options.limit.unwrap_or(u64::MAX) as usize;
-
-        system.refresh_processes(ProcessesToUpdate::All, true);
 
         for (process_id, process) in system.processes() {
             if matched_processes.len() >= process_limit {
