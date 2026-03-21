@@ -922,21 +922,14 @@ impl ProjectHierarchyView {
         active_dragged_project_item_paths: &[PathBuf],
         target_project_item_path: &Path,
     ) -> bool {
-        if target_project_item_path.parent().is_none() {
-            return false;
-        }
-
-        let Some(dragged_parent_path) = active_dragged_project_item_paths
-            .first()
-            .and_then(|dragged_project_item_path| dragged_project_item_path.parent())
-        else {
+        let Some(target_directory_path) = target_project_item_path.parent() else {
             return false;
         };
 
-        active_dragged_project_item_paths
-            .iter()
-            .all(|dragged_project_item_path| dragged_project_item_path.parent() == Some(dragged_parent_path))
-            && target_project_item_path.parent() == Some(dragged_parent_path)
+        !active_dragged_project_item_paths.contains(&target_project_item_path.to_path_buf())
+            && active_dragged_project_item_paths
+                .iter()
+                .all(|dragged_project_item_path| !target_directory_path.starts_with(dragged_project_item_path))
     }
 
     fn can_render_into_directory_drop_target(

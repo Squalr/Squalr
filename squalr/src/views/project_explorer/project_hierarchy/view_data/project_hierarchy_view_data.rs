@@ -35,6 +35,11 @@ enum ProjectHierarchyDropOperation {
         project_item_paths: Vec<PathBuf>,
         target_directory_path: PathBuf,
     },
+    MoveAndReorder {
+        project_item_paths: Vec<PathBuf>,
+        target_directory_path: PathBuf,
+        reordered_project_item_paths: Vec<PathBuf>,
+    },
 }
 
 #[derive(Clone)]
@@ -459,6 +464,59 @@ impl ProjectHierarchyViewData {
                     Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
                 });
             }
+            ProjectHierarchyDropOperation::MoveAndReorder {
+                project_item_paths,
+                target_directory_path,
+                reordered_project_item_paths,
+            } => {
+                let project_items_move_request = ProjectItemsMoveRequest {
+                    project_item_paths,
+                    target_directory_path,
+                };
+                let app_context_for_reorder = app_context.clone();
+                let project_hierarchy_view_data_for_reorder = project_hierarchy_view_data.clone();
+
+                project_items_move_request.send(&app_context.engine_unprivileged_state, move |project_items_move_response| {
+                    if !project_items_move_response.success {
+                        log::error!(
+                            "Failed to move project items before reorder. Moved count: {}.",
+                            project_items_move_response.moved_project_item_count
+                        );
+
+                        if let Some(mut project_hierarchy_view_data) =
+                            project_hierarchy_view_data_for_reorder.write("Project hierarchy move and reorder move response")
+                        {
+                            project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                        }
+
+                        Self::refresh_project_items(project_hierarchy_view_data_for_reorder, app_context_for_reorder);
+                        return;
+                    }
+
+                    let project_items_reorder_request = ProjectItemsReorderRequest {
+                        project_item_paths: reordered_project_item_paths.clone(),
+                    };
+                    let app_context_after_reorder = app_context_for_reorder.clone();
+                    let project_hierarchy_view_data_after_reorder = project_hierarchy_view_data_for_reorder.clone();
+
+                    project_items_reorder_request.send(&app_context_for_reorder.engine_unprivileged_state, move |project_items_reorder_response| {
+                        if !project_items_reorder_response.success {
+                            log::error!(
+                                "Failed to reorder project items after move. Reordered count: {}.",
+                                project_items_reorder_response.reordered_project_item_count
+                            );
+                        }
+
+                        if let Some(mut project_hierarchy_view_data) =
+                            project_hierarchy_view_data_after_reorder.write("Project hierarchy move and reorder reorder response")
+                        {
+                            project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                        }
+
+                        Self::refresh_project_items(project_hierarchy_view_data_after_reorder, app_context_after_reorder);
+                    });
+                });
+            }
         }
     }
 
@@ -717,17 +775,6 @@ impl ProjectHierarchyViewData {
             .iter()
             .all(|dragged_project_item_path| dragged_project_item_path.parent() == Some(target_directory_path.as_path()));
 
-        if !all_dragged_items_share_target_parent {
-            if !matches!(drop_target, ProjectHierarchyDropTarget::Into(_)) {
-                return None;
-            }
-
-            return Some(ProjectHierarchyDropOperation::Move {
-                project_item_paths: dragged_project_item_paths.to_vec(),
-                target_directory_path,
-            });
-        }
-
         if matches!(drop_target, ProjectHierarchyDropTarget::Into(_)) {
             return Some(ProjectHierarchyDropOperation::Move {
                 project_item_paths: dragged_project_item_paths.to_vec(),
@@ -735,17 +782,13 @@ impl ProjectHierarchyViewData {
             });
         }
 
-        let sibling_paths = child_paths_by_parent_path.get_mut(&target_directory_path)?;
-        let dragged_paths_in_sibling_order: Vec<PathBuf> = sibling_paths
+        let dragged_paths_in_target_sibling_order: Vec<PathBuf> = child_paths_by_parent_path
+            .get(&target_directory_path)?
             .iter()
             .filter(|sibling_project_item_path| dragged_project_item_path_set.contains(*sibling_project_item_path))
             .cloned()
             .collect();
-
-        if dragged_paths_in_sibling_order.len() != dragged_project_item_path_set.len() {
-            return None;
-        }
-
+        let sibling_paths = child_paths_by_parent_path.get_mut(&target_directory_path)?;
         sibling_paths.retain(|sibling_project_item_path| !dragged_project_item_path_set.contains(sibling_project_item_path));
         let target_sibling_index = sibling_paths
             .iter()
@@ -756,15 +799,33 @@ impl ProjectHierarchyViewData {
             ProjectHierarchyDropTarget::Into(_) => return None,
         };
 
-        for (dragged_path_insert_index, dragged_project_item_path) in dragged_paths_in_sibling_order.into_iter().enumerate() {
+        if !all_dragged_items_share_target_parent {
+            let projected_dragged_project_item_paths: Vec<PathBuf> = dragged_project_item_paths
+                .iter()
+                .map(|dragged_project_item_path| target_directory_path.join(dragged_project_item_path.file_name().unwrap_or_default()))
+                .collect();
+
+            for (dragged_path_insert_index, projected_dragged_project_item_path) in projected_dragged_project_item_paths.iter().cloned().enumerate() {
+                sibling_paths.insert(insert_sibling_index + dragged_path_insert_index, projected_dragged_project_item_path);
+            }
+
+            return Some(ProjectHierarchyDropOperation::MoveAndReorder {
+                project_item_paths: dragged_project_item_paths.to_vec(),
+                target_directory_path,
+                reordered_project_item_paths: sibling_paths.clone(),
+            });
+        }
+
+        if dragged_paths_in_target_sibling_order.len() != dragged_project_item_path_set.len() {
+            return None;
+        }
+
+        for (dragged_path_insert_index, dragged_project_item_path) in dragged_paths_in_target_sibling_order.into_iter().enumerate() {
             sibling_paths.insert(insert_sibling_index + dragged_path_insert_index, dragged_project_item_path);
         }
 
-        let mut reordered_project_item_paths = Vec::new();
-        Self::append_project_item_paths_in_order(&target_directory_path, &child_paths_by_parent_path, &mut reordered_project_item_paths);
-
         Some(ProjectHierarchyDropOperation::Reorder {
-            project_item_paths: reordered_project_item_paths,
+            project_item_paths: sibling_paths.clone(),
         })
     }
 
@@ -938,22 +999,6 @@ impl ProjectHierarchyViewData {
         while let Some(directory_path) = current_path {
             expanded_directory_paths.insert(directory_path.to_path_buf());
             current_path = directory_path.parent();
-        }
-    }
-
-    fn append_project_item_paths_in_order(
-        parent_path: &Path,
-        child_paths_by_parent_path: &HashMap<PathBuf, Vec<PathBuf>>,
-        reordered_project_item_paths: &mut Vec<PathBuf>,
-    ) {
-        let child_paths = match child_paths_by_parent_path.get(parent_path) {
-            Some(child_paths) => child_paths,
-            None => return,
-        };
-
-        for child_path in child_paths {
-            reordered_project_item_paths.push(child_path.clone());
-            Self::append_project_item_paths_in_order(child_path, child_paths_by_parent_path, reordered_project_item_paths);
         }
     }
 
@@ -1390,6 +1435,48 @@ mod tests {
             drop_operation,
             Some(super::ProjectHierarchyDropOperation::Reorder {
                 project_item_paths: vec![second_child_path, first_child_path, third_child_path],
+            })
+        );
+    }
+
+    #[test]
+    fn build_drop_operation_moves_nested_item_before_root_target_across_parents() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let root_item_path = project_root_path.join("RootItem.json");
+        let folder_path = project_root_path.join("Folder");
+        let nested_item_path = folder_path.join("Nested.json");
+        let project_info = create_project_info(&project_directory_path);
+        let project_items = vec![
+            create_directory_project_item(&project_root_path),
+            (
+                ProjectItemRef::new(root_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("RootItem", 0x10, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+            create_directory_project_item(&folder_path),
+            (
+                ProjectItemRef::new(nested_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Nested", 0x20, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+
+        let drop_operation = ProjectHierarchyViewData::build_drop_operation(
+            Some(&project_info),
+            &project_items,
+            std::slice::from_ref(&nested_item_path),
+            &ProjectHierarchyDropTarget::Before(root_item_path.clone()),
+        );
+
+        assert_eq!(
+            drop_operation,
+            Some(super::ProjectHierarchyDropOperation::MoveAndReorder {
+                project_item_paths: vec![nested_item_path],
+                target_directory_path: project_root_path.clone(),
+                reordered_project_item_paths: vec![
+                    folder_path,
+                    project_root_path.join("Nested.json"),
+                    root_item_path
+                ],
             })
         );
     }
