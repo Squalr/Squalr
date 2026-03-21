@@ -1,11 +1,14 @@
 use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
+use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
 use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
+use squalr_engine_scanning::scanners::value_collector_task::ValueCollector;
 use squalr_engine_session::os::PageRetrievalMode;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
     type ResponseType = PointerScanValidateResponse;
@@ -121,11 +124,31 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 memory_read_provider.read_bytes(opened_process_info, address, values)
             })),
         );
+        let mut validation_snapshot = Snapshot::new();
+        validation_snapshot.set_snapshot_regions(merge_memory_regions_into_snapshot_regions(memory_regions));
+        let validation_snapshot = Arc::new(RwLock::new(validation_snapshot));
+
+        ValueCollector::collect_values(process_info.clone(), validation_snapshot.clone(), true, &scan_execution_context);
+
+        let validation_snapshot_guard = match validation_snapshot.read() {
+            Ok(validation_snapshot_guard) => validation_snapshot_guard,
+            Err(error) => {
+                log::error!("Failed to acquire read lock on validation snapshot: {}", error);
+
+                return PointerScanValidateResponse {
+                    validation_performed: false,
+                    validation_target_address: None,
+                    pruned_node_count: 0,
+                    status_message: "Failed to access the validation snapshot.".to_string(),
+                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                };
+            }
+        };
         let validated_pointer_scan_session = PointerScanValidator::validate_scan(
             process_info,
             &pointer_scan_session,
             validation_target_address,
-            &memory_regions,
+            &validation_snapshot_guard,
             &modules,
             &scan_execution_context,
             true,

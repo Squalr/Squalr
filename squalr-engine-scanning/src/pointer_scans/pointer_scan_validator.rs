@@ -4,29 +4,31 @@ use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTar
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
 use crate::pointer_scans::structures::rebuilt_pointer_candidate::RebuiltPointerCandidate;
 use crate::pointer_scans::structures::rebuilt_pointer_level::RebuiltPointerLevel;
+use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
-use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
+use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use std::collections::HashMap;
 use std::time::Instant;
 
-const VALIDATION_SCAN_CHUNK_SIZE: usize = 64 * 1024;
+const POINTER_VALIDATION_MIN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
+const POINTER_VALIDATION_TARGET_TASKS_PER_WORKER: usize = 4;
 
 pub struct PointerScanValidator;
 
 impl PointerScanValidator {
     pub fn validate_scan(
-        process_info: OpenedProcessInfo,
+        _process_info: OpenedProcessInfo,
         pointer_scan_session: &PointerScanSession,
         validation_target_address: u64,
-        memory_regions: &[NormalizedRegion],
+        validation_snapshot: &Snapshot,
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
         with_logging: bool,
@@ -49,7 +51,8 @@ impl PointerScanValidator {
             PointerScanTargetRangeSet::from_target_addresses(&[validation_target_address], pointer_scan_session.get_offset_radius());
         let mut rebuilt_pointer_levels = Vec::new();
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
-        let heap_memory_regions = Self::build_heap_memory_regions(memory_regions, modules);
+        let (snapshot_region_scan_tasks, total_snapshot_region_count, snapshot_task_byte_size) =
+            Self::build_snapshot_region_scan_tasks(validation_snapshot, pointer_scan_session.get_pointer_size());
 
         for level_index in 0..level_count {
             let level_number = level_index + 1;
@@ -81,37 +84,29 @@ impl PointerScanValidator {
 
             if with_logging {
                 log::info!(
-                    "Pointer scan validation level {}/{}: checking {} static nodes and scanning {} heap memory regions for {} frontier targets merged into {} ranges with {} kernel.",
+                    "Pointer scan validation level {}/{}: checking {} static nodes and scanning {} snapshot regions across {} scan tasks ({} bytes/task) for {} frontier targets merged into {} ranges with {} kernel.",
                     validation_level_log_context.level_number,
                     validation_level_log_context.level_count,
                     static_pointer_scan_candidates.len(),
-                    heap_memory_regions.len(),
+                    total_snapshot_region_count,
+                    snapshot_region_scan_tasks.len(),
+                    snapshot_task_byte_size,
                     required_target_ranges.get_source_target_count(),
                     required_target_ranges.get_range_count(),
                     range_search_kernel.get_name(),
                 );
             }
 
-            let rebuilt_static_candidates = Self::validate_static_pointer_candidates_for_targets(
-                &process_info,
+            let rebuilt_pointer_level = Self::scan_snapshot_regions_for_pointer_targets(
+                &snapshot_region_scan_tasks,
                 pointer_scan_session,
                 static_pointer_scan_candidates,
                 &range_search_kernel,
                 modules,
-                scan_execution_context,
+                !is_terminal_level,
             );
-            let rebuilt_heap_candidates = if is_terminal_level {
-                Vec::new()
-            } else {
-                Self::scan_memory_regions_for_heap_pointer_candidates_by_target(
-                    &process_info,
-                    &range_search_kernel,
-                    &heap_memory_regions,
-                    scan_execution_context,
-                    with_logging,
-                    &validation_level_log_context,
-                )
-            };
+            let rebuilt_static_candidates = rebuilt_pointer_level.static_candidates;
+            let rebuilt_heap_candidates = rebuilt_pointer_level.heap_candidates;
 
             if rebuilt_static_candidates.is_empty() && rebuilt_heap_candidates.is_empty() {
                 if with_logging {
@@ -172,241 +167,183 @@ impl PointerScanValidator {
         validated_pointer_scan_session
     }
 
-    fn validate_static_pointer_candidates_for_targets(
-        process_info: &OpenedProcessInfo,
+    fn scan_snapshot_regions_for_pointer_targets(
+        snapshot_region_scan_tasks: &[SnapshotRegionScanTask<'_>],
         original_pointer_scan_session: &PointerScanSession,
         static_pointer_scan_candidates: &[PointerScanCandidate],
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
-        scan_execution_context: &ScanExecutionContext,
-    ) -> Vec<RebuiltPointerCandidate> {
+        retain_heap_candidates: bool,
+    ) -> RebuiltPointerLevel {
         let sorted_original_static_membership = Self::build_sorted_original_static_membership(original_pointer_scan_session, static_pointer_scan_candidates);
 
-        if sorted_original_static_membership.is_empty() {
-            return Vec::new();
-        }
-
-        Self::scan_module_regions_for_static_pointer_candidates_by_target(
-            process_info,
-            range_search_kernel,
-            modules,
-            &sorted_original_static_membership,
-            scan_execution_context,
-        )
-    }
-
-    fn scan_memory_regions_for_heap_pointer_candidates_by_target(
-        process_info: &OpenedProcessInfo,
-        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
-        memory_regions: &[NormalizedRegion],
-        scan_execution_context: &ScanExecutionContext,
-        with_logging: bool,
-        validation_level_log_context: &PointerValidationLevelLogContext,
-    ) -> Vec<RebuiltPointerCandidate> {
-        let rebuilt_pointer_candidates = memory_regions
+        snapshot_region_scan_tasks
             .par_iter()
-            .enumerate()
             .fold(
-                || (Vec::new(), vec![0_u8; VALIDATION_SCAN_CHUNK_SIZE]),
-                |(mut worker_rebuilt_pointer_candidates, mut worker_scan_buffer), (memory_region_index, memory_region)| {
-                    if with_logging && Self::should_log_memory_region_progress(memory_region_index, memory_regions.len()) {
-                        log::info!(
-                            "Pointer scan validation level {}/{} (heap): region {}/{} at 0x{:X}.",
-                            validation_level_log_context.level_number,
-                            validation_level_log_context.level_count,
-                            memory_region_index + 1,
-                            memory_regions.len(),
-                            memory_region.get_base_address(),
-                        );
-                    }
-
-                    Self::scan_memory_region_for_heap_pointer_candidates_by_target(
-                        process_info,
-                        memory_region,
+                || RebuiltPointerLevel {
+                    static_candidates: Vec::new(),
+                    heap_candidates: Vec::new(),
+                },
+                |mut worker_rebuilt_pointer_level, snapshot_region_scan_task| {
+                    Self::scan_snapshot_region_for_pointer_targets(
+                        snapshot_region_scan_task,
                         range_search_kernel,
-                        scan_execution_context,
-                        &mut worker_scan_buffer,
-                        &mut worker_rebuilt_pointer_candidates,
+                        modules,
+                        &sorted_original_static_membership,
+                        retain_heap_candidates,
+                        &mut worker_rebuilt_pointer_level,
                     );
 
-                    (worker_rebuilt_pointer_candidates, worker_scan_buffer)
+                    worker_rebuilt_pointer_level
                 },
             )
-            .map(|(worker_rebuilt_pointer_candidates, _worker_scan_buffer)| worker_rebuilt_pointer_candidates)
-            .reduce(Vec::new, |mut left_candidates, mut right_candidates| {
-                left_candidates.append(&mut right_candidates);
-                left_candidates
-            });
-        rebuilt_pointer_candidates
+            .reduce(
+                || RebuiltPointerLevel {
+                    static_candidates: Vec::new(),
+                    heap_candidates: Vec::new(),
+                },
+                |mut left_rebuilt_pointer_level, mut right_rebuilt_pointer_level| {
+                    left_rebuilt_pointer_level
+                        .static_candidates
+                        .append(&mut right_rebuilt_pointer_level.static_candidates);
+                    left_rebuilt_pointer_level
+                        .heap_candidates
+                        .append(&mut right_rebuilt_pointer_level.heap_candidates);
+
+                    left_rebuilt_pointer_level
+                },
+            )
     }
 
-    fn scan_module_regions_for_static_pointer_candidates_by_target(
-        process_info: &OpenedProcessInfo,
+    fn scan_snapshot_region_for_pointer_targets(
+        snapshot_region_scan_task: &SnapshotRegionScanTask<'_>,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
         sorted_original_static_membership: &[(&str, u64)],
-        scan_execution_context: &ScanExecutionContext,
-    ) -> Vec<RebuiltPointerCandidate> {
-        modules
-            .par_iter()
-            .fold(
-                || (Vec::new(), vec![0_u8; VALIDATION_SCAN_CHUNK_SIZE]),
-                |(mut worker_rebuilt_pointer_candidates, mut worker_scan_buffer), module| {
-                    let original_module_membership =
-                        Self::find_original_static_membership_for_module(sorted_original_static_membership, module.get_module_name());
+        retain_heap_candidates: bool,
+        rebuilt_pointer_level: &mut RebuiltPointerLevel,
+    ) {
+        range_search_kernel.scan_region_with_visitor(
+            snapshot_region_scan_task.base_address,
+            snapshot_region_scan_task.current_values,
+            |pointer_match: PointerScanRegionMatch| {
+                let pointer_address = pointer_match.get_pointer_address();
+                let pointer_value = pointer_match.get_pointer_value();
 
-                    if original_module_membership.is_empty() {
-                        return (worker_rebuilt_pointer_candidates, worker_scan_buffer);
+                if let Some((module_name, module_offset)) = Self::classify_static_pointer_address(pointer_address, modules) {
+                    if Self::contains_original_static_membership(sorted_original_static_membership, module_name, module_offset) {
+                        rebuilt_pointer_level
+                            .static_candidates
+                            .push(RebuiltPointerCandidate {
+                                pointer_scan_node_type: PointerScanNodeType::Static,
+                                pointer_address,
+                                pointer_value,
+                                module_name: module_name.to_string(),
+                                module_offset,
+                            });
                     }
-
-                    Self::scan_memory_region_for_static_pointer_candidates_by_target(
-                        process_info,
-                        module,
-                        range_search_kernel,
-                        original_module_membership,
-                        scan_execution_context,
-                        &mut worker_scan_buffer,
-                        &mut worker_rebuilt_pointer_candidates,
-                    );
-
-                    (worker_rebuilt_pointer_candidates, worker_scan_buffer)
-                },
-            )
-            .map(|(worker_rebuilt_pointer_candidates, _worker_scan_buffer)| worker_rebuilt_pointer_candidates)
-            .reduce(Vec::new, |mut left_candidates, mut right_candidates| {
-                left_candidates.append(&mut right_candidates);
-                left_candidates
-            })
-    }
-
-    fn should_log_memory_region_progress(
-        memory_region_index: usize,
-        memory_region_count: usize,
-    ) -> bool {
-        if memory_region_count == 0 {
-            return false;
-        }
-
-        memory_region_count <= 8 || memory_region_index == 0 || memory_region_index + 1 == memory_region_count || (memory_region_index + 1) % 128 == 0
-    }
-
-    fn scan_memory_region_for_heap_pointer_candidates_by_target(
-        process_info: &OpenedProcessInfo,
-        memory_region: &NormalizedRegion,
-        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
-        scan_execution_context: &ScanExecutionContext,
-        scan_buffer: &mut Vec<u8>,
-        rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>,
-    ) {
-        Self::scan_memory_region_for_pointer_matches_by_target(
-            process_info,
-            memory_region,
-            range_search_kernel,
-            scan_execution_context,
-            scan_buffer,
-            |pointer_match: PointerScanRegionMatch| {
-                rebuilt_pointer_candidates.push(RebuiltPointerCandidate {
-                    pointer_scan_node_type: PointerScanNodeType::Heap,
-                    pointer_address: pointer_match.get_pointer_address(),
-                    pointer_value: pointer_match.get_pointer_value(),
-                    module_name: String::new(),
-                    module_offset: 0,
-                });
-            },
-        );
-    }
-
-    fn scan_memory_region_for_static_pointer_candidates_by_target(
-        process_info: &OpenedProcessInfo,
-        module: &NormalizedModule,
-        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
-        original_module_membership: &[(&str, u64)],
-        scan_execution_context: &ScanExecutionContext,
-        scan_buffer: &mut Vec<u8>,
-        rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>,
-    ) {
-        let module_base_address = module.get_base_address();
-
-        Self::scan_memory_region_for_pointer_matches_by_target(
-            process_info,
-            module.get_base_region(),
-            range_search_kernel,
-            scan_execution_context,
-            scan_buffer,
-            |pointer_match: PointerScanRegionMatch| {
-                let module_offset = pointer_match
-                    .get_pointer_address()
-                    .saturating_sub(module_base_address);
-
-                if Self::contains_original_module_offset(original_module_membership, module_offset) {
-                    rebuilt_pointer_candidates.push(RebuiltPointerCandidate {
-                        pointer_scan_node_type: PointerScanNodeType::Static,
-                        pointer_address: pointer_match.get_pointer_address(),
-                        pointer_value: pointer_match.get_pointer_value(),
-                        module_name: module.get_module_name().to_string(),
-                        module_offset,
-                    });
+                } else if retain_heap_candidates {
+                    rebuilt_pointer_level
+                        .heap_candidates
+                        .push(RebuiltPointerCandidate {
+                            pointer_scan_node_type: PointerScanNodeType::Heap,
+                            pointer_address,
+                            pointer_value,
+                            module_name: String::new(),
+                            module_offset: 0,
+                        });
                 }
             },
         );
     }
 
-    fn scan_memory_region_for_pointer_matches_by_target<VisitMatch>(
-        process_info: &OpenedProcessInfo,
-        memory_region: &NormalizedRegion,
-        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
-        scan_execution_context: &ScanExecutionContext,
-        scan_buffer: &mut Vec<u8>,
-        mut visit_match: VisitMatch,
-    ) where
-        VisitMatch: FnMut(PointerScanRegionMatch),
-    {
-        let pointer_size_in_bytes = range_search_kernel.get_pointer_size().get_size_in_bytes() as usize;
-        let pointer_alignment = pointer_size_in_bytes as u64;
-        let region_base_address = memory_region.get_base_address();
-        let region_end_address = memory_region.get_end_address();
-        let alignment_remainder = region_base_address % pointer_alignment;
-        let mut scan_address = if alignment_remainder == 0 {
-            region_base_address
-        } else {
-            region_base_address.saturating_add(pointer_alignment.saturating_sub(alignment_remainder))
-        };
+    fn build_snapshot_region_scan_tasks<'a>(
+        validation_snapshot: &'a Snapshot,
+        pointer_size: squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+    ) -> (Vec<SnapshotRegionScanTask<'a>>, usize, usize) {
+        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
+        let total_snapshot_region_count = validation_snapshot.get_snapshot_regions().len();
+        let total_snapshot_byte_count = validation_snapshot
+            .get_snapshot_regions()
+            .iter()
+            .map(|snapshot_region| snapshot_region.get_current_values().len())
+            .sum::<usize>();
+        let task_byte_size = Self::calculate_snapshot_task_byte_size(total_snapshot_byte_count, total_snapshot_region_count, pointer_size_in_bytes);
+        let estimated_task_count = validation_snapshot
+            .get_snapshot_regions()
+            .iter()
+            .map(|snapshot_region| {
+                let current_value_byte_count = snapshot_region.get_current_values().len();
 
-        if scan_address.saturating_add(pointer_size_in_bytes as u64) > region_end_address {
-            return;
+                if current_value_byte_count == 0 {
+                    0
+                } else {
+                    current_value_byte_count
+                        .saturating_add(task_byte_size.saturating_sub(1))
+                        .checked_div(task_byte_size)
+                        .unwrap_or(0)
+                }
+            })
+            .sum();
+        let mut snapshot_region_scan_tasks = Vec::with_capacity(estimated_task_count);
+
+        for snapshot_region in validation_snapshot.get_snapshot_regions() {
+            let current_values = snapshot_region.get_current_values().as_slice();
+            let mut task_start_offset = 0_usize;
+
+            while task_start_offset < current_values.len() {
+                let remaining_byte_count = current_values.len().saturating_sub(task_start_offset);
+                let task_byte_count = remaining_byte_count.min(task_byte_size.max(pointer_size_in_bytes));
+                let task_end_offset = task_start_offset.saturating_add(task_byte_count);
+
+                snapshot_region_scan_tasks.push(SnapshotRegionScanTask {
+                    base_address: snapshot_region
+                        .get_base_address()
+                        .saturating_add(task_start_offset as u64),
+                    current_values: &current_values[task_start_offset..task_end_offset],
+                });
+
+                task_start_offset = task_end_offset;
+            }
         }
 
-        while scan_address.saturating_add(pointer_size_in_bytes as u64) <= region_end_address {
-            let remaining_region_bytes = region_end_address.saturating_sub(scan_address) as usize;
-            let mut scan_chunk_size = remaining_region_bytes.min(VALIDATION_SCAN_CHUNK_SIZE);
-            scan_chunk_size -= scan_chunk_size % pointer_size_in_bytes;
+        (snapshot_region_scan_tasks, total_snapshot_region_count, task_byte_size)
+    }
 
-            if scan_chunk_size < pointer_size_in_bytes {
-                scan_chunk_size = pointer_size_in_bytes;
-            }
+    fn calculate_snapshot_task_byte_size(
+        total_snapshot_byte_count: usize,
+        total_snapshot_region_count: usize,
+        pointer_size_in_bytes: usize,
+    ) -> usize {
+        let pointer_alignment = pointer_size_in_bytes.max(1);
+        let minimum_task_byte_size = POINTER_VALIDATION_MIN_SNAPSHOT_TASK_BYTE_SIZE.max(pointer_alignment);
+        let target_task_count = total_snapshot_region_count
+            .max(
+                rayon::current_num_threads()
+                    .max(1)
+                    .saturating_mul(POINTER_VALIDATION_TARGET_TASKS_PER_WORKER),
+            )
+            .max(1);
+        let target_task_byte_size = total_snapshot_byte_count
+            .saturating_add(target_task_count.saturating_sub(1))
+            .checked_div(target_task_count)
+            .unwrap_or(0)
+            .max(minimum_task_byte_size);
 
-            if scan_address.saturating_add(scan_chunk_size as u64) > region_end_address {
-                scan_chunk_size = region_end_address.saturating_sub(scan_address) as usize;
-                scan_chunk_size -= scan_chunk_size % pointer_size_in_bytes;
-            }
+        target_task_byte_size
+            .max(pointer_alignment)
+            .saturating_sub(target_task_byte_size.max(pointer_alignment) % pointer_alignment)
+    }
 
-            if scan_chunk_size < pointer_size_in_bytes {
-                break;
-            }
-
-            let current_values = &mut scan_buffer[..scan_chunk_size];
-            let read_succeeded = scan_execution_context.read_bytes(process_info, scan_address, current_values);
-
-            if read_succeeded {
-                range_search_kernel.scan_region_with_visitor(scan_address, current_values, |pointer_match| visit_match(pointer_match));
-            }
-
-            if scan_execution_context.should_cancel() {
-                break;
-            }
-
-            scan_address = scan_address.saturating_add(scan_chunk_size as u64);
-        }
+    fn classify_static_pointer_address<'a>(
+        pointer_address: u64,
+        modules: &'a [NormalizedModule],
+    ) -> Option<(&'a str, u64)> {
+        modules.iter().find_map(|module| {
+            module
+                .contains_address(pointer_address)
+                .then_some((module.get_module_name(), pointer_address.saturating_sub(module.get_base_address())))
+        })
     }
 
     fn build_pointer_scan_session(
@@ -510,64 +447,6 @@ impl PointerScanValidator {
         )
     }
 
-    fn build_heap_memory_regions(
-        memory_regions: &[NormalizedRegion],
-        modules: &[NormalizedModule],
-    ) -> Vec<NormalizedRegion> {
-        if modules.is_empty() {
-            return memory_regions.to_vec();
-        }
-
-        let mut module_regions = modules
-            .iter()
-            .map(NormalizedModule::get_base_region)
-            .cloned()
-            .collect::<Vec<_>>();
-        module_regions.sort_by_key(NormalizedRegion::get_base_address);
-
-        let mut heap_memory_regions = Vec::new();
-
-        for memory_region in memory_regions {
-            let mut next_heap_region_base_address = memory_region.get_base_address();
-            let memory_region_end_address = memory_region.get_end_address();
-
-            for module_region in &module_regions {
-                let module_base_address = module_region.get_base_address();
-                let module_end_address = module_region.get_end_address();
-
-                if module_end_address <= next_heap_region_base_address {
-                    continue;
-                }
-
-                if module_base_address >= memory_region_end_address {
-                    break;
-                }
-
-                if next_heap_region_base_address < module_base_address {
-                    heap_memory_regions.push(NormalizedRegion::new(
-                        next_heap_region_base_address,
-                        module_base_address.saturating_sub(next_heap_region_base_address),
-                    ));
-                }
-
-                next_heap_region_base_address = next_heap_region_base_address.max(module_end_address);
-
-                if next_heap_region_base_address >= memory_region_end_address {
-                    break;
-                }
-            }
-
-            if next_heap_region_base_address < memory_region_end_address {
-                heap_memory_regions.push(NormalizedRegion::new(
-                    next_heap_region_base_address,
-                    memory_region_end_address.saturating_sub(next_heap_region_base_address),
-                ));
-            }
-        }
-
-        heap_memory_regions
-    }
-
     fn build_sorted_original_static_membership<'a>(
         original_pointer_scan_session: &'a PointerScanSession,
         static_pointer_scan_candidates: &'a [PointerScanCandidate],
@@ -599,10 +478,13 @@ impl PointerScanValidator {
         &sorted_original_static_membership[membership_start_index..membership_end_index]
     }
 
-    fn contains_original_module_offset(
-        original_module_membership: &[(&str, u64)],
+    fn contains_original_static_membership(
+        sorted_original_static_membership: &[(&str, u64)],
+        module_name: &str,
         module_offset: u64,
     ) -> bool {
+        let original_module_membership = Self::find_original_static_membership_for_module(sorted_original_static_membership, module_name);
+
         original_module_membership
             .binary_search_by_key(&module_offset, |(_module_name, candidate_module_offset)| *candidate_module_offset)
             .is_ok()
@@ -611,7 +493,7 @@ impl PointerScanValidator {
 
 #[cfg(test)]
 mod tests {
-    use super::{PointerScanValidator, PointerValidationLevelLogContext};
+    use super::PointerScanValidator;
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
     use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
     use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
@@ -619,6 +501,7 @@ mod tests {
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
@@ -646,7 +529,7 @@ mod tests {
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
             0x4010,
-            &build_validation_memory_regions(),
+            &build_snapshot_from_memory_map(&build_validation_memory_regions(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             &scan_execution_context,
             false,
@@ -698,7 +581,7 @@ mod tests {
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
             0x8010,
-            &build_rebased_validation_memory_regions(),
+            &build_snapshot_from_memory_map(&build_rebased_validation_memory_regions(), &rebased_validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x5000, 0x100)],
             &scan_execution_context,
             false,
@@ -741,7 +624,7 @@ mod tests {
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
             0x3010,
-            &build_extra_static_validation_memory_regions(),
+            &build_snapshot_from_memory_map(&build_extra_static_validation_memory_regions(), &extra_static_validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             &scan_execution_context,
             false,
@@ -767,66 +650,35 @@ mod tests {
     }
 
     #[test]
-    fn scan_memory_regions_for_heap_pointer_candidates_by_target_matches_multiple_targets_in_one_pass() {
+    fn scan_snapshot_regions_for_pointer_targets_matches_multiple_targets_in_one_pass() {
         let multi_target_validation_memory_map = Arc::new(build_multi_target_validation_memory_map());
-        let scan_execution_context = ScanExecutionContext::new(
-            None,
-            None,
-            Some(Arc::new({
-                let multi_target_validation_memory_map = multi_target_validation_memory_map.clone();
-
-                move |_opened_process_info, address, values| read_memory_from_map(&multi_target_validation_memory_map, address, values)
-            })),
-        );
         let required_target_ranges = PointerScanTargetRangeSet::from_target_addresses(&[0x4010, 0x5010], 0x10);
         let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, PointerScanPointerSize::Pointer64);
-        let rebuilt_pointer_candidates = PointerScanValidator::scan_memory_regions_for_heap_pointer_candidates_by_target(
-            &OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
+        let validation_snapshot = build_snapshot_from_memory_map(&[NormalizedRegion::new(0x3000, 0x40)], &multi_target_validation_memory_map);
+        let static_pointer_scan_candidates: &[PointerScanCandidate] = &[];
+        let rebuilt_pointer_level = PointerScanValidator::scan_snapshot_regions_for_pointer_targets(
+            &PointerScanValidator::build_snapshot_region_scan_tasks(&validation_snapshot, PointerScanPointerSize::Pointer64).0,
+            &build_original_pointer_scan_session(),
+            static_pointer_scan_candidates,
             &range_search_kernel,
-            &[NormalizedRegion::new(0x3000, 0x40)],
-            &scan_execution_context,
-            false,
-            &PointerValidationLevelLogContext {
-                level_number: 1,
-                level_count: 1,
-            },
+            &[],
+            true,
         );
 
-        assert_eq!(rebuilt_pointer_candidates.len(), 2);
+        assert_eq!(rebuilt_pointer_level.static_candidates.len(), 0);
+        assert_eq!(rebuilt_pointer_level.heap_candidates.len(), 2);
         assert!(
-            rebuilt_pointer_candidates
+            rebuilt_pointer_level
+                .heap_candidates
                 .iter()
                 .any(|rebuilt_pointer_candidate| { rebuilt_pointer_candidate.pointer_address == 0x3000 && rebuilt_pointer_candidate.pointer_value == 0x4000 })
         );
         assert!(
-            rebuilt_pointer_candidates
+            rebuilt_pointer_level
+                .heap_candidates
                 .iter()
                 .any(|rebuilt_pointer_candidate| { rebuilt_pointer_candidate.pointer_address == 0x3008 && rebuilt_pointer_candidate.pointer_value == 0x5000 })
         );
-    }
-
-    #[test]
-    fn build_heap_memory_regions_excludes_module_ranges() {
-        let heap_memory_regions = PointerScanValidator::build_heap_memory_regions(
-            &[
-                NormalizedRegion::new(0x1000, 0x500),
-                NormalizedRegion::new(0x2000, 0x100),
-            ],
-            &[
-                NormalizedModule::new("game.exe", 0x1100, 0x100),
-                NormalizedModule::new("engine.dll", 0x1300, 0x80),
-            ],
-        );
-
-        assert_eq!(heap_memory_regions.len(), 4);
-        assert_eq!(heap_memory_regions[0].get_base_address(), 0x1000);
-        assert_eq!(heap_memory_regions[0].get_region_size(), 0x100);
-        assert_eq!(heap_memory_regions[1].get_base_address(), 0x1200);
-        assert_eq!(heap_memory_regions[1].get_region_size(), 0x100);
-        assert_eq!(heap_memory_regions[2].get_base_address(), 0x1380);
-        assert_eq!(heap_memory_regions[2].get_region_size(), 0x180);
-        assert_eq!(heap_memory_regions[3].get_base_address(), 0x2000);
-        assert_eq!(heap_memory_regions[3].get_region_size(), 0x100);
     }
 
     fn build_original_pointer_scan_session() -> PointerScanSession {
@@ -863,6 +715,30 @@ mod tests {
             SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x40), Vec::new()),
             SnapshotRegion::new(NormalizedRegion::new(0x3000, 0x40), Vec::new()),
         ]);
+
+        snapshot
+    }
+
+    fn build_snapshot_from_memory_map(
+        memory_regions: &[NormalizedRegion],
+        memory_map: &HashMap<u64, u8>,
+    ) -> Snapshot {
+        let mut snapshot = Snapshot::new();
+        let mut snapshot_regions = Vec::with_capacity(memory_regions.len());
+
+        for memory_region in memory_regions {
+            let mut snapshot_region = SnapshotRegion::new(memory_region.clone(), Vec::new());
+            snapshot_region.current_values = (0..memory_region.get_region_size())
+                .map(|byte_offset| {
+                    *memory_map
+                        .get(&memory_region.get_base_address().saturating_add(byte_offset))
+                        .unwrap_or(&0)
+                })
+                .collect();
+            snapshot_regions.push(snapshot_region);
+        }
+
+        snapshot.set_snapshot_regions(snapshot_regions);
 
         snapshot
     }

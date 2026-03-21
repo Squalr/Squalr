@@ -27,10 +27,6 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         self.kernel_kind.get_name()
     }
 
-    pub fn get_pointer_size(&self) -> PointerScanPointerSize {
-        self.pointer_size
-    }
-
     pub fn is_empty(&self) -> bool {
         self.target_range_set.is_empty()
     }
