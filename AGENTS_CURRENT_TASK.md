@@ -25,5 +25,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 
 - Owner: Removed to compact
 - Pointer-scanner result rows now need width-safe clipped painting, inline disclosure inside the primary column, and branch-depth text derived from `display depth + discovery depth - 1` rather than raw discovery depth alone.
+- Pointer-scanner results now follow the regular scan-results sizing model more closely: the parent content rect owns the width budget, the header/rows/footer share the same splitter positions, and each row allocates exactly the width the scroll area gives it instead of deriving column widths from clip-space.
 - Pointer-scanner node materialization now carries an explicit `branch_total_depth` from the root static through every expanded child node, so the UI can render depth as the stable rule `root = 1 of y`, then `2 of y`, `3 of y`, etc. without trying to recompute `y` from the current context.
 - Pointer-scanner toolbar state now carries a real target-value `DataTypeSelection` instead of a hidden string id, so the UI can render an actual value-type selector alongside pointer size while project-item creation still reads the selected target data type from the same shared state. Offset defaults and summary hydration are now decimal to match the requested editor format.
