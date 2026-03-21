@@ -14,7 +14,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates:
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::time::Instant;
 
 const VALIDATION_SCAN_CHUNK_SIZE: usize = 64 * 1024;
@@ -180,10 +180,9 @@ impl PointerScanValidator {
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
     ) -> Vec<RebuiltPointerCandidate> {
-        let original_static_offsets_by_module_name =
-            Self::build_original_static_offsets_by_module_name(original_pointer_scan_session, static_pointer_scan_candidates);
+        let sorted_original_static_membership = Self::build_sorted_original_static_membership(original_pointer_scan_session, static_pointer_scan_candidates);
 
-        if original_static_offsets_by_module_name.is_empty() {
+        if sorted_original_static_membership.is_empty() {
             return Vec::new();
         }
 
@@ -191,7 +190,7 @@ impl PointerScanValidator {
             process_info,
             range_search_kernel,
             modules,
-            &original_static_offsets_by_module_name,
+            &sorted_original_static_membership,
             scan_execution_context,
         )
     }
@@ -245,7 +244,7 @@ impl PointerScanValidator {
         process_info: &OpenedProcessInfo,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
-        original_static_offsets_by_module_name: &HashMap<&str, HashSet<u64>>,
+        sorted_original_static_membership: &[(&str, u64)],
         scan_execution_context: &ScanExecutionContext,
     ) -> Vec<RebuiltPointerCandidate> {
         modules
@@ -253,15 +252,18 @@ impl PointerScanValidator {
             .fold(
                 || (Vec::new(), vec![0_u8; VALIDATION_SCAN_CHUNK_SIZE]),
                 |(mut worker_rebuilt_pointer_candidates, mut worker_scan_buffer), module| {
-                    let Some(original_module_offsets) = original_static_offsets_by_module_name.get(module.get_module_name()) else {
+                    let original_module_membership =
+                        Self::find_original_static_membership_for_module(sorted_original_static_membership, module.get_module_name());
+
+                    if original_module_membership.is_empty() {
                         return (worker_rebuilt_pointer_candidates, worker_scan_buffer);
-                    };
+                    }
 
                     Self::scan_memory_region_for_static_pointer_candidates_by_target(
                         process_info,
                         module,
                         range_search_kernel,
-                        original_module_offsets,
+                        original_module_membership,
                         scan_execution_context,
                         &mut worker_scan_buffer,
                         &mut worker_rebuilt_pointer_candidates,
@@ -318,7 +320,7 @@ impl PointerScanValidator {
         process_info: &OpenedProcessInfo,
         module: &NormalizedModule,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
-        original_module_offsets: &HashSet<u64>,
+        original_module_membership: &[(&str, u64)],
         scan_execution_context: &ScanExecutionContext,
         scan_buffer: &mut Vec<u8>,
         rebuilt_pointer_candidates: &mut Vec<RebuiltPointerCandidate>,
@@ -336,7 +338,7 @@ impl PointerScanValidator {
                     .get_pointer_address()
                     .saturating_sub(module_base_address);
 
-                if original_module_offsets.contains(&module_offset) {
+                if Self::contains_original_module_offset(original_module_membership, module_offset) {
                     rebuilt_pointer_candidates.push(RebuiltPointerCandidate {
                         pointer_scan_node_type: PointerScanNodeType::Static,
                         pointer_address: pointer_match.get_pointer_address(),
@@ -566,24 +568,44 @@ impl PointerScanValidator {
         heap_memory_regions
     }
 
-    fn build_original_static_offsets_by_module_name<'a>(
+    fn build_sorted_original_static_membership<'a>(
         original_pointer_scan_session: &'a PointerScanSession,
         static_pointer_scan_candidates: &'a [PointerScanCandidate],
-    ) -> HashMap<&'a str, HashSet<u64>> {
-        let mut original_static_offsets_by_module_name = HashMap::new();
+    ) -> Vec<(&'a str, u64)> {
+        let mut sorted_original_static_membership = static_pointer_scan_candidates
+            .iter()
+            .filter_map(|static_pointer_scan_candidate| {
+                original_pointer_scan_session
+                    .get_module_name(static_pointer_scan_candidate.get_module_index())
+                    .map(|module_name| (module_name, static_pointer_scan_candidate.get_module_offset()))
+            })
+            .collect::<Vec<_>>();
 
-        for static_pointer_scan_candidate in static_pointer_scan_candidates {
-            let Some(module_name) = original_pointer_scan_session.get_module_name(static_pointer_scan_candidate.get_module_index()) else {
-                continue;
-            };
+        sorted_original_static_membership.sort_unstable();
+        sorted_original_static_membership.dedup();
 
-            original_static_offsets_by_module_name
-                .entry(module_name)
-                .or_insert_with(HashSet::new)
-                .insert(static_pointer_scan_candidate.get_module_offset());
-        }
+        sorted_original_static_membership
+    }
 
-        original_static_offsets_by_module_name
+    fn find_original_static_membership_for_module<'a>(
+        sorted_original_static_membership: &'a [(&'a str, u64)],
+        module_name: &str,
+    ) -> &'a [(&'a str, u64)] {
+        let membership_start_index =
+            sorted_original_static_membership.partition_point(|(candidate_module_name, _candidate_module_offset)| *candidate_module_name < module_name);
+        let membership_end_index =
+            sorted_original_static_membership.partition_point(|(candidate_module_name, _candidate_module_offset)| *candidate_module_name <= module_name);
+
+        &sorted_original_static_membership[membership_start_index..membership_end_index]
+    }
+
+    fn contains_original_module_offset(
+        original_module_membership: &[(&str, u64)],
+        module_offset: u64,
+    ) -> bool {
+        original_module_membership
+            .binary_search_by_key(&module_offset, |(_module_name, candidate_module_offset)| *candidate_module_offset)
+            .is_ok()
     }
 }
 
