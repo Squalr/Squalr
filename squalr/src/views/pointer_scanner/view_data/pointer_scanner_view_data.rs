@@ -67,11 +67,11 @@ pub struct PointerScannerViewData {
     pub validation_target_address_input: AnonymousValueString,
     pub pointer_size: PointerScanPointerSize,
     pub pointer_size_data_type_selection: DataTypeSelection,
+    pub target_data_type_selection: DataTypeSelection,
     pub max_depth_input: AnonymousValueString,
     pub offset_radius_input: AnonymousValueString,
     pub status_message: String,
     pub pointer_scan_summary: Option<PointerScanSummary>,
-    target_data_type_id: Option<String>,
     browse_page_size: u64,
     current_context_parent_node_id: Option<u64>,
     current_context_node_ids: Vec<u64>,
@@ -103,11 +103,11 @@ impl PointerScannerViewData {
             validation_target_address_input: Self::create_hex_input(String::new()),
             pointer_size,
             pointer_size_data_type_selection: DataTypeSelection::new(Self::pointer_size_data_type_ref(pointer_size)),
+            target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref("u8")),
             max_depth_input: Self::create_unsigned_input(String::from("5")),
-            offset_radius_input: Self::create_hex_input(Self::format_hexadecimal(2048)),
+            offset_radius_input: Self::create_unsigned_input(String::from("2048")),
             status_message: String::from("No pointer scan session."),
             pointer_scan_summary: None,
-            target_data_type_id: None,
             browse_page_size: ScanSettings::default().results_page_size as u64,
             current_context_parent_node_id: None,
             current_context_node_ids: Vec::new(),
@@ -347,7 +347,7 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_querying_summary = false;
             pointer_scanner_view_data_guard.is_resetting_scan = true;
-            pointer_scanner_view_data_guard.target_data_type_id = None;
+            pointer_scanner_view_data_guard.target_data_type_selection = DataTypeSelection::new(Self::target_data_type_ref("u8"));
 
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.apply_summary(None);
@@ -898,11 +898,9 @@ impl PointerScannerViewData {
             let formatted_address = Self::format_address(address);
             pointer_scanner_view_data_guard.target_address_input = Self::create_hex_input(formatted_address.clone());
             pointer_scanner_view_data_guard.validation_target_address_input = Self::create_hex_input(formatted_address);
-            pointer_scanner_view_data_guard.target_data_type_id = if data_type_id.trim().is_empty() {
-                None
-            } else {
-                Some(data_type_id.to_string())
-            };
+            pointer_scanner_view_data_guard
+                .target_data_type_selection
+                .replace_selected_data_types(vec![Self::target_data_type_ref(data_type_id)]);
             pointer_scanner_view_data_guard.status_message = if module_name.trim().is_empty() {
                 String::from("Pointer scanner target autofilled from the project explorer.")
             } else {
@@ -986,7 +984,7 @@ impl PointerScannerViewData {
             self.pointer_size_data_type_selection
                 .replace_selected_data_types(vec![Self::pointer_size_data_type_ref(self.pointer_size)]);
             self.max_depth_input = Self::create_unsigned_input(pointer_scan_summary.get_max_depth().to_string());
-            self.offset_radius_input = Self::create_hex_input(Self::format_hexadecimal(pointer_scan_summary.get_offset_radius()));
+            self.offset_radius_input = Self::create_unsigned_input(pointer_scan_summary.get_offset_radius().to_string());
             self.current_context_total_node_count = pointer_scan_summary.get_root_node_count();
             self.cached_last_page_index = Self::calculate_last_page_index(pointer_scan_summary.get_root_node_count(), self.browse_page_size);
             self.status_message = Self::format_summary_status(&pointer_scan_summary);
@@ -996,9 +994,10 @@ impl PointerScannerViewData {
     }
 
     fn get_target_data_type_id(&self) -> String {
-        self.target_data_type_id
-            .clone()
-            .unwrap_or_else(|| String::from("u8"))
+        self.target_data_type_selection
+            .active_data_type()
+            .get_data_type_id()
+            .to_string()
     }
 
     fn begin_session_request(&mut self) -> u64 {
@@ -1584,6 +1583,16 @@ impl PointerScannerViewData {
         }
     }
 
+    fn target_data_type_ref(data_type_id: &str) -> DataTypeRef {
+        let trimmed_data_type_id = data_type_id.trim();
+
+        if trimmed_data_type_id.is_empty() {
+            DataTypeRef::new("u8")
+        } else {
+            DataTypeRef::new(trimmed_data_type_id)
+        }
+    }
+
     pub fn synchronize_pointer_size_from_selection(&mut self) {
         let selected_pointer_size_data_type = self.pointer_size_data_type_selection.active_data_type().clone();
 
@@ -1617,6 +1626,7 @@ mod tests {
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
     use squalr_engine_api::events::engine_event::EngineEvent;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
@@ -1834,7 +1844,9 @@ mod tests {
     fn build_project_item_create_request_uses_synced_target_data_type() {
         let dependency_container = DependencyContainer::new();
         let mut pointer_scanner_view_data = create_pointer_scanner_view_data();
-        pointer_scanner_view_data.target_data_type_id = Some(String::from("u64"));
+        pointer_scanner_view_data
+            .target_data_type_selection
+            .replace_selected_data_types(vec![DataTypeRef::new("u64")]);
         let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
 
         let project_item_create_request =
@@ -1880,7 +1892,13 @@ mod tests {
             .read("Pointer scanner synced target data type test")
             .expect("Expected pointer scanner view data after syncing target data type.");
 
-        assert_eq!(pointer_scanner_view_data_guard.target_data_type_id, Some(String::from("u32")));
+        assert_eq!(
+            pointer_scanner_view_data_guard
+                .target_data_type_selection
+                .active_data_type()
+                .get_data_type_id(),
+            "u32"
+        );
     }
 
     #[test]
@@ -2456,7 +2474,9 @@ mod tests {
     fn reset_scan_cancels_inflight_summary_and_ignores_stale_summary_responses() {
         let dependency_container = DependencyContainer::new();
         let mut pointer_scanner_view_data = PointerScannerViewData::new();
-        pointer_scanner_view_data.target_data_type_id = Some(String::from("u32"));
+        pointer_scanner_view_data
+            .target_data_type_selection
+            .replace_selected_data_types(vec![DataTypeRef::new("u32")]);
         let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
         let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
         let queued_commands = deferred_pointer_scanner_bindings.get_queued_commands();
@@ -2500,7 +2520,13 @@ mod tests {
             assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
             assert!(pointer_scanner_view_data_guard.is_resetting_scan);
             assert!(!pointer_scanner_view_data_guard.is_querying_summary);
-            assert!(pointer_scanner_view_data_guard.target_data_type_id.is_none());
+            assert_eq!(
+                pointer_scanner_view_data_guard
+                    .target_data_type_selection
+                    .active_data_type()
+                    .get_data_type_id(),
+                "u8"
+            );
         }
 
         DeferredTestPointerScannerBindings::respond_to_first_matching(
@@ -2531,7 +2557,13 @@ mod tests {
             .expect("Expected the pointer scanner view data read guard after the reset response.");
         assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
         assert!(!pointer_scanner_view_data_guard.is_resetting_scan);
-        assert!(pointer_scanner_view_data_guard.target_data_type_id.is_none());
+        assert_eq!(
+            pointer_scanner_view_data_guard
+                .target_data_type_selection
+                .active_data_type()
+                .get_data_type_id(),
+            "u8"
+        );
         assert_eq!(pointer_scanner_view_data_guard.status_message, "No pointer scan session.");
     }
 
@@ -2790,7 +2822,7 @@ mod tests {
     }
 
     #[test]
-    fn new_defaults_pointer_targets_and_offset_to_hexadecimal_inputs() {
+    fn new_defaults_pointer_targets_and_offset_to_expected_inputs() {
         let pointer_scanner_view_data = PointerScannerViewData::new();
 
         assert_eq!(
@@ -2809,18 +2841,18 @@ mod tests {
             pointer_scanner_view_data
                 .offset_radius_input
                 .get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::Hexadecimal
+            AnonymousValueStringFormat::Decimal
         );
         assert_eq!(
             pointer_scanner_view_data
                 .offset_radius_input
                 .get_anonymous_value_string(),
-            "0x800"
+            "2048"
         );
     }
 
     #[test]
-    fn apply_summary_formats_offset_radius_as_hexadecimal_input() {
+    fn apply_summary_formats_offset_radius_as_decimal_input() {
         let mut pointer_scanner_view_data = PointerScannerViewData::new();
         let pointer_scan_summary = create_pointer_scan_summary(7, 0x3010);
 
@@ -2842,7 +2874,7 @@ mod tests {
             pointer_scanner_view_data
                 .offset_radius_input
                 .get_anonymous_value_string(),
-            "0x100"
+            "256"
         );
     }
 

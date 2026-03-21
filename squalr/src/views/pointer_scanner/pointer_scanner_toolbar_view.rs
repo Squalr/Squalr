@@ -25,8 +25,7 @@ impl PointerScannerToolbarView {
     const CONTROL_HEIGHT: f32 = 28.0;
     const ROW_SPACING: f32 = 6.0;
     const LEADING_ROW_PADDING: f32 = 8.0;
-    const GROUP_SPACING: f32 = 16.0;
-    const LABEL_TO_CONTROL_SPACING: f32 = 8.0;
+    const GROUP_SPACING: f32 = 8.0;
     const STATUS_HEIGHT: f32 = 24.0;
     const BOTTOM_PADDING: f32 = 4.0;
 
@@ -73,27 +72,6 @@ impl PointerScannerToolbarView {
         IconDraw::draw_sized(user_interface, button_response.rect.center(), vec2(16.0, 16.0), icon_handle);
 
         button_response
-    }
-
-    fn draw_field_label(
-        &self,
-        user_interface: &mut Ui,
-        label_text: &str,
-        label_width: f32,
-    ) {
-        let theme = &self.app_context.theme;
-
-        user_interface.allocate_ui_with_layout(
-            vec2(label_width, Self::CONTROL_HEIGHT),
-            eframe::egui::Layout::left_to_right(eframe::egui::Align::Center),
-            |user_interface| {
-                user_interface.label(
-                    RichText::new(label_text)
-                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                        .color(theme.foreground),
-                );
-            },
-        );
     }
 }
 
@@ -146,7 +124,6 @@ impl Widget for PointerScannerToolbarView {
             let unsigned_data_type = DataTypeRef::new("u64");
             let action_button_size = [36.0, 28.0];
             let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
-            let target_label = if has_active_pointer_scan_session { "Validate" } else { "Target" };
             let target_placeholder = if has_active_pointer_scan_session {
                 "Enter validation address..."
             } else {
@@ -178,83 +155,6 @@ impl Widget for PointerScannerToolbarView {
                         };
 
                         user_interface.add_space(Self::LEADING_ROW_PADDING);
-                        self.draw_field_label(user_interface, target_label, 52.0);
-                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
-                        user_interface.add(
-                            DataValueBoxView::new(
-                                self.app_context.clone(),
-                                active_target_input,
-                                &pointer_size_data_type,
-                                false,
-                                true,
-                                target_placeholder,
-                                "pointer_scanner_active_target_address",
-                            )
-                            .width(232.0)
-                            .height(Self::CONTROL_HEIGHT)
-                            .use_format_text_colors(false),
-                        );
-
-                        user_interface.add_space(Self::GROUP_SPACING);
-                        self.draw_field_label(user_interface, "Pointer Size", 82.0);
-                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
-                        user_interface.add(
-                            DataTypeSelectorView::new(
-                                self.app_context.clone(),
-                                &mut pointer_scanner_view_data.pointer_size_data_type_selection,
-                                "pointer_scanner_pointer_size",
-                            )
-                            .width(104.0)
-                            .height(Self::CONTROL_HEIGHT)
-                            .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
-                            .stacked_list()
-                            .hide_placeholder_entries(),
-                        );
-                        pointer_scanner_view_data.synchronize_pointer_size_from_selection();
-                    });
-                });
-
-                user_interface.add_space(Self::ROW_SPACING);
-
-                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
-                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
-                        user_interface.add_space(Self::LEADING_ROW_PADDING);
-                        self.draw_field_label(user_interface, "Depth", 44.0);
-                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
-                        user_interface.add(
-                            DataValueBoxView::new(
-                                self.app_context.clone(),
-                                &mut pointer_scanner_view_data.max_depth_input,
-                                &unsigned_data_type,
-                                false,
-                                true,
-                                "Depth",
-                                "pointer_scanner_max_depth",
-                            )
-                            .width(92.0)
-                            .height(Self::CONTROL_HEIGHT)
-                            .use_format_text_colors(false),
-                        );
-
-                        user_interface.add_space(Self::GROUP_SPACING);
-                        self.draw_field_label(user_interface, "Offset", 48.0);
-                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
-                        user_interface.add(
-                            DataValueBoxView::new(
-                                self.app_context.clone(),
-                                &mut pointer_scanner_view_data.offset_radius_input,
-                                &unsigned_data_type,
-                                false,
-                                true,
-                                "Offset",
-                                "pointer_scanner_offset_radius",
-                            )
-                            .width(120.0)
-                            .height(Self::CONTROL_HEIGHT)
-                            .use_format_text_colors(false),
-                        );
-
-                        user_interface.add_space(Self::GROUP_SPACING);
                         if self
                             .draw_icon_button(
                                 user_interface,
@@ -269,6 +169,88 @@ impl Widget for PointerScannerToolbarView {
                             should_reset_scan = true;
                         }
 
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                active_target_input,
+                                &pointer_size_data_type,
+                                false,
+                                true,
+                                target_placeholder,
+                                "pointer_scanner_active_target_address",
+                            )
+                            .width(228.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.max_depth_input,
+                                &unsigned_data_type,
+                                false,
+                                true,
+                                "Depth",
+                                "pointer_scanner_max_depth",
+                            )
+                            .width(84.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.offset_radius_input,
+                                &unsigned_data_type,
+                                false,
+                                true,
+                                "Offset",
+                                "pointer_scanner_offset_radius",
+                            )
+                            .width(100.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
+                    });
+                });
+
+                user_interface.add_space(Self::ROW_SPACING);
+
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.add(
+                            DataTypeSelectorView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.pointer_size_data_type_selection,
+                                "pointer_scanner_pointer_size",
+                            )
+                            .width(96.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
+                            .stacked_list()
+                            .hide_placeholder_entries(),
+                        );
+                        pointer_scanner_view_data.synchronize_pointer_size_from_selection();
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        user_interface.add(
+                            DataTypeSelectorView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.target_data_type_selection,
+                                "pointer_scanner_target_data_type",
+                            )
+                            .width(132.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .hide_placeholder_entries(),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
                         if self
                             .draw_icon_button(
                                 user_interface,
