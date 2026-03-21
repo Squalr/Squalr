@@ -2,15 +2,15 @@ use crate::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
 use crate::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
 use crate::commands::privileged_command::PrivilegedCommand;
 use crate::commands::privileged_command_request::PrivilegedCommandRequest;
-use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use crate::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
 pub struct PointerScanStartRequest {
-    #[structopt(short = "a", long)]
-    pub target_address: AnonymousValueString,
+    #[structopt(flatten)]
+    pub target: PointerScanTargetRequest,
     #[structopt(short = "s", long)]
     pub pointer_size: PointerScanPointerSize,
     #[structopt(short = "d", long)]

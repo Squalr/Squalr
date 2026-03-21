@@ -48,7 +48,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        Self::CONTROL_HEIGHT * 2.0 + Self::ROW_SPACING * 2.0 + Self::BOTTOM_PADDING
+        Self::CONTROL_HEIGHT * 3.0 + Self::ROW_SPACING * 3.0 + Self::BOTTOM_PADDING
     }
 
     fn draw_icon_button(
@@ -94,6 +94,7 @@ impl Widget for PointerScannerToolbarView {
 
         let mut should_start_scan = false;
         let mut should_reset_scan = false;
+        let mut should_start_value_scan = false;
         let mut should_add_to_project = false;
         let mut project_item_create_request = None;
         let opened_process_bitness = self
@@ -283,6 +284,63 @@ impl Widget for PointerScannerToolbarView {
                         }
                     });
                 });
+
+                user_interface.add_space(Self::ROW_SPACING);
+
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        let value_data_type_ref = pointer_scanner_view_data
+                            .target_data_type_selection
+                            .active_data_type()
+                            .clone();
+                        let active_value_input = if has_active_pointer_scan_session {
+                            &mut pointer_scanner_view_data.validation_target_value_input
+                        } else {
+                            &mut pointer_scanner_view_data.target_value_input
+                        };
+                        let value_placeholder = if has_active_pointer_scan_session {
+                            "Enter validation value..."
+                        } else {
+                            "Enter target value..."
+                        };
+
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                active_value_input,
+                                &value_data_type_ref,
+                                false,
+                                true,
+                                value_placeholder,
+                                "pointer_scanner_active_target_value",
+                            )
+                            .width(320.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_right_arrow,
+                                "Start or validate a value-seeded pointer scan session.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            if !has_active_pointer_scan_session {
+                                if let Some(process_bitness) = opened_process_bitness {
+                                    pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                }
+                            }
+                            should_start_value_scan = true;
+                        }
+                    });
+                });
                 user_interface.add_space(Self::BOTTOM_PADDING);
             });
         }
@@ -293,6 +351,10 @@ impl Widget for PointerScannerToolbarView {
 
         if should_start_scan {
             PointerScannerViewData::start_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
+        }
+
+        if should_start_value_scan {
+            PointerScannerViewData::start_value_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
         if should_add_to_project {

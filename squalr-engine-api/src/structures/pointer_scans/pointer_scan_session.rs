@@ -5,6 +5,7 @@ use crate::structures::pointer_scans::pointer_scan_level_summary::PointerScanLev
 use crate::structures::pointer_scans::pointer_scan_node::PointerScanNode;
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use crate::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
+use crate::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -23,10 +24,11 @@ struct MaterializedPointerScanNodePage {
     node_ids: Vec<u64>,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 pub struct PointerScanSession {
     session_id: u64,
-    target_address: u64,
+    target_descriptor: PointerScanTargetDescriptor,
+    target_addresses: Vec<u64>,
     pointer_size: PointerScanPointerSize,
     max_depth: u64,
     offset_radius: u64,
@@ -45,25 +47,29 @@ pub struct PointerScanSession {
 impl PointerScanSession {
     pub fn new(
         session_id: u64,
-        target_address: u64,
+        target_descriptor: PointerScanTargetDescriptor,
+        mut target_addresses: Vec<u64>,
         pointer_size: PointerScanPointerSize,
         max_depth: u64,
         offset_radius: u64,
         module_names: Vec<String>,
         pointer_scan_levels: Vec<PointerScanLevel>,
         pointer_scan_level_candidates: Vec<PointerScanLevelCandidates>,
-        root_node_count: u64,
         total_static_node_count: u64,
         total_heap_node_count: u64,
     ) -> Self {
+        target_addresses.sort_unstable();
+        target_addresses.dedup();
         let total_node_count = pointer_scan_levels
             .iter()
             .map(PointerScanLevel::get_node_count)
             .sum();
+        let root_node_count = Self::calculate_root_node_count(&target_descriptor, &pointer_scan_level_candidates, &target_addresses, offset_radius);
 
         Self {
             session_id,
-            target_address,
+            target_descriptor,
+            target_addresses,
             pointer_size,
             max_depth,
             offset_radius,
@@ -84,8 +90,12 @@ impl PointerScanSession {
         self.session_id
     }
 
-    pub fn get_target_address(&self) -> u64 {
-        self.target_address
+    pub fn get_target_descriptor(&self) -> &PointerScanTargetDescriptor {
+        &self.target_descriptor
+    }
+
+    pub fn get_target_addresses(&self) -> &Vec<u64> {
+        &self.target_addresses
     }
 
     pub fn get_pointer_size(&self) -> PointerScanPointerSize {
@@ -160,7 +170,7 @@ impl PointerScanSession {
 
         PointerScanSummary::new(
             self.session_id,
-            self.target_address,
+            self.target_descriptor.clone(),
             self.pointer_size,
             self.max_depth,
             self.offset_radius,
@@ -234,8 +244,6 @@ impl PointerScanSession {
             .pointer_scan_level_candidates
             .iter()
             .flat_map(|pointer_scan_level_candidates| pointer_scan_level_candidates.get_static_candidates().iter())
-            .skip(page_start_index as usize)
-            .take(page_node_count as usize)
             .map(|static_candidate| {
                 (
                     static_candidate.get_candidate_id(),
@@ -248,10 +256,28 @@ impl PointerScanSession {
                 )
             })
             .collect::<Vec<_>>();
-        let mut materialized_node_ids = Vec::with_capacity(root_page_candidates.len());
+        let mut remaining_nodes_to_skip = page_start_index;
+        let mut remaining_page_capacity = page_node_count;
+        let mut materialized_node_ids = Vec::with_capacity(page_node_count as usize);
 
         for (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) in root_page_candidates {
-            let Some(materialized_root_node_id) = self.materialize_root_pointer_scan_node(
+            if remaining_page_capacity == 0 {
+                break;
+            }
+
+            let root_display_node_count = self.count_root_display_nodes(discovery_depth, pointer_value);
+
+            if remaining_nodes_to_skip >= root_display_node_count {
+                remaining_nodes_to_skip = remaining_nodes_to_skip.saturating_sub(root_display_node_count);
+                continue;
+            }
+
+            let candidate_page_start_index = remaining_nodes_to_skip;
+            let candidate_page_node_count = root_display_node_count
+                .saturating_sub(candidate_page_start_index)
+                .min(remaining_page_capacity);
+
+            materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(
                 candidate_id,
                 discovery_depth,
                 pointer_scan_node_type,
@@ -259,11 +285,12 @@ impl PointerScanSession {
                 pointer_value,
                 module_index,
                 module_offset,
-            ) else {
-                continue;
-            };
+                candidate_page_start_index,
+                candidate_page_node_count,
+            ));
 
-            materialized_node_ids.push(materialized_root_node_id);
+            remaining_nodes_to_skip = 0;
+            remaining_page_capacity = remaining_page_capacity.saturating_sub(candidate_page_node_count);
         }
 
         self.materialized_node_ids_by_page_key
@@ -364,13 +391,13 @@ impl PointerScanSession {
             return MaterializedPointerScanNodePage::default();
         }
 
-        let child_discovery_depth = parent_materialized_node.get_discovery_depth().saturating_sub(1);
+        let root_discovery_depth = parent_materialized_node.get_discovery_depth();
 
-        if child_discovery_depth == 0 {
+        if root_discovery_depth <= 1 {
             return MaterializedPointerScanNodePage::default();
         }
 
-        let total_node_count = self.count_display_nodes_for_pointer_value(child_discovery_depth, parent_materialized_node.get_pointer_value());
+        let total_node_count = self.count_display_nodes_for_pointer_value(root_discovery_depth, parent_materialized_node.get_pointer_value());
         let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
         let bounded_page_index = page_index.clamp(0, last_page_index);
         let page_key = MaterializedPointerScanPageKey {
@@ -392,7 +419,7 @@ impl PointerScanSession {
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
         let materialized_node_ids = self.materialize_display_node_page(
             parent_materialized_node.get_graph_node_id(),
-            child_discovery_depth,
+            root_discovery_depth,
             parent_materialized_node.get_branch_total_depth(),
             parent_materialized_node.get_pointer_scan_node_type(),
             parent_materialized_node.get_pointer_address(),
@@ -436,13 +463,37 @@ impl PointerScanSession {
         }
 
         if discovery_depth <= 1 {
-            if page_start_index > 0 {
-                return Vec::new();
+            if !self.uses_multi_target_terminal_materialization() {
+                let Some(target_address) = self.target_descriptor.get_target_address() else {
+                    return Vec::new();
+                };
+
+                if page_start_index > 0 {
+                    return Vec::new();
+                }
+                let Some(pointer_offset) = Self::calculate_pointer_offset(target_address, pointer_value) else {
+                    return Vec::new();
+                };
+                let materialized_pointer_scan_node = self.create_materialized_pointer_scan_node(
+                    candidate_id,
+                    discovery_depth,
+                    branch_total_depth,
+                    pointer_scan_node_type,
+                    pointer_address,
+                    pointer_value,
+                    module_name,
+                    module_offset,
+                    target_address,
+                    pointer_offset,
+                    false,
+                    display_depth,
+                    parent_node_id,
+                );
+
+                return vec![materialized_pointer_scan_node];
             }
-            let Some(pointer_offset) = Self::calculate_pointer_offset(self.target_address, pointer_value) else {
-                return Vec::new();
-            };
-            let materialized_pointer_scan_node = self.create_materialized_pointer_scan_node(
+
+            return self.materialize_terminal_target_node_page(
                 candidate_id,
                 discovery_depth,
                 branch_total_depth,
@@ -451,14 +502,11 @@ impl PointerScanSession {
                 pointer_value,
                 module_name,
                 module_offset,
-                self.target_address,
-                pointer_offset,
-                false,
                 display_depth,
                 parent_node_id,
+                page_start_index,
+                page_node_count,
             );
-
-            return vec![materialized_pointer_scan_node];
         }
 
         let lower_bound = pointer_value.saturating_sub(self.offset_radius);
@@ -506,6 +554,10 @@ impl PointerScanSession {
         pointer_value: u64,
     ) -> u64 {
         if discovery_depth <= 1 {
+            if self.uses_multi_target_terminal_materialization() {
+                return self.count_matching_target_addresses(pointer_value);
+            }
+
             return 1;
         }
 
@@ -521,7 +573,7 @@ impl PointerScanSession {
             .unwrap_or(0)
     }
 
-    fn materialize_root_pointer_scan_node(
+    fn materialize_root_pointer_scan_nodes(
         &mut self,
         candidate_id: u64,
         discovery_depth: u64,
@@ -530,18 +582,65 @@ impl PointerScanSession {
         pointer_value: u64,
         module_index: usize,
         module_offset: u64,
-    ) -> Option<u64> {
-        let module_name = self.get_module_name(module_index)?.to_string();
-        let has_children = discovery_depth > 1;
-        let (resolved_target_address, pointer_offset) = if has_children {
-            (pointer_value, 0)
-        } else {
-            let pointer_offset = Self::calculate_pointer_offset(self.target_address, pointer_value)?;
+        page_start_index: u64,
+        page_node_count: u64,
+    ) -> Vec<u64> {
+        if page_node_count == 0 {
+            return Vec::new();
+        }
 
-            (self.target_address, pointer_offset)
+        let Some(module_name) = self.get_module_name(module_index).map(str::to_string) else {
+            return Vec::new();
         };
+        let has_children = discovery_depth > 1;
+        if has_children {
+            if page_start_index > 0 {
+                return Vec::new();
+            }
 
-        Some(self.create_materialized_pointer_scan_node(
+            return vec![self.create_materialized_pointer_scan_node(
+                candidate_id,
+                discovery_depth,
+                discovery_depth,
+                pointer_scan_node_type,
+                pointer_address,
+                pointer_value,
+                &module_name,
+                module_offset,
+                pointer_value,
+                0,
+                true,
+                1,
+                None,
+            )];
+        }
+
+        if !self.uses_multi_target_terminal_materialization() {
+            let Some(target_address) = self.target_descriptor.get_target_address() else {
+                return Vec::new();
+            };
+            let Some(pointer_offset) = Self::calculate_pointer_offset(target_address, pointer_value) else {
+                return Vec::new();
+            };
+
+            return vec![self.create_materialized_pointer_scan_node(
+                candidate_id,
+                discovery_depth,
+                discovery_depth,
+                pointer_scan_node_type,
+                pointer_address,
+                pointer_value,
+                &module_name,
+                module_offset,
+                target_address,
+                pointer_offset,
+                false,
+                1,
+                None,
+            )];
+        }
+
+        self.materialize_terminal_target_node_page(
             candidate_id,
             discovery_depth,
             discovery_depth,
@@ -550,12 +649,63 @@ impl PointerScanSession {
             pointer_value,
             &module_name,
             module_offset,
-            resolved_target_address,
-            pointer_offset,
-            has_children,
             1,
             None,
-        ))
+            page_start_index,
+            page_node_count,
+        )
+    }
+
+    fn materialize_terminal_target_node_page(
+        &mut self,
+        candidate_id: u64,
+        discovery_depth: u64,
+        branch_total_depth: u64,
+        pointer_scan_node_type: crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType,
+        pointer_address: u64,
+        pointer_value: u64,
+        module_name: &str,
+        module_offset: u64,
+        display_depth: u64,
+        parent_node_id: Option<u64>,
+        page_start_index: u64,
+        page_node_count: u64,
+    ) -> Vec<u64> {
+        if page_node_count == 0 {
+            return Vec::new();
+        }
+
+        let matching_target_addresses = self.find_target_addresses_for_pointer_value(pointer_value);
+        let page_start_index = page_start_index as usize;
+        let page_end_index = page_start_index
+            .saturating_add(page_node_count as usize)
+            .min(matching_target_addresses.len());
+        let resolved_target_addresses = matching_target_addresses[page_start_index..page_end_index].to_vec();
+        let mut materialized_node_ids = Vec::with_capacity(resolved_target_addresses.len());
+
+        for resolved_target_address in resolved_target_addresses {
+            let Some(pointer_offset) = Self::calculate_pointer_offset(resolved_target_address, pointer_value) else {
+                continue;
+            };
+
+            materialized_node_ids.push(self.create_materialized_pointer_scan_node(
+                candidate_id,
+                discovery_depth,
+                branch_total_depth,
+                pointer_scan_node_type,
+                pointer_address,
+                pointer_value,
+                module_name,
+                module_offset,
+                resolved_target_address,
+                pointer_offset,
+                false,
+                display_depth,
+                parent_node_id,
+            ));
+        }
+
+        materialized_node_ids
     }
 
     fn create_materialized_pointer_scan_node(
@@ -636,6 +786,100 @@ impl PointerScanSession {
 
         i64::try_from(pointer_offset).ok()
     }
+
+    fn count_root_display_nodes(
+        &self,
+        discovery_depth: u64,
+        pointer_value: u64,
+    ) -> u64 {
+        if !self.uses_multi_target_terminal_materialization() || discovery_depth > 1 {
+            1
+        } else {
+            self.count_matching_target_addresses(pointer_value)
+        }
+    }
+
+    fn uses_multi_target_terminal_materialization(&self) -> bool {
+        matches!(self.target_descriptor, PointerScanTargetDescriptor::Value { .. })
+    }
+
+    fn count_matching_target_addresses(
+        &self,
+        pointer_value: u64,
+    ) -> u64 {
+        self.find_target_addresses_for_pointer_value(pointer_value)
+            .len() as u64
+    }
+
+    fn find_target_addresses_for_pointer_value(
+        &self,
+        pointer_value: u64,
+    ) -> &[u64] {
+        self.find_target_addresses_in_range(
+            pointer_value.saturating_sub(self.offset_radius),
+            pointer_value.saturating_add(self.offset_radius),
+        )
+    }
+
+    fn find_target_addresses_in_range(
+        &self,
+        lower_bound: u64,
+        upper_bound: u64,
+    ) -> &[u64] {
+        let start_index = self
+            .target_addresses
+            .partition_point(|target_address| *target_address < lower_bound);
+        let end_index = self
+            .target_addresses
+            .partition_point(|target_address| *target_address <= upper_bound);
+
+        &self.target_addresses[start_index..end_index]
+    }
+
+    fn calculate_root_node_count(
+        target_descriptor: &PointerScanTargetDescriptor,
+        pointer_scan_level_candidates: &[PointerScanLevelCandidates],
+        target_addresses: &[u64],
+        offset_radius: u64,
+    ) -> u64 {
+        if !matches!(target_descriptor, PointerScanTargetDescriptor::Value { .. }) {
+            return pointer_scan_level_candidates
+                .iter()
+                .map(PointerScanLevelCandidates::get_static_node_count)
+                .sum();
+        }
+
+        pointer_scan_level_candidates
+            .iter()
+            .flat_map(|pointer_scan_level_candidates| pointer_scan_level_candidates.get_static_candidates().iter())
+            .map(|static_candidate| {
+                if static_candidate.get_discovery_depth() > 1 {
+                    1
+                } else {
+                    Self::count_target_addresses_in_range(
+                        target_addresses,
+                        static_candidate
+                            .get_pointer_value()
+                            .saturating_sub(offset_radius),
+                        static_candidate
+                            .get_pointer_value()
+                            .saturating_add(offset_radius),
+                    )
+                }
+            })
+            .sum()
+    }
+
+    fn count_target_addresses_in_range(
+        target_addresses: &[u64],
+        lower_bound: u64,
+        upper_bound: u64,
+    ) -> u64 {
+        let start_index = target_addresses.partition_point(|target_address| *target_address < lower_bound);
+        let end_index = target_addresses.partition_point(|target_address| *target_address <= upper_bound);
+
+        end_index.saturating_sub(start_index) as u64
+    }
 }
 
 #[cfg(test)]
@@ -647,11 +891,13 @@ mod tests {
     use crate::structures::pointer_scans::pointer_scan_node::PointerScanNode;
     use crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use crate::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 
     fn create_pointer_scan_session() -> PointerScanSession {
         PointerScanSession::new(
             7,
-            0x3010,
+            PointerScanTargetDescriptor::address(0x3010),
+            vec![0x3010],
             PointerScanPointerSize::Pointer64,
             4,
             0x100,
@@ -698,14 +944,14 @@ mod tests {
             ],
             2,
             1,
-            1,
         )
     }
 
     fn create_shared_child_pointer_scan_session() -> PointerScanSession {
         PointerScanSession::new(
             8,
-            0x4010,
+            PointerScanTargetDescriptor::address(0x4010),
+            vec![0x4010],
             PointerScanPointerSize::Pointer64,
             4,
             0x100,
@@ -738,8 +984,43 @@ mod tests {
                 ),
             ],
             2,
-            2,
             1,
+        )
+    }
+
+    fn create_multi_target_leaf_pointer_scan_session() -> PointerScanSession {
+        PointerScanSession::new(
+            9,
+            PointerScanTargetDescriptor::value(
+                crate::structures::data_values::anonymous_value_string::AnonymousValueString::new(
+                    "123".to_string(),
+                    crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Decimal,
+                    crate::structures::data_values::container_type::ContainerType::None,
+                ),
+                crate::structures::data_types::data_type_ref::DataTypeRef::new("u32"),
+                2,
+            ),
+            vec![0x3010, 0x3020],
+            PointerScanPointerSize::Pointer64,
+            1,
+            0x20,
+            vec!["game.exe".to_string()],
+            vec![PointerScanLevel::new(1, 1, 1, 0)],
+            vec![PointerScanLevelCandidates::new(
+                1,
+                vec![PointerScanCandidate::new(
+                    1,
+                    1,
+                    PointerScanNodeType::Static,
+                    0x1010,
+                    0x3000,
+                    0,
+                    0x10,
+                )],
+                Vec::new(),
+            )],
+            1,
+            0,
         )
     }
 
@@ -751,7 +1032,7 @@ mod tests {
         assert_eq!(pointer_scan_summary.get_session_id(), 7);
         assert_eq!(pointer_scan_summary.get_root_node_count(), 2);
         assert_eq!(pointer_scan_summary.get_total_node_count(), 3);
-        assert_eq!(pointer_scan_summary.get_total_static_node_count(), 1);
+        assert_eq!(pointer_scan_summary.get_total_static_node_count(), 2);
         assert_eq!(pointer_scan_summary.get_total_heap_node_count(), 1);
         assert_eq!(pointer_scan_summary.get_pointer_scan_level_summaries().len(), 2);
     }
@@ -801,6 +1082,22 @@ mod tests {
         let deserialized_session: PointerScanSession = serde_json::from_str(&serialized_session).expect("Pointer scan session should deserialize.");
 
         assert_eq!(deserialized_session, pointer_scan_session);
+    }
+
+    #[test]
+    fn pointer_scan_session_materializes_distinct_root_leaf_nodes_for_multiple_targets() {
+        let mut pointer_scan_session = create_multi_target_leaf_pointer_scan_session();
+
+        let root_nodes = pointer_scan_session.get_expanded_nodes(None);
+        let resolved_target_addresses = root_nodes
+            .iter()
+            .map(PointerScanNode::get_resolved_target_address)
+            .collect::<Vec<_>>();
+
+        assert_eq!(pointer_scan_session.get_root_node_count(), 2);
+        assert_eq!(root_nodes.len(), 2);
+        assert_eq!(resolved_target_addresses, vec![0x3010, 0x3020]);
+        assert!(root_nodes.iter().all(|root_node| !root_node.has_children()));
     }
 
     #[test]

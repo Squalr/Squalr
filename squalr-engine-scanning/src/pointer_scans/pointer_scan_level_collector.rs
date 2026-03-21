@@ -20,6 +20,7 @@ pub(crate) struct PointerScanLevelCollector;
 impl PointerScanLevelCollector {
     pub(crate) fn discover_pointer_levels(
         snapshots: &[&Snapshot],
+        target_addresses: &[u64],
         pointer_scan_parameters: &PointerScanParameters,
         modules: &[NormalizedModule],
         with_logging: bool,
@@ -31,8 +32,7 @@ impl PointerScanLevelCollector {
             return Vec::new();
         }
 
-        let mut frontier_target_ranges =
-            PointerScanTargetRangeSet::from_target_addresses(&[pointer_scan_parameters.get_target_address()], pointer_scan_parameters.get_offset_radius());
+        let mut frontier_target_ranges = PointerScanTargetRangeSet::from_target_addresses(target_addresses, pointer_scan_parameters.get_offset_radius());
         let mut discovered_pointer_levels = Vec::new();
         let (snapshot_region_scan_tasks, total_snapshot_region_count, snapshot_task_byte_size) =
             Self::build_snapshot_region_scan_tasks(snapshots, modules, pointer_scan_parameters.get_pointer_size());

@@ -5,6 +5,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerSca
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 
 pub(crate) struct PointerScanSessionBuilder;
@@ -13,6 +14,8 @@ impl PointerScanSessionBuilder {
     pub(crate) fn build_session(
         pointer_scan_session_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
+        target_descriptor: PointerScanTargetDescriptor,
+        target_addresses: Vec<u64>,
         modules: &[NormalizedModule],
         discovered_pointer_levels: &[DiscoveredPointerLevel],
         with_logging: bool,
@@ -22,7 +25,7 @@ impl PointerScanSessionBuilder {
                 log::info!("Pointer scan found no reachable pointer nodes.");
             }
 
-            return Self::create_empty_session(pointer_scan_session_id, pointer_scan_parameters);
+            return Self::create_empty_session(pointer_scan_session_id, pointer_scan_parameters, target_descriptor, target_addresses);
         }
 
         let mut pointer_scan_levels = Vec::new();
@@ -49,8 +52,6 @@ impl PointerScanSessionBuilder {
             ));
             pointer_scan_level_candidates.push(level_candidates);
         }
-        let root_node_count = total_static_node_count;
-
         if with_logging {
             for pointer_scan_level in &pointer_scan_levels {
                 log::info!(
@@ -65,14 +66,14 @@ impl PointerScanSessionBuilder {
 
         PointerScanSession::new(
             pointer_scan_session_id,
-            pointer_scan_parameters.get_target_address(),
+            target_descriptor,
+            target_addresses,
             pointer_scan_parameters.get_pointer_size(),
             pointer_scan_parameters.get_max_depth(),
             pointer_scan_parameters.get_offset_radius(),
             module_names,
             pointer_scan_levels,
             pointer_scan_level_candidates,
-            root_node_count,
             total_static_node_count,
             total_heap_node_count,
         )
@@ -81,17 +82,19 @@ impl PointerScanSessionBuilder {
     pub(crate) fn create_empty_session(
         pointer_scan_session_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
+        target_descriptor: PointerScanTargetDescriptor,
+        target_addresses: Vec<u64>,
     ) -> PointerScanSession {
         PointerScanSession::new(
             pointer_scan_session_id,
-            pointer_scan_parameters.get_target_address(),
+            target_descriptor,
+            target_addresses,
             pointer_scan_parameters.get_pointer_size(),
             pointer_scan_parameters.get_max_depth(),
             pointer_scan_parameters.get_offset_radius(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            0,
             0,
             0,
         )

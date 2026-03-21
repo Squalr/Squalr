@@ -15,6 +15,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates:
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -27,7 +28,7 @@ const POINTER_VALIDATION_TARGET_TASKS_PER_WORKER: usize = 4;
 struct PointerValidationContext<'a> {
     validation_snapshot_regions: &'a [SnapshotRegion],
     current_modules_by_name: Vec<(&'a str, u64)>,
-    validation_target_address: u64,
+    validation_target_addresses: &'a [u64],
     offset_radius: u64,
     pointer_size: PointerScanPointerSize,
     scan_execution_context: &'a ScanExecutionContext,
@@ -36,7 +37,7 @@ struct PointerValidationContext<'a> {
 impl<'a> PointerValidationContext<'a> {
     fn new(
         original_pointer_scan_session: &'a PointerScanSession,
-        validation_target_address: u64,
+        validation_target_addresses: &'a [u64],
         validation_snapshot: &'a Snapshot,
         modules: &'a [NormalizedModule],
         scan_execution_context: &'a ScanExecutionContext,
@@ -50,7 +51,7 @@ impl<'a> PointerValidationContext<'a> {
         Self {
             validation_snapshot_regions: validation_snapshot.get_snapshot_regions().as_slice(),
             current_modules_by_name,
-            validation_target_address,
+            validation_target_addresses,
             offset_radius: original_pointer_scan_session.get_offset_radius(),
             pointer_size: original_pointer_scan_session.get_pointer_size(),
             scan_execution_context,
@@ -64,7 +65,8 @@ impl PointerScanValidator {
     pub fn validate_scan(
         _process_info: OpenedProcessInfo,
         pointer_scan_session: &PointerScanSession,
-        validation_target_address: u64,
+        validation_target_descriptor: PointerScanTargetDescriptor,
+        validation_target_addresses: Vec<u64>,
         validation_snapshot: &Snapshot,
         modules: &[NormalizedModule],
         scan_execution_context: &ScanExecutionContext,
@@ -74,19 +76,19 @@ impl PointerScanValidator {
 
         if with_logging {
             log::info!(
-                "Validating pointer scan session {} against target 0x{:X}.",
+                "Validating pointer scan session {} against target {}.",
                 pointer_scan_session.get_session_id(),
-                validation_target_address,
+                validation_target_descriptor,
             );
         }
 
         if pointer_scan_session.get_pointer_scan_levels().is_empty() {
-            return Self::create_empty_session(pointer_scan_session, validation_target_address);
+            return Self::create_empty_session(pointer_scan_session, validation_target_descriptor, validation_target_addresses);
         }
 
         let validation_context = PointerValidationContext::new(
             pointer_scan_session,
-            validation_target_address,
+            validation_target_addresses.as_slice(),
             validation_snapshot,
             modules,
             scan_execution_context,
@@ -98,9 +100,14 @@ impl PointerScanValidator {
         Self::truncate_empty_trailing_levels(&mut validated_pointer_levels);
 
         let validated_pointer_scan_session = if validated_pointer_levels.is_empty() {
-            Self::create_empty_session(pointer_scan_session, validation_target_address)
+            Self::create_empty_session(pointer_scan_session, validation_target_descriptor, validation_target_addresses)
         } else {
-            Self::build_pointer_scan_session(pointer_scan_session, validation_target_address, validated_pointer_levels)
+            Self::build_pointer_scan_session(
+                pointer_scan_session,
+                validation_target_descriptor,
+                validation_target_addresses,
+                validated_pointer_levels,
+            )
         };
 
         if with_logging {
@@ -130,7 +137,7 @@ impl PointerScanValidator {
 
         // Validation mirrors the old rebase flow: frontier -> rebuild heaps -> prune stored statics -> next frontier.
         let mut frontier_target_ranges =
-            PointerScanTargetRangeSet::from_target_addresses(&[validation_context.validation_target_address], validation_context.offset_radius);
+            PointerScanTargetRangeSet::from_target_addresses(validation_context.validation_target_addresses, validation_context.offset_radius);
 
         for (level_index, pointer_scan_level_candidates) in pointer_scan_session
             .get_pointer_scan_level_candidates()
@@ -548,7 +555,8 @@ impl PointerScanValidator {
 
     fn build_pointer_scan_session(
         original_pointer_scan_session: &PointerScanSession,
-        validation_target_address: u64,
+        validation_target_descriptor: PointerScanTargetDescriptor,
+        validation_target_addresses: Vec<u64>,
         validated_pointer_levels: Vec<ValidatedPointerLevel>,
     ) -> PointerScanSession {
         let mut pointer_scan_levels = Vec::new();
@@ -602,18 +610,16 @@ impl PointerScanValidator {
             pointer_scan_level_candidates.push(level_candidates);
         }
 
-        let root_node_count = total_static_node_count;
-
         PointerScanSession::new(
             original_pointer_scan_session.get_session_id(),
-            validation_target_address,
+            validation_target_descriptor,
+            validation_target_addresses,
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
             original_pointer_scan_session.get_module_names().clone(),
             pointer_scan_levels,
             pointer_scan_level_candidates,
-            root_node_count,
             total_static_node_count,
             total_heap_node_count,
         )
@@ -621,18 +627,19 @@ impl PointerScanValidator {
 
     fn create_empty_session(
         original_pointer_scan_session: &PointerScanSession,
-        validation_target_address: u64,
+        validation_target_descriptor: PointerScanTargetDescriptor,
+        validation_target_addresses: Vec<u64>,
     ) -> PointerScanSession {
         PointerScanSession::new(
             original_pointer_scan_session.get_session_id(),
-            validation_target_address,
+            validation_target_descriptor,
+            validation_target_addresses,
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
-            0,
             0,
             0,
         )
@@ -653,6 +660,7 @@ mod tests {
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
     use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
     use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
     use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
@@ -676,7 +684,8 @@ mod tests {
         let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
-            0x4010,
+            PointerScanTargetDescriptor::address(0x4010),
+            vec![0x4010],
             &build_snapshot_from_memory_map(&build_validation_memory_regions(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             &scan_execution_context,
@@ -684,7 +693,12 @@ mod tests {
         );
 
         assert_eq!(validated_pointer_scan_session.get_session_id(), original_pointer_scan_session.get_session_id());
-        assert_eq!(validated_pointer_scan_session.get_target_address(), 0x4010);
+        assert_eq!(
+            validated_pointer_scan_session
+                .get_target_descriptor()
+                .get_target_address(),
+            Some(0x4010)
+        );
         assert_eq!(validated_pointer_scan_session.get_root_node_count(), 1);
         assert_eq!(validated_pointer_scan_session.get_total_node_count(), 2);
         assert_eq!(validated_pointer_scan_session.get_total_static_node_count(), 1);
@@ -728,7 +742,8 @@ mod tests {
         let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
-            0x8010,
+            PointerScanTargetDescriptor::address(0x8010),
+            vec![0x8010],
             &build_snapshot_from_memory_map(&build_rebased_validation_memory_regions(), &rebased_validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x5000, 0x100)],
             &scan_execution_context,
@@ -771,7 +786,8 @@ mod tests {
         let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
-            0x4010,
+            PointerScanTargetDescriptor::address(0x4010),
+            vec![0x4010],
             &build_snapshot_from_memory_map(&build_validation_memory_regions_with_extra_heap_match(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             &scan_execution_context,
@@ -804,7 +820,8 @@ mod tests {
         let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(9, "pointer-shared-child-test".to_string(), 0, Bitness::Bit64, None),
             &original_pointer_scan_session,
-            0x4010,
+            PointerScanTargetDescriptor::address(0x4010),
+            vec![0x4010],
             &build_snapshot_from_memory_map(&build_shared_child_validation_memory_regions(), &validation_memory_map),
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             &scan_execution_context,
@@ -844,7 +861,7 @@ mod tests {
             })),
         );
         let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot()));
-        let pointer_scan_parameters = PointerScanParameters::new(0x3010, PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
+        let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
 
         PointerScanExecutor::execute_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
@@ -852,6 +869,8 @@ mod tests {
             snapshot,
             41,
             pointer_scan_parameters,
+            PointerScanTargetDescriptor::address(0x3010),
+            vec![0x3010],
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
             &scan_execution_context,
@@ -861,7 +880,8 @@ mod tests {
     fn build_shared_child_original_pointer_scan_session() -> PointerScanSession {
         PointerScanSession::new(
             43,
-            0x4010,
+            PointerScanTargetDescriptor::address(0x4010),
+            vec![0x4010],
             PointerScanPointerSize::Pointer64,
             2,
             0x20,
@@ -893,7 +913,6 @@ mod tests {
                     Vec::new(),
                 ),
             ],
-            2,
             2,
             1,
         )
