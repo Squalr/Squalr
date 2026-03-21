@@ -8,7 +8,7 @@ pub struct PointerScanCandidate {
     pointer_scan_node_type: PointerScanNodeType,
     pointer_address: u64,
     pointer_value: u64,
-    module_name: String,
+    module_index: usize,
     module_offset: u64,
 }
 
@@ -19,7 +19,7 @@ impl PointerScanCandidate {
         pointer_scan_node_type: PointerScanNodeType,
         pointer_address: u64,
         pointer_value: u64,
-        module_name: String,
+        module_index: usize,
         module_offset: u64,
     ) -> Self {
         Self {
@@ -28,7 +28,7 @@ impl PointerScanCandidate {
             pointer_scan_node_type,
             pointer_address,
             pointer_value,
-            module_name,
+            module_index,
             module_offset,
         }
     }
@@ -53,8 +53,8 @@ impl PointerScanCandidate {
         self.pointer_value
     }
 
-    pub fn get_module_name(&self) -> &str {
-        &self.module_name
+    pub fn get_module_index(&self) -> usize {
+        self.module_index
     }
 
     pub fn get_module_offset(&self) -> u64 {

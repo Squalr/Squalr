@@ -1,7 +1,6 @@
 use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
 use crate::pointer_scans::structures::discovered_pointer_candidate::DiscoveredPointerCandidate;
 use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
-use crate::pointer_scans::structures::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
@@ -179,24 +178,25 @@ impl PointerScanExecutor {
         let mut next_candidate_id = 1_u64;
         let mut total_static_node_count = 0_u64;
         let mut total_heap_node_count = 0_u64;
-        let mut root_tracker = PointerScanRootTracker::new(pointer_scan_parameters.get_offset_radius());
-
+        let module_names = modules
+            .iter()
+            .map(|module| module.get_module_name().to_string())
+            .collect::<Vec<_>>();
         for (pointer_level_index, discovered_pointer_level) in discovered_pointer_levels.iter().enumerate() {
             let discovery_depth = pointer_level_index as u64 + 1;
             let mut static_candidates = Vec::with_capacity(discovered_pointer_level.static_candidates.len());
 
             for discovered_pointer_candidate in &discovered_pointer_level.static_candidates {
-                let Some(module) = modules.get(discovered_pointer_candidate.module_index) else {
+                if modules.get(discovered_pointer_candidate.module_index).is_none() {
                     continue;
-                };
-                root_tracker.record_static_candidate(discovery_depth, discovered_pointer_candidate.pointer_value);
+                }
                 static_candidates.push(PointerScanCandidate::new(
                     next_candidate_id,
                     discovery_depth,
                     PointerScanNodeType::Static,
                     discovered_pointer_candidate.pointer_address,
                     discovered_pointer_candidate.pointer_value,
-                    module.get_module_name().to_string(),
+                    discovered_pointer_candidate.module_index,
                     discovered_pointer_candidate.module_offset,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
@@ -211,7 +211,7 @@ impl PointerScanExecutor {
                     PointerScanNodeType::Heap,
                     discovered_pointer_candidate.pointer_address,
                     discovered_pointer_candidate.pointer_value,
-                    String::new(),
+                    0,
                     0,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
@@ -228,10 +228,9 @@ impl PointerScanExecutor {
                 discovered_level_candidates.get_static_node_count(),
                 discovered_level_candidates.get_heap_node_count(),
             ));
-            root_tracker.advance_to_next_level(discovered_level_candidates.get_heap_candidates());
             all_pointer_scan_level_candidates.push(discovered_level_candidates);
         }
-        let root_node_count = root_tracker.get_root_node_count();
+        let root_node_count = total_static_node_count;
 
         if with_logging {
             for pointer_scan_level in &pointer_scan_levels {
@@ -251,6 +250,7 @@ impl PointerScanExecutor {
             pointer_scan_parameters.get_pointer_size(),
             pointer_scan_parameters.get_max_depth(),
             pointer_scan_parameters.get_offset_radius(),
+            module_names,
             pointer_scan_levels,
             all_pointer_scan_level_candidates,
             root_node_count,
@@ -566,6 +566,7 @@ impl PointerScanExecutor {
             pointer_scan_parameters.get_pointer_size(),
             pointer_scan_parameters.get_max_depth(),
             pointer_scan_parameters.get_offset_radius(),
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             0,

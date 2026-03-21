@@ -31,6 +31,7 @@ pub struct PointerScanSession {
     max_depth: u64,
     offset_radius: u64,
     root_node_count: u64,
+    module_names: Vec<String>,
     pointer_scan_levels: Vec<PointerScanLevel>,
     pointer_scan_level_candidates: Vec<PointerScanLevelCandidates>,
     total_node_count: u64,
@@ -48,6 +49,7 @@ impl PointerScanSession {
         pointer_size: PointerScanPointerSize,
         max_depth: u64,
         offset_radius: u64,
+        module_names: Vec<String>,
         pointer_scan_levels: Vec<PointerScanLevel>,
         pointer_scan_level_candidates: Vec<PointerScanLevelCandidates>,
         root_node_count: u64,
@@ -66,6 +68,7 @@ impl PointerScanSession {
             max_depth,
             offset_radius,
             root_node_count,
+            module_names,
             pointer_scan_levels,
             pointer_scan_level_candidates,
             total_node_count,
@@ -99,6 +102,13 @@ impl PointerScanSession {
 
     pub fn get_root_node_count(&self) -> u64 {
         self.root_node_count
+    }
+
+    pub fn get_module_name(
+        &self,
+        module_index: usize,
+    ) -> Option<&str> {
+        self.module_names.get(module_index).map(String::as_str)
     }
 
     pub fn get_pointer_scan_levels(&self) -> &Vec<PointerScanLevel> {
@@ -207,11 +217,36 @@ impl PointerScanSession {
 
         let page_start_index = bounded_page_index.saturating_mul(page_size);
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
-        let root_page_candidates = self.collect_root_page_candidates(page_start_index, page_node_count);
+        let root_page_candidates = self
+            .pointer_scan_level_candidates
+            .iter()
+            .flat_map(|pointer_scan_level_candidates| pointer_scan_level_candidates.get_static_candidates().iter())
+            .skip(page_start_index as usize)
+            .take(page_node_count as usize)
+            .map(|static_candidate| {
+                (
+                    static_candidate.get_candidate_id(),
+                    static_candidate.get_discovery_depth(),
+                    static_candidate.get_pointer_scan_node_type(),
+                    static_candidate.get_pointer_address(),
+                    static_candidate.get_pointer_value(),
+                    static_candidate.get_module_index(),
+                    static_candidate.get_module_offset(),
+                )
+            })
+            .collect::<Vec<_>>();
         let mut materialized_node_ids = Vec::with_capacity(root_page_candidates.len());
 
-        for root_page_candidate in &root_page_candidates {
-            let Some(materialized_root_node_id) = self.materialize_root_pointer_scan_node(root_page_candidate) else {
+        for (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) in root_page_candidates {
+            let Some(materialized_root_node_id) = self.materialize_root_pointer_scan_node(
+                candidate_id,
+                discovery_depth,
+                pointer_scan_node_type,
+                pointer_address,
+                pointer_value,
+                module_index,
+                module_offset,
+            ) else {
                 continue;
             };
 
@@ -227,113 +262,6 @@ impl PointerScanSession {
             total_node_count,
             node_ids: materialized_node_ids,
         }
-    }
-
-    fn collect_root_page_candidates(
-        &self,
-        page_start_index: u64,
-        page_node_count: u64,
-    ) -> Vec<PointerScanCandidate> {
-        if page_node_count == 0 {
-            return Vec::new();
-        }
-
-        let mut remaining_skip_count = page_start_index;
-        let mut remaining_take_count = page_node_count;
-        let mut root_page_candidates = Vec::with_capacity(page_node_count as usize);
-        let child_candidate_ranges_by_level = self.build_child_candidate_ranges_by_level();
-
-        for pointer_scan_level_candidates in &self.pointer_scan_level_candidates {
-            let child_candidate_ranges = pointer_scan_level_candidates
-                .get_discovery_depth()
-                .checked_sub(2)
-                .and_then(|child_level_index| child_candidate_ranges_by_level.get(child_level_index as usize))
-                .map(Vec::as_slice);
-
-            for static_candidate in pointer_scan_level_candidates.get_static_candidates() {
-                if !Self::is_displayable_root_candidate_for_ranges(static_candidate, child_candidate_ranges) {
-                    continue;
-                }
-
-                if remaining_skip_count > 0 {
-                    remaining_skip_count = remaining_skip_count.saturating_sub(1);
-                    continue;
-                }
-
-                root_page_candidates.push(static_candidate.clone());
-                remaining_take_count = remaining_take_count.saturating_sub(1);
-
-                if remaining_take_count == 0 {
-                    return root_page_candidates;
-                }
-            }
-        }
-
-        root_page_candidates
-    }
-
-    fn build_child_candidate_ranges_by_level(&self) -> Vec<Vec<(u64, u64)>> {
-        self.pointer_scan_level_candidates
-            .iter()
-            .map(|pointer_scan_level_candidates| Self::build_merged_candidate_ranges(pointer_scan_level_candidates.get_heap_candidates(), self.offset_radius))
-            .collect()
-    }
-
-    fn build_merged_candidate_ranges(
-        heap_candidates: &[PointerScanCandidate],
-        offset_radius: u64,
-    ) -> Vec<(u64, u64)> {
-        let mut merged_candidate_ranges: Vec<(u64, u64)> = Vec::new();
-
-        for heap_candidate in heap_candidates {
-            let next_candidate_range = (
-                heap_candidate
-                    .get_pointer_address()
-                    .saturating_sub(offset_radius),
-                heap_candidate
-                    .get_pointer_address()
-                    .saturating_add(offset_radius),
-            );
-
-            if let Some(last_candidate_range) = merged_candidate_ranges.last_mut() {
-                if next_candidate_range.0 <= last_candidate_range.1.saturating_add(1) {
-                    last_candidate_range.1 = last_candidate_range.1.max(next_candidate_range.1);
-                    continue;
-                }
-            }
-
-            merged_candidate_ranges.push(next_candidate_range);
-        }
-
-        merged_candidate_ranges
-    }
-
-    fn is_displayable_root_candidate_for_ranges(
-        pointer_scan_candidate: &PointerScanCandidate,
-        child_candidate_ranges: Option<&[(u64, u64)]>,
-    ) -> bool {
-        if pointer_scan_candidate.get_discovery_depth() <= 1 {
-            return true;
-        }
-
-        child_candidate_ranges
-            .map(|child_candidate_ranges| Self::ranges_contain_value(child_candidate_ranges, pointer_scan_candidate.get_pointer_value()))
-            .unwrap_or(false)
-    }
-
-    fn ranges_contain_value(
-        merged_candidate_ranges: &[(u64, u64)],
-        pointer_value: u64,
-    ) -> bool {
-        let matching_range_index = merged_candidate_ranges.partition_point(|(lower_bound, _upper_bound)| *lower_bound <= pointer_value);
-
-        if matching_range_index == 0 {
-            return false;
-        }
-
-        let (_lower_bound, upper_bound) = merged_candidate_ranges[matching_range_index.saturating_sub(1)];
-
-        pointer_value <= upper_bound
     }
 
     fn materialize_child_node_page(
@@ -356,16 +284,17 @@ impl PointerScanSession {
             return MaterializedPointerScanNodePage::default();
         }
 
-        let Some(pointer_scan_level_candidates) = self.find_level_candidates(child_discovery_depth) else {
-            return MaterializedPointerScanNodePage::default();
-        };
-        let Some(heap_candidate) = pointer_scan_level_candidates
-            .find_heap_candidate_by_address(parent_materialized_node.get_resolved_target_address())
-            .cloned()
+        let Some(heap_candidate) = self
+            .find_level_candidates_mut(child_discovery_depth)
+            .and_then(|pointer_scan_level_candidates| {
+                pointer_scan_level_candidates
+                    .find_heap_candidate_by_address(parent_materialized_node.get_resolved_target_address())
+                    .cloned()
+            })
         else {
             return MaterializedPointerScanNodePage::default();
         };
-        let total_node_count = self.count_display_nodes_for_candidate(&heap_candidate);
+        let total_node_count = self.count_display_nodes_for_pointer_value(heap_candidate.get_discovery_depth(), heap_candidate.get_pointer_value());
         let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
         let bounded_page_index = page_index.clamp(0, last_page_index);
         let page_key = MaterializedPointerScanPageKey {
@@ -385,8 +314,14 @@ impl PointerScanSession {
 
         let page_start_index = bounded_page_index.saturating_mul(page_size);
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
-        let materialized_node_ids = self.materialize_display_node_page_for_candidate(
-            &heap_candidate,
+        let materialized_node_ids = self.materialize_display_node_page(
+            heap_candidate.get_candidate_id(),
+            heap_candidate.get_discovery_depth(),
+            heap_candidate.get_pointer_scan_node_type(),
+            heap_candidate.get_pointer_address(),
+            heap_candidate.get_pointer_value(),
+            "",
+            heap_candidate.get_module_offset(),
             parent_materialized_node.get_depth().saturating_add(1),
             Some(parent_node_id),
             page_start_index,
@@ -415,8 +350,8 @@ impl PointerScanSession {
             return MaterializedPointerScanNodePage::default();
         }
 
-        let root_pointer_scan_candidate = Self::rebuild_candidate_from_materialized_node(parent_materialized_node);
-        let total_node_count = self.count_display_nodes_for_candidate(&root_pointer_scan_candidate);
+        let total_node_count =
+            self.count_display_nodes_for_pointer_value(parent_materialized_node.get_discovery_depth(), parent_materialized_node.get_pointer_value());
         let last_page_index = Self::calculate_last_page_index(total_node_count, page_size);
         let bounded_page_index = page_index.clamp(0, last_page_index);
         let page_key = MaterializedPointerScanPageKey {
@@ -436,8 +371,14 @@ impl PointerScanSession {
 
         let page_start_index = bounded_page_index.saturating_mul(page_size);
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
-        let materialized_node_ids = self.materialize_display_node_page_for_candidate(
-            &root_pointer_scan_candidate,
+        let materialized_node_ids = self.materialize_display_node_page(
+            parent_materialized_node.get_graph_node_id(),
+            parent_materialized_node.get_discovery_depth(),
+            parent_materialized_node.get_pointer_scan_node_type(),
+            parent_materialized_node.get_pointer_address(),
+            parent_materialized_node.get_pointer_value(),
+            parent_materialized_node.get_module_name(),
+            parent_materialized_node.get_module_offset(),
             parent_materialized_node.get_depth().saturating_add(1),
             Some(parent_node_id),
             page_start_index,
@@ -455,9 +396,15 @@ impl PointerScanSession {
         }
     }
 
-    fn materialize_display_node_page_for_candidate(
+    fn materialize_display_node_page(
         &mut self,
-        pointer_scan_candidate: &PointerScanCandidate,
+        candidate_id: u64,
+        discovery_depth: u64,
+        pointer_scan_node_type: crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType,
+        pointer_address: u64,
+        pointer_value: u64,
+        module_name: &str,
+        module_offset: u64,
         display_depth: u64,
         parent_node_id: Option<u64>,
         page_start_index: u64,
@@ -467,15 +414,21 @@ impl PointerScanSession {
             return Vec::new();
         }
 
-        if pointer_scan_candidate.get_discovery_depth() <= 1 {
+        if discovery_depth <= 1 {
             if page_start_index > 0 {
                 return Vec::new();
             }
-            let Some(pointer_offset) = Self::calculate_pointer_offset(self.target_address, pointer_scan_candidate.get_pointer_value()) else {
+            let Some(pointer_offset) = Self::calculate_pointer_offset(self.target_address, pointer_value) else {
                 return Vec::new();
             };
             let materialized_pointer_scan_node = self.create_materialized_pointer_scan_node(
-                pointer_scan_candidate,
+                candidate_id,
+                discovery_depth,
+                pointer_scan_node_type,
+                pointer_address,
+                pointer_value,
+                module_name,
+                module_offset,
                 self.target_address,
                 pointer_offset,
                 false,
@@ -486,13 +439,9 @@ impl PointerScanSession {
             return vec![materialized_pointer_scan_node];
         }
 
-        let lower_bound = pointer_scan_candidate
-            .get_pointer_value()
-            .saturating_sub(self.offset_radius);
-        let upper_bound = pointer_scan_candidate
-            .get_pointer_value()
-            .saturating_add(self.offset_radius);
-        let Some(next_pointer_scan_level_candidates) = self.find_level_candidates(pointer_scan_candidate.get_discovery_depth().saturating_sub(1)) else {
+        let lower_bound = pointer_value.saturating_sub(self.offset_radius);
+        let upper_bound = pointer_value.saturating_add(self.offset_radius);
+        let Some(next_pointer_scan_level_candidates) = self.find_level_candidates_mut(discovery_depth.saturating_sub(1)) else {
             return Vec::new();
         };
         let matching_child_candidates = next_pointer_scan_level_candidates.find_heap_candidates_in_range(lower_bound, upper_bound);
@@ -508,10 +457,16 @@ impl PointerScanSession {
         resolved_target_addresses
             .iter()
             .filter_map(|resolved_target_address| {
-                let pointer_offset = Self::calculate_pointer_offset(*resolved_target_address, pointer_scan_candidate.get_pointer_value())?;
+                let pointer_offset = Self::calculate_pointer_offset(*resolved_target_address, pointer_value)?;
 
                 Some(self.create_materialized_pointer_scan_node(
-                    pointer_scan_candidate,
+                    candidate_id,
+                    discovery_depth,
+                    pointer_scan_node_type,
+                    pointer_address,
+                    pointer_value,
+                    module_name,
+                    module_offset,
                     *resolved_target_address,
                     pointer_offset,
                     true,
@@ -522,22 +477,19 @@ impl PointerScanSession {
             .collect()
     }
 
-    fn count_display_nodes_for_candidate(
-        &self,
-        pointer_scan_candidate: &PointerScanCandidate,
+    fn count_display_nodes_for_pointer_value(
+        &mut self,
+        discovery_depth: u64,
+        pointer_value: u64,
     ) -> u64 {
-        if pointer_scan_candidate.get_discovery_depth() <= 1 {
+        if discovery_depth <= 1 {
             return 1;
         }
 
-        let lower_bound = pointer_scan_candidate
-            .get_pointer_value()
-            .saturating_sub(self.offset_radius);
-        let upper_bound = pointer_scan_candidate
-            .get_pointer_value()
-            .saturating_add(self.offset_radius);
+        let lower_bound = pointer_value.saturating_sub(self.offset_radius);
+        let upper_bound = pointer_value.saturating_add(self.offset_radius);
 
-        self.find_level_candidates(pointer_scan_candidate.get_discovery_depth().saturating_sub(1))
+        self.find_level_candidates_mut(discovery_depth.saturating_sub(1))
             .map(|next_pointer_scan_level_candidates| {
                 next_pointer_scan_level_candidates
                     .find_heap_candidates_in_range(lower_bound, upper_bound)
@@ -548,23 +500,49 @@ impl PointerScanSession {
 
     fn materialize_root_pointer_scan_node(
         &mut self,
-        pointer_scan_candidate: &PointerScanCandidate,
+        candidate_id: u64,
+        discovery_depth: u64,
+        pointer_scan_node_type: crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType,
+        pointer_address: u64,
+        pointer_value: u64,
+        module_index: usize,
+        module_offset: u64,
     ) -> Option<u64> {
-        let has_children = pointer_scan_candidate.get_discovery_depth() > 1;
+        let module_name = self.get_module_name(module_index)?.to_string();
+        let has_children = discovery_depth > 1;
         let (resolved_target_address, pointer_offset) = if has_children {
-            (pointer_scan_candidate.get_pointer_value(), 0)
+            (pointer_value, 0)
         } else {
-            let pointer_offset = Self::calculate_pointer_offset(self.target_address, pointer_scan_candidate.get_pointer_value())?;
+            let pointer_offset = Self::calculate_pointer_offset(self.target_address, pointer_value)?;
 
             (self.target_address, pointer_offset)
         };
 
-        Some(self.create_materialized_pointer_scan_node(pointer_scan_candidate, resolved_target_address, pointer_offset, has_children, 1, None))
+        Some(self.create_materialized_pointer_scan_node(
+            candidate_id,
+            discovery_depth,
+            pointer_scan_node_type,
+            pointer_address,
+            pointer_value,
+            &module_name,
+            module_offset,
+            resolved_target_address,
+            pointer_offset,
+            has_children,
+            1,
+            None,
+        ))
     }
 
     fn create_materialized_pointer_scan_node(
         &mut self,
-        pointer_scan_candidate: &PointerScanCandidate,
+        candidate_id: u64,
+        discovery_depth: u64,
+        pointer_scan_node_type: crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType,
+        pointer_address: u64,
+        pointer_value: u64,
+        module_name: &str,
+        module_offset: u64,
         resolved_target_address: u64,
         pointer_offset: i64,
         has_children: bool,
@@ -575,17 +553,17 @@ impl PointerScanSession {
         self.next_materialized_node_id = self.next_materialized_node_id.saturating_add(1);
         let materialized_pointer_scan_node = PointerScanNode::new_materialized(
             materialized_node_id,
-            pointer_scan_candidate.get_candidate_id(),
-            pointer_scan_candidate.get_discovery_depth(),
+            candidate_id,
+            discovery_depth,
             display_depth,
             parent_node_id,
-            pointer_scan_candidate.get_pointer_scan_node_type(),
-            pointer_scan_candidate.get_pointer_address(),
-            pointer_scan_candidate.get_pointer_value(),
+            pointer_scan_node_type,
+            pointer_address,
+            pointer_value,
             resolved_target_address,
             pointer_offset,
-            pointer_scan_candidate.get_module_name().to_string(),
-            pointer_scan_candidate.get_module_offset(),
+            module_name.to_string(),
+            module_offset,
             has_children,
         );
         self.materialized_pointer_scan_nodes
@@ -594,25 +572,13 @@ impl PointerScanSession {
         materialized_node_id
     }
 
-    fn rebuild_candidate_from_materialized_node(pointer_scan_node: &PointerScanNode) -> PointerScanCandidate {
-        PointerScanCandidate::new(
-            pointer_scan_node.get_graph_node_id(),
-            pointer_scan_node.get_discovery_depth(),
-            pointer_scan_node.get_pointer_scan_node_type(),
-            pointer_scan_node.get_pointer_address(),
-            pointer_scan_node.get_pointer_value(),
-            pointer_scan_node.get_module_name().to_string(),
-            pointer_scan_node.get_module_offset(),
-        )
-    }
-
-    fn find_level_candidates(
-        &self,
+    fn find_level_candidates_mut(
+        &mut self,
         discovery_depth: u64,
-    ) -> Option<&PointerScanLevelCandidates> {
+    ) -> Option<&mut PointerScanLevelCandidates> {
         discovery_depth
             .checked_sub(1)
-            .and_then(|level_index| self.pointer_scan_level_candidates.get(level_index as usize))
+            .and_then(|level_index| self.pointer_scan_level_candidates.get_mut(level_index as usize))
     }
 
     fn find_materialized_node(
@@ -663,6 +629,7 @@ mod tests {
             PointerScanPointerSize::Pointer64,
             4,
             0x100,
+            vec!["game.exe".to_string()],
             vec![
                 PointerScanLevel::new(1, 2, 1, 1),
                 PointerScanLevel::new(2, 1, 1, 0),
@@ -676,7 +643,7 @@ mod tests {
                         PointerScanNodeType::Static,
                         0x1000,
                         0x2000,
-                        "game.exe".to_string(),
+                        0,
                         0x1000,
                     )],
                     vec![PointerScanCandidate::new(
@@ -685,7 +652,7 @@ mod tests {
                         PointerScanNodeType::Heap,
                         0x2000,
                         0x3000,
-                        String::new(),
+                        0,
                         0,
                     )],
                 ),
@@ -697,7 +664,7 @@ mod tests {
                         PointerScanNodeType::Static,
                         0x1100,
                         0x2000,
-                        "game.exe".to_string(),
+                        0,
                         0x1100,
                     )],
                     Vec::new(),
@@ -716,6 +683,7 @@ mod tests {
             PointerScanPointerSize::Pointer64,
             4,
             0x100,
+            vec!["game.exe".to_string()],
             vec![
                 PointerScanLevel::new(1, 1, 0, 1),
                 PointerScanLevel::new(2, 2, 2, 0),
@@ -730,15 +698,15 @@ mod tests {
                         PointerScanNodeType::Heap,
                         0x3000,
                         0x4000,
-                        String::new(),
+                        0,
                         0,
                     )],
                 ),
                 PointerScanLevelCandidates::new(
                     2,
                     vec![
-                        PointerScanCandidate::new(1, 2, PointerScanNodeType::Static, 0x1000, 0x3000, "game.exe".to_string(), 0x1000),
-                        PointerScanCandidate::new(2, 2, PointerScanNodeType::Static, 0x1100, 0x3000, "game.exe".to_string(), 0x1100),
+                        PointerScanCandidate::new(1, 2, PointerScanNodeType::Static, 0x1000, 0x3000, 0, 0x1000),
+                        PointerScanCandidate::new(2, 2, PointerScanNodeType::Static, 0x1100, 0x3000, 0, 0x1100),
                     ],
                     Vec::new(),
                 ),

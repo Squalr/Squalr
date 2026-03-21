@@ -48,16 +48,6 @@ impl PointerScanTargetRangeSet {
         Self::from_sorted_target_addresses_with_source_count(target_addresses.into_iter(), source_target_count, offset_radius)
     }
 
-    pub fn from_sorted_target_addresses_iter<SortedTargetAddresses>(
-        sorted_target_addresses: SortedTargetAddresses,
-        offset_radius: u64,
-    ) -> Self
-    where
-        SortedTargetAddresses: IntoIterator<Item = u64>,
-    {
-        Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses, 0, offset_radius)
-    }
-
     fn from_sorted_target_addresses_with_source_count<SortedTargetAddresses>(
         sorted_target_addresses: SortedTargetAddresses,
         source_target_count: usize,

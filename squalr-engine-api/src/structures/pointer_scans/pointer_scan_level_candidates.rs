@@ -6,21 +6,21 @@ pub struct PointerScanLevelCandidates {
     discovery_depth: u64,
     static_candidates: Vec<PointerScanCandidate>,
     heap_candidates: Vec<PointerScanCandidate>,
+    #[serde(skip, default)]
+    heap_candidates_sorted: bool,
 }
 
 impl PointerScanLevelCandidates {
     pub fn new(
         discovery_depth: u64,
-        mut static_candidates: Vec<PointerScanCandidate>,
-        mut heap_candidates: Vec<PointerScanCandidate>,
+        static_candidates: Vec<PointerScanCandidate>,
+        heap_candidates: Vec<PointerScanCandidate>,
     ) -> Self {
-        static_candidates.sort_by_key(PointerScanCandidate::get_pointer_address);
-        heap_candidates.sort_by_key(PointerScanCandidate::get_pointer_address);
-
         Self {
             discovery_depth,
             static_candidates,
             heap_candidates,
+            heap_candidates_sorted: false,
         }
     }
 
@@ -50,9 +50,10 @@ impl PointerScanLevelCandidates {
     }
 
     pub fn find_heap_candidate_by_address(
-        &self,
+        &mut self,
         pointer_address: u64,
     ) -> Option<&PointerScanCandidate> {
+        self.ensure_heap_candidates_sorted();
         self.heap_candidates
             .binary_search_by_key(&pointer_address, PointerScanCandidate::get_pointer_address)
             .ok()
@@ -60,10 +61,11 @@ impl PointerScanLevelCandidates {
     }
 
     pub fn find_heap_candidates_in_range(
-        &self,
+        &mut self,
         lower_bound: u64,
         upper_bound: u64,
     ) -> &[PointerScanCandidate] {
+        self.ensure_heap_candidates_sorted();
         let start_index = self
             .heap_candidates
             .partition_point(|candidate| candidate.get_pointer_address() < lower_bound);
@@ -72,5 +74,15 @@ impl PointerScanLevelCandidates {
             .partition_point(|candidate| candidate.get_pointer_address() <= upper_bound);
 
         &self.heap_candidates[start_index..end_index]
+    }
+
+    fn ensure_heap_candidates_sorted(&mut self) {
+        if self.heap_candidates_sorted {
+            return;
+        }
+
+        self.heap_candidates
+            .sort_unstable_by_key(PointerScanCandidate::get_pointer_address);
+        self.heap_candidates_sorted = true;
     }
 }

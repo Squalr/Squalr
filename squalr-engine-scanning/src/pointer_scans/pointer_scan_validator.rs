@@ -1,5 +1,4 @@
 use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
-use crate::pointer_scans::structures::pointer_scan_root_tracker::PointerScanRootTracker;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
 use crate::pointer_scans::structures::rebuilt_pointer_candidate::RebuiltPointerCandidate;
@@ -96,6 +95,7 @@ impl PointerScanValidator {
 
             let rebuilt_static_candidates = Self::validate_static_pointer_candidates_for_targets(
                 &process_info,
+                pointer_scan_session,
                 static_pointer_scan_candidates,
                 &range_search_kernel,
                 modules,
@@ -175,6 +175,7 @@ impl PointerScanValidator {
 
     fn validate_static_pointer_candidates_for_targets(
         process_info: &OpenedProcessInfo,
+        original_pointer_scan_session: &PointerScanSession,
         static_pointer_scan_candidates: &[PointerScanCandidate],
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
@@ -184,7 +185,10 @@ impl PointerScanValidator {
         let modules_by_name = Self::group_modules_by_name(modules);
 
         for static_pointer_scan_candidate in static_pointer_scan_candidates {
-            let Some(candidate_modules) = modules_by_name.get(static_pointer_scan_candidate.get_module_name()) else {
+            let Some(module_name) = original_pointer_scan_session.get_module_name(static_pointer_scan_candidate.get_module_index()) else {
+                continue;
+            };
+            let Some(candidate_modules) = modules_by_name.get(module_name) else {
                 continue;
             };
 
@@ -362,21 +366,28 @@ impl PointerScanValidator {
         let mut next_candidate_id = 1_u64;
         let mut total_static_node_count = 0_u64;
         let mut total_heap_node_count = 0_u64;
-        let mut root_tracker = PointerScanRootTracker::new(original_pointer_scan_session.get_offset_radius());
-
+        let mut module_names = Vec::new();
+        let mut module_indices_by_name = HashMap::new();
         for (level_index, rebuilt_pointer_level) in rebuilt_pointer_levels.iter().enumerate() {
             let discovery_depth = level_index as u64 + 1;
             let mut static_candidates = Vec::with_capacity(rebuilt_pointer_level.static_candidates.len());
 
             for rebuilt_pointer_candidate in &rebuilt_pointer_level.static_candidates {
-                root_tracker.record_static_candidate(discovery_depth, rebuilt_pointer_candidate.pointer_value);
+                let module_index = if let Some(module_index) = module_indices_by_name.get(rebuilt_pointer_candidate.module_name.as_str()) {
+                    *module_index
+                } else {
+                    let next_module_index = module_names.len();
+                    module_names.push(rebuilt_pointer_candidate.module_name.clone());
+                    module_indices_by_name.insert(rebuilt_pointer_candidate.module_name.clone(), next_module_index);
+                    next_module_index
+                };
                 static_candidates.push(PointerScanCandidate::new(
                     next_candidate_id,
                     discovery_depth,
                     PointerScanNodeType::Static,
                     rebuilt_pointer_candidate.pointer_address,
                     rebuilt_pointer_candidate.pointer_value,
-                    rebuilt_pointer_candidate.module_name.clone(),
+                    module_index,
                     rebuilt_pointer_candidate.module_offset,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
@@ -391,7 +402,7 @@ impl PointerScanValidator {
                     PointerScanNodeType::Heap,
                     rebuilt_pointer_candidate.pointer_address,
                     rebuilt_pointer_candidate.pointer_value,
-                    String::new(),
+                    0,
                     0,
                 ));
                 next_candidate_id = next_candidate_id.saturating_add(1);
@@ -407,11 +418,10 @@ impl PointerScanValidator {
                 level_candidates.get_static_node_count(),
                 level_candidates.get_heap_node_count(),
             ));
-            root_tracker.advance_to_next_level(level_candidates.get_heap_candidates());
             pointer_scan_level_candidates.push(level_candidates);
         }
 
-        let root_node_count = root_tracker.get_root_node_count();
+        let root_node_count = total_static_node_count;
 
         PointerScanSession::new(
             original_pointer_scan_session.get_session_id(),
@@ -419,6 +429,7 @@ impl PointerScanValidator {
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
+            module_names,
             pointer_scan_levels,
             pointer_scan_level_candidates,
             root_node_count,
@@ -437,6 +448,7 @@ impl PointerScanValidator {
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             0,
