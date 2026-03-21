@@ -35,18 +35,6 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         self.target_range_set.is_empty()
     }
 
-    pub fn contains_pointer_value(
-        &self,
-        pointer_value: u64,
-    ) -> bool {
-        match self.kernel_kind {
-            PointerScanRangeSearchKernelKind::ScalarBinary => self.target_range_set.contains_value_binary(pointer_value),
-            PointerScanRangeSearchKernelKind::ScalarLinear | PointerScanRangeSearchKernelKind::SimdLinear => {
-                self.target_range_set.contains_value_linear(pointer_value)
-            }
-        }
-    }
-
     #[cfg(test)]
     pub fn scan_region(
         &self,
