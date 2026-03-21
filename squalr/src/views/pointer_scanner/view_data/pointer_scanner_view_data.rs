@@ -348,6 +348,7 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_querying_summary = false;
             pointer_scanner_view_data_guard.is_resetting_scan = true;
+            pointer_scanner_view_data_guard.target_data_type_id = None;
 
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.apply_summary(None);
@@ -2407,7 +2408,9 @@ mod tests {
     #[test]
     fn reset_scan_cancels_inflight_summary_and_ignores_stale_summary_responses() {
         let dependency_container = DependencyContainer::new();
-        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.target_data_type_id = Some(String::from("u32"));
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
         let deferred_pointer_scanner_bindings = DeferredTestPointerScannerBindings::new();
         let queued_commands = deferred_pointer_scanner_bindings.get_queued_commands();
         let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(deferred_pointer_scanner_bindings));
@@ -2450,6 +2453,7 @@ mod tests {
             assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
             assert!(pointer_scanner_view_data_guard.is_resetting_scan);
             assert!(!pointer_scanner_view_data_guard.is_querying_summary);
+            assert!(pointer_scanner_view_data_guard.target_data_type_id.is_none());
         }
 
         DeferredTestPointerScannerBindings::respond_to_first_matching(
@@ -2480,6 +2484,7 @@ mod tests {
             .expect("Expected the pointer scanner view data read guard after the reset response.");
         assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
         assert!(!pointer_scanner_view_data_guard.is_resetting_scan);
+        assert!(pointer_scanner_view_data_guard.target_data_type_id.is_none());
         assert_eq!(pointer_scanner_view_data_guard.status_message, "No pointer scan session.");
     }
 
