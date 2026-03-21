@@ -132,8 +132,6 @@ impl PointerScanValidator {
                         );
                     }
 
-                    Self::normalize_worker_validated_pointer_levels(&mut worker_validated_pointer_levels);
-
                     worker_validated_pointer_levels
                 })
                 .collect::<Vec<_>>();
@@ -258,14 +256,15 @@ impl PointerScanValidator {
             return false;
         }
 
-        validated_pointer_levels[level_index]
-            .heap_candidates
-            .push(ValidatedPointerCandidate {
+        Self::append_heap_candidate_if_new(
+            &mut validated_pointer_levels[level_index].heap_candidates,
+            ValidatedPointerCandidate {
                 pointer_address: current_pointer_address,
                 pointer_value: current_pointer_value,
                 module_index: 0,
                 module_offset: 0,
-            });
+            },
+        );
 
         true
     }
@@ -440,69 +439,23 @@ impl PointerScanValidator {
         accumulated_validated_pointer_level
             .static_candidates
             .append(&mut worker_validated_pointer_level.static_candidates);
-        accumulated_validated_pointer_level.heap_candidates = Self::merge_sorted_heap_candidates(
-            std::mem::take(&mut accumulated_validated_pointer_level.heap_candidates),
-            std::mem::take(&mut worker_validated_pointer_level.heap_candidates),
-        );
-    }
-
-    fn normalize_worker_validated_pointer_levels(validated_pointer_levels: &mut [ValidatedPointerLevel]) {
-        for validated_pointer_level in validated_pointer_levels {
-            validated_pointer_level
-                .heap_candidates
-                .sort_unstable_by_key(|validated_pointer_candidate| validated_pointer_candidate.pointer_address);
-            validated_pointer_level
-                .heap_candidates
-                .dedup_by_key(|validated_pointer_candidate| validated_pointer_candidate.pointer_address);
+        for validated_heap_candidate in worker_validated_pointer_level.heap_candidates.drain(..) {
+            Self::append_heap_candidate_if_new(&mut accumulated_validated_pointer_level.heap_candidates, validated_heap_candidate);
         }
     }
 
-    fn merge_sorted_heap_candidates(
-        left_heap_candidates: Vec<ValidatedPointerCandidate>,
-        right_heap_candidates: Vec<ValidatedPointerCandidate>,
-    ) -> Vec<ValidatedPointerCandidate> {
-        if left_heap_candidates.is_empty() {
-            return right_heap_candidates;
+    fn append_heap_candidate_if_new(
+        validated_heap_candidates: &mut Vec<ValidatedPointerCandidate>,
+        validated_heap_candidate: ValidatedPointerCandidate,
+    ) {
+        if validated_heap_candidates
+            .last()
+            .is_some_and(|existing_heap_candidate| existing_heap_candidate.pointer_address == validated_heap_candidate.pointer_address)
+        {
+            return;
         }
 
-        if right_heap_candidates.is_empty() {
-            return left_heap_candidates;
-        }
-
-        let mut left_heap_candidates = left_heap_candidates.into_iter().peekable();
-        let mut right_heap_candidates = right_heap_candidates.into_iter().peekable();
-        let mut merged_heap_candidates = Vec::with_capacity(
-            left_heap_candidates
-                .size_hint()
-                .0
-                .saturating_add(right_heap_candidates.size_hint().0),
-        );
-        let mut last_pointer_address = None;
-
-        while let (Some(left_heap_candidate), Some(right_heap_candidate)) = (left_heap_candidates.peek(), right_heap_candidates.peek()) {
-            let next_heap_candidate = if left_heap_candidate.pointer_address <= right_heap_candidate.pointer_address {
-                left_heap_candidates.next()
-            } else {
-                right_heap_candidates.next()
-            };
-            let Some(next_heap_candidate) = next_heap_candidate else {
-                continue;
-            };
-
-            if last_pointer_address != Some(next_heap_candidate.pointer_address) {
-                last_pointer_address = Some(next_heap_candidate.pointer_address);
-                merged_heap_candidates.push(next_heap_candidate);
-            }
-        }
-
-        for remaining_heap_candidate in left_heap_candidates.chain(right_heap_candidates) {
-            if last_pointer_address != Some(remaining_heap_candidate.pointer_address) {
-                last_pointer_address = Some(remaining_heap_candidate.pointer_address);
-                merged_heap_candidates.push(remaining_heap_candidate);
-            }
-        }
-
-        merged_heap_candidates
+        validated_heap_candidates.push(validated_heap_candidate);
     }
 
     fn read_pointer_value_at_address(
