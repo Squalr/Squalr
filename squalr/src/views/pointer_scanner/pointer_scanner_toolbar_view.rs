@@ -89,11 +89,7 @@ impl Widget for PointerScannerToolbarView {
         let mut should_start_scan = false;
         let mut should_reset_scan = false;
         let mut should_refresh_summary = false;
-        let mut should_copy_chain = false;
-        let mut should_export_chain = false;
         let mut should_add_to_project = false;
-        let mut copy_text = None;
-        let mut export_text = None;
         let mut project_item_create_request = None;
         let opened_process_bitness = self
             .process_selector_view_data
@@ -282,35 +278,7 @@ impl Widget for PointerScannerToolbarView {
                     if self
                         .draw_icon_button(
                             user_interface,
-                            &theme.icon_library.icon_handle_common_edit,
-                            "Copy the selected pointer chain text.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            false,
-                        )
-                        .clicked()
-                    {
-                        should_copy_chain = true;
-                    }
-
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_file_system_save,
-                            "Copy the selected pointer chain metadata to the clipboard.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            false,
-                        )
-                        .clicked()
-                    {
-                        should_export_chain = true;
-                    }
-
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_project_pointer_type,
+                            &theme.icon_library.icon_handle_common_add,
                             "Persist the selected pointer chain to the current project.",
                             action_button_size,
                             Color32::TRANSPARENT,
@@ -344,26 +312,10 @@ impl Widget for PointerScannerToolbarView {
             PointerScannerViewData::request_summary(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone(), None);
         }
 
-        if should_copy_chain {
-            copy_text = PointerScannerViewData::build_copy_text(self.pointer_scanner_view_data.clone());
-        }
-
-        if should_export_chain {
-            export_text = PointerScannerViewData::build_export_text(self.pointer_scanner_view_data.clone());
-        }
-
         if should_add_to_project {
             let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
             project_item_create_request =
                 PointerScannerViewData::build_project_item_create_request(self.pointer_scanner_view_data.clone(), target_directory_path);
-        }
-
-        if let Some(copy_text) = copy_text {
-            self.app_context.context.copy_text(copy_text);
-        }
-
-        if let Some(export_text) = export_text {
-            self.app_context.context.copy_text(export_text);
         }
 
         if let Some(project_item_create_request) = project_item_create_request {
