@@ -55,6 +55,29 @@ pub struct ProjectHierarchyView {
     struct_viewer_view_data: Dependency<StructViewerViewData>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum PointerScannerContextAction {
+    Address {
+        label: &'static str,
+        address: u64,
+        module_name: String,
+        data_type_id: String,
+    },
+    ResolvedPointer {
+        label: &'static str,
+        pointer: Pointer,
+        data_type_id: String,
+    },
+}
+
+impl PointerScannerContextAction {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Address { label, .. } | Self::ResolvedPointer { label, .. } => label,
+        }
+    }
+}
+
 impl ProjectHierarchyView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
@@ -317,22 +340,77 @@ mod tests {
     }
 
     #[test]
-    fn build_pointer_scanner_context_action_returns_address_item_values() {
+    fn build_pointer_scanner_context_actions_returns_address_item_values() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        let pointer_scanner_context_action = ProjectHierarchyView::build_pointer_scanner_context_action(&project_item);
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(&project_item);
 
-        assert_eq!(pointer_scanner_context_action, Some((0x1234, "game.exe".to_string(), "u64".to_string())));
+        assert_eq!(
+            pointer_scanner_context_actions,
+            vec![super::PointerScannerContextAction::Address {
+                label: "Pointer Scan",
+                address: 0x1234,
+                module_name: "game.exe".to_string(),
+                data_type_id: "u64".to_string(),
+            }]
+        );
     }
 
     #[test]
-    fn build_pointer_scanner_context_action_ignores_non_address_items() {
+    fn build_pointer_scanner_context_actions_returns_pointer_item_entries() {
+        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u16");
+
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(&project_item);
+
+        assert_eq!(
+            pointer_scanner_context_actions,
+            vec![
+                super::PointerScannerContextAction::Address {
+                    label: "Pointer Scan for Base Address",
+                    address: 0x1000,
+                    module_name: "game.exe".to_string(),
+                    data_type_id: "u16".to_string(),
+                },
+                super::PointerScannerContextAction::ResolvedPointer {
+                    label: "Pointer Scan for Resolved Address",
+                    pointer,
+                    data_type_id: "u16".to_string(),
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn build_pointer_scanner_context_actions_ignores_non_address_items() {
         let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
         let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
 
-        let pointer_scanner_context_action = ProjectHierarchyView::build_pointer_scanner_context_action(&project_item);
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(&project_item);
 
-        assert!(pointer_scanner_context_action.is_none());
+        assert!(pointer_scanner_context_actions.is_empty());
+    }
+
+    #[test]
+    fn resolve_pointer_scanner_context_action_resolves_pointer_target() {
+        let engine_execution_context = create_execution_context(MockMemoryReadBindings::new(|memory_read_request| {
+            match (memory_read_request.address, memory_read_request.module_name.as_str()) {
+                (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer64, true),
+                (0x2020, "") => create_pointer_memory_read_response(0x3000, PointerScanPointerSize::Pointer64, true),
+                unexpected_request => panic!("Unexpected pointer dereference request: {unexpected_request:?}"),
+            }
+        }));
+        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+
+        let resolved_pointer_action = super::PointerScannerContextAction::ResolvedPointer {
+            label: "Pointer Scan for Resolved Address",
+            pointer,
+            data_type_id: "u16".to_string(),
+        };
+
+        let resolved_pointer_target = ProjectHierarchyView::resolve_pointer_scanner_context_action(&engine_execution_context, &resolved_pointer_action);
+
+        assert_eq!(resolved_pointer_target, Some((0x2FF0, String::new(), "u16".to_string())));
     }
 
     #[test]
@@ -490,7 +568,7 @@ impl Widget for ProjectHierarchyView {
                                     }
 
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
-                                    let pointer_scanner_context_action = Self::build_pointer_scanner_context_action(&tree_entry.project_item);
+                                    let pointer_scanner_context_actions = Self::build_pointer_scanner_context_actions(&tree_entry.project_item);
                                     let is_context_menu_visible =
                                         matches!(menu_target.as_ref(), Some(ProjectHierarchyMenuTarget::ProjectItem(menu_project_item_path)) if menu_project_item_path == &tree_entry.project_item_path);
                                     let default_context_menu_position = row_response.rect.left_bottom();
@@ -524,6 +602,41 @@ impl Widget for ProjectHierarchyView {
                                             "project_hierarchy_context_menu",
                                             menu_position.unwrap_or(default_context_menu_position),
                                             |user_interface, should_close| {
+                                                if !pointer_scanner_context_actions.is_empty() {
+                                                    let engine_execution_context: Arc<dyn EngineExecutionContext> =
+                                                        self.app_context.engine_unprivileged_state.clone();
+
+                                                    for pointer_scanner_context_action in pointer_scanner_context_actions.clone() {
+                                                        if user_interface
+                                                            .add(ToolbarMenuItemView::new(
+                                                                self.app_context.clone(),
+                                                                pointer_scanner_context_action.label(),
+                                                                pointer_scanner_context_action.label(),
+                                                                &None,
+                                                                Self::PROJECT_ITEM_MENU_WIDTH,
+                                                            ))
+                                                            .clicked()
+                                                        {
+                                                            if let Some((address, module_name, data_type_id)) = Self::resolve_pointer_scanner_context_action(
+                                                                &engine_execution_context,
+                                                                &pointer_scanner_context_action,
+                                                            ) {
+                                                                project_hierarchy_frame_action = ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
+                                                                    address,
+                                                                    module_name,
+                                                                    data_type_id,
+                                                                };
+                                                                *should_close = true;
+                                                            } else {
+                                                                log::error!(
+                                                                    "Failed to resolve pointer scan target for project item context action: {}.",
+                                                                    pointer_scanner_context_action.label()
+                                                                );
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
                                                 Self::show_create_project_item_menu_items(
                                                     self.app_context.clone(),
                                                     user_interface,
@@ -531,26 +644,6 @@ impl Widget for ProjectHierarchyView {
                                                     &mut project_hierarchy_frame_action,
                                                     should_close,
                                                 );
-
-                                                if let Some((address, module_name, data_type_id)) = pointer_scanner_context_action.clone() {
-                                                    if user_interface
-                                                        .add(ToolbarMenuItemView::new(
-                                                            self.app_context.clone(),
-                                                            "Pointer Scan",
-                                                            "project_hierarchy_ctx_pointer_scan",
-                                                            &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
-                                                        ))
-                                                        .clicked()
-                                                    {
-                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
-                                                            address,
-                                                            module_name,
-                                                            data_type_id,
-                                                        };
-                                                        *should_close = true;
-                                                    }
-                                                }
 
                                                 if user_interface
                                                     .add_enabled(
@@ -1316,24 +1409,71 @@ impl ProjectHierarchyView {
         None
     }
 
-    fn build_pointer_scanner_context_action(project_item: &ProjectItem) -> Option<(u64, String, String)> {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return None;
+    fn build_pointer_scanner_context_actions(project_item: &ProjectItem) -> Vec<PointerScannerContextAction> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+
+            return vec![PointerScannerContextAction::Address {
+                label: "Pointer Scan",
+                address: ProjectItemTypeAddress::get_field_address(&mut project_item),
+                module_name: ProjectItemTypeAddress::get_field_module(&mut project_item),
+                data_type_id: ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item)
+                    .map(|symbolic_struct_reference| {
+                        symbolic_struct_reference
+                            .get_symbolic_struct_namespace()
+                            .to_string()
+                    })
+                    .unwrap_or_default(),
+            }];
         }
 
-        let mut project_item = project_item.clone();
-
-        Some((
-            ProjectItemTypeAddress::get_field_address(&mut project_item),
-            ProjectItemTypeAddress::get_field_module(&mut project_item),
-            ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item)
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
+            let data_type_id = ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item)
                 .map(|symbolic_struct_reference| {
                     symbolic_struct_reference
                         .get_symbolic_struct_namespace()
                         .to_string()
                 })
-                .unwrap_or_default(),
-        ))
+                .unwrap_or_default();
+
+            return vec![
+                PointerScannerContextAction::Address {
+                    label: "Pointer Scan for Base Address",
+                    address: pointer.get_address(),
+                    module_name: pointer.get_module_name().to_string(),
+                    data_type_id: data_type_id.clone(),
+                },
+                PointerScannerContextAction::ResolvedPointer {
+                    label: "Pointer Scan for Resolved Address",
+                    pointer,
+                    data_type_id,
+                },
+            ];
+        }
+
+        Vec::new()
+    }
+
+    fn resolve_pointer_scanner_context_action(
+        engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        pointer_scanner_context_action: &PointerScannerContextAction,
+    ) -> Option<(u64, String, String)> {
+        match pointer_scanner_context_action {
+            PointerScannerContextAction::Address {
+                address,
+                module_name,
+                data_type_id,
+                ..
+            } => Some((*address, module_name.clone(), data_type_id.clone())),
+            PointerScannerContextAction::ResolvedPointer { pointer, data_type_id, .. } => {
+                let (address, module_name) = Self::resolve_pointer_write_target(engine_execution_context, pointer)?;
+
+                Some((address, module_name, data_type_id.clone()))
+            }
+        }
     }
 
     fn build_struct_view_properties(project_item: &ProjectItem) -> ValuedStruct {
