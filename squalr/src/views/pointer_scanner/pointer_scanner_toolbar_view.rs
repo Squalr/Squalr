@@ -93,8 +93,6 @@ impl Widget for PointerScannerToolbarView {
         );
 
         let mut should_start_scan = false;
-        let mut should_reset_scan = false;
-        let mut should_refresh_summary = false;
         let mut should_add_to_project = false;
         let mut project_item_create_request = None;
         let opened_process_bitness = self
@@ -143,48 +141,7 @@ impl Widget for PointerScannerToolbarView {
 
                 user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
                     user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
-                        let pointer_size_data_type = pointer_scanner_view_data
-                            .pointer_size_data_type_selection
-                            .visible_data_type()
-                            .clone();
-                        let active_target_input = if has_active_pointer_scan_session {
-                            &mut pointer_scanner_view_data.validation_target_address_input
-                        } else {
-                            &mut pointer_scanner_view_data.target_address_input
-                        };
-
                         user_interface.add_space(Self::LEADING_ROW_PADDING);
-                        if self
-                            .draw_icon_button(
-                                user_interface,
-                                &theme.icon_library.icon_handle_scan_new,
-                                "Clear the active pointer scan session.",
-                                action_button_size,
-                                Color32::TRANSPARENT,
-                                are_session_actions_disabled,
-                            )
-                            .clicked()
-                        {
-                            should_reset_scan = true;
-                        }
-
-                        user_interface.add_space(Self::GROUP_SPACING);
-                        user_interface.add(
-                            DataValueBoxView::new(
-                                self.app_context.clone(),
-                                active_target_input,
-                                &pointer_size_data_type,
-                                false,
-                                true,
-                                target_placeholder,
-                                "pointer_scanner_active_target_address",
-                            )
-                            .width(228.0)
-                            .height(Self::CONTROL_HEIGHT)
-                            .use_format_text_colors(false),
-                        );
-
-                        user_interface.add_space(Self::GROUP_SPACING);
                         user_interface.add(
                             DataValueBoxView::new(
                                 self.app_context.clone(),
@@ -215,14 +172,8 @@ impl Widget for PointerScannerToolbarView {
                             .height(Self::CONTROL_HEIGHT)
                             .use_format_text_colors(false),
                         );
-                    });
-                });
 
-                user_interface.add_space(Self::ROW_SPACING);
-
-                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
-                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
-                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.add_space(Self::GROUP_SPACING);
                         user_interface.add(
                             DataTypeSelectorView::new(
                                 self.app_context.clone(),
@@ -248,6 +199,38 @@ impl Widget for PointerScannerToolbarView {
                             .height(Self::CONTROL_HEIGHT)
                             .hide_placeholder_entries(),
                         );
+                    });
+                });
+
+                user_interface.add_space(Self::ROW_SPACING);
+
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        let pointer_size_data_type = pointer_scanner_view_data
+                            .pointer_size_data_type_selection
+                            .visible_data_type()
+                            .clone();
+                        let active_target_input = if has_active_pointer_scan_session {
+                            &mut pointer_scanner_view_data.validation_target_address_input
+                        } else {
+                            &mut pointer_scanner_view_data.target_address_input
+                        };
+
+                        user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                active_target_input,
+                                &pointer_size_data_type,
+                                false,
+                                true,
+                                target_placeholder,
+                                "pointer_scanner_active_target_address",
+                            )
+                            .width(320.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
 
                         user_interface.add_space(Self::GROUP_SPACING);
                         if self
@@ -272,20 +255,6 @@ impl Widget for PointerScannerToolbarView {
                         if self
                             .draw_icon_button(
                                 user_interface,
-                                &theme.icon_library.icon_handle_navigation_refresh,
-                                "Refresh the active pointer scan summary.",
-                                action_button_size,
-                                Color32::TRANSPARENT,
-                                are_session_actions_disabled,
-                            )
-                            .clicked()
-                        {
-                            should_refresh_summary = true;
-                        }
-
-                        if self
-                            .draw_icon_button(
-                                user_interface,
                                 &theme.icon_library.icon_handle_common_add,
                                 "Persist the selected pointer chain to the current project.",
                                 action_button_size,
@@ -302,16 +271,8 @@ impl Widget for PointerScannerToolbarView {
             });
         }
 
-        if should_reset_scan {
-            PointerScannerViewData::reset_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
-        }
-
         if should_start_scan {
             PointerScannerViewData::start_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
-        }
-
-        if should_refresh_summary {
-            PointerScannerViewData::request_summary(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone(), None);
         }
 
         if should_add_to_project {

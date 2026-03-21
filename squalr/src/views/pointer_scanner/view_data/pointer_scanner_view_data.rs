@@ -1236,12 +1236,18 @@ impl PointerScannerViewData {
     }
 
     fn build_navigate_up_row(&self) -> PointerScannerTreeRow {
+        let primary_text = self
+            .current_context_parent_node_id
+            .and_then(|parent_node_id| self.nodes_by_id.get(&parent_node_id))
+            .map(|parent_pointer_scan_node| format!("Return to depth {}", parent_pointer_scan_node.get_depth()))
+            .unwrap_or_else(|| String::from("Return"));
+
         PointerScannerTreeRow {
             node_id: 0,
             has_children: false,
             is_navigate_up_row: true,
             is_selected: false,
-            primary_text: String::from("Back"),
+            primary_text,
             value_text: String::new(),
             resolved_address_text: String::new(),
             depth_text: String::new(),
@@ -1415,7 +1421,7 @@ impl PointerScannerViewData {
 
     fn format_pointer_offset(pointer_offset: i64) -> String {
         if pointer_offset >= 0 {
-            format!("+0x{:X}", pointer_offset as u64)
+            format!("0x{:X}", pointer_offset as u64)
         } else {
             format!("-0x{:X}", pointer_offset.unsigned_abs())
         }
@@ -1950,7 +1956,7 @@ mod tests {
 
         let copy_text = PointerScannerViewData::build_copy_text(pointer_scanner_view_data).expect("Expected selected chain text.");
 
-        assert_eq!(copy_text, "game.exe+0x10 -> +0x10 -> -0x10");
+        assert_eq!(copy_text, "game.exe+0x10 -> 0x10 -> -0x10");
     }
 
     #[test]
@@ -1961,7 +1967,7 @@ mod tests {
         let export_text = PointerScannerViewData::build_export_text(pointer_scanner_view_data).expect("Expected export text for selected leaf.");
 
         assert!(export_text.contains("Session: 7"));
-        assert!(export_text.contains("Chain: game.exe+0x10 -> +0x10 -> -0x10"));
+        assert!(export_text.contains("Chain: game.exe+0x10 -> 0x10 -> -0x10"));
         assert!(export_text.contains("Resolved Address: 0x3010"));
         assert!(export_text.contains("State: Heap"));
     }
@@ -2101,8 +2107,8 @@ mod tests {
 
         assert_eq!(pointer_scanner_tree_rows.len(), 2);
         assert!(pointer_scanner_tree_rows[0].is_navigate_up_row);
-        assert_eq!(pointer_scanner_tree_rows[0].primary_text, "Back");
-        assert_eq!(pointer_scanner_tree_rows[1].primary_text, "+0x20");
+        assert_eq!(pointer_scanner_tree_rows[0].primary_text, "Return to depth 1");
+        assert_eq!(pointer_scanner_tree_rows[1].primary_text, "0x20");
         assert_eq!(pointer_scanner_tree_rows[1].depth_text, "2 of 5");
     }
 
@@ -2362,7 +2368,7 @@ mod tests {
         );
         assert_eq!(
             PointerScannerViewData::build_current_context_text(pointer_scanner_view_data),
-            "game.exe+0x10 | +0x10"
+            "game.exe+0x10 | 0x10"
         );
     }
 

@@ -21,6 +21,7 @@ Our current task, from `README.md`, is:
 - Need human verification: confirm the pointer-scanner toolbar now follows the new two-row layout in live use: top row should be `New | target | Depth | Offset`, second row should be `Size | data type | actions`, the offset editor should stay decimal, and the pointer scanner should finally expose a real value data-type selector distinct from pointer size.
 - Need human verification: confirm the pointer-scanner toolbar no longer renders the old status text row at all, so the results panel gets that vertical space back.
 - Need human verification: confirm child pointer-tree contexts now show a synthetic first `Back` row inside the results list, the footer pager no longer contains its own back/up button, and the vertical splitters stop at the footer boundary instead of extending through it.
+- Need human verification: confirm the pointer-scanner toolbar now uses `Depth | Offset | Pointer size | Data type` on the first row and `Target/validation address | Scan | Add` on the second row, with the refresh button removed.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -31,6 +32,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Pointer-scanner leaf rows must never use `allocate_rect` for the missing disclosure icon path, because that advances egui layout and makes non-expandable rows render at a different effective height than rows with children.
 - Pointer-scanner toolbar status still exists in view-model state for commands/tests, but the toolbar should not render it as a third row anymore.
 - Pointer-scanner child contexts now reserve row index `0` for a synthetic navigate-up row in the results list, so visible row count is `current_context_node_ids + 1` whenever `current_context_parent_node_id` is present.
+- Pointer-scanner synthetic navigate-up rows should read `Return to depth n-1` using the current parent node depth, and positive child offsets should render as `0x...` without a leading `+`.
 - `DataValueBoxView` should render the active display-format icon on the right side instead of a generic down-arrow, using the existing decimal/binary/hex/string icon set as the visible affordance for the popup.
 - Pointer-scanner node materialization now carries an explicit `branch_total_depth` from the root static through every expanded child node, so the UI can render depth as the stable rule `root = 1 of y`, then `2 of y`, `3 of y`, etc. without trying to recompute `y` from the current context.
 - Pointer-scanner toolbar state now carries a real target-value `DataTypeSelection` instead of a hidden string id, so the UI can render an actual value-type selector alongside pointer size while project-item creation still reads the selected target data type from the same shared state. Offset defaults and summary hydration are now decimal to match the requested editor format.
