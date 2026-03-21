@@ -106,8 +106,8 @@ impl PointerScannerViewData {
         Self {
             target_address_input: Self::create_hex_input(String::new()),
             validation_target_address_input: Self::create_hex_input(String::new()),
-            target_value_input: Self::create_plain_input(String::new()),
-            validation_target_value_input: Self::create_plain_input(String::new()),
+            target_value_input: Self::create_unsigned_input(String::new()),
+            validation_target_value_input: Self::create_unsigned_input(String::new()),
             pointer_size,
             pointer_size_data_type_selection: DataTypeSelection::new(Self::pointer_size_data_type_ref(pointer_size)),
             target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref("u8")),
@@ -1221,8 +1221,8 @@ impl PointerScannerViewData {
                     let formatted_target_address = Self::format_address(*target_address);
                     self.target_address_input = Self::create_hex_input(formatted_target_address.clone());
                     self.validation_target_address_input = Self::create_hex_input(formatted_target_address);
-                    self.target_value_input = Self::create_plain_input(String::new());
-                    self.validation_target_value_input = Self::create_plain_input(String::new());
+                    self.target_value_input = Self::create_unsigned_input(String::new());
+                    self.validation_target_value_input = Self::create_unsigned_input(String::new());
                 }
                 PointerScanTargetDescriptor::Value {
                     target_value, data_type_ref, ..
@@ -1238,8 +1238,8 @@ impl PointerScannerViewData {
         } else {
             self.target_address_input = Self::create_hex_input(String::new());
             self.validation_target_address_input = Self::create_hex_input(String::new());
-            self.target_value_input = Self::create_plain_input(String::new());
-            self.validation_target_value_input = Self::create_plain_input(String::new());
+            self.target_value_input = Self::create_unsigned_input(String::new());
+            self.validation_target_value_input = Self::create_unsigned_input(String::new());
             self.status_message = String::from("No pointer scan session.");
         }
     }
@@ -1770,10 +1770,6 @@ impl PointerScannerViewData {
 
     fn create_unsigned_input(value_text: String) -> AnonymousValueString {
         AnonymousValueString::new(value_text, AnonymousValueStringFormat::Decimal, ContainerType::None)
-    }
-
-    fn create_plain_input(value_text: String) -> AnonymousValueString {
-        AnonymousValueString::new(value_text, AnonymousValueStringFormat::String, ContainerType::None)
     }
 
     fn format_target_descriptor(pointer_scan_target_descriptor: &PointerScanTargetDescriptor) -> String {

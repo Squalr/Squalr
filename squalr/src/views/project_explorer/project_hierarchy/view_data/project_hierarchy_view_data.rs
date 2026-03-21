@@ -3,6 +3,7 @@ use crate::views::project_explorer::project_hierarchy::view_data::{
     project_hierarchy_pending_operation::ProjectHierarchyPendingOperation, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
     project_hierarchy_tree_entry::ProjectHierarchyTreeEntry,
 };
+use eframe::egui::Pos2;
 use squalr_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
@@ -44,6 +45,7 @@ pub struct ProjectHierarchyViewData {
     pub selection_anchor_project_item_path: Option<PathBuf>,
     pub expanded_directory_paths: HashSet<PathBuf>,
     pub context_menu_project_item_path: Option<PathBuf>,
+    pub context_menu_position: Option<Pos2>,
     pub dragged_project_item_paths: Option<Vec<PathBuf>>,
     pub take_over_state: ProjectHierarchyTakeOverState,
     pub pending_operation: ProjectHierarchyPendingOperation,
@@ -65,6 +67,7 @@ impl ProjectHierarchyViewData {
             selection_anchor_project_item_path: None,
             expanded_directory_paths: HashSet::new(),
             context_menu_project_item_path: None,
+            context_menu_position: None,
             dragged_project_item_paths: None,
             take_over_state: ProjectHierarchyTakeOverState::None,
             pending_operation: ProjectHierarchyPendingOperation::None,
@@ -229,6 +232,30 @@ impl ProjectHierarchyViewData {
         } else {
             selected_project_item_path.parent().map(Path::to_path_buf)
         }
+    }
+
+    pub fn show_context_menu(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_path: PathBuf,
+        position: Pos2,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy show context menu") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        project_hierarchy_view_data.context_menu_project_item_path = Some(project_item_path);
+        project_hierarchy_view_data.context_menu_position = Some(position);
+    }
+
+    pub fn hide_context_menu(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy hide context menu") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        project_hierarchy_view_data.context_menu_project_item_path = None;
+        project_hierarchy_view_data.context_menu_position = None;
     }
 
     pub fn toggle_directory_expansion(

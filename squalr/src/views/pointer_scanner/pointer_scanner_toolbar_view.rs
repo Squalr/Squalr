@@ -244,7 +244,6 @@ impl Widget for PointerScannerToolbarView {
                                 target_placeholder,
                                 "pointer_scanner_active_target_address",
                             )
-                            .width(320.0)
                             .height(Self::CONTROL_HEIGHT)
                             .use_format_text_colors(false),
                         );
@@ -315,7 +314,6 @@ impl Widget for PointerScannerToolbarView {
                                 value_placeholder,
                                 "pointer_scanner_active_target_value",
                             )
-                            .width(320.0)
                             .height(Self::CONTROL_HEIGHT)
                             .use_format_text_colors(false),
                         );

@@ -1,6 +1,9 @@
 use crate::{
     app_context::AppContext,
-    ui::converters::data_type_to_icon_converter::DataTypeToIconConverter,
+    ui::{
+        converters::data_type_to_icon_converter::DataTypeToIconConverter,
+        widgets::controls::{context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
+    },
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
     views::project_explorer::project_hierarchy::{
         project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
@@ -431,6 +434,11 @@ impl Widget for ProjectHierarchyView {
                 let tree_entries = project_hierarchy_view_data.tree_entries.clone();
                 let selected_project_item_paths = project_hierarchy_view_data.selected_project_item_paths.clone();
                 let dragged_project_item_paths = project_hierarchy_view_data.dragged_project_item_paths.clone();
+                let context_menu_project_item_path = project_hierarchy_view_data
+                    .context_menu_project_item_path
+                    .clone();
+                let context_menu_position = project_hierarchy_view_data.context_menu_position;
+                let selected_project_item_paths_in_tree_order = project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order();
                 let pending_operation = project_hierarchy_view_data.pending_operation.clone();
 
                 user_interface.add(project_hierarchy_toolbar_view);
@@ -477,32 +485,28 @@ impl Widget for ProjectHierarchyView {
 
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
                                     let pointer_scanner_context_action = Self::build_pointer_scanner_context_action(&tree_entry.project_item);
-                                    row_response.context_menu(|user_interface| {
-                                        if let Some((address, module_name, data_type_id)) = pointer_scanner_context_action.clone() {
-                                            if user_interface.button("Pointer Scan").clicked() {
-                                                project_hierarchy_frame_action = ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
-                                                    address,
-                                                    module_name,
-                                                    data_type_id,
-                                                };
-                                                user_interface.close();
-                                            }
-                                        }
+                                    let is_context_menu_visible = context_menu_project_item_path
+                                        .as_ref()
+                                        .map(|context_menu_project_item_path| context_menu_project_item_path == &tree_entry.project_item_path)
+                                        .unwrap_or(false);
+                                    let default_context_menu_position = row_response.rect.left_bottom();
 
-                                        if user_interface.button("New Folder").clicked() {
-                                            project_hierarchy_frame_action = ProjectHierarchyFrameAction::CreateDirectory(tree_entry_project_item_path.clone());
-                                            user_interface.close();
-                                        }
+                                    if row_response.secondary_clicked() {
+                                        ProjectHierarchyViewData::show_context_menu(
+                                            self.project_hierarchy_view_data.clone(),
+                                            tree_entry.project_item_path.clone(),
+                                            row_response
+                                                .hover_pos()
+                                                .unwrap_or(default_context_menu_position),
+                                        );
+                                    }
 
-                                        let selected_project_item_paths_in_order = self
-                                            .project_hierarchy_view_data
-                                            .read("Project hierarchy selected project items for context menu delete")
-                                            .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
-                                            .unwrap_or_default();
-                                        let project_item_paths_for_delete = if selected_project_item_paths_in_order.contains(&tree_entry_project_item_path)
-                                            && selected_project_item_paths_in_order.len() > 1
+                                    if is_context_menu_visible {
+                                        let mut open = true;
+                                        let project_item_paths_for_delete = if selected_project_item_paths_in_tree_order.contains(&tree_entry_project_item_path)
+                                            && selected_project_item_paths_in_tree_order.len() > 1
                                         {
-                                            selected_project_item_paths_in_order
+                                            selected_project_item_paths_in_tree_order.clone()
                                         } else {
                                             vec![tree_entry_project_item_path.clone()]
                                         };
@@ -511,15 +515,73 @@ impl Widget for ProjectHierarchyView {
                                             &project_item_paths_for_delete,
                                         );
 
-                                        if user_interface
-                                            .add_enabled(can_delete_project_item_paths, eframe::egui::Button::new("Delete"))
-                                            .clicked()
-                                        {
-                                            project_hierarchy_frame_action =
-                                                ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete);
-                                            user_interface.close();
+                                        ContextMenu::new(
+                                            self.app_context.clone(),
+                                            "project_hierarchy_context_menu",
+                                            context_menu_position.unwrap_or(default_context_menu_position),
+                                            |user_interface, should_close| {
+                                                if let Some((address, module_name, data_type_id)) = pointer_scanner_context_action.clone() {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Pointer Scan",
+                                                            "project_hierarchy_ctx_pointer_scan",
+                                                            &None,
+                                                            220.0,
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
+                                                            address,
+                                                            module_name,
+                                                            data_type_id,
+                                                        };
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if user_interface
+                                                    .add(ToolbarMenuItemView::new(
+                                                        self.app_context.clone(),
+                                                        "New Folder",
+                                                        "project_hierarchy_ctx_new_folder",
+                                                        &None,
+                                                        220.0,
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action =
+                                                        ProjectHierarchyFrameAction::CreateDirectory(tree_entry_project_item_path.clone());
+                                                    *should_close = true;
+                                                }
+
+                                                if user_interface
+                                                    .add_enabled(
+                                                        can_delete_project_item_paths,
+                                                        ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Delete",
+                                                            "project_hierarchy_ctx_delete",
+                                                            &None,
+                                                            220.0,
+                                                        ),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action =
+                                                        ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete.clone());
+                                                    *should_close = true;
+                                                }
+                                            },
+                                        )
+                                        .width(220.0)
+                                        .corner_radius(8)
+                                        .show(user_interface, &mut open);
+
+                                        if !open {
+                                            ProjectHierarchyViewData::hide_context_menu(self.project_hierarchy_view_data.clone());
                                         }
-                                    });
+                                    }
 
                                     let active_dragged_project_item_paths = drag_started_project_item_path
                                         .as_ref()
