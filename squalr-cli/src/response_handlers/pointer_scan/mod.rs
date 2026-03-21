@@ -54,10 +54,10 @@ fn log_pointer_scan_summary(
     pointer_scan_summary: &PointerScanSummary,
 ) {
     log::info!(
-        "{} {}: target=0x{:X}, pointer_size={}, max_depth={}, offset_radius=0x{:X}, roots={}, total_nodes={}, static_nodes={}, heap_nodes={}",
+        "{} {}: target={}, pointer_size={}, max_depth={}, offset_radius=0x{:X}, roots={}, total_nodes={}, static_nodes={}, heap_nodes={}",
         label,
         pointer_scan_summary.get_session_id(),
-        pointer_scan_summary.get_target_address(),
+        pointer_scan_summary.get_target_descriptor(),
         pointer_scan_summary.get_pointer_size(),
         pointer_scan_summary.get_max_depth(),
         pointer_scan_summary.get_offset_radius(),
