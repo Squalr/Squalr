@@ -111,6 +111,15 @@ impl PointerScanSession {
         self.module_names.get(module_index).map(String::as_str)
     }
 
+    pub fn get_module_index_by_name(
+        &self,
+        module_name: &str,
+    ) -> Option<usize> {
+        self.module_names
+            .iter()
+            .position(|candidate_module_name| candidate_module_name == module_name)
+    }
+
     pub fn get_pointer_scan_levels(&self) -> &Vec<PointerScanLevel> {
         &self.pointer_scan_levels
     }

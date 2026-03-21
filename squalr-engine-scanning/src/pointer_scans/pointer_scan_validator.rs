@@ -53,6 +53,7 @@ impl PointerScanValidator {
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
         let (snapshot_region_scan_tasks, total_snapshot_region_count, snapshot_task_byte_size) =
             Self::build_snapshot_region_scan_tasks(validation_snapshot, pointer_scan_session.get_pointer_size());
+        let original_module_index_by_current_module_index = Self::build_original_module_index_by_current_module_index(pointer_scan_session, modules);
 
         for level_index in 0..level_count {
             let level_number = level_index + 1;
@@ -75,19 +76,18 @@ impl PointerScanValidator {
             let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, pointer_scan_session.get_pointer_size());
             let validation_level_log_context = PointerValidationLevelLogContext { level_number, level_count };
             let level_start_time = Instant::now();
-            let empty_static_pointer_scan_candidates: &[PointerScanCandidate] = &[];
             let static_pointer_scan_candidates = pointer_scan_session
                 .get_pointer_scan_level_candidates()
-                .get(level_index)
-                .map(PointerScanLevelCandidates::get_static_candidates)
-                .map_or(empty_static_pointer_scan_candidates, Vec::as_slice);
+                .get(level_index);
 
             if with_logging {
                 log::info!(
                     "Pointer scan validation level {}/{}: checking {} static nodes and scanning {} snapshot regions across {} scan tasks ({} bytes/task) for {} frontier targets merged into {} ranges with {} kernel.",
                     validation_level_log_context.level_number,
                     validation_level_log_context.level_count,
-                    static_pointer_scan_candidates.len(),
+                    static_pointer_scan_candidates
+                        .map(PointerScanLevelCandidates::get_static_node_count)
+                        .unwrap_or(0),
                     total_snapshot_region_count,
                     snapshot_region_scan_tasks.len(),
                     snapshot_task_byte_size,
@@ -99,8 +99,8 @@ impl PointerScanValidator {
 
             let rebuilt_pointer_level = Self::scan_snapshot_regions_for_pointer_targets(
                 &snapshot_region_scan_tasks,
-                pointer_scan_session,
                 static_pointer_scan_candidates,
+                &original_module_index_by_current_module_index,
                 &range_search_kernel,
                 modules,
                 !is_terminal_level,
@@ -169,14 +169,12 @@ impl PointerScanValidator {
 
     fn scan_snapshot_regions_for_pointer_targets(
         snapshot_region_scan_tasks: &[SnapshotRegionScanTask<'_>],
-        original_pointer_scan_session: &PointerScanSession,
-        static_pointer_scan_candidates: &[PointerScanCandidate],
+        static_pointer_scan_candidates: Option<&PointerScanLevelCandidates>,
+        original_module_index_by_current_module_index: &[Option<usize>],
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
         modules: &[NormalizedModule],
         retain_heap_candidates: bool,
     ) -> RebuiltPointerLevel {
-        let sorted_original_static_membership = Self::build_sorted_original_static_membership(original_pointer_scan_session, static_pointer_scan_candidates);
-
         snapshot_region_scan_tasks
             .par_iter()
             .fold(
@@ -188,8 +186,9 @@ impl PointerScanValidator {
                     Self::scan_snapshot_region_for_pointer_targets(
                         snapshot_region_scan_task,
                         range_search_kernel,
+                        static_pointer_scan_candidates,
+                        original_module_index_by_current_module_index,
                         modules,
-                        &sorted_original_static_membership,
                         retain_heap_candidates,
                         &mut worker_rebuilt_pointer_level,
                     );
@@ -218,8 +217,9 @@ impl PointerScanValidator {
     fn scan_snapshot_region_for_pointer_targets(
         snapshot_region_scan_task: &SnapshotRegionScanTask<'_>,
         range_search_kernel: &PointerScanRangeSearchKernel<'_>,
+        static_pointer_scan_candidates: Option<&PointerScanLevelCandidates>,
+        original_module_index_by_current_module_index: &[Option<usize>],
         modules: &[NormalizedModule],
-        sorted_original_static_membership: &[(&str, u64)],
         retain_heap_candidates: bool,
         rebuilt_pointer_level: &mut RebuiltPointerLevel,
     ) {
@@ -230,8 +230,16 @@ impl PointerScanValidator {
                 let pointer_address = pointer_match.get_pointer_address();
                 let pointer_value = pointer_match.get_pointer_value();
 
-                if let Some((module_name, module_offset)) = Self::classify_static_pointer_address(pointer_address, modules) {
-                    if Self::contains_original_static_membership(sorted_original_static_membership, module_name, module_offset) {
+                if let Some((current_module_index, module_name, module_offset)) = Self::classify_static_pointer_address(pointer_address, modules) {
+                    if original_module_index_by_current_module_index
+                        .get(current_module_index)
+                        .and_then(|original_module_index| *original_module_index)
+                        .is_some_and(|original_module_index| {
+                            static_pointer_scan_candidates.is_some_and(|pointer_scan_level_candidates| {
+                                pointer_scan_level_candidates.contains_static_candidate(original_module_index, module_offset)
+                            })
+                        })
+                    {
                         rebuilt_pointer_level
                             .static_candidates
                             .push(RebuiltPointerCandidate {
@@ -338,12 +346,17 @@ impl PointerScanValidator {
     fn classify_static_pointer_address<'a>(
         pointer_address: u64,
         modules: &'a [NormalizedModule],
-    ) -> Option<(&'a str, u64)> {
-        modules.iter().find_map(|module| {
-            module
-                .contains_address(pointer_address)
-                .then_some((module.get_module_name(), pointer_address.saturating_sub(module.get_base_address())))
-        })
+    ) -> Option<(usize, &'a str, u64)> {
+        modules
+            .iter()
+            .enumerate()
+            .find_map(|(current_module_index, module)| {
+                module.contains_address(pointer_address).then_some((
+                    current_module_index,
+                    module.get_module_name(),
+                    pointer_address.saturating_sub(module.get_base_address()),
+                ))
+            })
     }
 
     fn build_pointer_scan_session(
@@ -447,47 +460,14 @@ impl PointerScanValidator {
         )
     }
 
-    fn build_sorted_original_static_membership<'a>(
-        original_pointer_scan_session: &'a PointerScanSession,
-        static_pointer_scan_candidates: &'a [PointerScanCandidate],
-    ) -> Vec<(&'a str, u64)> {
-        let mut sorted_original_static_membership = static_pointer_scan_candidates
+    fn build_original_module_index_by_current_module_index(
+        original_pointer_scan_session: &PointerScanSession,
+        modules: &[NormalizedModule],
+    ) -> Vec<Option<usize>> {
+        modules
             .iter()
-            .filter_map(|static_pointer_scan_candidate| {
-                original_pointer_scan_session
-                    .get_module_name(static_pointer_scan_candidate.get_module_index())
-                    .map(|module_name| (module_name, static_pointer_scan_candidate.get_module_offset()))
-            })
-            .collect::<Vec<_>>();
-
-        sorted_original_static_membership.sort_unstable();
-        sorted_original_static_membership.dedup();
-
-        sorted_original_static_membership
-    }
-
-    fn find_original_static_membership_for_module<'a>(
-        sorted_original_static_membership: &'a [(&'a str, u64)],
-        module_name: &str,
-    ) -> &'a [(&'a str, u64)] {
-        let membership_start_index =
-            sorted_original_static_membership.partition_point(|(candidate_module_name, _candidate_module_offset)| *candidate_module_name < module_name);
-        let membership_end_index =
-            sorted_original_static_membership.partition_point(|(candidate_module_name, _candidate_module_offset)| *candidate_module_name <= module_name);
-
-        &sorted_original_static_membership[membership_start_index..membership_end_index]
-    }
-
-    fn contains_original_static_membership(
-        sorted_original_static_membership: &[(&str, u64)],
-        module_name: &str,
-        module_offset: u64,
-    ) -> bool {
-        let original_module_membership = Self::find_original_static_membership_for_module(sorted_original_static_membership, module_name);
-
-        original_module_membership
-            .binary_search_by_key(&module_offset, |(_module_name, candidate_module_offset)| *candidate_module_offset)
-            .is_ok()
+            .map(|module| original_pointer_scan_session.get_module_index_by_name(module.get_module_name()))
+            .collect()
     }
 }
 
@@ -501,7 +481,6 @@ mod tests {
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
-    use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
@@ -655,11 +634,11 @@ mod tests {
         let required_target_ranges = PointerScanTargetRangeSet::from_target_addresses(&[0x4010, 0x5010], 0x10);
         let range_search_kernel = PointerScanRangeSearchKernel::new(&required_target_ranges, PointerScanPointerSize::Pointer64);
         let validation_snapshot = build_snapshot_from_memory_map(&[NormalizedRegion::new(0x3000, 0x40)], &multi_target_validation_memory_map);
-        let static_pointer_scan_candidates: &[PointerScanCandidate] = &[];
+        let original_pointer_scan_session = build_original_pointer_scan_session();
         let rebuilt_pointer_level = PointerScanValidator::scan_snapshot_regions_for_pointer_targets(
             &PointerScanValidator::build_snapshot_region_scan_tasks(&validation_snapshot, PointerScanPointerSize::Pointer64).0,
-            &build_original_pointer_scan_session(),
-            static_pointer_scan_candidates,
+            None,
+            &PointerScanValidator::build_original_module_index_by_current_module_index(&original_pointer_scan_session, &[]),
             &range_search_kernel,
             &[],
             true,

@@ -13,9 +13,12 @@ pub struct PointerScanLevelCandidates {
 impl PointerScanLevelCandidates {
     pub fn new(
         discovery_depth: u64,
-        static_candidates: Vec<PointerScanCandidate>,
+        mut static_candidates: Vec<PointerScanCandidate>,
         heap_candidates: Vec<PointerScanCandidate>,
     ) -> Self {
+        static_candidates
+            .sort_unstable_by_key(|pointer_scan_candidate| (pointer_scan_candidate.get_module_index(), pointer_scan_candidate.get_module_offset()));
+
         Self {
             discovery_depth,
             static_candidates,
@@ -30,6 +33,18 @@ impl PointerScanLevelCandidates {
 
     pub fn get_static_candidates(&self) -> &Vec<PointerScanCandidate> {
         &self.static_candidates
+    }
+
+    pub fn contains_static_candidate(
+        &self,
+        module_index: usize,
+        module_offset: u64,
+    ) -> bool {
+        self.static_candidates
+            .binary_search_by_key(&(module_index, module_offset), |pointer_scan_candidate| {
+                (pointer_scan_candidate.get_module_index(), pointer_scan_candidate.get_module_offset())
+            })
+            .is_ok()
     }
 
     pub fn get_heap_candidates(&self) -> &Vec<PointerScanCandidate> {
@@ -84,5 +99,30 @@ impl PointerScanLevelCandidates {
         self.heap_candidates
             .sort_unstable_by_key(PointerScanCandidate::get_pointer_address);
         self.heap_candidates_sorted = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PointerScanLevelCandidates;
+    use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
+    use crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
+
+    #[test]
+    fn new_sorts_static_candidates_for_binary_search() {
+        let pointer_scan_level_candidates = PointerScanLevelCandidates::new(
+            2,
+            vec![
+                PointerScanCandidate::new(2, 2, PointerScanNodeType::Static, 0x1200, 0x3000, 1, 0x40),
+                PointerScanCandidate::new(1, 2, PointerScanNodeType::Static, 0x1100, 0x2000, 0, 0x10),
+                PointerScanCandidate::new(3, 2, PointerScanNodeType::Static, 0x1300, 0x4000, 0, 0x30),
+            ],
+            Vec::new(),
+        );
+
+        assert!(pointer_scan_level_candidates.contains_static_candidate(0, 0x10));
+        assert!(pointer_scan_level_candidates.contains_static_candidate(0, 0x30));
+        assert!(pointer_scan_level_candidates.contains_static_candidate(1, 0x40));
+        assert!(!pointer_scan_level_candidates.contains_static_candidate(0, 0x20));
     }
 }
