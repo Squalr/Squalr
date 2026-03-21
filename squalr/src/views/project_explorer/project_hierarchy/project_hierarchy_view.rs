@@ -9,13 +9,15 @@ use crate::{
         project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
         project_item_entry_view::ProjectItemEntryView,
         view_data::{
-            project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_pending_operation::ProjectHierarchyPendingOperation,
-            project_hierarchy_take_over_state::ProjectHierarchyTakeOverState, project_hierarchy_view_data::ProjectHierarchyViewData,
+            project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
+            project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
+            project_hierarchy_pending_operation::ProjectHierarchyPendingOperation, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
+            project_hierarchy_tree_entry::ProjectHierarchyTreeEntry, project_hierarchy_view_data::ProjectHierarchyViewData,
         },
     },
     views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
 };
-use eframe::egui::{Align, CursorIcon, Layout, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
+use eframe::egui::{Align, CursorIcon, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -420,7 +422,7 @@ impl Widget for ProjectHierarchyView {
         let project_hierarchy_toolbar_view = self.project_hierarchy_toolbar_view.clone();
         let mut project_hierarchy_frame_action = ProjectHierarchyFrameAction::None;
         let mut drag_started_project_item_path: Option<PathBuf> = None;
-        let mut hovered_drop_target_project_item_path: Option<PathBuf> = None;
+        let mut hovered_drop_target_project_item_path: Option<ProjectHierarchyDropTarget> = None;
         let mut should_cancel_take_over = false;
         let mut delete_confirmation_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
         let mut keyboard_activation_toggle_target: Option<(Vec<PathBuf>, bool)> = None;
@@ -434,14 +436,18 @@ impl Widget for ProjectHierarchyView {
                 let tree_entries = project_hierarchy_view_data.tree_entries.clone();
                 let selected_project_item_paths = project_hierarchy_view_data.selected_project_item_paths.clone();
                 let dragged_project_item_paths = project_hierarchy_view_data.dragged_project_item_paths.clone();
-                let context_menu_project_item_path = project_hierarchy_view_data
-                    .context_menu_project_item_path
-                    .clone();
-                let context_menu_position = project_hierarchy_view_data.context_menu_position;
+                let menu_target = project_hierarchy_view_data.menu_target.clone();
+                let menu_position = project_hierarchy_view_data.menu_position;
                 let selected_project_item_paths_in_tree_order = project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order();
                 let pending_operation = project_hierarchy_view_data.pending_operation.clone();
 
                 user_interface.add(project_hierarchy_toolbar_view);
+                self.show_toolbar_add_menu(
+                    &mut project_hierarchy_frame_action,
+                    user_interface,
+                    menu_target.as_ref(),
+                    menu_position,
+                );
 
                 match pending_operation {
                     ProjectHierarchyPendingOperation::Deleting => {
@@ -485,14 +491,12 @@ impl Widget for ProjectHierarchyView {
 
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
                                     let pointer_scanner_context_action = Self::build_pointer_scanner_context_action(&tree_entry.project_item);
-                                    let is_context_menu_visible = context_menu_project_item_path
-                                        .as_ref()
-                                        .map(|context_menu_project_item_path| context_menu_project_item_path == &tree_entry.project_item_path)
-                                        .unwrap_or(false);
+                                    let is_context_menu_visible =
+                                        matches!(menu_target.as_ref(), Some(ProjectHierarchyMenuTarget::ProjectItem(menu_project_item_path)) if menu_project_item_path == &tree_entry.project_item_path);
                                     let default_context_menu_position = row_response.rect.left_bottom();
 
                                     if row_response.secondary_clicked() {
-                                        ProjectHierarchyViewData::show_context_menu(
+                                        ProjectHierarchyViewData::show_project_item_menu(
                                             self.project_hierarchy_view_data.clone(),
                                             tree_entry.project_item_path.clone(),
                                             row_response
@@ -518,8 +522,16 @@ impl Widget for ProjectHierarchyView {
                                         ContextMenu::new(
                                             self.app_context.clone(),
                                             "project_hierarchy_context_menu",
-                                            context_menu_position.unwrap_or(default_context_menu_position),
+                                            menu_position.unwrap_or(default_context_menu_position),
                                             |user_interface, should_close| {
+                                                Self::show_create_project_item_menu_items(
+                                                    self.app_context.clone(),
+                                                    user_interface,
+                                                    &tree_entry_project_item_path,
+                                                    &mut project_hierarchy_frame_action,
+                                                    should_close,
+                                                );
+
                                                 if let Some((address, module_name, data_type_id)) = pointer_scanner_context_action.clone() {
                                                     if user_interface
                                                         .add(ToolbarMenuItemView::new(
@@ -527,7 +539,7 @@ impl Widget for ProjectHierarchyView {
                                                             "Pointer Scan",
                                                             "project_hierarchy_ctx_pointer_scan",
                                                             &None,
-                                                            220.0,
+                                                            Self::PROJECT_ITEM_MENU_WIDTH,
                                                         ))
                                                         .clicked()
                                                     {
@@ -541,21 +553,6 @@ impl Widget for ProjectHierarchyView {
                                                 }
 
                                                 if user_interface
-                                                    .add(ToolbarMenuItemView::new(
-                                                        self.app_context.clone(),
-                                                        "New Folder",
-                                                        "project_hierarchy_ctx_new_folder",
-                                                        &None,
-                                                        220.0,
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::CreateDirectory(tree_entry_project_item_path.clone());
-                                                    *should_close = true;
-                                                }
-
-                                                if user_interface
                                                     .add_enabled(
                                                         can_delete_project_item_paths,
                                                         ToolbarMenuItemView::new(
@@ -563,7 +560,7 @@ impl Widget for ProjectHierarchyView {
                                                             "Delete",
                                                             "project_hierarchy_ctx_delete",
                                                             &None,
-                                                            220.0,
+                                                            Self::PROJECT_ITEM_MENU_WIDTH,
                                                         ),
                                                     )
                                                     .clicked()
@@ -574,12 +571,12 @@ impl Widget for ProjectHierarchyView {
                                                 }
                                             },
                                         )
-                                        .width(220.0)
+                                        .width(Self::PROJECT_ITEM_MENU_WIDTH)
                                         .corner_radius(8)
                                         .show(user_interface, &mut open);
 
                                         if !open {
-                                            ProjectHierarchyViewData::hide_context_menu(self.project_hierarchy_view_data.clone());
+                                            ProjectHierarchyViewData::hide_menu(self.project_hierarchy_view_data.clone());
                                         }
                                     }
 
@@ -589,17 +586,16 @@ impl Widget for ProjectHierarchyView {
                                         .or(dragged_project_item_paths.clone());
 
                                     if let Some(active_dragged_project_item_paths) = active_dragged_project_item_paths {
-                                        if !active_dragged_project_item_paths.contains(&tree_entry.project_item_path) && row_response.contains_pointer() {
-                                            hovered_drop_target_project_item_path = Some(tree_entry.project_item_path.clone());
-                                            user_interface
-                                                .painter()
-                                                .rect_filled(row_response.rect, CornerRadius::ZERO, self.app_context.theme.hover_tint);
-                                            user_interface.painter().rect_stroke(
+                                        if let Some(pointer_position) = row_response.hover_pos() {
+                                            if let Some(hovered_drop_target) = Self::resolve_drop_target(
+                                                &active_dragged_project_item_paths,
+                                                tree_entry,
                                                 row_response.rect,
-                                                CornerRadius::ZERO,
-                                                Stroke::new(1.0, self.app_context.theme.selected_border),
-                                                StrokeKind::Inside,
-                                            );
+                                                pointer_position,
+                                            ) {
+                                                hovered_drop_target_project_item_path = Some(hovered_drop_target.clone());
+                                                self.paint_drop_target_indicator(user_interface, row_response.rect, &hovered_drop_target);
+                                            }
                                         }
                                     }
                                 }
@@ -639,13 +635,17 @@ impl Widget for ProjectHierarchyView {
                             });
 
                         user_interface.add_space(8.0);
-                        user_interface.horizontal_centered(|user_interface| {
+                        user_interface.allocate_ui_with_layout(
+                            vec2(user_interface.available_width(), 32.0),
+                            Layout::left_to_right(Align::Center),
+                            |user_interface| {
+                                user_interface.spacing_mut().item_spacing.x = 12.0;
                             let button_size = vec2(120.0, 28.0);
                             let button_cancel = user_interface.add_sized(
                                 button_size,
                                 eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                    .fill(theme.background_control_primary)
-                                    .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
                             );
 
                             if button_cancel.clicked() {
@@ -662,7 +662,8 @@ impl Widget for ProjectHierarchyView {
                             if button_confirm_delete.clicked() {
                                 delete_confirmation_project_item_paths = Some(project_item_paths);
                             }
-                        });
+                            },
+                        );
                     }
                 }
             })
@@ -780,8 +781,16 @@ impl Widget for ProjectHierarchyView {
                     is_activated,
                 );
             }
-            ProjectHierarchyFrameAction::CreateDirectory(target_project_item_path) => {
-                ProjectHierarchyViewData::create_directory(self.project_hierarchy_view_data.clone(), self.app_context.clone(), target_project_item_path);
+            ProjectHierarchyFrameAction::CreateProjectItem {
+                target_project_item_path,
+                create_item_kind,
+            } => {
+                ProjectHierarchyViewData::create_project_item(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    target_project_item_path,
+                    create_item_kind,
+                );
             }
             ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
                 address,
@@ -803,6 +812,176 @@ impl ProjectHierarchyView {
     const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
     const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
     const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
+    const PROJECT_ITEM_MENU_WIDTH: f32 = 220.0;
+    const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
+
+    fn show_toolbar_add_menu(
+        &self,
+        project_hierarchy_frame_action: &mut ProjectHierarchyFrameAction,
+        user_interface: &mut Ui,
+        menu_target: Option<&ProjectHierarchyMenuTarget>,
+        menu_position: Option<Pos2>,
+    ) {
+        let Some(ProjectHierarchyMenuTarget::ToolbarAdd { target_project_item_path }) = menu_target else {
+            return;
+        };
+
+        let Some(menu_position) = menu_position else {
+            return;
+        };
+        let mut open = true;
+
+        ContextMenu::new(
+            self.app_context.clone(),
+            "project_hierarchy_toolbar_add_menu",
+            menu_position,
+            |user_interface, should_close| {
+                Self::show_create_project_item_menu_items(
+                    self.app_context.clone(),
+                    user_interface,
+                    target_project_item_path,
+                    project_hierarchy_frame_action,
+                    should_close,
+                );
+            },
+        )
+        .width(Self::PROJECT_ITEM_MENU_WIDTH)
+        .corner_radius(8)
+        .show(user_interface, &mut open);
+
+        if !open {
+            ProjectHierarchyViewData::hide_menu(self.project_hierarchy_view_data.clone());
+        }
+    }
+
+    fn show_create_project_item_menu_items(
+        app_context: Arc<AppContext>,
+        user_interface: &mut Ui,
+        target_project_item_path: &Path,
+        project_hierarchy_frame_action: &mut ProjectHierarchyFrameAction,
+        should_close: &mut bool,
+    ) {
+        for (label, item_id, create_item_kind) in [
+            ("New Folder", "project_hierarchy_ctx_new_folder", ProjectHierarchyCreateItemKind::Directory),
+            ("New Address", "project_hierarchy_ctx_new_address", ProjectHierarchyCreateItemKind::Address),
+            ("New Pointer", "project_hierarchy_ctx_new_pointer", ProjectHierarchyCreateItemKind::Pointer),
+        ] {
+            if user_interface
+                .add(ToolbarMenuItemView::new(
+                    app_context.clone(),
+                    label,
+                    item_id,
+                    &None,
+                    Self::PROJECT_ITEM_MENU_WIDTH,
+                ))
+                .clicked()
+            {
+                *project_hierarchy_frame_action = ProjectHierarchyFrameAction::CreateProjectItem {
+                    target_project_item_path: target_project_item_path.to_path_buf(),
+                    create_item_kind,
+                };
+                *should_close = true;
+            }
+        }
+    }
+
+    fn resolve_drop_target(
+        active_dragged_project_item_paths: &[PathBuf],
+        tree_entry: &ProjectHierarchyTreeEntry,
+        row_rect: Rect,
+        pointer_position: Pos2,
+    ) -> Option<ProjectHierarchyDropTarget> {
+        if active_dragged_project_item_paths.contains(&tree_entry.project_item_path) {
+            return None;
+        }
+
+        let insertion_band_height = Self::DROP_INSERTION_BAND_HEIGHT.min(row_rect.height() / 2.0);
+
+        if pointer_position.y <= row_rect.top() + insertion_band_height
+            && Self::can_render_insertion_drop_target(active_dragged_project_item_paths, &tree_entry.project_item_path)
+        {
+            return Some(ProjectHierarchyDropTarget::Before(tree_entry.project_item_path.clone()));
+        }
+
+        if pointer_position.y >= row_rect.bottom() - insertion_band_height
+            && Self::can_render_insertion_drop_target(active_dragged_project_item_paths, &tree_entry.project_item_path)
+        {
+            return Some(ProjectHierarchyDropTarget::After(tree_entry.project_item_path.clone()));
+        }
+
+        if tree_entry.is_directory && Self::can_render_into_directory_drop_target(active_dragged_project_item_paths, &tree_entry.project_item_path) {
+            return Some(ProjectHierarchyDropTarget::Into(tree_entry.project_item_path.clone()));
+        }
+
+        None
+    }
+
+    fn can_render_insertion_drop_target(
+        active_dragged_project_item_paths: &[PathBuf],
+        target_project_item_path: &Path,
+    ) -> bool {
+        if target_project_item_path.parent().is_none() {
+            return false;
+        }
+
+        let Some(dragged_parent_path) = active_dragged_project_item_paths
+            .first()
+            .and_then(|dragged_project_item_path| dragged_project_item_path.parent())
+        else {
+            return false;
+        };
+
+        active_dragged_project_item_paths
+            .iter()
+            .all(|dragged_project_item_path| dragged_project_item_path.parent() == Some(dragged_parent_path))
+            && target_project_item_path.parent() == Some(dragged_parent_path)
+    }
+
+    fn can_render_into_directory_drop_target(
+        active_dragged_project_item_paths: &[PathBuf],
+        target_project_item_path: &Path,
+    ) -> bool {
+        !active_dragged_project_item_paths
+            .iter()
+            .any(|dragged_project_item_path| target_project_item_path.starts_with(dragged_project_item_path))
+    }
+
+    fn paint_drop_target_indicator(
+        &self,
+        user_interface: &mut Ui,
+        row_rect: Rect,
+        drop_target: &ProjectHierarchyDropTarget,
+    ) {
+        let theme = &self.app_context.theme;
+
+        match drop_target {
+            ProjectHierarchyDropTarget::Into(_) => {
+                user_interface
+                    .painter()
+                    .rect_filled(row_rect, CornerRadius::ZERO, theme.hover_tint);
+                user_interface
+                    .painter()
+                    .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
+            }
+            ProjectHierarchyDropTarget::Before(_) | ProjectHierarchyDropTarget::After(_) => {
+                let indicator_y = match drop_target {
+                    ProjectHierarchyDropTarget::Before(_) => row_rect.top() + 0.5,
+                    ProjectHierarchyDropTarget::After(_) => row_rect.bottom() - 0.5,
+                    ProjectHierarchyDropTarget::Into(_) => row_rect.center().y,
+                };
+                let indicator_left = row_rect.left() + 8.0;
+                let indicator_right = row_rect.right() - 8.0;
+
+                user_interface.painter().line_segment(
+                    [
+                        Pos2::new(indicator_left, indicator_y),
+                        Pos2::new(indicator_right, indicator_y),
+                    ],
+                    Stroke::new(2.0, theme.selected_border),
+                );
+            }
+        }
+    }
 
     fn sync_scan_settings_if_needed(&self) {
         let should_request_scan_settings = self

@@ -78,19 +78,44 @@ impl Widget for ProjectHierarchyToolbarView {
                 ProjectSelectorViewData::close_current_project(self.app_context.clone());
             }
 
-            // Delete selected project item.
-            let button_delete = user_interface.add_sized(
+            let button_add = user_interface.add_sized(
                 button_size,
                 Button::new_from_theme(&theme)
-                    .with_tooltip_text("Delete selected project item.")
+                    .with_tooltip_text("Add a new project item.")
                     .background_color(Color32::TRANSPARENT)
-                    .disabled(!has_deletable_selected_project_item || is_busy || has_take_over_state),
+                    .disabled(is_busy || has_take_over_state),
             );
-            IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
+            IconDraw::draw(user_interface, button_add.rect, &theme.icon_library.icon_handle_common_add);
 
-            if button_delete.clicked() {
-                ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
+            if button_add.clicked() {
+                if let Some(target_project_item_path) = ProjectHierarchyViewData::get_selected_or_root_directory_path(self.project_hierarchy_view_data.clone())
+                {
+                    ProjectHierarchyViewData::show_add_menu(
+                        self.project_hierarchy_view_data.clone(),
+                        target_project_item_path,
+                        button_add.rect.left_bottom(),
+                    );
+                }
             }
+
+            user_interface.allocate_ui_with_layout(
+                vec2(user_interface.available_width(), height),
+                Layout::right_to_left(Align::Center),
+                |user_interface| {
+                    let button_delete = user_interface.add_sized(
+                        button_size,
+                        Button::new_from_theme(&theme)
+                            .with_tooltip_text("Delete selected project item.")
+                            .background_color(Color32::TRANSPARENT)
+                            .disabled(!has_deletable_selected_project_item || is_busy || has_take_over_state),
+                    );
+                    IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
+
+                    if button_delete.clicked() {
+                        ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
+                    }
+                },
+            );
         });
 
         response

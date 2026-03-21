@@ -25,6 +25,10 @@ Our current task, from `README.md`, is:
 - Need human verification: confirm pointer-scanner value inputs now default to decimal formatting like regular scans, and the address/value `DataValueBox` controls match the regular element-scanner value-box width instead of the old oversized layout.
 - Need human verification: confirm the property viewer now gives runtime address/pointer `value` fields a sane numeric default format, preserves the active display format on edit commits, and exposes useful alternate preview formats such as decimal / hex / binary instead of gravitating to string.
 - Need human verification: confirm right-clicking project items now uses the shared styled context-menu widget rather than egui's native popup styling, while preserving the existing `Pointer Scan`, `New Folder`, and `Delete` actions.
+- Need human verification: confirm project-item add flows now expose `New Folder`, `New Address`, and `New Pointer` from both the toolbar add button and the project-item right-click menu, and that the new address create path actually persists a usable blank address item.
+- Need human verification: confirm the project-hierarchy toolbar now keeps the delete-selected action right-aligned while the add menu remains on the left with the close-project action.
+- Need human verification: confirm drag-and-drop in the project explorer now clearly distinguishes `drop into folder` versus `insert between rows`, including visible horizontal insertion lines and sane reorder behavior when dragging within the same parent.
+- Need human verification: confirm the delete-confirmation take-over now centers the action row, adds spacing between `Cancel` and `Delete`, and gives `Cancel` a visible non-delete button treatment.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -45,3 +49,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Struct-viewer runtime `value` fields for address/pointer items should derive edit/display formatting from the resolved validation data type, not from the backing UTF-8 storage field, so numeric previews do not default to string semantics.
 - Committing a struct-viewer `value` edit should preserve the active display format when possible and regenerate the supported display-format list from the committed `DataValue`.
 - Project-hierarchy right-click menus now track explicit popup position in view-data and render through the shared `ContextMenu` + `ToolbarMenuItemView` path so they visually match the rest of the application's menus.
+- Project-item creation is now routed through a shared `ProjectHierarchyCreateItemKind` flow so the toolbar add button and the row context menu both dispatch the same `folder / address / pointer` create requests, and the engine create executor now supports blank address items in addition to directories and pointers.
+- Project-hierarchy drag/drop now carries an explicit `into / before / after` target model so the UI can render full-row folder targets separately from horizontal insertion targets, while the reorder path only advertises between-row insertion when the dragged items actually share the target parent.
+- The delete-confirmation take-over now uses a centered fixed-height action row with explicit inter-button spacing and secondary styling for `Cancel` instead of two flush left-aligned buttons.
