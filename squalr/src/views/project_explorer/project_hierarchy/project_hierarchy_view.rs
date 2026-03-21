@@ -586,15 +586,17 @@ impl Widget for ProjectHierarchyView {
                                         .or(dragged_project_item_paths.clone());
 
                                     if let Some(active_dragged_project_item_paths) = active_dragged_project_item_paths {
-                                        if let Some(pointer_position) = row_response.hover_pos() {
-                                            if let Some(hovered_drop_target) = Self::resolve_drop_target(
-                                                &active_dragged_project_item_paths,
-                                                tree_entry,
-                                                row_response.rect,
-                                                pointer_position,
-                                            ) {
-                                                hovered_drop_target_project_item_path = Some(hovered_drop_target.clone());
-                                                self.paint_drop_target_indicator(user_interface, row_response.rect, &hovered_drop_target);
+                                        if let Some(pointer_position) = user_interface.input(|input_state| input_state.pointer.hover_pos()) {
+                                            if row_response.rect.contains(pointer_position) {
+                                                if let Some(hovered_drop_target) = Self::resolve_drop_target(
+                                                    &active_dragged_project_item_paths,
+                                                    tree_entry,
+                                                    row_response.rect,
+                                                    pointer_position,
+                                                ) {
+                                                    hovered_drop_target_project_item_path = Some(hovered_drop_target.clone());
+                                                    self.paint_drop_target_indicator(user_interface, row_response.rect, &hovered_drop_target);
+                                                }
                                             }
                                         }
                                     }
@@ -958,7 +960,7 @@ impl ProjectHierarchyView {
             ProjectHierarchyDropTarget::Into(_) => {
                 user_interface
                     .painter()
-                    .rect_filled(row_rect, CornerRadius::ZERO, theme.hover_tint);
+                    .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
                 user_interface
                     .painter()
                     .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
@@ -971,13 +973,28 @@ impl ProjectHierarchyView {
                 };
                 let indicator_left = row_rect.left() + 8.0;
                 let indicator_right = row_rect.right() - 8.0;
+                let indicator_cap_half_height = 5.0;
 
                 user_interface.painter().line_segment(
                     [
                         Pos2::new(indicator_left, indicator_y),
                         Pos2::new(indicator_right, indicator_y),
                     ],
-                    Stroke::new(2.0, theme.selected_border),
+                    Stroke::new(3.0, theme.selected_border),
+                );
+                user_interface.painter().line_segment(
+                    [
+                        Pos2::new(indicator_left, indicator_y - indicator_cap_half_height),
+                        Pos2::new(indicator_left, indicator_y + indicator_cap_half_height),
+                    ],
+                    Stroke::new(3.0, theme.selected_border),
+                );
+                user_interface.painter().line_segment(
+                    [
+                        Pos2::new(indicator_right, indicator_y - indicator_cap_half_height),
+                        Pos2::new(indicator_right, indicator_y + indicator_cap_half_height),
+                    ],
+                    Stroke::new(3.0, theme.selected_border),
                 );
             }
         }

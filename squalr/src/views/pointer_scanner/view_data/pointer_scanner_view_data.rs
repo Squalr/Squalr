@@ -110,7 +110,7 @@ impl PointerScannerViewData {
             validation_target_value_input: Self::create_unsigned_input(String::new()),
             pointer_size,
             pointer_size_data_type_selection: DataTypeSelection::new(Self::pointer_size_data_type_ref(pointer_size)),
-            target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref("u8")),
+            target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref("i32")),
             max_depth_input: Self::create_unsigned_input(String::from("5")),
             offset_radius_input: Self::create_unsigned_input(String::from("2048")),
             status_message: String::from("No pointer scan session."),
@@ -470,7 +470,7 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_querying_summary = false;
             pointer_scanner_view_data_guard.is_resetting_scan = true;
-            pointer_scanner_view_data_guard.target_data_type_selection = DataTypeSelection::new(Self::target_data_type_ref("u8"));
+            pointer_scanner_view_data_guard.target_data_type_selection = DataTypeSelection::new(Self::target_data_type_ref("i32"));
 
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.apply_summary(None);
@@ -1922,7 +1922,7 @@ impl PointerScannerViewData {
         let trimmed_data_type_id = data_type_id.trim();
 
         if trimmed_data_type_id.is_empty() {
-            DataTypeRef::new("u8")
+            DataTypeRef::new("i32")
         } else {
             DataTypeRef::new(trimmed_data_type_id)
         }
@@ -2184,7 +2184,7 @@ mod tests {
         assert_eq!(pointer.get_module_name(), "game.exe");
         assert_eq!(pointer.get_offsets(), &[0x10, -0x10]);
         assert_eq!(pointer.get_pointer_size(), PointerScanPointerSize::Pointer64);
-        assert_eq!(project_item_create_request.data_type_id, Some(String::from("u8")));
+        assert_eq!(project_item_create_request.data_type_id, Some(String::from("i32")));
     }
 
     #[test]
@@ -2859,7 +2859,13 @@ mod tests {
             assert_eq!(queued_commands_guard.len(), 2);
             assert!(matches!(
                 queued_commands_guard
-                    .first()
+                    .iter()
+                    .find(|queued_command| {
+                        matches!(
+                            queued_command.privileged_command,
+                            PrivilegedCommand::PointerScan(PointerScanCommand::Summary { .. })
+                        )
+                    })
                     .map(|queued_command| &queued_command.privileged_command),
                 Some(PrivilegedCommand::PointerScan(PointerScanCommand::Summary {
                     pointer_scan_summary_request: PointerScanSummaryRequest { session_id: Some(7) },
@@ -2867,7 +2873,13 @@ mod tests {
             ));
             assert!(matches!(
                 queued_commands_guard
-                    .get(1)
+                    .iter()
+                    .find(|queued_command| {
+                        matches!(
+                            queued_command.privileged_command,
+                            PrivilegedCommand::PointerScan(PointerScanCommand::Reset { .. })
+                        )
+                    })
                     .map(|queued_command| &queued_command.privileged_command),
                 Some(PrivilegedCommand::PointerScan(PointerScanCommand::Reset { .. }))
             ));
@@ -2885,7 +2897,7 @@ mod tests {
                     .target_data_type_selection
                     .active_data_type()
                     .get_data_type_id(),
-                "u8"
+                "i32"
             );
         }
 
@@ -2922,7 +2934,7 @@ mod tests {
                 .target_data_type_selection
                 .active_data_type()
                 .get_data_type_id(),
-            "u8"
+            "i32"
         );
         assert_eq!(pointer_scanner_view_data_guard.status_message, "No pointer scan session.");
     }
