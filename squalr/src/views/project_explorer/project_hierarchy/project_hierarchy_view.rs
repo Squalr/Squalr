@@ -1,5 +1,6 @@
 use crate::{
     app_context::AppContext,
+    ui::converters::data_type_to_icon_converter::DataTypeToIconConverter,
     ui::widgets::controls::button::Button,
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
     views::project_explorer::project_hierarchy::{
@@ -192,7 +193,7 @@ mod tests {
 
         let pointer_scanner_context_action = ProjectHierarchyView::build_pointer_scanner_context_action(&project_item);
 
-        assert_eq!(pointer_scanner_context_action, Some((0x1234, "game.exe".to_string())));
+        assert_eq!(pointer_scanner_context_action, Some((0x1234, "game.exe".to_string(), "u64".to_string())));
     }
 
     #[test]
@@ -259,13 +260,7 @@ impl Widget for ProjectHierarchyView {
                             .show(user_interface, |user_interface| {
                                 for tree_entry in &tree_entries {
                                     let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path);
-                                    let icon = Self::resolve_tree_entry_icon(
-                                        self.app_context.clone(),
-                                        tree_entry
-                                            .project_item
-                                            .get_item_type()
-                                            .get_project_item_type_id(),
-                                    );
+                                    let icon = Self::resolve_tree_entry_icon(self.app_context.clone(), &tree_entry.project_item);
 
                                     let row_response = user_interface.add(ProjectItemEntryView::new(
                                         self.app_context.clone(),
@@ -290,10 +285,13 @@ impl Widget for ProjectHierarchyView {
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
                                     let pointer_scanner_context_action = Self::build_pointer_scanner_context_action(&tree_entry.project_item);
                                     row_response.context_menu(|user_interface| {
-                                        if let Some((address, module_name)) = pointer_scanner_context_action.clone() {
+                                        if let Some((address, module_name, data_type_id)) = pointer_scanner_context_action.clone() {
                                             if user_interface.button("Pointer Scan").clicked() {
-                                                project_hierarchy_frame_action =
-                                                    ProjectHierarchyFrameAction::OpenPointerScannerForAddress { address, module_name };
+                                                project_hierarchy_frame_action = ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
+                                                    address,
+                                                    module_name,
+                                                    data_type_id,
+                                                };
                                                 user_interface.close();
                                             }
                                         }
@@ -511,8 +509,12 @@ impl Widget for ProjectHierarchyView {
             ProjectHierarchyFrameAction::CreateDirectory(target_project_item_path) => {
                 ProjectHierarchyViewData::create_directory(self.project_hierarchy_view_data.clone(), self.app_context.clone(), target_project_item_path);
             }
-            ProjectHierarchyFrameAction::OpenPointerScannerForAddress { address, module_name } => {
-                self.focus_pointer_scanner_for_address(address, &module_name);
+            ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
+                address,
+                module_name,
+                data_type_id,
+            } => {
+                self.focus_pointer_scanner_for_address(address, &module_name, &data_type_id);
             }
             ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
                 ProjectHierarchyViewData::request_delete_confirmation(self.project_hierarchy_view_data.clone(), project_item_paths);
@@ -804,7 +806,7 @@ impl ProjectHierarchyView {
         })
     }
 
-    fn build_pointer_scanner_context_action(project_item: &ProjectItem) -> Option<(u64, String)> {
+    fn build_pointer_scanner_context_action(project_item: &ProjectItem) -> Option<(u64, String, String)> {
         if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
             return None;
         }
@@ -814,6 +816,13 @@ impl ProjectHierarchyView {
         Some((
             ProjectItemTypeAddress::get_field_address(&mut project_item),
             ProjectItemTypeAddress::get_field_module(&mut project_item),
+            ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item)
+                .map(|symbolic_struct_reference| {
+                    symbolic_struct_reference
+                        .get_symbolic_struct_namespace()
+                        .to_string()
+                })
+                .unwrap_or_default(),
         ))
     }
 
@@ -821,8 +830,9 @@ impl ProjectHierarchyView {
         &self,
         address: u64,
         module_name: &str,
+        data_type_id: &str,
     ) {
-        PointerScannerViewData::set_scan_target_from_project_address(self.pointer_scanner_view_data.clone(), address, module_name);
+        PointerScannerViewData::set_scan_target_from_project_address(self.pointer_scanner_view_data.clone(), address, module_name, data_type_id);
 
         match self.app_context.docking_manager.write() {
             Ok(mut docking_manager) => {
@@ -840,16 +850,25 @@ impl ProjectHierarchyView {
 
     fn resolve_tree_entry_icon(
         app_context: Arc<AppContext>,
-        project_item_type_id: &str,
+        project_item: &ProjectItem,
     ) -> Option<TextureHandle> {
         let icon_library = &app_context.theme.icon_library;
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
             Some(icon_library.icon_handle_file_system_open_folder.clone())
         } else if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
             Some(icon_library.icon_handle_data_type_blue_blocks_8.clone())
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            Some(icon_library.icon_handle_project_pointer_type.clone())
+            let data_type_id = ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item)
+                .map(|symbolic_struct_reference| {
+                    symbolic_struct_reference
+                        .get_symbolic_struct_namespace()
+                        .to_string()
+                })
+                .unwrap_or_default();
+
+            Some(DataTypeToIconConverter::convert_data_type_to_icon(&data_type_id, icon_library))
         } else {
             Some(icon_library.icon_handle_data_type_unknown.clone())
         }

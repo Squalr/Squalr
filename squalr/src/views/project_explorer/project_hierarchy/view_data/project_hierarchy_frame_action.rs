@@ -14,6 +14,7 @@ pub enum ProjectHierarchyFrameAction {
     OpenPointerScannerForAddress {
         address: u64,
         module_name: String,
+        data_type_id: String,
     },
     RequestDeleteConfirmation(Vec<PathBuf>),
 }

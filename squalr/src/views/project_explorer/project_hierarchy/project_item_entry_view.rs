@@ -213,7 +213,11 @@ impl<'lifetime> Widget for ProjectItemEntryView<'lifetime> {
             theme.foreground_preview,
         );
 
-        response
+        if self.preview_path.is_empty() {
+            response
+        } else {
+            response.on_hover_text(format!("{}: {}", self.display_name, self.preview_path))
+        }
     }
 }
 

@@ -72,6 +72,7 @@ pub struct PointerScannerViewData {
     pub offset_radius_input: AnonymousValueString,
     pub status_message: String,
     pub pointer_scan_summary: Option<PointerScanSummary>,
+    target_data_type_id: Option<String>,
     browse_page_size: u64,
     current_context_parent_node_id: Option<u64>,
     current_context_node_ids: Vec<u64>,
@@ -107,6 +108,7 @@ impl PointerScannerViewData {
             offset_radius_input: Self::create_hex_input(Self::format_hexadecimal(2048)),
             status_message: String::from("No pointer scan session."),
             pointer_scan_summary: None,
+            target_data_type_id: None,
             browse_page_size: ScanSettings::default().results_page_size as u64,
             current_context_parent_node_id: None,
             current_context_node_ids: Vec::new(),
@@ -850,7 +852,7 @@ impl PointerScannerViewData {
             project_item_name,
             project_item_type: String::from("pointer"),
             pointer: Some(pointer),
-            data_type_id: Some(String::from("u8")),
+            data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
         })
     }
 
@@ -874,7 +876,7 @@ impl PointerScannerViewData {
             project_item_name,
             project_item_type: String::from("pointer"),
             pointer: Some(pointer),
-            data_type_id: Some(String::from("u8")),
+            data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
         })
     }
 
@@ -890,11 +892,17 @@ impl PointerScannerViewData {
         pointer_scanner_view_data: Dependency<Self>,
         address: u64,
         module_name: &str,
+        data_type_id: &str,
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner set scan target from project address") {
             let formatted_address = Self::format_address(address);
             pointer_scanner_view_data_guard.target_address_input = Self::create_hex_input(formatted_address.clone());
             pointer_scanner_view_data_guard.validation_target_address_input = Self::create_hex_input(formatted_address);
+            pointer_scanner_view_data_guard.target_data_type_id = if data_type_id.trim().is_empty() {
+                None
+            } else {
+                Some(data_type_id.to_string())
+            };
             pointer_scanner_view_data_guard.status_message = if module_name.trim().is_empty() {
                 String::from("Pointer scanner target autofilled from the project explorer.")
             } else {
@@ -985,6 +993,12 @@ impl PointerScannerViewData {
         } else {
             self.status_message = String::from("No pointer scan session.");
         }
+    }
+
+    fn get_target_data_type_id(&self) -> String {
+        self.target_data_type_id
+            .clone()
+            .unwrap_or_else(|| String::from("u8"))
     }
 
     fn begin_session_request(&mut self) -> u64 {
@@ -1815,6 +1829,21 @@ mod tests {
         assert_eq!(pointer.get_module_name(), "game.exe");
         assert_eq!(pointer.get_offsets(), &[0x10, -0x10]);
         assert_eq!(pointer.get_pointer_size(), PointerScanPointerSize::Pointer64);
+        assert_eq!(project_item_create_request.data_type_id, Some(String::from("u8")));
+    }
+
+    #[test]
+    fn build_project_item_create_request_uses_synced_target_data_type() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = create_pointer_scanner_view_data();
+        pointer_scanner_view_data.target_data_type_id = Some(String::from("u64"));
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+
+        let project_item_create_request =
+            PointerScannerViewData::build_project_item_create_request(pointer_scanner_view_data, Some("project_items/Pointers".into()))
+                .expect("Expected leaf chain request with synced data type.");
+
+        assert_eq!(project_item_create_request.data_type_id, Some(String::from("u64")));
     }
 
     #[test]
@@ -1840,6 +1869,20 @@ mod tests {
             PointerScannerViewData::build_project_item_create_request(pointer_scanner_view_data, Some("project_items/Pointers".into()));
 
         assert!(project_item_create_request.is_none());
+    }
+
+    #[test]
+    fn set_scan_target_from_project_address_syncs_target_data_type() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+
+        PointerScannerViewData::set_scan_target_from_project_address(pointer_scanner_view_data.clone(), 0x1234, "game.exe", "u32");
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner synced target data type test")
+            .expect("Expected pointer scanner view data after syncing target data type.");
+
+        assert_eq!(pointer_scanner_view_data_guard.target_data_type_id, Some(String::from("u32")));
     }
 
     #[test]
