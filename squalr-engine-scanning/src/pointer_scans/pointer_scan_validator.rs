@@ -1,5 +1,5 @@
+use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::read_pointer_value_unchecked;
 use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
-use crate::pointer_scans::structures::pointer_validation_snapshot_region_index::PointerValidationSnapshotRegionIndex;
 use crate::pointer_scans::structures::validated_pointer_candidate::ValidatedPointerCandidate;
 use crate::pointer_scans::structures::validated_pointer_level::ValidatedPointerLevel;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
@@ -13,12 +13,13 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::Poi
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::time::Instant;
 
 const POINTER_VALIDATION_ROOT_CHUNK_SIZE: usize = 64;
 
 struct PointerValidationContext<'a> {
-    validation_snapshot_region_index: PointerValidationSnapshotRegionIndex<'a>,
+    validation_snapshot_regions: &'a [SnapshotRegion],
     current_modules_by_name: Vec<(&'a str, u64)>,
     validation_target_address: u64,
     offset_radius: u64,
@@ -41,7 +42,7 @@ impl<'a> PointerValidationContext<'a> {
         current_modules_by_name.sort_unstable_by(|left_module, right_module| left_module.0.cmp(right_module.0));
 
         Self {
-            validation_snapshot_region_index: PointerValidationSnapshotRegionIndex::new(validation_snapshot.get_snapshot_regions().as_slice()),
+            validation_snapshot_regions: validation_snapshot.get_snapshot_regions().as_slice(),
             current_modules_by_name,
             validation_target_address,
             offset_radius: original_pointer_scan_session.get_offset_radius(),
@@ -86,7 +87,6 @@ impl PointerScanValidator {
         );
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
         let mut validated_pointer_levels = vec![ValidatedPointerLevel::default(); level_count];
-        let mut validated_heap_addresses_by_level = vec![Vec::new(); level_count];
 
         for (level_index, pointer_scan_level_candidates) in pointer_scan_session
             .get_pointer_scan_level_candidates()
@@ -117,7 +117,6 @@ impl PointerScanValidator {
                 .par_chunks(POINTER_VALIDATION_ROOT_CHUNK_SIZE)
                 .map(|static_pointer_scan_candidate_chunk| {
                     let mut worker_validated_pointer_levels = vec![ValidatedPointerLevel::default(); level_count];
-                    let mut worker_validated_heap_addresses_by_level = vec![Vec::new(); level_count];
 
                     for static_pointer_scan_candidate in static_pointer_scan_candidate_chunk {
                         if validation_context.scan_execution_context.should_cancel() {
@@ -130,9 +129,10 @@ impl PointerScanValidator {
                             level_index,
                             &validation_context,
                             &mut worker_validated_pointer_levels,
-                            &mut worker_validated_heap_addresses_by_level,
                         );
                     }
+
+                    Self::normalize_worker_validated_pointer_levels(&mut worker_validated_pointer_levels);
 
                     worker_validated_pointer_levels
                 })
@@ -146,11 +146,7 @@ impl PointerScanValidator {
                         .len() as u64,
                 );
 
-                Self::append_validated_pointer_level(
-                    &mut validated_pointer_levels[level_index],
-                    &mut worker_validated_pointer_levels[level_index],
-                    &mut validated_heap_addresses_by_level[level_index],
-                );
+                Self::append_validated_pointer_level(&mut validated_pointer_levels[level_index], &mut worker_validated_pointer_levels[level_index]);
 
                 for child_level_index in 0..level_count {
                     if child_level_index == level_index {
@@ -160,7 +156,6 @@ impl PointerScanValidator {
                     Self::append_validated_pointer_level(
                         &mut validated_pointer_levels[child_level_index],
                         &mut worker_validated_pointer_levels[child_level_index],
-                        &mut validated_heap_addresses_by_level[child_level_index],
                     );
                 }
             }
@@ -206,17 +201,17 @@ impl PointerScanValidator {
         level_index: usize,
         validation_context: &PointerValidationContext<'_>,
         validated_pointer_levels: &mut [ValidatedPointerLevel],
-        validated_heap_addresses_by_level: &mut [Vec<u64>],
     ) -> bool {
         let Some(current_pointer_address) =
             Self::resolve_current_static_pointer_address(pointer_scan_session, static_pointer_scan_candidate, validation_context)
         else {
             return false;
         };
-        let Some(current_pointer_value) = validation_context
-            .validation_snapshot_region_index
-            .read_pointer_value_at_address(current_pointer_address, validation_context.pointer_size)
-        else {
+        let Some(current_pointer_value) = Self::read_pointer_value_at_address(
+            validation_context.validation_snapshot_regions,
+            current_pointer_address,
+            validation_context.pointer_size,
+        ) else {
             return false;
         };
 
@@ -227,7 +222,6 @@ impl PointerScanValidator {
             current_pointer_value,
             validation_context,
             validated_pointer_levels,
-            validated_heap_addresses_by_level,
         ) {
             return false;
         }
@@ -249,23 +243,10 @@ impl PointerScanValidator {
         heap_pointer_scan_candidate: &PointerScanCandidate,
         level_index: usize,
         current_pointer_address: u64,
+        current_pointer_value: u64,
         validation_context: &PointerValidationContext<'_>,
         validated_pointer_levels: &mut [ValidatedPointerLevel],
-        validated_heap_addresses_by_level: &mut [Vec<u64>],
     ) -> bool {
-        if !Self::try_insert_heap_address(&mut validated_heap_addresses_by_level[level_index], current_pointer_address) {
-            return true;
-        }
-
-        let Some(current_pointer_value) = validation_context
-            .validation_snapshot_region_index
-            .read_pointer_value_at_address(current_pointer_address, validation_context.pointer_size)
-        else {
-            Self::remove_heap_address(&mut validated_heap_addresses_by_level[level_index], current_pointer_address);
-
-            return false;
-        };
-
         if !Self::validate_candidate_children(
             pointer_scan_session,
             heap_pointer_scan_candidate,
@@ -273,10 +254,7 @@ impl PointerScanValidator {
             current_pointer_value,
             validation_context,
             validated_pointer_levels,
-            validated_heap_addresses_by_level,
         ) {
-            Self::remove_heap_address(&mut validated_heap_addresses_by_level[level_index], current_pointer_address);
-
             return false;
         }
 
@@ -299,7 +277,6 @@ impl PointerScanValidator {
         current_pointer_value: u64,
         validation_context: &PointerValidationContext<'_>,
         validated_pointer_levels: &mut [ValidatedPointerLevel],
-        validated_heap_addresses_by_level: &mut [Vec<u64>],
     ) -> bool {
         if level_index == 0 {
             return Self::pointer_value_reaches_target(
@@ -324,6 +301,7 @@ impl PointerScanValidator {
         };
         let original_child_heap_candidates =
             Self::find_original_heap_candidates_in_range(child_level_candidates.get_heap_candidates(), lower_bound, upper_bound);
+        let mut snapshot_region_index_hint = None;
 
         for child_heap_pointer_scan_candidate in original_child_heap_candidates {
             if validation_context.scan_execution_context.should_cancel() {
@@ -338,14 +316,23 @@ impl PointerScanValidator {
                 continue;
             };
 
+            let Some(current_child_pointer_value) = Self::read_pointer_value_at_address_in_order(
+                validation_context.validation_snapshot_regions,
+                rebased_child_pointer_address,
+                validation_context.pointer_size,
+                &mut snapshot_region_index_hint,
+            ) else {
+                continue;
+            };
+
             if Self::validate_heap_candidate(
                 pointer_scan_session,
                 child_heap_pointer_scan_candidate,
                 child_level_index,
                 rebased_child_pointer_address,
+                current_child_pointer_value,
                 validation_context,
                 validated_pointer_levels,
-                validated_heap_addresses_by_level,
             ) {
                 return true;
             }
@@ -446,45 +433,161 @@ impl PointerScanValidator {
         lower_index
     }
 
-    fn try_insert_heap_address(
-        validated_heap_addresses: &mut Vec<u64>,
-        pointer_address: u64,
-    ) -> bool {
-        match validated_heap_addresses.binary_search(&pointer_address) {
-            Ok(_) => false,
-            Err(insert_index) => {
-                validated_heap_addresses.insert(insert_index, pointer_address);
-
-                true
-            }
-        }
-    }
-
-    fn remove_heap_address(
-        validated_heap_addresses: &mut Vec<u64>,
-        pointer_address: u64,
-    ) {
-        if let Ok(existing_index) = validated_heap_addresses.binary_search(&pointer_address) {
-            validated_heap_addresses.remove(existing_index);
-        }
-    }
-
     fn append_validated_pointer_level(
         accumulated_validated_pointer_level: &mut ValidatedPointerLevel,
         worker_validated_pointer_level: &mut ValidatedPointerLevel,
-        accumulated_heap_addresses: &mut Vec<u64>,
     ) {
         accumulated_validated_pointer_level
             .static_candidates
             .append(&mut worker_validated_pointer_level.static_candidates);
+        accumulated_validated_pointer_level.heap_candidates = Self::merge_sorted_heap_candidates(
+            std::mem::take(&mut accumulated_validated_pointer_level.heap_candidates),
+            std::mem::take(&mut worker_validated_pointer_level.heap_candidates),
+        );
+    }
 
-        for validated_heap_candidate in worker_validated_pointer_level.heap_candidates.drain(..) {
-            if Self::try_insert_heap_address(accumulated_heap_addresses, validated_heap_candidate.pointer_address) {
-                accumulated_validated_pointer_level
-                    .heap_candidates
-                    .push(validated_heap_candidate);
+    fn normalize_worker_validated_pointer_levels(validated_pointer_levels: &mut [ValidatedPointerLevel]) {
+        for validated_pointer_level in validated_pointer_levels {
+            validated_pointer_level
+                .heap_candidates
+                .sort_unstable_by_key(|validated_pointer_candidate| validated_pointer_candidate.pointer_address);
+            validated_pointer_level
+                .heap_candidates
+                .dedup_by_key(|validated_pointer_candidate| validated_pointer_candidate.pointer_address);
+        }
+    }
+
+    fn merge_sorted_heap_candidates(
+        left_heap_candidates: Vec<ValidatedPointerCandidate>,
+        right_heap_candidates: Vec<ValidatedPointerCandidate>,
+    ) -> Vec<ValidatedPointerCandidate> {
+        if left_heap_candidates.is_empty() {
+            return right_heap_candidates;
+        }
+
+        if right_heap_candidates.is_empty() {
+            return left_heap_candidates;
+        }
+
+        let mut left_heap_candidates = left_heap_candidates.into_iter().peekable();
+        let mut right_heap_candidates = right_heap_candidates.into_iter().peekable();
+        let mut merged_heap_candidates = Vec::with_capacity(
+            left_heap_candidates
+                .size_hint()
+                .0
+                .saturating_add(right_heap_candidates.size_hint().0),
+        );
+        let mut last_pointer_address = None;
+
+        while let (Some(left_heap_candidate), Some(right_heap_candidate)) = (left_heap_candidates.peek(), right_heap_candidates.peek()) {
+            let next_heap_candidate = if left_heap_candidate.pointer_address <= right_heap_candidate.pointer_address {
+                left_heap_candidates.next()
+            } else {
+                right_heap_candidates.next()
+            };
+            let Some(next_heap_candidate) = next_heap_candidate else {
+                continue;
+            };
+
+            if last_pointer_address != Some(next_heap_candidate.pointer_address) {
+                last_pointer_address = Some(next_heap_candidate.pointer_address);
+                merged_heap_candidates.push(next_heap_candidate);
             }
         }
+
+        for remaining_heap_candidate in left_heap_candidates.chain(right_heap_candidates) {
+            if last_pointer_address != Some(remaining_heap_candidate.pointer_address) {
+                last_pointer_address = Some(remaining_heap_candidate.pointer_address);
+                merged_heap_candidates.push(remaining_heap_candidate);
+            }
+        }
+
+        merged_heap_candidates
+    }
+
+    fn read_pointer_value_at_address(
+        snapshot_regions: &[SnapshotRegion],
+        pointer_address: u64,
+        pointer_size: PointerScanPointerSize,
+    ) -> Option<u64> {
+        let mut snapshot_region_index_hint =
+            Self::find_snapshot_region_index_for_pointer_address(snapshot_regions, pointer_address, pointer_size.get_size_in_bytes() as usize)?;
+
+        Self::read_pointer_value_from_snapshot_region(snapshot_regions, pointer_address, pointer_size, &mut snapshot_region_index_hint)
+    }
+
+    fn read_pointer_value_at_address_in_order(
+        snapshot_regions: &[SnapshotRegion],
+        pointer_address: u64,
+        pointer_size: PointerScanPointerSize,
+        snapshot_region_index_hint: &mut Option<usize>,
+    ) -> Option<u64> {
+        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
+
+        if snapshot_region_index_hint.is_none() {
+            *snapshot_region_index_hint = Self::find_snapshot_region_index_for_pointer_address(snapshot_regions, pointer_address, pointer_size_in_bytes);
+        }
+
+        let snapshot_region_index_hint = snapshot_region_index_hint.as_mut()?;
+
+        Self::read_pointer_value_from_snapshot_region(snapshot_regions, pointer_address, pointer_size, snapshot_region_index_hint)
+    }
+
+    fn read_pointer_value_from_snapshot_region(
+        snapshot_regions: &[SnapshotRegion],
+        pointer_address: u64,
+        pointer_size: PointerScanPointerSize,
+        snapshot_region_index_hint: &mut usize,
+    ) -> Option<u64> {
+        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
+        let pointer_end_address = pointer_address.checked_add(pointer_size_in_bytes as u64)?;
+
+        while let Some(snapshot_region) = snapshot_regions.get(*snapshot_region_index_hint) {
+            if snapshot_region.get_current_values().is_empty() || pointer_address >= snapshot_region.get_end_address() {
+                *snapshot_region_index_hint = (*snapshot_region_index_hint).saturating_add(1);
+                continue;
+            }
+
+            if pointer_address < snapshot_region.get_base_address() || pointer_end_address > snapshot_region.get_end_address() {
+                return None;
+            }
+
+            let byte_offset = pointer_address.saturating_sub(snapshot_region.get_base_address()) as usize;
+            let pointer_bytes = snapshot_region
+                .get_current_values()
+                .get(byte_offset..byte_offset.saturating_add(pointer_size_in_bytes))?;
+
+            // Snapshot bytes are already in host memory, so decode them directly without slice copies.
+            return Some(unsafe { read_pointer_value_unchecked(pointer_bytes.as_ptr(), pointer_size) });
+        }
+
+        None
+    }
+
+    fn find_snapshot_region_index_for_pointer_address(
+        snapshot_regions: &[SnapshotRegion],
+        pointer_address: u64,
+        pointer_size_in_bytes: usize,
+    ) -> Option<usize> {
+        let pointer_end_address = pointer_address.checked_add(pointer_size_in_bytes as u64)?;
+        let mut lower_snapshot_region_index = 0_usize;
+        let mut upper_snapshot_region_index = snapshot_regions.len();
+
+        while lower_snapshot_region_index < upper_snapshot_region_index {
+            let middle_snapshot_region_index =
+                lower_snapshot_region_index.saturating_add(upper_snapshot_region_index.saturating_sub(lower_snapshot_region_index) / 2);
+            let snapshot_region = snapshot_regions.get(middle_snapshot_region_index)?;
+
+            if snapshot_region.get_end_address() <= pointer_address {
+                lower_snapshot_region_index = middle_snapshot_region_index.saturating_add(1);
+            } else {
+                upper_snapshot_region_index = middle_snapshot_region_index;
+            }
+        }
+
+        let snapshot_region = snapshot_regions.get(lower_snapshot_region_index)?;
+        (pointer_address >= snapshot_region.get_base_address() && pointer_end_address <= snapshot_region.get_end_address())
+            .then_some(lower_snapshot_region_index)
     }
 
     fn truncate_empty_trailing_levels(validated_pointer_levels: &mut Vec<ValidatedPointerLevel>) {
