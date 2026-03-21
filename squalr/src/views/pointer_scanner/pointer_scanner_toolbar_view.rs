@@ -22,6 +22,11 @@ pub struct PointerScannerToolbarView {
 }
 
 impl PointerScannerToolbarView {
+    const CONTROL_HEIGHT: f32 = 32.0;
+    const ROW_SPACING: f32 = 8.0;
+    const GROUP_SPACING: f32 = 16.0;
+    const LABEL_TO_CONTROL_SPACING: f32 = 8.0;
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
             .dependency_container
@@ -42,7 +47,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        84.0
+        120.0
     }
 
     fn draw_icon_button(
@@ -65,6 +70,27 @@ impl PointerScannerToolbarView {
         IconDraw::draw_sized(user_interface, button_response.rect.center(), vec2(16.0, 16.0), icon_handle);
 
         button_response
+    }
+
+    fn draw_field_label(
+        &self,
+        user_interface: &mut Ui,
+        label_text: &str,
+        label_width: f32,
+    ) {
+        let theme = &self.app_context.theme;
+
+        user_interface.allocate_ui_with_layout(
+            vec2(label_width, Self::CONTROL_HEIGHT),
+            eframe::egui::Layout::left_to_right(eframe::egui::Align::Center),
+            |user_interface| {
+                user_interface.label(
+                    RichText::new(label_text)
+                        .font(theme.font_library.font_noto_sans.font_normal.clone())
+                        .color(theme.foreground),
+                );
+            },
+        );
     }
 }
 
@@ -134,158 +160,171 @@ impl Widget for PointerScannerToolbarView {
             };
 
             user_interface.scope_builder(builder, |user_interface| {
-                user_interface.add_space(6.0);
+                user_interface.add_space(Self::ROW_SPACING);
 
-                user_interface.horizontal_wrapped(|user_interface| {
-                    let pointer_size_data_type = pointer_scanner_view_data
-                        .pointer_size_data_type_selection
-                        .visible_data_type()
-                        .clone();
-                    let active_target_input = if has_active_pointer_scan_session {
-                        &mut pointer_scanner_view_data.validation_target_address_input
-                    } else {
-                        &mut pointer_scanner_view_data.target_address_input
-                    };
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        let pointer_size_data_type = pointer_scanner_view_data
+                            .pointer_size_data_type_selection
+                            .visible_data_type()
+                            .clone();
+                        let active_target_input = if has_active_pointer_scan_session {
+                            &mut pointer_scanner_view_data.validation_target_address_input
+                        } else {
+                            &mut pointer_scanner_view_data.target_address_input
+                        };
 
-                    user_interface.label(target_label);
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            active_target_input,
-                            &pointer_size_data_type,
-                            false,
-                            true,
-                            target_placeholder,
-                            "pointer_scanner_active_target_address",
-                        )
-                        .width(184.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        self.draw_field_label(user_interface, target_label, 52.0);
+                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                active_target_input,
+                                &pointer_size_data_type,
+                                false,
+                                true,
+                                target_placeholder,
+                                "pointer_scanner_active_target_address",
+                            )
+                            .width(232.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
 
-                    user_interface.add_space(8.0);
-                    user_interface.label("Pointer Size");
-                    user_interface.add(
-                        DataTypeSelectorView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.pointer_size_data_type_selection,
-                            "pointer_scanner_pointer_size",
-                        )
-                        .width(84.0)
-                        .height(28.0)
-                        .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
-                        .stacked_list()
-                        .hide_placeholder_entries(),
-                    );
-                    pointer_scanner_view_data.synchronize_pointer_size_from_selection();
-
-                    user_interface.add_space(6.0);
-                    user_interface.label("Depth");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.max_depth_input,
-                            &unsigned_data_type,
-                            false,
-                            true,
-                            "Depth",
-                            "pointer_scanner_max_depth",
-                        )
-                        .width(84.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
-
-                    user_interface.add_space(6.0);
-                    user_interface.label("Offset");
-                    user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut pointer_scanner_view_data.offset_radius_input,
-                            &unsigned_data_type,
-                            false,
-                            true,
-                            "Offset",
-                            "pointer_scanner_offset_radius",
-                        )
-                        .width(108.0)
-                        .height(28.0)
-                        .use_format_text_colors(false),
-                    );
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        self.draw_field_label(user_interface, "Pointer Size", 82.0);
+                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
+                        user_interface.add(
+                            DataTypeSelectorView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.pointer_size_data_type_selection,
+                                "pointer_scanner_pointer_size",
+                            )
+                            .width(104.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
+                            .stacked_list()
+                            .hide_placeholder_entries(),
+                        );
+                        pointer_scanner_view_data.synchronize_pointer_size_from_selection();
+                    });
                 });
 
-                user_interface.add_space(6.0);
+                user_interface.add_space(Self::ROW_SPACING);
 
-                user_interface.horizontal_wrapped(|user_interface| {
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_scan_new,
-                            "Clear the active pointer scan session.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            are_session_actions_disabled,
-                        )
-                        .clicked()
-                    {
-                        should_reset_scan = true;
-                    }
+                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
+                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        self.draw_field_label(user_interface, "Depth", 44.0);
+                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.max_depth_input,
+                                &unsigned_data_type,
+                                false,
+                                true,
+                                "Depth",
+                                "pointer_scanner_max_depth",
+                            )
+                            .width(92.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_navigation_right_arrow,
-                            start_scan_tooltip,
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            are_session_actions_disabled,
-                        )
-                        .clicked()
-                    {
-                        if !has_active_pointer_scan_session {
-                            if let Some(process_bitness) = opened_process_bitness {
-                                pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
-                            }
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        self.draw_field_label(user_interface, "Offset", 48.0);
+                        user_interface.add_space(Self::LABEL_TO_CONTROL_SPACING);
+                        user_interface.add(
+                            DataValueBoxView::new(
+                                self.app_context.clone(),
+                                &mut pointer_scanner_view_data.offset_radius_input,
+                                &unsigned_data_type,
+                                false,
+                                true,
+                                "Offset",
+                                "pointer_scanner_offset_radius",
+                            )
+                            .width(120.0)
+                            .height(Self::CONTROL_HEIGHT)
+                            .use_format_text_colors(false),
+                        );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_scan_new,
+                                "Clear the active pointer scan session.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            should_reset_scan = true;
                         }
-                        should_start_scan = true;
-                    }
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_navigation_refresh,
-                            "Refresh the active pointer scan summary.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            are_session_actions_disabled,
-                        )
-                        .clicked()
-                    {
-                        should_refresh_summary = true;
-                    }
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_right_arrow,
+                                start_scan_tooltip,
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            if !has_active_pointer_scan_session {
+                                if let Some(process_bitness) = opened_process_bitness {
+                                    pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                }
+                            }
+                            should_start_scan = true;
+                        }
 
-                    if self
-                        .draw_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_common_add,
-                            "Persist the selected pointer chain to the current project.",
-                            action_button_size,
-                            Color32::TRANSPARENT,
-                            false,
-                        )
-                        .clicked()
-                    {
-                        should_add_to_project = true;
-                    }
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_refresh,
+                                "Refresh the active pointer scan summary.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            should_refresh_summary = true;
+                        }
+
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_add,
+                                "Persist the selected pointer chain to the current project.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                false,
+                            )
+                            .clicked()
+                        {
+                            should_add_to_project = true;
+                        }
+                    });
                 });
 
-                user_interface.add_space(6.0);
-                user_interface.label(
-                    RichText::new(&pointer_scanner_view_data.status_message)
-                        .font(theme.font_library.font_noto_sans.font_small.clone())
-                        .color(theme.foreground),
-                );
-                user_interface.add_space(6.0);
+                user_interface.add_space(Self::ROW_SPACING);
+
+                user_interface.horizontal_wrapped(|user_interface| {
+                    user_interface.add_space(Self::GROUP_SPACING);
+                    user_interface.label(
+                        RichText::new(&pointer_scanner_view_data.status_message)
+                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                            .color(theme.foreground),
+                    );
+                });
             });
         }
 
