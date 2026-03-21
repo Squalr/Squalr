@@ -217,7 +217,7 @@ impl PointerScanExecutor {
                 next_candidate_id = next_candidate_id.saturating_add(1);
             }
 
-            let discovered_level_candidates = PointerScanLevelCandidates::new(discovery_depth, static_candidates, heap_candidates);
+            let discovered_level_candidates = PointerScanLevelCandidates::new_presorted(discovery_depth, static_candidates, heap_candidates);
 
             total_static_node_count = total_static_node_count.saturating_add(discovered_level_candidates.get_static_node_count());
             total_heap_node_count = total_heap_node_count.saturating_add(discovered_level_candidates.get_heap_node_count());
@@ -343,7 +343,7 @@ impl PointerScanExecutor {
             }
 
             if !is_terminal_level {
-                frontier_target_ranges = PointerScanTargetRangeSet::from_target_addresses_iter(
+                frontier_target_ranges = PointerScanTargetRangeSet::from_sorted_target_addresses_iter(
                     discovered_pointer_level
                         .heap_candidates
                         .iter()
@@ -381,23 +381,45 @@ impl PointerScanExecutor {
             return DiscoveredPointerLevel::default();
         }
 
-        snapshot_region_scan_tasks
+        let discovered_pointer_levels_by_task = snapshot_region_scan_tasks
             .par_iter()
-            .fold(
-                DiscoveredPointerLevel::default,
-                |mut worker_discovered_pointer_level, snapshot_region_scan_task| {
-                    Self::scan_snapshot_region_for_pointer_targets(
-                        snapshot_region_scan_task,
-                        range_search_kernel,
-                        modules,
-                        retain_heap_candidates,
-                        &mut worker_discovered_pointer_level,
-                    );
+            .map(|snapshot_region_scan_task| {
+                let mut discovered_pointer_level = DiscoveredPointerLevel::default();
 
-                    worker_discovered_pointer_level
-                },
-            )
-            .reduce(DiscoveredPointerLevel::default, Self::merge_discovered_pointer_levels)
+                Self::scan_snapshot_region_for_pointer_targets(
+                    snapshot_region_scan_task,
+                    range_search_kernel,
+                    modules,
+                    retain_heap_candidates,
+                    &mut discovered_pointer_level,
+                );
+
+                discovered_pointer_level
+            })
+            .collect::<Vec<_>>();
+        let total_static_candidate_count = discovered_pointer_levels_by_task
+            .iter()
+            .map(|discovered_pointer_level| discovered_pointer_level.static_candidates.len())
+            .sum();
+        let total_heap_candidate_count = discovered_pointer_levels_by_task
+            .iter()
+            .map(|discovered_pointer_level| discovered_pointer_level.heap_candidates.len())
+            .sum();
+        let mut merged_discovered_pointer_level = DiscoveredPointerLevel {
+            static_candidates: Vec::with_capacity(total_static_candidate_count),
+            heap_candidates: Vec::with_capacity(total_heap_candidate_count),
+        };
+
+        for mut discovered_pointer_level in discovered_pointer_levels_by_task {
+            merged_discovered_pointer_level
+                .static_candidates
+                .append(&mut discovered_pointer_level.static_candidates);
+            merged_discovered_pointer_level
+                .heap_candidates
+                .append(&mut discovered_pointer_level.heap_candidates);
+        }
+
+        merged_discovered_pointer_level
     }
 
     fn scan_snapshot_region_for_pointer_targets(
@@ -530,21 +552,6 @@ impl PointerScanExecutor {
             .max(pointer_alignment)
             .saturating_sub(target_task_byte_size.max(pointer_alignment) % pointer_alignment)
     }
-
-    fn merge_discovered_pointer_levels(
-        mut left_discovered_pointer_level: DiscoveredPointerLevel,
-        mut right_discovered_pointer_level: DiscoveredPointerLevel,
-    ) -> DiscoveredPointerLevel {
-        left_discovered_pointer_level
-            .static_candidates
-            .append(&mut right_discovered_pointer_level.static_candidates);
-        left_discovered_pointer_level
-            .heap_candidates
-            .append(&mut right_discovered_pointer_level.heap_candidates);
-
-        left_discovered_pointer_level
-    }
-
     fn classify_static_pointer_address(
         pointer_address: u64,
         modules: &[NormalizedModule],

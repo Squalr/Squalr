@@ -27,6 +27,19 @@ impl PointerScanLevelCandidates {
         }
     }
 
+    pub fn new_presorted(
+        discovery_depth: u64,
+        static_candidates: Vec<PointerScanCandidate>,
+        heap_candidates: Vec<PointerScanCandidate>,
+    ) -> Self {
+        Self {
+            discovery_depth,
+            static_candidates,
+            heap_candidates,
+            heap_candidates_sorted: true,
+        }
+    }
+
     pub fn get_discovery_depth(&self) -> u64 {
         self.discovery_depth
     }

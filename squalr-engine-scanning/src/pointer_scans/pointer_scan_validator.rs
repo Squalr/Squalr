@@ -17,6 +17,8 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Instant;
 
+const POINTER_VALIDATION_ROOT_CHUNK_SIZE: usize = 64;
+
 struct PointerValidationContext<'a> {
     original_pointer_scan_session: &'a PointerScanSession,
     validation_snapshot_regions: &'a [SnapshotRegion],
@@ -129,31 +131,47 @@ impl PointerScanValidator {
                 );
             }
 
-            let mut level_rebuilt_pointer_levels = pointer_scan_level_candidates
+            let rebuilt_pointer_level_chunks = pointer_scan_level_candidates
                 .get_static_candidates()
-                .par_iter()
-                .fold(
-                    || Self::create_empty_rebuilt_pointer_levels(level_count),
-                    |mut worker_rebuilt_pointer_levels, static_pointer_scan_candidate| {
-                        if !validation_context.scan_execution_context.should_cancel() {
-                            Self::validate_static_candidate(
-                                static_pointer_scan_candidate,
-                                level_index,
-                                &validation_context,
-                                &mut worker_rebuilt_pointer_levels,
-                            );
+                .par_chunks(POINTER_VALIDATION_ROOT_CHUNK_SIZE)
+                .map(|static_pointer_scan_candidate_chunk| {
+                    let mut worker_rebuilt_pointer_levels = Self::create_empty_rebuilt_pointer_levels(level_count);
+
+                    for static_pointer_scan_candidate in static_pointer_scan_candidate_chunk {
+                        if validation_context.scan_execution_context.should_cancel() {
+                            break;
                         }
 
-                        worker_rebuilt_pointer_levels
-                    },
-                )
-                .reduce(
-                    || Self::create_empty_rebuilt_pointer_levels(level_count),
-                    |mut left_rebuilt_pointer_levels, mut right_rebuilt_pointer_levels| {
-                        Self::append_rebuilt_pointer_levels(&mut left_rebuilt_pointer_levels, &mut right_rebuilt_pointer_levels);
-                        left_rebuilt_pointer_levels
-                    },
-                );
+                        Self::validate_static_candidate(
+                            static_pointer_scan_candidate,
+                            level_index,
+                            &validation_context,
+                            &mut worker_rebuilt_pointer_levels,
+                        );
+                    }
+
+                    worker_rebuilt_pointer_levels
+                })
+                .collect::<Vec<_>>();
+            let mut level_rebuilt_pointer_levels = Self::create_empty_rebuilt_pointer_levels(level_count);
+
+            for rebuilt_pointer_level_chunk in &rebuilt_pointer_level_chunks {
+                for (level_rebuilt_pointer_candidates, rebuilt_pointer_level) in level_rebuilt_pointer_levels
+                    .iter_mut()
+                    .zip(rebuilt_pointer_level_chunk.iter())
+                {
+                    level_rebuilt_pointer_candidates
+                        .static_candidates
+                        .reserve(rebuilt_pointer_level.static_candidates.len());
+                    level_rebuilt_pointer_candidates
+                        .heap_candidates
+                        .reserve(rebuilt_pointer_level.heap_candidates.len());
+                }
+            }
+
+            for mut rebuilt_pointer_level_chunk in rebuilt_pointer_level_chunks {
+                Self::append_rebuilt_pointer_levels(&mut level_rebuilt_pointer_levels, &mut rebuilt_pointer_level_chunk);
+            }
             Self::deduplicate_rebuilt_pointer_levels(&mut level_rebuilt_pointer_levels);
 
             if with_logging {

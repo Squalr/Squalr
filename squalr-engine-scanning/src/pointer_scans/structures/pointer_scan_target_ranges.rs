@@ -29,23 +29,22 @@ impl PointerScanTargetRangeSet {
         Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses.iter().copied(), source_target_count, offset_radius)
     }
 
-    pub fn from_target_addresses_iter<TargetAddresses>(
-        target_addresses: TargetAddresses,
+    pub fn from_sorted_target_addresses_iter<SortedTargetAddresses>(
+        sorted_target_addresses: SortedTargetAddresses,
         offset_radius: u64,
     ) -> Self
     where
-        TargetAddresses: IntoIterator<Item = u64>,
+        SortedTargetAddresses: IntoIterator<Item = u64>,
+        SortedTargetAddresses::IntoIter: ExactSizeIterator,
     {
-        let mut target_addresses = target_addresses.into_iter().collect::<Vec<_>>();
+        let sorted_target_addresses = sorted_target_addresses.into_iter();
+        let source_target_count = sorted_target_addresses.len();
 
-        if target_addresses.is_empty() {
+        if source_target_count == 0 {
             return Self::default();
         }
 
-        let source_target_count = target_addresses.len();
-        target_addresses.sort_unstable();
-
-        Self::from_sorted_target_addresses_with_source_count(target_addresses.into_iter(), source_target_count, offset_radius)
+        Self::from_sorted_target_addresses_with_source_count(sorted_target_addresses, source_target_count, offset_radius)
     }
 
     fn from_sorted_target_addresses_with_source_count<SortedTargetAddresses>(
