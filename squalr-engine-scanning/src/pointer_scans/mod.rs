@@ -1,4 +1,6 @@
 pub mod pointer_scan_executor_task;
+pub(crate) mod pointer_scan_level_collector;
+pub(crate) mod pointer_scan_session_builder;
 pub mod pointer_scan_validator;
 pub(crate) mod search_kernels;
 pub(crate) mod structures;
