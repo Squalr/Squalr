@@ -32,6 +32,7 @@ type RepaintRequestCallback = Arc<dyn Fn() + Send + Sync>;
 pub struct PointerScannerTreeRow {
     pub node_id: u64,
     pub has_children: bool,
+    pub is_navigate_up_row: bool,
     pub is_selected: bool,
     pub primary_text: String,
     pub value_text: String,
@@ -786,6 +787,11 @@ impl PointerScannerViewData {
         };
 
         pointer_scanner_view_data_guard.current_context_node_ids.len()
+            + usize::from(
+                pointer_scanner_view_data_guard
+                    .current_context_parent_node_id
+                    .is_some(),
+            )
     }
 
     pub fn build_visible_rows_in_range(
@@ -802,15 +808,19 @@ impl PointerScannerViewData {
         };
         let start_index = row_range
             .start
-            .min(pointer_scanner_view_data_guard.current_context_node_ids.len());
+            .min(pointer_scanner_view_data_guard.get_visible_row_count_internal());
         let end_index = row_range
             .end
-            .min(pointer_scanner_view_data_guard.current_context_node_ids.len());
+            .min(pointer_scanner_view_data_guard.get_visible_row_count_internal());
+        let mut pointer_scanner_tree_rows = Vec::with_capacity(end_index.saturating_sub(start_index));
 
-        pointer_scanner_view_data_guard.current_context_node_ids[start_index..end_index]
-            .iter()
-            .filter_map(|node_id| pointer_scanner_view_data_guard.build_tree_row(*node_id))
-            .collect()
+        for row_index in start_index..end_index {
+            if let Some(pointer_scanner_tree_row) = pointer_scanner_view_data_guard.build_tree_row_at_row_index(row_index) {
+                pointer_scanner_tree_rows.push(pointer_scanner_tree_row);
+            }
+        }
+
+        pointer_scanner_tree_rows
     }
 
     pub fn build_copy_text(pointer_scanner_view_data: Dependency<Self>) -> Option<String> {
@@ -1207,6 +1217,37 @@ impl PointerScannerViewData {
         }
     }
 
+    fn get_visible_row_count_internal(&self) -> usize {
+        self.current_context_node_ids.len() + usize::from(self.current_context_parent_node_id.is_some())
+    }
+
+    fn build_tree_row_at_row_index(
+        &self,
+        row_index: usize,
+    ) -> Option<PointerScannerTreeRow> {
+        if self.current_context_parent_node_id.is_some() && row_index == 0 {
+            return Some(self.build_navigate_up_row());
+        }
+
+        let node_index = row_index.saturating_sub(usize::from(self.current_context_parent_node_id.is_some()));
+        let node_id = *self.current_context_node_ids.get(node_index)?;
+
+        self.build_tree_row(node_id)
+    }
+
+    fn build_navigate_up_row(&self) -> PointerScannerTreeRow {
+        PointerScannerTreeRow {
+            node_id: 0,
+            has_children: false,
+            is_navigate_up_row: true,
+            is_selected: false,
+            primary_text: String::from("Back"),
+            value_text: String::new(),
+            resolved_address_text: String::new(),
+            depth_text: String::new(),
+        }
+    }
+
     fn build_tree_row(
         &self,
         node_id: u64,
@@ -1223,6 +1264,7 @@ impl PointerScannerViewData {
         Some(PointerScannerTreeRow {
             node_id,
             has_children: pointer_scan_node.has_children(),
+            is_navigate_up_row: false,
             is_selected,
             primary_text,
             value_text,
@@ -2003,6 +2045,17 @@ mod tests {
     }
 
     #[test]
+    fn get_visible_row_count_includes_navigate_up_row_for_child_contexts() {
+        let dependency_container = DependencyContainer::new();
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.current_context_parent_node_id = Some(1);
+        pointer_scanner_view_data.current_context_node_ids = vec![2, 3];
+        let pointer_scanner_view_data = dependency_container.register(pointer_scanner_view_data);
+
+        assert_eq!(PointerScannerViewData::get_visible_row_count(pointer_scanner_view_data), 3);
+    }
+
+    #[test]
     fn build_visible_rows_uses_stable_branch_total_depth_for_child_contexts() {
         let dependency_container = DependencyContainer::new();
         let mut pointer_scanner_view_data = PointerScannerViewData::new();
@@ -2046,9 +2099,11 @@ mod tests {
 
         let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows(pointer_scanner_view_data);
 
-        assert_eq!(pointer_scanner_tree_rows.len(), 1);
-        assert_eq!(pointer_scanner_tree_rows[0].primary_text, "+0x20");
-        assert_eq!(pointer_scanner_tree_rows[0].depth_text, "2 of 5");
+        assert_eq!(pointer_scanner_tree_rows.len(), 2);
+        assert!(pointer_scanner_tree_rows[0].is_navigate_up_row);
+        assert_eq!(pointer_scanner_tree_rows[0].primary_text, "Back");
+        assert_eq!(pointer_scanner_tree_rows[1].primary_text, "+0x20");
+        assert_eq!(pointer_scanner_tree_rows[1].depth_text, "2 of 5");
     }
 
     #[test]

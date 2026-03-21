@@ -129,6 +129,7 @@ impl PointerScannerResultsView {
         clicked_node_id: &mut Option<u64>,
         entered_node_id: &mut Option<u64>,
         added_node_id: &mut Option<u64>,
+        should_navigate_back: &mut bool,
         primary_splitter_position_x: f32,
         value_splitter_position_x: f32,
         resolved_splitter_position_x: f32,
@@ -165,14 +166,21 @@ impl PointerScannerResultsView {
             user_interface
                 .id()
                 .with(("pointer_scanner_enter", pointer_scanner_tree_row.node_id)),
-            if pointer_scanner_tree_row.has_children {
+            if pointer_scanner_tree_row.has_children || pointer_scanner_tree_row.is_navigate_up_row {
                 Sense::click()
             } else {
                 Sense::hover()
             },
         );
 
-        if pointer_scanner_tree_row.has_children {
+        if pointer_scanner_tree_row.is_navigate_up_row {
+            IconDraw::draw_sized(
+                user_interface,
+                disclosure_icon_rectangle.center(),
+                vec2(Self::DISCLOSURE_ICON_SIZE, Self::DISCLOSURE_ICON_SIZE),
+                &theme.icon_library.icon_handle_navigation_left_arrow_small,
+            );
+        } else if pointer_scanner_tree_row.has_children {
             IconDraw::draw_sized(
                 user_interface,
                 disclosure_icon_rectangle.center(),
@@ -181,7 +189,7 @@ impl PointerScannerResultsView {
             );
         }
 
-        let primary_text_left_edge = if pointer_scanner_tree_row.has_children {
+        let primary_text_left_edge = if pointer_scanner_tree_row.has_children || pointer_scanner_tree_row.is_navigate_up_row {
             disclosure_icon_rectangle.max.x + Self::DISCLOSURE_TEXT_SPACING
         } else {
             row_rectangle.min.x
@@ -225,6 +233,14 @@ impl PointerScannerResultsView {
             user_interface.ctx().set_cursor_icon(CursorIcon::PointingHand);
         }
 
+        if pointer_scanner_tree_row.is_navigate_up_row {
+            if row_response.clicked() || row_response.double_clicked() || disclosure_response.clicked() || disclosure_response.double_clicked() {
+                *should_navigate_back = true;
+            }
+
+            return;
+        }
+
         if row_response.clicked() {
             *clicked_node_id = Some(pointer_scanner_tree_row.node_id);
         }
@@ -255,6 +271,7 @@ impl Widget for PointerScannerResultsView {
         let mut clicked_node_id = None;
         let mut entered_node_id = None;
         let mut added_node_id = None;
+        let mut should_navigate_back = false;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
@@ -302,6 +319,7 @@ impl Widget for PointerScannerResultsView {
                                 &mut clicked_node_id,
                                 &mut entered_node_id,
                                 &mut added_node_id,
+                                &mut should_navigate_back,
                                 primary_splitter_position_x,
                                 value_splitter_position_x,
                                 resolved_splitter_position_x,
@@ -312,7 +330,7 @@ impl Widget for PointerScannerResultsView {
                 user_interface.add(self.pointer_scanner_footer_view.clone());
 
                 let splitter_min_y = header_rectangle.min.y;
-                let splitter_max_y = user_interface.min_rect().max.y;
+                let splitter_max_y = content_clip_rectangle.max.y;
 
                 for splitter_position_x in [
                     primary_splitter_position_x,
@@ -333,6 +351,10 @@ impl Widget for PointerScannerResultsView {
 
         if let Some(clicked_node_id) = clicked_node_id {
             PointerScannerViewData::select_node(self.pointer_scanner_view_data.clone(), clicked_node_id);
+        }
+
+        if should_navigate_back {
+            PointerScannerViewData::navigate_back(self.pointer_scanner_view_data.clone());
         }
 
         if let Some(entered_node_id) = entered_node_id {
