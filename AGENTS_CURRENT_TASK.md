@@ -19,6 +19,7 @@ Our current task, from `README.md`, is:
 - Owner: Removed to compact
 - Need human verification: confirm the pointer-scanner results grid now stays inside the visible panel, uses `Module` / `Value` / `Resolved` / `Depth`, removes the old `Static` / `Action` columns, shows the inline right-arrow only on expandable rows with no leftover gap on leaf rows, and reports sane branch depth as `x of y` rather than inverted values like `5 of 2`.
 - Need human verification: confirm the pointer-scanner toolbar now follows the new two-row layout in live use: top row should be `New | target | Depth | Offset`, second row should be `Size | data type | actions`, the offset editor should stay decimal, and the pointer scanner should finally expose a real value data-type selector distinct from pointer size.
+- Need human verification: confirm the pointer-scanner toolbar no longer renders the old status text row at all, so the results panel gets that vertical space back.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -26,5 +27,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Owner: Removed to compact
 - Pointer-scanner result rows now need width-safe clipped painting, inline disclosure inside the primary column, and branch-depth text derived from `display depth + discovery depth - 1` rather than raw discovery depth alone.
 - Pointer-scanner results now follow the regular scan-results sizing model more closely: the parent content rect owns the width budget, the header/rows/footer share the same splitter positions, and each row allocates exactly the width the scroll area gives it instead of deriving column widths from clip-space.
+- Pointer-scanner leaf rows must never use `allocate_rect` for the missing disclosure icon path, because that advances egui layout and makes non-expandable rows render at a different effective height than rows with children.
+- Pointer-scanner toolbar status still exists in view-model state for commands/tests, but the toolbar should not render it as a third row anymore.
 - Pointer-scanner node materialization now carries an explicit `branch_total_depth` from the root static through every expanded child node, so the UI can render depth as the stable rule `root = 1 of y`, then `2 of y`, `3 of y`, etc. without trying to recompute `y` from the current context.
 - Pointer-scanner toolbar state now carries a real target-value `DataTypeSelection` instead of a hidden string id, so the UI can render an actual value-type selector alongside pointer size while project-item creation still reads the selected target data type from the same shared state. Offset defaults and summary hydration are now decimal to match the requested editor format.

@@ -6,7 +6,7 @@ use crate::ui::widgets::controls::{
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Color32, Response, RichText, Sense, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Color32, Response, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -26,7 +26,6 @@ impl PointerScannerToolbarView {
     const ROW_SPACING: f32 = 6.0;
     const LEADING_ROW_PADDING: f32 = 8.0;
     const GROUP_SPACING: f32 = 8.0;
-    const STATUS_HEIGHT: f32 = 24.0;
     const BOTTOM_PADDING: f32 = 4.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -49,7 +48,7 @@ impl PointerScannerToolbarView {
     }
 
     pub fn get_height(&self) -> f32 {
-        Self::CONTROL_HEIGHT * 2.0 + Self::STATUS_HEIGHT + Self::ROW_SPACING * 3.0 + Self::BOTTOM_PADDING
+        Self::CONTROL_HEIGHT * 2.0 + Self::ROW_SPACING * 2.0 + Self::BOTTOM_PADDING
     }
 
     fn draw_icon_button(
@@ -299,20 +298,6 @@ impl Widget for PointerScannerToolbarView {
                         }
                     });
                 });
-
-                user_interface.add_space(Self::ROW_SPACING);
-
-                user_interface.allocate_ui(vec2(user_interface.available_width(), Self::STATUS_HEIGHT), |user_interface| {
-                    user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
-                        user_interface.add_space(Self::LEADING_ROW_PADDING);
-                        user_interface.label(
-                            RichText::new(&pointer_scanner_view_data.status_message)
-                                .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                .color(theme.foreground),
-                        );
-                    });
-                });
-
                 user_interface.add_space(Self::BOTTOM_PADDING);
             });
         }

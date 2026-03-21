@@ -160,17 +160,17 @@ impl PointerScannerResultsView {
             ),
             vec2(Self::DISCLOSURE_ICON_SIZE, Self::DISCLOSURE_ICON_SIZE),
         );
-        let disclosure_response = if pointer_scanner_tree_row.has_children {
-            user_interface.interact(
-                disclosure_icon_rectangle,
-                user_interface
-                    .id()
-                    .with(("pointer_scanner_enter", pointer_scanner_tree_row.node_id)),
-                Sense::click(),
-            )
-        } else {
-            user_interface.allocate_rect(disclosure_icon_rectangle, Sense::hover())
-        };
+        let disclosure_response = user_interface.interact(
+            disclosure_icon_rectangle,
+            user_interface
+                .id()
+                .with(("pointer_scanner_enter", pointer_scanner_tree_row.node_id)),
+            if pointer_scanner_tree_row.has_children {
+                Sense::click()
+            } else {
+                Sense::hover()
+            },
+        );
 
         if pointer_scanner_tree_row.has_children {
             IconDraw::draw_sized(
