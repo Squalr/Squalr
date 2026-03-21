@@ -21,7 +21,7 @@ Our current task, from `README.md`, is:
 - Need human verification: confirm the pointer-scanner toolbar now follows the new two-row layout in live use: top row should be `New | target | Depth | Offset`, second row should be `Size | data type | actions`, the offset editor should stay decimal, and the pointer scanner should finally expose a real value data-type selector distinct from pointer size.
 - Need human verification: confirm the pointer-scanner toolbar no longer renders the old status text row at all, so the results panel gets that vertical space back.
 - Need human verification: confirm child pointer-tree contexts now show a synthetic first `Back` row inside the results list, the footer pager no longer contains its own back/up button, and the vertical splitters stop at the footer boundary instead of extending through it.
-- Need human verification: confirm the pointer-scanner toolbar now uses `Depth | Offset | Pointer size | Data type` on the first row and `Target/validation address | Scan | Add` on the second row, with the refresh button removed.
+- Need human verification: confirm the pointer-scanner toolbar now uses `New | Depth | Offset | Pointer size | Data type` on the first row and `Target/validation address | Scan | Add` on the second row, with the refresh button removed.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)

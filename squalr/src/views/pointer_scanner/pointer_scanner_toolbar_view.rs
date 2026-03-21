@@ -93,6 +93,7 @@ impl Widget for PointerScannerToolbarView {
         );
 
         let mut should_start_scan = false;
+        let mut should_reset_scan = false;
         let mut should_add_to_project = false;
         let mut project_item_create_request = None;
         let opened_process_bitness = self
@@ -142,6 +143,21 @@ impl Widget for PointerScannerToolbarView {
                 user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {
                     user_interface.with_layout(eframe::egui::Layout::left_to_right(eframe::egui::Align::Center), |user_interface| {
                         user_interface.add_space(Self::LEADING_ROW_PADDING);
+                        if self
+                            .draw_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_scan_new,
+                                "Clear the active pointer scan session.",
+                                action_button_size,
+                                Color32::TRANSPARENT,
+                                are_session_actions_disabled,
+                            )
+                            .clicked()
+                        {
+                            should_reset_scan = true;
+                        }
+
+                        user_interface.add_space(Self::GROUP_SPACING);
                         user_interface.add(
                             DataValueBoxView::new(
                                 self.app_context.clone(),
@@ -269,6 +285,10 @@ impl Widget for PointerScannerToolbarView {
                 });
                 user_interface.add_space(Self::BOTTOM_PADDING);
             });
+        }
+
+        if should_reset_scan {
+            PointerScannerViewData::reset_scan(self.pointer_scanner_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
         }
 
         if should_start_scan {
