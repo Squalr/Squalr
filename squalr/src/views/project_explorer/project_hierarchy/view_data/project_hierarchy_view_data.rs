@@ -596,6 +596,7 @@ impl ProjectHierarchyViewData {
                 project_item: project_item.clone(),
                 project_item_path: project_root_directory_path.clone(),
                 display_name,
+                preview_path: Self::build_preview_path(project_item),
                 preview_value: Self::build_preview_value(project_item),
                 is_activated: project_item.get_is_activated(),
                 depth: 0,
@@ -733,6 +734,7 @@ impl ProjectHierarchyViewData {
                 project_item: project_item.clone(),
                 project_item_path: child_path.clone(),
                 display_name,
+                preview_path: Self::build_preview_path(project_item),
                 preview_value,
                 is_activated: project_item.get_is_activated(),
                 depth,
@@ -905,6 +907,16 @@ impl ProjectHierarchyViewData {
             let preview_value = Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE);
 
             if preview_value.is_empty() { "??".to_string() } else { preview_value }
+        } else {
+            String::new()
+        }
+    }
+
+    fn build_preview_path(project_item: &ProjectItem) -> String {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH)
         } else {
             String::new()
         }
@@ -1141,6 +1153,7 @@ mod tests {
                 .and_then(|value| value.to_str())
                 .unwrap_or_default()
                 .to_string(),
+            preview_path: String::new(),
             preview_value: String::new(),
             is_activated: false,
             depth,
@@ -1271,6 +1284,27 @@ mod tests {
         let preview_value = ProjectHierarchyViewData::build_preview_value(&pointer_project_item);
 
         assert_eq!(preview_value, "0x1234 -> 0x5678");
+    }
+
+    #[test]
+    fn build_preview_path_for_pointer_without_evaluated_path_returns_empty() {
+        let pointer = Pointer::new(0x10, vec![0x20], "game.exe".to_string());
+        let pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u8");
+
+        let preview_path = ProjectHierarchyViewData::build_preview_path(&pointer_project_item);
+
+        assert_eq!(preview_path, "");
+    }
+
+    #[test]
+    fn build_preview_path_for_pointer_with_evaluated_path_returns_path() {
+        let pointer = Pointer::new(0x10, vec![0x20], "game.exe".to_string());
+        let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u8");
+        ProjectItemTypePointer::set_field_evaluated_pointer_path(&mut pointer_project_item, "game.exe+0x10 -> 0x2020");
+
+        let preview_path = ProjectHierarchyViewData::build_preview_path(&pointer_project_item);
+
+        assert_eq!(preview_path, "game.exe+0x10 -> 0x2020");
     }
 
     #[test]

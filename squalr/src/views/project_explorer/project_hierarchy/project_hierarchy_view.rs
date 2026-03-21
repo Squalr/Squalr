@@ -271,6 +271,7 @@ impl Widget for ProjectHierarchyView {
                                         self.app_context.clone(),
                                         &tree_entry.project_item_path,
                                         &tree_entry.display_name,
+                                        &tree_entry.preview_path,
                                         &tree_entry.preview_value,
                                         tree_entry.is_activated,
                                         tree_entry.depth,

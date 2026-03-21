@@ -28,6 +28,7 @@ impl ProjectItemTypePointer {
     pub const PROPERTY_POINTER_SIZE: &str = "pointer_size";
     pub const PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE: &str = "symbolic_struct_definition_reference";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
+    pub const PROPERTY_EVALUATED_POINTER_PATH: &str = "evaluated_pointer_path";
 
     pub fn new_project_item(
         name: &str,
@@ -226,6 +227,22 @@ impl ProjectItemTypePointer {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
+    }
+
+    pub fn get_field_evaluated_pointer_path(project_item: &ProjectItem) -> String {
+        Self::read_string_field(project_item, Self::PROPERTY_EVALUATED_POINTER_PATH)
+    }
+
+    pub fn set_field_evaluated_pointer_path(
+        project_item: &mut ProjectItem,
+        evaluated_pointer_path: &str,
+    ) {
+        let evaluated_pointer_path_data_value = DataTypeStringUtf8::get_value_from_primitive_string(evaluated_pointer_path);
+        let field_data = ValuedStructFieldData::Value(evaluated_pointer_path_data_value);
+
+        project_item
+            .get_properties_mut()
+            .set_field_data(Self::PROPERTY_EVALUATED_POINTER_PATH, field_data, true);
     }
 
     pub fn get_field_symbolic_struct_definition_reference(project_item: &ProjectItem) -> Option<SymbolicStructRef> {
