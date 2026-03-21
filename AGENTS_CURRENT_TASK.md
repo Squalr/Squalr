@@ -16,11 +16,9 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification of `cargo build --locked --release -p squalr-cli` after the CLI pointer scan summary logger update; local verification is currently blocked by unrelated `squalr-engine-domain` portable-SIMD `SupportedLaneCount` compile failures on `nightly-aarch64-apple-darwin`.
+- 
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
 
-- `PointerScanSummary` no longer exposes `get_target_address()`. Callers must read `get_target_descriptor()` and handle address/value targets from `PointerScanTargetDescriptor`.
-- `squalr-cli/src/response_handlers/pointer_scan/mod.rs` now logs the summary target via `PointerScanTargetDescriptor` display formatting, which preserves both direct-address and value-target scans.
-- Local `cargo build --locked --release -p squalr-cli` and `cargo test --locked -p squalr-cli` both proceed past the original CLI error, then fail in `squalr-engine-domain` with widespread portable-SIMD `LaneCount<N>: SupportedLaneCount` errors on `nightly-aarch64-apple-darwin`.
+- 
