@@ -1,4 +1,5 @@
 use crate::views::struct_viewer::struct_viewer_entry_view::StructViewerEntryView;
+use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use crate::views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction;
 use crate::{app_context::AppContext, views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData};
 use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
@@ -84,31 +85,63 @@ impl Widget for StructViewerView {
                             let struct_fields = struct_under_view.get_fields().to_vec();
                             let selected_field_name = struct_viewer_view_data.selected_field_name.as_ref().clone();
                             let field_display_values_map = struct_viewer_view_data.field_display_values.clone();
+                            let field_presentations_map = struct_viewer_view_data.field_presentations.clone();
 
                             for (field_row_index, field) in struct_fields.into_iter().enumerate() {
                                 let is_selected = selected_field_name.as_deref().unwrap_or_default() == field.get_name();
                                 let validation_data_type_ref = field
                                     .get_data_value()
                                     .map(|data_value| data_value.get_data_type_ref());
-                                let field_edit_value = struct_viewer_view_data
-                                    .field_edit_values
-                                    .get_mut(field.get_name());
                                 let field_display_values = field_display_values_map
                                     .get(field.get_name())
                                     .map(Vec::as_slice);
+                                let field_presentation = field_presentations_map
+                                    .get(field.get_name())
+                                    .cloned()
+                                    .unwrap_or_else(|| StructViewerFieldPresentation::new(field.get_name().to_string(), StructViewerFieldEditorKind::ValueBox));
 
-                                inner_ui.add(StructViewerEntryView::new(
-                                    self.app_context.clone(),
-                                    &field,
-                                    field_row_index,
-                                    is_selected,
-                                    &mut frame_action,
-                                    field_edit_value,
-                                    field_display_values,
-                                    validation_data_type_ref,
-                                    ICON_COLUMN_WIDTH + BAR_THICKNESS,
-                                    value_splitter_x + BAR_THICKNESS,
-                                ));
+                                match field_presentation.editor_kind() {
+                                    StructViewerFieldEditorKind::ValueBox => {
+                                        let field_edit_value = struct_viewer_view_data
+                                            .field_edit_values
+                                            .get_mut(field.get_name());
+
+                                        inner_ui.add(StructViewerEntryView::new(
+                                            self.app_context.clone(),
+                                            &field,
+                                            &field_presentation,
+                                            field_row_index,
+                                            is_selected,
+                                            &mut frame_action,
+                                            field_edit_value,
+                                            field_display_values,
+                                            None,
+                                            validation_data_type_ref,
+                                            ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                            value_splitter_x + BAR_THICKNESS,
+                                        ));
+                                    }
+                                    StructViewerFieldEditorKind::DataTypeSelector => {
+                                        let field_data_type_selection = struct_viewer_view_data
+                                            .field_data_type_selections
+                                            .get_mut(field.get_name());
+
+                                        inner_ui.add(StructViewerEntryView::new(
+                                            self.app_context.clone(),
+                                            &field,
+                                            &field_presentation,
+                                            field_row_index,
+                                            is_selected,
+                                            &mut frame_action,
+                                            None,
+                                            field_display_values,
+                                            field_data_type_selection,
+                                            validation_data_type_ref,
+                                            ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                            value_splitter_x + BAR_THICKNESS,
+                                        ));
+                                    }
+                                }
                             }
                         }
                     });
