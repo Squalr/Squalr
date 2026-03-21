@@ -21,6 +21,7 @@ Our current task, from `README.md`, is:
 - Need human verification: run a live pointer scan with enough results to require multiple pages and confirm the pointer scanner now browses as `Roots -> offsets -> offsets`, that entering a row actually changes context, and that `Back` restores the prior page and selection.
 - Need human verification: confirm the pointer-scanner results columns feel right in live use: roots should show one unique root per row, child contexts should show local offsets instead of repeating the full base chain, and leaf rows should add cleanly to the project.
 - Need human verification: add a pointer-scan result to the project and confirm the saved item name is now condensed to `module+offset [depth]` rather than the full chain, and that pointer project items show `offset` instead of `address` in the property viewer, including when reopening older projects.
+- Need human verification: confirm the pointer-scanner window is readable across the active themes now that the full pointer-scanner view forces `theme.foreground` text coloring instead of inheriting mixed default egui text colors.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -37,6 +38,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Focused coverage now exists for pointer session serialization, level building, static classification, validation pruning, pointer project item persistence, pointer freeze-target creation, pointer runtime chain resolution, GUI pointer action helpers for copy/export/add-to-project, stale async pointer-scanner responses, and address-item pointer-scan context-menu extraction.
 - Pointer-scanner reset now invalidates in-flight summary/start/validate revisions before late callbacks can restore a cleared session, clears the local tree immediately on `New`, and keeps `New` / `Start|Validate` / refresh actions disabled while reset is still in flight. Focused coverage now includes the reset-vs-summary race.
 - Pointer-scanner toolbar defaults now use hex-oriented target / validation / offset inputs, rename `Radius` to `Offset`, default the offset to `0x800`, force foreground text styling, and slightly increase toolbar control height to reduce the cramped row layout.
+- The full pointer-scanner view now scopes `visuals.override_text_color = Some(theme.foreground)` at the top-level view, so toolbar, results, and footer labels inherit the active theme foreground instead of mixing in unreadable default text colors.
 - Pointer-scan start now builds a dedicated user-mode snapshot instead of depending on the shared scan snapshot, so starting a pointer scan no longer requires a prior `scan new` or populated global snapshot.
 - Shared snapshot-region merge logic now lives in `squalr-engine/src/command_executors/snapshot_region_builder.rs` and is reused by both `scan new` and pointer-scan start.
 - Numeric base conversions were corrected so binary / hex / address inputs produce bytes in the requested endianness, fixing pointer target parsing for hex-style addresses such as `0x3010`.

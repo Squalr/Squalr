@@ -46,15 +46,22 @@ impl Widget for PointerScannerView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let theme = &self.app_context.theme;
+
         user_interface
-            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                user_interface.add(self.pointer_scanner_toolbar_view.clone());
-                PointerScannerViewData::dispatch_queued_expand_requests(
-                    self.pointer_scanner_view_data.clone(),
-                    self.app_context.engine_unprivileged_state.clone(),
-                );
-                user_interface.add(self.pointer_scanner_results_view.clone());
+            .scope(|user_interface| {
+                user_interface.style_mut().visuals.override_text_color = Some(theme.foreground);
+                user_interface
+                    .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                        user_interface.add(self.pointer_scanner_toolbar_view.clone());
+                        PointerScannerViewData::dispatch_queued_expand_requests(
+                            self.pointer_scanner_view_data.clone(),
+                            self.app_context.engine_unprivileged_state.clone(),
+                        );
+                        user_interface.add(self.pointer_scanner_results_view.clone());
+                    })
+                    .response
             })
-            .response
+            .inner
     }
 }
