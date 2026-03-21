@@ -147,6 +147,20 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
 
         did_commit_on_enter
     }
+
+    fn display_format_icon(&self) -> &eframe::egui::TextureHandle {
+        let icon_library = &self.app_context.theme.icon_library;
+
+        match self.anonymous_value_string.get_anonymous_value_string_format() {
+            AnonymousValueStringFormat::Binary => &icon_library.icon_handle_display_type_binary,
+            AnonymousValueStringFormat::Decimal => &icon_library.icon_handle_display_type_decimal,
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => &icon_library.icon_handle_display_type_hexadecimal,
+            AnonymousValueStringFormat::String
+            | AnonymousValueStringFormat::Bool
+            | AnonymousValueStringFormat::DataTypeRef
+            | AnonymousValueStringFormat::Enumeration => &icon_library.icon_handle_display_type_string,
+        }
+    }
 }
 
 impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
@@ -155,7 +169,6 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
         let symbol_registry = SymbolRegistry::get_instance();
         let is_valid = symbol_registry.validate_value_string(&self.validation_data_type, &self.anonymous_value_string);
         let foreground_color = match self.use_preview_foreground {
@@ -187,6 +200,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             false => theme.error_red,
         };
 
+        let display_format_icon = self.display_format_icon();
         let desired_size = vec2(self.width, self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::hover());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
@@ -211,8 +225,8 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             },
         );
 
-        // Arrow position.
-        let right_arrow_pos = pos2(
+        // Active display-format icon position.
+        let display_format_icon_position = pos2(
             allocated_size_rectangle.max.x - self.icon_padding - self.icon_size,
             allocated_size_rectangle.center().y - self.icon_size * 0.5,
         );
@@ -282,10 +296,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             );
         }
 
-        // Draw drop-down arrow.
+        // Draw the active display-format icon instead of a generic combo arrow.
         user_interface.painter().image(
-            down_arrow.id(),
-            Rect::from_min_size(right_arrow_pos, icon_size_vec),
+            display_format_icon.id(),
+            Rect::from_min_size(display_format_icon_position, icon_size_vec),
             Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
             Color32::WHITE,
         );
