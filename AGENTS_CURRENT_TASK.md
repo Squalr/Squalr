@@ -16,19 +16,5 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: exercise privileged registry catalog bootstrap + refresh through the Android IPC worker path.
-
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
-
-- Unprivileged registry sync no longer uses a `mirror` plus a second local compatibility registry. `EngineUnprivilegedState` now keeps local project-authored symbols in project state and separately caches the latest privileged registry catalog.
-- The unprivileged cache is now `PrivilegedRegistryCache`, while project-authored symbols still resolve from the opened project's local `ProjectSymbolCatalog`.
-- Validation run: `cargo test -p squalr-engine-session --lib` passed after the unprivileged catalog refactor.
-- Validation run: `cargo test -p squalr-tests --test registry_sync_tests` passed after the same refactor.
-- Registry sync transport now uses `PrivilegedRegistryCatalog` and `StructLayoutDescriptor` consistently across command responses, bindings, session state, and tests; old `symbol_registry_snapshot` / `symbolic_struct_descriptor` module paths were removed.
-- Dead `SymbolRegistry::get_instance()` singleton entrypoints were removed from the API and domain registries. Validation run: `cargo build -p squalr-engine --locked` passed after the rename cleanup.
-- Registry command transport now uses `get_metadata` / `RegistryGetMetadataRequest` / `RegistryGetMetadataResponse`; obsolete `get_snapshot` command modules were deleted.
-- Validation run: `cargo test -p squalr-engine-session --lib` passed after the final `get_metadata` rename cleanup.
-- Validation run: `cargo test -p squalr-tests --test registry_sync_tests` passed after the final `get_metadata` rename cleanup.
-- Validation run: `cargo build -p squalr-engine --locked` passed after the final `get_metadata` rename cleanup.
-- Naming pass: `RegistryMetadata` became `PrivilegedRegistryCatalog`, `PrivilegedSymbolCatalog` became `PrivilegedRegistryCache`, and `SymbolRegistry::create_snapshot()` became `create_registry_catalog()`.
