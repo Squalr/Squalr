@@ -16,9 +16,11 @@ pub struct ProjectInfo {
     project_icon_rgba: Option<ProcessIcon>,
 
     /// The manifest for this project, containing the sort order of project items.
+    #[serde(default)]
     project_manifest: ProjectManifest,
 
     /// User-authored symbolic struct definitions stored with this project.
+    #[serde(default)]
     project_symbol_catalog: ProjectSymbolCatalog,
 
     #[serde(skip)]
