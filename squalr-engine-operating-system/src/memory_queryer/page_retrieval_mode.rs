@@ -1,7 +1,1 @@
-#[derive(PartialEq, Eq)]
-pub enum PageRetrievalMode {
-    FromSettings,
-    FromUserMode,
-    FromNonModules,
-    FromModules,
-}
+pub use squalr_engine_api::plugins::memory_view::PageRetrievalMode;

@@ -1,4 +1,5 @@
 pub mod engine_os_provider;
+mod memory_view_router;
 
 pub use squalr_engine_operating_system::config::memory_settings_config::MemorySettingsConfig;
 pub use squalr_engine_operating_system::memory_queryer::page_retrieval_mode::PageRetrievalMode;

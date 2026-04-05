@@ -8,6 +8,7 @@ edition = "2024"
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-scanning = { path = "../squalr-engine-scanning" }
 squalr-engine-operating-system = { path = "../squalr-engine-operating-system" }
+squalr-plugin-builtins = { path = "../plugins/squalr-plugin-builtins" }
 anyhow = "1.0.101"
 crossbeam-channel = "0.5.15"
 dirs = "6.0.0"

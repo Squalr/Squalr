@@ -1,0 +1,9 @@
+[package]
+name = "squalr-plugin-builtins"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2024"
+
+[dependencies]
+squalr-engine-api = { path = "../../squalr-engine-api" }
+squalr-plugin-memory-view-dolphin = { path = "../squalr-plugin-memory-view-dolphin" }

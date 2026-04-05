@@ -1,5 +1,6 @@
 use crate::os::ProcessManager;
 use crate::os::engine_os_provider::EngineOsProviders;
+use crate::plugins::plugin_registry::PluginRegistry;
 use crate::registries::registries::Registries;
 use crate::tasks::snapshot_scan_result_freeze_task::SnapshotScanResultFreezeTask;
 use crate::tasks::trackable_task_manager::TrackableTaskManager;
@@ -52,6 +53,9 @@ pub struct EnginePrivilegedState {
     /// The collection of all engine registries.
     registries: Arc<Registries>,
 
+    /// The registry of loaded built-in plugins available to this session.
+    plugin_registry: Arc<PluginRegistry>,
+
     /// OS access providers for process and memory operations.
     os_providers: EngineOsProviders,
 }
@@ -67,6 +71,8 @@ impl EnginePrivilegedState {
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let pointer_scan_session = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
+        let plugin_registry = Arc::new(PluginRegistry::new());
+        let os_providers = os_providers.with_memory_view_routing(plugin_registry.clone());
 
         SnapshotScanResultFreezeTask::start_task(
             process_manager.get_opened_process_ref(),
@@ -84,6 +90,7 @@ impl EnginePrivilegedState {
             symbol_registry_mutation_guard: Mutex::new(()),
             engine_bindings,
             registries,
+            plugin_registry,
             os_providers,
         });
 
@@ -180,6 +187,11 @@ impl EnginePrivilegedState {
     /// Gets all engine registries.
     pub fn get_registries(&self) -> Arc<Registries> {
         self.registries.clone()
+    }
+
+    /// Gets the registry of available built-in plugins for this engine session.
+    pub fn get_plugin_registry(&self) -> Arc<PluginRegistry> {
+        self.plugin_registry.clone()
     }
 
     /// Gets OS providers used for process and memory operations.
