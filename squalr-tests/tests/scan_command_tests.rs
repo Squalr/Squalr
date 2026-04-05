@@ -25,6 +25,7 @@ use squalr_engine_api::commands::struct_scan::struct_scan_request::StructScanReq
 use squalr_engine_api::commands::struct_scan::struct_scan_response::StructScanResponse;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
@@ -326,6 +327,7 @@ fn pointer_scan_start_request_dispatches_pointer_scan_command_and_invokes_typed_
         pointer_size: PointerScanPointerSize::Pointer64,
         max_depth: 5,
         offset_radius: 8,
+        address_space: PointerScanAddressSpace::EmulatorMemory,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
@@ -357,6 +359,7 @@ fn pointer_scan_start_request_dispatches_pointer_scan_command_and_invokes_typed_
             assert_eq!(captured_pointer_scan_start_request.pointer_size, PointerScanPointerSize::Pointer64);
             assert_eq!(captured_pointer_scan_start_request.max_depth, 5);
             assert_eq!(captured_pointer_scan_start_request.offset_radius, 8);
+            assert_eq!(captured_pointer_scan_start_request.address_space, PointerScanAddressSpace::EmulatorMemory);
         }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
@@ -377,6 +380,7 @@ fn pointer_scan_start_request_does_not_invoke_callback_when_response_variant_is_
         pointer_size: PointerScanPointerSize::Pointer64,
         max_depth: 5,
         offset_radius: 8,
+        address_space: PointerScanAddressSpace::EmulatorMemory,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();

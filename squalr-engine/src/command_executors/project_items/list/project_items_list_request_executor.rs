@@ -400,8 +400,18 @@ mod tests {
                 PointerScanPointerSize::Pointer32 => {
                     DataTypeU32::get_value_from_primitive(pointer_value as u32).to_named_valued_struct_field("value".to_string(), true)
                 }
+                PointerScanPointerSize::Pointer32be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be::get_value_from_primitive(
+                        pointer_value as u32,
+                    )
+                    .to_named_valued_struct_field("value".to_string(), true)
+                }
                 PointerScanPointerSize::Pointer64 => {
                     DataTypeU64::get_value_from_primitive(pointer_value).to_named_valued_struct_field("value".to_string(), true)
+                }
+                PointerScanPointerSize::Pointer64be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be::get_value_from_primitive(pointer_value)
+                        .to_named_valued_struct_field("value".to_string(), true)
                 }
             };
 

@@ -614,6 +614,7 @@ impl PointerScanValidator {
             original_pointer_scan_session.get_session_id(),
             validation_target_descriptor,
             validation_target_addresses,
+            original_pointer_scan_session.get_address_space(),
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
@@ -634,6 +635,7 @@ impl PointerScanValidator {
             original_pointer_scan_session.get_session_id(),
             validation_target_descriptor,
             validation_target_addresses,
+            original_pointer_scan_session.get_address_space(),
             original_pointer_scan_session.get_pointer_size(),
             original_pointer_scan_session.get_max_depth(),
             original_pointer_scan_session.get_offset_radius(),
@@ -654,6 +656,7 @@ mod tests {
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
@@ -871,6 +874,7 @@ mod tests {
             pointer_scan_parameters,
             PointerScanTargetDescriptor::address(0x3010),
             vec![0x3010],
+            PointerScanAddressSpace::EmulatorMemory,
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
             &scan_execution_context,
@@ -882,6 +886,7 @@ mod tests {
             43,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             2,
             0x20,

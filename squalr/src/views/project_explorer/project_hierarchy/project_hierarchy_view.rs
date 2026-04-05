@@ -206,8 +206,18 @@ mod tests {
                 PointerScanPointerSize::Pointer32 => {
                     DataTypeU32::get_value_from_primitive(pointer_value as u32).to_named_valued_struct_field("value".to_string(), true)
                 }
+                PointerScanPointerSize::Pointer32be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be::get_value_from_primitive(
+                        pointer_value as u32,
+                    )
+                    .to_named_valued_struct_field("value".to_string(), true)
+                }
                 PointerScanPointerSize::Pointer64 => {
                     DataTypeU64Pointer::get_value_from_primitive(pointer_value).to_named_valued_struct_field("value".to_string(), true)
+                }
+                PointerScanPointerSize::Pointer64be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be::get_value_from_primitive(pointer_value)
+                        .to_named_valued_struct_field("value".to_string(), true)
                 }
             };
 
@@ -503,6 +513,7 @@ impl Widget for ProjectHierarchyView {
         let mut should_cancel_take_over = false;
         let mut delete_confirmation_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
         let mut keyboard_activation_toggle_target: Option<(Vec<PathBuf>, bool)> = None;
+        let mut is_delete_confirmation_active = false;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let project_hierarchy_view_data = match self.project_hierarchy_view_data.read("Project hierarchy view") {
@@ -696,6 +707,7 @@ impl Widget for ProjectHierarchyView {
                             });
                     }
                     ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
+                        is_delete_confirmation_active = true;
                         let theme = &self.app_context.theme;
 
                         user_interface.add_space(12.0);
@@ -729,45 +741,65 @@ impl Widget for ProjectHierarchyView {
                             });
 
                         user_interface.add_space(8.0);
-                        user_interface.allocate_ui_with_layout(
-                            vec2(user_interface.available_width(), 32.0),
-                            Layout::left_to_right(Align::Center),
-                            |user_interface| {
+                        user_interface.horizontal_centered(|user_interface| {
+                            user_interface.allocate_ui_with_layout(
+                                vec2(252.0, 32.0),
+                                Layout::left_to_right(Align::Center),
+                                |user_interface| {
                                 user_interface.spacing_mut().item_spacing.x = 12.0;
-                            let button_size = vec2(120.0, 28.0);
-                            let button_cancel = user_interface.add_sized(
-                                button_size,
-                                eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                let button_size = vec2(120.0, 28.0);
+                                let button_cancel = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
                                         .fill(theme.background_control_secondary)
                                         .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if button_cancel.clicked() {
+                                    should_cancel_take_over = true;
+                                }
+
+                                let button_confirm_delete = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
+                                        .fill(theme.background_control_danger)
+                                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                                );
+
+                                if button_confirm_delete.clicked() {
+                                    delete_confirmation_project_item_paths = Some(project_item_paths);
+                                }
+                                },
                             );
-
-                            if button_cancel.clicked() {
-                                should_cancel_take_over = true;
-                            }
-
-                            let button_confirm_delete = user_interface.add_sized(
-                                button_size,
-                                eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
-                                    .fill(theme.selected_border)
-                                    .stroke(Stroke::new(1.0, theme.selected_border)),
-                            );
-
-                            if button_confirm_delete.clicked() {
-                                delete_confirmation_project_item_paths = Some(project_item_paths);
-                            }
-                            },
-                        );
+                        });
                     }
                 }
             })
             .response;
 
-        if user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Delete)) {
+        if is_delete_confirmation_active {
+            if user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Escape))
+                || user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Backspace))
+            {
+                should_cancel_take_over = true;
+            }
+
+            if user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Enter)) {
+                delete_confirmation_project_item_paths = self
+                    .project_hierarchy_view_data
+                    .read("Project hierarchy confirm delete by keyboard")
+                    .and_then(|project_hierarchy_view_data| match project_hierarchy_view_data.take_over_state.clone() {
+                        ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => Some(project_item_paths),
+                        _ => None,
+                    });
+            }
+        }
+
+        if !is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Delete)) {
             ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
         }
 
-        if user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
+        if !is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
             keyboard_activation_toggle_target = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy keyboard activation toggle")

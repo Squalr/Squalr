@@ -51,11 +51,29 @@ pub trait MemoryQueryProvider: Send + Sync {
         modules: &Vec<NormalizedModule>,
         identifier: &str,
     ) -> u64;
+    fn resolve_module_address(
+        &self,
+        modules: &Vec<NormalizedModule>,
+        identifier: &str,
+        offset: u64,
+    ) -> Option<u64> {
+        self.resolve_module(modules, identifier).checked_add(offset)
+    }
     fn get_memory_page_bounds(
         &self,
         process_info: &OpenedProcessInfo,
         page_retrieval_mode: PageRetrievalMode,
     ) -> Vec<NormalizedRegion>;
+    fn get_pointer_scan_memory_page_bounds(
+        &self,
+        process_info: &OpenedProcessInfo,
+        page_retrieval_mode: PageRetrievalMode,
+        target_address: Option<u64>,
+    ) -> Vec<NormalizedRegion> {
+        let _ = target_address;
+
+        self.get_memory_page_bounds(process_info, page_retrieval_mode)
+    }
 }
 
 pub trait MemoryReadProvider: Send + Sync {
@@ -91,6 +109,7 @@ pub trait MemoryWriteProvider: Send + Sync {
 #[derive(Clone)]
 pub struct EngineOsProviders {
     pub process_query: Arc<dyn ProcessQueryProvider>,
+    pub memory_query_raw: Arc<dyn MemoryQueryProvider>,
     pub memory_query: Arc<dyn MemoryQueryProvider>,
     pub memory_read: Arc<dyn MemoryReadProvider>,
     pub memory_write: Arc<dyn MemoryWriteProvider>,
@@ -105,6 +124,7 @@ impl EngineOsProviders {
     ) -> Self {
         Self {
             process_query,
+            memory_query_raw: memory_query.clone(),
             memory_query,
             memory_read,
             memory_write,
@@ -118,6 +138,7 @@ impl EngineOsProviders {
         let memory_view_router = Arc::new(MemoryViewRouter::new(plugin_registry));
         let Self {
             process_query,
+            memory_query_raw: _,
             memory_query,
             memory_read,
             memory_write,
@@ -126,6 +147,7 @@ impl EngineOsProviders {
 
         Self {
             process_query: Arc::new(RoutedProcessQueryProvider::new(process_query, memory_view_router.clone())),
+            memory_query_raw: base_memory_query.clone(),
             memory_query: Arc::new(RoutedMemoryQueryProvider::new(memory_query, memory_view_router.clone())),
             memory_read: Arc::new(RoutedMemoryReadProvider::new(
                 memory_read,
@@ -141,6 +163,7 @@ impl Default for EngineOsProviders {
     fn default() -> Self {
         Self {
             process_query: Arc::new(DefaultProcessQueryProvider {}),
+            memory_query_raw: Arc::new(DefaultMemoryQueryProvider {}),
             memory_query: Arc::new(DefaultMemoryQueryProvider {}),
             memory_read: Arc::new(DefaultMemoryReadProvider {}),
             memory_write: Arc::new(DefaultMemoryWriteProvider {}),
@@ -201,6 +224,17 @@ impl MemoryQueryProvider for DefaultMemoryQueryProvider {
         identifier: &str,
     ) -> u64 {
         MemoryQueryer::get_instance().resolve_module(modules, identifier)
+    }
+
+    fn resolve_module_address(
+        &self,
+        modules: &Vec<NormalizedModule>,
+        identifier: &str,
+        offset: u64,
+    ) -> Option<u64> {
+        MemoryQueryer::get_instance()
+            .resolve_module(modules, identifier)
+            .checked_add(offset)
     }
 
     fn get_memory_page_bounds(
@@ -429,6 +463,27 @@ impl MemoryQueryProvider for RoutedMemoryQueryProvider {
         self.base_provider.resolve_module(modules, identifier)
     }
 
+    fn resolve_module_address(
+        &self,
+        modules: &Vec<NormalizedModule>,
+        identifier: &str,
+        offset: u64,
+    ) -> Option<u64> {
+        if let Some(memory_view_instance) = self.memory_view_router.get_active_instance() {
+            match memory_view_instance.lock() {
+                Ok(memory_view_instance) => {
+                    return memory_view_instance.resolve_module_address(modules, identifier, offset);
+                }
+                Err(error) => {
+                    log::warn!("Failed to lock memory-view instance for module-address resolution: {}", error);
+                }
+            }
+        }
+
+        self.base_provider
+            .resolve_module_address(modules, identifier, offset)
+    }
+
     fn get_memory_page_bounds(
         &self,
         process_info: &OpenedProcessInfo,
@@ -456,6 +511,48 @@ impl MemoryQueryProvider for RoutedMemoryQueryProvider {
 
         self.base_provider
             .get_memory_page_bounds(process_info, page_retrieval_mode)
+    }
+
+    fn get_pointer_scan_memory_page_bounds(
+        &self,
+        process_info: &OpenedProcessInfo,
+        page_retrieval_mode: PageRetrievalMode,
+        target_address: Option<u64>,
+    ) -> Vec<NormalizedRegion> {
+        if let Some(target_address) = target_address {
+            if let Some(memory_view_instance) = self.memory_view_router.get_or_create_instance(process_info) {
+                match memory_view_instance.lock() {
+                    Ok(mut memory_view_instance) => {
+                        if let Err(error) = memory_view_instance.refresh() {
+                            RoutedMemoryQueryProvider::log_fallback_if_unexpected(
+                                memory_view_instance.plugin_id(),
+                                "refresh",
+                                "pointer-scan page bounds",
+                                &error,
+                            );
+                        } else {
+                            match memory_view_instance.get_pointer_scan_memory_regions(page_retrieval_mode, target_address) {
+                                Ok(Some(regions)) => return regions,
+                                Ok(None) => {}
+                                Err(error) => {
+                                    RoutedMemoryQueryProvider::log_fallback_if_unexpected(
+                                        memory_view_instance.plugin_id(),
+                                        "pointer-scan page query",
+                                        "pointer-scan page bounds",
+                                        &error,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!("Failed to lock memory-view instance for pointer-scan page query: {}", error);
+                    }
+                }
+            }
+        }
+
+        self.get_memory_page_bounds(process_info, page_retrieval_mode)
     }
 }
 
@@ -757,6 +854,15 @@ mod tests {
                 .find(|module| module.get_module_name().eq_ignore_ascii_case(identifier))
                 .map(|module| module.get_base_address())
                 .unwrap_or(0)
+        }
+
+        fn resolve_module_address(
+            &self,
+            modules: &Vec<NormalizedModule>,
+            identifier: &str,
+            offset: u64,
+        ) -> Option<u64> {
+            self.resolve_module(modules, identifier).checked_add(offset)
         }
 
         fn get_memory_page_bounds(

@@ -91,13 +91,13 @@ impl Pointer {
         mut read_pointer_value: ReadPointerValue,
     ) -> Option<u64>
     where
-        ResolveModuleAddress: FnMut(&str) -> u64,
+        ResolveModuleAddress: FnMut(&str, u64) -> Option<u64>,
         ReadPointerValue: FnMut(u64, PointerScanPointerSize) -> Option<u64>,
     {
         let mut resolved_address = if self.module_name.is_empty() {
             self.address
         } else {
-            resolve_module_address(&self.module_name).checked_add(self.address)?
+            resolve_module_address(&self.module_name, self.address)?
         };
 
         for pointer_offset in &self.offsets {
@@ -131,9 +131,10 @@ mod tests {
 
         let mut resolved_reads = Vec::new();
         let resolved_address = pointer.resolve_final_address(
-            |module_name| {
+            |module_name, offset| {
                 assert_eq!(module_name, "game.exe");
-                0x1000
+                assert_eq!(offset, 0x10);
+                Some(0x1010)
             },
             |address, pointer_size| {
                 resolved_reads.push((address, pointer_size));
@@ -161,7 +162,7 @@ mod tests {
         let pointer = Pointer::new_with_size(0x5000, vec![-0x20], String::new(), PointerScanPointerSize::Pointer32);
 
         let resolved_address = pointer.resolve_final_address(
-            |_module_name| 0,
+            |_module_name, _offset| Some(0),
             |address, pointer_size| {
                 assert_eq!(address, 0x5000);
                 assert_eq!(pointer_size, PointerScanPointerSize::Pointer32);
@@ -178,9 +179,10 @@ mod tests {
         let pointer = Pointer::new(0x44, Vec::new(), "engine.dll".to_string());
 
         let resolved_address = pointer.resolve_final_address(
-            |module_name| {
+            |module_name, offset| {
                 assert_eq!(module_name, "engine.dll");
-                0x4000
+                assert_eq!(offset, 0x44);
+                Some(0x4044)
             },
             |_address, _pointer_size| None,
         );

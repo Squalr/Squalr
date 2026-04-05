@@ -47,6 +47,23 @@ pub trait MemoryViewInstance: Send + Sync {
             .unwrap_or(0)
     }
 
+    fn resolve_module_address(
+        &self,
+        modules: &[NormalizedModule],
+        identifier: &str,
+        offset: u64,
+    ) -> Option<u64> {
+        self.resolve_module(modules, identifier).checked_add(offset)
+    }
+
+    fn get_pointer_scan_memory_regions(
+        &self,
+        _page_retrieval_mode: PageRetrievalMode,
+        _target_address: u64,
+    ) -> Result<Option<Vec<NormalizedRegion>>, MemoryViewPluginError> {
+        Ok(None)
+    }
+
     fn read_bytes(
         &self,
         address: u64,

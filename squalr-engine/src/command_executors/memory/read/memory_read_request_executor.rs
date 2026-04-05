@@ -39,15 +39,15 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
                 };
                 let module_address = os_providers
                     .memory_query
-                    .resolve_module(&modules, &self.module_name);
+                    .resolve_module_address(&modules, &self.module_name, self.address);
                 let success = os_providers
                     .memory_read
-                    .read_struct(&process_info, module_address.saturating_add(self.address), &mut out_valued_struct);
+                    .read_struct(&process_info, module_address.unwrap_or(0), &mut out_valued_struct);
 
                 MemoryReadResponse {
                     valued_struct: out_valued_struct,
                     address: self.address,
-                    success,
+                    success: module_address.is_some() && success,
                 }
             } else {
                 let success = os_providers

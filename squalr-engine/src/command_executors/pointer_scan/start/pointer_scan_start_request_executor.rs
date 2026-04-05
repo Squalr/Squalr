@@ -4,9 +4,13 @@ use crate::command_executors::snapshot_region_builder::merge_memory_regions_into
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_request::PointerScanStartRequest;
 use squalr_engine_api::commands::pointer_scan::start::pointer_scan_start_response::PointerScanStartResponse;
-use squalr_engine_api::structures::memory::bitness::Bitness;
+use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+use squalr_engine_api::structures::memory::address_display::is_virtual_module_address;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
@@ -31,15 +35,41 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
 
             return PointerScanStartResponse::default();
         };
-        let effective_pointer_size = resolve_pointer_size_for_process_bitness(self.pointer_size, &process_info);
-        let modules = engine_privileged_state
-            .get_os_providers()
-            .memory_query
-            .get_modules(&process_info);
-        let pointer_scan_memory_regions = engine_privileged_state
-            .get_os_providers()
-            .memory_query
-            .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode);
+        let effective_address_space = resolve_pointer_scan_address_space(self.address_space, &self.target);
+        let effective_pointer_size = resolve_pointer_size_for_process_bitness(self.pointer_size, effective_address_space, &process_info);
+        let modules = match effective_address_space {
+            PointerScanAddressSpace::Auto => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_modules(&process_info),
+            PointerScanAddressSpace::GameMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query
+                .get_modules(&process_info),
+            PointerScanAddressSpace::EmulatorMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_modules(&process_info),
+        };
+        let parsed_target_address = self
+            .target
+            .target_address
+            .as_ref()
+            .and_then(parse_target_address);
+        let pointer_scan_memory_regions = match effective_address_space {
+            PointerScanAddressSpace::Auto => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode),
+            PointerScanAddressSpace::GameMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query
+                .get_pointer_scan_memory_page_bounds(&process_info, PageRetrievalMode::FromVirtualModules, parsed_target_address),
+            PointerScanAddressSpace::EmulatorMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode),
+        };
         let mut pointer_scan_snapshot = Snapshot::new();
         pointer_scan_snapshot.set_snapshot_regions(merge_memory_regions_into_snapshot_regions(pointer_scan_memory_regions));
         let pointer_scan_snapshot = Arc::new(RwLock::new(pointer_scan_snapshot));
@@ -93,6 +123,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             pointer_scan_parameters,
             resolved_targets.target_descriptor,
             resolved_targets.target_addresses,
+            effective_address_space,
             &modules,
             true,
         );
@@ -113,14 +144,33 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
     }
 }
 
+fn resolve_pointer_scan_address_space(
+    requested_address_space: PointerScanAddressSpace,
+    target_request: &PointerScanTargetRequest,
+) -> PointerScanAddressSpace {
+    match requested_address_space {
+        PointerScanAddressSpace::Auto => target_request
+            .target_address
+            .as_ref()
+            .and_then(parse_target_address)
+            .filter(|target_address| is_virtual_module_address(*target_address))
+            .map(|_| PointerScanAddressSpace::GameMemory)
+            .unwrap_or(PointerScanAddressSpace::EmulatorMemory),
+        PointerScanAddressSpace::GameMemory => PointerScanAddressSpace::GameMemory,
+        PointerScanAddressSpace::EmulatorMemory => PointerScanAddressSpace::EmulatorMemory,
+    }
+}
+
 fn resolve_pointer_size_for_process_bitness(
     requested_pointer_size: PointerScanPointerSize,
+    address_space: PointerScanAddressSpace,
     process_info: &OpenedProcessInfo,
 ) -> PointerScanPointerSize {
-    let process_pointer_size = match process_info.get_bitness() {
-        Bitness::Bit32 => PointerScanPointerSize::Pointer32,
-        Bitness::Bit64 => PointerScanPointerSize::Pointer64,
-    };
+    if matches!(address_space, PointerScanAddressSpace::GameMemory) {
+        return requested_pointer_size;
+    }
+
+    let process_pointer_size = PointerScanPointerSize::from_process_bitness(process_info.get_bitness());
 
     if requested_pointer_size != process_pointer_size {
         log::warn!(
@@ -136,12 +186,55 @@ fn resolve_pointer_size_for_process_bitness(
     process_pointer_size
 }
 
+fn parse_target_address(target_address: &AnonymousValueString) -> Option<u64> {
+    let trimmed_target_address = target_address.get_anonymous_value_string().trim();
+
+    if trimmed_target_address.is_empty() {
+        return None;
+    }
+
+    match target_address.get_anonymous_value_string_format() {
+        AnonymousValueStringFormat::Address | AnonymousValueStringFormat::Hexadecimal => {
+            let hexadecimal_input = trimmed_target_address
+                .strip_prefix("0x")
+                .or_else(|| trimmed_target_address.strip_prefix("0X"))
+                .unwrap_or(trimmed_target_address);
+
+            u64::from_str_radix(hexadecimal_input, 16).ok()
+        }
+        AnonymousValueStringFormat::Decimal => trimmed_target_address.parse::<u64>().ok(),
+        AnonymousValueStringFormat::Binary => {
+            let binary_input = trimmed_target_address
+                .strip_prefix("0b")
+                .or_else(|| trimmed_target_address.strip_prefix("0B"))
+                .unwrap_or(trimmed_target_address);
+
+            u64::from_str_radix(binary_input, 2).ok()
+        }
+        _ => trimmed_target_address.parse::<u64>().ok(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::PointerScanStartRequest;
+    use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
+    use crate::engine_privileged_state::EnginePrivilegedState;
+    use crossbeam_channel::{Receiver, unbounded};
+    use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
+    use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
+    use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
+    use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+    use squalr_engine_api::events::engine_event::EngineEvent;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
+    use squalr_engine_api::structures::data_values::data_value::DataValue;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
     use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
@@ -255,6 +348,15 @@ mod tests {
                 .find(|module| module.get_module_name() == identifier)
                 .map(NormalizedModule::get_base_address)
                 .unwrap_or_default()
+        }
+
+        fn resolve_module_address(
+            &self,
+            modules: &Vec<NormalizedModule>,
+            identifier: &str,
+            offset: u64,
+        ) -> Option<u64> {
+            self.resolve_module(modules, identifier).checked_add(offset)
         }
 
         fn get_memory_page_bounds(
@@ -371,6 +473,7 @@ mod tests {
             pointer_size: PointerScanPointerSize::Pointer64,
             max_depth: 3,
             offset_radius: 0x20,
+            address_space: PointerScanAddressSpace::EmulatorMemory,
         }
         .execute(&engine_privileged_state);
         let pointer_scan_summary = pointer_scan_start_response
@@ -430,6 +533,7 @@ mod tests {
             pointer_size: PointerScanPointerSize::Pointer64,
             max_depth: 3,
             offset_radius: 0x20,
+            address_space: PointerScanAddressSpace::EmulatorMemory,
         }
         .execute(&engine_privileged_state);
         let pointer_scan_summary = pointer_scan_start_response
@@ -481,6 +585,7 @@ mod tests {
             pointer_size: PointerScanPointerSize::Pointer64,
             max_depth: 2,
             offset_radius: 0x20,
+            address_space: PointerScanAddressSpace::EmulatorMemory,
         }
         .execute(&engine_privileged_state);
         let pointer_scan_summary = pointer_scan_start_response
