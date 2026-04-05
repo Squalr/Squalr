@@ -72,7 +72,7 @@ impl SerializableProjectFile for ProjectInfo {
 #[cfg(test)]
 mod tests {
     use super::SerializableProjectFile;
-    use squalr_engine_api::registries::symbols::symbolic_struct_descriptor::SymbolicStructDescriptor;
+    use squalr_engine_api::registries::symbols::symbolic_struct_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
@@ -88,7 +88,7 @@ mod tests {
             project_file_path,
             None,
             ProjectManifest::default(),
-            ProjectSymbolCatalog::new(vec![SymbolicStructDescriptor::new(
+            ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
                 String::from("player.health"),
                 SymbolicStructDefinition::new(
                     String::from("player.health"),
@@ -109,15 +109,15 @@ mod tests {
         assert_eq!(
             loaded_project_info
                 .get_project_symbol_catalog()
-                .get_symbolic_struct_descriptors()
+                .get_struct_layout_descriptors()
                 .len(),
             1
         );
         assert_eq!(
             loaded_project_info
                 .get_project_symbol_catalog()
-                .get_symbolic_struct_descriptors()[0]
-                .get_symbolic_struct_id(),
+                .get_struct_layout_descriptors()[0]
+                .get_struct_layout_id(),
             "player.health"
         );
     }

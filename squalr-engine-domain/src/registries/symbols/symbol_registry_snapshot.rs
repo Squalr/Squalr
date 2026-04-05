@@ -1,23 +1,23 @@
-use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::SymbolicStructDescriptor};
+use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::StructLayoutDescriptor};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct SymbolRegistrySnapshot {
+pub struct RegistryMetadata {
     generation: u64,
     data_type_descriptors: Vec<DataTypeDescriptor>,
-    symbolic_struct_descriptors: Vec<SymbolicStructDescriptor>,
+    struct_layout_descriptors: Vec<StructLayoutDescriptor>,
 }
 
-impl SymbolRegistrySnapshot {
+impl RegistryMetadata {
     pub fn new(
         generation: u64,
         data_type_descriptors: Vec<DataTypeDescriptor>,
-        symbolic_struct_descriptors: Vec<SymbolicStructDescriptor>,
+        struct_layout_descriptors: Vec<StructLayoutDescriptor>,
     ) -> Self {
         Self {
             generation,
             data_type_descriptors,
-            symbolic_struct_descriptors,
+            struct_layout_descriptors,
         }
     }
 
@@ -29,7 +29,7 @@ impl SymbolRegistrySnapshot {
         &self.data_type_descriptors
     }
 
-    pub fn get_symbolic_struct_descriptors(&self) -> &[SymbolicStructDescriptor] {
-        &self.symbolic_struct_descriptors
+    pub fn get_struct_layout_descriptors(&self) -> &[StructLayoutDescriptor] {
+        &self.struct_layout_descriptors
     }
 }

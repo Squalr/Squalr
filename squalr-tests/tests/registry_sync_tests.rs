@@ -12,8 +12,8 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::EngineEventRequest;
 use squalr_engine_api::events::registry::changed::registry_changed_event::RegistryChangedEvent;
 use squalr_engine_api::registries::symbols::{
-    data_type_descriptor::DataTypeDescriptor, symbol_registry::SymbolRegistry, symbol_registry_snapshot::SymbolRegistrySnapshot,
-    symbolic_struct_descriptor::SymbolicStructDescriptor,
+    data_type_descriptor::DataTypeDescriptor, symbol_registry::SymbolRegistry, symbol_registry_snapshot::RegistryMetadata,
+    symbolic_struct_descriptor::StructLayoutDescriptor,
 };
 use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef,
@@ -36,7 +36,7 @@ struct TestEngineBindings {
 }
 
 impl TestEngineBindings {
-    fn new(initial_registry_snapshot: SymbolRegistrySnapshot) -> Self {
+    fn new(initial_registry_snapshot: RegistryMetadata) -> Self {
         let (event_sender, event_receiver) = unbounded();
 
         Self {
@@ -50,7 +50,7 @@ impl TestEngineBindings {
 
     fn set_registry_snapshot(
         &self,
-        symbol_registry_snapshot: SymbolRegistrySnapshot,
+        symbol_registry_snapshot: RegistryMetadata,
     ) {
         if let Ok(mut next_registry_snapshot_response) = self.next_registry_snapshot_response.write() {
             *next_registry_snapshot_response = RegistryGetSnapshotResponse { symbol_registry_snapshot };
@@ -128,11 +128,7 @@ fn wait_for_generation(
     expected_generation: u64,
 ) -> bool {
     for _ in 0..50 {
-        let current_generation = engine_unprivileged_state
-            .get_symbol_registry_mirror()
-            .read()
-            .map(|symbol_registry_mirror| symbol_registry_mirror.get_generation())
-            .unwrap_or_default();
+        let current_generation = engine_unprivileged_state.get_privileged_symbol_generation();
 
         if current_generation >= expected_generation {
             return true;
@@ -147,7 +143,7 @@ fn wait_for_generation(
 fn build_symbol_registry_snapshot(
     generation: u64,
     remote_type_unit_size_in_bytes: u64,
-) -> SymbolRegistrySnapshot {
+) -> RegistryMetadata {
     let built_in_symbol_registry_snapshot = SymbolRegistry::new().create_snapshot(generation);
     let mut data_type_descriptors = built_in_symbol_registry_snapshot
         .get_data_type_descriptors()
@@ -163,10 +159,10 @@ fn build_symbol_registry_snapshot(
         false,
     ));
 
-    let mut symbolic_struct_descriptors = built_in_symbol_registry_snapshot
-        .get_symbolic_struct_descriptors()
+    let mut struct_layout_descriptors = built_in_symbol_registry_snapshot
+        .get_struct_layout_descriptors()
         .to_vec();
-    symbolic_struct_descriptors.push(SymbolicStructDescriptor::new(
+    struct_layout_descriptors.push(StructLayoutDescriptor::new(
         "remote.test.struct".to_string(),
         SymbolicStructDefinition::new(
             "remote.test.struct".to_string(),
@@ -177,7 +173,7 @@ fn build_symbol_registry_snapshot(
         ),
     ));
 
-    SymbolRegistrySnapshot::new(generation, data_type_descriptors, symbolic_struct_descriptors)
+    RegistryMetadata::new(generation, data_type_descriptors, struct_layout_descriptors)
 }
 
 fn get_snapshot_unit_size_in_bytes(
@@ -185,19 +181,13 @@ fn get_snapshot_unit_size_in_bytes(
     data_type_id: &str,
 ) -> Option<u64> {
     engine_unprivileged_state
-        .get_symbol_registry_mirror()
-        .read()
-        .ok()
-        .and_then(|symbol_registry_mirror| {
-            symbol_registry_mirror
-                .get_snapshot()
-                .and_then(|symbol_registry_snapshot| {
-                    symbol_registry_snapshot
-                        .get_data_type_descriptors()
-                        .iter()
-                        .find(|data_type_descriptor| data_type_descriptor.get_data_type_id() == data_type_id)
-                        .map(|data_type_descriptor| data_type_descriptor.get_unit_size_in_bytes())
-                })
+        .get_privileged_symbol_snapshot()
+        .and_then(|symbol_registry_snapshot| {
+            symbol_registry_snapshot
+                .get_data_type_descriptors()
+                .iter()
+                .find(|data_type_descriptor| data_type_descriptor.get_data_type_id() == data_type_id)
+                .map(|data_type_descriptor| data_type_descriptor.get_unit_size_in_bytes())
         })
 }
 
@@ -206,18 +196,12 @@ fn snapshot_contains_symbolic_struct(
     symbolic_struct_id: &str,
 ) -> bool {
     engine_unprivileged_state
-        .get_symbol_registry_mirror()
-        .read()
-        .ok()
-        .and_then(|symbol_registry_mirror| {
-            symbol_registry_mirror
-                .get_snapshot()
-                .map(|symbol_registry_snapshot| {
-                    symbol_registry_snapshot
-                        .get_symbolic_struct_descriptors()
-                        .iter()
-                        .any(|symbolic_struct_descriptor| symbolic_struct_descriptor.get_symbolic_struct_id() == symbolic_struct_id)
-                })
+        .get_privileged_symbol_snapshot()
+        .map(|symbol_registry_snapshot| {
+            symbol_registry_snapshot
+            .get_struct_layout_descriptors()
+                .iter()
+            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_id)
         })
         .unwrap_or(false)
 }

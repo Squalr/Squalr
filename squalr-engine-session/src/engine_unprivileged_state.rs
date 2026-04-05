@@ -1,5 +1,5 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
-use crate::registries::symbol_registry_mirror::SymbolRegistryMirror;
+use crate::registries::privileged_symbol_catalog::PrivilegedSymbolCatalog;
 use crossbeam_channel::bounded;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::registry::get_snapshot::registry_get_snapshot_request::RegistryGetSnapshotRequest;
@@ -14,13 +14,14 @@ use squalr_engine_api::events::project_items::project_items_event::ProjectItemsE
 use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
+use squalr_engine_api::registries::symbols::symbol_registry_snapshot::RegistryMetadata;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
 };
 use squalr_engine_api::structures::projects::project_manager::ProjectManager;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -38,10 +39,8 @@ pub struct EngineUnprivilegedState {
     file_system_logger: Arc<LogDispatcher>,
     /// Project manager for organizing and manipulating projects.
     project_manager: Arc<ProjectManager>,
-    /// Local mirror of the privileged symbol registry snapshot.
-    symbol_registry_mirror: Arc<RwLock<SymbolRegistryMirror>>,
-    /// Local compatibility registry kept in sync from snapshots for legacy metadata and formatting helpers.
-    symbol_registry_compatibility: Arc<SymbolRegistry>,
+    /// Cached privileged-owned symbol metadata synchronized from the engine.
+    privileged_symbol_catalog: Arc<RwLock<PrivilegedSymbolCatalog>>,
 }
 
 #[derive(Clone, Copy)]
@@ -83,18 +82,21 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
-        self.symbol_registry_compatibility
-            .get_default_value(data_type_ref)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_default_value(data_type_ref))
+            .unwrap_or_default()
     }
 
     fn resolve_symbolic_struct_definition(
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {
-        self.symbol_registry_compatibility
-            .get(symbolic_struct_ref_id)
-            .as_deref()
-            .cloned()
+        self.resolve_local_project_symbolic_struct_definition(symbolic_struct_ref_id)
+            .or_else(|| {
+                self.read_privileged_symbol_catalog(|privileged_symbol_catalog| {
+                    privileged_symbol_catalog.resolve_symbolic_struct_definition(symbolic_struct_ref_id)
+                })
+                .unwrap_or_default()
+            })
     }
 }
 
@@ -116,14 +118,13 @@ impl EngineUnprivilegedState {
                 enable_console_output: options.enable_console_logging,
             })),
             project_manager,
-            symbol_registry_mirror: Arc::new(RwLock::new(SymbolRegistryMirror::default())),
-            symbol_registry_compatibility: Arc::new(SymbolRegistry::new()),
+            privileged_symbol_catalog: Arc::new(RwLock::new(PrivilegedSymbolCatalog::default())),
         })
     }
 
     pub fn initialize(self: &Arc<Self>) {
         self.start_event_dispatcher();
-        self.refresh_symbol_registry_snapshot();
+        self.refresh_privileged_symbol_snapshot();
     }
 
     /// Gets the file system logger that routes log events to the log file.
@@ -131,36 +132,43 @@ impl EngineUnprivilegedState {
         &self.file_system_logger
     }
 
-    pub fn get_symbol_registry_mirror(&self) -> &Arc<RwLock<SymbolRegistryMirror>> {
-        &self.symbol_registry_mirror
+    pub fn get_privileged_symbol_generation(&self) -> u64 {
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_generation())
+            .unwrap_or_default()
+    }
+
+    pub fn get_privileged_symbol_snapshot(&self) -> Option<RegistryMetadata> {
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_snapshot().cloned())
+            .flatten()
     }
 
     pub fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
-        self.symbol_registry_compatibility
-            .get_registered_data_type_refs()
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_registered_data_type_refs())
+            .unwrap_or_default()
     }
 
     pub fn is_registered_data_type_ref(
         &self,
         data_type_ref: &DataTypeRef,
     ) -> bool {
-        self.symbol_registry_compatibility.is_valid(data_type_ref)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.is_registered_data_type_ref(data_type_ref))
+            .unwrap_or(false)
     }
 
     pub fn get_default_anonymous_value_string_format(
         &self,
         data_type_ref: &DataTypeRef,
     ) -> AnonymousValueStringFormat {
-        self.symbol_registry_compatibility
-            .get_default_anonymous_value_string_format(data_type_ref)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_default_anonymous_value_string_format(data_type_ref))
+            .unwrap_or_default()
     }
 
     pub fn get_supported_anonymous_value_string_formats(
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Vec<AnonymousValueStringFormat> {
-        self.symbol_registry_compatibility
-            .get_supported_anonymous_value_string_formats(data_type_ref)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_supported_anonymous_value_string_formats(data_type_ref))
+            .unwrap_or_default()
     }
 
     pub fn validate_value_string(
@@ -168,8 +176,8 @@ impl EngineUnprivilegedState {
         data_type_ref: &DataTypeRef,
         anonymous_value_string: &AnonymousValueString,
     ) -> bool {
-        self.symbol_registry_compatibility
-            .validate_value_string(data_type_ref, anonymous_value_string)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.validate_value_string(data_type_ref, anonymous_value_string))
+            .unwrap_or(false)
     }
 
     pub fn deanonymize_value_string(
@@ -177,8 +185,15 @@ impl EngineUnprivilegedState {
         data_type_ref: &DataTypeRef,
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, SymbolRegistryError> {
-        self.symbol_registry_compatibility
-            .deanonymize_value_string(data_type_ref, anonymous_value_string)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| {
+            privileged_symbol_catalog.deanonymize_value_string(data_type_ref, anonymous_value_string)
+        })
+        .unwrap_or_else(|| {
+            Err(SymbolRegistryError::data_type_not_registered(
+                "deanonymize value string",
+                data_type_ref.get_data_type_id(),
+            ))
+        })
     }
 
     pub fn anonymize_value(
@@ -186,16 +201,16 @@ impl EngineUnprivilegedState {
         data_value: &DataValue,
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Result<AnonymousValueString, SymbolRegistryError> {
-        self.symbol_registry_compatibility
-            .anonymize_value(data_value, anonymous_value_string_format)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.anonymize_value(data_value, anonymous_value_string_format))
+            .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
     }
 
     pub fn anonymize_value_to_supported_formats(
         &self,
         data_value: &DataValue,
     ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
-        self.symbol_registry_compatibility
-            .anonymize_value_to_supported_formats(data_value)
+        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.anonymize_value_to_supported_formats(data_value))
+            .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
     }
 
     /// Registers a listener for each time a particular engine event is fired.
@@ -275,9 +290,9 @@ impl EngineUnprivilegedState {
         engine_unprivileged_state: &Arc<Self>,
         engine_event_envelope: EngineEventEnvelope,
     ) {
-        if !engine_unprivileged_state.ensure_symbol_registry_snapshot_current(engine_event_envelope.get_registry_generation()) {
+        if !engine_unprivileged_state.ensure_privileged_symbol_snapshot_current(engine_event_envelope.get_registry_generation()) {
             log::error!(
-                "Failed to refresh symbol registry mirror to generation {} before dispatching engine event.",
+                "Failed to refresh privileged symbol catalog to generation {} before dispatching engine event.",
                 engine_event_envelope.get_registry_generation()
             );
         }
@@ -324,24 +339,20 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn refresh_symbol_registry_snapshot(self: &Arc<Self>) {
+    fn refresh_privileged_symbol_snapshot(self: &Arc<Self>) {
         let registry_get_snapshot_request = RegistryGetSnapshotRequest::default();
         let engine_unprivileged_state = self.clone();
 
         let _ = registry_get_snapshot_request.send(self, move |registry_get_snapshot_response| {
-            engine_unprivileged_state.apply_symbol_registry_snapshot(registry_get_snapshot_response.symbol_registry_snapshot);
+            engine_unprivileged_state.apply_privileged_symbol_snapshot(registry_get_snapshot_response.symbol_registry_snapshot);
         });
     }
 
-    fn ensure_symbol_registry_snapshot_current(
+    fn ensure_privileged_symbol_snapshot_current(
         self: &Arc<Self>,
         expected_generation: u64,
     ) -> bool {
-        let current_generation = self
-            .symbol_registry_mirror
-            .read()
-            .map(|symbol_registry_mirror| symbol_registry_mirror.get_generation())
-            .unwrap_or_default();
+        let current_generation = self.get_privileged_symbol_generation();
 
         if current_generation >= expected_generation {
             return true;
@@ -354,7 +365,7 @@ impl EngineUnprivilegedState {
             let symbol_registry_snapshot = registry_get_snapshot_response.symbol_registry_snapshot;
             let applied_generation = symbol_registry_snapshot.get_generation();
 
-            engine_unprivileged_state.apply_symbol_registry_snapshot(symbol_registry_snapshot);
+            engine_unprivileged_state.apply_privileged_symbol_snapshot(symbol_registry_snapshot);
             let _ = completion_sender.send(applied_generation);
         });
 
@@ -370,7 +381,7 @@ impl EngineUnprivilegedState {
             Ok(applied_generation) => applied_generation >= expected_generation,
             Err(error) => {
                 log::error!(
-                    "Timed out waiting for symbol registry mirror to reach generation {}: {}",
+                    "Timed out waiting for privileged symbol catalog to reach generation {}: {}",
                     expected_generation,
                     error
                 );
@@ -379,18 +390,56 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn apply_symbol_registry_snapshot(
+    fn apply_privileged_symbol_snapshot(
         &self,
-        symbol_registry_snapshot: squalr_engine_api::registries::symbols::symbol_registry_snapshot::SymbolRegistrySnapshot,
+        symbol_registry_snapshot: squalr_engine_api::registries::symbols::symbol_registry_snapshot::RegistryMetadata,
     ) {
-        if let Ok(mut symbol_registry_mirror) = self.symbol_registry_mirror.write() {
-            symbol_registry_mirror.apply_snapshot(symbol_registry_snapshot.clone());
+        if let Ok(mut privileged_symbol_catalog) = self.privileged_symbol_catalog.write() {
+            privileged_symbol_catalog.apply_snapshot(symbol_registry_snapshot);
         } else {
-            log::error!("Failed to acquire symbol registry mirror write lock while applying snapshot.");
+            log::error!("Failed to acquire privileged symbol catalog write lock while applying snapshot.");
         }
+    }
 
-        self.symbol_registry_compatibility
-            .apply_snapshot(&symbol_registry_snapshot);
+    fn read_privileged_symbol_catalog<T>(
+        &self,
+        reader: impl FnOnce(&PrivilegedSymbolCatalog) -> T,
+    ) -> Option<T> {
+        match self.privileged_symbol_catalog.read() {
+            Ok(privileged_symbol_catalog) => Some(reader(&privileged_symbol_catalog)),
+            Err(error) => {
+                log::error!("Failed to acquire privileged symbol catalog read lock: {}", error);
+                None
+            }
+        }
+    }
+
+    fn resolve_local_project_symbolic_struct_definition(
+        &self,
+        symbolic_struct_ref_id: &str,
+    ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {
+        self.get_opened_project_symbol_catalog()
+            .and_then(|project_symbol_catalog| {
+                project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_ref_id)
+                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+            })
+    }
+
+    fn get_opened_project_symbol_catalog(&self) -> Option<ProjectSymbolCatalog> {
+        let opened_project = self.project_manager.get_opened_project();
+
+        match opened_project.read() {
+            Ok(opened_project_guard) => opened_project_guard
+                .as_ref()
+                .map(|project| project.get_project_info().get_project_symbol_catalog().clone()),
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while reading project symbol catalog: {}", error);
+                None
+            }
+        }
     }
 
     /// Dispatches a particular engine event to all listeners for its event type.

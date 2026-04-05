@@ -1,16 +1,16 @@
-use crate::{commands::privileged_command_response::PrivilegedCommandResponse, registries::symbols::symbol_registry_snapshot::SymbolRegistrySnapshot};
+use crate::{commands::privileged_command_response::PrivilegedCommandResponse, registries::symbols::symbol_registry_snapshot::RegistryMetadata};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrivilegedCommandResult {
     privileged_command_response: PrivilegedCommandResponse,
-    symbol_registry_snapshot: Option<SymbolRegistrySnapshot>,
+    symbol_registry_snapshot: Option<RegistryMetadata>,
 }
 
 impl PrivilegedCommandResult {
     pub fn new(
         privileged_command_response: PrivilegedCommandResponse,
-        symbol_registry_snapshot: Option<SymbolRegistrySnapshot>,
+        symbol_registry_snapshot: Option<RegistryMetadata>,
     ) -> Self {
         Self {
             privileged_command_response,
@@ -26,7 +26,7 @@ impl PrivilegedCommandResult {
         self.privileged_command_response
     }
 
-    pub fn get_symbol_registry_snapshot(&self) -> Option<&SymbolRegistrySnapshot> {
+    pub fn get_symbol_registry_snapshot(&self) -> Option<&RegistryMetadata> {
         self.symbol_registry_snapshot.as_ref()
     }
 }

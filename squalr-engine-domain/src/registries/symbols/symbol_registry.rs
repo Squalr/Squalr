@@ -1,6 +1,6 @@
 use crate::registries::symbols::symbol_registry_error::SymbolRegistryError;
 use crate::registries::symbols::{
-    data_type_descriptor::DataTypeDescriptor, symbol_registry_snapshot::SymbolRegistrySnapshot, symbolic_struct_descriptor::SymbolicStructDescriptor,
+    data_type_descriptor::DataTypeDescriptor, symbol_registry_snapshot::RegistryMetadata, symbolic_struct_descriptor::StructLayoutDescriptor,
 };
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
 use crate::structures::data_values::container_type::ContainerType;
@@ -258,7 +258,7 @@ impl SymbolRegistry {
 
     pub fn set_project_symbol_catalog(
         &self,
-        project_symbolic_struct_descriptors: &[SymbolicStructDescriptor],
+        project_struct_layout_descriptors: &[StructLayoutDescriptor],
     ) -> bool {
         let base_symbolic_struct_ids = self
             .symbolic_struct_registry
@@ -267,8 +267,8 @@ impl SymbolRegistry {
             .unwrap_or_default();
         let mut next_project_symbolic_struct_registry = HashMap::new();
 
-        for symbolic_struct_descriptor in project_symbolic_struct_descriptors {
-            let symbolic_struct_id = symbolic_struct_descriptor.get_symbolic_struct_id().trim();
+        for struct_layout_descriptor in project_struct_layout_descriptors {
+            let symbolic_struct_id = struct_layout_descriptor.get_struct_layout_id().trim();
 
             if symbolic_struct_id.is_empty() {
                 log::warn!("Ignoring empty project-authored symbolic struct id.");
@@ -289,11 +289,7 @@ impl SymbolRegistry {
 
             next_project_symbolic_struct_registry.insert(
                 symbolic_struct_id.to_string(),
-                Arc::new(
-                    symbolic_struct_descriptor
-                        .get_symbolic_struct_definition()
-                        .clone(),
-                ),
+                Arc::new(struct_layout_descriptor.get_struct_layout_definition().clone()),
             );
         }
 
@@ -312,7 +308,7 @@ impl SymbolRegistry {
     pub fn create_snapshot(
         &self,
         generation: u64,
-    ) -> SymbolRegistrySnapshot {
+    ) -> RegistryMetadata {
         let mut data_type_descriptors = self
             .data_type_descriptor_registry
             .read()
@@ -329,25 +325,25 @@ impl SymbolRegistry {
                 .cmp(right_descriptor.get_data_type_id())
         });
 
-        let mut symbolic_struct_descriptors = self
+        let mut struct_layout_descriptors = self
             .get_registry()
             .iter()
             .map(|(symbolic_struct_id, symbolic_struct_definition)| {
-                SymbolicStructDescriptor::new(symbolic_struct_id.clone(), symbolic_struct_definition.as_ref().clone())
+                StructLayoutDescriptor::new(symbolic_struct_id.clone(), symbolic_struct_definition.as_ref().clone())
             })
             .collect::<Vec<_>>();
-        symbolic_struct_descriptors.sort_by(|left_descriptor, right_descriptor| {
+        struct_layout_descriptors.sort_by(|left_descriptor, right_descriptor| {
             left_descriptor
-                .get_symbolic_struct_id()
-                .cmp(right_descriptor.get_symbolic_struct_id())
+                .get_struct_layout_id()
+                .cmp(right_descriptor.get_struct_layout_id())
         });
 
-        SymbolRegistrySnapshot::new(generation, data_type_descriptors, symbolic_struct_descriptors)
+        RegistryMetadata::new(generation, data_type_descriptors, struct_layout_descriptors)
     }
 
     pub fn apply_snapshot(
         &self,
-        symbol_registry_snapshot: &SymbolRegistrySnapshot,
+        symbol_registry_snapshot: &RegistryMetadata,
     ) {
         let base_symbolic_struct_ids = self
             .symbolic_struct_registry
@@ -355,19 +351,19 @@ impl SymbolRegistry {
             .map(|symbolic_struct_registry| symbolic_struct_registry.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default();
         let project_symbolic_struct_registry = symbol_registry_snapshot
-            .get_symbolic_struct_descriptors()
+            .get_struct_layout_descriptors()
             .iter()
             .filter(|symbolic_struct_descriptor| {
                 !base_symbolic_struct_ids
                     .iter()
-                    .any(|registered_symbolic_struct_id| registered_symbolic_struct_id == symbolic_struct_descriptor.get_symbolic_struct_id())
+                    .any(|registered_symbolic_struct_id| registered_symbolic_struct_id == symbolic_struct_descriptor.get_struct_layout_id())
             })
             .map(|symbolic_struct_descriptor| {
                 (
-                    symbolic_struct_descriptor.get_symbolic_struct_id().to_string(),
+                    symbolic_struct_descriptor.get_struct_layout_id().to_string(),
                     Arc::new(
                         symbolic_struct_descriptor
-                            .get_symbolic_struct_definition()
+                            .get_struct_layout_definition()
                             .clone(),
                     ),
                 )
@@ -767,7 +763,7 @@ impl SymbolResolver for SymbolRegistry {
 #[cfg(test)]
 mod tests {
     use super::SymbolRegistry;
-    use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::SymbolicStructDescriptor};
+    use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::StructLayoutDescriptor};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
@@ -841,7 +837,7 @@ mod tests {
     #[test]
     fn set_project_symbol_catalog_replaces_project_authored_symbols() {
         let symbol_registry = SymbolRegistry::new();
-        let initial_project_symbols = vec![SymbolicStructDescriptor::new(
+        let initial_project_symbols = vec![StructLayoutDescriptor::new(
             String::from("player.stats"),
             SymbolicStructDefinition::new(
                 String::from("player.stats"),
@@ -851,7 +847,7 @@ mod tests {
                 )],
             ),
         )];
-        let replacement_project_symbols = vec![SymbolicStructDescriptor::new(
+        let replacement_project_symbols = vec![StructLayoutDescriptor::new(
             String::from("player.inventory"),
             SymbolicStructDefinition::new(
                 String::from("player.inventory"),
@@ -874,7 +870,7 @@ mod tests {
     fn set_project_symbol_catalog_rejects_builtin_symbol_ids() {
         let symbol_registry = SymbolRegistry::new();
         let registry_size_before_project_symbols = symbol_registry.get_registry().len();
-        let colliding_project_symbols = vec![SymbolicStructDescriptor::new(
+        let colliding_project_symbols = vec![StructLayoutDescriptor::new(
             String::from("u32"),
             SymbolicStructDefinition::new(
                 String::from("u32"),
