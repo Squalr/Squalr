@@ -325,10 +325,6 @@ Our existing architecture is quite flexible, but this definitely requires a spec
 ## Detailed Tasklist
 This is a highly descriptive list of tasks to be implemented, with enough detail such that an agent should be able to audit the codebase and come up with a plan.
 
-### Symbol Registry
-Branch: `pr/symbol-registry`
-We need a robust symbol system that allows for registering custom structs and data types for quick lookup. This can be tricky due to the need for both privileged and unprivileged domains requiring access to the symbol registry. See Registry Synchronization section.
-
 ### Conversion Testing
 Branch: `pr/conversion-testing`
 
@@ -336,35 +332,17 @@ The conversions in the squalr-engine-api should probably have a dedicated test s
 
 Additionally, conversions should be architecturally audited for robustness.
 
-### Pointer Scanning
-Branch: `pr/pointer-scanning`
-
-Pointer scans need to be implemented. The actual algorithm is too complex for an agent, as this is on the cutting edge of knowledge, but the APIs can be made, and it can be co-authored with an agent.
-
-WIP draft is https://zcanann.com/writings/game_hacking/pointer_scanner/pointer_scanner.html and should be used as an impl reference.
-
-The tl;dr is:
-A Store target address being scanned for in a PointerLevel data struct by itself (as a snapshot region of 1 element). Size is either U32 or U64 (maybe try to default detect using OS query apis, but let it be configurable).
-B Scan for all values within +/-O (configurable) of each region in this snapshot (well, theres only 1).
-C Store all the results in the next PointerLevel (separating static from heap memory in the data struct -- static determined by regions that fall within a module).
-D Repeat this up to the specified depth (configurable). Essentially, jump back to step B and repeat until target depth is reached (ie a stack of N PointerLevel structs).
-
-Validation scans should also be supported. These strip out all heaps from Pointer Scan Results (ie all PointerLevels), and given a new target element, attempt to rebuild all the heaps. Then, we prune any static addresses that do not contain values pointing within O of the heaps of the prior level.
-
-Then, support a lazy tree expansion of exploring pointers. This should work very similar to our project explorer tree.
-
 ### Engine Event Hooks
 Branch: `pr/engine-event-hooks`
 
 When the engine emits events, it would be nice for listeners and plugins to hook into these.
 
-### Registry Synchronization
-Branch: `pr/registry-synchronization`
+### Plugin Support for Data Types
+Branch: `pr/plugins-data-types`
 
-Currently, there is a global singleton of the registry that exists for both the unprivileged side, and the privileged side. In a standalone build, this is the same registry, with only one instance.
+Self explanatory
 
-This is not a system that makes sense for a long term plugin based approach. Ideally, plugins could register new things to the registries, and then this would be synchronized with the unprivileged GUI.
+### Symbol authoring
+Branch: `pr/symbol-authoring`
 
-This needs to be done such that the GUI can make snap decisions without chatty traffic to the privileged side.
-
-Very challenging task.
+Allow user to assign symbols via symbolic_struct_definitions and assign them to statics (with nesting automatic).

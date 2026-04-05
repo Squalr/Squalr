@@ -2,7 +2,6 @@ use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataT
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
-    registries::symbols::symbol_registry::SymbolRegistry,
     structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
@@ -10,6 +9,7 @@ use squalr_engine_api::{
         structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
     },
 };
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -66,6 +66,7 @@ impl StructViewerViewData {
 
     pub fn focus_valued_struct(
         struct_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         valued_struct: ValuedStruct,
         valued_struct_field_edited_callback: Arc<dyn Fn(ValuedStructField) + Send + Sync>,
     ) {
@@ -73,11 +74,12 @@ impl StructViewerViewData {
             Some(struct_viewer_view_data) => struct_viewer_view_data,
             None => return,
         };
-        struct_viewer_view_data.set_valued_struct_and_callback(Some(valued_struct), Some(valued_struct_field_edited_callback));
+        struct_viewer_view_data.set_valued_struct_and_callback(engine_unprivileged_state, Some(valued_struct), Some(valued_struct_field_edited_callback));
     }
 
     pub fn focus_valued_structs(
         struct_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         valued_structs: Vec<ValuedStruct>,
         valued_struct_field_edited_callback: Arc<dyn Fn(ValuedStructField) + Send + Sync>,
     ) {
@@ -87,7 +89,7 @@ impl StructViewerViewData {
         };
         let valued_struct = ValuedStruct::combine_exclusive(&valued_structs);
 
-        struct_viewer_view_data.set_valued_struct_and_callback(Some(valued_struct), Some(valued_struct_field_edited_callback));
+        struct_viewer_view_data.set_valued_struct_and_callback(engine_unprivileged_state, Some(valued_struct), Some(valued_struct_field_edited_callback));
     }
 
     pub fn clear_focus(struct_viewer_view_data: Dependency<Self>) {
@@ -95,11 +97,19 @@ impl StructViewerViewData {
             Some(struct_viewer_view_data) => struct_viewer_view_data,
             None => return,
         };
-        struct_viewer_view_data.set_valued_struct_and_callback(None, None);
+        struct_viewer_view_data.field_presentations.clear();
+        struct_viewer_view_data.field_edit_values.clear();
+        struct_viewer_view_data.field_display_values.clear();
+        struct_viewer_view_data.field_validation_data_type_refs.clear();
+        struct_viewer_view_data.field_data_type_selections.clear();
+        struct_viewer_view_data.selected_field_name = Arc::new(None);
+        struct_viewer_view_data.struct_under_view = Arc::new(None);
+        struct_viewer_view_data.struct_field_modified_callback = None;
     }
 
     fn set_valued_struct_and_callback(
         &mut self,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         valued_struct: Option<ValuedStruct>,
         valued_struct_field_edited_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
     ) {
@@ -109,20 +119,20 @@ impl StructViewerViewData {
             .unwrap_or_default();
         let field_validation_data_type_refs = valued_struct
             .as_ref()
-            .map(Self::create_field_validation_data_type_refs)
+            .map(|valued_struct| Self::create_field_validation_data_type_refs(valued_struct, &engine_unprivileged_state))
             .unwrap_or_default();
         self.field_edit_values = valued_struct
             .as_ref()
-            .map(|valued_struct| Self::create_field_edit_values(valued_struct, &field_validation_data_type_refs))
+            .map(|valued_struct| Self::create_field_edit_values(valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state))
             .unwrap_or_default();
         self.field_display_values = valued_struct
             .as_ref()
-            .map(|valued_struct| Self::create_field_display_values(valued_struct, &field_validation_data_type_refs))
+            .map(|valued_struct| Self::create_field_display_values(valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state))
             .unwrap_or_default();
         self.field_validation_data_type_refs = field_validation_data_type_refs;
         self.field_data_type_selections = valued_struct
             .as_ref()
-            .map(Self::create_field_data_type_selections)
+            .map(|valued_struct| Self::create_field_data_type_selections(valued_struct, &engine_unprivileged_state))
             .unwrap_or_default();
         self.selected_field_name = Arc::new(None);
         self.struct_under_view = Arc::new(valued_struct);
@@ -132,14 +142,17 @@ impl StructViewerViewData {
     fn create_field_edit_values(
         valued_struct: &ValuedStruct,
         field_validation_data_type_refs: &HashMap<String, DataTypeRef>,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> HashMap<String, AnonymousValueString> {
-        let symbol_registry = SymbolRegistry::get_instance();
         let mut field_edit_values = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
             if Self::is_live_value_field(valued_struct_field) {
-                let live_value_edit_value =
-                    Self::create_live_value_edit_value(valued_struct_field, field_validation_data_type_refs.get(valued_struct_field.get_name()));
+                let live_value_edit_value = Self::create_live_value_edit_value(
+                    valued_struct_field,
+                    field_validation_data_type_refs.get(valued_struct_field.get_name()),
+                    engine_unprivileged_state,
+                );
 
                 field_edit_values.insert(valued_struct_field.get_name().to_string(), live_value_edit_value);
                 continue;
@@ -149,8 +162,8 @@ impl StructViewerViewData {
                 continue;
             };
             let data_type_ref = data_value.get_data_type_ref();
-            let default_format = symbol_registry.get_default_anonymous_value_string_format(data_type_ref);
-            let anonymous_value_string = symbol_registry
+            let default_format = engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref);
+            let anonymous_value_string = engine_unprivileged_state
                 .anonymize_value(data_value, default_format)
                 .unwrap_or_else(|_| AnonymousValueString::new(String::new(), default_format, ContainerType::None));
 
@@ -163,14 +176,17 @@ impl StructViewerViewData {
     fn create_field_display_values(
         valued_struct: &ValuedStruct,
         field_validation_data_type_refs: &HashMap<String, DataTypeRef>,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> HashMap<String, Vec<AnonymousValueString>> {
-        let symbol_registry = SymbolRegistry::get_instance();
         let mut field_display_values = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
             if Self::is_live_value_field(valued_struct_field) {
-                let live_value_display_values =
-                    Self::create_live_value_display_values(valued_struct_field, field_validation_data_type_refs.get(valued_struct_field.get_name()));
+                let live_value_display_values = Self::create_live_value_display_values(
+                    valued_struct_field,
+                    field_validation_data_type_refs.get(valued_struct_field.get_name()),
+                    engine_unprivileged_state,
+                );
 
                 field_display_values.insert(valued_struct_field.get_name().to_string(), live_value_display_values);
                 continue;
@@ -180,13 +196,13 @@ impl StructViewerViewData {
                 continue;
             };
 
-            let display_values = symbol_registry
+            let display_values = engine_unprivileged_state
                 .anonymize_value_to_supported_formats(data_value)
                 .unwrap_or_else(|_| {
                     let data_type_ref = data_value.get_data_type_ref();
-                    let default_format = symbol_registry.get_default_anonymous_value_string_format(data_type_ref);
+                    let default_format = engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref);
                     vec![
-                        symbol_registry
+                        engine_unprivileged_state
                             .anonymize_value(data_value, default_format)
                             .unwrap_or_else(|_| AnonymousValueString::new(String::new(), default_format, ContainerType::None)),
                     ]
@@ -201,11 +217,11 @@ impl StructViewerViewData {
     fn create_live_value_edit_value(
         valued_struct_field: &ValuedStructField,
         validation_data_type_ref: Option<&DataTypeRef>,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> AnonymousValueString {
-        let symbol_registry = SymbolRegistry::get_instance();
         let raw_display_value = Self::read_utf8_field_text(valued_struct_field);
         let anonymous_value_string_format = validation_data_type_ref
-            .map(|validation_data_type_ref| symbol_registry.get_default_anonymous_value_string_format(validation_data_type_ref))
+            .map(|validation_data_type_ref| engine_unprivileged_state.get_default_anonymous_value_string_format(validation_data_type_ref))
             .unwrap_or_default();
 
         AnonymousValueString::new(raw_display_value, anonymous_value_string_format, ContainerType::None)
@@ -214,17 +230,17 @@ impl StructViewerViewData {
     fn create_live_value_display_values(
         valued_struct_field: &ValuedStructField,
         validation_data_type_ref: Option<&DataTypeRef>,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> Vec<AnonymousValueString> {
         let Some(validation_data_type_ref) = validation_data_type_ref else {
             return Vec::new();
         };
-        let symbol_registry = SymbolRegistry::get_instance();
-        let live_value_edit_value = Self::create_live_value_edit_value(valued_struct_field, Some(validation_data_type_ref));
-        let Ok(data_value) = symbol_registry.deanonymize_value_string(validation_data_type_ref, &live_value_edit_value) else {
+        let live_value_edit_value = Self::create_live_value_edit_value(valued_struct_field, Some(validation_data_type_ref), engine_unprivileged_state);
+        let Ok(data_value) = engine_unprivileged_state.deanonymize_value_string(validation_data_type_ref, &live_value_edit_value) else {
             return Vec::new();
         };
 
-        symbol_registry
+        engine_unprivileged_state
             .anonymize_value_to_supported_formats(&data_value)
             .unwrap_or_else(|_| vec![live_value_edit_value])
     }
@@ -247,10 +263,12 @@ impl StructViewerViewData {
         field_presentations
     }
 
-    fn create_field_validation_data_type_refs(valued_struct: &ValuedStruct) -> HashMap<String, DataTypeRef> {
-        let symbol_registry = SymbolRegistry::get_instance();
-        let symbolic_struct_data_type_ref =
-            Self::read_symbolic_struct_definition_reference(valued_struct).filter(|data_type_ref| symbol_registry.is_valid(data_type_ref));
+    fn create_field_validation_data_type_refs(
+        valued_struct: &ValuedStruct,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) -> HashMap<String, DataTypeRef> {
+        let symbolic_struct_data_type_ref = Self::read_symbolic_struct_definition_reference(valued_struct)
+            .filter(|data_type_ref| engine_unprivileged_state.is_registered_data_type_ref(data_type_ref));
         let mut field_validation_data_type_refs = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
@@ -271,8 +289,10 @@ impl StructViewerViewData {
         field_validation_data_type_refs
     }
 
-    fn create_field_data_type_selections(valued_struct: &ValuedStruct) -> HashMap<String, DataTypeSelection> {
-        let symbol_registry = SymbolRegistry::get_instance();
+    fn create_field_data_type_selections(
+        valued_struct: &ValuedStruct,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) -> HashMap<String, DataTypeSelection> {
         let mut field_data_type_selections = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
@@ -281,7 +301,7 @@ impl StructViewerViewData {
             }
 
             let selected_data_type_ref = Self::read_data_type_reference_field(valued_struct_field)
-                .filter(|data_type_ref| symbol_registry.is_valid(data_type_ref))
+                .filter(|data_type_ref| engine_unprivileged_state.is_registered_data_type_ref(data_type_ref))
                 .unwrap_or_else(|| DataTypeRef::new("u8"));
 
             field_data_type_selections.insert(valued_struct_field.get_name().to_string(), DataTypeSelection::new(selected_data_type_ref));
@@ -330,13 +350,66 @@ impl StructViewerViewData {
 mod tests {
     use super::StructViewerViewData;
     use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind;
-    use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
+    use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::structures::{
         data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
         projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     };
+    use squalr_engine_api::{
+        commands::{
+            privileged_command::PrivilegedCommand,
+            privileged_command_response::PrivilegedCommandResponse,
+            project::{list::project_list_response::ProjectListResponse, project_response::ProjectResponse},
+            unprivileged_command::UnprivilegedCommand,
+            unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse},
+        },
+        engine::{
+            engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_binding_error::EngineBindingError,
+            engine_event_envelope::EngineEventEnvelope, engine_execution_context::EngineExecutionContext,
+        },
+        structures::structs::valued_struct::ValuedStruct,
+    };
+    use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
+    use std::sync::{Arc, RwLock};
+
+    struct TestEngineBindings;
+
+    impl EngineApiUnprivilegedBindings for TestEngineBindings {
+        fn dispatch_privileged_command(
+            &self,
+            _engine_command: PrivilegedCommand,
+            callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            callback(PrivilegedCommandResponse::Project(ProjectResponse::List {
+                project_list_response: ProjectListResponse::default(),
+            }));
+
+            Ok(())
+        }
+
+        fn dispatch_unprivileged_command(
+            &self,
+            _engine_command: UnprivilegedCommand,
+            _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+            callback: Box<dyn FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            callback(ProjectListResponse::default().to_engine_response());
+
+            Ok(())
+        }
+
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
+            let (_event_sender, event_receiver) = unbounded();
+
+            Ok(event_receiver)
+        }
+    }
+
+    fn create_test_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {
+        EngineUnprivilegedState::new(Arc::new(RwLock::new(TestEngineBindings)))
+    }
 
     #[test]
     fn create_field_edit_values_populates_utf8_fields() {
@@ -344,8 +417,10 @@ mod tests {
             DataTypeStringUtf8::get_value_from_primitive_string("module.exe").to_named_valued_struct_field("module".to_string(), false),
         ]);
 
-        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct);
-        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct, &field_validation_data_type_refs);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct, &engine_unprivileged_state);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state);
         let module_edit_value = field_edit_values.get("module");
 
         assert!(module_edit_value.is_some());
@@ -397,8 +472,10 @@ mod tests {
             DataTypeStringUtf8::get_value_from_primitive_string("4660")
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
         ]);
-        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct);
-        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct, &field_validation_data_type_refs);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct, &engine_unprivileged_state);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state);
 
         assert_eq!(
             field_edit_values
@@ -415,7 +492,8 @@ mod tests {
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
         ]);
 
-        let field_data_type_selections = StructViewerViewData::create_field_data_type_selections(&valued_struct);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_data_type_selections = StructViewerViewData::create_field_data_type_selections(&valued_struct, &engine_unprivileged_state);
         let field_data_type_selection = field_data_type_selections
             .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .expect("Expected data-type selection for the symbolic struct field.");
@@ -433,7 +511,8 @@ mod tests {
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
         ]);
 
-        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct, &engine_unprivileged_state);
 
         assert_eq!(
             field_validation_data_type_refs.get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE),

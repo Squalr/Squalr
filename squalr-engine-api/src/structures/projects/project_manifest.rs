@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectManifest {
-    #[serde(rename = "sort_order")]
+    #[serde(rename = "sort_order", default)]
     project_item_sort_order: Vec<PathBuf>,
 }
 

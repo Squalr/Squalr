@@ -4,12 +4,13 @@ use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::sync::{Arc, RwLock};
 
 pub struct StandalonePrivilegedEngine {
     /// The list of subscribers to which we send engine events.
-    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
+    event_senders: Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
 
     engine_privileged_state: Option<Arc<EnginePrivilegedState>>,
 }
@@ -20,9 +21,16 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
         &self,
         engine_event: EngineEvent,
     ) -> Result<(), EngineBindingError> {
+        let registry_generation = self
+            .engine_privileged_state
+            .as_ref()
+            .map(|engine_privileged_state| engine_privileged_state.get_registry_generation())
+            .unwrap_or_default();
+        let engine_event_envelope = EngineEventEnvelope::new(registry_generation, engine_event);
+
         if let Ok(senders) = self.event_senders.read() {
             for sender in senders.iter() {
-                if let Err(error) = sender.send(engine_event.clone()) {
+                if let Err(error) = sender.send(engine_event_envelope.clone()) {
                     log::error!("Error emitting engine event: {}", error);
                 }
             }
@@ -48,7 +56,7 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
         }
     }
 
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut sender_lock = self
             .event_senders

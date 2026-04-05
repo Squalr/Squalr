@@ -1,4 +1,3 @@
-use crate::registries::symbols::symbol_registry::SymbolRegistry;
 use crate::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
@@ -137,18 +136,8 @@ impl ScanResult {
         &self,
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Option<AnonymousValueString> {
-        if let Some(display_value) = self.get_recently_read_display_value(anonymous_value_string_format) {
-            return Some(display_value.clone());
-        }
-
-        let symbol_registry = SymbolRegistry::get_instance();
-        self.recently_read_value
-            .as_ref()
-            .and_then(|recently_read_value| {
-                symbol_registry
-                    .anonymize_value(recently_read_value, anonymous_value_string_format)
-                    .ok()
-            })
+        self.get_recently_read_display_value(anonymous_value_string_format)
+            .cloned()
     }
 
     pub fn get_current_value(&self) -> &Option<DataValue> {
@@ -300,7 +289,7 @@ mod tests {
     }
 
     #[test]
-    fn get_recently_read_display_value_resolved_uses_recently_read_value_when_format_missing() {
+    fn get_recently_read_display_value_resolved_requires_materialized_display_value() {
         let scan_result = ScanResult::new(
             ScanResultValued::new(
                 0x1000,
@@ -323,7 +312,7 @@ mod tests {
             .get_recently_read_display_value_resolved(AnonymousValueStringFormat::Decimal)
             .map(|display_value| display_value.get_anonymous_value_string().to_string());
 
-        assert_eq!(resolved_display_value, Some("33".to_string()));
+        assert_eq!(resolved_display_value, None);
     }
 
     #[test]

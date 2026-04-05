@@ -30,7 +30,7 @@ use squalr_engine_api::commands::settings::scan::list::scan_settings_list_reques
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project::Project;
@@ -116,7 +116,6 @@ mod tests {
     use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::events::engine_event::EngineEvent;
     use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64 as DataTypeU64Pointer,
@@ -190,7 +189,7 @@ mod tests {
             ))
         }
 
-        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope>, EngineBindingError> {
             let (_event_sender, event_receiver) = unbounded();
 
             Ok(event_receiver)
@@ -1207,6 +1206,7 @@ impl ProjectHierarchyView {
             if let Some(selected_project_item) = selected_project_items.into_iter().next() {
                 StructViewerViewData::focus_valued_struct(
                     self.struct_viewer_view_data.clone(),
+                    self.app_context.engine_unprivileged_state.clone(),
                     Self::build_struct_view_properties(&selected_project_item),
                     callback,
                 );
@@ -1216,7 +1216,12 @@ impl ProjectHierarchyView {
                 .into_iter()
                 .map(|selected_project_item| Self::build_struct_view_properties(&selected_project_item))
                 .collect::<Vec<_>>();
-            StructViewerViewData::focus_valued_structs(self.struct_viewer_view_data.clone(), selected_project_item_properties, callback);
+            StructViewerViewData::focus_valued_structs(
+                self.struct_viewer_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+                selected_project_item_properties,
+                callback,
+            );
         }
     }
 
@@ -1526,9 +1531,13 @@ impl ProjectHierarchyView {
         module_name: &str,
         pointer_size: PointerScanPointerSize,
     ) -> Option<u64> {
-        let symbol_registry = SymbolRegistry::get_instance();
-        let symbolic_struct_definition = symbol_registry.get(pointer_size.to_data_type_ref().get_data_type_id())?;
-        let memory_read_response = Self::dispatch_memory_read_request(engine_execution_context, address, module_name, symbolic_struct_definition.as_ref())?;
+        let symbolic_struct_definition = squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition::new_anonymous(vec![
+            squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition::new(
+                pointer_size.to_data_type_ref(),
+                ContainerType::None,
+            ),
+        ]);
+        let memory_read_response = Self::dispatch_memory_read_request(engine_execution_context, address, module_name, &symbolic_struct_definition)?;
 
         if !memory_read_response.success {
             return None;

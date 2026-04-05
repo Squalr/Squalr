@@ -5,6 +5,7 @@ pub mod privileged_request_executor;
 pub mod process;
 pub mod project;
 pub mod project_items;
+pub mod registry;
 pub mod scan;
 pub mod scan_results;
 pub mod settings;

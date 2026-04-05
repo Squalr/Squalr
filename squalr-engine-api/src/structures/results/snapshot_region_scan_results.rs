@@ -32,9 +32,10 @@ struct ScanResultsPageCursor<'a> {
 impl<'a> ScanResultsPageCursor<'a> {
     fn new(
         collection: &'a SnapshotRegionFilterCollection,
+        symbol_registry: &SymbolRegistry,
         is_selected: bool,
     ) -> Option<Self> {
-        let data_type_size_in_bytes = SymbolRegistry::get_instance().get_unit_size_in_bytes(collection.get_data_type_ref());
+        let data_type_size_in_bytes = symbol_registry.get_unit_size_in_bytes(collection.get_data_type_ref());
         let mut filter_iterator = collection.iter();
         let current_filter = filter_iterator.next();
 
@@ -125,13 +126,13 @@ impl<'a> ScanResultsPageCursor<'a> {
     fn build_scan_result(
         &self,
         snapshot_region: &SnapshotRegion,
+        symbol_registry: &SymbolRegistry,
         global_scan_result_index: u64,
     ) -> Option<ScanResultValued> {
         let current_address = self.get_current_address()?;
-        let symbol_registry = SymbolRegistry::get_instance();
         let data_type_ref = self.collection.get_data_type_ref();
-        let current_value = snapshot_region.get_current_value(current_address, data_type_ref);
-        let previous_value = snapshot_region.get_previous_value(current_address, data_type_ref);
+        let current_value = snapshot_region.get_current_value(current_address, symbol_registry, data_type_ref);
+        let previous_value = snapshot_region.get_previous_value(current_address, symbol_registry, data_type_ref);
         let current_display_values = current_value
             .as_ref()
             .and_then(|data_value| {
@@ -188,20 +189,29 @@ impl SnapshotRegionScanResults {
     pub fn get_structural_scan_result(
         &self,
         snapshot_region: &SnapshotRegion,
+        symbol_registry: &SymbolRegistry,
         global_scan_result_index: u64,
         local_scan_result_index: u64,
     ) -> Option<ScanResultValued> {
         let region_global_scan_result_index_base = global_scan_result_index.saturating_sub(local_scan_result_index);
 
-        self.get_structural_scan_results_page(snapshot_region, None, region_global_scan_result_index_base, local_scan_result_index, 1)
-            .into_iter()
-            .next()
+        self.get_structural_scan_results_page(
+            snapshot_region,
+            symbol_registry,
+            None,
+            region_global_scan_result_index_base,
+            local_scan_result_index,
+            1,
+        )
+        .into_iter()
+        .next()
     }
 
     /// Collects an address-ascending page of scan results for the specified data type filters.
     pub fn get_scan_results_page(
         &self,
         snapshot_region: &SnapshotRegion,
+        symbol_registry: &SymbolRegistry,
         filtered_data_types: Option<&[DataTypeRef]>,
         region_global_scan_result_index_base: u64,
         filtered_scan_result_index_offset: u64,
@@ -211,6 +221,7 @@ impl SnapshotRegionScanResults {
         if deleted_scan_result_indices.is_empty() {
             return self.get_structural_scan_results_page(
                 snapshot_region,
+                symbol_registry,
                 filtered_data_types,
                 region_global_scan_result_index_base,
                 filtered_scan_result_index_offset,
@@ -227,7 +238,7 @@ impl SnapshotRegionScanResults {
 
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
             let is_selected = Self::is_data_type_selected(filtered_data_types, snapshot_region_filter_collection.get_data_type_ref());
-            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, is_selected) else {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, symbol_registry, is_selected) else {
                 continue;
             };
             let Some(current_address) = collection_cursor.get_current_address() else {
@@ -296,7 +307,7 @@ impl SnapshotRegionScanResults {
                 let is_deleted = deleted_scan_result_indices.contains(&next_global_scan_result_index);
 
                 if !is_deleted {
-                    if let Some(scan_result) = collection_cursor.build_scan_result(snapshot_region, next_global_scan_result_index) {
+                    if let Some(scan_result) = collection_cursor.build_scan_result(snapshot_region, symbol_registry, next_global_scan_result_index) {
                         scan_results_page.push(scan_result);
                     }
                 }
@@ -359,6 +370,7 @@ impl SnapshotRegionScanResults {
     /// Gets the number of visible results contained in the selected data type filters.
     pub fn get_visible_result_count_for_data_types(
         &self,
+        symbol_registry: &SymbolRegistry,
         filtered_data_types: Option<&[DataTypeRef]>,
         region_global_scan_result_index_base: u64,
         deleted_scan_result_indices: &BTreeSet<u64>,
@@ -369,6 +381,7 @@ impl SnapshotRegionScanResults {
 
         self.get_number_of_results_for_data_types(filtered_data_types)
             .saturating_sub(self.get_deleted_result_count_for_data_types(
+                symbol_registry,
                 filtered_data_types,
                 region_global_scan_result_index_base,
                 deleted_scan_result_indices,
@@ -390,6 +403,7 @@ impl SnapshotRegionScanResults {
     /// Gets the visible surviving result counts for each data type in this region.
     pub fn get_visible_result_counts_by_data_type(
         &self,
+        symbol_registry: &SymbolRegistry,
         region_global_scan_result_index_base: u64,
         deleted_scan_result_indices: &BTreeSet<u64>,
     ) -> Vec<ScanResultDataTypeCount> {
@@ -407,7 +421,7 @@ impl SnapshotRegionScanResults {
         {
             let local_scan_result_index = deleted_scan_result_index.saturating_sub(region_global_scan_result_index_base);
 
-            if let Some((_address, data_type_ref)) = self.get_scan_result_metadata_by_local_scan_result_index(local_scan_result_index) {
+            if let Some((_address, data_type_ref)) = self.get_scan_result_metadata_by_local_scan_result_index(symbol_registry, local_scan_result_index) {
                 if let Some(existing_result_count) = visible_result_counts_by_data_type
                     .iter_mut()
                     .find(|existing_result_count| existing_result_count.data_type_ref == data_type_ref)
@@ -457,6 +471,7 @@ impl SnapshotRegionScanResults {
     fn get_structural_scan_results_page(
         &self,
         snapshot_region: &SnapshotRegion,
+        symbol_registry: &SymbolRegistry,
         filtered_data_types: Option<&[DataTypeRef]>,
         region_global_scan_result_index_base: u64,
         filtered_scan_result_index_offset: u64,
@@ -471,7 +486,7 @@ impl SnapshotRegionScanResults {
 
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
             let is_selected = Self::is_data_type_selected(filtered_data_types, snapshot_region_filter_collection.get_data_type_ref());
-            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, is_selected) else {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, symbol_registry, is_selected) else {
                 continue;
             };
             let Some(current_address) = collection_cursor.get_current_address() else {
@@ -525,7 +540,7 @@ impl SnapshotRegionScanResults {
             let collection_cursor = &mut collection_cursors[collection_cursor_index];
 
             if collection_cursor.is_selected {
-                if let Some(scan_result) = collection_cursor.build_scan_result(snapshot_region, next_global_scan_result_index) {
+                if let Some(scan_result) = collection_cursor.build_scan_result(snapshot_region, symbol_registry, next_global_scan_result_index) {
                     scan_results_page.push(scan_result);
                 }
 
@@ -548,13 +563,14 @@ impl SnapshotRegionScanResults {
 
     fn get_scan_result_metadata_by_local_scan_result_index(
         &self,
+        symbol_registry: &SymbolRegistry,
         local_scan_result_index: u64,
     ) -> Option<(u64, DataTypeRef)> {
         let mut collection_cursors = Vec::new();
         let mut collection_cursor_heap: BinaryHeap<Reverse<(u64, usize)>> = BinaryHeap::new();
 
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
-            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, true) else {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, symbol_registry, true) else {
                 continue;
             };
             let Some(current_address) = collection_cursor.get_current_address() else {
@@ -596,6 +612,7 @@ impl SnapshotRegionScanResults {
 
     fn get_deleted_result_count_for_data_types(
         &self,
+        symbol_registry: &SymbolRegistry,
         filtered_data_types: Option<&[DataTypeRef]>,
         region_global_scan_result_index_base: u64,
         deleted_scan_result_indices: &BTreeSet<u64>,
@@ -617,7 +634,7 @@ impl SnapshotRegionScanResults {
         {
             let local_scan_result_index = deleted_scan_result_index.saturating_sub(region_global_scan_result_index_base);
 
-            if let Some((_address, data_type_ref)) = self.get_scan_result_metadata_by_local_scan_result_index(local_scan_result_index) {
+            if let Some((_address, data_type_ref)) = self.get_scan_result_metadata_by_local_scan_result_index(symbol_registry, local_scan_result_index) {
                 if Self::is_data_type_selected(filtered_data_types, &data_type_ref) {
                     deleted_result_count = deleted_result_count.saturating_add(1);
                 }
@@ -698,6 +715,7 @@ impl SnapshotRegionScanResults {
 #[cfg(test)]
 mod tests {
     use super::SnapshotRegionScanResults;
+    use crate::registries::symbols::symbol_registry::SymbolRegistry;
     use crate::structures::data_types::data_type_ref::DataTypeRef;
     use crate::structures::memory::memory_alignment::MemoryAlignment;
     use crate::structures::memory::normalized_region::NormalizedRegion;
@@ -710,8 +728,10 @@ mod tests {
     #[test]
     fn get_filter_bounds_ignores_zero_result_collections() {
         let high_address = 0x7FFF_1234_0020;
-        let zero_result_collection = SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+        let symbol_registry = SymbolRegistry::new();
+        let zero_result_collection = SnapshotRegionFilterCollection::new(&symbol_registry, vec![], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
         let populated_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(high_address, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
@@ -724,12 +744,15 @@ mod tests {
     #[test]
     fn get_scan_results_page_zips_results_by_address_ascending() {
         let snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x1010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![
                 SnapshotRegionFilter::new(0x1004, 2),
                 SnapshotRegionFilter::new(0x1014, 2),
@@ -739,7 +762,7 @@ mod tests {
         );
         let scan_results = SnapshotRegionScanResults::new(vec![u32_collection, u16_collection]);
 
-        let scan_results_page = scan_results.get_scan_results_page(&snapshot_region, None, 0, 0, 3, &BTreeSet::new());
+        let scan_results_page = scan_results.get_scan_results_page(&snapshot_region, &symbol_registry, None, 0, 0, 3, &BTreeSet::new());
         let page_addresses = scan_results_page
             .iter()
             .map(|scan_result| scan_result.get_address())
@@ -756,17 +779,21 @@ mod tests {
     #[test]
     fn get_scan_results_page_preserves_unfiltered_global_indices_when_filtered() {
         let snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x2010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x2008, 2)]],
             DataTypeRef::new("u16"),
             MemoryAlignment::Alignment1,
         );
         let u8_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x2020, 1)]],
             DataTypeRef::new("u8"),
             MemoryAlignment::Alignment1,
@@ -774,7 +801,7 @@ mod tests {
         let scan_results = SnapshotRegionScanResults::new(vec![u32_collection, u16_collection, u8_collection]);
         let filtered_data_types = vec![DataTypeRef::new("u32"), DataTypeRef::new("u8")];
 
-        let scan_results_page = scan_results.get_scan_results_page(&snapshot_region, Some(&filtered_data_types), 100, 0, 2, &BTreeSet::new());
+        let scan_results_page = scan_results.get_scan_results_page(&snapshot_region, &symbol_registry, Some(&filtered_data_types), 100, 0, 2, &BTreeSet::new());
         let scan_result_global_indices = scan_results_page
             .iter()
             .map(|scan_result| {
@@ -791,12 +818,15 @@ mod tests {
     #[test]
     fn get_scan_results_page_skips_deleted_results_and_preserves_global_indices() {
         let snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x3000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x3010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![
                 SnapshotRegionFilter::new(0x3004, 2),
                 SnapshotRegionFilter::new(0x3014, 2),
@@ -807,7 +837,7 @@ mod tests {
         let scan_results = SnapshotRegionScanResults::new(vec![u32_collection, u16_collection]);
         let deleted_scan_result_indices = BTreeSet::from([1]);
 
-        let scan_results_page = scan_results.get_scan_results_page(&snapshot_region, None, 0, 0, 3, &deleted_scan_result_indices);
+        let scan_results_page = scan_results.get_scan_results_page(&snapshot_region, &symbol_registry, None, 0, 0, 3, &deleted_scan_result_indices);
         let page_addresses = scan_results_page
             .iter()
             .map(|scan_result| scan_result.get_address())
@@ -828,12 +858,15 @@ mod tests {
 
     #[test]
     fn get_visible_result_counts_by_data_type_decrements_deleted_entries() {
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x4010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x4004, 4)]],
             DataTypeRef::new("u16"),
             MemoryAlignment::Alignment2,
@@ -842,15 +875,17 @@ mod tests {
         let deleted_scan_result_indices = BTreeSet::from([1, 2]);
 
         assert_eq!(
-            scan_results.get_visible_result_counts_by_data_type(0, &deleted_scan_result_indices),
+            scan_results.get_visible_result_counts_by_data_type(&symbol_registry, 0, &deleted_scan_result_indices),
             vec![ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 1)]
         );
     }
 
     #[test]
     fn get_result_counts_by_data_type_skips_zero_result_collections() {
-        let zero_result_collection = SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+        let symbol_registry = SymbolRegistry::new();
+        let zero_result_collection = SnapshotRegionFilterCollection::new(&symbol_registry, vec![], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
         let populated_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x1000, 6)]],
             DataTypeRef::new("u16"),
             MemoryAlignment::Alignment2,

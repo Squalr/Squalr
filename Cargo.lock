@@ -5269,6 +5269,7 @@ dependencies = [
  "serde",
  "serde_json",
  "squalr-engine-api",
+ "tempfile",
 ]
 
 [[package]]
@@ -5345,6 +5346,7 @@ dependencies = [
  "shlex",
  "squalr-engine",
  "squalr-engine-api",
+ "squalr-engine-session",
  "structopt",
 ]
 

@@ -65,17 +65,20 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             true,
             &scan_execution_context,
         );
-        let resolved_targets = match PointerScanTargetResolver::resolve_targets(
-            &self.target,
-            effective_pointer_size,
-            pointer_scan_snapshot.clone(),
-            process_info.clone(),
-            ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
-            ScanSettingsConfig::get_floating_point_tolerance(),
-            ScanSettingsConfig::get_is_single_threaded_scan(),
-            ScanSettingsConfig::get_debug_perform_validation_scan(),
-            &scan_execution_context,
-        ) {
+        let resolved_targets = match engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            PointerScanTargetResolver::resolve_targets(
+                &self.target,
+                symbol_registry,
+                effective_pointer_size,
+                pointer_scan_snapshot.clone(),
+                process_info.clone(),
+                ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
+                ScanSettingsConfig::get_floating_point_tolerance(),
+                ScanSettingsConfig::get_is_single_threaded_scan(),
+                ScanSettingsConfig::get_debug_perform_validation_scan(),
+                &scan_execution_context,
+            )
+        }) {
             Ok(resolved_targets) => resolved_targets,
             Err(error) => {
                 log::error!("{}", error);
@@ -136,19 +139,6 @@ fn resolve_pointer_size_for_process_bitness(
 #[cfg(test)]
 mod tests {
     use super::PointerScanStartRequest;
-    use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
-    use crate::engine_privileged_state::EnginePrivilegedState;
-    use crossbeam_channel::{Receiver, unbounded};
-    use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
-    use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
-    use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
-    use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
-    use squalr_engine_api::events::engine_event::EngineEvent;
-    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-    use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
-    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-    use squalr_engine_api::structures::data_values::container_type::ContainerType;
-    use squalr_engine_api::structures::data_values::data_value::DataValue;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
@@ -183,7 +173,7 @@ mod tests {
             Ok(())
         }
 
-        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope>, EngineBindingError> {
             let (_sender, receiver) = unbounded();
 
             Ok(receiver)

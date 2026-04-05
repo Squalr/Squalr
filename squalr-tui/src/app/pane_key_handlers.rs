@@ -502,25 +502,25 @@ impl AppShell {
                 self.app_state
                     .project_explorer_pane_state
                     .select_next_project_item();
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Up => {
                 self.app_state
                     .project_explorer_pane_state
                     .select_previous_project_item();
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Home => {
                 self.app_state
                     .project_explorer_pane_state
                     .select_first_project_item();
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::End => {
                 self.app_state
                     .project_explorer_pane_state
                     .select_last_project_item();
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Right | KeyCode::Char('l') => {
                 if !self
@@ -530,7 +530,7 @@ impl AppShell {
                 {
                     self.app_state.project_explorer_pane_state.status_message = "No expandable directory is selected.".to_string();
                 }
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Left | KeyCode::Char('h') => {
                 if !self
@@ -540,11 +540,11 @@ impl AppShell {
                 {
                     self.app_state.project_explorer_pane_state.status_message = "No collapsible directory is selected.".to_string();
                 }
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Char(' ') => {
                 self.toggle_selected_project_item_activation(squalr_engine);
-                self.sync_struct_viewer_focus_from_project_items();
+                self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Char('n') => {
                 if !self
@@ -596,10 +596,33 @@ impl AppShell {
             true
         };
         match key_event.code {
-            KeyCode::Char('r') => self.refresh_struct_viewer_focus_from_source(),
-            KeyCode::Down => self.app_state.struct_viewer_pane_state.select_next_field(),
-            KeyCode::Up => self.app_state.struct_viewer_pane_state.select_previous_field(),
+            KeyCode::Char('r') => self.refresh_struct_viewer_focus_from_source(squalr_engine),
+            KeyCode::Down => {
+                let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+                    self.app_state.struct_viewer_pane_state.status_message =
+                        "No unprivileged engine state is available for struct viewer field selection.".to_string();
+                    return;
+                };
+                self.app_state
+                    .struct_viewer_pane_state
+                    .select_next_field(engine_unprivileged_state)
+            }
+            KeyCode::Up => {
+                let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+                    self.app_state.struct_viewer_pane_state.status_message =
+                        "No unprivileged engine state is available for struct viewer field selection.".to_string();
+                    return;
+                };
+                self.app_state
+                    .struct_viewer_pane_state
+                    .select_previous_field(engine_unprivileged_state)
+            }
             KeyCode::Char('[') => {
+                let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+                    self.app_state.struct_viewer_pane_state.status_message =
+                        "No unprivileged engine state is available for struct viewer display formatting.".to_string();
+                    return;
+                };
                 let selected_field_name = self
                     .app_state
                     .struct_viewer_pane_state
@@ -609,7 +632,7 @@ impl AppShell {
                 match self
                     .app_state
                     .struct_viewer_pane_state
-                    .cycle_selected_field_display_format_backward()
+                    .cycle_selected_field_display_format_backward(engine_unprivileged_state)
                 {
                     Ok(active_display_format) => {
                         self.app_state.struct_viewer_pane_state.status_message =
@@ -621,6 +644,11 @@ impl AppShell {
                 }
             }
             KeyCode::Char(']') => {
+                let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+                    self.app_state.struct_viewer_pane_state.status_message =
+                        "No unprivileged engine state is available for struct viewer display formatting.".to_string();
+                    return;
+                };
                 let selected_field_name = self
                     .app_state
                     .struct_viewer_pane_state
@@ -630,7 +658,7 @@ impl AppShell {
                 match self
                     .app_state
                     .struct_viewer_pane_state
-                    .cycle_selected_field_display_format_forward()
+                    .cycle_selected_field_display_format_forward(engine_unprivileged_state)
                 {
                     Ok(active_display_format) => {
                         self.app_state.struct_viewer_pane_state.status_message =

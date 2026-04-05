@@ -1,5 +1,4 @@
 use crate::views::struct_viewer::summary::build_struct_viewer_summary_lines;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
@@ -8,6 +7,7 @@ use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -62,6 +62,7 @@ impl StructViewerPaneState {
         &mut self,
         selected_scan_results: &[ScanResult],
         selected_scan_result_refs: Vec<ScanResultRef>,
+        engine_unprivileged_state: &EngineUnprivilegedState,
     ) {
         if selected_scan_results.is_empty() || selected_scan_result_refs.is_empty() {
             self.clear_focus("No scan result selection is available for struct viewer.");
@@ -82,13 +83,14 @@ impl StructViewerPaneState {
         self.selected_struct_name = Some(format!("ScanResultSelection({})", selected_scan_result_refs.len()));
         self.selected_scan_result_refs = selected_scan_result_refs;
         self.selected_project_item_paths.clear();
-        self.sync_selected_field_metadata();
+        self.sync_selected_field_metadata(engine_unprivileged_state);
         self.status_message = "Focused struct viewer on selected scan result entries.".to_string();
     }
 
     pub fn focus_project_items(
         &mut self,
         selected_project_items: Vec<(PathBuf, ProjectItem)>,
+        engine_unprivileged_state: &EngineUnprivilegedState,
     ) {
         if selected_project_items.is_empty() {
             self.clear_focus("No project item selection is available for struct viewer.");
@@ -113,11 +115,14 @@ impl StructViewerPaneState {
         self.selected_struct_name = Some(format!("ProjectItemSelection({})", selected_project_item_paths.len()));
         self.selected_project_item_paths = selected_project_item_paths;
         self.selected_scan_result_refs.clear();
-        self.sync_selected_field_metadata();
+        self.sync_selected_field_metadata(engine_unprivileged_state);
         self.status_message = "Focused struct viewer on selected project item entries.".to_string();
     }
 
-    pub fn select_next_field(&mut self) {
+    pub fn select_next_field(
+        &mut self,
+        engine_unprivileged_state: &EngineUnprivilegedState,
+    ) {
         let Some(focused_struct) = self.focused_struct.as_ref() else {
             self.selected_field_position = None;
             return;
@@ -130,10 +135,13 @@ impl StructViewerPaneState {
         let selected_field_position = self.selected_field_position.unwrap_or(0);
         let next_field_position = (selected_field_position + 1) % focused_struct.get_fields().len();
         self.selected_field_position = Some(next_field_position);
-        self.sync_selected_field_metadata();
+        self.sync_selected_field_metadata(engine_unprivileged_state);
     }
 
-    pub fn select_previous_field(&mut self) {
+    pub fn select_previous_field(
+        &mut self,
+        engine_unprivileged_state: &EngineUnprivilegedState,
+    ) {
         let Some(focused_struct) = self.focused_struct.as_ref() else {
             self.selected_field_position = None;
             return;
@@ -150,7 +158,7 @@ impl StructViewerPaneState {
             selected_field_position - 1
         };
         self.selected_field_position = Some(previous_field_position);
-        self.sync_selected_field_metadata();
+        self.sync_selected_field_metadata(engine_unprivileged_state);
     }
 
     pub fn append_pending_edit_character(
@@ -186,7 +194,10 @@ impl StructViewerPaneState {
         self.has_uncommitted_edit = true;
     }
 
-    pub fn build_edited_field_from_pending_text(&self) -> Result<ValuedStructField, String> {
+    pub fn build_edited_field_from_pending_text(
+        &self,
+        engine_unprivileged_state: &EngineUnprivilegedState,
+    ) -> Result<ValuedStructField, String> {
         let selected_field = self
             .selected_field()
             .ok_or_else(|| "No struct field is selected.".to_string())?;
@@ -202,11 +213,10 @@ impl StructViewerPaneState {
             return Err("Edit value is empty.".to_string());
         }
 
-        let symbol_registry = SymbolRegistry::get_instance();
         let selected_data_type_ref = selected_field_data_value.get_data_type_ref();
-        let default_edit_format = symbol_registry.get_default_anonymous_value_string_format(selected_data_type_ref);
+        let default_edit_format = engine_unprivileged_state.get_default_anonymous_value_string_format(selected_data_type_ref);
         let pending_edit_value = AnonymousValueString::new(pending_edit_text.to_string(), default_edit_format, ContainerType::None);
-        let edited_data_value = symbol_registry
+        let edited_data_value = engine_unprivileged_state
             .deanonymize_value_string(selected_data_type_ref, &pending_edit_value)
             .map_err(|error| format!("Failed to parse edited value: {}", error))?;
 
@@ -220,6 +230,7 @@ impl StructViewerPaneState {
     pub fn apply_committed_field(
         &mut self,
         committed_field: &ValuedStructField,
+        engine_unprivileged_state: &EngineUnprivilegedState,
     ) {
         if let Some(focused_struct) = self.focused_struct.as_mut() {
             focused_struct.set_field_data(
@@ -229,15 +240,21 @@ impl StructViewerPaneState {
             );
         }
         self.has_uncommitted_edit = false;
-        self.sync_selected_field_metadata();
+        self.sync_selected_field_metadata(engine_unprivileged_state);
     }
 
-    pub fn cycle_selected_field_display_format_forward(&mut self) -> Result<AnonymousValueStringFormat, String> {
-        self.cycle_selected_field_display_format(true)
+    pub fn cycle_selected_field_display_format_forward(
+        &mut self,
+        engine_unprivileged_state: &EngineUnprivilegedState,
+    ) -> Result<AnonymousValueStringFormat, String> {
+        self.cycle_selected_field_display_format(true, engine_unprivileged_state)
     }
 
-    pub fn cycle_selected_field_display_format_backward(&mut self) -> Result<AnonymousValueStringFormat, String> {
-        self.cycle_selected_field_display_format(false)
+    pub fn cycle_selected_field_display_format_backward(
+        &mut self,
+        engine_unprivileged_state: &EngineUnprivilegedState,
+    ) -> Result<AnonymousValueStringFormat, String> {
+        self.cycle_selected_field_display_format(false, engine_unprivileged_state)
     }
 
     pub fn summary_lines(
@@ -280,7 +297,10 @@ impl StructViewerPaneState {
         self.selected_field_edit_block_reason().is_none()
     }
 
-    fn sync_selected_field_metadata(&mut self) {
+    fn sync_selected_field_metadata(
+        &mut self,
+        engine_unprivileged_state: &EngineUnprivilegedState,
+    ) {
         let Some(selected_field_position) = self.selected_field_position else {
             self.selected_field_name = None;
             self.pending_edit_text.clear();
@@ -307,7 +327,7 @@ impl StructViewerPaneState {
 
         let selected_field_name = selected_field.get_name().to_string();
         self.selected_field_name = Some(selected_field_name);
-        self.sync_selected_field_display_values(&selected_field);
+        self.sync_selected_field_display_values(&selected_field, engine_unprivileged_state);
         if self.has_uncommitted_edit {
             return;
         }
@@ -322,19 +342,19 @@ impl StructViewerPaneState {
             return;
         };
 
-        let symbol_registry = SymbolRegistry::get_instance();
         let selected_data_type_ref = selected_field_data_value.get_data_type_ref();
-        let default_edit_format = symbol_registry.get_default_anonymous_value_string_format(selected_data_type_ref);
-        let default_edit_value = symbol_registry
-            .anonymize_value(selected_field_data_value, default_edit_format)
-            .map(|anonymous_value_string| anonymous_value_string.get_anonymous_value_string().to_string())
-            .unwrap_or_default();
+        let default_edit_format = engine_unprivileged_state.get_default_anonymous_value_string_format(selected_data_type_ref);
+        let default_edit_value = match engine_unprivileged_state.anonymize_value(selected_field_data_value, default_edit_format) {
+            Ok(anonymous_value_string) => anonymous_value_string.get_anonymous_value_string().to_string(),
+            Err(_) => String::new(),
+        };
         self.pending_edit_text = default_edit_value;
     }
 
     fn cycle_selected_field_display_format(
         &mut self,
         is_forward_direction: bool,
+        _engine_unprivileged_state: &EngineUnprivilegedState,
     ) -> Result<AnonymousValueStringFormat, String> {
         if self.has_uncommitted_edit {
             return Err("Cannot cycle display format while an uncommitted edit exists.".to_string());
@@ -378,6 +398,7 @@ impl StructViewerPaneState {
     fn sync_selected_field_display_values(
         &mut self,
         selected_field: &ValuedStructField,
+        engine_unprivileged_state: &EngineUnprivilegedState,
     ) {
         let selected_field_name = selected_field.get_name().to_string();
         let Some(selected_field_data_value) = selected_field.get_data_value() else {
@@ -387,22 +408,21 @@ impl StructViewerPaneState {
             return;
         };
 
-        let symbol_registry = SymbolRegistry::get_instance();
-        let display_values = symbol_registry
+        let display_values = engine_unprivileged_state
             .anonymize_value_to_supported_formats(selected_field_data_value)
             .unwrap_or_else(|_| {
                 let selected_data_type_ref = selected_field_data_value.get_data_type_ref();
-                let default_edit_format = symbol_registry.get_default_anonymous_value_string_format(selected_data_type_ref);
+                let default_edit_format = engine_unprivileged_state.get_default_anonymous_value_string_format(selected_data_type_ref);
                 vec![
-                    symbol_registry
+                    engine_unprivileged_state
                         .anonymize_value(selected_field_data_value, default_edit_format)
                         .unwrap_or_else(|_| AnonymousValueString::new(String::new(), default_edit_format, ContainerType::None)),
                 ]
             });
-        let default_display_format = symbol_registry.get_default_anonymous_value_string_format(selected_field_data_value.get_data_type_ref());
+        let default_display_format = engine_unprivileged_state.get_default_anonymous_value_string_format(selected_field_data_value.get_data_type_ref());
         let default_display_value_index = display_values
             .iter()
-            .position(|display_value| display_value.get_anonymous_value_string_format() == default_display_format)
+            .position(|display_value: &AnonymousValueString| display_value.get_anonymous_value_string_format() == default_display_format)
             .unwrap_or(0);
         let previous_display_value_index = self
             .field_active_display_value_indices

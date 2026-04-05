@@ -39,11 +39,10 @@ impl AnonymousScanConstraint {
 
     pub fn deanonymize_constraint(
         &self,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
         floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScanConstraint> {
-        let symbol_registry = SymbolRegistry::get_instance();
-
         if let Some(anonymous_value_string) = &self.anonymous_value_string {
             match symbol_registry.deanonymize_value_string(&data_type_ref, &anonymous_value_string) {
                 Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance)),

@@ -7,8 +7,10 @@ use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_response::PrivilegedCommandResponse;
+use squalr_engine_api::commands::privileged_command_result::PrivilegedCommandResult;
 use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
+use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::events::engine_event::EngineEvent;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -27,7 +29,7 @@ pub struct InterprocessEngineApiPrivilegedBindings {
     request_handles: Arc<Mutex<HashMap<Uuid, Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync>>>>,
 
     /// The list of subscribers to which we send engine events.
-    event_senders: Arc<RwLock<Vec<Sender<EngineEvent>>>>,
+    event_senders: Arc<RwLock<Vec<Sender<EngineEventEnvelope>>>>,
 }
 
 impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
@@ -35,17 +37,24 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         &self,
         engine_event: EngineEvent,
     ) -> Result<(), EngineBindingError> {
+        let registry_generation = self
+            .engine_privileged_state
+            .as_ref()
+            .map(|engine_privileged_state| engine_privileged_state.get_registry_generation())
+            .unwrap_or_default();
+        let engine_event_envelope = EngineEventEnvelope::new(registry_generation, engine_event);
+
         // First dispatch the invent internally to any listeners.
         if let Ok(senders) = self.event_senders.read() {
             for sender in senders.iter() {
-                if let Err(error) = sender.send(engine_event.clone()) {
+                if let Err(error) = sender.send(engine_event_envelope.clone()) {
                     log::error!("Error internally dispatching engine event: {}", error);
                 }
             }
         }
 
         // Next dispatch the event over the interprocess pipe for the unprivileged side to handle.
-        Self::dispatch_response(self.ipc_connection.clone(), EngineEgress::EngineEvent(engine_event), Uuid::nil())
+        Self::dispatch_response(self.ipc_connection.clone(), EngineEgress::EngineEvent(engine_event_envelope), Uuid::nil())
     }
 
     fn dispatch_internal_command(
@@ -60,7 +69,8 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         }
 
         if let Some(engine_privileged_state) = &self.engine_privileged_state {
-            let interprocess_response = EngineEgress::PrivilegedCommandResponse(engine_command.execute(&engine_privileged_state));
+            let interprocess_response =
+                EngineEgress::PrivilegedCommandResponse(Self::create_privileged_command_result(&engine_privileged_state, engine_command));
 
             Self::dispatch_response(self.ipc_connection.clone(), interprocess_response, request_id)
         } else {
@@ -68,7 +78,7 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         }
     }
 
-    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+    fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let mut sender_lock = self
             .event_senders
@@ -144,7 +154,10 @@ impl InterprocessEngineApiPrivilegedBindings {
                         match ipc_connection_pipe.receive::<EngineIngress>() {
                             Ok((interprocess_command, request_id)) => match interprocess_command {
                                 EngineIngress::PrivilegedCommand(engine_command) => {
-                                    let interprocess_response = EngineEgress::PrivilegedCommandResponse(engine_command.execute(&engine_privileged_state));
+                                    let interprocess_response = EngineEgress::PrivilegedCommandResponse(Self::create_privileged_command_result(
+                                        &engine_privileged_state,
+                                        engine_command,
+                                    ));
                                     let _ = Self::dispatch_response(ipc_connection.clone(), interprocess_response, request_id);
                                 }
                             },
@@ -168,5 +181,20 @@ impl InterprocessEngineApiPrivilegedBindings {
                 thread::sleep(Duration::from_millis(1));
             }
         });
+    }
+
+    fn create_privileged_command_result(
+        engine_privileged_state: &Arc<EnginePrivilegedState>,
+        privileged_command: PrivilegedCommand,
+    ) -> PrivilegedCommandResult {
+        let should_include_privileged_registry_catalog = privileged_command.should_include_privileged_registry_catalog();
+        let privileged_command_response = privileged_command.execute(engine_privileged_state);
+        let privileged_registry_catalog = if should_include_privileged_registry_catalog {
+            Some(engine_privileged_state.get_privileged_registry_catalog())
+        } else {
+            None
+        };
+
+        PrivilegedCommandResult::new(privileged_command_response, privileged_registry_catalog)
     }
 }
