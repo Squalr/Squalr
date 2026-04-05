@@ -25,7 +25,7 @@ impl PrivilegedCommandRequestExecutor for ProcessOpenRequest {
             required_process_id: self.process_id.map(Pid::from_u32),
             require_windowed: false,
             match_case: self.match_case,
-            fetch_icons: false,
+            fetch_icons: true,
             limit: Some(1),
         };
 

@@ -268,16 +268,7 @@ impl ProcessSelectorViewData {
         process_selector_view_data.open_process_request_started_at = None;
         process_selector_view_data.opened_process = opened_process;
 
-        let icon_data = match &process_selector_view_data.opened_process {
-            Some(opened_proces) => match opened_proces.get_icon() {
-                Some(icon) => {
-                    let process_id = opened_proces.get_process_id_raw();
-                    Some((process_id, icon.clone()))
-                }
-                None => None,
-            },
-            None => None,
-        };
+        let icon_data = Self::resolve_opened_process_icon_data(&process_selector_view_data);
 
         if let Some((process_id, icon)) = icon_data {
             let texture_handle = process_selector_view_data.get_icon(app_context, process_id, &icon);
@@ -286,6 +277,29 @@ impl ProcessSelectorViewData {
         } else {
             process_selector_view_data.cached_icon = None;
         }
+    }
+
+    fn resolve_opened_process_icon_data(process_selector_view_data: &ProcessSelectorViewData) -> Option<(u32, ProcessIcon)> {
+        let opened_process = process_selector_view_data.opened_process.as_ref()?;
+        let process_id = opened_process.get_process_id_raw();
+
+        if let Some(icon) = opened_process.get_icon() {
+            return Some((process_id, icon.clone()));
+        }
+
+        Self::find_process_icon(&process_selector_view_data.windowed_process_list, process_id)
+            .or_else(|| Self::find_process_icon(&process_selector_view_data.full_process_list, process_id))
+            .map(|icon| (process_id, icon))
+    }
+
+    fn find_process_icon(
+        process_list: &[ProcessInfo],
+        process_id: u32,
+    ) -> Option<ProcessIcon> {
+        process_list
+            .iter()
+            .find(|process_info| process_info.get_process_id_raw() == process_id)
+            .and_then(|process_info| process_info.get_icon().clone())
     }
 
     pub fn create_and_cache_icon(
