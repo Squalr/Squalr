@@ -12,6 +12,10 @@ impl PrivilegedCommandRequestExecutor for ScanSettingsSetRequest {
         &self,
         _engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
+        if let Some(page_retrieval_mode) = self.page_retrieval_mode {
+            ScanSettingsConfig::set_page_retrieval_mode(page_retrieval_mode);
+        }
+
         if let Some(results_page_size) = self.results_page_size {
             ScanSettingsConfig::set_results_page_size(results_page_size);
         }

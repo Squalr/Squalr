@@ -1,4 +1,5 @@
 use serde_json::to_string_pretty;
+use squalr_engine_api::plugins::memory_view::PageRetrievalMode;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -77,6 +78,22 @@ impl ScanSettingsConfig {
     pub fn set_results_page_size(value: u32) {
         if let Ok(mut config) = Self::get_instance().config.write() {
             config.results_page_size = value;
+        }
+
+        Self::save_config();
+    }
+
+    pub fn get_page_retrieval_mode() -> PageRetrievalMode {
+        if let Ok(config) = Self::get_instance().config.read() {
+            config.page_retrieval_mode
+        } else {
+            ScanSettings::default().page_retrieval_mode
+        }
+    }
+
+    pub fn set_page_retrieval_mode(value: PageRetrievalMode) {
+        if let Ok(mut config) = Self::get_instance().config.write() {
+            config.page_retrieval_mode = value;
         }
 
         Self::save_config();

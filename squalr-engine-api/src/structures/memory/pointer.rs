@@ -1,3 +1,4 @@
+use crate::structures::memory::address_display::{format_absolute_address, format_module_address};
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use serde::{Deserialize, Serialize};
 
@@ -67,6 +68,14 @@ impl Pointer {
 
     pub fn get_pointer_size(&self) -> PointerScanPointerSize {
         self.pointer_size
+    }
+
+    pub fn get_root_display_text(&self) -> String {
+        if self.module_name.is_empty() {
+            format_absolute_address(self.address)
+        } else {
+            format_module_address(&self.module_name, self.address)
+        }
     }
 
     pub fn set_pointer_size(

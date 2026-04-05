@@ -82,7 +82,7 @@ fn log_pointer_scan_node(pointer_scan_node: &PointerScanNode) {
     let module_label = if pointer_scan_node.get_module_name().is_empty() {
         "<heap>".to_string()
     } else {
-        format!("{}+0x{:X}", pointer_scan_node.get_module_name(), pointer_scan_node.get_module_offset())
+        pointer_scan_node.get_module_display_text()
     };
 
     log::info!(

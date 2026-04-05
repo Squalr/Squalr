@@ -1,4 +1,5 @@
 use crate::commands::memory::memory_command::MemoryCommand;
+use crate::commands::plugins::plugins_command::PluginsCommand;
 use crate::commands::pointer_scan::pointer_scan_command::PointerScanCommand;
 use crate::commands::process::process_command::ProcessCommand;
 use crate::commands::registry::registry_command::RegistryCommand;
@@ -14,6 +15,9 @@ use structopt::StructOpt;
 pub enum PrivilegedCommand {
     #[structopt(alias = "mem", alias = "m")]
     Memory(MemoryCommand),
+
+    #[structopt(alias = "plug", alias = "plugins")]
+    Plugins(PluginsCommand),
 
     #[structopt(alias = "proc", alias = "pr")]
     Process(ProcessCommand),

@@ -8,18 +8,21 @@ struct CachedMemoryViewInstance {
     process_id: u32,
     process_handle: u64,
     process_name: String,
+    plugin_id: String,
     memory_view_instance: SharedMemoryViewInstance,
 }
 
 impl CachedMemoryViewInstance {
     fn new(
         process_info: &OpenedProcessInfo,
+        plugin_id: String,
         memory_view_instance: SharedMemoryViewInstance,
     ) -> Self {
         Self {
             process_id: process_info.get_process_id(),
             process_handle: process_info.get_handle(),
             process_name: process_info.get_name().to_string(),
+            plugin_id,
             memory_view_instance,
         }
     }
@@ -49,15 +52,34 @@ impl MemoryViewRouter {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> Option<SharedMemoryViewInstance> {
+        let matching_memory_view_plugin = self.plugin_registry.find_memory_view_plugin(process_info);
+
         if let Ok(active_memory_view_instance) = self.active_memory_view_instance.read() {
             if let Some(cached_memory_view_instance) = active_memory_view_instance.as_ref() {
                 if cached_memory_view_instance.matches(process_info) {
-                    return Some(cached_memory_view_instance.memory_view_instance.clone());
+                    if matching_memory_view_plugin
+                        .as_ref()
+                        .map(|memory_view_plugin| memory_view_plugin.metadata().get_plugin_id() == cached_memory_view_instance.plugin_id)
+                        .unwrap_or(false)
+                    {
+                        return Some(cached_memory_view_instance.memory_view_instance.clone());
+                    }
                 }
             }
         }
 
-        let memory_view_plugin = self.plugin_registry.find_memory_view_plugin(process_info)?;
+        if let Ok(mut active_memory_view_instance) = self.active_memory_view_instance.write() {
+            let should_clear_cached_instance = active_memory_view_instance
+                .as_ref()
+                .map(|cached_memory_view_instance| cached_memory_view_instance.matches(process_info))
+                .unwrap_or(false);
+
+            if should_clear_cached_instance {
+                *active_memory_view_instance = None;
+            }
+        }
+
+        let memory_view_plugin = matching_memory_view_plugin?;
         let plugin_id = memory_view_plugin.metadata().get_plugin_id().to_string();
 
         let memory_view_instance = match memory_view_plugin.create_instance(process_info) {
@@ -77,11 +99,15 @@ impl MemoryViewRouter {
         let shared_memory_view_instance = Arc::new(Mutex::new(memory_view_instance));
 
         if let Ok(mut active_memory_view_instance) = self.active_memory_view_instance.write() {
-            *active_memory_view_instance = Some(CachedMemoryViewInstance::new(process_info, shared_memory_view_instance.clone()));
+            *active_memory_view_instance = Some(CachedMemoryViewInstance::new(
+                process_info,
+                plugin_id.clone(),
+                shared_memory_view_instance.clone(),
+            ));
         }
 
         log::info!(
-            "Attached memory-view plugin `{}` to process `{}` (pid {}).",
+            "Activated memory-view plugin `{}` for process `{}` (pid {}).",
             plugin_id,
             process_info.get_name(),
             process_info.get_process_id()

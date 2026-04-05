@@ -129,8 +129,9 @@ pub fn find_dolphin_region_by_module_name(
     region_descriptors: &[DolphinMemoryRegionDescriptor],
     module_name: &str,
 ) -> Option<DolphinMemoryRegionDescriptor> {
-    region_descriptors
-        .iter()
-        .copied()
-        .find(|region_descriptor| region_descriptor.get_module_name().eq_ignore_ascii_case(module_name))
+    region_descriptors.iter().copied().find(|region_descriptor| {
+        region_descriptor
+            .get_module_name()
+            .eq_ignore_ascii_case(module_name)
+    })
 }

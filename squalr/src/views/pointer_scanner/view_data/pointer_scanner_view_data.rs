@@ -1654,7 +1654,7 @@ impl PointerScannerViewData {
 
     fn build_module_base_text(pointer_scan_node: &PointerScanNode) -> String {
         if pointer_scan_node.get_pointer_scan_node_type() == PointerScanNodeType::Static {
-            format!("{}+0x{:X}", pointer_scan_node.get_module_name(), pointer_scan_node.get_module_offset())
+            pointer_scan_node.get_module_display_text()
         } else {
             Self::format_address(pointer_scan_node.get_pointer_address())
         }

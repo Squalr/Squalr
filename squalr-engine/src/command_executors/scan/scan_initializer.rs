@@ -5,6 +5,7 @@ use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef, memory::memory_alignment::MemoryAlignment, processes::opened_process_info::OpenedProcessInfo,
     snapshots::snapshot::Snapshot,
 };
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_session::os::PageRetrievalMode;
 
 pub fn ensure_snapshot_regions_for_scan(
@@ -19,11 +20,21 @@ pub fn ensure_snapshot_regions_for_scan(
     let memory_pages = engine_privileged_state
         .get_os_providers()
         .memory_query
-        .get_memory_page_bounds(opened_process_info, PageRetrievalMode::FromSettings);
+        .get_memory_page_bounds(opened_process_info, effective_page_retrieval_mode());
     let merged_snapshot_regions = merge_memory_regions_into_snapshot_regions(memory_pages);
 
     if !merged_snapshot_regions.is_empty() {
         snapshot.set_snapshot_regions(merged_snapshot_regions);
+    }
+}
+
+fn effective_page_retrieval_mode() -> PageRetrievalMode {
+    match ScanSettingsConfig::get_page_retrieval_mode() {
+        PageRetrievalMode::FromSettings => PageRetrievalMode::FromSettings,
+        PageRetrievalMode::FromUserMode => PageRetrievalMode::FromUserMode,
+        PageRetrievalMode::FromNonModules => PageRetrievalMode::FromNonModules,
+        PageRetrievalMode::FromModules => PageRetrievalMode::FromModules,
+        PageRetrievalMode::FromVirtualModules => PageRetrievalMode::FromVirtualModules,
     }
 }
 

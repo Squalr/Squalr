@@ -3,6 +3,7 @@ use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value::DataValue;
+use crate::structures::memory::address_display::{format_absolute_address, format_module_address};
 use crate::structures::scan_results::scan_result_base::ScanResultBase;
 use crate::structures::scan_results::scan_result_valued::ScanResultValued;
 use crate::structures::structs::valued_struct::ValuedStruct;
@@ -174,6 +175,20 @@ impl ScanResult {
 
     pub fn get_is_frozen(&self) -> bool {
         self.is_frozen
+    }
+
+    pub fn prefers_absolute_address_display(&self) -> bool {
+        self.is_module() && matches!(self.get_address(), 0x8000_0000..=0x81FF_FFFF | 0x9000_0000..=0x93FF_FFFF)
+    }
+
+    pub fn get_address_display_text(&self) -> String {
+        if !self.is_module() {
+            format_absolute_address(self.get_address())
+        } else if self.prefers_absolute_address_display() {
+            format_absolute_address(self.get_address())
+        } else {
+            format_module_address(self.get_module(), self.get_module_offset())
+        }
     }
 
     pub fn set_is_frozen_client_only(

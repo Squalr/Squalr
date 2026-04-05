@@ -30,7 +30,7 @@ impl TuiWorkspacePage {
         match self {
             Self::ProjectWorkspace => "Process Selector -> Project Explorer -> Output",
             Self::ScannerWorkspace => "Element Scanner -> Scan Results -> Output",
-            Self::SettingsWorkspace => "Settings -> Output",
+            Self::SettingsWorkspace => "Settings -> Plugins -> Output",
         }
     }
 
@@ -42,7 +42,7 @@ impl TuiWorkspacePage {
                 TuiPane::Output,
             ],
             Self::ScannerWorkspace => &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output],
-            Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Output],
+            Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Plugins, TuiPane::Output],
         }
     }
 }
@@ -80,6 +80,9 @@ mod tests {
             TuiWorkspacePage::ScannerWorkspace.visible_panes(),
             &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output]
         );
-        assert_eq!(TuiWorkspacePage::SettingsWorkspace.visible_panes(), &[TuiPane::Settings, TuiPane::Output]);
+        assert_eq!(
+            TuiWorkspacePage::SettingsWorkspace.visible_panes(),
+            &[TuiPane::Settings, TuiPane::Plugins, TuiPane::Output]
+        );
     }
 }

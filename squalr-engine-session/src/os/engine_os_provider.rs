@@ -1,5 +1,6 @@
 use crate::os::memory_view_router::MemoryViewRouter;
 use crate::plugins::plugin_registry::PluginRegistry;
+use squalr_engine_api::plugins::memory_view::MemoryViewPluginError;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
@@ -16,6 +17,7 @@ use squalr_engine_operating_system::memory_writer::memory_writer_trait::MemoryWr
 use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
 use squalr_engine_operating_system::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_operating_system::process_query::process_queryer::ProcessQuery;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 pub trait ProcessQueryProvider: Send + Sync {
@@ -120,12 +122,17 @@ impl EngineOsProviders {
             memory_read,
             memory_write,
         } = self;
+        let base_memory_query = memory_query.clone();
 
         Self {
             process_query: Arc::new(RoutedProcessQueryProvider::new(process_query, memory_view_router.clone())),
             memory_query: Arc::new(RoutedMemoryQueryProvider::new(memory_query, memory_view_router.clone())),
-            memory_read: Arc::new(RoutedMemoryReadProvider::new(memory_read, memory_view_router.clone())),
-            memory_write: Arc::new(RoutedMemoryWriteProvider::new(memory_write, memory_view_router)),
+            memory_read: Arc::new(RoutedMemoryReadProvider::new(
+                memory_read,
+                base_memory_query.clone(),
+                memory_view_router.clone(),
+            )),
+            memory_write: Arc::new(RoutedMemoryWriteProvider::new(memory_write, base_memory_query, memory_view_router)),
         }
     }
 }
@@ -314,6 +321,44 @@ impl RoutedMemoryQueryProvider {
             memory_view_router,
         }
     }
+
+    fn merge_modules(
+        &self,
+        base_modules: Vec<NormalizedModule>,
+        virtual_modules: Vec<NormalizedModule>,
+    ) -> Vec<NormalizedModule> {
+        let mut seen_module_keys = HashSet::new();
+        let mut merged_modules = Vec::with_capacity(base_modules.len().saturating_add(virtual_modules.len()));
+
+        for module in base_modules.into_iter().chain(virtual_modules.into_iter()) {
+            let module_key = (module.get_module_name().to_string(), module.get_base_address(), module.get_region_size());
+
+            if seen_module_keys.insert(module_key) {
+                merged_modules.push(module);
+            }
+        }
+
+        merged_modules
+    }
+
+    fn log_fallback_if_unexpected(
+        plugin_id: &str,
+        operation: &str,
+        fallback_target: &str,
+        error: &MemoryViewPluginError,
+    ) {
+        if error.is_unavailable() {
+            return;
+        }
+
+        log::debug!(
+            "Memory-view plugin `{}` {} fell back to base {}: {}",
+            plugin_id,
+            operation,
+            fallback_target,
+            error
+        );
+    }
 }
 
 impl MemoryQueryProvider for RoutedMemoryQueryProvider {
@@ -321,24 +366,18 @@ impl MemoryQueryProvider for RoutedMemoryQueryProvider {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> Vec<NormalizedModule> {
+        let base_modules = self.base_provider.get_modules(process_info);
+
         if let Some(memory_view_instance) = self.memory_view_router.get_or_create_instance(process_info) {
             match memory_view_instance.lock() {
                 Ok(mut memory_view_instance) => {
                     if let Err(error) = memory_view_instance.refresh() {
-                        log::debug!(
-                            "Memory-view plugin `{}` refresh fell back to base modules: {}",
-                            memory_view_instance.plugin_id(),
-                            error
-                        );
+                        Self::log_fallback_if_unexpected(memory_view_instance.plugin_id(), "refresh", "modules", &error);
                     } else {
                         match memory_view_instance.get_modules() {
-                            Ok(modules) => return modules,
+                            Ok(virtual_modules) => return self.merge_modules(base_modules, virtual_modules),
                             Err(error) => {
-                                log::debug!(
-                                    "Memory-view plugin `{}` module query fell back to base modules: {}",
-                                    memory_view_instance.plugin_id(),
-                                    error
-                                );
+                                Self::log_fallback_if_unexpected(memory_view_instance.plugin_id(), "module query", "modules", &error);
                             }
                         }
                     }
@@ -349,7 +388,7 @@ impl MemoryQueryProvider for RoutedMemoryQueryProvider {
             }
         }
 
-        self.base_provider.get_modules(process_info)
+        base_modules
     }
 
     fn address_to_module(
@@ -399,20 +438,12 @@ impl MemoryQueryProvider for RoutedMemoryQueryProvider {
             match memory_view_instance.lock() {
                 Ok(mut memory_view_instance) => {
                     if let Err(error) = memory_view_instance.refresh() {
-                        log::debug!(
-                            "Memory-view plugin `{}` refresh fell back to base page bounds: {}",
-                            memory_view_instance.plugin_id(),
-                            error
-                        );
+                        RoutedMemoryQueryProvider::log_fallback_if_unexpected(memory_view_instance.plugin_id(), "refresh", "page bounds", &error);
                     } else {
                         match memory_view_instance.get_virtual_pages(page_retrieval_mode) {
                             Ok(regions) => return regions,
                             Err(error) => {
-                                log::debug!(
-                                    "Memory-view plugin `{}` page query fell back to base page bounds: {}",
-                                    memory_view_instance.plugin_id(),
-                                    error
-                                );
+                                RoutedMemoryQueryProvider::log_fallback_if_unexpected(memory_view_instance.plugin_id(), "page query", "page bounds", &error);
                             }
                         }
                     }
@@ -430,18 +461,47 @@ impl MemoryQueryProvider for RoutedMemoryQueryProvider {
 
 struct RoutedMemoryReadProvider {
     base_provider: Arc<dyn MemoryReadProvider>,
+    base_memory_query_provider: Arc<dyn MemoryQueryProvider>,
     memory_view_router: Arc<MemoryViewRouter>,
+}
+
+enum MemoryViewReadResult {
+    Success,
+    Failed,
+    FallBackToBase,
 }
 
 impl RoutedMemoryReadProvider {
     fn new(
         base_provider: Arc<dyn MemoryReadProvider>,
+        base_memory_query_provider: Arc<dyn MemoryQueryProvider>,
         memory_view_router: Arc<MemoryViewRouter>,
     ) -> Self {
         Self {
             base_provider,
+            base_memory_query_provider,
             memory_view_router,
         }
+    }
+
+    fn is_range_mapped_by_base_provider(
+        &self,
+        process_info: &OpenedProcessInfo,
+        address: u64,
+        value_count: usize,
+    ) -> bool {
+        let range_size = (value_count as u64).max(1);
+        let range_end_address = address.saturating_add(range_size.saturating_sub(1));
+
+        self.base_memory_query_provider
+            .get_memory_page_bounds(process_info, PageRetrievalMode::FromUserMode)
+            .into_iter()
+            .any(|region| {
+                let region_start_address = region.get_base_address();
+                let region_end_address = region_start_address.saturating_add(region.get_region_size().saturating_sub(1));
+
+                address >= region_start_address && range_end_address <= region_end_address
+            })
     }
 
     fn read_bytes_from_memory_view(
@@ -449,27 +509,33 @@ impl RoutedMemoryReadProvider {
         process_info: &OpenedProcessInfo,
         address: u64,
         values: &mut [u8],
-    ) -> bool {
+    ) -> MemoryViewReadResult {
         let Some(memory_view_instance) = self.memory_view_router.get_or_create_instance(process_info) else {
-            return false;
+            return MemoryViewReadResult::FallBackToBase;
         };
 
         match memory_view_instance.lock() {
-            Ok(memory_view_instance) => match memory_view_instance.read_bytes(address, values) {
-                Ok(()) => true,
-                Err(error) => {
-                    log::debug!(
-                        "Memory-view plugin `{}` read fell back to base provider at address {:#X}: {}",
-                        memory_view_instance.plugin_id(),
-                        address,
-                        error
-                    );
-                    false
+            Ok(memory_view_instance) => {
+                let owns_address = memory_view_instance.owns_address(address);
+
+                if !owns_address {
+                    return MemoryViewReadResult::FallBackToBase;
                 }
-            },
+
+                match memory_view_instance.read_bytes(address, values) {
+                    Ok(()) => MemoryViewReadResult::Success,
+                    Err(_error) => {
+                        if self.is_range_mapped_by_base_provider(process_info, address, values.len()) {
+                            MemoryViewReadResult::FallBackToBase
+                        } else {
+                            MemoryViewReadResult::Failed
+                        }
+                    }
+                }
+            }
             Err(error) => {
                 log::warn!("Failed to lock memory-view instance for read: {}", error);
-                false
+                MemoryViewReadResult::FallBackToBase
             }
         }
     }
@@ -484,9 +550,13 @@ impl MemoryReadProvider for RoutedMemoryReadProvider {
     ) -> bool {
         let mut value_bytes = vec![0u8; data_value.get_size_in_bytes() as usize];
 
-        if self.read_bytes_from_memory_view(process_info, address, &mut value_bytes) {
-            data_value.copy_from_bytes(&value_bytes);
-            return true;
+        match self.read_bytes_from_memory_view(process_info, address, &mut value_bytes) {
+            MemoryViewReadResult::Success => {
+                data_value.copy_from_bytes(&value_bytes);
+                return true;
+            }
+            MemoryViewReadResult::Failed => return false,
+            MemoryViewReadResult::FallBackToBase => {}
         }
 
         self.base_provider.read(process_info, address, data_value)
@@ -500,8 +570,10 @@ impl MemoryReadProvider for RoutedMemoryReadProvider {
     ) -> bool {
         let mut value_bytes = vec![0u8; valued_struct.get_size_in_bytes() as usize];
 
-        if self.read_bytes_from_memory_view(process_info, address, &mut value_bytes) {
-            return valued_struct.copy_from_bytes(&value_bytes);
+        match self.read_bytes_from_memory_view(process_info, address, &mut value_bytes) {
+            MemoryViewReadResult::Success => return valued_struct.copy_from_bytes(&value_bytes),
+            MemoryViewReadResult::Failed => return false,
+            MemoryViewReadResult::FallBackToBase => {}
         }
 
         self.base_provider
@@ -514,8 +586,10 @@ impl MemoryReadProvider for RoutedMemoryReadProvider {
         address: u64,
         values: &mut [u8],
     ) -> bool {
-        if self.read_bytes_from_memory_view(process_info, address, values) {
-            return true;
+        match self.read_bytes_from_memory_view(process_info, address, values) {
+            MemoryViewReadResult::Success => return true,
+            MemoryViewReadResult::Failed => return false,
+            MemoryViewReadResult::FallBackToBase => {}
         }
 
         self.base_provider.read_bytes(process_info, address, values)
@@ -524,18 +598,41 @@ impl MemoryReadProvider for RoutedMemoryReadProvider {
 
 struct RoutedMemoryWriteProvider {
     base_provider: Arc<dyn MemoryWriteProvider>,
+    base_memory_query_provider: Arc<dyn MemoryQueryProvider>,
     memory_view_router: Arc<MemoryViewRouter>,
 }
 
 impl RoutedMemoryWriteProvider {
     fn new(
         base_provider: Arc<dyn MemoryWriteProvider>,
+        base_memory_query_provider: Arc<dyn MemoryQueryProvider>,
         memory_view_router: Arc<MemoryViewRouter>,
     ) -> Self {
         Self {
             base_provider,
+            base_memory_query_provider,
             memory_view_router,
         }
+    }
+
+    fn is_range_mapped_by_base_provider(
+        &self,
+        process_info: &OpenedProcessInfo,
+        address: u64,
+        value_count: usize,
+    ) -> bool {
+        let range_size = (value_count as u64).max(1);
+        let range_end_address = address.saturating_add(range_size.saturating_sub(1));
+
+        self.base_memory_query_provider
+            .get_memory_page_bounds(process_info, PageRetrievalMode::FromUserMode)
+            .into_iter()
+            .any(|region| {
+                let region_start_address = region.get_base_address();
+                let region_end_address = region_start_address.saturating_add(region.get_region_size().saturating_sub(1));
+
+                address >= region_start_address && range_end_address <= region_end_address
+            })
     }
 }
 
@@ -548,17 +645,24 @@ impl MemoryWriteProvider for RoutedMemoryWriteProvider {
     ) -> bool {
         if let Some(memory_view_instance) = self.memory_view_router.get_or_create_instance(process_info) {
             match memory_view_instance.lock() {
-                Ok(memory_view_instance) => match memory_view_instance.write_bytes(address, values) {
-                    Ok(()) => return true,
-                    Err(error) => {
-                        log::debug!(
-                            "Memory-view plugin `{}` write fell back to base provider at address {:#X}: {}",
-                            memory_view_instance.plugin_id(),
-                            address,
-                            error
-                        );
+                Ok(memory_view_instance) => {
+                    let owns_address = memory_view_instance.owns_address(address);
+
+                    if !owns_address {
+                        return self.base_provider.write_bytes(process_info, address, values);
                     }
-                },
+
+                    match memory_view_instance.write_bytes(address, values) {
+                        Ok(()) => return true,
+                        Err(_error) => {
+                            if self.is_range_mapped_by_base_provider(process_info, address, values.len()) {
+                                return self.base_provider.write_bytes(process_info, address, values);
+                            }
+
+                            return false;
+                        }
+                    }
+                }
                 Err(error) => {
                     log::warn!("Failed to lock memory-view instance for write: {}", error);
                 }
@@ -617,6 +721,7 @@ mod tests {
     struct TestMemoryQueryProvider {
         module_query_count: Arc<Mutex<usize>>,
         page_query_count: Arc<Mutex<usize>>,
+        pages: Vec<NormalizedRegion>,
     }
 
     impl MemoryQueryProvider for TestMemoryQueryProvider {
@@ -663,7 +768,7 @@ mod tests {
                 *page_query_count += 1;
             }
 
-            vec![NormalizedRegion::new(0x1000, 0x80)]
+            self.pages.clone()
         }
     }
 
@@ -738,6 +843,7 @@ mod tests {
             Arc::new(TestMemoryQueryProvider {
                 module_query_count: module_query_count.clone(),
                 page_query_count: page_query_count.clone(),
+                pages: vec![NormalizedRegion::new(0x1000, 0x80)],
             }),
             Arc::new(TestMemoryReadProvider {
                 read_bytes_count: Arc::new(Mutex::new(0)),
@@ -771,7 +877,7 @@ mod tests {
     }
 
     #[test]
-    fn dolphin_plugin_stub_falls_back_to_base_providers() {
+    fn dolphin_plugin_stub_does_not_fall_back_for_unmapped_guest_addresses() {
         let page_query_count = Arc::new(Mutex::new(0));
         let read_bytes_count = Arc::new(Mutex::new(0));
         let write_count = Arc::new(Mutex::new(0));
@@ -780,6 +886,7 @@ mod tests {
             Arc::new(TestMemoryQueryProvider {
                 module_query_count: Arc::new(Mutex::new(0)),
                 page_query_count: page_query_count.clone(),
+                pages: vec![NormalizedRegion::new(0x1000, 0x80)],
             }),
             Arc::new(TestMemoryReadProvider {
                 read_bytes_count: read_bytes_count.clone(),
@@ -803,6 +910,49 @@ mod tests {
             .write_bytes(&opened_process_info, 0x8000_0000, &[0x22, 0x33]);
 
         assert_eq!(regions.len(), 1);
+        assert!(!read_succeeded);
+        assert!(!write_succeeded);
+        assert_eq!(read_bytes, [0x00, 0x00]);
+        assert_eq!(
+            *page_query_count
+                .lock()
+                .expect("Expected page query count lock."),
+            3
+        );
+        assert_eq!(*read_bytes_count.lock().expect("Expected read byte count lock."), 0);
+        assert_eq!(*write_count.lock().expect("Expected write count lock."), 0);
+    }
+
+    #[test]
+    fn dolphin_plugin_stub_falls_back_to_base_for_host_mapped_guest_range_addresses() {
+        let page_query_count = Arc::new(Mutex::new(0));
+        let read_bytes_count = Arc::new(Mutex::new(0));
+        let write_count = Arc::new(Mutex::new(0));
+        let os_providers = EngineOsProviders::new(
+            Arc::new(TestProcessQueryProvider),
+            Arc::new(TestMemoryQueryProvider {
+                module_query_count: Arc::new(Mutex::new(0)),
+                page_query_count: page_query_count.clone(),
+                pages: vec![NormalizedRegion::new(0x8000_0000, 0x80)],
+            }),
+            Arc::new(TestMemoryReadProvider {
+                read_bytes_count: read_bytes_count.clone(),
+            }),
+            Arc::new(TestMemoryWriteProvider {
+                write_count: write_count.clone(),
+            }),
+        )
+        .with_memory_view_routing(Arc::new(PluginRegistry::new()));
+        let opened_process_info = OpenedProcessInfo::new(7, String::from("Dolphin.exe"), 42, Bitness::Bit64, None);
+        let mut read_bytes = [0u8; 2];
+
+        let read_succeeded = os_providers
+            .memory_read
+            .read_bytes(&opened_process_info, 0x8000_0000, &mut read_bytes);
+        let write_succeeded = os_providers
+            .memory_write
+            .write_bytes(&opened_process_info, 0x8000_0000, &[0x22, 0x33]);
+
         assert!(read_succeeded);
         assert!(write_succeeded);
         assert_eq!(read_bytes, [0x11, 0x11]);
@@ -810,7 +960,7 @@ mod tests {
             *page_query_count
                 .lock()
                 .expect("Expected page query count lock."),
-            1
+            2
         );
         assert_eq!(*read_bytes_count.lock().expect("Expected read byte count lock."), 1);
         assert_eq!(*write_count.lock().expect("Expected write count lock."), 1);

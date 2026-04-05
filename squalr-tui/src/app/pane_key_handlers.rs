@@ -20,6 +20,23 @@ impl AppShell {
             TuiPane::StructViewer => self.handle_struct_viewer_key_event(key_event, squalr_engine),
             TuiPane::Output => self.handle_output_key_event(key_event.code, squalr_engine),
             TuiPane::Settings => self.handle_settings_key_event(key_event, squalr_engine),
+            TuiPane::Plugins => self.handle_plugins_key_event(key_event, squalr_engine),
+        }
+    }
+
+    pub(super) fn handle_plugins_key_event(
+        &mut self,
+        key_event: KeyEvent,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        match key_event.code {
+            KeyCode::Char('r') => self.refresh_plugins_with_feedback(squalr_engine, true),
+            KeyCode::Down => self.app_state.plugins_pane_state.select_next_plugin(),
+            KeyCode::Up => self.app_state.plugins_pane_state.select_previous_plugin(),
+            KeyCode::Home => self.app_state.plugins_pane_state.select_first_plugin(),
+            KeyCode::End => self.app_state.plugins_pane_state.select_last_plugin(),
+            KeyCode::Char(' ') | KeyCode::Enter => self.toggle_selected_plugin_enabled(squalr_engine),
+            _ => {}
         }
     }
 

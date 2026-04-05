@@ -71,7 +71,13 @@ impl AppShell {
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(body_area);
 
-        self.draw_single_pane(frame, rows[0], TuiPane::Settings);
+        let settings_columns = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+            .split(rows[0]);
+
+        self.draw_single_pane(frame, settings_columns[0], TuiPane::Settings);
+        self.draw_single_pane(frame, settings_columns[1], TuiPane::Plugins);
         self.draw_single_pane(frame, rows[1], TuiPane::Output);
     }
 
@@ -291,7 +297,10 @@ impl AppShell {
     }
 
     fn is_entry_heavy_pane(pane: TuiPane) -> bool {
-        matches!(pane, TuiPane::ProcessSelector | TuiPane::ScanResults | TuiPane::ProjectExplorer)
+        matches!(
+            pane,
+            TuiPane::ProcessSelector | TuiPane::ScanResults | TuiPane::ProjectExplorer | TuiPane::Plugins
+        )
     }
 
     fn minimum_entry_row_count_for_pane(pane: TuiPane) -> usize {

@@ -3,6 +3,7 @@ use crate::commands::settings::scan::scan_settings_command::ScanSettingsCommand;
 use crate::commands::settings::scan::scan_settings_response::ScanSettingsResponse;
 use crate::commands::settings::scan::set::scan_settings_set_response::ScanSettingsSetResponse;
 use crate::commands::settings::settings_command::SettingsCommand;
+use crate::plugins::memory_view::PageRetrievalMode;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use crate::structures::scanning::memory_read_mode::MemoryReadMode;
 use crate::{commands::privileged_command::PrivilegedCommand, structures::memory::memory_alignment::MemoryAlignment};
@@ -11,6 +12,8 @@ use structopt::StructOpt;
 
 #[derive(Clone, StructOpt, Debug, Default, Serialize, Deserialize)]
 pub struct ScanSettingsSetRequest {
+    #[structopt(long)]
+    pub page_retrieval_mode: Option<PageRetrievalMode>,
     #[structopt(long)]
     pub results_page_size: Option<u32>,
     #[structopt(long)]

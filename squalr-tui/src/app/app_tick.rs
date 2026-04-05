@@ -17,7 +17,10 @@ impl AppShell {
         self.synchronize_active_project_from_engine_state(squalr_engine);
         self.register_scan_results_updated_listener_if_needed(squalr_engine);
         self.register_process_changed_listener_if_needed(squalr_engine);
-        let _did_synchronize_opened_process = self.synchronize_opened_process_from_engine_event_if_pending();
+        let did_synchronize_opened_process = self.synchronize_opened_process_from_engine_event_if_pending();
+        if did_synchronize_opened_process {
+            self.invalidate_plugins_for_process_change();
+        }
         let did_requery_after_scan_results_update = self.query_scan_results_page_if_engine_event_pending(squalr_engine);
         if !did_requery_after_scan_results_update {
             self.refresh_scan_results_on_interval_if_eligible(squalr_engine);
@@ -41,6 +44,7 @@ impl AppShell {
         }
 
         self.refresh_settings_on_tick_if_eligible(squalr_engine);
+        self.refresh_plugins_on_tick_if_eligible(squalr_engine);
     }
 
     pub(super) fn synchronize_active_project_from_engine_state(
@@ -224,6 +228,19 @@ impl AppShell {
         self.refresh_all_settings_categories_with_feedback(squalr_engine, false);
     }
 
+    pub(super) fn refresh_plugins_on_tick_if_eligible(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let current_tick_time = Instant::now();
+        if !self.should_refresh_plugins_on_tick(current_tick_time) {
+            return;
+        }
+
+        self.last_plugins_auto_refresh_attempt_time = Some(current_tick_time);
+        self.refresh_plugins_with_feedback(squalr_engine, false);
+    }
+
     pub(super) fn should_refresh_settings_on_tick(
         &self,
         current_tick_time: Instant,
@@ -237,6 +254,30 @@ impl AppShell {
                 current_tick_time.duration_since(last_settings_auto_refresh_attempt_time) >= Duration::from_millis(Self::MIN_SETTINGS_AUTO_REFRESH_INTERVAL_MS)
             }
             None => true,
+        }
+    }
+
+    pub(super) fn should_refresh_plugins_on_tick(
+        &self,
+        current_tick_time: Instant,
+    ) -> bool {
+        if self.app_state.plugins_pane_state.has_loaded_plugins_once || self.app_state.plugins_pane_state.is_refreshing_plugins {
+            return false;
+        }
+
+        match self.last_plugins_auto_refresh_attempt_time {
+            Some(last_plugins_auto_refresh_attempt_time) => {
+                current_tick_time.duration_since(last_plugins_auto_refresh_attempt_time) >= Duration::from_millis(Self::MIN_PLUGINS_AUTO_REFRESH_INTERVAL_MS)
+            }
+            None => true,
+        }
+    }
+
+    pub(super) fn invalidate_plugins_for_process_change(&mut self) {
+        self.app_state.plugins_pane_state.has_loaded_plugins_once = false;
+        self.last_plugins_auto_refresh_attempt_time = None;
+        if !self.app_state.plugins_pane_state.plugins.is_empty() {
+            self.app_state.plugins_pane_state.status_message = "Process changed. Refreshing plugin activation state.".to_string();
         }
     }
 

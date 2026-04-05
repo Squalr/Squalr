@@ -1,4 +1,5 @@
 mod memory;
+mod plugins;
 mod pointer_scan;
 mod process;
 mod project;
@@ -8,6 +9,7 @@ mod settings;
 mod struct_scan;
 
 use crate::response_handlers::memory::handle_memory_response;
+use crate::response_handlers::plugins::handle_plugins_response;
 use crate::response_handlers::pointer_scan::handle_pointer_scan_response;
 use crate::response_handlers::process::handle_process_response;
 use crate::response_handlers::project::handle_project_response;
@@ -21,6 +23,7 @@ pub fn handle_engine_response(response: PrivilegedCommandResponse) {
     match response {
         PrivilegedCommandResponse::Scan(response) => handle_scan_response(response),
         PrivilegedCommandResponse::Memory(response) => handle_memory_response(response),
+        PrivilegedCommandResponse::Plugins(response) => handle_plugins_response(response),
         PrivilegedCommandResponse::Process(response) => handle_process_response(response),
         PrivilegedCommandResponse::Registry(_response) => {}
         PrivilegedCommandResponse::Results(response) => handle_scan_results_response(response),

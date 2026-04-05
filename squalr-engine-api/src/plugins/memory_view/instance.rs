@@ -6,6 +6,13 @@ use crate::{
 pub trait MemoryViewInstance: Send + Sync {
     fn plugin_id(&self) -> &str;
 
+    fn owns_address(
+        &self,
+        _address: u64,
+    ) -> bool {
+        false
+    }
+
     fn refresh(&mut self) -> Result<(), MemoryViewPluginError> {
         Ok(())
     }

@@ -3,6 +3,7 @@ use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::output::output_view::OutputView;
+use crate::views::plugins::plugins_view::PluginsView;
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
@@ -55,6 +56,7 @@ impl DockSettingsConfig {
                 DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false))
                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
             )
             .build();
@@ -74,6 +76,7 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false))
                             .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
                     ),
             )
@@ -82,6 +85,34 @@ impl DockSettingsConfig {
             .build();
 
         default_layout
+    }
+
+    fn ensure_required_windows_present(&mut self) {
+        Self::ensure_hidden_tab_window(&mut self.dock_root, SettingsView::WINDOW_ID, PluginsView::WINDOW_ID);
+    }
+
+    fn ensure_hidden_tab_window(
+        dock_root: &mut DockNode,
+        anchor_window_id: &str,
+        missing_window_id: &str,
+    ) {
+        if dock_root.find_path_to_window_id(missing_window_id).is_some() {
+            return;
+        }
+
+        let Some(anchor_container_path) = dock_root.find_path_to_window_container(anchor_window_id) else {
+            return;
+        };
+        let Some(anchor_container_node) = dock_root.get_node_from_path_mut(&anchor_container_path) else {
+            return;
+        };
+
+        if let DockNode::Tab { tabs, .. } = anchor_container_node {
+            tabs.push(DockNode::Window {
+                window_identifier: missing_window_id.to_string(),
+                is_visible: false,
+            });
+        }
     }
 }
 
@@ -93,7 +124,7 @@ pub struct DockableWindowSettings {
 impl DockableWindowSettings {
     fn new() -> Self {
         let config_file = Self::default_config_path();
-        let config = if config_file.exists() {
+        let mut config = if config_file.exists() {
             match fs::read_to_string(&config_file) {
                 Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
                 Err(_) => DockSettingsConfig::default(),
@@ -101,6 +132,7 @@ impl DockableWindowSettings {
         } else {
             DockSettingsConfig::default()
         };
+        config.ensure_required_windows_present();
 
         Self {
             config: Arc::new(RwLock::new(config)),

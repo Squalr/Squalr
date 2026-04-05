@@ -8,6 +8,7 @@ pub enum TuiPane {
     StructViewer,
     Output,
     Settings,
+    Plugins,
 }
 
 impl TuiPane {
@@ -20,6 +21,7 @@ impl TuiPane {
             TuiPane::StructViewer => "Struct Viewer",
             TuiPane::Output => "Output",
             TuiPane::Settings => "Settings",
+            TuiPane::Plugins => "Plugins",
         }
     }
 
@@ -32,6 +34,7 @@ impl TuiPane {
             TuiPane::StructViewer => 4,
             TuiPane::Output => 5,
             TuiPane::Settings => 6,
+            TuiPane::Plugins => 7,
         }
     }
 }

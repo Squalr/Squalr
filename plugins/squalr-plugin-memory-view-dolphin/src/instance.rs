@@ -1,5 +1,5 @@
 use crate::{
-    address_space::{DolphinMemoryRegionDescriptor, find_dolphin_region_by_guest_address},
+    address_space::{DolphinMemoryRegionDescriptor, DolphinMemoryRegionKind, find_dolphin_region_by_guest_address},
     constants::DOLPHIN_PLUGIN_ID,
     discovery::discover_dolphin_memory_regions,
 };
@@ -52,10 +52,12 @@ impl DolphinMemoryViewInstance {
     ) -> Vec<NormalizedRegion> {
         match page_retrieval_mode {
             PageRetrievalMode::FromNonModules => Vec::new(),
-            PageRetrievalMode::FromSettings | PageRetrievalMode::FromUserMode | PageRetrievalMode::FromModules => discovered_region_descriptors
-                .iter()
-                .map(|region_descriptor| NormalizedRegion::new(region_descriptor.get_guest_base_address(), region_descriptor.get_region_size()))
-                .collect(),
+            PageRetrievalMode::FromSettings | PageRetrievalMode::FromUserMode | PageRetrievalMode::FromModules | PageRetrievalMode::FromVirtualModules => {
+                discovered_region_descriptors
+                    .iter()
+                    .map(|region_descriptor| NormalizedRegion::new(region_descriptor.get_guest_base_address(), region_descriptor.get_region_size()))
+                    .collect()
+            }
         }
     }
 
@@ -120,6 +122,14 @@ impl MemoryViewInstance for DolphinMemoryViewInstance {
         DOLPHIN_PLUGIN_ID
     }
 
+    fn owns_address(
+        &self,
+        address: u64,
+    ) -> bool {
+        DolphinMemoryRegionKind::GameCubeMainMemory.contains_guest_address(address)
+            || DolphinMemoryRegionKind::WiiExtendedMemory.contains_guest_address(address)
+    }
+
     fn refresh(&mut self) -> Result<(), MemoryViewPluginError> {
         let discovered_region_descriptors = discover_dolphin_memory_regions(&self.opened_process_info)?;
 
@@ -148,6 +158,55 @@ impl MemoryViewInstance for DolphinMemoryViewInstance {
         let discovered_region_descriptors = self.get_or_discover_region_descriptors()?;
 
         Ok(self.build_modules(&discovered_region_descriptors))
+    }
+
+    fn address_to_module(
+        &self,
+        address: u64,
+        modules: &[NormalizedModule],
+    ) -> Option<(String, u64)> {
+        if DolphinMemoryRegionKind::GameCubeMainMemory.contains_guest_address(address) {
+            return Some((
+                DolphinMemoryRegionKind::GameCubeMainMemory
+                    .module_name()
+                    .to_string(),
+                address.saturating_sub(DolphinMemoryRegionKind::GameCubeMainMemory.guest_base_address()),
+            ));
+        }
+
+        if DolphinMemoryRegionKind::WiiExtendedMemory.contains_guest_address(address) {
+            return Some((
+                DolphinMemoryRegionKind::WiiExtendedMemory
+                    .module_name()
+                    .to_string(),
+                address.saturating_sub(DolphinMemoryRegionKind::WiiExtendedMemory.guest_base_address()),
+            ));
+        }
+
+        modules
+            .iter()
+            .find(|module| module.contains_address(address))
+            .map(|module| (module.get_module_name().to_string(), address.saturating_sub(module.get_base_address())))
+    }
+
+    fn resolve_module(
+        &self,
+        modules: &[NormalizedModule],
+        identifier: &str,
+    ) -> u64 {
+        if identifier.eq_ignore_ascii_case(DolphinMemoryRegionKind::GameCubeMainMemory.module_name()) {
+            return DolphinMemoryRegionKind::GameCubeMainMemory.guest_base_address();
+        }
+
+        if identifier.eq_ignore_ascii_case(DolphinMemoryRegionKind::WiiExtendedMemory.module_name()) {
+            return DolphinMemoryRegionKind::WiiExtendedMemory.guest_base_address();
+        }
+
+        modules
+            .iter()
+            .find(|module| module.get_module_name().eq_ignore_ascii_case(identifier))
+            .map(|module| module.get_base_address())
+            .unwrap_or(0)
     }
 
     fn read_bytes(

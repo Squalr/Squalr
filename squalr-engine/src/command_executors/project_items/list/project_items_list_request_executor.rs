@@ -219,11 +219,7 @@ fn evaluate_pointer_for_preview(
 }
 
 fn format_pointer_root_segment(pointer: &Pointer) -> String {
-    if pointer.get_module_name().is_empty() {
-        format_pointer_address_segment(pointer.get_address())
-    } else {
-        format!("{}+0x{:X}", pointer.get_module_name(), pointer.get_address())
-    }
+    pointer.get_root_display_text()
 }
 
 fn format_pointer_address_segment(address: u64) -> String {

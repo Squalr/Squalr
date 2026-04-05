@@ -1,6 +1,7 @@
 use crate::plugins::PluginKind;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PluginMetadata {
     plugin_id: String,
     display_name: String,

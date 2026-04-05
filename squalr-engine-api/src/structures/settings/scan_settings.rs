@@ -1,3 +1,4 @@
+use crate::plugins::memory_view::PageRetrievalMode;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::floating_point_tolerance::FloatingPointTolerance, scanning::memory_read_mode::MemoryReadMode};
 use serde::{Deserialize, Serialize};
@@ -6,6 +7,7 @@ use std::fmt;
 
 #[derive(Copy, Clone, Deserialize, Serialize)]
 pub struct ScanSettings {
+    pub page_retrieval_mode: PageRetrievalMode,
     pub results_page_size: u32,
     pub results_read_interval_ms: u64,
     pub project_read_interval_ms: u64,
@@ -32,6 +34,7 @@ impl fmt::Debug for ScanSettings {
 impl Default for ScanSettings {
     fn default() -> Self {
         Self {
+            page_retrieval_mode: PageRetrievalMode::FromSettings,
             results_page_size: 22,
             results_read_interval_ms: 200,
             project_read_interval_ms: 200,

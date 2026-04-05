@@ -8,9 +8,7 @@ use squalr_engine_operating_system::{
     memory_reader::{MemoryReader, memory_reader_trait::MemoryReaderTrait},
 };
 
-pub(crate) fn discover_dolphin_memory_regions(
-    opened_process_info: &OpenedProcessInfo,
-) -> Result<Vec<DolphinMemoryRegionDescriptor>, MemoryViewPluginError> {
+pub(crate) fn discover_dolphin_memory_regions(opened_process_info: &OpenedProcessInfo) -> Result<Vec<DolphinMemoryRegionDescriptor>, MemoryViewPluginError> {
     let raw_memory_regions = MemoryQueryer::query_pages_by_address_range(
         opened_process_info,
         0,
@@ -21,9 +19,12 @@ pub(crate) fn discover_dolphin_memory_regions(
     });
 
     if discovered_region_descriptors.is_empty() {
-        return Err(MemoryViewPluginError::message(
+        return Err(MemoryViewPluginError::unavailable(
             crate::constants::DOLPHIN_PLUGIN_ID,
-            format!("no Dolphin memory regions were discovered for process `{}`", opened_process_info.get_name()),
+            format!(
+                "no Dolphin memory regions are currently exposed for process `{}`",
+                opened_process_info.get_name()
+            ),
         ));
     }
 
@@ -51,9 +52,7 @@ pub(crate) fn select_dolphin_memory_regions(
             continue;
         }
 
-        if !found_wii_extended_memory
-            && candidate_region.get_region_size() == DolphinMemoryRegionKind::WiiExtendedMemory.host_region_size()
-        {
+        if !found_wii_extended_memory && candidate_region.get_region_size() == DolphinMemoryRegionKind::WiiExtendedMemory.host_region_size() {
             discovered_region_descriptors.push(DolphinMemoryRegionDescriptor::new(
                 DolphinMemoryRegionKind::WiiExtendedMemory,
                 candidate_region.get_base_address(),
@@ -70,11 +69,7 @@ fn validate_gamecube_memory_region(
     candidate_region: &NormalizedRegion,
 ) -> bool {
     let mut game_id_bytes = [0u8; 6];
-    let read_succeeded = MemoryReader::get_instance().read_bytes(
-        opened_process_info,
-        candidate_region.get_base_address(),
-        &mut game_id_bytes,
-    );
+    let read_succeeded = MemoryReader::get_instance().read_bytes(opened_process_info, candidate_region.get_base_address(), &mut game_id_bytes);
 
     read_succeeded && is_probable_gamecube_game_id(&game_id_bytes)
 }

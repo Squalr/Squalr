@@ -4,8 +4,8 @@ use crate::{
     process_detection::matches_dolphin_process_name,
 };
 use squalr_engine_api::{
-    plugins::{Plugin, PluginKind, PluginMetadata},
     plugins::memory_view::{MemoryViewInstance, MemoryViewPlugin, MemoryViewPluginError},
+    plugins::{Plugin, PluginKind, PluginMetadata},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 

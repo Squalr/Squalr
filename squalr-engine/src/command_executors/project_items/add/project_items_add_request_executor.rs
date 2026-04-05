@@ -318,7 +318,7 @@ fn create_placeholder_files(file_paths: &[PathBuf]) -> Result<(), String> {
 
 fn build_project_item_name(scan_result: &ScanResult) -> String {
     if scan_result.is_module() {
-        format!("{}+0x{:X}", scan_result.get_module(), scan_result.get_module_offset())
+        scan_result.get_address_display_text()
     } else {
         format!("0x{:X}", scan_result.get_address())
     }

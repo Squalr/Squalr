@@ -169,14 +169,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
                 allocated_size_rectangle.max.y,
             ),
         );
-        let address = self.scan_result.get_address();
-        let address_string = if self.scan_result.is_module() {
-            format!("{}+{:X}", self.scan_result.get_module(), self.scan_result.get_module_offset())
-        } else if address <= u32::MAX as u64 {
-            format!("{:08X}", address)
-        } else {
-            format!("{:016X}", address)
-        };
+        let address_string = self.scan_result.get_address_display_text();
 
         user_interface.painter().image(
             icon_handle.id(),

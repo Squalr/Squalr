@@ -1,5 +1,8 @@
 use crate::{
-    plugins::{Plugin, memory_view::{MemoryViewInstance, MemoryViewPluginError}},
+    plugins::{
+        Plugin,
+        memory_view::{MemoryViewInstance, MemoryViewPluginError},
+    },
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 

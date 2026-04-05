@@ -68,6 +68,7 @@ pub struct AppShell {
     pub last_project_list_auto_refresh_attempt_time: Option<Instant>,
     pub last_project_items_auto_refresh_attempt_time: Option<Instant>,
     pub last_settings_auto_refresh_attempt_time: Option<Instant>,
+    pub last_plugins_auto_refresh_attempt_time: Option<Instant>,
     pub has_auto_seeked_project_explorer_once: bool,
 }
 
@@ -78,6 +79,7 @@ impl AppShell {
     pub(super) const MAX_PROJECT_ITEMS_REFRESH_INTERVAL_MS: u64 = 5_000;
     pub(super) const MIN_PROCESS_AND_PROJECT_AUTO_REFRESH_INTERVAL_MS: u64 = 1_000;
     pub(super) const MIN_SETTINGS_AUTO_REFRESH_INTERVAL_MS: u64 = 1_000;
+    pub(super) const MIN_PLUGINS_AUTO_REFRESH_INTERVAL_MS: u64 = 1_000;
 
     pub fn new(tick_rate: Duration) -> Self {
         Self {
@@ -97,6 +99,7 @@ impl AppShell {
             last_project_list_auto_refresh_attempt_time: None,
             last_project_items_auto_refresh_attempt_time: None,
             last_settings_auto_refresh_attempt_time: None,
+            last_plugins_auto_refresh_attempt_time: None,
             has_auto_seeked_project_explorer_once: false,
         }
     }

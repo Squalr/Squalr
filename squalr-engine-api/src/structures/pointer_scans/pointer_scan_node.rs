@@ -1,3 +1,4 @@
+use crate::structures::memory::address_display::format_module_address;
 use crate::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use serde::{Deserialize, Serialize};
 
@@ -161,6 +162,10 @@ impl PointerScanNode {
 
     pub fn get_module_offset(&self) -> u64 {
         self.module_offset
+    }
+
+    pub fn get_module_display_text(&self) -> String {
+        format_module_address(&self.module_name, self.module_offset)
     }
 
     pub fn get_child_node_ids(&self) -> &Vec<u64> {

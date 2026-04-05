@@ -4,7 +4,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
 use squalr_engine_api::commands::scan::new::scan_new_response::ScanNewResponse;
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
-use squalr_engine_session::os::PageRetrievalMode;
+use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use std::sync::Arc;
 
 impl PrivilegedCommandRequestExecutor for ScanNewRequest {
@@ -52,7 +52,7 @@ impl PrivilegedCommandRequestExecutor for ScanNewRequest {
         let memory_pages = engine_privileged_state
             .get_os_providers()
             .memory_query
-            .get_memory_page_bounds(&opened_process_info, PageRetrievalMode::FromSettings);
+            .get_memory_page_bounds(&opened_process_info, ScanSettingsConfig::get_page_retrieval_mode());
 
         // Attempt to merge any adjacent regions. This drastically simplifies the scanning process by eliminating edge case handling.
         // Additionally, we must track the page boundaries at which the merge took place.

@@ -8,6 +8,7 @@ use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
 use crate::views::main_window::main_title_bar_view::MainTitleBarView;
 use crate::views::main_window::main_toolbar_view::MainToolbarView;
 use crate::views::output::output_view::OutputView;
+use crate::views::plugins::{plugins_view::PluginsView, view_data::plugin_list_view_data::PluginListViewData};
 use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
@@ -40,6 +41,9 @@ impl MainWindowView {
         app_context
             .dependency_container
             .register(ProcessSelectorViewData::new());
+        app_context
+            .dependency_container
+            .register(PluginListViewData::new());
 
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
         let main_toolbar_view = MainToolbarView::new(app_context.clone());
@@ -109,6 +113,15 @@ impl MainWindowView {
             Rc::new("window_pointer_scanner".to_string()),
         );
 
+        let app_context_for_plugins = app_context.clone();
+        let plugins_view = DockedWindowView::new(
+            app_context_for_plugins.clone(),
+            dock_view_data.clone(),
+            PluginsView::new(app_context_for_plugins.clone()),
+            Rc::new("Plugins".to_string()),
+            Rc::new(PluginsView::WINDOW_ID.to_string()),
+        );
+
         dock_view_data.set_windows(vec![
             Box::new(output_view),
             Box::new(settings_view),
@@ -117,6 +130,7 @@ impl MainWindowView {
             Box::new(process_selector_view),
             Box::new(element_scanner_view),
             Box::new(pointer_scanner_view),
+            Box::new(plugins_view),
         ]);
 
         let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data);

@@ -4,6 +4,7 @@ use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::output::output_view::OutputView;
+use crate::views::plugins::plugins_view::PluginsView;
 use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
@@ -32,6 +33,7 @@ impl MainToolbarView {
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
         let docking_manager_for_output = app_context.docking_manager.clone();
         let docking_manager_for_pointer_scanner = app_context.docking_manager.clone();
+        let docking_manager_for_plugins = app_context.docking_manager.clone();
         let docking_manager_for_element_scanner = app_context.docking_manager.clone();
         let docking_manager_for_settings = app_context.docking_manager.clone();
 
@@ -124,6 +126,19 @@ impl MainToolbarView {
                         })),
                     ),
                     ToolbarMenuItemData::new(
+                        PluginsView::WINDOW_ID,
+                        "Plugins",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_plugins.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(PluginsView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
                         ElementScannerView::WINDOW_ID,
                         "Element Scanner",
                         Some(Box::new(move || {
@@ -201,6 +216,7 @@ impl Widget for MainToolbarView {
             // | "window_memory_viewer"
             | OutputView::WINDOW_ID
             | PointerScannerView::WINDOW_ID
+            | PluginsView::WINDOW_ID
             | ElementScannerView::WINDOW_ID
             | SettingsView::WINDOW_ID
             // | "window_disassembly"
