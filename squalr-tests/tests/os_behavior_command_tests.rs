@@ -297,6 +297,7 @@ fn process_executors_use_injected_process_provider() {
     assert_eq!(state_guard.process_query_requests[0].limit, Some(5));
     assert!(!state_guard.process_query_requests[0].fetch_icons);
     assert_eq!(state_guard.process_query_requests[1].required_process_id, Some(process_identifier));
+    assert!(state_guard.process_query_requests[1].fetch_icons);
     assert_eq!(state_guard.open_process_requests, vec![process_identifier]);
     assert_eq!(state_guard.close_process_handles, vec![0xBEEF]);
 }
