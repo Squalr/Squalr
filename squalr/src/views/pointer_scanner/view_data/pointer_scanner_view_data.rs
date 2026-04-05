@@ -12,8 +12,10 @@ use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::memory::address_display::{is_virtual_module_address, try_resolve_virtual_module_address};
 use squalr_engine_api::structures::memory::bitness::Bitness;
 use squalr_engine_api::structures::memory::pointer::Pointer;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
@@ -25,6 +27,7 @@ use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 
@@ -66,10 +69,14 @@ struct PointerScannerNavigationState {
 
 #[derive(Clone)]
 pub struct PointerScannerViewData {
+    pub primary_splitter_ratio: f32,
+    pub value_splitter_ratio: f32,
+    pub resolved_splitter_ratio: f32,
     pub target_address_input: AnonymousValueString,
     pub validation_target_address_input: AnonymousValueString,
     pub target_value_input: AnonymousValueString,
     pub validation_target_value_input: AnonymousValueString,
+    pub pointer_scan_address_space: PointerScanAddressSpace,
     pub pointer_size: PointerScanPointerSize,
     pub pointer_size_data_type_selection: DataTypeSelection,
     pub target_data_type_selection: DataTypeSelection,
@@ -100,14 +107,22 @@ pub struct PointerScannerViewData {
 }
 
 impl PointerScannerViewData {
+    pub const DEFAULT_PRIMARY_SPLITTER_RATIO: f32 = 0.40;
+    pub const DEFAULT_VALUE_SPLITTER_RATIO: f32 = 0.64;
+    pub const DEFAULT_RESOLVED_SPLITTER_RATIO: f32 = 0.84;
+
     pub fn new() -> Self {
         let pointer_size = PointerScanPointerSize::Pointer64;
 
         Self {
+            primary_splitter_ratio: Self::DEFAULT_PRIMARY_SPLITTER_RATIO,
+            value_splitter_ratio: Self::DEFAULT_VALUE_SPLITTER_RATIO,
+            resolved_splitter_ratio: Self::DEFAULT_RESOLVED_SPLITTER_RATIO,
             target_address_input: Self::create_hex_input(String::new()),
             validation_target_address_input: Self::create_hex_input(String::new()),
             target_value_input: Self::create_unsigned_input(String::new()),
             validation_target_value_input: Self::create_unsigned_input(String::new()),
+            pointer_scan_address_space: PointerScanAddressSpace::Auto,
             pointer_size,
             pointer_size_data_type_selection: DataTypeSelection::new(Self::pointer_size_data_type_ref(pointer_size)),
             target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref("i32")),
@@ -270,7 +285,7 @@ impl PointerScannerViewData {
         pointer_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let (target_address_input, pointer_size, max_depth, offset_radius, session_request_revision) = {
+        let (target_address_input, pointer_size, max_depth, offset_radius, address_space, session_request_revision) = {
             let mut pointer_scanner_view_data_guard = match pointer_scanner_view_data.write("Pointer scanner start scan") {
                 Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
                 None => return,
@@ -303,6 +318,7 @@ impl PointerScannerViewData {
                 return;
             };
 
+            let address_space = pointer_scanner_view_data_guard.resolve_requested_address_space_for_new_address_scan();
             pointer_scanner_view_data_guard.is_starting_scan = true;
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.status_message = Self::format_starting_scan_status(
@@ -310,6 +326,7 @@ impl PointerScannerViewData {
                 pointer_scanner_view_data_guard.pointer_size,
                 max_depth,
                 offset_radius,
+                address_space,
             );
             pointer_scanner_view_data_guard.request_repaint();
 
@@ -318,6 +335,7 @@ impl PointerScannerViewData {
                 pointer_scanner_view_data_guard.pointer_size,
                 max_depth,
                 offset_radius,
+                address_space,
                 session_request_revision,
             )
         };
@@ -326,6 +344,7 @@ impl PointerScannerViewData {
             pointer_size,
             max_depth,
             offset_radius,
+            address_space,
         };
         let pointer_scanner_view_data_clone = pointer_scanner_view_data.clone();
         let pointer_scanner_view_data_for_dispatch = pointer_scanner_view_data.clone();
@@ -365,7 +384,7 @@ impl PointerScannerViewData {
         pointer_scanner_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let (target_value_input, target_data_type_ref, pointer_size, max_depth, offset_radius, session_request_revision) = {
+        let (target_value_input, target_data_type_ref, pointer_size, max_depth, offset_radius, address_space, session_request_revision) = {
             let mut pointer_scanner_view_data_guard = match pointer_scanner_view_data.write("Pointer scanner start value scan") {
                 Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
                 None => return,
@@ -386,6 +405,7 @@ impl PointerScannerViewData {
                 return;
             };
 
+            let address_space = pointer_scanner_view_data_guard.resolve_requested_address_space_for_new_value_scan();
             pointer_scanner_view_data_guard.is_starting_scan = true;
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
             pointer_scanner_view_data_guard.status_message = Self::format_starting_value_scan_status(
@@ -396,6 +416,7 @@ impl PointerScannerViewData {
                 pointer_scanner_view_data_guard.pointer_size,
                 max_depth,
                 offset_radius,
+                address_space,
             );
             pointer_scanner_view_data_guard.request_repaint();
 
@@ -408,6 +429,7 @@ impl PointerScannerViewData {
                 pointer_scanner_view_data_guard.pointer_size,
                 max_depth,
                 offset_radius,
+                address_space,
                 session_request_revision,
             )
         };
@@ -416,6 +438,7 @@ impl PointerScannerViewData {
             pointer_size,
             max_depth,
             offset_radius,
+            address_space,
         };
         let pointer_scanner_view_data_clone = pointer_scanner_view_data.clone();
         let pointer_scanner_view_data_for_dispatch = pointer_scanner_view_data.clone();
@@ -470,10 +493,9 @@ impl PointerScannerViewData {
 
             pointer_scanner_view_data_guard.is_querying_summary = false;
             pointer_scanner_view_data_guard.is_resetting_scan = true;
-            pointer_scanner_view_data_guard.target_data_type_selection = DataTypeSelection::new(Self::target_data_type_ref("i32"));
 
             let session_request_revision = pointer_scanner_view_data_guard.begin_session_request();
-            pointer_scanner_view_data_guard.apply_summary(None);
+            pointer_scanner_view_data_guard.clear_session_state_preserving_inputs();
             pointer_scanner_view_data_guard.status_message = Self::format_resetting_scan_status();
             pointer_scanner_view_data_guard.request_repaint();
 
@@ -500,7 +522,7 @@ impl PointerScannerViewData {
                         log::error!("Failed to clear the active pointer scan session.");
                         should_refresh_summary = true;
                     } else {
-                        pointer_scanner_view_data_guard.apply_summary(None);
+                        pointer_scanner_view_data_guard.clear_session_state_preserving_inputs();
                     }
 
                     pointer_scanner_view_data_guard.request_repaint();
@@ -1125,13 +1147,30 @@ impl PointerScannerViewData {
         data_type_id: &str,
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner set scan target from project address") {
-            let formatted_address = Self::format_address(address);
+            let resolved_virtual_address = try_resolve_virtual_module_address(module_name, address);
+            let formatted_address = Self::format_address(resolved_virtual_address.unwrap_or(address));
             pointer_scanner_view_data_guard.target_address_input = Self::create_hex_input(formatted_address.clone());
             pointer_scanner_view_data_guard.validation_target_address_input = Self::create_hex_input(formatted_address);
+            if resolved_virtual_address.is_some() {
+                let default_pointer_size = Self::default_pointer_size_for_module_name(module_name);
+
+                pointer_scanner_view_data_guard.pointer_scan_address_space = PointerScanAddressSpace::GameMemory;
+                pointer_scanner_view_data_guard.pointer_size = default_pointer_size;
+                pointer_scanner_view_data_guard
+                    .pointer_size_data_type_selection
+                    .replace_selected_data_types(vec![Self::pointer_size_data_type_ref(default_pointer_size)]);
+            }
             pointer_scanner_view_data_guard
                 .target_data_type_selection
                 .replace_selected_data_types(vec![Self::target_data_type_ref(data_type_id)]);
-            pointer_scanner_view_data_guard.status_message = if module_name.trim().is_empty() {
+            pointer_scanner_view_data_guard.status_message = if let Some(virtual_address) = resolved_virtual_address {
+                format!(
+                    "Pointer scanner target autofilled from {}+0x{:X} as guest address {}.",
+                    module_name,
+                    address,
+                    Self::format_address(virtual_address)
+                )
+            } else if module_name.trim().is_empty() {
                 String::from("Pointer scanner target autofilled from the project explorer.")
             } else {
                 format!(
@@ -1140,6 +1179,23 @@ impl PointerScannerViewData {
                 )
             };
         }
+    }
+
+    fn clear_session_state_preserving_inputs(&mut self) {
+        self.session_state_revision = self.session_state_revision.saturating_add(1);
+        self.pointer_scan_summary = None;
+        self.current_context_parent_node_id = None;
+        self.current_context_node_ids.clear();
+        self.current_page_index = 0;
+        self.cached_last_page_index = 0;
+        self.current_context_total_node_count = 0;
+        self.navigation_stack.clear();
+        self.nodes_by_id.clear();
+        self.loaded_pages_by_request.clear();
+        self.pending_page_requests.clear();
+        self.queued_page_requests.clear();
+        self.selected_node_id = None;
+        self.status_message = String::from("No pointer scan session.");
     }
 
     pub fn parse_u64_input(input: &str) -> Option<u64> {
@@ -1207,6 +1263,7 @@ impl PointerScannerViewData {
         self.selected_node_id = None;
 
         if let Some(pointer_scan_summary) = pointer_scan_summary {
+            self.pointer_scan_address_space = pointer_scan_summary.get_address_space();
             self.pointer_size = pointer_scan_summary.get_pointer_size();
             self.pointer_size_data_type_selection
                 .replace_selected_data_types(vec![Self::pointer_size_data_type_ref(self.pointer_size)]);
@@ -1236,6 +1293,7 @@ impl PointerScannerViewData {
                 }
             }
         } else {
+            self.pointer_scan_address_space = PointerScanAddressSpace::Auto;
             self.target_address_input = Self::create_hex_input(String::new());
             self.validation_target_address_input = Self::create_hex_input(String::new());
             self.target_value_input = Self::create_unsigned_input(String::new());
@@ -1654,7 +1712,13 @@ impl PointerScannerViewData {
 
     fn build_module_base_text(pointer_scan_node: &PointerScanNode) -> String {
         if pointer_scan_node.get_pointer_scan_node_type() == PointerScanNodeType::Static {
-            format!("{}+0x{:X}", pointer_scan_node.get_module_name(), pointer_scan_node.get_module_offset())
+            let module_name = pointer_scan_node.get_module_name();
+
+            if module_name.is_empty() {
+                Self::format_address(pointer_scan_node.get_pointer_address())
+            } else {
+                format!("{}+0x{:X}", module_name, pointer_scan_node.get_module_offset())
+            }
         } else {
             Self::format_address(pointer_scan_node.get_pointer_address())
         }
@@ -1677,9 +1741,10 @@ impl PointerScannerViewData {
 
     fn format_summary_status(pointer_scan_summary: &PointerScanSummary) -> String {
         format!(
-            "Session {} | Target {} | Roots {} | Nodes {} (Static {} / Heap {})",
+            "Session {} | Target {} | Space {} | Roots {} | Nodes {} (Static {} / Heap {})",
             pointer_scan_summary.get_session_id(),
             Self::format_target_descriptor(pointer_scan_summary.get_target_descriptor()),
+            pointer_scan_summary.get_address_space(),
             pointer_scan_summary.get_root_node_count(),
             pointer_scan_summary.get_total_node_count(),
             pointer_scan_summary.get_total_static_node_count(),
@@ -1699,10 +1764,12 @@ impl PointerScannerViewData {
         pointer_size: PointerScanPointerSize,
         max_depth: u64,
         offset_radius: u64,
+        address_space: PointerScanAddressSpace,
     ) -> String {
         format!(
-            "Starting pointer scan | Target {} | Pointer Size {} | Depth {} | Offset {}",
+            "Starting pointer scan | Target {} | Space {} | Pointer Size {} | Depth {} | Offset {}",
             Self::format_status_input_value(target_address_input),
+            address_space,
             pointer_size,
             max_depth,
             Self::format_hexadecimal(offset_radius),
@@ -1715,11 +1782,13 @@ impl PointerScannerViewData {
         pointer_size: PointerScanPointerSize,
         max_depth: u64,
         offset_radius: u64,
+        address_space: PointerScanAddressSpace,
     ) -> String {
         format!(
-            "Starting pointer scan | Value {} | Type {} | Pointer Size {} | Depth {} | Offset {}",
+            "Starting pointer scan | Value {} | Type {} | Space {} | Pointer Size {} | Depth {} | Offset {}",
             Self::format_status_input_value(target_value_input),
             target_data_type_ref.get_data_type_id(),
+            address_space,
             pointer_size,
             max_depth,
             Self::format_hexadecimal(offset_radius),
@@ -1903,18 +1972,46 @@ impl PointerScannerViewData {
         &mut self,
         process_bitness: Bitness,
     ) {
-        self.pointer_size = match process_bitness {
-            Bitness::Bit32 => PointerScanPointerSize::Pointer32,
-            Bitness::Bit64 => PointerScanPointerSize::Pointer64,
-        };
+        self.pointer_size = PointerScanPointerSize::from_process_bitness(process_bitness);
         self.pointer_size_data_type_selection
             .replace_selected_data_types(vec![Self::pointer_size_data_type_ref(self.pointer_size)]);
     }
 
     fn pointer_size_data_type_ref(pointer_size: PointerScanPointerSize) -> DataTypeRef {
-        match pointer_size {
-            PointerScanPointerSize::Pointer32 => DataTypeRef::new("u32"),
-            PointerScanPointerSize::Pointer64 => DataTypeRef::new("u64"),
+        pointer_size.to_data_type_ref()
+    }
+
+    fn default_pointer_size_for_module_name(module_name: &str) -> PointerScanPointerSize {
+        if module_name.eq_ignore_ascii_case("gc_wii")
+            || module_name.eq_ignore_ascii_case("MEM1")
+            || module_name.eq_ignore_ascii_case("MEM2")
+            || module_name.eq_ignore_ascii_case("GC")
+            || module_name.eq_ignore_ascii_case("Wii")
+            || module_name.to_ascii_lowercase().starts_with("gba_wm_")
+            || module_name.to_ascii_lowercase().starts_with("gba_im_")
+        {
+            PointerScanPointerSize::Pointer32be
+        } else {
+            PointerScanPointerSize::Pointer64
+        }
+    }
+
+    pub fn resolve_requested_address_space_for_new_address_scan(&self) -> PointerScanAddressSpace {
+        match self.pointer_scan_address_space {
+            PointerScanAddressSpace::Auto => Self::parse_unsigned_input(&self.target_address_input)
+                .filter(|target_address| is_virtual_module_address(*target_address))
+                .map(|_| PointerScanAddressSpace::GameMemory)
+                .unwrap_or(PointerScanAddressSpace::EmulatorMemory),
+            PointerScanAddressSpace::GameMemory => PointerScanAddressSpace::GameMemory,
+            PointerScanAddressSpace::EmulatorMemory => PointerScanAddressSpace::EmulatorMemory,
+        }
+    }
+
+    pub fn resolve_requested_address_space_for_new_value_scan(&self) -> PointerScanAddressSpace {
+        match self.pointer_scan_address_space {
+            PointerScanAddressSpace::Auto => PointerScanAddressSpace::EmulatorMemory,
+            PointerScanAddressSpace::GameMemory => PointerScanAddressSpace::GameMemory,
+            PointerScanAddressSpace::EmulatorMemory => PointerScanAddressSpace::EmulatorMemory,
         }
     }
 
@@ -1930,14 +2027,11 @@ impl PointerScannerViewData {
 
     pub fn synchronize_pointer_size_from_selection(&mut self) {
         let selected_pointer_size_data_type = self.pointer_size_data_type_selection.active_data_type().clone();
+        let selected_pointer_size = PointerScanPointerSize::from_str(selected_pointer_size_data_type.get_data_type_id()).unwrap_or(self.pointer_size);
 
         self.pointer_size_data_type_selection
             .replace_selected_data_types(vec![selected_pointer_size_data_type.clone()]);
-        self.pointer_size = if selected_pointer_size_data_type.get_data_type_id() == "u32" {
-            PointerScanPointerSize::Pointer32
-        } else {
-            PointerScanPointerSize::Pointer64
-        };
+        self.pointer_size = selected_pointer_size;
     }
 }
 
@@ -1963,6 +2057,7 @@ mod tests {
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
     use squalr_engine_api::structures::memory::bitness::Bitness;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
@@ -2067,6 +2162,7 @@ mod tests {
         PointerScanSummary::new(
             session_id,
             PointerScanTargetDescriptor::address(target_address),
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             5,
             0x100,
@@ -2248,6 +2344,72 @@ mod tests {
     }
 
     #[test]
+    fn set_scan_target_from_virtual_module_resolves_guest_address_and_mode() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+
+        PointerScannerViewData::set_scan_target_from_project_address(pointer_scanner_view_data.clone(), 0x1234, "gc_wii", "u32");
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner synced virtual module target test")
+            .expect("Expected pointer scanner view data after syncing a virtual-module target.");
+
+        assert_eq!(
+            pointer_scanner_view_data_guard
+                .target_address_input
+                .get_anonymous_value_string(),
+            "0x80001234"
+        );
+        assert_eq!(pointer_scanner_view_data_guard.pointer_scan_address_space, PointerScanAddressSpace::GameMemory);
+        assert_eq!(pointer_scanner_view_data_guard.pointer_size, PointerScanPointerSize::Pointer32be);
+    }
+
+    #[test]
+    fn set_scan_target_from_gc_wii_wii_segment_resolves_guest_address_and_mode() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+
+        PointerScannerViewData::set_scan_target_from_project_address(pointer_scanner_view_data.clone(), 0x0200_1234, "gc_wii", "u32");
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner synced gc_wii Wii-segment target test")
+            .expect("Expected pointer scanner view data after syncing a gc_wii target in the Wii segment.");
+
+        assert_eq!(
+            pointer_scanner_view_data_guard
+                .target_address_input
+                .get_anonymous_value_string(),
+            "0x90001234"
+        );
+        assert_eq!(pointer_scanner_view_data_guard.pointer_scan_address_space, PointerScanAddressSpace::GameMemory);
+        assert_eq!(pointer_scanner_view_data_guard.pointer_size, PointerScanPointerSize::Pointer32be);
+    }
+
+    #[test]
+    fn clear_session_state_preserving_inputs_keeps_seed_address() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.target_address_input = PointerScannerViewData::create_hex_input(String::from("0x80001234"));
+        pointer_scanner_view_data.validation_target_address_input = PointerScannerViewData::create_hex_input(String::from("0x80001234"));
+        pointer_scanner_view_data.pointer_scan_summary = Some(create_pointer_scan_summary(7, 0x3010));
+
+        pointer_scanner_view_data.clear_session_state_preserving_inputs();
+
+        assert_eq!(
+            pointer_scanner_view_data
+                .target_address_input
+                .get_anonymous_value_string(),
+            "0x80001234"
+        );
+        assert_eq!(
+            pointer_scanner_view_data
+                .validation_target_address_input
+                .get_anonymous_value_string(),
+            "0x80001234"
+        );
+        assert!(pointer_scanner_view_data.pointer_scan_summary.is_none());
+    }
+
+    #[test]
     fn build_copy_text_returns_selected_chain_text() {
         let dependency_container = DependencyContainer::new();
         let pointer_scanner_view_data = dependency_container.register(create_pointer_scanner_view_data());
@@ -2277,6 +2439,7 @@ mod tests {
         pointer_scanner_view_data.pointer_scan_summary = Some(PointerScanSummary::new(
             7,
             PointerScanTargetDescriptor::address(0x3010),
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             5,
             0x100,
@@ -2587,6 +2750,7 @@ mod tests {
         pointer_scanner_view_data.apply_summary(Some(PointerScanSummary::new(
             7,
             PointerScanTargetDescriptor::address(0x3010),
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             5,
             0x100,
@@ -2896,7 +3060,7 @@ mod tests {
                     .target_data_type_selection
                     .active_data_type()
                     .get_data_type_id(),
-                "i32"
+                "u32"
             );
         }
 
@@ -2933,7 +3097,7 @@ mod tests {
                 .target_data_type_selection
                 .active_data_type()
                 .get_data_type_id(),
-            "i32"
+            "u32"
         );
         assert_eq!(pointer_scanner_view_data_guard.status_message, "No pointer scan session.");
     }
@@ -2978,7 +3142,7 @@ mod tests {
             assert!(pointer_scanner_view_data_guard.pointer_scan_summary.is_none());
             assert_eq!(
                 pointer_scanner_view_data_guard.status_message,
-                "Starting pointer scan | Target 0x3010 | Pointer Size u64 | Depth 5 | Offset 0x800"
+                "Starting pointer scan | Target 0x3010 | Space host | Pointer Size u64 | Depth 5 | Offset 0x800"
             );
         }
 

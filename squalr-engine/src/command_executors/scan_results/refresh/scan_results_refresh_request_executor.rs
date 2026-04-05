@@ -2,9 +2,27 @@ use crate::command_executors::privileged_request_executor::PrivilegedCommandRequ
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
+use squalr_engine_api::structures::memory::normalized_module::{ModuleAddressDisplay, NormalizedModule};
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
 use std::sync::Arc;
+
+fn resolve_module_address_display(
+    modules: &[NormalizedModule],
+    resolved_module_name: &str,
+    address: u64,
+) -> ModuleAddressDisplay {
+    modules
+        .iter()
+        .find(|module| {
+            module
+                .get_module_name()
+                .eq_ignore_ascii_case(resolved_module_name)
+                && module.contains_address(address)
+        })
+        .map(|module| module.get_module_address_display())
+        .unwrap_or_default()
+}
 
 impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
     type ResponseType = ScanResultsRefreshResponse;
@@ -43,6 +61,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
                     let mut module_name = String::default();
                     let address = scan_result.get_address();
                     let mut module_offset = address;
+                    let mut module_address_display = ModuleAddressDisplay::ModuleRelative;
 
                     // Best-effort attempt to read the values for this scan result.
                     if let Some(opened_process_info) = engine_privileged_state
@@ -66,9 +85,10 @@ impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
                     }
 
                     // Check whether this scan result belongs to a module (ie check if the address is static).
-                    if let Some((found_module_name, address)) = os_providers.memory_query.address_to_module(address, &modules) {
+                    if let Some((found_module_name, resolved_module_offset)) = os_providers.memory_query.address_to_module(address, &modules) {
+                        module_address_display = resolve_module_address_display(&modules, &found_module_name, address);
                         module_name = found_module_name;
-                        module_offset = address;
+                        module_offset = resolved_module_offset;
                     }
 
                     let pointer = Pointer::new(module_offset, vec![], module_name.clone());
@@ -91,6 +111,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsRefreshRequest {
                         scan_result,
                         module_name,
                         module_offset,
+                        module_address_display,
                         recently_read_value,
                         recently_read_display_values,
                         is_frozen,

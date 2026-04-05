@@ -1,5 +1,6 @@
 use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
@@ -16,6 +17,7 @@ impl PointerScanSessionBuilder {
         pointer_scan_parameters: &PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         discovered_pointer_levels: &[DiscoveredPointerLevel],
         with_logging: bool,
@@ -25,7 +27,13 @@ impl PointerScanSessionBuilder {
                 log::info!("Pointer scan found no reachable pointer nodes.");
             }
 
-            return Self::create_empty_session(pointer_scan_session_id, pointer_scan_parameters, target_descriptor, target_addresses);
+            return Self::create_empty_session(
+                pointer_scan_session_id,
+                pointer_scan_parameters,
+                target_descriptor,
+                target_addresses,
+                address_space,
+            );
         }
 
         let mut pointer_scan_levels = Vec::new();
@@ -68,6 +76,7 @@ impl PointerScanSessionBuilder {
             pointer_scan_session_id,
             target_descriptor,
             target_addresses,
+            address_space,
             pointer_scan_parameters.get_pointer_size(),
             pointer_scan_parameters.get_max_depth(),
             pointer_scan_parameters.get_offset_radius(),
@@ -84,11 +93,13 @@ impl PointerScanSessionBuilder {
         pointer_scan_parameters: &PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
     ) -> PointerScanSession {
         PointerScanSession::new(
             pointer_scan_session_id,
             target_descriptor,
             target_addresses,
+            address_space,
             pointer_scan_parameters.get_pointer_size(),
             pointer_scan_parameters.get_max_depth(),
             pointer_scan_parameters.get_offset_radius(),

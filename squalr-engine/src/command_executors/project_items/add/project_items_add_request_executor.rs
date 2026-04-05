@@ -318,7 +318,7 @@ fn create_placeholder_files(file_paths: &[PathBuf]) -> Result<(), String> {
 
 fn build_project_item_name(scan_result: &ScanResult) -> String {
     if scan_result.is_module() {
-        format!("{}+0x{:X}", scan_result.get_module(), scan_result.get_module_offset())
+        scan_result.get_address_display_text()
     } else {
         format!("0x{:X}", scan_result.get_address())
     }
@@ -368,6 +368,7 @@ mod tests {
     use super::{build_project_item_file_stem, generate_unique_project_item_file_path, resolve_selected_directory_path};
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
     use squalr_engine_api::structures::projects::project::Project;
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
@@ -462,7 +463,15 @@ mod tests {
             ScanResultRef::new(scan_result_global_index),
         );
 
-        ScanResult::new(scan_result_valued, module_name.to_string(), module_offset, None, Vec::new(), false)
+        ScanResult::new(
+            scan_result_valued,
+            module_name.to_string(),
+            module_offset,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        )
     }
 
     #[test]

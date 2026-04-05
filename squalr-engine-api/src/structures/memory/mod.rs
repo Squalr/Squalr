@@ -1,3 +1,4 @@
+pub mod address_display;
 pub mod bitness;
 pub mod endian;
 pub mod memory_alignment;

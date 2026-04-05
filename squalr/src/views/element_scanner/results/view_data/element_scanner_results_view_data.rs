@@ -58,6 +58,12 @@ pub struct ElementScannerResultsViewData {
     pub results_read_interval_ms: u64,
     pub is_querying_scan_settings: bool,
     pub last_scan_settings_sync_timestamp: Option<Instant>,
+    query_scan_results_request_started_at: Option<Instant>,
+    refresh_scan_results_request_started_at: Option<Instant>,
+    active_query_request_revision: u64,
+    next_query_request_revision: u64,
+    active_refresh_request_revision: u64,
+    next_refresh_request_revision: u64,
 }
 
 impl ElementScannerResultsViewData {
@@ -66,6 +72,7 @@ impl ElementScannerResultsViewData {
     pub const MIN_RESULTS_READ_INTERVAL_MS: u64 = 50;
     pub const MAX_RESULTS_READ_INTERVAL_MS: u64 = 5_000;
     pub const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
+    pub const REQUEST_STALE_TIMEOUT_MS: u64 = 10_000;
 
     pub fn new() -> Self {
         Self {
@@ -88,6 +95,12 @@ impl ElementScannerResultsViewData {
             results_read_interval_ms: ScanSettings::default().results_read_interval_ms,
             is_querying_scan_settings: false,
             last_scan_settings_sync_timestamp: None,
+            query_scan_results_request_started_at: None,
+            refresh_scan_results_request_started_at: None,
+            active_query_request_revision: 0,
+            next_query_request_revision: 1,
+            active_refresh_request_revision: 0,
+            next_refresh_request_revision: 1,
         }
     }
 
@@ -126,6 +139,11 @@ impl ElementScannerResultsViewData {
             loop {
                 let element_scanner_results_view_data = element_scanner_results_view_data_clone.clone();
                 let engine_unprivileged_state = engine_unprivileged_state_clone.clone();
+                let should_requery_scan_results = Self::clear_stale_request_state_if_needed(element_scanner_results_view_data.clone());
+
+                if should_requery_scan_results {
+                    Self::query_scan_results(element_scanner_results_view_data.clone(), engine_unprivileged_state.clone(), false);
+                }
 
                 Self::sync_scan_settings_if_needed(element_scanner_results_view_data.clone(), engine_unprivileged_state.clone());
                 Self::refresh_scan_results(element_scanner_results_view_data, engine_unprivileged_state);
@@ -277,8 +295,10 @@ impl ElementScannerResultsViewData {
                 .to_vec(),
         );
         let scan_results_query_request = ScanResultsQueryRequest { page_index, data_type_filters };
+        let query_request_revision = element_scanner_results_view_data.begin_query_request();
 
         element_scanner_results_view_data.is_querying_scan_results = true;
+        element_scanner_results_view_data.query_scan_results_request_started_at = Some(Instant::now());
 
         // Drop to commit the write before send(), which may execute the callback synchronously.
         drop(element_scanner_results_view_data);
@@ -298,7 +318,11 @@ impl ElementScannerResultsViewData {
             let mut should_requery_scan_results = false;
 
             if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_for_response.write("Query scan results response") {
-                element_scanner_results_view_data.is_querying_scan_results = false;
+                if !element_scanner_results_view_data.should_apply_query_request(query_request_revision) {
+                    return;
+                }
+
+                element_scanner_results_view_data.complete_query_request();
                 element_scanner_results_view_data.available_data_types = available_data_types.clone();
                 element_scanner_results_view_data.current_page_index = scan_results_query_response.page_index;
                 element_scanner_results_view_data.cached_last_page_index = scan_results_query_response.last_page_index;
@@ -330,7 +354,9 @@ impl ElementScannerResultsViewData {
 
         if !did_dispatch {
             if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Query scan results dispatch failure") {
-                element_scanner_results_view_data.is_querying_scan_results = false;
+                if element_scanner_results_view_data.should_apply_query_request(query_request_revision) {
+                    element_scanner_results_view_data.complete_query_request();
+                }
             }
         }
     }
@@ -482,8 +508,10 @@ impl ElementScannerResultsViewData {
             None => return,
         };
         let engine_unprivileged_state = &engine_unprivileged_state;
+        let refresh_request_revision = element_scanner_results_view_data.begin_refresh_request();
 
         element_scanner_results_view_data.is_refreshing_scan_results = true;
+        element_scanner_results_view_data.refresh_scan_results_request_started_at = Some(Instant::now());
 
         // Fire a request to get all scan result data needed for display.
         let scan_results_refresh_request = ScanResultsRefreshRequest {
@@ -504,16 +532,108 @@ impl ElementScannerResultsViewData {
                 None => return,
             };
 
+            if !element_scanner_results_view_data.should_apply_refresh_request(refresh_request_revision) {
+                return;
+            }
+
             // Update UI with refreshed, full scan result values.
-            element_scanner_results_view_data.is_refreshing_scan_results = false;
+            element_scanner_results_view_data.complete_refresh_request();
             element_scanner_results_view_data.current_scan_results = scan_results_refresh_response.scan_results;
         });
 
         if !did_dispatch {
             if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data_clone.write("Refresh scan results dispatch failure") {
-                element_scanner_results_view_data.is_refreshing_scan_results = false;
+                if element_scanner_results_view_data.should_apply_refresh_request(refresh_request_revision) {
+                    element_scanner_results_view_data.complete_refresh_request();
+                }
             }
         }
+    }
+
+    fn clear_stale_request_state_if_needed(element_scanner_results_view_data: Dependency<Self>) -> bool {
+        let current_instant = Instant::now();
+        let mut should_requery_scan_results = false;
+
+        if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Clear stale scan result request state") {
+            if Self::is_request_stale(
+                current_instant,
+                element_scanner_results_view_data.query_scan_results_request_started_at,
+                element_scanner_results_view_data.is_querying_scan_results,
+            ) {
+                element_scanner_results_view_data.complete_query_request();
+                should_requery_scan_results = true;
+                log::warn!("Cleared stale scan-results query loading state after timeout.");
+            }
+
+            if Self::is_request_stale(
+                current_instant,
+                element_scanner_results_view_data.refresh_scan_results_request_started_at,
+                element_scanner_results_view_data.is_refreshing_scan_results,
+            ) {
+                element_scanner_results_view_data.complete_refresh_request();
+                log::warn!("Cleared stale scan-results refresh loading state after timeout.");
+            }
+        }
+
+        should_requery_scan_results
+    }
+
+    fn is_request_stale(
+        current_instant: Instant,
+        request_started_at: Option<Instant>,
+        is_request_pending: bool,
+    ) -> bool {
+        if !is_request_pending {
+            return false;
+        }
+
+        match request_started_at {
+            Some(request_start_instant) => current_instant
+                .checked_duration_since(request_start_instant)
+                .map(|elapsed_duration| elapsed_duration >= Duration::from_millis(Self::REQUEST_STALE_TIMEOUT_MS))
+                .unwrap_or(false),
+            None => true,
+        }
+    }
+
+    fn begin_query_request(&mut self) -> u64 {
+        let query_request_revision = self.next_query_request_revision;
+        self.next_query_request_revision = self.next_query_request_revision.saturating_add(1);
+        self.active_query_request_revision = query_request_revision;
+
+        query_request_revision
+    }
+
+    fn complete_query_request(&mut self) {
+        self.is_querying_scan_results = false;
+        self.query_scan_results_request_started_at = None;
+    }
+
+    fn should_apply_query_request(
+        &self,
+        query_request_revision: u64,
+    ) -> bool {
+        self.active_query_request_revision == query_request_revision
+    }
+
+    fn begin_refresh_request(&mut self) -> u64 {
+        let refresh_request_revision = self.next_refresh_request_revision;
+        self.next_refresh_request_revision = self.next_refresh_request_revision.saturating_add(1);
+        self.active_refresh_request_revision = refresh_request_revision;
+
+        refresh_request_revision
+    }
+
+    fn complete_refresh_request(&mut self) {
+        self.is_refreshing_scan_results = false;
+        self.refresh_scan_results_request_started_at = None;
+    }
+
+    fn should_apply_refresh_request(
+        &self,
+        refresh_request_revision: u64,
+    ) -> bool {
+        self.active_refresh_request_revision == refresh_request_revision
     }
 
     fn set_page_index(
@@ -947,9 +1067,11 @@ mod tests {
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
     use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
     use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
     use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
+    use std::time::{Duration, Instant};
 
     fn create_scan_result(scan_result_global_index: u64) -> ScanResult {
         let scan_result_valued = ScanResultValued::new(
@@ -963,7 +1085,15 @@ mod tests {
             ScanResultRef::new(scan_result_global_index),
         );
 
-        ScanResult::new(scan_result_valued, String::new(), 0, None, Vec::new(), false)
+        ScanResult::new(
+            scan_result_valued,
+            String::new(),
+            0,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        )
     }
 
     fn create_view_data_with_scan_results(scan_result_global_indices: &[u64]) -> ElementScannerResultsViewData {
@@ -1097,5 +1227,54 @@ mod tests {
         let default_previous_value_column_ratio = 1.0 - ElementScannerResultsViewData::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO;
 
         assert!((default_value_column_ratio - default_previous_value_column_ratio).abs() < 1e-6);
+    }
+
+    #[test]
+    fn clear_stale_request_state_if_needed_clears_stuck_query_and_requests_requery() {
+        let dependency_container = DependencyContainer::new();
+        let element_scanner_results_view_data = dependency_container.register(ElementScannerResultsViewData::new());
+
+        {
+            let mut element_scanner_results_view_data = element_scanner_results_view_data
+                .write("Mark stale query request")
+                .expect("Expected scan results view data write guard.");
+            element_scanner_results_view_data.is_querying_scan_results = true;
+            element_scanner_results_view_data.query_scan_results_request_started_at =
+                Some(Instant::now() - Duration::from_millis(ElementScannerResultsViewData::REQUEST_STALE_TIMEOUT_MS + 1));
+        }
+
+        let should_requery_scan_results = ElementScannerResultsViewData::clear_stale_request_state_if_needed(element_scanner_results_view_data.clone());
+
+        let element_scanner_results_view_data = element_scanner_results_view_data
+            .read("Verify stale query request cleared")
+            .expect("Expected scan results view data read guard.");
+
+        assert!(should_requery_scan_results);
+        assert!(!element_scanner_results_view_data.is_querying_scan_results);
+        assert!(
+            element_scanner_results_view_data
+                .query_scan_results_request_started_at
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn should_apply_query_request_rejects_stale_revisions() {
+        let mut element_scanner_results_view_data = ElementScannerResultsViewData::new();
+        let first_query_request_revision = element_scanner_results_view_data.begin_query_request();
+        let second_query_request_revision = element_scanner_results_view_data.begin_query_request();
+
+        assert!(!element_scanner_results_view_data.should_apply_query_request(first_query_request_revision));
+        assert!(element_scanner_results_view_data.should_apply_query_request(second_query_request_revision));
+    }
+
+    #[test]
+    fn should_apply_refresh_request_rejects_stale_revisions() {
+        let mut element_scanner_results_view_data = ElementScannerResultsViewData::new();
+        let first_refresh_request_revision = element_scanner_results_view_data.begin_refresh_request();
+        let second_refresh_request_revision = element_scanner_results_view_data.begin_refresh_request();
+
+        assert!(!element_scanner_results_view_data.should_apply_refresh_request(first_refresh_request_revision));
+        assert!(element_scanner_results_view_data.should_apply_refresh_request(second_refresh_request_revision));
     }
 }

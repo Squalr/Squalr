@@ -6,11 +6,12 @@ use crate::ui::widgets::controls::{
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Color32, Response, Sense, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Color32, ComboBox, Response, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -115,8 +116,13 @@ impl Widget for PointerScannerToolbarView {
                 Some(pointer_scanner_view_data) => pointer_scanner_view_data,
                 None => return response,
             };
-            if let Some(process_bitness) = opened_process_bitness {
-                pointer_scanner_view_data.synchronize_pointer_size_with_process_bitness(process_bitness);
+            if matches!(
+                pointer_scanner_view_data.resolve_requested_address_space_for_new_address_scan(),
+                PointerScanAddressSpace::EmulatorMemory
+            ) {
+                if let Some(process_bitness) = opened_process_bitness {
+                    pointer_scanner_view_data.synchronize_pointer_size_with_process_bitness(process_bitness);
+                }
             }
 
             let builder = UiBuilder::new().max_rect(toolbar_rectangle);
@@ -197,9 +203,14 @@ impl Widget for PointerScannerToolbarView {
                                 &mut pointer_scanner_view_data.pointer_size_data_type_selection,
                                 "pointer_scanner_pointer_size",
                             )
-                            .width(96.0)
+                            .width(116.0)
                             .height(Self::CONTROL_HEIGHT)
-                            .available_data_types(vec![DataTypeRef::new("u32"), DataTypeRef::new("u64")])
+                            .available_data_types(vec![
+                                DataTypeRef::new("u32"),
+                                DataTypeRef::new("u32be"),
+                                DataTypeRef::new("u64"),
+                                DataTypeRef::new("u64be"),
+                            ])
                             .stacked_list()
                             .hide_placeholder_entries(),
                         );
@@ -216,6 +227,28 @@ impl Widget for PointerScannerToolbarView {
                             .height(Self::CONTROL_HEIGHT)
                             .hide_placeholder_entries(),
                         );
+
+                        user_interface.add_space(Self::GROUP_SPACING);
+                        ComboBox::from_id_salt("pointer_scanner_address_space")
+                            .width(138.0)
+                            .selected_text(pointer_scanner_view_data.pointer_scan_address_space.label())
+                            .show_ui(user_interface, |user_interface| {
+                                user_interface.selectable_value(
+                                    &mut pointer_scanner_view_data.pointer_scan_address_space,
+                                    PointerScanAddressSpace::Auto,
+                                    PointerScanAddressSpace::Auto.label(),
+                                );
+                                user_interface.selectable_value(
+                                    &mut pointer_scanner_view_data.pointer_scan_address_space,
+                                    PointerScanAddressSpace::GameMemory,
+                                    PointerScanAddressSpace::GameMemory.label(),
+                                );
+                                user_interface.selectable_value(
+                                    &mut pointer_scanner_view_data.pointer_scan_address_space,
+                                    PointerScanAddressSpace::EmulatorMemory,
+                                    PointerScanAddressSpace::EmulatorMemory.label(),
+                                );
+                            });
                     });
                 });
 
@@ -262,8 +295,13 @@ impl Widget for PointerScannerToolbarView {
                             .clicked()
                         {
                             if !has_active_pointer_scan_session {
-                                if let Some(process_bitness) = opened_process_bitness {
-                                    pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                if matches!(
+                                    pointer_scanner_view_data.resolve_requested_address_space_for_new_address_scan(),
+                                    PointerScanAddressSpace::EmulatorMemory
+                                ) {
+                                    if let Some(process_bitness) = opened_process_bitness {
+                                        pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                    }
                                 }
                             }
                             should_start_scan = true;
@@ -333,8 +371,13 @@ impl Widget for PointerScannerToolbarView {
                             .clicked()
                         {
                             if !has_active_pointer_scan_session {
-                                if let Some(process_bitness) = opened_process_bitness {
-                                    pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                if matches!(
+                                    pointer_scanner_view_data.resolve_requested_address_space_for_new_value_scan(),
+                                    PointerScanAddressSpace::EmulatorMemory
+                                ) {
+                                    if let Some(process_bitness) = opened_process_bitness {
+                                        pointer_scanner_view_data.force_pointer_size_from_process_bitness(process_bitness);
+                                    }
                                 }
                             }
                             should_start_value_scan = true;

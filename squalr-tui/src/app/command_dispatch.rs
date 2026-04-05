@@ -253,6 +253,7 @@ impl AppShell {
             SettingsCategory::Scan => {
                 let scan_settings = self.app_state.settings_pane_state.scan_settings;
                 let scan_settings_set_request = ScanSettingsSetRequest {
+                    page_retrieval_mode: Some(scan_settings.page_retrieval_mode),
                     results_page_size: Some(scan_settings.results_page_size),
                     results_read_interval_ms: Some(scan_settings.results_read_interval_ms),
                     project_read_interval_ms: Some(scan_settings.project_read_interval_ms),

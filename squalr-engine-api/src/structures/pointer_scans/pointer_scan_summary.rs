@@ -1,3 +1,4 @@
+use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use crate::structures::pointer_scans::pointer_scan_level_summary::PointerScanLevelSummary;
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use crate::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
@@ -7,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct PointerScanSummary {
     session_id: u64,
     target_descriptor: PointerScanTargetDescriptor,
+    #[serde(default)]
+    address_space: PointerScanAddressSpace,
     pointer_size: PointerScanPointerSize,
     max_depth: u64,
     offset_radius: u64,
@@ -21,6 +24,7 @@ impl PointerScanSummary {
     pub fn new(
         session_id: u64,
         target_descriptor: PointerScanTargetDescriptor,
+        address_space: PointerScanAddressSpace,
         pointer_size: PointerScanPointerSize,
         max_depth: u64,
         offset_radius: u64,
@@ -33,6 +37,7 @@ impl PointerScanSummary {
         Self {
             session_id,
             target_descriptor,
+            address_space,
             pointer_size,
             max_depth,
             offset_radius,
@@ -50,6 +55,10 @@ impl PointerScanSummary {
 
     pub fn get_target_descriptor(&self) -> &PointerScanTargetDescriptor {
         &self.target_descriptor
+    }
+
+    pub fn get_address_space(&self) -> PointerScanAddressSpace {
+        self.address_space
     }
 
     pub fn get_pointer_size(&self) -> PointerScanPointerSize {

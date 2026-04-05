@@ -63,11 +63,15 @@ pub struct AppShell {
     pub consumed_process_changed_update_counter: u64,
     pub pending_opened_process_from_event: Arc<RwLock<Option<OpenedProcessInfo>>>,
     pub has_registered_process_changed_listener: bool,
+    pub plugins_changed_update_counter: Arc<AtomicU64>,
+    pub consumed_plugins_changed_update_counter: u64,
+    pub has_registered_plugins_changed_listener: bool,
     pub last_scan_results_periodic_refresh_time: Option<Instant>,
     pub last_process_list_auto_refresh_attempt_time: Option<Instant>,
     pub last_project_list_auto_refresh_attempt_time: Option<Instant>,
     pub last_project_items_auto_refresh_attempt_time: Option<Instant>,
     pub last_settings_auto_refresh_attempt_time: Option<Instant>,
+    pub last_plugins_auto_refresh_attempt_time: Option<Instant>,
     pub has_auto_seeked_project_explorer_once: bool,
 }
 
@@ -78,6 +82,7 @@ impl AppShell {
     pub(super) const MAX_PROJECT_ITEMS_REFRESH_INTERVAL_MS: u64 = 5_000;
     pub(super) const MIN_PROCESS_AND_PROJECT_AUTO_REFRESH_INTERVAL_MS: u64 = 1_000;
     pub(super) const MIN_SETTINGS_AUTO_REFRESH_INTERVAL_MS: u64 = 1_000;
+    pub(super) const MIN_PLUGINS_AUTO_REFRESH_INTERVAL_MS: u64 = 1_000;
 
     pub fn new(tick_rate: Duration) -> Self {
         Self {
@@ -92,11 +97,15 @@ impl AppShell {
             consumed_process_changed_update_counter: 0,
             pending_opened_process_from_event: Arc::new(RwLock::new(None)),
             has_registered_process_changed_listener: false,
+            plugins_changed_update_counter: Arc::new(AtomicU64::new(0)),
+            consumed_plugins_changed_update_counter: 0,
+            has_registered_plugins_changed_listener: false,
             last_scan_results_periodic_refresh_time: None,
             last_process_list_auto_refresh_attempt_time: None,
             last_project_list_auto_refresh_attempt_time: None,
             last_project_items_auto_refresh_attempt_time: None,
             last_settings_auto_refresh_attempt_time: None,
+            last_plugins_auto_refresh_attempt_time: None,
             has_auto_seeked_project_explorer_once: false,
         }
     }
@@ -163,7 +172,7 @@ impl AppShell {
     }
 
     fn footer_navigation_controls_line() -> &'static str {
-        "[NAV] F1 Project | F2 Scanner | F3 Settings | F4 Process | Tab/Shift+Tab focus | Ctrl+Q/C exit."
+        "[NAV] F1 Project | F2 Scanner | F3 Settings | F4 Process | F5 Plugins | Tab/Shift+Tab focus | Ctrl+Q/C exit."
     }
 
     fn session_opened_process_metadata_line(&self) -> String {
@@ -399,5 +408,19 @@ mod tests {
                 .process_selector_pane_state
                 .is_process_selector_view_active
         );
+    }
+
+    #[test]
+    fn f5_switches_to_plugins_workspace() {
+        let mut app_shell = AppShell::new(Duration::from_millis(100));
+        app_shell
+            .app_state
+            .set_active_workspace_page(TuiWorkspacePage::ScannerWorkspace);
+        let f5_key_event = KeyEvent::new(KeyCode::F(5), KeyModifiers::NONE);
+
+        let was_consumed = app_shell.handle_global_key_event(f5_key_event);
+
+        assert!(was_consumed);
+        assert_eq!(app_shell.app_state.active_workspace_page(), TuiWorkspacePage::PluginsWorkspace);
     }
 }

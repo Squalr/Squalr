@@ -5,6 +5,7 @@ use crate::state::workspace_page::TuiWorkspacePage;
 use crate::views::element_scanner::pane_state::ElementScannerPaneState;
 use crate::views::output::pane_state::OutputPaneState;
 use crate::views::output::summary::OUTPUT_FIXED_SUMMARY_LINE_COUNT;
+use crate::views::plugins::pane_state::PluginsPaneState;
 use crate::views::process_selector::pane_state::ProcessSelectorPaneState;
 use crate::views::project_explorer::pane_state::{ProjectExplorerFocusTarget, ProjectExplorerPaneState};
 use crate::views::scan_results::pane_state::ScanResultsPaneState;
@@ -23,6 +24,7 @@ pub struct TuiAppState {
     pub struct_viewer_pane_state: StructViewerPaneState,
     pub output_pane_state: OutputPaneState,
     pub settings_pane_state: SettingsPaneState,
+    pub plugins_pane_state: PluginsPaneState,
 }
 
 impl TuiAppState {
@@ -106,6 +108,9 @@ impl TuiAppState {
             TuiPane::Settings => self
                 .settings_pane_state
                 .summary_lines_with_capacity(pane_content_height),
+            TuiPane::Plugins => self
+                .plugins_pane_state
+                .summary_lines_with_capacity(pane_content_height),
         }
     }
 
@@ -132,6 +137,9 @@ impl TuiAppState {
                 );
                 entry_rows
             }
+            TuiPane::Plugins => self
+                .plugins_pane_state
+                .visible_plugin_entry_rows(pane_entry_row_capacity),
             _ => Vec::new(),
         }
     }
@@ -150,6 +158,7 @@ impl TuiAppState {
                     project_entry_row_capacity, project_item_entry_row_capacity
                 ))
             }
+            TuiPane::Plugins => Some(format!("[ROWS] visible={}", pane_entry_row_capacity)),
             _ => None,
         }
     }
@@ -307,6 +316,21 @@ mod tests {
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
         tui_app_state.cycle_focus_forward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Settings);
+
+        tui_app_state.cycle_focus_backward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
+    }
+
+    #[test]
+    fn plugins_workspace_focus_cycle_loops_in_page_order() {
+        let mut tui_app_state = TuiAppState::default();
+        tui_app_state.set_active_workspace_page(TuiWorkspacePage::PluginsWorkspace);
+
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::Plugins);
+        tui_app_state.cycle_focus_forward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
+        tui_app_state.cycle_focus_forward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::Plugins);
 
         tui_app_state.cycle_focus_backward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);

@@ -219,11 +219,7 @@ fn evaluate_pointer_for_preview(
 }
 
 fn format_pointer_root_segment(pointer: &Pointer) -> String {
-    if pointer.get_module_name().is_empty() {
-        format_pointer_address_segment(pointer.get_address())
-    } else {
-        format!("{}+0x{:X}", pointer.get_module_name(), pointer.get_address())
-    }
+    pointer.get_root_display_text()
 }
 
 fn format_pointer_address_segment(address: u64) -> String {
@@ -404,8 +400,18 @@ mod tests {
                 PointerScanPointerSize::Pointer32 => {
                     DataTypeU32::get_value_from_primitive(pointer_value as u32).to_named_valued_struct_field("value".to_string(), true)
                 }
+                PointerScanPointerSize::Pointer32be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u32be::data_type_u32be::DataTypeU32be::get_value_from_primitive(
+                        pointer_value as u32,
+                    )
+                    .to_named_valued_struct_field("value".to_string(), true)
+                }
                 PointerScanPointerSize::Pointer64 => {
                     DataTypeU64::get_value_from_primitive(pointer_value).to_named_valued_struct_field("value".to_string(), true)
+                }
+                PointerScanPointerSize::Pointer64be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u64be::data_type_u64be::DataTypeU64be::get_value_from_primitive(pointer_value)
+                        .to_named_valued_struct_field("value".to_string(), true)
                 }
             };
 

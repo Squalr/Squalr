@@ -21,9 +21,8 @@ impl PointerScannerResultsView {
     const HEADER_HEIGHT: f32 = 32.0;
     const ROW_HEIGHT: f32 = 32.0;
     const COLUMN_PADDING: f32 = 8.0;
-    const PRIMARY_COLUMN_RATIO: f32 = 0.40;
-    const VALUE_COLUMN_RATIO: f32 = 0.64;
-    const RESOLVED_COLUMN_RATIO: f32 = 0.84;
+    const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 96.0;
+    const MINIMUM_SPLITTER_PIXEL_GAP: f32 = 56.0;
     const DISCLOSURE_ICON_SIZE: f32 = 10.0;
     const DISCLOSURE_TEXT_SPACING: f32 = 6.0;
 
@@ -272,9 +271,23 @@ impl Widget for PointerScannerResultsView {
         let mut entered_node_id = None;
         let mut added_node_id = None;
         let mut should_navigate_back = false;
+        let mut new_primary_splitter_ratio = None;
+        let mut new_value_splitter_ratio = None;
+        let mut new_resolved_splitter_ratio = None;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                let allocate_resize_bar = |user_interface: &mut Ui, resize_rectangle: Rect, id_suffix: &str| -> Response {
+                    let id = user_interface.id().with(id_suffix);
+                    let response = user_interface.interact(resize_rectangle, id, Sense::drag());
+
+                    user_interface
+                        .painter()
+                        .rect_filled(resize_rectangle, CornerRadius::ZERO, theme.background_control);
+
+                    response
+                };
+
                 let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::HEADER_HEIGHT), Sense::empty());
                 let content_clip_rectangle = user_interface
                     .available_rect_before_wrap()
@@ -282,6 +295,22 @@ impl Widget for PointerScannerResultsView {
                 let content_width = content_clip_rectangle.width();
                 let content_height = content_clip_rectangle.height().max(0.0);
                 let content_min_x = content_clip_rectangle.min.x;
+
+                let (mut primary_splitter_ratio, mut value_splitter_ratio, mut resolved_splitter_ratio) = match self
+                    .pointer_scanner_view_data
+                    .read("Pointer scanner results column ratios")
+                {
+                    Some(pointer_scanner_view_data) => (
+                        pointer_scanner_view_data.primary_splitter_ratio,
+                        pointer_scanner_view_data.value_splitter_ratio,
+                        pointer_scanner_view_data.resolved_splitter_ratio,
+                    ),
+                    None => (
+                        PointerScannerViewData::DEFAULT_PRIMARY_SPLITTER_RATIO,
+                        PointerScannerViewData::DEFAULT_VALUE_SPLITTER_RATIO,
+                        PointerScannerViewData::DEFAULT_RESOLVED_SPLITTER_RATIO,
+                    ),
+                };
 
                 user_interface
                     .painter()
@@ -291,9 +320,18 @@ impl Widget for PointerScannerResultsView {
                     return;
                 }
 
-                let primary_splitter_position_x = content_min_x + content_width * Self::PRIMARY_COLUMN_RATIO;
-                let value_splitter_position_x = content_min_x + content_width * Self::VALUE_COLUMN_RATIO;
-                let resolved_splitter_position_x = content_min_x + content_width * Self::RESOLVED_COLUMN_RATIO;
+                if primary_splitter_ratio <= 0.0 || value_splitter_ratio <= primary_splitter_ratio || resolved_splitter_ratio <= value_splitter_ratio {
+                    primary_splitter_ratio = PointerScannerViewData::DEFAULT_PRIMARY_SPLITTER_RATIO;
+                    value_splitter_ratio = PointerScannerViewData::DEFAULT_VALUE_SPLITTER_RATIO;
+                    resolved_splitter_ratio = PointerScannerViewData::DEFAULT_RESOLVED_SPLITTER_RATIO;
+                    new_primary_splitter_ratio = Some(primary_splitter_ratio);
+                    new_value_splitter_ratio = Some(value_splitter_ratio);
+                    new_resolved_splitter_ratio = Some(resolved_splitter_ratio);
+                }
+
+                let primary_splitter_position_x = content_min_x + content_width * primary_splitter_ratio;
+                let value_splitter_position_x = content_min_x + content_width * value_splitter_ratio;
+                let resolved_splitter_position_x = content_min_x + content_width * resolved_splitter_ratio;
 
                 self.draw_header(
                     user_interface,
@@ -346,8 +384,87 @@ impl Widget for PointerScannerResultsView {
                         .painter()
                         .rect_filled(splitter_rectangle, CornerRadius::ZERO, theme.background_control);
                 }
+
+                let primary_splitter_rectangle = Rect::from_min_max(
+                    pos2(primary_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(primary_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+                let value_splitter_rectangle = Rect::from_min_max(
+                    pos2(value_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(value_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+                let resolved_splitter_rectangle = Rect::from_min_max(
+                    pos2(resolved_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(resolved_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+
+                let primary_splitter_response = allocate_resize_bar(user_interface, primary_splitter_rectangle, "pointer_scanner_primary_splitter")
+                    .on_hover_cursor(CursorIcon::ResizeHorizontal);
+
+                if primary_splitter_response.dragged() {
+                    let drag_delta = primary_splitter_response.drag_delta();
+                    let mut new_primary_splitter_position_x = primary_splitter_position_x + drag_delta.x;
+
+                    let minimum_primary_splitter_position_x = content_min_x + Self::MINIMUM_COLUMN_PIXEL_WIDTH;
+                    let maximum_primary_splitter_position_x = value_splitter_position_x - Self::MINIMUM_SPLITTER_PIXEL_GAP;
+
+                    new_primary_splitter_position_x =
+                        new_primary_splitter_position_x.clamp(minimum_primary_splitter_position_x, maximum_primary_splitter_position_x);
+
+                    new_primary_splitter_ratio = Some((new_primary_splitter_position_x - content_min_x) / content_width);
+                }
+
+                let value_splitter_response = allocate_resize_bar(user_interface, value_splitter_rectangle, "pointer_scanner_value_splitter")
+                    .on_hover_cursor(CursorIcon::ResizeHorizontal);
+
+                if value_splitter_response.dragged() {
+                    let drag_delta = value_splitter_response.drag_delta();
+                    let mut new_value_splitter_position_x = value_splitter_position_x + drag_delta.x;
+
+                    let minimum_value_splitter_position_x = primary_splitter_position_x + Self::MINIMUM_SPLITTER_PIXEL_GAP;
+                    let maximum_value_splitter_position_x = resolved_splitter_position_x - Self::MINIMUM_SPLITTER_PIXEL_GAP;
+
+                    new_value_splitter_position_x = new_value_splitter_position_x.clamp(minimum_value_splitter_position_x, maximum_value_splitter_position_x);
+
+                    new_value_splitter_ratio = Some((new_value_splitter_position_x - content_min_x) / content_width);
+                }
+
+                let resolved_splitter_response = allocate_resize_bar(user_interface, resolved_splitter_rectangle, "pointer_scanner_resolved_splitter")
+                    .on_hover_cursor(CursorIcon::ResizeHorizontal);
+
+                if resolved_splitter_response.dragged() {
+                    let drag_delta = resolved_splitter_response.drag_delta();
+                    let mut new_resolved_splitter_position_x = resolved_splitter_position_x + drag_delta.x;
+
+                    let minimum_resolved_splitter_position_x = value_splitter_position_x + Self::MINIMUM_SPLITTER_PIXEL_GAP;
+                    let maximum_resolved_splitter_position_x = content_min_x + content_width - Self::MINIMUM_COLUMN_PIXEL_WIDTH;
+
+                    new_resolved_splitter_position_x =
+                        new_resolved_splitter_position_x.clamp(minimum_resolved_splitter_position_x, maximum_resolved_splitter_position_x);
+
+                    new_resolved_splitter_ratio = Some((new_resolved_splitter_position_x - content_min_x) / content_width);
+                }
             })
             .response;
+
+        if new_primary_splitter_ratio.is_some() || new_value_splitter_ratio.is_some() || new_resolved_splitter_ratio.is_some() {
+            if let Some(mut pointer_scanner_view_data) = self
+                .pointer_scanner_view_data
+                .write("Pointer scanner results column ratios")
+            {
+                if let Some(new_primary_splitter_ratio) = new_primary_splitter_ratio {
+                    pointer_scanner_view_data.primary_splitter_ratio = new_primary_splitter_ratio;
+                }
+
+                if let Some(new_value_splitter_ratio) = new_value_splitter_ratio {
+                    pointer_scanner_view_data.value_splitter_ratio = new_value_splitter_ratio;
+                }
+
+                if let Some(new_resolved_splitter_ratio) = new_resolved_splitter_ratio {
+                    pointer_scanner_view_data.resolved_splitter_ratio = new_resolved_splitter_ratio;
+                }
+            }
+        }
 
         if let Some(clicked_node_id) = clicked_node_id {
             PointerScannerViewData::select_node(self.pointer_scanner_view_data.clone(), clicked_node_id);

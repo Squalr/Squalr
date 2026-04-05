@@ -5303,6 +5303,7 @@ dependencies = [
  "squalr-engine-api",
  "squalr-engine-operating-system",
  "squalr-engine-scanning",
+ "squalr-plugin-builtins",
  "sysinfo",
 ]
 
@@ -5317,6 +5318,22 @@ dependencies = [
  "log",
  "squalr-engine",
  "winresource",
+]
+
+[[package]]
+name = "squalr-plugin-builtins"
+version = "0.1.0"
+dependencies = [
+ "squalr-engine-api",
+ "squalr-plugin-memory-view-dolphin",
+]
+
+[[package]]
+name = "squalr-plugin-memory-view-dolphin"
+version = "0.1.0"
+dependencies = [
+ "squalr-engine-api",
+ "squalr-engine-operating-system",
 ]
 
 [[package]]

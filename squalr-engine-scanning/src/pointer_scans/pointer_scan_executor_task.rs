@@ -3,6 +3,7 @@ use crate::pointer_scans::pointer_scan_session_builder::PointerScanSessionBuilde
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
@@ -23,6 +24,7 @@ impl PointerScanExecutor {
         pointer_scan_parameters: PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
@@ -35,6 +37,7 @@ impl PointerScanExecutor {
             pointer_scan_parameters,
             target_descriptor,
             target_addresses,
+            address_space,
             modules,
             with_logging,
             scan_execution_context,
@@ -48,6 +51,7 @@ impl PointerScanExecutor {
         pointer_scan_parameters: PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
     ) -> PointerScanSession {
@@ -58,6 +62,7 @@ impl PointerScanExecutor {
             pointer_scan_parameters,
             target_descriptor,
             target_addresses,
+            address_space,
             modules,
             with_logging,
         )
@@ -71,6 +76,7 @@ impl PointerScanExecutor {
         pointer_scan_parameters: PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
@@ -107,6 +113,7 @@ impl PointerScanExecutor {
             pointer_scan_parameters,
             target_descriptor,
             target_addresses,
+            address_space,
             modules,
             with_logging,
         );
@@ -152,6 +159,7 @@ impl PointerScanExecutor {
         pointer_scan_parameters: PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
     ) -> PointerScanSession {
@@ -165,6 +173,7 @@ impl PointerScanExecutor {
             pointer_scan_session_id,
             &empty_target_descriptor,
             &empty_target_addresses,
+            address_space,
             modules,
             with_logging,
             |snapshots| {
@@ -176,6 +185,7 @@ impl PointerScanExecutor {
                     &pointer_scan_parameters,
                     target_descriptor,
                     target_addresses,
+                    address_space,
                     modules,
                     &discovered_pointer_levels,
                     with_logging,
@@ -191,6 +201,7 @@ impl PointerScanExecutor {
         pointer_scan_session_id: u64,
         target_descriptor: &PointerScanTargetDescriptor,
         target_addresses: &[u64],
+        address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
         build_session: BuildSession,
@@ -211,6 +222,7 @@ impl PointerScanExecutor {
                         pointer_scan_parameters,
                         target_descriptor.clone(),
                         target_addresses.to_vec(),
+                        address_space,
                     );
                 }
             };
@@ -231,6 +243,7 @@ impl PointerScanExecutor {
                     pointer_scan_parameters,
                     target_descriptor.clone(),
                     target_addresses.to_vec(),
+                    address_space,
                 );
             }
         };
@@ -246,6 +259,7 @@ impl PointerScanExecutor {
                     pointer_scan_parameters,
                     target_descriptor.clone(),
                     target_addresses.to_vec(),
+                    address_space,
                 );
             }
         };
@@ -266,6 +280,7 @@ mod tests {
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
@@ -298,6 +313,7 @@ mod tests {
             pointer_scan_parameters,
             PointerScanTargetDescriptor::address(0x3010),
             vec![0x3010],
+            PointerScanAddressSpace::EmulatorMemory,
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
             &scan_execution_context,
@@ -389,6 +405,7 @@ mod tests {
             pointer_scan_parameters,
             PointerScanTargetDescriptor::address(0x3010),
             vec![0x3010],
+            PointerScanAddressSpace::EmulatorMemory,
             &[NormalizedModule::new("game.exe", 0x1000, 0x100)],
             false,
             &scan_execution_context,

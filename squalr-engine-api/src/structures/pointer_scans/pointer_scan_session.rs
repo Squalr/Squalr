@@ -1,3 +1,4 @@
+use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
 use crate::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use crate::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
@@ -29,6 +30,8 @@ pub struct PointerScanSession {
     session_id: u64,
     target_descriptor: PointerScanTargetDescriptor,
     target_addresses: Vec<u64>,
+    #[serde(default)]
+    address_space: PointerScanAddressSpace,
     pointer_size: PointerScanPointerSize,
     max_depth: u64,
     offset_radius: u64,
@@ -49,6 +52,7 @@ impl PointerScanSession {
         session_id: u64,
         target_descriptor: PointerScanTargetDescriptor,
         mut target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
         pointer_size: PointerScanPointerSize,
         max_depth: u64,
         offset_radius: u64,
@@ -70,6 +74,7 @@ impl PointerScanSession {
             session_id,
             target_descriptor,
             target_addresses,
+            address_space,
             pointer_size,
             max_depth,
             offset_radius,
@@ -96,6 +101,10 @@ impl PointerScanSession {
 
     pub fn get_target_addresses(&self) -> &Vec<u64> {
         &self.target_addresses
+    }
+
+    pub fn get_address_space(&self) -> PointerScanAddressSpace {
+        self.address_space
     }
 
     pub fn get_pointer_size(&self) -> PointerScanPointerSize {
@@ -171,6 +180,7 @@ impl PointerScanSession {
         PointerScanSummary::new(
             self.session_id,
             self.target_descriptor.clone(),
+            self.address_space,
             self.pointer_size,
             self.max_depth,
             self.offset_radius,
@@ -885,6 +895,7 @@ impl PointerScanSession {
 #[cfg(test)]
 mod tests {
     use super::PointerScanSession;
+    use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use crate::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
     use crate::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
@@ -898,6 +909,7 @@ mod tests {
             7,
             PointerScanTargetDescriptor::address(0x3010),
             vec![0x3010],
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             4,
             0x100,
@@ -952,6 +964,7 @@ mod tests {
             8,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             4,
             0x100,
@@ -1001,6 +1014,7 @@ mod tests {
                 2,
             ),
             vec![0x3010, 0x3020],
+            PointerScanAddressSpace::EmulatorMemory,
             PointerScanPointerSize::Pointer64,
             1,
             0x20,

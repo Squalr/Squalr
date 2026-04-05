@@ -240,6 +240,15 @@ impl MemoryQueryProvider for MockMemoryQueryProvider {
         0
     }
 
+    fn resolve_module_address(
+        &self,
+        modules: &Vec<NormalizedModule>,
+        identifier: &str,
+        offset: u64,
+    ) -> Option<u64> {
+        self.resolve_module(modules, identifier).checked_add(offset)
+    }
+
     fn get_memory_page_bounds(
         &self,
         _process_info: &OpenedProcessInfo,

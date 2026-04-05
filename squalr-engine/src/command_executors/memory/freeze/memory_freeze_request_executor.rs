@@ -69,7 +69,11 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
                     freeze_target.pointer_size,
                 );
                 let Some(absolute_address) = pointer.resolve_final_address(
-                    |module_name| os_providers.memory_query.resolve_module(&modules, module_name),
+                    |module_name, module_offset| {
+                        os_providers
+                            .memory_query
+                            .resolve_module_address(&modules, module_name, module_offset)
+                    },
                     |address, pointer_size| {
                         let mut pointer_bytes = vec![0_u8; pointer_size.get_size_in_bytes() as usize];
 
@@ -86,10 +90,20 @@ impl PrivilegedCommandRequestExecutor for MemoryFreezeRequest {
 
                                 Some(u32::from_le_bytes(pointer_bytes) as u64)
                             }
+                            squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer32be => {
+                                let pointer_bytes: [u8; 4] = pointer_bytes.as_slice().try_into().ok()?;
+
+                                Some(u32::from_be_bytes(pointer_bytes) as u64)
+                            }
                             squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer64 => {
                                 let pointer_bytes: [u8; 8] = pointer_bytes.as_slice().try_into().ok()?;
 
                                 Some(u64::from_le_bytes(pointer_bytes))
+                            }
+                            squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer64be => {
+                                let pointer_bytes: [u8; 8] = pointer_bytes.as_slice().try_into().ok()?;
+
+                                Some(u64::from_be_bytes(pointer_bytes))
                             }
                         }
                     },

@@ -18,8 +18,12 @@ pub(crate) fn scan_region_simd_linear<VisitMatch>(
     VisitMatch: FnMut(PointerScanRegionMatch),
 {
     match pointer_size {
-        PointerScanPointerSize::Pointer32 => scan_region_simd_linear_u32(base_address, current_values, start_offset, target_range_set, visit_match),
-        PointerScanPointerSize::Pointer64 => scan_region_simd_linear_u64(base_address, current_values, start_offset, target_range_set, visit_match),
+        PointerScanPointerSize::Pointer32 | PointerScanPointerSize::Pointer32be => {
+            scan_region_simd_linear_u32(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
+        }
+        PointerScanPointerSize::Pointer64 | PointerScanPointerSize::Pointer64be => {
+            scan_region_simd_linear_u64(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
+        }
     }
 }
 
@@ -27,6 +31,7 @@ fn scan_region_simd_linear_u32<VisitMatch>(
     base_address: u64,
     current_values: &[u8],
     start_offset: usize,
+    pointer_size: PointerScanPointerSize,
     target_range_set: &PointerScanTargetRangeSet,
     visit_match: &mut VisitMatch,
 ) where
@@ -39,7 +44,7 @@ fn scan_region_simd_linear_u32<VisitMatch>(
 
     while pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT) <= current_values.len() {
         // The loop guard guarantees a full SIMD-width unaligned load.
-        let lane_values = unsafe { read_pointer_lane_values_u32::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset)) };
+        let lane_values = unsafe { read_pointer_lane_values_u32::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset), pointer_size) };
         let pointer_values = Simd::<u32, SIMD_LANE_COUNT>::from_array(lane_values);
         let mut matching_lane_mask = 0_u64;
 
@@ -74,7 +79,7 @@ fn scan_region_simd_linear_u32<VisitMatch>(
         base_address,
         current_values,
         pointer_value_offset,
-        PointerScanPointerSize::Pointer32,
+        pointer_size,
         |pointer_value| target_range_set.contains_value_linear(pointer_value),
         visit_match,
     );
@@ -84,6 +89,7 @@ fn scan_region_simd_linear_u64<VisitMatch>(
     base_address: u64,
     current_values: &[u8],
     start_offset: usize,
+    pointer_size: PointerScanPointerSize,
     target_range_set: &PointerScanTargetRangeSet,
     visit_match: &mut VisitMatch,
 ) where
@@ -96,7 +102,7 @@ fn scan_region_simd_linear_u64<VisitMatch>(
 
     while pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT) <= current_values.len() {
         // The loop guard guarantees a full SIMD-width unaligned load.
-        let lane_values = unsafe { read_pointer_lane_values_u64::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset)) };
+        let lane_values = unsafe { read_pointer_lane_values_u64::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset), pointer_size) };
         let pointer_values = Simd::<u64, SIMD_LANE_COUNT>::from_array(lane_values);
         let mut matching_lane_mask = 0_u64;
 
@@ -127,7 +133,7 @@ fn scan_region_simd_linear_u64<VisitMatch>(
         base_address,
         current_values,
         pointer_value_offset,
-        PointerScanPointerSize::Pointer64,
+        pointer_size,
         |pointer_value| target_range_set.contains_value_linear(pointer_value),
         visit_match,
     );

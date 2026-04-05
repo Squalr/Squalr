@@ -26,6 +26,7 @@ impl MemoryQueryer {
             PageRetrievalMode::FromUserMode => MemoryQueryer::query_pages_from_usermode_memory(process_info),
             PageRetrievalMode::FromModules => MemoryQueryer::query_pages_from_modules(process_info),
             PageRetrievalMode::FromNonModules => MemoryQueryer::query_pages_from_non_modules(process_info),
+            PageRetrievalMode::FromVirtualModules => Vec::new(),
         }
     }
 

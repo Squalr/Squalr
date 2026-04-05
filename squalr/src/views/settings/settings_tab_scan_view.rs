@@ -1,6 +1,11 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::{checkbox::Checkbox, combo_box::combo_box_view::ComboBoxView, groupbox::GroupBox, slider::Slider},
+    ui::widgets::controls::{
+        checkbox::Checkbox,
+        combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+        groupbox::GroupBox,
+        slider::Slider,
+    },
 };
 use eframe::egui::{Align, Layout, Response, RichText, Ui, Widget};
 use epaint::vec2;
@@ -9,6 +14,7 @@ use squalr_engine_api::{
         privileged_command_request::PrivilegedCommandRequest,
         settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
     },
+    plugins::memory_view::PageRetrievalMode,
     structures::settings::scan_settings::ScanSettings,
 };
 use std::sync::{Arc, RwLock};
@@ -42,6 +48,23 @@ impl SettingsTabScanView {
                 }
             }
         });
+    }
+
+    fn send_scan_settings_update(
+        &self,
+        scan_settings_set_request: ScanSettingsSetRequest,
+    ) {
+        scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |_scan_settings_set_response| {});
+    }
+
+    fn page_retrieval_mode_label(page_retrieval_mode: PageRetrievalMode) -> &'static str {
+        match page_retrieval_mode {
+            PageRetrievalMode::FromSettings => "Auto",
+            PageRetrievalMode::FromUserMode => "Host usermode",
+            PageRetrievalMode::FromNonModules => "Host non-modules",
+            PageRetrievalMode::FromModules => "All modules",
+            PageRetrievalMode::FromVirtualModules => "Virtual modules",
+        }
     }
 }
 
@@ -78,7 +101,7 @@ impl Widget for SettingsTabScanView {
                                     ..ScanSettingsSetRequest::default()
                                 };
 
-                                scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                self.send_scan_settings_update(scan_settings_set_request);
                             }
 
                             user_interface.add_space(8.0);
@@ -124,7 +147,7 @@ impl Widget for SettingsTabScanView {
                                     ..ScanSettingsSetRequest::default()
                                 };
 
-                                scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                self.send_scan_settings_update(scan_settings_set_request);
                             }
 
                             user_interface.add_space(8.0);
@@ -163,7 +186,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 
@@ -203,7 +226,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 
@@ -234,15 +257,50 @@ impl Widget for SettingsTabScanView {
                 user_interface.add(
                     GroupBox::new_from_theme(theme, "Scan Params", |user_interface| {
                         user_interface.horizontal(|user_interface| {
+                            let selected_page_retrieval_mode = cached_scan_settings.page_retrieval_mode;
+
                             user_interface.add(ComboBoxView::new(
                                 self.app_context.clone(),
-                                "x-byte aligned",
-                                "settings_tab_scan_alignment",
+                                Self::page_retrieval_mode_label(selected_page_retrieval_mode),
+                                "settings_tab_scan_page_source",
                                 None,
                                 |user_interface: &mut Ui, should_close: &mut bool| {
-                                    //
+                                    for page_retrieval_mode in [
+                                        PageRetrievalMode::FromSettings,
+                                        PageRetrievalMode::FromUserMode,
+                                        PageRetrievalMode::FromModules,
+                                        PageRetrievalMode::FromNonModules,
+                                        PageRetrievalMode::FromVirtualModules,
+                                    ] {
+                                        if user_interface
+                                            .add(ComboBoxItemView::new(
+                                                self.app_context.clone(),
+                                                Self::page_retrieval_mode_label(page_retrieval_mode),
+                                                None,
+                                                192.0,
+                                            ))
+                                            .clicked()
+                                        {
+                                            if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                                cached_scan_settings.page_retrieval_mode = page_retrieval_mode;
+                                            }
+
+                                            self.send_scan_settings_update(ScanSettingsSetRequest {
+                                                page_retrieval_mode: Some(page_retrieval_mode),
+                                                ..ScanSettingsSetRequest::default()
+                                            });
+                                            *should_close = true;
+                                        }
+                                    }
                                 },
                             ));
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Page source")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
                         });
                     })
                     .desired_width(412.0),
@@ -263,7 +321,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 
@@ -289,7 +347,7 @@ impl Widget for SettingsTabScanView {
                                         ..ScanSettingsSetRequest::default()
                                     };
 
-                                    scan_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |scan_settings_set_response| {});
+                                    self.send_scan_settings_update(scan_settings_set_request);
                                 }
                             }
 

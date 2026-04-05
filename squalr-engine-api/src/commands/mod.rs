@@ -1,4 +1,5 @@
 pub mod memory;
+pub mod plugins;
 pub mod pointer_scan;
 pub mod privileged_command;
 pub mod privileged_command_request;

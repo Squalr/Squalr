@@ -5,6 +5,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_request::PointerScanValidateRequest;
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
@@ -69,14 +70,65 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             };
         }
 
-        let modules = engine_privileged_state
-            .get_os_providers()
-            .memory_query
-            .get_modules(&process_info);
-        let memory_regions = engine_privileged_state
-            .get_os_providers()
-            .memory_query
-            .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode);
+        let modules = match pointer_scan_session.get_address_space() {
+            PointerScanAddressSpace::Auto => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_modules(&process_info),
+            PointerScanAddressSpace::GameMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query
+                .get_modules(&process_info),
+            PointerScanAddressSpace::EmulatorMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_modules(&process_info),
+        };
+        let parsed_target_address = self.target.target_address.as_ref().and_then(|target_address| {
+            let trimmed_target_address = target_address.get_anonymous_value_string().trim();
+
+            if trimmed_target_address.is_empty() {
+                return None;
+            }
+
+            match target_address.get_anonymous_value_string_format() {
+                squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Address
+                | squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Hexadecimal => {
+                    let hexadecimal_input = trimmed_target_address
+                        .strip_prefix("0x")
+                        .or_else(|| trimmed_target_address.strip_prefix("0X"))
+                        .unwrap_or(trimmed_target_address);
+
+                    u64::from_str_radix(hexadecimal_input, 16).ok()
+                }
+                squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Decimal => {
+                    trimmed_target_address.parse::<u64>().ok()
+                }
+                squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Binary => {
+                    let binary_input = trimmed_target_address
+                        .strip_prefix("0b")
+                        .or_else(|| trimmed_target_address.strip_prefix("0B"))
+                        .unwrap_or(trimmed_target_address);
+
+                    u64::from_str_radix(binary_input, 2).ok()
+                }
+                _ => trimmed_target_address.parse::<u64>().ok(),
+            }
+        });
+        let memory_regions = match pointer_scan_session.get_address_space() {
+            PointerScanAddressSpace::Auto => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode),
+            PointerScanAddressSpace::GameMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query
+                .get_pointer_scan_memory_page_bounds(&process_info, PageRetrievalMode::FromVirtualModules, parsed_target_address),
+            PointerScanAddressSpace::EmulatorMemory => engine_privileged_state
+                .get_os_providers()
+                .memory_query_raw
+                .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode),
+        };
         let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
         let scan_execution_context = ScanExecutionContext::new(
             None,
