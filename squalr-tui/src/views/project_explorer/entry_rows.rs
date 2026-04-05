@@ -96,7 +96,11 @@ pub fn build_visible_project_item_entry_rows(
             let indentation = " ".repeat(project_item_entry.depth.saturating_mul(2));
             let marker_text = directory_marker.to_string();
             let primary_text = format!("{}{} {}", indentation, activation_marker, project_item_entry.display_name);
-            let secondary_text = Some(project_item_entry.project_item_path.display().to_string());
+            let secondary_text = if project_item_entry.preview_value.is_empty() {
+                None
+            } else {
+                Some(format!("value={}", project_item_entry.preview_value))
+            };
 
             if project_explorer_pane_state.focus_target != ProjectExplorerFocusTarget::ProjectHierarchy {
                 entry_rows.push(PaneEntryRow::disabled(marker_text, primary_text, secondary_text));
@@ -109,4 +113,32 @@ pub fn build_visible_project_item_entry_rows(
     }
 
     entry_rows
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_visible_project_item_entry_rows;
+    use crate::views::project_explorer::pane_state::{ProjectExplorerFocusTarget, ProjectExplorerPaneState, ProjectHierarchyEntry};
+    use std::path::PathBuf;
+
+    #[test]
+    fn project_item_rows_show_preview_value_instead_of_absolute_path() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        project_explorer_pane_state.focus_target = ProjectExplorerFocusTarget::ProjectHierarchy;
+        project_explorer_pane_state.selected_project_item_visible_index = Some(0);
+        project_explorer_pane_state.project_item_visible_entries = vec![ProjectHierarchyEntry {
+            project_item_path: PathBuf::from("C:/projects/opened/TestProject/project_items/Addresses/Health.json"),
+            display_name: "Health".to_string(),
+            preview_value: "255".to_string(),
+            depth: 0,
+            is_directory: false,
+            is_expanded: false,
+            is_activated: false,
+        }];
+
+        let visible_entry_rows = build_visible_project_item_entry_rows(&project_explorer_pane_state, 4);
+
+        assert_eq!(visible_entry_rows.len(), 1);
+        assert_eq!(visible_entry_rows[0].secondary_text.as_deref(), Some("value=255"));
+    }
 }

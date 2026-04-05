@@ -38,6 +38,7 @@ impl CachedMemoryViewInstance {
 pub(crate) struct MemoryViewRouter {
     plugin_registry: Arc<PluginRegistry>,
     active_memory_view_instance: RwLock<Option<CachedMemoryViewInstance>>,
+    state_changed_notifier: RwLock<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 impl MemoryViewRouter {
@@ -45,6 +46,16 @@ impl MemoryViewRouter {
         Self {
             plugin_registry,
             active_memory_view_instance: RwLock::new(None),
+            state_changed_notifier: RwLock::new(None),
+        }
+    }
+
+    pub(crate) fn set_state_changed_notifier(
+        &self,
+        state_changed_notifier: Arc<dyn Fn() + Send + Sync>,
+    ) {
+        if let Ok(mut notifier) = self.state_changed_notifier.write() {
+            *notifier = Some(state_changed_notifier);
         }
     }
 
@@ -106,6 +117,8 @@ impl MemoryViewRouter {
             ));
         }
 
+        self.notify_state_changed();
+
         log::info!(
             "Activated memory-view plugin `{}` for process `{}` (pid {}).",
             plugin_id,
@@ -127,10 +140,45 @@ impl MemoryViewRouter {
             })
     }
 
+    pub(crate) fn get_active_plugin_id_for_process(
+        &self,
+        process_info: &OpenedProcessInfo,
+    ) -> Option<String> {
+        self.active_memory_view_instance
+            .read()
+            .ok()
+            .and_then(|active_memory_view_instance| {
+                active_memory_view_instance
+                    .as_ref()
+                    .and_then(|cached_memory_view_instance| {
+                        if cached_memory_view_instance.matches(process_info) {
+                            Some(cached_memory_view_instance.plugin_id.clone())
+                        } else {
+                            None
+                        }
+                    })
+            })
+    }
+
+    pub(crate) fn clear_active_instance(&self) {
+        let mut did_clear_instance = false;
+
+        if let Ok(mut active_memory_view_instance) = self.active_memory_view_instance.write() {
+            did_clear_instance = active_memory_view_instance.is_some();
+            *active_memory_view_instance = None;
+        }
+
+        if did_clear_instance {
+            self.notify_state_changed();
+        }
+    }
+
     pub(crate) fn clear_cached_instance(
         &self,
         process_handle: u64,
     ) {
+        let mut did_clear_instance = false;
+
         if let Ok(mut active_memory_view_instance) = self.active_memory_view_instance.write() {
             if active_memory_view_instance
                 .as_ref()
@@ -138,7 +186,24 @@ impl MemoryViewRouter {
                 .unwrap_or(false)
             {
                 *active_memory_view_instance = None;
+                did_clear_instance = true;
             }
+        }
+
+        if did_clear_instance {
+            self.notify_state_changed();
+        }
+    }
+
+    fn notify_state_changed(&self) {
+        let notifier = self
+            .state_changed_notifier
+            .read()
+            .ok()
+            .and_then(|notifier| notifier.clone());
+
+        if let Some(notifier) = notifier {
+            notifier();
         }
     }
 }

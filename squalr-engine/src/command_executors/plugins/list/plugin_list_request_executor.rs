@@ -13,9 +13,7 @@ impl PrivilegedCommandRequestExecutor for PluginListRequest {
         let opened_process_info = engine_privileged_state
             .get_process_manager()
             .get_opened_process();
-        let plugins = engine_privileged_state
-            .get_plugin_registry()
-            .get_plugin_states(opened_process_info.as_ref());
+        let plugins = engine_privileged_state.get_plugin_states();
 
         PluginListResponse { plugins, opened_process_info }
     }

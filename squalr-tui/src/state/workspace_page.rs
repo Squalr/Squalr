@@ -6,6 +6,7 @@ pub enum TuiWorkspacePage {
     ProjectWorkspace,
     ScannerWorkspace,
     SettingsWorkspace,
+    PluginsWorkspace,
 }
 
 impl TuiWorkspacePage {
@@ -13,6 +14,7 @@ impl TuiWorkspacePage {
         match function_key_index {
             2 => Some(Self::ScannerWorkspace),
             3 => Some(Self::SettingsWorkspace),
+            5 => Some(Self::PluginsWorkspace),
             4 => Some(Self::ProjectWorkspace),
             _ => None,
         }
@@ -23,6 +25,7 @@ impl TuiWorkspacePage {
             Self::ProjectWorkspace => "Project Workspace",
             Self::ScannerWorkspace => "Scanner Workspace",
             Self::SettingsWorkspace => "Settings Workspace",
+            Self::PluginsWorkspace => "Plugins Workspace",
         }
     }
 
@@ -30,7 +33,8 @@ impl TuiWorkspacePage {
         match self {
             Self::ProjectWorkspace => "Process Selector -> Project Explorer -> Output",
             Self::ScannerWorkspace => "Element Scanner -> Scan Results -> Output",
-            Self::SettingsWorkspace => "Settings -> Plugins -> Output",
+            Self::SettingsWorkspace => "Settings -> Output",
+            Self::PluginsWorkspace => "Plugins -> Output",
         }
     }
 
@@ -42,7 +46,8 @@ impl TuiWorkspacePage {
                 TuiPane::Output,
             ],
             Self::ScannerWorkspace => &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output],
-            Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Plugins, TuiPane::Output],
+            Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Output],
+            Self::PluginsWorkspace => &[TuiPane::Plugins, TuiPane::Output],
         }
     }
 }
@@ -63,6 +68,7 @@ mod tests {
         assert_eq!(TuiWorkspacePage::from_function_key(1), None);
         assert_eq!(TuiWorkspacePage::from_function_key(2), Some(TuiWorkspacePage::ScannerWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(3), Some(TuiWorkspacePage::SettingsWorkspace));
+        assert_eq!(TuiWorkspacePage::from_function_key(5), Some(TuiWorkspacePage::PluginsWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(4), Some(TuiWorkspacePage::ProjectWorkspace));
     }
 
@@ -80,9 +86,7 @@ mod tests {
             TuiWorkspacePage::ScannerWorkspace.visible_panes(),
             &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output]
         );
-        assert_eq!(
-            TuiWorkspacePage::SettingsWorkspace.visible_panes(),
-            &[TuiPane::Settings, TuiPane::Plugins, TuiPane::Output]
-        );
+        assert_eq!(TuiWorkspacePage::SettingsWorkspace.visible_panes(), &[TuiPane::Settings, TuiPane::Output]);
+        assert_eq!(TuiWorkspacePage::PluginsWorkspace.visible_panes(), &[TuiPane::Plugins, TuiPane::Output]);
     }
 }

@@ -7,7 +7,7 @@ use crate::{
 };
 use eframe::egui::{Label, RichText, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{CornerRadius, StrokeKind};
-use squalr_engine_api::plugins::PluginState;
+use squalr_engine_api::plugins::{PluginActivationState, PluginState};
 use std::sync::Arc;
 
 pub struct PluginEntryView<'lifetime> {
@@ -139,14 +139,15 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             status_parts.push(String::from("Built in"));
         }
 
-        if plugin_state.get_is_active_for_current_process() {
-            status_parts.push(String::from("Active on current target"));
-        } else if plugin_state.get_can_activate_for_current_process() {
-            status_parts.push(String::from("Available on current target"));
-        } else if !plugin_state.get_is_enabled() {
+        if !plugin_state.get_is_enabled() {
             status_parts.push(String::from("Disabled"));
         } else {
-            status_parts.push(String::from("Idle"));
+            status_parts.push(match plugin_state.get_activation_state() {
+                PluginActivationState::Idle => String::from("Idle"),
+                PluginActivationState::Available => String::from("Available on current target"),
+                PluginActivationState::Activating => String::from("Activating on current target"),
+                PluginActivationState::Activated => String::from("Activated on current target"),
+            });
         }
 
         status_parts.join(" • ")
@@ -162,12 +163,11 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         theme: &Theme,
         plugin_state: &PluginState,
     ) -> eframe::egui::Color32 {
-        if plugin_state.get_is_active_for_current_process() {
-            theme.hexadecimal_green
-        } else if plugin_state.get_can_activate_for_current_process() {
-            theme.binary_blue
-        } else {
-            theme.foreground_preview
+        match plugin_state.get_activation_state() {
+            PluginActivationState::Activated => theme.hexadecimal_green,
+            PluginActivationState::Activating => theme.binary_blue,
+            PluginActivationState::Available => theme.binary_blue,
+            PluginActivationState::Idle => theme.foreground_preview,
         }
     }
 }

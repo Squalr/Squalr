@@ -8,6 +8,7 @@ use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnpriv
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
+use squalr_engine_api::events::plugins::plugins_event::PluginsEvent;
 use squalr_engine_api::events::process::process_event::ProcessEvent;
 use squalr_engine_api::events::project::project_event::ProjectEvent;
 use squalr_engine_api::events::project_items::project_items_event::ProjectItemsEvent;
@@ -300,6 +301,11 @@ impl EngineUnprivilegedState {
         let engine_event = engine_event_envelope.into_engine_event();
 
         match engine_event {
+            EngineEvent::Plugins(plugins_event) => match plugins_event {
+                PluginsEvent::PluginsChanged { plugins_changed_event } => {
+                    Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, plugins_changed_event);
+                }
+            },
             EngineEvent::Process(process_event) => match process_event {
                 ProcessEvent::ProcessChanged { process_changed_event } => {
                     Self::dispatch_engine_event(&engine_unprivileged_state.event_listeners, process_changed_event);

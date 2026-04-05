@@ -1,26 +1,23 @@
-use crate::plugins::PluginMetadata;
+use crate::plugins::{PluginActivationState, PluginMetadata};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PluginState {
     metadata: PluginMetadata,
     is_enabled: bool,
-    can_activate_for_current_process: bool,
-    is_active_for_current_process: bool,
+    activation_state: PluginActivationState,
 }
 
 impl PluginState {
     pub fn new(
         metadata: PluginMetadata,
         is_enabled: bool,
-        can_activate_for_current_process: bool,
-        is_active_for_current_process: bool,
+        activation_state: PluginActivationState,
     ) -> Self {
         Self {
             metadata,
             is_enabled,
-            can_activate_for_current_process,
-            is_active_for_current_process,
+            activation_state,
         }
     }
 
@@ -32,11 +29,18 @@ impl PluginState {
         self.is_enabled
     }
 
+    pub fn get_activation_state(&self) -> PluginActivationState {
+        self.activation_state
+    }
+
     pub fn get_can_activate_for_current_process(&self) -> bool {
-        self.can_activate_for_current_process
+        matches!(
+            self.activation_state,
+            PluginActivationState::Available | PluginActivationState::Activating | PluginActivationState::Activated
+        )
     }
 
     pub fn get_is_active_for_current_process(&self) -> bool {
-        self.is_active_for_current_process
+        matches!(self.activation_state, PluginActivationState::Activated)
     }
 }

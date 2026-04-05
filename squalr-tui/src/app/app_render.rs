@@ -17,6 +17,7 @@ impl AppShell {
             TuiWorkspacePage::ProjectWorkspace => self.draw_project_workspace_layout(frame, body_area),
             TuiWorkspacePage::ScannerWorkspace => self.draw_scanner_workspace_layout(frame, body_area),
             TuiWorkspacePage::SettingsWorkspace => self.draw_settings_workspace_layout(frame, body_area),
+            TuiWorkspacePage::PluginsWorkspace => self.draw_plugins_workspace_layout(frame, body_area),
         }
     }
 
@@ -71,13 +72,21 @@ impl AppShell {
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(body_area);
 
-        let settings_columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-            .split(rows[0]);
+        self.draw_single_pane(frame, rows[0], TuiPane::Settings);
+        self.draw_single_pane(frame, rows[1], TuiPane::Output);
+    }
 
-        self.draw_single_pane(frame, settings_columns[0], TuiPane::Settings);
-        self.draw_single_pane(frame, settings_columns[1], TuiPane::Plugins);
+    fn draw_plugins_workspace_layout(
+        &self,
+        frame: &mut ratatui::Frame<'_>,
+        body_area: Rect,
+    ) {
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+            .split(body_area);
+
+        self.draw_single_pane(frame, rows[0], TuiPane::Plugins);
         self.draw_single_pane(frame, rows[1], TuiPane::Output);
     }
 

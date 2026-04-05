@@ -9,7 +9,10 @@ use squalr_engine_api::engine::engine_api_priviliged_bindings::EngineApiPrivileg
 use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
 use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
+use squalr_engine_api::events::plugins::changed::plugins_changed_event::PluginsChangedEvent;
+use squalr_engine_api::events::process::process_event::ProcessEvent;
 use squalr_engine_api::events::registry::changed::registry_changed_event::RegistryChangedEvent;
+use squalr_engine_api::plugins::PluginState;
 use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use squalr_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use squalr_engine_api::registries::registry_context::RegistryContext;
@@ -98,6 +101,8 @@ impl EnginePrivilegedState {
             .os_providers
             .process_query
             .start_monitoring()?;
+        engine_privileged_state.install_memory_view_state_changed_notifier();
+        engine_privileged_state.install_internal_event_hooks();
 
         Ok(engine_privileged_state)
     }
@@ -194,6 +199,21 @@ impl EnginePrivilegedState {
         self.plugin_registry.clone()
     }
 
+    pub fn get_plugin_states(&self) -> Vec<PluginState> {
+        let opened_process_info = self.get_process_manager().get_opened_process();
+        let active_plugin_id = opened_process_info.as_ref().and_then(|opened_process_info| {
+            self.os_providers
+                .get_active_memory_view_plugin_id(opened_process_info)
+        });
+
+        self.plugin_registry
+            .get_plugin_states(opened_process_info.as_ref(), active_plugin_id.as_deref())
+    }
+
+    pub fn invalidate_memory_view_runtime_state(&self) {
+        self.os_providers.clear_active_memory_view_instance();
+    }
+
     /// Gets OS providers used for process and memory operations.
     pub fn get_os_providers(&self) -> &EngineOsProviders {
         &self.os_providers
@@ -265,6 +285,36 @@ impl EnginePrivilegedState {
                 }
             }
         }) as Arc<dyn Fn(EngineEvent) + Send + Sync>
+    }
+
+    fn install_internal_event_hooks(self: &Arc<Self>) {
+        let event_receiver = match self.subscribe_to_engine_events() {
+            Ok(event_receiver) => event_receiver,
+            Err(error) => {
+                log::error!("Failed to subscribe internal privileged event hooks: {}", error);
+                return;
+            }
+        };
+        let engine_privileged_state = self.clone();
+
+        std::thread::spawn(move || {
+            while let Ok(engine_event_envelope) = event_receiver.recv() {
+                match engine_event_envelope.into_engine_event() {
+                    EngineEvent::Process(ProcessEvent::ProcessChanged { .. }) => {
+                        engine_privileged_state.invalidate_memory_view_runtime_state();
+                    }
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    fn install_memory_view_state_changed_notifier(self: &Arc<Self>) {
+        let engine_privileged_state = self.clone();
+        self.os_providers
+            .set_memory_view_state_changed_notifier(Arc::new(move || {
+                engine_privileged_state.emit_event(PluginsChangedEvent {});
+            }));
     }
 
     fn mutate_symbol_registry<F>(

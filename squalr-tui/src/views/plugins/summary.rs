@@ -1,11 +1,9 @@
 use crate::views::plugins::pane_state::PluginsPaneState;
-use squalr_engine_api::plugins::PluginKind;
+use squalr_engine_api::plugins::{PluginActivationState, PluginKind};
 
 pub fn build_plugins_summary_lines_with_capacity(
     plugins_pane_state: &PluginsPaneState,
     line_capacity: usize,
-    opened_process_name: Option<&str>,
-    opened_process_identifier: Option<u32>,
 ) -> Vec<String> {
     if line_capacity == 0 {
         return Vec::new();
@@ -24,18 +22,27 @@ pub fn build_plugins_summary_lines_with_capacity(
     let active_plugin_count = plugins_pane_state
         .plugins
         .iter()
-        .filter(|plugin_state| plugin_state.get_is_active_for_current_process())
+        .filter(|plugin_state| matches!(plugin_state.get_activation_state(), PluginActivationState::Activated))
+        .count();
+    let activating_plugin_count = plugins_pane_state
+        .plugins
+        .iter()
+        .filter(|plugin_state| matches!(plugin_state.get_activation_state(), PluginActivationState::Activating))
         .count();
 
     let mut summary_lines = vec![
         "[NAV] Up/Down move | Home/End jump.".to_string(),
         "[ACT] Space/Enter toggle | r refresh.".to_string(),
-        format!("[PROC] {}.", format_process_context(opened_process_name, opened_process_identifier)),
         format!(
-            "[PLUG] total={} | enabled={} | eligible={} | active={}.",
+            "[BUSY] refreshing={} | toggling={}.",
+            plugins_pane_state.is_refreshing_plugins, plugins_pane_state.is_updating_plugin_enabled
+        ),
+        format!(
+            "[PLUG] total={} | enabled={} | eligible={} | activating={} | active={}.",
             plugins_pane_state.plugins.len(),
             enabled_plugin_count,
             eligible_plugin_count,
+            activating_plugin_count,
             active_plugin_count
         ),
     ];
@@ -49,9 +56,10 @@ pub fn build_plugins_summary_lines_with_capacity(
             metadata.get_is_built_in()
         ));
         summary_lines.push(format!(
-            "[ROUTE] enabled={} | eligible={} | active={}.",
+            "[ROUTE] enabled={} | eligible={} | state={} | active={}.",
             selected_plugin.get_is_enabled(),
             selected_plugin.get_can_activate_for_current_process(),
+            plugin_activation_state_label(selected_plugin.get_activation_state()),
             selected_plugin.get_is_active_for_current_process()
         ));
         summary_lines.push(format!("[ID] {}.", metadata.get_plugin_id()));
@@ -65,22 +73,17 @@ pub fn build_plugins_summary_lines_with_capacity(
     summary_lines.into_iter().take(line_capacity).collect()
 }
 
-fn format_process_context(
-    opened_process_name: Option<&str>,
-    opened_process_identifier: Option<u32>,
-) -> String {
-    match (opened_process_name, opened_process_identifier) {
-        (Some(opened_process_name), Some(opened_process_identifier)) => {
-            format!("target={} | pid={}", opened_process_name, opened_process_identifier)
-        }
-        (Some(opened_process_name), None) => format!("target={}", opened_process_name),
-        (None, Some(opened_process_identifier)) => format!("pid={}", opened_process_identifier),
-        (None, None) => "target=none".to_string(),
-    }
-}
-
 fn plugin_kind_label(plugin_kind: PluginKind) -> &'static str {
     match plugin_kind {
         PluginKind::MemoryView => "memory-view",
+    }
+}
+
+fn plugin_activation_state_label(plugin_activation_state: PluginActivationState) -> &'static str {
+    match plugin_activation_state {
+        PluginActivationState::Idle => "idle",
+        PluginActivationState::Available => "available",
+        PluginActivationState::Activating => "activating",
+        PluginActivationState::Activated => "activated",
     }
 }

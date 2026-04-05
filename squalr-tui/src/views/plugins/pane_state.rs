@@ -76,10 +76,8 @@ impl PluginsPaneState {
     pub fn summary_lines_with_capacity(
         &self,
         line_capacity: usize,
-        opened_process_name: Option<&str>,
-        opened_process_identifier: Option<u32>,
     ) -> Vec<String> {
-        build_plugins_summary_lines_with_capacity(self, line_capacity, opened_process_name, opened_process_identifier)
+        build_plugins_summary_lines_with_capacity(self, line_capacity)
     }
 
     pub fn visible_plugin_entry_rows(
@@ -106,14 +104,13 @@ impl Default for PluginsPaneState {
 #[cfg(test)]
 mod tests {
     use super::PluginsPaneState;
-    use squalr_engine_api::plugins::{PluginKind, PluginMetadata, PluginState};
+    use squalr_engine_api::plugins::{PluginActivationState, PluginKind, PluginMetadata, PluginState};
 
     fn create_plugin_state(plugin_id: &str) -> PluginState {
         PluginState::new(
             PluginMetadata::new(plugin_id, plugin_id, "Plugin", PluginKind::MemoryView, true),
             true,
-            false,
-            false,
+            PluginActivationState::Idle,
         )
     }
 

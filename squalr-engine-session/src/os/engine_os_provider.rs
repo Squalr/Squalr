@@ -113,6 +113,7 @@ pub struct EngineOsProviders {
     pub memory_query: Arc<dyn MemoryQueryProvider>,
     pub memory_read: Arc<dyn MemoryReadProvider>,
     pub memory_write: Arc<dyn MemoryWriteProvider>,
+    memory_view_router: Option<Arc<MemoryViewRouter>>,
 }
 
 impl EngineOsProviders {
@@ -128,6 +129,7 @@ impl EngineOsProviders {
             memory_query,
             memory_read,
             memory_write,
+            memory_view_router: None,
         }
     }
 
@@ -142,6 +144,7 @@ impl EngineOsProviders {
             memory_query,
             memory_read,
             memory_write,
+            memory_view_router: _,
         } = self;
         let base_memory_query = memory_query.clone();
 
@@ -154,8 +157,33 @@ impl EngineOsProviders {
                 base_memory_query.clone(),
                 memory_view_router.clone(),
             )),
-            memory_write: Arc::new(RoutedMemoryWriteProvider::new(memory_write, base_memory_query, memory_view_router)),
+            memory_write: Arc::new(RoutedMemoryWriteProvider::new(memory_write, base_memory_query, memory_view_router.clone())),
+            memory_view_router: Some(memory_view_router.clone()),
         }
+    }
+
+    pub fn clear_active_memory_view_instance(&self) {
+        if let Some(memory_view_router) = self.memory_view_router.as_ref() {
+            memory_view_router.clear_active_instance();
+        }
+    }
+
+    pub fn set_memory_view_state_changed_notifier(
+        &self,
+        state_changed_notifier: Arc<dyn Fn() + Send + Sync>,
+    ) {
+        if let Some(memory_view_router) = self.memory_view_router.as_ref() {
+            memory_view_router.set_state_changed_notifier(state_changed_notifier);
+        }
+    }
+
+    pub fn get_active_memory_view_plugin_id(
+        &self,
+        process_info: &OpenedProcessInfo,
+    ) -> Option<String> {
+        self.memory_view_router
+            .as_ref()
+            .and_then(|memory_view_router| memory_view_router.get_active_plugin_id_for_process(process_info))
     }
 }
 
@@ -167,6 +195,7 @@ impl Default for EngineOsProviders {
             memory_query: Arc::new(DefaultMemoryQueryProvider {}),
             memory_read: Arc::new(DefaultMemoryReadProvider {}),
             memory_write: Arc::new(DefaultMemoryWriteProvider {}),
+            memory_view_router: None,
         }
     }
 }
@@ -1070,5 +1099,44 @@ mod tests {
         );
         assert_eq!(*read_bytes_count.lock().expect("Expected read byte count lock."), 1);
         assert_eq!(*write_count.lock().expect("Expected write count lock."), 1);
+    }
+
+    #[test]
+    fn clearing_runtime_memory_view_instance_drops_active_plugin_identity() {
+        let os_providers = EngineOsProviders::new(
+            Arc::new(TestProcessQueryProvider),
+            Arc::new(TestMemoryQueryProvider {
+                module_query_count: Arc::new(Mutex::new(0)),
+                page_query_count: Arc::new(Mutex::new(0)),
+                pages: vec![NormalizedRegion::new(0x1000, 0x80)],
+            }),
+            Arc::new(TestMemoryReadProvider {
+                read_bytes_count: Arc::new(Mutex::new(0)),
+            }),
+            Arc::new(TestMemoryWriteProvider {
+                write_count: Arc::new(Mutex::new(0)),
+            }),
+        )
+        .with_memory_view_routing(Arc::new(PluginRegistry::new()));
+        let opened_process_info = OpenedProcessInfo::new(7, String::from("Dolphin.exe"), 42, Bitness::Bit64, None);
+
+        let _ = os_providers
+            .memory_query
+            .get_memory_page_bounds(&opened_process_info, PageRetrievalMode::FromUserMode);
+
+        assert_eq!(
+            os_providers
+                .get_active_memory_view_plugin_id(&opened_process_info)
+                .as_deref(),
+            Some("builtin.memory-view.dolphin")
+        );
+
+        os_providers.clear_active_memory_view_instance();
+
+        assert!(
+            os_providers
+                .get_active_memory_view_plugin_id(&opened_process_info)
+                .is_none()
+        );
     }
 }

@@ -14,10 +14,13 @@ impl PrivilegedCommandRequestExecutor for PluginSetEnabledRequest {
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let plugin_registry = engine_privileged_state.get_plugin_registry();
         let did_update = plugin_registry.set_plugin_enabled(&self.plugin_id, self.is_enabled);
+        if did_update {
+            engine_privileged_state.invalidate_memory_view_runtime_state();
+        }
         let opened_process_info = engine_privileged_state
             .get_process_manager()
             .get_opened_process();
-        let plugins = plugin_registry.get_plugin_states(opened_process_info.as_ref());
+        let plugins = engine_privileged_state.get_plugin_states();
 
         PluginSetEnabledResponse {
             plugins,

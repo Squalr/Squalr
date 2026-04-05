@@ -15,7 +15,12 @@ fn resolve_module_address_display(
 ) -> ModuleAddressDisplay {
     modules
         .iter()
-        .find(|module| module.get_module_name().eq_ignore_ascii_case(resolved_module_name) && module.contains_address(address))
+        .find(|module| {
+            module
+                .get_module_name()
+                .eq_ignore_ascii_case(resolved_module_name)
+                && module.contains_address(address)
+        })
         .map(|module| module.get_module_address_display())
         .unwrap_or_default()
 }

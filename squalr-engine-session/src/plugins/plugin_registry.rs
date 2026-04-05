@@ -4,7 +4,7 @@ use std::{
 };
 
 use squalr_engine_api::{
-    plugins::{PluginState, memory_view::MemoryViewPlugin},
+    plugins::{PluginActivationState, PluginState, memory_view::MemoryViewPlugin},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 use squalr_plugin_builtins::get_builtin_memory_view_plugins;
@@ -35,8 +35,9 @@ impl PluginRegistry {
     pub fn get_plugin_states(
         &self,
         opened_process_info: Option<&OpenedProcessInfo>,
+        active_plugin_id: Option<&str>,
     ) -> Vec<PluginState> {
-        let active_plugin_id = opened_process_info
+        let selected_plugin_id = opened_process_info
             .and_then(|opened_process_info| self.find_memory_view_plugin(opened_process_info))
             .map(|memory_view_plugin| memory_view_plugin.metadata().get_plugin_id().to_string());
 
@@ -47,17 +48,24 @@ impl PluginRegistry {
                 let can_activate_for_current_process = opened_process_info
                     .map(|opened_process_info| memory_view_plugin.can_attach(opened_process_info))
                     .unwrap_or(false);
-                let is_active_for_current_process = active_plugin_id
-                    .as_deref()
+                let activation_state = if active_plugin_id
                     .map(|active_plugin_id| active_plugin_id == memory_view_plugin.metadata().get_plugin_id())
-                    .unwrap_or(false);
+                    .unwrap_or(false)
+                {
+                    PluginActivationState::Activated
+                } else if selected_plugin_id
+                    .as_deref()
+                    .map(|selected_plugin_id| selected_plugin_id == memory_view_plugin.metadata().get_plugin_id())
+                    .unwrap_or(false)
+                {
+                    PluginActivationState::Activating
+                } else if can_activate_for_current_process {
+                    PluginActivationState::Available
+                } else {
+                    PluginActivationState::Idle
+                };
 
-                PluginState::new(
-                    memory_view_plugin.metadata().clone(),
-                    is_enabled,
-                    can_activate_for_current_process,
-                    is_active_for_current_process,
-                )
+                PluginState::new(memory_view_plugin.metadata().clone(), is_enabled, activation_state)
             })
             .collect()
     }
@@ -120,7 +128,10 @@ impl Default for PluginRegistry {
 #[cfg(test)]
 mod tests {
     use super::PluginRegistry;
-    use squalr_engine_api::structures::{memory::bitness::Bitness, processes::opened_process_info::OpenedProcessInfo};
+    use squalr_engine_api::{
+        plugins::PluginActivationState,
+        structures::{memory::bitness::Bitness, processes::opened_process_info::OpenedProcessInfo},
+    };
 
     #[test]
     fn registry_exposes_builtin_dolphin_memory_view_plugin() {
@@ -140,6 +151,28 @@ mod tests {
     }
 
     #[test]
+    fn selected_plugin_reports_activating_until_router_has_live_instance() {
+        let plugin_registry = PluginRegistry::new();
+        let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
+
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), None);
+
+        assert_eq!(plugin_states.len(), 1);
+        assert_eq!(plugin_states[0].get_activation_state(), PluginActivationState::Activating);
+    }
+
+    #[test]
+    fn live_router_plugin_reports_activated() {
+        let plugin_registry = PluginRegistry::new();
+        let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
+
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), Some("builtin.memory-view.dolphin"));
+
+        assert_eq!(plugin_states.len(), 1);
+        assert_eq!(plugin_states[0].get_activation_state(), PluginActivationState::Activated);
+    }
+
+    #[test]
     fn disabling_plugin_prevents_matching_and_updates_state() {
         let plugin_registry = PluginRegistry::new();
         let opened_process_info = OpenedProcessInfo::new(1, "Dolphin.exe".to_string(), 0, Bitness::Bit64, None);
@@ -152,7 +185,7 @@ mod tests {
                 .is_none()
         );
 
-        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info));
+        let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), None);
 
         assert_eq!(plugin_states.len(), 1);
         assert!(!plugin_states[0].get_is_enabled());

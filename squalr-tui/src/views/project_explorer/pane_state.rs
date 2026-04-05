@@ -35,6 +35,7 @@ pub enum ProjectExplorerFocusTarget {
 pub struct ProjectHierarchyEntry {
     pub project_item_path: PathBuf,
     pub display_name: String,
+    pub preview_value: String,
     pub depth: usize,
     pub is_directory: bool,
     pub is_expanded: bool,
@@ -592,6 +593,7 @@ impl ProjectExplorerPaneState {
         self.active_project_name = active_project_name;
         self.active_project_directory_path = active_project_directory_path;
         self.sync_focus_target_to_project_context();
+        self.update_selected_item_path();
     }
 
     pub fn summary_lines(&self) -> Vec<String> {
@@ -610,6 +612,21 @@ impl ProjectExplorerPaneState {
         viewport_capacity: usize,
     ) -> Vec<PaneEntryRow> {
         build_visible_project_item_entry_rows(self, viewport_capacity)
+    }
+
+    pub fn selected_project_item_preview_value(&self) -> Option<&str> {
+        self.selected_project_item_visible_index
+            .and_then(|selected_project_item_visible_index| {
+                self.project_item_visible_entries
+                    .get(selected_project_item_visible_index)
+            })
+            .and_then(|project_item_entry| {
+                if project_item_entry.preview_value.is_empty() {
+                    None
+                } else {
+                    Some(project_item_entry.preview_value.as_str())
+                }
+            })
     }
 
     pub fn select_first_project_item(&mut self) {
@@ -678,7 +695,43 @@ impl ProjectExplorerPaneState {
     fn update_selected_item_path(&mut self) {
         self.selected_item_path = self
             .selected_project_item_path()
-            .map(|project_item_path| project_item_path.display().to_string());
+            .map(|project_item_path| self.format_project_item_display_path(&project_item_path));
+    }
+
+    fn format_project_item_display_path(
+        &self,
+        project_item_path: &Path,
+    ) -> String {
+        let Some(project_display_root_path) = self.project_display_root_path() else {
+            return project_item_path.display().to_string();
+        };
+
+        match project_item_path.strip_prefix(&project_display_root_path) {
+            Ok(relative_project_item_path) => {
+                let relative_display_path = relative_project_item_path.to_string_lossy().replace('\\', "/");
+
+                if relative_display_path.is_empty() {
+                    ".".to_string()
+                } else {
+                    relative_display_path
+                }
+            }
+            Err(_) => project_item_path.display().to_string(),
+        }
+    }
+
+    fn project_display_root_path(&self) -> Option<PathBuf> {
+        let active_project_directory_path = self.active_project_directory_path.as_ref()?;
+        let hidden_project_root_path = active_project_directory_path.join(Project::PROJECT_DIR);
+
+        if self
+            .opened_project_item_map
+            .contains_key(&hidden_project_root_path)
+        {
+            Some(hidden_project_root_path)
+        } else {
+            Some(active_project_directory_path.clone())
+        }
     }
 
     fn is_directory_path(
@@ -784,7 +837,10 @@ impl Default for ProjectExplorerPaneState {
 #[cfg(test)]
 mod tests {
     use super::{ProjectExplorerFocusTarget, ProjectExplorerPaneState, ProjectHierarchyEntry};
+    use squalr_engine_api::structures::projects::project::Project;
     use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
+    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
     use std::path::PathBuf;
 
@@ -830,6 +886,7 @@ mod tests {
             ProjectHierarchyEntry {
                 project_item_path: PathBuf::from("C:/projects/opened/Foo"),
                 display_name: "Foo".to_string(),
+                preview_value: String::new(),
                 depth: 0,
                 is_directory: true,
                 is_expanded: false,
@@ -838,6 +895,7 @@ mod tests {
             ProjectHierarchyEntry {
                 project_item_path: PathBuf::from("C:/projects/opened/Bar"),
                 display_name: "Bar".to_string(),
+                preview_value: String::new(),
                 depth: 0,
                 is_directory: true,
                 is_expanded: false,
@@ -877,5 +935,32 @@ mod tests {
 
         assert_eq!(project_explorer_pane_state.selected_project_list_index, Some(1));
         assert_eq!(project_explorer_pane_state.selected_project_name.as_deref(), Some("BetaProject"));
+    }
+
+    #[test]
+    fn selected_item_path_uses_relative_path_from_hidden_project_root() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        let active_project_directory_path = PathBuf::from("C:/projects/opened/TestProject");
+        let hidden_project_root_path = active_project_directory_path.join(Project::PROJECT_DIR);
+        let selected_project_item_path = hidden_project_root_path.join("Addresses/Health.json");
+        let hidden_project_root_ref = ProjectItemRef::new(hidden_project_root_path.clone());
+
+        project_explorer_pane_state.active_project_directory_path = Some(active_project_directory_path);
+        project_explorer_pane_state
+            .opened_project_item_map
+            .insert(hidden_project_root_path, ProjectItemTypeDirectory::new_project_item(&hidden_project_root_ref));
+        project_explorer_pane_state.project_item_visible_entries = vec![ProjectHierarchyEntry {
+            project_item_path: selected_project_item_path,
+            display_name: "Health".to_string(),
+            preview_value: "255".to_string(),
+            depth: 0,
+            is_directory: false,
+            is_expanded: false,
+            is_activated: false,
+        }];
+
+        project_explorer_pane_state.select_first_project_item();
+
+        assert_eq!(project_explorer_pane_state.selected_item_path.as_deref(), Some("Addresses/Health.json"));
     }
 }

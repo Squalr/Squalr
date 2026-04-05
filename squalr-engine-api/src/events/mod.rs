@@ -1,4 +1,5 @@
 pub mod engine_event;
+pub mod plugins;
 pub mod process;
 pub mod project;
 pub mod project_items;

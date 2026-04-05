@@ -5,7 +5,11 @@ use crate::{
 };
 use eframe::egui::{Align, Label, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{Color32, CornerRadius, Rect, Stroke, pos2};
-use squalr_engine_api::{dependency_injection::dependency::Dependency, events::process::changed::process_changed_event::ProcessChangedEvent};
+use squalr_engine_api::{
+    dependency_injection::dependency::Dependency,
+    events::{plugins::changed::plugins_changed_event::PluginsChangedEvent, process::changed::process_changed_event::ProcessChangedEvent},
+    plugins::PluginActivationState,
+};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -29,6 +33,7 @@ impl PluginsView {
 
         PluginListViewData::refresh(instance.plugin_list_view_data.clone(), instance.app_context.clone());
         instance.listen_for_process_change();
+        instance.listen_for_plugins_changed();
 
         instance
     }
@@ -44,6 +49,17 @@ impl PluginsView {
             });
     }
 
+    fn listen_for_plugins_changed(&self) {
+        let app_context = self.app_context.clone();
+        let plugin_list_view_data = self.plugin_list_view_data.clone();
+
+        self.app_context
+            .engine_unprivileged_state
+            .listen_for_engine_event::<PluginsChangedEvent>(move |_plugins_changed_event| {
+                PluginListViewData::refresh(plugin_list_view_data.clone(), app_context.clone());
+            });
+    }
+
     fn format_bool(value: bool) -> &'static str {
         if value { "Yes" } else { "No" }
     }
@@ -51,6 +67,15 @@ impl PluginsView {
     fn format_plugin_kind(plugin_kind: squalr_engine_api::plugins::PluginKind) -> &'static str {
         match plugin_kind {
             squalr_engine_api::plugins::PluginKind::MemoryView => "Memory view",
+        }
+    }
+
+    fn format_activation_state(activation_state: PluginActivationState) -> &'static str {
+        match activation_state {
+            PluginActivationState::Idle => "Idle",
+            PluginActivationState::Available => "Available",
+            PluginActivationState::Activating => "Activating",
+            PluginActivationState::Activated => "Activated",
         }
     }
 }
@@ -230,8 +255,8 @@ impl Widget for PluginsView {
                         user_interface.add(
                             Label::new(
                                 RichText::new(format!(
-                                    "Active on current target: {}",
-                                    Self::format_bool(selected_plugin_state.get_is_active_for_current_process())
+                                    "Activation on current target: {}",
+                                    Self::format_activation_state(selected_plugin_state.get_activation_state())
                                 ))
                                 .font(theme.font_library.font_noto_sans.font_normal.clone())
                                 .color(theme.foreground),
