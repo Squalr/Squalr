@@ -26,6 +26,7 @@ use squalr_engine_api::commands::struct_scan::struct_scan_response::StructScanRe
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
@@ -318,8 +319,10 @@ fn pointer_scan_start_request_dispatches_pointer_scan_command_and_invokes_typed_
     );
     let dispatched_commands = bindings.get_dispatched_commands();
     let pointer_scan_start_request = PointerScanStartRequest {
-        target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("4096;address;")
-            .expect("anonymous value string should parse"),
+        target: PointerScanTargetRequest::address(
+            squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("4096;address;")
+                .expect("anonymous value string should parse"),
+        ),
         pointer_size: PointerScanPointerSize::Pointer64,
         max_depth: 5,
         offset_radius: 8,
@@ -344,7 +347,10 @@ fn pointer_scan_start_request_dispatches_pointer_scan_command_and_invokes_typed_
         }) => {
             assert_eq!(
                 captured_pointer_scan_start_request
+                    .target
                     .target_address
+                    .as_ref()
+                    .expect("pointer scan start target should contain target address")
                     .get_anonymous_value_string(),
                 "4096"
             );
@@ -364,8 +370,10 @@ fn pointer_scan_start_request_does_not_invoke_callback_when_response_variant_is_
     );
     let dispatched_commands = bindings.get_dispatched_commands();
     let pointer_scan_start_request = PointerScanStartRequest {
-        target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("4096;address;")
-            .expect("anonymous value string should parse"),
+        target: PointerScanTargetRequest::address(
+            squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("4096;address;")
+                .expect("anonymous value string should parse"),
+        ),
         pointer_size: PointerScanPointerSize::Pointer64,
         max_depth: 5,
         offset_radius: 8,
@@ -428,6 +436,9 @@ fn pointer_scan_expand_request_dispatches_pointer_scan_command_and_invokes_typed
         PointerScanExpandResponse {
             session_id: 7,
             parent_node_id: Some(11),
+            page_index: 0,
+            last_page_index: 0,
+            total_node_count: 0,
             pointer_scan_nodes: Vec::new(),
         }
         .to_engine_response(),
@@ -437,6 +448,8 @@ fn pointer_scan_expand_request_dispatches_pointer_scan_command_and_invokes_typed
     let pointer_scan_expand_request = PointerScanExpandRequest {
         session_id: 7,
         parent_node_id: Some(11),
+        page_index: 0,
+        page_size: 22,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
@@ -458,6 +471,8 @@ fn pointer_scan_expand_request_dispatches_pointer_scan_command_and_invokes_typed
         }) => {
             assert_eq!(captured_pointer_scan_expand_request.session_id, 7);
             assert_eq!(captured_pointer_scan_expand_request.parent_node_id, Some(11));
+            assert_eq!(captured_pointer_scan_expand_request.page_index, 0);
+            assert_eq!(captured_pointer_scan_expand_request.page_size, 22);
         }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
@@ -472,8 +487,10 @@ fn pointer_scan_validate_request_dispatches_pointer_scan_command_and_invokes_typ
     let dispatched_commands = bindings.get_dispatched_commands();
     let pointer_scan_validate_request = PointerScanValidateRequest {
         session_id: 9,
-        target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("8192;address;")
-            .expect("anonymous value string should parse"),
+        target: PointerScanTargetRequest::address(
+            squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("8192;address;")
+                .expect("anonymous value string should parse"),
+        ),
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
@@ -496,7 +513,10 @@ fn pointer_scan_validate_request_dispatches_pointer_scan_command_and_invokes_typ
             assert_eq!(captured_pointer_scan_validate_request.session_id, 9);
             assert_eq!(
                 captured_pointer_scan_validate_request
+                    .target
                     .target_address
+                    .as_ref()
+                    .expect("pointer scan validate target should contain target address")
                     .get_anonymous_value_string(),
                 "8192"
             );
@@ -514,8 +534,10 @@ fn pointer_scan_validate_request_does_not_invoke_callback_when_response_variant_
     let dispatched_commands = bindings.get_dispatched_commands();
     let pointer_scan_validate_request = PointerScanValidateRequest {
         session_id: 9,
-        target_address: squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("8192;address;")
-            .expect("anonymous value string should parse"),
+        target: PointerScanTargetRequest::address(
+            squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString::from_str("8192;address;")
+                .expect("anonymous value string should parse"),
+        ),
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
@@ -649,7 +671,10 @@ fn privileged_command_parser_accepts_pointer_scan_with_long_flags() {
         PrivilegedCommand::PointerScan(PointerScanCommand::Start { pointer_scan_start_request }) => {
             assert_eq!(
                 pointer_scan_start_request
+                    .target
                     .target_address
+                    .as_ref()
+                    .expect("parsed pointer scan start target should contain target address")
                     .get_anonymous_value_string(),
                 "4096"
             );
