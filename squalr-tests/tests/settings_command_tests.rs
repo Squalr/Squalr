@@ -20,6 +20,7 @@ use squalr_engine_api::commands::settings::scan::set::scan_settings_set_response
 use squalr_engine_api::commands::settings::settings_command::SettingsCommand;
 use squalr_engine_api::commands::settings::settings_error::SettingsError;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
+use squalr_engine_api::plugins::memory_view::PageRetrievalMode;
 use squalr_engine_api::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -233,6 +234,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
     );
     let dispatched_commands = bindings.get_dispatched_commands();
     let scan_settings_set_request = ScanSettingsSetRequest {
+        page_retrieval_mode: Some(PageRetrievalMode::FromSettings),
         results_page_size: Some(256),
         results_read_interval_ms: None,
         project_read_interval_ms: None,
@@ -264,6 +266,7 @@ fn scan_settings_set_request_dispatches_set_command_and_invokes_typed_callback()
                 scan_settings_set_request: captured_scan_settings_set_request,
             },
         }) => {
+            assert_eq!(captured_scan_settings_set_request.page_retrieval_mode, Some(PageRetrievalMode::FromSettings));
             assert_eq!(captured_scan_settings_set_request.results_page_size, Some(256));
             assert_eq!(captured_scan_settings_set_request.memory_alignment, Some(MemoryAlignment::Alignment4));
             assert_eq!(
