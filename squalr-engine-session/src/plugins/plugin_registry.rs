@@ -4,7 +4,7 @@ use std::{
 };
 
 use squalr_engine_api::{
-    plugins::{PluginActivationState, PluginState, memory_view::MemoryViewPlugin},
+    plugins::{memory_view::MemoryViewPlugin, PluginActivationState, PluginState},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 use squalr_plugin_builtins::get_builtin_memory_view_plugins;
@@ -37,14 +37,42 @@ impl PluginRegistry {
         opened_process_info: Option<&OpenedProcessInfo>,
         active_plugin_id: Option<&str>,
     ) -> Vec<PluginState> {
+        let enabled_plugin_ids = match self.enabled_plugin_ids.read() {
+            Ok(enabled_plugin_ids) => enabled_plugin_ids,
+            Err(error) => {
+                log::error!("Failed to acquire plugin enablement snapshot: {}", error);
+                return self
+                    .memory_view_plugins
+                    .iter()
+                    .map(|memory_view_plugin| {
+                        let can_activate_for_current_process = opened_process_info
+                            .map(|opened_process_info| memory_view_plugin.can_attach(opened_process_info))
+                            .unwrap_or(false);
+                        let activation_state = if active_plugin_id
+                            .map(|active_plugin_id| active_plugin_id == memory_view_plugin.metadata().get_plugin_id())
+                            .unwrap_or(false)
+                        {
+                            PluginActivationState::Activated
+                        } else if can_activate_for_current_process {
+                            PluginActivationState::Available
+                        } else {
+                            PluginActivationState::Idle
+                        };
+
+                        PluginState::new(memory_view_plugin.metadata().clone(), false, activation_state)
+                    })
+                    .collect();
+            }
+        };
+
         let selected_plugin_id = opened_process_info
-            .and_then(|opened_process_info| self.find_memory_view_plugin(opened_process_info))
+            .and_then(|opened_process_info| self.find_memory_view_plugin_with_enabled_ids(opened_process_info, &enabled_plugin_ids))
             .map(|memory_view_plugin| memory_view_plugin.metadata().get_plugin_id().to_string());
 
         self.memory_view_plugins
             .iter()
             .map(|memory_view_plugin| {
-                let is_enabled = self.is_plugin_enabled(memory_view_plugin.metadata().get_plugin_id());
+                let is_enabled = enabled_plugin_ids.contains(memory_view_plugin.metadata().get_plugin_id());
                 let can_activate_for_current_process = opened_process_info
                     .map(|opened_process_info| memory_view_plugin.can_attach(opened_process_info))
                     .unwrap_or(false);
@@ -112,9 +140,27 @@ impl PluginRegistry {
         &self,
         process_info: &OpenedProcessInfo,
     ) -> Option<Arc<dyn MemoryViewPlugin>> {
+        let enabled_plugin_ids = match self.enabled_plugin_ids.read() {
+            Ok(enabled_plugin_ids) => enabled_plugin_ids,
+            Err(error) => {
+                log::error!("Failed to acquire plugin enablement snapshot while selecting memory-view plugin: {}", error);
+                return None;
+            }
+        };
+
+        self.find_memory_view_plugin_with_enabled_ids(process_info, &enabled_plugin_ids)
+    }
+
+    fn find_memory_view_plugin_with_enabled_ids(
+        &self,
+        process_info: &OpenedProcessInfo,
+        enabled_plugin_ids: &HashSet<String>,
+    ) -> Option<Arc<dyn MemoryViewPlugin>> {
         self.memory_view_plugins
             .iter()
-            .find(|memory_view_plugin| self.is_plugin_enabled(memory_view_plugin.metadata().get_plugin_id()) && memory_view_plugin.can_attach(process_info))
+            .find(|memory_view_plugin| {
+                enabled_plugin_ids.contains(memory_view_plugin.metadata().get_plugin_id()) && memory_view_plugin.can_attach(process_info)
+            })
             .cloned()
     }
 }
@@ -179,11 +225,9 @@ mod tests {
 
         assert!(plugin_registry.set_plugin_enabled("builtin.memory-view.dolphin", false));
         assert!(!plugin_registry.is_plugin_enabled("builtin.memory-view.dolphin"));
-        assert!(
-            plugin_registry
-                .find_memory_view_plugin(&opened_process_info)
-                .is_none()
-        );
+        assert!(plugin_registry
+            .find_memory_view_plugin(&opened_process_info)
+            .is_none());
 
         let plugin_states = plugin_registry.get_plugin_states(Some(&opened_process_info), None);
 

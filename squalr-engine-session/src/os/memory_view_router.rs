@@ -64,6 +64,7 @@ impl MemoryViewRouter {
         process_info: &OpenedProcessInfo,
     ) -> Option<SharedMemoryViewInstance> {
         let matching_memory_view_plugin = self.plugin_registry.find_memory_view_plugin(process_info);
+        let mut did_clear_cached_instance = false;
 
         if let Ok(active_memory_view_instance) = self.active_memory_view_instance.read() {
             if let Some(cached_memory_view_instance) = active_memory_view_instance.as_ref() {
@@ -82,12 +83,24 @@ impl MemoryViewRouter {
         if let Ok(mut active_memory_view_instance) = self.active_memory_view_instance.write() {
             let should_clear_cached_instance = active_memory_view_instance
                 .as_ref()
-                .map(|cached_memory_view_instance| cached_memory_view_instance.matches(process_info))
+                .map(|cached_memory_view_instance| {
+                    let does_plugin_still_match = matching_memory_view_plugin
+                        .as_ref()
+                        .map(|memory_view_plugin| memory_view_plugin.metadata().get_plugin_id() == cached_memory_view_instance.plugin_id)
+                        .unwrap_or(false);
+
+                    !cached_memory_view_instance.matches(process_info) || !does_plugin_still_match
+                })
                 .unwrap_or(false);
 
             if should_clear_cached_instance {
                 *active_memory_view_instance = None;
+                did_clear_cached_instance = true;
             }
+        }
+
+        if did_clear_cached_instance && matching_memory_view_plugin.is_none() {
+            self.notify_state_changed();
         }
 
         let memory_view_plugin = matching_memory_view_plugin?;
