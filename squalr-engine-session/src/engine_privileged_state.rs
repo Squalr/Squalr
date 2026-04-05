@@ -13,8 +13,8 @@ use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeList
 use squalr_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use squalr_engine_api::registries::registry_context::RegistryContext;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
+use squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
-use squalr_engine_api::registries::symbols::registry_metadata::RegistryMetadata;
 use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struct_layout_descriptor::StructLayoutDescriptor};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
@@ -40,7 +40,7 @@ pub struct EnginePrivilegedState {
     /// Monotonically increasing identifier for new pointer scan sessions.
     next_pointer_scan_session_id: AtomicU64,
 
-    /// Monotonically increasing generation for symbol registry snapshots.
+    /// Monotonically increasing generation for privileged registry catalog exports.
     symbol_registry_generation: AtomicU64,
 
     /// Serializes symbol registry mutation helpers so external code cannot race multi-step registry updates.
@@ -119,12 +119,12 @@ impl EnginePrivilegedState {
         self.next_pointer_scan_session_id.fetch_add(1, Ordering::SeqCst) + 1
     }
 
-    pub fn get_registry_metadata(&self) -> RegistryMetadata {
+    pub fn get_privileged_registry_catalog(&self) -> PrivilegedRegistryCatalog {
         let current_generation = self.symbol_registry_generation.load(Ordering::SeqCst);
 
         self.registries
             .get_symbol_registry()
-            .create_snapshot(current_generation)
+            .create_registry_catalog(current_generation)
     }
 
     pub fn notify_registry_changed(&self) {
@@ -399,7 +399,7 @@ mod tests {
         assert_eq!(engine_privileged_state.get_registry_generation(), 2);
         assert!(
             engine_privileged_state
-            .get_registry_metadata()
+                .get_privileged_registry_catalog()
                 .get_struct_layout_descriptors()
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "player.stats")
@@ -418,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn register_symbol_data_type_descriptor_bumps_generation_and_updates_snapshot() {
+    fn register_symbol_data_type_descriptor_bumps_generation_and_updates_privileged_registry_catalog() {
         let bindings = Arc::new(RwLock::new(CapturingPrivilegedBindings::new()));
         let engine_privileged_state = create_test_engine_privileged_state(bindings.clone());
 
@@ -436,7 +436,7 @@ mod tests {
         assert_eq!(engine_privileged_state.get_registry_generation(), 2);
         assert!(
             engine_privileged_state
-            .get_registry_metadata()
+                .get_privileged_registry_catalog()
                 .get_data_type_descriptors()
                 .iter()
                 .any(|data_type_descriptor| data_type_descriptor.get_data_type_id() == "remote.plugin.u24")

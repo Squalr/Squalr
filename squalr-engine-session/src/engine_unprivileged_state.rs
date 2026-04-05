@@ -1,8 +1,8 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
-use crate::registries::privileged_symbol_catalog::PrivilegedSymbolCatalog;
+use crate::registries::privileged_registry_cache::PrivilegedRegistryCache;
 use crossbeam_channel::bounded;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
-use squalr_engine_api::commands::registry::get_snapshot::registry_get_snapshot_request::RegistryGetSnapshotRequest;
+use squalr_engine_api::commands::registry::get_metadata::registry_get_metadata_request::RegistryGetMetadataRequest;
 use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
@@ -14,8 +14,8 @@ use squalr_engine_api::events::project_items::project_items_event::ProjectItemsE
 use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
+use squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
-use squalr_engine_api::registries::symbols::registry_metadata::RegistryMetadata;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
@@ -39,8 +39,8 @@ pub struct EngineUnprivilegedState {
     file_system_logger: Arc<LogDispatcher>,
     /// Project manager for organizing and manipulating projects.
     project_manager: Arc<ProjectManager>,
-    /// Cached privileged-owned symbol metadata synchronized from the engine.
-    privileged_symbol_catalog: Arc<RwLock<PrivilegedSymbolCatalog>>,
+    /// Cached privileged-owned registry catalog synchronized from the engine.
+    privileged_registry_cache: Arc<RwLock<PrivilegedRegistryCache>>,
 }
 
 #[derive(Clone, Copy)]
@@ -82,7 +82,7 @@ impl EngineExecutionContext for EngineUnprivilegedState {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_default_value(data_type_ref))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_default_value(data_type_ref))
             .unwrap_or_default()
     }
 
@@ -92,8 +92,8 @@ impl EngineExecutionContext for EngineUnprivilegedState {
     ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {
         self.resolve_local_project_struct_layout_definition(symbolic_struct_ref_id)
             .or_else(|| {
-                self.read_privileged_symbol_catalog(|privileged_symbol_catalog| {
-                    privileged_symbol_catalog.resolve_struct_layout_definition(symbolic_struct_ref_id)
+                self.read_privileged_registry_cache(|privileged_registry_cache| {
+                    privileged_registry_cache.resolve_struct_layout_definition(symbolic_struct_ref_id)
                 })
                 .unwrap_or_default()
             })
@@ -118,13 +118,13 @@ impl EngineUnprivilegedState {
                 enable_console_output: options.enable_console_logging,
             })),
             project_manager,
-            privileged_symbol_catalog: Arc::new(RwLock::new(PrivilegedSymbolCatalog::default())),
+            privileged_registry_cache: Arc::new(RwLock::new(PrivilegedRegistryCache::default())),
         })
     }
 
     pub fn initialize(self: &Arc<Self>) {
         self.start_event_dispatcher();
-        self.refresh_privileged_registry_metadata();
+        self.refresh_privileged_registry_catalog();
     }
 
     /// Gets the file system logger that routes log events to the log file.
@@ -133,17 +133,17 @@ impl EngineUnprivilegedState {
     }
 
     pub fn get_privileged_registry_generation(&self) -> u64 {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_generation())
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_generation())
             .unwrap_or_default()
     }
 
-    pub fn get_privileged_registry_metadata(&self) -> Option<RegistryMetadata> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_snapshot().cloned())
+    pub fn get_privileged_registry_catalog(&self) -> Option<PrivilegedRegistryCatalog> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_registry_catalog().cloned())
             .flatten()
     }
 
     pub fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_registered_data_type_refs())
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_registered_data_type_refs())
             .unwrap_or_default()
     }
 
@@ -151,7 +151,7 @@ impl EngineUnprivilegedState {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> bool {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.is_registered_data_type_ref(data_type_ref))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.is_registered_data_type_ref(data_type_ref))
             .unwrap_or(false)
     }
 
@@ -159,7 +159,7 @@ impl EngineUnprivilegedState {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> AnonymousValueStringFormat {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_default_anonymous_value_string_format(data_type_ref))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_default_anonymous_value_string_format(data_type_ref))
             .unwrap_or_default()
     }
 
@@ -167,7 +167,7 @@ impl EngineUnprivilegedState {
         &self,
         data_type_ref: &DataTypeRef,
     ) -> Vec<AnonymousValueStringFormat> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_supported_anonymous_value_string_formats(data_type_ref))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.get_supported_anonymous_value_string_formats(data_type_ref))
             .unwrap_or_default()
     }
 
@@ -176,7 +176,7 @@ impl EngineUnprivilegedState {
         data_type_ref: &DataTypeRef,
         anonymous_value_string: &AnonymousValueString,
     ) -> bool {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.validate_value_string(data_type_ref, anonymous_value_string))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.validate_value_string(data_type_ref, anonymous_value_string))
             .unwrap_or(false)
     }
 
@@ -185,8 +185,8 @@ impl EngineUnprivilegedState {
         data_type_ref: &DataTypeRef,
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, SymbolRegistryError> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| {
-            privileged_symbol_catalog.deanonymize_value_string(data_type_ref, anonymous_value_string)
+        self.read_privileged_registry_cache(|privileged_registry_cache| {
+            privileged_registry_cache.deanonymize_value_string(data_type_ref, anonymous_value_string)
         })
         .unwrap_or_else(|| {
             Err(SymbolRegistryError::data_type_not_registered(
@@ -201,7 +201,7 @@ impl EngineUnprivilegedState {
         data_value: &DataValue,
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Result<AnonymousValueString, SymbolRegistryError> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.anonymize_value(data_value, anonymous_value_string_format))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value(data_value, anonymous_value_string_format))
             .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
     }
 
@@ -209,7 +209,7 @@ impl EngineUnprivilegedState {
         &self,
         data_value: &DataValue,
     ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
-        self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.anonymize_value_to_supported_formats(data_value))
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value_to_supported_formats(data_value))
             .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
     }
 
@@ -290,9 +290,9 @@ impl EngineUnprivilegedState {
         engine_unprivileged_state: &Arc<Self>,
         engine_event_envelope: EngineEventEnvelope,
     ) {
-        if !engine_unprivileged_state.ensure_privileged_registry_metadata_current(engine_event_envelope.get_registry_generation()) {
+        if !engine_unprivileged_state.ensure_privileged_registry_catalog_current(engine_event_envelope.get_registry_generation()) {
             log::error!(
-                "Failed to refresh privileged symbol catalog to generation {} before dispatching engine event.",
+                "Failed to refresh privileged registry cache to generation {} before dispatching engine event.",
                 engine_event_envelope.get_registry_generation()
             );
         }
@@ -339,16 +339,16 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn refresh_privileged_registry_metadata(self: &Arc<Self>) {
-        let registry_get_snapshot_request = RegistryGetSnapshotRequest::default();
+    fn refresh_privileged_registry_catalog(self: &Arc<Self>) {
+        let registry_get_metadata_request = RegistryGetMetadataRequest::default();
         let engine_unprivileged_state = self.clone();
 
-        let _ = registry_get_snapshot_request.send(self, move |registry_get_snapshot_response| {
-            engine_unprivileged_state.apply_privileged_registry_metadata(registry_get_snapshot_response.registry_metadata);
+        let _ = registry_get_metadata_request.send(self, move |registry_get_metadata_response| {
+            engine_unprivileged_state.apply_privileged_registry_catalog(registry_get_metadata_response.privileged_registry_catalog);
         });
     }
 
-    fn ensure_privileged_registry_metadata_current(
+    fn ensure_privileged_registry_catalog_current(
         self: &Arc<Self>,
         expected_generation: u64,
     ) -> bool {
@@ -358,20 +358,20 @@ impl EngineUnprivilegedState {
             return true;
         }
 
-        let registry_get_snapshot_request = RegistryGetSnapshotRequest::default();
+        let registry_get_metadata_request = RegistryGetMetadataRequest::default();
         let engine_unprivileged_state = self.clone();
         let (completion_sender, completion_receiver) = bounded(1);
-        let did_send = registry_get_snapshot_request.send(self, move |registry_get_snapshot_response| {
-            let registry_metadata = registry_get_snapshot_response.registry_metadata;
-            let applied_generation = registry_metadata.get_generation();
+        let did_send = registry_get_metadata_request.send(self, move |registry_get_metadata_response| {
+            let privileged_registry_catalog = registry_get_metadata_response.privileged_registry_catalog;
+            let applied_generation = privileged_registry_catalog.get_generation();
 
-            engine_unprivileged_state.apply_privileged_registry_metadata(registry_metadata);
+            engine_unprivileged_state.apply_privileged_registry_catalog(privileged_registry_catalog);
             let _ = completion_sender.send(applied_generation);
         });
 
         if !did_send {
             log::error!(
-                "Failed to dispatch registry snapshot refresh while waiting for generation {}.",
+                "Failed to dispatch registry metadata refresh while waiting for generation {}.",
                 expected_generation
             );
             return false;
@@ -390,25 +390,25 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn apply_privileged_registry_metadata(
+    fn apply_privileged_registry_catalog(
         &self,
-        registry_metadata: squalr_engine_api::registries::symbols::registry_metadata::RegistryMetadata,
+        privileged_registry_catalog: squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog,
     ) {
-        if let Ok(mut privileged_symbol_catalog) = self.privileged_symbol_catalog.write() {
-            privileged_symbol_catalog.apply_snapshot(registry_metadata);
+        if let Ok(mut privileged_registry_cache) = self.privileged_registry_cache.write() {
+            privileged_registry_cache.apply_registry_catalog(privileged_registry_catalog);
         } else {
-            log::error!("Failed to acquire privileged symbol catalog write lock while applying snapshot.");
+            log::error!("Failed to acquire privileged registry cache write lock while applying privileged registry catalog.");
         }
     }
 
-    fn read_privileged_symbol_catalog<T>(
+    fn read_privileged_registry_cache<T>(
         &self,
-        reader: impl FnOnce(&PrivilegedSymbolCatalog) -> T,
+        reader: impl FnOnce(&PrivilegedRegistryCache) -> T,
     ) -> Option<T> {
-        match self.privileged_symbol_catalog.read() {
-            Ok(privileged_symbol_catalog) => Some(reader(&privileged_symbol_catalog)),
+        match self.privileged_registry_cache.read() {
+            Ok(privileged_registry_cache) => Some(reader(&privileged_registry_cache)),
             Err(error) => {
-                log::error!("Failed to acquire privileged symbol catalog read lock: {}", error);
+                log::error!("Failed to acquire privileged registry cache read lock: {}", error);
                 None
             }
         }

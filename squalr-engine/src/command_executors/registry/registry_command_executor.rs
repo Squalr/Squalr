@@ -16,7 +16,7 @@ impl PrivilegedCommandExecutor for RegistryCommand {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> Self::ResponseType {
         match self {
-            RegistryCommand::GetSnapshot { registry_get_snapshot_request } => registry_get_snapshot_request
+            RegistryCommand::GetMetadata { registry_get_metadata_request } => registry_get_metadata_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
             RegistryCommand::SetProjectSymbols {

@@ -1,2 +1,2 @@
-pub mod privileged_symbol_catalog;
+pub mod privileged_registry_cache;
 pub mod registries;

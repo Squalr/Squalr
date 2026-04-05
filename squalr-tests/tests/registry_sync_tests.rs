@@ -2,7 +2,7 @@ use crossbeam_channel::{Receiver, Sender, unbounded};
 use squalr_engine_api::commands::privileged_command::PrivilegedCommand;
 use squalr_engine_api::commands::privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse};
 use squalr_engine_api::commands::project::list::project_list_response::ProjectListResponse;
-use squalr_engine_api::commands::registry::get_snapshot::registry_get_snapshot_response::RegistryGetSnapshotResponse;
+use squalr_engine_api::commands::registry::get_metadata::registry_get_metadata_response::RegistryGetMetadataResponse;
 use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
@@ -12,7 +12,7 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::EngineEventRequest;
 use squalr_engine_api::events::registry::changed::registry_changed_event::RegistryChangedEvent;
 use squalr_engine_api::registries::symbols::{
-    data_type_descriptor::DataTypeDescriptor, registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor,
+    data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor,
     symbol_registry::SymbolRegistry,
 };
 use squalr_engine_api::structures::{
@@ -30,30 +30,30 @@ use std::{
 };
 
 struct TestEngineBindings {
-    next_registry_snapshot_response: Arc<RwLock<RegistryGetSnapshotResponse>>,
+    next_registry_catalog_response: Arc<RwLock<RegistryGetMetadataResponse>>,
     event_sender: Sender<EngineEventEnvelope>,
     event_receiver: Receiver<EngineEventEnvelope>,
 }
 
 impl TestEngineBindings {
-    fn new(initial_registry_metadata: RegistryMetadata) -> Self {
+    fn new(initial_privileged_registry_catalog: PrivilegedRegistryCatalog) -> Self {
         let (event_sender, event_receiver) = unbounded();
 
         Self {
-            next_registry_snapshot_response: Arc::new(RwLock::new(RegistryGetSnapshotResponse {
-                registry_metadata: initial_registry_metadata,
+            next_registry_catalog_response: Arc::new(RwLock::new(RegistryGetMetadataResponse {
+                privileged_registry_catalog: initial_privileged_registry_catalog,
             })),
             event_sender,
             event_receiver,
         }
     }
 
-    fn set_registry_metadata(
+    fn set_privileged_registry_catalog(
         &self,
-        registry_metadata: RegistryMetadata,
+        privileged_registry_catalog: PrivilegedRegistryCatalog,
     ) {
-        if let Ok(mut next_registry_snapshot_response) = self.next_registry_snapshot_response.write() {
-            *next_registry_snapshot_response = RegistryGetSnapshotResponse { registry_metadata };
+        if let Ok(mut next_registry_catalog_response) = self.next_registry_catalog_response.write() {
+            *next_registry_catalog_response = RegistryGetMetadataResponse { privileged_registry_catalog };
         }
     }
 
@@ -73,13 +73,13 @@ impl EngineApiUnprivilegedBindings for TestEngineBindings {
         _engine_command: PrivilegedCommand,
         callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
     ) -> Result<(), EngineBindingError> {
-        let registry_snapshot_response = self
-            .next_registry_snapshot_response
+        let registry_catalog_response = self
+            .next_registry_catalog_response
             .read()
-            .map(|registry_snapshot_response| registry_snapshot_response.clone())
-            .map_err(|error| EngineBindingError::lock_failure("reading registry snapshot response in test bindings", error.to_string()))?;
+            .map(|registry_catalog_response| registry_catalog_response.clone())
+            .map_err(|error| EngineBindingError::lock_failure("reading registry catalog response in test bindings", error.to_string()))?;
 
-        callback(registry_snapshot_response.to_engine_response());
+        callback(registry_catalog_response.to_engine_response());
 
         Ok(())
     }
@@ -101,26 +101,35 @@ impl EngineApiUnprivilegedBindings for TestEngineBindings {
 }
 
 #[test]
-fn registry_metadata_bootstraps_and_refreshes_through_engine_events() {
-    let initial_registry_metadata = build_registry_metadata(1, 16);
-    let refreshed_registry_metadata = build_registry_metadata(2, 32);
-    let engine_bindings = Arc::new(RwLock::new(TestEngineBindings::new(initial_registry_metadata)));
+fn privileged_registry_catalog_bootstraps_and_refreshes_through_engine_events() {
+    let initial_privileged_registry_catalog = build_privileged_registry_catalog(1, 16);
+    let refreshed_privileged_registry_catalog = build_privileged_registry_catalog(2, 32);
+    let engine_bindings = Arc::new(RwLock::new(TestEngineBindings::new(initial_privileged_registry_catalog)));
     let engine_unprivileged_state = EngineUnprivilegedState::new(engine_bindings.clone());
 
     engine_unprivileged_state.initialize();
 
     assert!(wait_for_generation(&engine_unprivileged_state, 1));
     assert!(engine_unprivileged_state.is_registered_data_type_ref(&DataTypeRef::new("remote.test.type")));
-    assert_eq!(get_registry_metadata_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"), Some(16));
-    assert!(registry_metadata_contains_struct_layout(&engine_unprivileged_state, "remote.test.struct"));
+    assert_eq!(
+        get_privileged_registry_catalog_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"),
+        Some(16)
+    );
+    assert!(privileged_registry_catalog_contains_struct_layout(
+        &engine_unprivileged_state,
+        "remote.test.struct"
+    ));
 
     if let Ok(engine_bindings_guard) = engine_bindings.read() {
-        engine_bindings_guard.set_registry_metadata(refreshed_registry_metadata);
+        engine_bindings_guard.set_privileged_registry_catalog(refreshed_privileged_registry_catalog);
         engine_bindings_guard.emit_registry_changed(2);
     }
 
     assert!(wait_for_generation(&engine_unprivileged_state, 2));
-    assert_eq!(get_registry_metadata_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"), Some(32));
+    assert_eq!(
+        get_privileged_registry_catalog_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"),
+        Some(32)
+    );
 }
 
 fn wait_for_generation(
@@ -140,12 +149,12 @@ fn wait_for_generation(
     false
 }
 
-fn build_registry_metadata(
+fn build_privileged_registry_catalog(
     generation: u64,
     remote_type_unit_size_in_bytes: u64,
-) -> RegistryMetadata {
-    let built_in_registry_metadata = SymbolRegistry::new().create_snapshot(generation);
-    let mut data_type_descriptors = built_in_registry_metadata
+) -> PrivilegedRegistryCatalog {
+    let built_in_privileged_registry_catalog = SymbolRegistry::new().create_registry_catalog(generation);
+    let mut data_type_descriptors = built_in_privileged_registry_catalog
         .get_data_type_descriptors()
         .to_vec();
     data_type_descriptors.push(DataTypeDescriptor::new(
@@ -159,7 +168,7 @@ fn build_registry_metadata(
         false,
     ));
 
-    let mut struct_layout_descriptors = built_in_registry_metadata
+    let mut struct_layout_descriptors = built_in_privileged_registry_catalog
         .get_struct_layout_descriptors()
         .to_vec();
     struct_layout_descriptors.push(StructLayoutDescriptor::new(
@@ -173,17 +182,17 @@ fn build_registry_metadata(
         ),
     ));
 
-    RegistryMetadata::new(generation, data_type_descriptors, struct_layout_descriptors)
+    PrivilegedRegistryCatalog::new(generation, data_type_descriptors, struct_layout_descriptors)
 }
 
-fn get_registry_metadata_unit_size_in_bytes(
+fn get_privileged_registry_catalog_unit_size_in_bytes(
     engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     data_type_id: &str,
 ) -> Option<u64> {
     engine_unprivileged_state
-        .get_privileged_registry_metadata()
-        .and_then(|registry_metadata| {
-            registry_metadata
+        .get_privileged_registry_catalog()
+        .and_then(|privileged_registry_catalog| {
+            privileged_registry_catalog
                 .get_data_type_descriptors()
                 .iter()
                 .find(|data_type_descriptor| data_type_descriptor.get_data_type_id() == data_type_id)
@@ -191,14 +200,14 @@ fn get_registry_metadata_unit_size_in_bytes(
         })
 }
 
-fn registry_metadata_contains_struct_layout(
+fn privileged_registry_catalog_contains_struct_layout(
     engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     symbolic_struct_id: &str,
 ) -> bool {
     engine_unprivileged_state
-        .get_privileged_registry_metadata()
-        .map(|registry_metadata| {
-            registry_metadata
+        .get_privileged_registry_catalog()
+        .map(|privileged_registry_catalog| {
+            privileged_registry_catalog
                 .get_struct_layout_descriptors()
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_id)

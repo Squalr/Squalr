@@ -41,7 +41,7 @@ pub enum PrivilegedCommand {
 }
 
 impl PrivilegedCommand {
-    pub fn should_include_registry_metadata(&self) -> bool {
+    pub fn should_include_privileged_registry_catalog(&self) -> bool {
         matches!(self, Self::Registry(_))
     }
 }

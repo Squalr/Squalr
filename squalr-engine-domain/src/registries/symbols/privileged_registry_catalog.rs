@@ -2,13 +2,13 @@ use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struc
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct RegistryMetadata {
+pub struct PrivilegedRegistryCatalog {
     generation: u64,
     data_type_descriptors: Vec<DataTypeDescriptor>,
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
 }
 
-impl RegistryMetadata {
+impl PrivilegedRegistryCatalog {
     pub fn new(
         generation: u64,
         data_type_descriptors: Vec<DataTypeDescriptor>,

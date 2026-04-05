@@ -1,6 +1,6 @@
 use squalr_engine_api::{
     registries::symbols::{
-        data_type_descriptor::DataTypeDescriptor, registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor,
+        data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor,
         symbol_registry::SymbolRegistry,
     },
     structures::{
@@ -11,49 +11,49 @@ use squalr_engine_api::{
 };
 use std::sync::Arc;
 
-/// Unprivileged cache of privileged-owned symbol metadata.
+/// Cache of the latest privileged registry catalog on the unprivileged side.
 ///
-/// This cache only represents symbol state owned by the privileged runtime,
-/// such as built-in and plugin-authored data type metadata. Project-authored
-/// symbols remain unprivileged-owned and are resolved from local project state.
-pub struct PrivilegedSymbolCatalog {
-    latest_snapshot: Option<RegistryMetadata>,
+/// The cache only holds privileged-owned registry state, such as built-in and
+/// plugin-authored data type descriptors and struct layouts. Project-authored
+/// symbols remain unprivileged-owned and resolve from local project state.
+pub struct PrivilegedRegistryCache {
+    latest_privileged_registry_catalog: Option<PrivilegedRegistryCatalog>,
     built_in_symbol_registry: SymbolRegistry,
 }
 
-impl Default for PrivilegedSymbolCatalog {
+impl Default for PrivilegedRegistryCache {
     fn default() -> Self {
         Self {
-            latest_snapshot: None,
+            latest_privileged_registry_catalog: None,
             built_in_symbol_registry: SymbolRegistry::new(),
         }
     }
 }
 
-impl PrivilegedSymbolCatalog {
-    pub fn apply_snapshot(
+impl PrivilegedRegistryCache {
+    pub fn apply_registry_catalog(
         &mut self,
-        symbol_registry_snapshot: RegistryMetadata,
+        privileged_registry_catalog: PrivilegedRegistryCatalog,
     ) {
-        self.latest_snapshot = Some(symbol_registry_snapshot);
+        self.latest_privileged_registry_catalog = Some(privileged_registry_catalog);
     }
 
-    pub fn get_snapshot(&self) -> Option<&RegistryMetadata> {
-        self.latest_snapshot.as_ref()
+    pub fn get_registry_catalog(&self) -> Option<&PrivilegedRegistryCatalog> {
+        self.latest_privileged_registry_catalog.as_ref()
     }
 
     pub fn get_generation(&self) -> u64 {
-        self.latest_snapshot
+        self.latest_privileged_registry_catalog
             .as_ref()
-            .map(|symbol_registry_snapshot| symbol_registry_snapshot.get_generation())
+            .map(|privileged_registry_catalog| privileged_registry_catalog.get_generation())
             .unwrap_or_default()
     }
 
     pub fn get_registered_data_type_refs(&self) -> Vec<DataTypeRef> {
-        self.latest_snapshot
+        self.latest_privileged_registry_catalog
             .as_ref()
-            .map(|symbol_registry_snapshot| {
-                symbol_registry_snapshot
+            .map(|privileged_registry_catalog| {
+                privileged_registry_catalog
                     .get_data_type_descriptors()
                     .iter()
                     .map(|data_type_descriptor| DataTypeRef::new(data_type_descriptor.get_data_type_id()))
@@ -164,13 +164,7 @@ impl PrivilegedSymbolCatalog {
         symbolic_struct_id: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {
         self.find_struct_layout_descriptor(symbolic_struct_id)
-            .map(|symbolic_struct_descriptor| {
-                Arc::new(
-                    symbolic_struct_descriptor
-                        .get_struct_layout_definition()
-                        .clone(),
-                )
-            })
+            .map(|struct_layout_descriptor| Arc::new(struct_layout_descriptor.get_struct_layout_definition().clone()))
             .or_else(|| self.built_in_symbol_registry.get(symbolic_struct_id))
     }
 
@@ -178,10 +172,10 @@ impl PrivilegedSymbolCatalog {
         &self,
         data_type_id: &str,
     ) -> Option<&DataTypeDescriptor> {
-        self.latest_snapshot
+        self.latest_privileged_registry_catalog
             .as_ref()
-            .and_then(|symbol_registry_snapshot| {
-                symbol_registry_snapshot
+            .and_then(|privileged_registry_catalog| {
+                privileged_registry_catalog
                     .get_data_type_descriptors()
                     .iter()
                     .find(|data_type_descriptor| data_type_descriptor.get_data_type_id() == data_type_id)
@@ -192,23 +186,23 @@ impl PrivilegedSymbolCatalog {
         &self,
         symbolic_struct_id: &str,
     ) -> Option<&StructLayoutDescriptor> {
-        self.latest_snapshot
+        self.latest_privileged_registry_catalog
             .as_ref()
-            .and_then(|symbol_registry_snapshot| {
-                symbol_registry_snapshot
+            .and_then(|privileged_registry_catalog| {
+                privileged_registry_catalog
                     .get_struct_layout_descriptors()
                     .iter()
-                    .find(|symbolic_struct_descriptor| symbolic_struct_descriptor.get_struct_layout_id() == symbolic_struct_id)
+                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_id)
             })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::PrivilegedSymbolCatalog;
+    use super::PrivilegedRegistryCache;
     use squalr_engine_api::registries::symbols::data_type_descriptor::DataTypeDescriptor;
     use squalr_engine_api::{
-        registries::symbols::{registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor},
+        registries::symbols::{privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor},
         structures::{
             data_types::data_type_ref::DataTypeRef,
             data_values::anonymous_value_string_format::AnonymousValueStringFormat,
@@ -218,9 +212,9 @@ mod tests {
     };
 
     #[test]
-    fn registered_data_type_refs_are_read_from_latest_snapshot() {
-        let mut privileged_symbol_catalog = PrivilegedSymbolCatalog::default();
-        privileged_symbol_catalog.apply_snapshot(RegistryMetadata::new(
+    fn registered_data_type_refs_are_read_from_latest_privileged_registry_catalog() {
+        let mut privileged_registry_cache = PrivilegedRegistryCache::default();
+        privileged_registry_cache.apply_registry_catalog(PrivilegedRegistryCatalog::new(
             7,
             vec![
                 DataTypeDescriptor::new(
@@ -248,15 +242,15 @@ mod tests {
         ));
 
         assert_eq!(
-            privileged_symbol_catalog.get_registered_data_type_refs(),
+            privileged_registry_cache.get_registered_data_type_refs(),
             vec![DataTypeRef::new("i32"), DataTypeRef::new("u64")]
         );
     }
 
     #[test]
-    fn privileged_symbolic_structs_are_read_from_latest_snapshot() {
-        let mut privileged_symbol_catalog = PrivilegedSymbolCatalog::default();
-        privileged_symbol_catalog.apply_snapshot(RegistryMetadata::new(
+    fn privileged_struct_layouts_are_read_from_latest_privileged_registry_catalog() {
+        let mut privileged_registry_cache = PrivilegedRegistryCache::default();
+        privileged_registry_cache.apply_registry_catalog(PrivilegedRegistryCatalog::new(
             3,
             vec![DataTypeDescriptor::new(
                 String::from("f32"),
@@ -280,10 +274,10 @@ mod tests {
             )],
         ));
 
-        assert!(privileged_symbol_catalog.is_registered_data_type_ref(&DataTypeRef::new("f32")));
-        assert!(!privileged_symbol_catalog.is_registered_data_type_ref(&DataTypeRef::new("u16")));
+        assert!(privileged_registry_cache.is_registered_data_type_ref(&DataTypeRef::new("f32")));
+        assert!(!privileged_registry_cache.is_registered_data_type_ref(&DataTypeRef::new("u16")));
         assert!(
-            privileged_symbol_catalog
+            privileged_registry_cache
                 .resolve_struct_layout_definition("remote.test.struct")
                 .is_some()
         );

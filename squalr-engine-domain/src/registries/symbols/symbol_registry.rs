@@ -1,6 +1,6 @@
 use crate::registries::symbols::symbol_registry_error::SymbolRegistryError;
 use crate::registries::symbols::{
-    data_type_descriptor::DataTypeDescriptor, registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor,
+    data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor,
 };
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
 use crate::structures::data_values::container_type::ContainerType;
@@ -299,10 +299,10 @@ impl SymbolRegistry {
         }
     }
 
-    pub fn create_snapshot(
+    pub fn create_registry_catalog(
         &self,
         generation: u64,
-    ) -> RegistryMetadata {
+    ) -> PrivilegedRegistryCatalog {
         let mut data_type_descriptors = self
             .data_type_descriptor_registry
             .read()
@@ -332,19 +332,19 @@ impl SymbolRegistry {
                 .cmp(right_descriptor.get_struct_layout_id())
         });
 
-        RegistryMetadata::new(generation, data_type_descriptors, struct_layout_descriptors)
+        PrivilegedRegistryCatalog::new(generation, data_type_descriptors, struct_layout_descriptors)
     }
 
-    pub fn apply_snapshot(
+    pub fn apply_registry_catalog(
         &self,
-        symbol_registry_snapshot: &RegistryMetadata,
+        privileged_registry_catalog: &PrivilegedRegistryCatalog,
     ) {
         let base_symbolic_struct_ids = self
             .symbolic_struct_registry
             .read()
             .map(|symbolic_struct_registry| symbolic_struct_registry.keys().cloned().collect::<Vec<_>>())
             .unwrap_or_default();
-        let project_symbolic_struct_registry = symbol_registry_snapshot
+        let project_symbolic_struct_registry = privileged_registry_catalog
             .get_struct_layout_descriptors()
             .iter()
             .filter(|symbolic_struct_descriptor| {
@@ -363,7 +363,7 @@ impl SymbolRegistry {
                 )
             })
             .collect::<HashMap<_, _>>();
-        let data_type_descriptor_registry = symbol_registry_snapshot
+        let data_type_descriptor_registry = privileged_registry_catalog
             .get_data_type_descriptors()
             .iter()
             .map(|data_type_descriptor| (data_type_descriptor.get_data_type_id().to_string(), Arc::new(data_type_descriptor.clone())))
@@ -372,13 +372,13 @@ impl SymbolRegistry {
         if let Ok(mut project_symbolic_struct_registry_guard) = self.project_symbolic_struct_registry.write() {
             *project_symbolic_struct_registry_guard = project_symbolic_struct_registry;
         } else {
-            log::error!("Failed to acquire project symbol registry write lock while applying symbol snapshot.");
+            log::error!("Failed to acquire project symbol registry write lock while applying privileged registry catalog.");
         }
 
         if let Ok(mut data_type_descriptor_registry_guard) = self.data_type_descriptor_registry.write() {
             *data_type_descriptor_registry_guard = data_type_descriptor_registry;
         } else {
-            log::error!("Failed to acquire data type descriptor registry write lock while applying symbol snapshot.");
+            log::error!("Failed to acquire data type descriptor registry write lock while applying privileged registry catalog.");
         }
     }
 

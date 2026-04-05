@@ -187,14 +187,14 @@ impl InterprocessEngineApiPrivilegedBindings {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
         privileged_command: PrivilegedCommand,
     ) -> PrivilegedCommandResult {
-        let should_include_registry_metadata = privileged_command.should_include_registry_metadata();
+        let should_include_privileged_registry_catalog = privileged_command.should_include_privileged_registry_catalog();
         let privileged_command_response = privileged_command.execute(engine_privileged_state);
-        let registry_metadata = if should_include_registry_metadata {
-            Some(engine_privileged_state.get_registry_metadata())
+        let privileged_registry_catalog = if should_include_privileged_registry_catalog {
+            Some(engine_privileged_state.get_privileged_registry_catalog())
         } else {
             None
         };
 
-        PrivilegedCommandResult::new(privileged_command_response, registry_metadata)
+        PrivilegedCommandResult::new(privileged_command_response, privileged_registry_catalog)
     }
 }

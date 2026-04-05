@@ -78,15 +78,15 @@ impl StandaloneEngineApiUnprivilegedBindings {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
         privileged_command: PrivilegedCommand,
     ) -> PrivilegedCommandResult {
-        let should_include_registry_metadata = privileged_command.should_include_registry_metadata();
+        let should_include_privileged_registry_catalog = privileged_command.should_include_privileged_registry_catalog();
         let privileged_command_response = privileged_command.execute(engine_privileged_state);
-        let registry_metadata = if should_include_registry_metadata {
-            Some(engine_privileged_state.get_registry_metadata())
+        let privileged_registry_catalog = if should_include_privileged_registry_catalog {
+            Some(engine_privileged_state.get_privileged_registry_catalog())
         } else {
             None
         };
 
-        PrivilegedCommandResult::new(privileged_command_response, registry_metadata)
+        PrivilegedCommandResult::new(privileged_command_response, privileged_registry_catalog)
     }
 }
 
@@ -101,7 +101,7 @@ mod tests {
             privileged_command_request::PrivilegedCommandRequest,
             privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse},
             process::list::process_list_request::ProcessListRequest,
-            registry::get_snapshot::{registry_get_snapshot_request::RegistryGetSnapshotRequest, registry_get_snapshot_response::RegistryGetSnapshotResponse},
+            registry::get_metadata::{registry_get_metadata_request::RegistryGetMetadataRequest, registry_get_metadata_response::RegistryGetMetadataResponse},
         },
         engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings,
         registries::symbols::data_type_descriptor::DataTypeDescriptor,
@@ -143,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_registry_command_returns_snapshot_in_callback_response() {
+    fn dispatch_registry_command_returns_metadata_in_callback_response() {
         let mut engine_os_providers = EngineOsProviders::default();
         engine_os_providers.process_query = Arc::new(NoOpProcessQueryProvider);
         let engine_privileged_state = create_engine_privileged_state_with_os_providers(EngineMode::Standalone, engine_os_providers)
@@ -153,14 +153,14 @@ mod tests {
 
         standalone_engine_api_unprivileged_bindings
             .dispatch_privileged_command(
-                RegistryGetSnapshotRequest::default().to_engine_command(),
+                RegistryGetMetadataRequest::default().to_engine_command(),
                 Box::new(move |response| {
-                    let registry_get_snapshot_response = RegistryGetSnapshotResponse::from_engine_response(response)
-                        .expect("Registry command should deserialize into RegistryGetSnapshotResponse.");
+                    let registry_get_metadata_response = RegistryGetMetadataResponse::from_engine_response(response)
+                        .expect("Registry command should deserialize into RegistryGetMetadataResponse.");
                     callback_sender
                         .send(
-                            registry_get_snapshot_response
-                                .registry_metadata
+                            registry_get_metadata_response
+                                .privileged_registry_catalog
                                 .get_data_type_descriptors()
                                 .iter()
                                 .any(|data_type_descriptor: &DataTypeDescriptor| data_type_descriptor.get_data_type_id() == "remote.test.type"),
@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_non_registry_command_does_not_attach_registry_snapshot_to_callback_response() {
+    fn dispatch_non_registry_command_does_not_attach_privileged_registry_catalog_to_callback_response() {
         let mut engine_os_providers = EngineOsProviders::default();
         engine_os_providers.process_query = Arc::new(NoOpProcessQueryProvider);
         let engine_privileged_state = create_engine_privileged_state_with_os_providers(EngineMode::Standalone, engine_os_providers)

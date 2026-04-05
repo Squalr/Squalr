@@ -1,20 +1,20 @@
-use crate::{commands::privileged_command_response::PrivilegedCommandResponse, registries::symbols::registry_metadata::RegistryMetadata};
+use crate::{commands::privileged_command_response::PrivilegedCommandResponse, registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrivilegedCommandResult {
     privileged_command_response: PrivilegedCommandResponse,
-    registry_metadata: Option<RegistryMetadata>,
+    privileged_registry_catalog: Option<PrivilegedRegistryCatalog>,
 }
 
 impl PrivilegedCommandResult {
     pub fn new(
         privileged_command_response: PrivilegedCommandResponse,
-        registry_metadata: Option<RegistryMetadata>,
+        privileged_registry_catalog: Option<PrivilegedRegistryCatalog>,
     ) -> Self {
         Self {
             privileged_command_response,
-            registry_metadata,
+            privileged_registry_catalog,
         }
     }
 
@@ -26,7 +26,7 @@ impl PrivilegedCommandResult {
         self.privileged_command_response
     }
 
-    pub fn get_registry_metadata(&self) -> Option<&RegistryMetadata> {
-        self.registry_metadata.as_ref()
+    pub fn get_privileged_registry_catalog(&self) -> Option<&PrivilegedRegistryCatalog> {
+        self.privileged_registry_catalog.as_ref()
     }
 }
