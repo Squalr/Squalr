@@ -7,10 +7,7 @@ use crate::structures::{
     },
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicFieldDefinition {
@@ -28,48 +25,40 @@ impl SymbolicFieldDefinition {
 
     pub fn get_valued_struct_field(
         &self,
-        symbol_registry: &Arc<RwLock<impl SymbolResolver>>,
+        symbol_registry: &impl SymbolResolver,
         is_read_only: bool,
     ) -> ValuedStructField {
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return ValuedStructField::default();
-            }
-        };
         let field_data = match self.container_type {
             ContainerType::None => {
-                let default_value = symbol_registry_guard
+                let default_value = symbol_registry
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
 
                 ValuedStructFieldData::Value(default_value)
             }
             ContainerType::Pointer32 => {
-                let default_value = symbol_registry_guard
+                let default_value = symbol_registry
                     .get_default_value(&DataTypeRef::new("u32"))
                     .unwrap_or_default();
 
                 ValuedStructFieldData::Value(default_value)
             }
             ContainerType::Pointer64 => {
-                let default_value = symbol_registry_guard
+                let default_value = symbol_registry
                     .get_default_value(&DataTypeRef::new("u64"))
                     .unwrap_or_default();
 
                 ValuedStructFieldData::Value(default_value)
             }
             ContainerType::Array => {
-                let array_value = symbol_registry_guard
+                let array_value = symbol_registry
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
 
                 ValuedStructFieldData::Value(array_value)
             }
             ContainerType::ArrayFixed(length) => {
-                let mut array_value = symbol_registry_guard
+                let mut array_value = symbol_registry
                     .get_default_value(&self.data_type_ref)
                     .unwrap_or_default();
                 let default_bytes = array_value.get_value_bytes();
@@ -86,17 +75,9 @@ impl SymbolicFieldDefinition {
 
     pub fn get_size_in_bytes(
         &self,
-        symbol_registry: &Arc<RwLock<impl SymbolResolver>>,
+        symbol_registry: &impl SymbolResolver,
     ) -> u64 {
-        let symbol_registry_guard = match symbol_registry.read() {
-            Ok(registry) => registry,
-            Err(error) => {
-                log::error!("Failed to acquire read lock on SymbolRegistry: {}", error);
-
-                return 0;
-            }
-        };
-        symbol_registry_guard.get_unit_size_in_bytes(&self.data_type_ref)
+        symbol_registry.get_unit_size_in_bytes(&self.data_type_ref)
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {

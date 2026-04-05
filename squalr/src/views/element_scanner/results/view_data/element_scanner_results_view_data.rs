@@ -8,7 +8,6 @@ use squalr_engine_api::commands::scan_results::freeze::scan_results_freeze_reque
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::dependency_injection::write_guard::WriteGuard;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::scan_results::scan_result_base::ScanResultBase;
@@ -595,6 +594,7 @@ impl ElementScannerResultsViewData {
         let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         StructViewerViewData::focus_valued_structs(
             struct_viewer_view_data,
+            engine_unprivileged_state.clone(),
             valued_structs,
             Self::create_struct_field_modified_callback(element_scanner_results_view_data_clone, engine_unprivileged_state_clone),
         );
@@ -623,6 +623,7 @@ impl ElementScannerResultsViewData {
         let engine_unprivileged_state_clone = engine_unprivileged_state.clone();
         StructViewerViewData::focus_valued_structs(
             struct_viewer_view_data,
+            engine_unprivileged_state.clone(),
             valued_structs,
             Self::create_struct_field_modified_callback(element_scanner_results_view_data_clone, engine_unprivileged_state_clone),
         );
@@ -648,10 +649,9 @@ impl ElementScannerResultsViewData {
                 return;
             }
 
-            let symbol_registry = SymbolRegistry::get_instance();
             let data_type_ref = modified_data_value.get_data_type_ref();
-            let default_anonymous_value_string_format = symbol_registry.get_default_anonymous_value_string_format(data_type_ref);
-            let anonymous_value_string = symbol_registry
+            let default_anonymous_value_string_format = engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref);
+            let anonymous_value_string = engine_unprivileged_state
                 .anonymize_value(modified_data_value, default_anonymous_value_string_format)
                 .unwrap_or_else(|error| {
                     log::warn!("Failed to anonymize struct edit value: {}", error);

@@ -1,5 +1,6 @@
 use crate::command_executors::snapshot_region_builder::merge_memory_regions_into_snapshot_regions;
 use crate::engine_privileged_state::EnginePrivilegedState;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef, memory::memory_alignment::MemoryAlignment, processes::opened_process_info::OpenedProcessInfo,
     snapshots::snapshot::Snapshot,
@@ -28,6 +29,7 @@ pub fn ensure_snapshot_regions_for_scan(
 
 pub fn initialize_snapshot_scan_results_if_empty(
     snapshot: &mut Snapshot,
+    symbol_registry: &SymbolRegistry,
     data_type_refs: &[DataTypeRef],
     memory_alignment: MemoryAlignment,
 ) -> bool {
@@ -42,7 +44,7 @@ pub fn initialize_snapshot_scan_results_if_empty(
             .get_scan_results()
             .get_filter_collections()
             .is_empty();
-        snapshot_region.initialize_scan_results(data_type_refs.iter(), memory_alignment);
+        snapshot_region.initialize_scan_results(symbol_registry, data_type_refs.iter(), memory_alignment);
         let has_scan_results = !snapshot_region
             .get_scan_results()
             .get_filter_collections()
@@ -81,7 +83,9 @@ mod tests {
     #[test]
     fn initialize_snapshot_scan_results_if_empty_creates_full_region_filters() {
         let mut snapshot = create_snapshot_with_region(0x10);
-        let did_initialize_scan_results = initialize_snapshot_scan_results_if_empty(&mut snapshot, &[DataTypeRef::new("u32")], MemoryAlignment::Alignment4);
+        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::new();
+        let did_initialize_scan_results =
+            initialize_snapshot_scan_results_if_empty(&mut snapshot, &symbol_registry, &[DataTypeRef::new("u32")], MemoryAlignment::Alignment4);
 
         assert!(did_initialize_scan_results);
         assert_eq!(snapshot.get_number_of_results(), 4);
@@ -90,7 +94,8 @@ mod tests {
     #[test]
     fn initialize_snapshot_scan_results_if_empty_is_noop_without_data_types() {
         let mut snapshot = create_snapshot_with_region(0x10);
-        let did_initialize_scan_results = initialize_snapshot_scan_results_if_empty(&mut snapshot, &[], MemoryAlignment::Alignment4);
+        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::new();
+        let did_initialize_scan_results = initialize_snapshot_scan_results_if_empty(&mut snapshot, &symbol_registry, &[], MemoryAlignment::Alignment4);
 
         assert!(!did_initialize_scan_results);
         assert_eq!(snapshot.get_number_of_results(), 0);
@@ -99,7 +104,9 @@ mod tests {
     #[test]
     fn initialize_snapshot_scan_results_if_empty_preserves_existing_results() {
         let mut snapshot = create_snapshot_with_region(0x10);
+        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::new();
         let existing_scan_results = SnapshotRegionScanResults::new(vec![SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x1000, 2)]],
             DataTypeRef::new("u8"),
             MemoryAlignment::Alignment1,
@@ -110,9 +117,10 @@ mod tests {
             .expect("Expected a snapshot region for the test.")
             .set_scan_results(existing_scan_results);
 
-        let did_initialize_scan_results = initialize_snapshot_scan_results_if_empty(&mut snapshot, &[DataTypeRef::new("u32")], MemoryAlignment::Alignment4);
+        let did_initialize_scan_results =
+            initialize_snapshot_scan_results_if_empty(&mut snapshot, &symbol_registry, &[DataTypeRef::new("u32")], MemoryAlignment::Alignment4);
         let scan_result = snapshot
-            .get_scan_result(0)
+            .get_scan_result(&symbol_registry, 0)
             .expect("Expected the existing scan result to remain.");
 
         assert!(!did_initialize_scan_results);

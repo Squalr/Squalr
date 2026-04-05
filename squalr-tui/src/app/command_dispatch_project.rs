@@ -18,13 +18,13 @@ use squalr_engine_api::commands::project_items::rename::project_items_rename_req
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructField;
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::path::Path;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -984,13 +984,13 @@ impl AppShell {
     pub(super) fn build_scan_results_set_property_request_for_struct_edit(
         scan_result_refs: Vec<ScanResultRef>,
         edited_field: &ValuedStructField,
+        engine_unprivileged_state: &EngineUnprivilegedState,
     ) -> Result<ScanResultsSetPropertyRequest, String> {
         let edited_data_value = edited_field
             .get_data_value()
             .ok_or_else(|| "Nested struct scan result edits are not supported in the TUI yet.".to_string())?;
-        let symbol_registry = SymbolRegistry::get_instance();
-        let default_edit_format = symbol_registry.get_default_anonymous_value_string_format(edited_data_value.get_data_type_ref());
-        let edited_anonymous_value = symbol_registry
+        let default_edit_format = engine_unprivileged_state.get_default_anonymous_value_string_format(edited_data_value.get_data_type_ref());
+        let edited_anonymous_value = engine_unprivileged_state
             .anonymize_value(edited_data_value, default_edit_format)
             .map_err(|error| format!("Failed to format edited scan result value: {}", error))?;
 

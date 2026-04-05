@@ -32,6 +32,10 @@ use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use squalr_tests::mocks::mock_os::MockEngineOs;
 
+fn create_symbol_registry() -> squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry {
+    squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::new()
+}
+
 fn create_test_state() -> (MockEngineOs, std::sync::Arc<EnginePrivilegedState>) {
     let mock_engine_os = MockEngineOs::new();
     let engine_os_providers = mock_engine_os.create_providers();
@@ -56,9 +60,15 @@ fn seed_snapshot_with_single_scan_result(
     let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base, 0x100), Vec::new());
     snapshot_region.current_values = vec![0u8; 0x100];
     snapshot_region.previous_values = vec![0u8; 0x100];
+    let symbol_registry = create_symbol_registry();
 
     let snapshot_filter = SnapshotRegionFilter::new(result_address, 4);
-    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(vec![vec![snapshot_filter]], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![snapshot_filter]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
     snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![snapshot_filter_collection]));
 
     let snapshot_ref = engine_privileged_state.get_snapshot();
@@ -73,9 +83,15 @@ fn seed_snapshot_with_single_scan_result_missing_current_value(
 ) {
     let region_base = result_address & !0xFF;
     let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base, 0x100), Vec::new());
+    let symbol_registry = create_symbol_registry();
 
     let snapshot_filter = SnapshotRegionFilter::new(result_address, 4);
-    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(vec![vec![snapshot_filter]], DataTypeRef::new("u32"), MemoryAlignment::Alignment1);
+    let snapshot_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
+        vec![vec![snapshot_filter]],
+        DataTypeRef::new("u32"),
+        MemoryAlignment::Alignment1,
+    );
     snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![snapshot_filter_collection]));
 
     let snapshot_ref = engine_privileged_state.get_snapshot();
@@ -92,9 +108,11 @@ fn seed_snapshot_with_partial_multi_type_scan_results(
     let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base_address, 0x100), Vec::new());
     snapshot_region.current_values = vec![0u8; 0x100];
     snapshot_region.previous_values = vec![0u8; 0x100];
+    let symbol_registry = create_symbol_registry();
 
-    let empty_filter_collection = SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1);
+    let empty_filter_collection = SnapshotRegionFilterCollection::new(&symbol_registry, vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1);
     let populated_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
         vec![vec![SnapshotRegionFilter::new(result_address, 4)]],
         DataTypeRef::new("u32"),
         MemoryAlignment::Alignment1,
@@ -114,18 +132,22 @@ fn seed_snapshot_with_multi_type_address_sorted_scan_results(
     let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(region_base_address, 0x100), Vec::new());
     snapshot_region.current_values = vec![0u8; 0x100];
     snapshot_region.previous_values = vec![0u8; 0x100];
+    let symbol_registry = create_symbol_registry();
 
     let u32_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
         vec![vec![SnapshotRegionFilter::new(region_base_address + 0x30, 4)]],
         DataTypeRef::new("u32"),
         MemoryAlignment::Alignment1,
     );
     let u16_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
         vec![vec![SnapshotRegionFilter::new(region_base_address + 0x10, 2)]],
         DataTypeRef::new("u16"),
         MemoryAlignment::Alignment1,
     );
     let u8_filter_collection = SnapshotRegionFilterCollection::new(
+        &symbol_registry,
         vec![vec![SnapshotRegionFilter::new(region_base_address + 0x40, 1)]],
         DataTypeRef::new("u8"),
         MemoryAlignment::Alignment1,

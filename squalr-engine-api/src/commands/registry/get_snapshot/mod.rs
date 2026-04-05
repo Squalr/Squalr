@@ -1,0 +1,2 @@
+pub mod registry_get_snapshot_request;
+pub mod registry_get_snapshot_response;

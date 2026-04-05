@@ -24,21 +24,24 @@ impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
         {
             let snapshot = engine_privileged_state.get_snapshot();
             let memory_alignment = ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1);
-            let did_initialize_new_scan = match snapshot.write() {
-                Ok(mut snapshot_guard) => {
+            let did_initialize_new_scan = match engine_privileged_state.read_symbol_registry(|symbol_registry| match snapshot.write() {
+                Ok(mut snapshot_guard) => Some({
                     ensure_snapshot_regions_for_scan(engine_privileged_state, &process_info, &mut snapshot_guard);
 
                     if snapshot_guard.get_region_count() == 0 {
                         false
                     } else {
-                        initialize_snapshot_scan_results_if_empty(&mut snapshot_guard, &self.data_type_refs, memory_alignment)
+                        initialize_snapshot_scan_results_if_empty(&mut snapshot_guard, symbol_registry, &self.data_type_refs, memory_alignment)
                     }
-                }
+                }),
                 Err(error) => {
                     log::error!("Failed to acquire write lock on snapshot before value collection: {}", error);
 
-                    return ScanCollectValuesResponse::default();
+                    None
                 }
+            }) {
+                Some(did_initialize_new_scan) => did_initialize_new_scan,
+                None => return ScanCollectValuesResponse::default(),
             };
 
             if did_initialize_new_scan {

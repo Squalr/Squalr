@@ -76,6 +76,7 @@ impl Snapshot {
     /// containing the index, followed by a binary search to find the exact filter, and finally the scan result.
     pub fn get_scan_result(
         &self,
+        symbol_registry: &SymbolRegistry,
         global_scan_result_index: u64,
     ) -> Option<ScanResultValued> {
         if self
@@ -92,7 +93,12 @@ impl Snapshot {
             let number_of_region_results = snapshot_region_scan_results.get_number_of_results();
 
             if local_scan_result_index < number_of_region_results {
-                return snapshot_region_scan_results.get_structural_scan_result(snapshot_region, global_scan_result_index, local_scan_result_index);
+                return snapshot_region_scan_results.get_structural_scan_result(
+                    snapshot_region,
+                    symbol_registry,
+                    global_scan_result_index,
+                    local_scan_result_index,
+                );
             }
 
             local_scan_result_index = local_scan_result_index.saturating_sub(number_of_region_results);
@@ -158,6 +164,7 @@ impl Snapshot {
     /// Gets the number of scan results contained in this snapshot for the requested data type filters.
     pub fn get_number_of_results_for_data_types(
         &self,
+        symbol_registry: &SymbolRegistry,
         filtered_data_types: Option<&[DataTypeRef]>,
     ) -> u64 {
         let mut region_global_scan_result_index_base = 0;
@@ -168,6 +175,7 @@ impl Snapshot {
             let region_structural_result_count = snapshot_region_scan_results.get_number_of_results();
 
             visible_result_count = visible_result_count.saturating_add(snapshot_region_scan_results.get_visible_result_count_for_data_types(
+                symbol_registry,
                 filtered_data_types,
                 region_global_scan_result_index_base,
                 &self.deleted_scan_result_indices,
@@ -179,7 +187,10 @@ impl Snapshot {
     }
 
     /// Gets the surviving result counts for every data type in this snapshot.
-    pub fn get_result_counts_by_data_type(&self) -> Vec<ScanResultDataTypeCount> {
+    pub fn get_result_counts_by_data_type(
+        &self,
+        symbol_registry: &SymbolRegistry,
+    ) -> Vec<ScanResultDataTypeCount> {
         let mut result_counts_by_data_type: Vec<ScanResultDataTypeCount> = Vec::new();
         let mut region_global_scan_result_index_base = 0;
 
@@ -188,7 +199,7 @@ impl Snapshot {
 
             for region_result_count in snapshot_region
                 .get_scan_results()
-                .get_visible_result_counts_by_data_type(region_global_scan_result_index_base, &self.deleted_scan_result_indices)
+                .get_visible_result_counts_by_data_type(symbol_registry, region_global_scan_result_index_base, &self.deleted_scan_result_indices)
             {
                 if let Some(existing_result_count) = result_counts_by_data_type
                     .iter_mut()
@@ -211,11 +222,12 @@ impl Snapshot {
     /// Collects a filtered page of scan results in global address-ascending order.
     pub fn get_scan_results_page(
         &self,
+        symbol_registry: &SymbolRegistry,
         filtered_data_types: Option<&[DataTypeRef]>,
         page_index: u64,
         page_size: u64,
     ) -> (u64, Vec<ScanResultValued>) {
-        let total_filtered_result_count = self.get_number_of_results_for_data_types(filtered_data_types);
+        let total_filtered_result_count = self.get_number_of_results_for_data_types(symbol_registry, filtered_data_types);
         let last_page_index = if total_filtered_result_count == 0 {
             0
         } else {
@@ -234,6 +246,7 @@ impl Snapshot {
 
             let snapshot_region_scan_results = snapshot_region.get_scan_results();
             let region_filtered_result_count = snapshot_region_scan_results.get_visible_result_count_for_data_types(
+                symbol_registry,
                 filtered_data_types,
                 region_global_scan_result_index_base,
                 &self.deleted_scan_result_indices,
@@ -248,6 +261,7 @@ impl Snapshot {
 
             let mut region_scan_results_page = snapshot_region_scan_results.get_scan_results_page(
                 snapshot_region,
+                symbol_registry,
                 filtered_data_types,
                 region_global_scan_result_index_base,
                 remaining_filtered_results_to_skip,
@@ -266,9 +280,9 @@ impl Snapshot {
 
     pub fn collect_scan_result_addresses_for_data_type(
         &self,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
     ) -> Vec<u64> {
-        let symbol_registry = SymbolRegistry::get_instance();
         let data_type_size_in_bytes = symbol_registry.get_unit_size_in_bytes(data_type_ref);
         let mut scan_result_addresses = Vec::new();
 
@@ -299,6 +313,7 @@ impl Snapshot {
 #[cfg(test)]
 mod tests {
     use super::Snapshot;
+    use crate::registries::symbols::symbol_registry::SymbolRegistry;
     use crate::structures::data_types::data_type_ref::DataTypeRef;
     use crate::structures::memory::memory_alignment::MemoryAlignment;
     use crate::structures::memory::normalized_region::NormalizedRegion;
@@ -312,12 +327,15 @@ mod tests {
     fn get_scan_result_returns_address_sorted_result_order() {
         let mut snapshot = Snapshot::new();
         let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x1010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x1004, 2)]],
             DataTypeRef::new("u16"),
             MemoryAlignment::Alignment1,
@@ -327,10 +345,10 @@ mod tests {
         snapshot.set_snapshot_regions(vec![snapshot_region]);
 
         let first_scan_result = snapshot
-            .get_scan_result(0)
+            .get_scan_result(&symbol_registry, 0)
             .expect("Expected the first scan result.");
         let second_scan_result = snapshot
-            .get_scan_result(1)
+            .get_scan_result(&symbol_registry, 1)
             .expect("Expected the second scan result.");
 
         assert_eq!(first_scan_result.get_address(), 0x1004);
@@ -343,12 +361,15 @@ mod tests {
     fn get_scan_results_page_filters_by_data_type_without_rewriting_global_indices() {
         let mut snapshot = Snapshot::new();
         let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x2010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x2008, 2)]],
             DataTypeRef::new("u16"),
             MemoryAlignment::Alignment1,
@@ -358,7 +379,7 @@ mod tests {
         snapshot.set_snapshot_regions(vec![snapshot_region]);
 
         let filtered_data_types = vec![DataTypeRef::new("u32")];
-        let (effective_page_index, scan_results_page) = snapshot.get_scan_results_page(Some(&filtered_data_types), 0, 10);
+        let (effective_page_index, scan_results_page) = snapshot.get_scan_results_page(&symbol_registry, Some(&filtered_data_types), 0, 10);
 
         assert_eq!(effective_page_index, 0);
         assert_eq!(scan_results_page.len(), 1);
@@ -377,22 +398,26 @@ mod tests {
         let mut snapshot = Snapshot::new();
         let mut first_snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x1000, 0x100), Vec::new());
         let mut second_snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x2000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
 
         first_snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![
             SnapshotRegionFilterCollection::new(
+                &symbol_registry,
                 vec![vec![SnapshotRegionFilter::new(0x1010, 4)]],
                 DataTypeRef::new("u32"),
                 MemoryAlignment::Alignment1,
             ),
-            SnapshotRegionFilterCollection::new(vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1),
+            SnapshotRegionFilterCollection::new(&symbol_registry, vec![], DataTypeRef::new("u16"), MemoryAlignment::Alignment1),
         ]));
         second_snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![
             SnapshotRegionFilterCollection::new(
+                &symbol_registry,
                 vec![vec![SnapshotRegionFilter::new(0x2010, 8)]],
                 DataTypeRef::new("u32"),
                 MemoryAlignment::Alignment4,
             ),
             SnapshotRegionFilterCollection::new(
+                &symbol_registry,
                 vec![vec![SnapshotRegionFilter::new(0x2020, 4)]],
                 DataTypeRef::new("u16"),
                 MemoryAlignment::Alignment2,
@@ -401,7 +426,7 @@ mod tests {
         snapshot.set_snapshot_regions(vec![first_snapshot_region, second_snapshot_region]);
 
         assert_eq!(
-            snapshot.get_result_counts_by_data_type(),
+            snapshot.get_result_counts_by_data_type(&symbol_registry),
             vec![
                 ScanResultDataTypeCount::new(DataTypeRef::new("u32"), 3),
                 ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 2),
@@ -413,7 +438,9 @@ mod tests {
     fn delete_scan_results_hides_results_without_rewriting_global_indices() {
         let mut snapshot = Snapshot::new();
         let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x3000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u8_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x3000, 3)]],
             DataTypeRef::new("u8"),
             MemoryAlignment::Alignment1,
@@ -424,9 +451,9 @@ mod tests {
 
         assert_eq!(snapshot.delete_scan_results([1]), 1);
         assert_eq!(snapshot.get_number_of_results(), 2);
-        assert!(snapshot.get_scan_result(1).is_none());
+        assert!(snapshot.get_scan_result(&symbol_registry, 1).is_none());
 
-        let (_effective_page_index, scan_results_page) = snapshot.get_scan_results_page(None, 0, 10);
+        let (_effective_page_index, scan_results_page) = snapshot.get_scan_results_page(&symbol_registry, None, 0, 10);
         let page_addresses = scan_results_page
             .iter()
             .map(|scan_result| scan_result.get_address())
@@ -449,12 +476,15 @@ mod tests {
     fn delete_scan_results_updates_filtered_counts_by_data_type() {
         let mut snapshot = Snapshot::new();
         let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x4000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u32_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x4010, 4)]],
             DataTypeRef::new("u32"),
             MemoryAlignment::Alignment1,
         );
         let u16_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x4004, 4)]],
             DataTypeRef::new("u16"),
             MemoryAlignment::Alignment2,
@@ -467,9 +497,12 @@ mod tests {
         let filtered_u32_data_types = vec![DataTypeRef::new("u32")];
 
         assert_eq!(snapshot.get_number_of_results(), 1);
-        assert_eq!(snapshot.get_number_of_results_for_data_types(Some(&filtered_u32_data_types)), 0);
         assert_eq!(
-            snapshot.get_result_counts_by_data_type(),
+            snapshot.get_number_of_results_for_data_types(&symbol_registry, Some(&filtered_u32_data_types)),
+            0
+        );
+        assert_eq!(
+            snapshot.get_result_counts_by_data_type(&symbol_registry),
             vec![ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 1)]
         );
     }
@@ -478,7 +511,9 @@ mod tests {
     fn set_snapshot_regions_clears_deleted_scan_result_indices() {
         let mut snapshot = Snapshot::new();
         let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x5000, 0x100), Vec::new());
+        let symbol_registry = SymbolRegistry::new();
         let u8_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x5000, 2)]],
             DataTypeRef::new("u8"),
             MemoryAlignment::Alignment1,
@@ -490,6 +525,7 @@ mod tests {
 
         let mut replacement_snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x6000, 0x100), Vec::new());
         let replacement_u8_collection = SnapshotRegionFilterCollection::new(
+            &symbol_registry,
             vec![vec![SnapshotRegionFilter::new(0x6000, 2)]],
             DataTypeRef::new("u8"),
             MemoryAlignment::Alignment1,
@@ -497,8 +533,7 @@ mod tests {
         replacement_snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![replacement_u8_collection]));
 
         snapshot.set_snapshot_regions(vec![replacement_snapshot_region]);
-
         assert_eq!(snapshot.get_number_of_results(), 2);
-        assert!(snapshot.get_scan_result(1).is_some());
+        assert!(snapshot.get_scan_result(&symbol_registry, 1).is_some());
     }
 }

@@ -6,7 +6,6 @@ use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCom
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_response::ProjectItemsListResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -67,15 +66,13 @@ fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     opened_project_items: &mut [(ProjectItemRef, ProjectItem)],
 ) {
-    let symbol_registry = SymbolRegistry::get_instance();
-
     for (_, project_item) in opened_project_items.iter_mut() {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            refresh_address_project_item_display_value(engine_unprivileged_state, project_item, symbol_registry);
+            refresh_address_project_item_display_value(engine_unprivileged_state, project_item);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item, symbol_registry);
+            refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item);
         }
     }
 }
@@ -83,7 +80,6 @@ fn refresh_project_item_display_values(
 fn refresh_address_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     project_item: &mut ProjectItem,
-    symbol_registry: &SymbolRegistry,
 ) {
     let address = ProjectItemTypeAddress::get_field_address(project_item);
     let module_name = ProjectItemTypeAddress::get_field_module(project_item);
@@ -94,7 +90,7 @@ fn refresh_address_project_item_display_value(
     let symbolic_struct_namespace = symbolic_struct_reference
         .get_symbolic_struct_namespace()
         .to_string();
-    let Some(symbolic_struct_definition) = symbol_registry.get(&symbolic_struct_namespace) else {
+    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_symbolic_struct_definition(&symbolic_struct_namespace) else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -103,8 +99,7 @@ fn refresh_address_project_item_display_value(
         engine_unprivileged_state,
         address,
         &module_name,
-        symbolic_struct_definition.as_ref(),
-        symbol_registry,
+        &symbolic_struct_definition,
         |freeze_display_value| {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
@@ -114,7 +109,6 @@ fn refresh_address_project_item_display_value(
 fn refresh_pointer_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     project_item: &mut ProjectItem,
-    symbol_registry: &SymbolRegistry,
 ) {
     let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
     let pointer_preview_evaluation = evaluate_pointer_for_preview(engine_unprivileged_state, &pointer);
@@ -128,7 +122,7 @@ fn refresh_pointer_project_item_display_value(
     let symbolic_struct_namespace = symbolic_struct_reference
         .get_symbolic_struct_namespace()
         .to_string();
-    let Some(symbolic_struct_definition) = symbol_registry.get(&symbolic_struct_namespace) else {
+    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_symbolic_struct_definition(&symbolic_struct_namespace) else {
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -141,8 +135,7 @@ fn refresh_pointer_project_item_display_value(
         engine_unprivileged_state,
         resolved_address,
         &resolved_module_name,
-        symbolic_struct_definition.as_ref(),
-        symbol_registry,
+        &symbolic_struct_definition,
         |freeze_display_value| {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
@@ -154,7 +147,6 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
     address: u64,
     module_name: &str,
     symbolic_struct_definition: &SymbolicStructDefinition,
-    symbol_registry: &SymbolRegistry,
     set_display_value: SetDisplayValue,
 ) where
     SetDisplayValue: FnOnce(&str),
@@ -179,8 +171,9 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
         return;
     };
 
-    let default_anonymous_value_string_format = symbol_registry.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
-    let freeze_display_value = symbol_registry
+    let default_anonymous_value_string_format =
+        engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
+    let freeze_display_value = engine_unprivileged_state
         .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
         .map(|anonymous_value_string| anonymous_value_string.get_anonymous_value_string().to_string())
         .unwrap_or_default();
@@ -243,9 +236,8 @@ fn read_pointer_value(
     module_name: &str,
     pointer_size: PointerScanPointerSize,
 ) -> Option<u64> {
-    let symbol_registry = SymbolRegistry::get_instance();
-    let symbolic_struct_definition = symbol_registry.get(pointer_size.to_data_type_ref().get_data_type_id())?;
-    let memory_read_response = dispatch_memory_read_request(engine_unprivileged_state, address, module_name, symbolic_struct_definition.as_ref())?;
+    let symbolic_struct_definition = engine_unprivileged_state.resolve_symbolic_struct_definition(pointer_size.to_data_type_ref().get_data_type_id())?;
+    let memory_read_response = dispatch_memory_read_request(engine_unprivileged_state, address, module_name, &symbolic_struct_definition)?;
 
     if !memory_read_response.success {
         return None;
@@ -327,7 +319,6 @@ mod tests {
     use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
     use squalr_engine_api::engine::engine_binding_error::EngineBindingError;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::events::engine_event::EngineEvent;
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64,
     };
@@ -396,7 +387,7 @@ mod tests {
             Err(EngineBindingError::unavailable("dispatching unprivileged commands in pointer preview tests"))
         }
 
-        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEvent>, EngineBindingError> {
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope>, EngineBindingError> {
             let (_event_sender, event_receiver) = unbounded();
 
             Ok(event_receiver)
@@ -557,11 +548,10 @@ mod tests {
             );
         let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
-        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::get_instance();
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
         let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u16");
 
-        refresh_pointer_project_item_display_value(&engine_execution_context, &mut pointer_project_item, &symbol_registry);
+        refresh_pointer_project_item_display_value(&engine_execution_context, &mut pointer_project_item);
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -604,7 +594,6 @@ mod tests {
             );
         let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
-        let symbol_registry = squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry::get_instance();
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
         let pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u16");
         let serialized_pointer_project_item = serde_json::to_string(&pointer_project_item).expect("Expected pointer project item serialization to succeed.");
@@ -612,7 +601,7 @@ mod tests {
             serde_json::from_str::<squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>(&serialized_pointer_project_item)
                 .expect("Expected pointer project item deserialization to succeed.");
 
-        refresh_pointer_project_item_display_value(&engine_execution_context, &mut deserialized_pointer_project_item, &symbol_registry);
+        refresh_pointer_project_item_display_value(&engine_execution_context, &mut deserialized_pointer_project_item);
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()

@@ -5,7 +5,6 @@ use crate::{app_context::AppContext, views::struct_viewer::view_data::struct_vie
 use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
 use epaint::{Rect, pos2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructFieldData;
 use std::sync::Arc;
@@ -202,19 +201,22 @@ impl Widget for StructViewerView {
                     }
 
                     if let ValuedStructFieldData::Value(new_data_value) = edited_field.get_field_data() {
-                        let symbol_registry = SymbolRegistry::get_instance();
-
                         if let Some(edit_value) = struct_viewer_view_data
                             .field_edit_values
                             .get_mut(edited_field.get_name())
                         {
                             let current_anonymous_value_string_format = edit_value.get_anonymous_value_string_format();
-                            let new_anonymous_value_string = symbol_registry
+                            let new_anonymous_value_string = self
+                                .app_context
+                                .engine_unprivileged_state
                                 .anonymize_value(new_data_value, current_anonymous_value_string_format)
                                 .unwrap_or_else(|error| {
                                     log::warn!("Failed to anonymize edited struct value: {}", error);
                                     let data_type_ref = new_data_value.get_data_type_ref();
-                                    let default_anonymous_value_string_format = symbol_registry.get_default_anonymous_value_string_format(data_type_ref);
+                                    let default_anonymous_value_string_format = self
+                                        .app_context
+                                        .engine_unprivileged_state
+                                        .get_default_anonymous_value_string_format(data_type_ref);
 
                                     AnonymousValueString::new(String::new(), default_anonymous_value_string_format, ContainerType::None)
                                 });
@@ -222,7 +224,9 @@ impl Widget for StructViewerView {
                             *edit_value = new_anonymous_value_string;
                         }
 
-                        let field_display_values = symbol_registry
+                        let field_display_values = self
+                            .app_context
+                            .engine_unprivileged_state
                             .anonymize_value_to_supported_formats(new_data_value)
                             .unwrap_or_default();
 

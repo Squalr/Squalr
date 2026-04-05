@@ -283,17 +283,28 @@ impl AppShell {
         self.app_state.settings_pane_state.is_applying_settings = false;
     }
 
-    pub(super) fn refresh_struct_viewer_focus_from_source(&mut self) {
+    pub(super) fn refresh_struct_viewer_focus_from_source(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
         match self.app_state.struct_viewer_pane_state.source {
             StructViewerSource::None => {
                 self.app_state.struct_viewer_pane_state.status_message = "No struct viewer source is selected.".to_string();
             }
-            StructViewerSource::ScanResults => self.sync_struct_viewer_focus_from_scan_results(),
-            StructViewerSource::ProjectItems => self.sync_struct_viewer_focus_from_project_items(),
+            StructViewerSource::ScanResults => self.sync_struct_viewer_focus_from_scan_results(squalr_engine),
+            StructViewerSource::ProjectItems => self.sync_struct_viewer_focus_from_project_items(squalr_engine),
         }
     }
 
-    pub(super) fn sync_struct_viewer_focus_from_scan_results(&mut self) {
+    pub(super) fn sync_struct_viewer_focus_from_scan_results(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+            self.app_state.struct_viewer_pane_state.status_message = "No unprivileged engine state is available for struct viewer focus sync.".to_string();
+            return;
+        };
+
         let selected_scan_results = self.app_state.scan_results_pane_state.selected_scan_results();
         let selected_scan_result_refs = self
             .app_state
@@ -301,17 +312,25 @@ impl AppShell {
             .selected_scan_result_refs();
         self.app_state
             .struct_viewer_pane_state
-            .focus_scan_results(&selected_scan_results, selected_scan_result_refs);
+            .focus_scan_results(&selected_scan_results, selected_scan_result_refs, engine_unprivileged_state);
     }
 
-    pub(super) fn sync_struct_viewer_focus_from_project_items(&mut self) {
+    pub(super) fn sync_struct_viewer_focus_from_project_items(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+            self.app_state.struct_viewer_pane_state.status_message = "No unprivileged engine state is available for struct viewer focus sync.".to_string();
+            return;
+        };
+
         let selected_project_items = self
             .app_state
             .project_explorer_pane_state
             .selected_project_items_for_struct_viewer();
         self.app_state
             .struct_viewer_pane_state
-            .focus_project_items(selected_project_items);
+            .focus_project_items(selected_project_items, engine_unprivileged_state);
     }
 
     pub(super) fn commit_struct_viewer_field_edit(
@@ -323,10 +342,15 @@ impl AppShell {
             return;
         }
 
+        let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+            self.app_state.struct_viewer_pane_state.status_message = "No unprivileged engine state is available for struct field edits.".to_string();
+            return;
+        };
+
         let edited_field = match self
             .app_state
             .struct_viewer_pane_state
-            .build_edited_field_from_pending_text()
+            .build_edited_field_from_pending_text(engine_unprivileged_state)
         {
             Ok(edited_field) => edited_field,
             Err(error) => {
@@ -417,7 +441,7 @@ impl AppShell {
                         );
                     }
                     self.refresh_scan_results_page(squalr_engine);
-                    self.sync_struct_viewer_focus_from_scan_results();
+                    self.sync_struct_viewer_focus_from_scan_results(squalr_engine);
                 }
                 Err(receive_error) => {
                     self.app_state.struct_viewer_pane_state.status_message = format!("Timed out waiting for scan result freeze response: {}", receive_error);
@@ -426,13 +450,14 @@ impl AppShell {
             return;
         }
 
-        let scan_results_set_property_request = match Self::build_scan_results_set_property_request_for_struct_edit(selected_scan_result_refs, &edited_field) {
-            Ok(scan_results_set_property_request) => scan_results_set_property_request,
-            Err(error) => {
-                self.app_state.struct_viewer_pane_state.status_message = error;
-                return;
-            }
-        };
+        let scan_results_set_property_request =
+            match Self::build_scan_results_set_property_request_for_struct_edit(selected_scan_result_refs, &edited_field, engine_unprivileged_state) {
+                Ok(scan_results_set_property_request) => scan_results_set_property_request,
+                Err(error) => {
+                    self.app_state.struct_viewer_pane_state.status_message = error;
+                    return;
+                }
+            };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         let request_dispatched = scan_results_set_property_request.send(engine_unprivileged_state, move |scan_results_set_property_response| {
             let _ = response_sender.send(scan_results_set_property_response);
@@ -448,7 +473,7 @@ impl AppShell {
                 self.app_state.struct_viewer_pane_state.status_message =
                     format!("Committed scan result field '{}' from struct viewer.", edited_field.get_name());
                 self.refresh_scan_results_page(squalr_engine);
-                self.sync_struct_viewer_focus_from_scan_results();
+                self.sync_struct_viewer_focus_from_scan_results(squalr_engine);
             }
             Err(receive_error) => {
                 self.app_state.struct_viewer_pane_state.status_message = format!("Timed out waiting for scan result property response: {}", receive_error);
@@ -633,9 +658,9 @@ impl AppShell {
 
         self.app_state
             .struct_viewer_pane_state
-            .apply_committed_field(&edited_field);
+            .apply_committed_field(&edited_field, engine_unprivileged_state);
         self.app_state.struct_viewer_pane_state.status_message = format!("Committed project item field '{}' from struct viewer.", edited_field.get_name());
         self.refresh_project_items_list(squalr_engine);
-        self.sync_struct_viewer_focus_from_project_items();
+        self.sync_struct_viewer_focus_from_project_items(squalr_engine);
     }
 }

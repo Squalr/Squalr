@@ -1,3 +1,4 @@
+use crate::command_executors::project::project_symbol_sync::sync_project_symbol_catalog;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 #[cfg(not(target_os = "android"))]
 use rfd::FileDialog;
@@ -60,8 +61,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
 
         match Project::load_from_path(&project_directory_path) {
             Ok(project) => {
+                let project_symbol_catalog = project.get_project_info().get_project_symbol_catalog().clone();
                 *opened_project = Some(project);
-                ProjectOpenResponse { success: true }
+                drop(opened_project);
+
+                if sync_project_symbol_catalog(engine_unprivileged_state, project_symbol_catalog) {
+                    ProjectOpenResponse { success: true }
+                } else {
+                    if let Ok(mut opened_project) = project_manager.get_opened_project().write() {
+                        *opened_project = None;
+                    }
+
+                    ProjectOpenResponse { success: false }
+                }
             }
             Err(error) => {
                 log::error!("Failed to open project from path:{:?}, error: {}", project_directory_path, error);

@@ -2,10 +2,7 @@ use crate::structures::structs::{
     symbol_resolver::SymbolResolver, symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_ref::SymbolicStructRef, valued_struct::ValuedStruct,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    str::FromStr,
-    sync::{Arc, RwLock},
-};
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SymbolicStructDefinition {
@@ -41,7 +38,7 @@ impl SymbolicStructDefinition {
 
     pub fn get_default_valued_struct(
         &self,
-        symbol_registry: &Arc<RwLock<impl SymbolResolver>>,
+        symbol_registry: &impl SymbolResolver,
     ) -> ValuedStruct {
         let fields = self
             .fields
@@ -53,7 +50,7 @@ impl SymbolicStructDefinition {
 
     pub fn get_size_in_bytes(
         &self,
-        symbol_registry: &Arc<RwLock<impl SymbolResolver>>,
+        symbol_registry: &impl SymbolResolver,
     ) -> u64 {
         self.fields
             .iter()

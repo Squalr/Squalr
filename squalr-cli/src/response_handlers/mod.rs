@@ -22,6 +22,7 @@ pub fn handle_engine_response(response: PrivilegedCommandResponse) {
         PrivilegedCommandResponse::Scan(response) => handle_scan_response(response),
         PrivilegedCommandResponse::Memory(response) => handle_memory_response(response),
         PrivilegedCommandResponse::Process(response) => handle_process_response(response),
+        PrivilegedCommandResponse::Registry(_response) => {}
         PrivilegedCommandResponse::Results(response) => handle_scan_results_response(response),
         PrivilegedCommandResponse::Project(response) => handle_project_response(response),
         PrivilegedCommandResponse::PointerScan(response) => handle_pointer_scan_response(response),

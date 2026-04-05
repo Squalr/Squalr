@@ -4,6 +4,7 @@ use crate::scanners::snapshot_region_memory_reader::SnapshotRegionMemoryReader;
 use crate::scanners::value_collector_task::ValueCollector;
 use rayon::iter::{IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator};
 use squalr_engine_api::conversions::storage_size_conversions::StorageSizeConversions;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
@@ -22,16 +23,18 @@ impl ElementScanExecutor {
     pub fn execute_scan(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
+        symbol_registry: &SymbolRegistry,
         element_scan_plan: ElementScanPlan,
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
     ) {
-        Self::scan_task(process_info, snapshot, element_scan_plan, with_logging, scan_execution_context);
+        Self::scan_task(process_info, snapshot, symbol_registry, element_scan_plan, with_logging, scan_execution_context);
     }
 
     fn scan_task(
         process_info: OpenedProcessInfo,
         snapshot: Arc<RwLock<Snapshot>>,
+        symbol_registry: &SymbolRegistry,
         element_scan_plan: ElementScanPlan,
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
@@ -71,7 +74,11 @@ impl ElementScanExecutor {
             }
 
             // Creates initial results if none exist yet.
-            snapshot_region.initialize_scan_results(element_scan_plan.get_data_type_refs_iterator(), element_scan_plan.get_memory_alignment());
+            snapshot_region.initialize_scan_results(
+                symbol_registry,
+                element_scan_plan.get_data_type_refs_iterator(),
+                element_scan_plan.get_memory_alignment(),
+            );
 
             // Attempt to read new (or initial) memory values. Ignore failures as they usually indicate deallocated pages. // JIRA: Remove failures somehow.
             if element_scan_plan.get_memory_read_mode() == MemoryReadMode::ReadInterleavedWithScan {
@@ -87,7 +94,7 @@ impl ElementScanExecutor {
 
             // Create a function to dispatch our element scan to the best scanner implementation for the current region.
             let element_scan_dispatcher = |snapshot_region_filter_collection| {
-                ElementScanDispatcher::dispatch_scan(snapshot_region, snapshot_region_filter_collection, &element_scan_plan)
+                ElementScanDispatcher::dispatch_scan(symbol_registry, snapshot_region, snapshot_region_filter_collection, &element_scan_plan)
             };
 
             // Again, select the parallel or sequential iterator to iterate over each data type in the scan. Generally there is only 1, but multi-type scans are supported.

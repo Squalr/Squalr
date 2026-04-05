@@ -30,35 +30,37 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
             let memory_read_mode = ScanSettingsConfig::get_memory_read_mode();
             let is_single_thread_scan = ScanSettingsConfig::get_is_single_threaded_scan();
             let debug_perform_validation_scan = ScanSettingsConfig::get_debug_perform_validation_scan();
-
             // Deanonymize all scan constraints against all data types.
             // For example, an immediate comparison of >= 23 could end up being a byte, float, etc.
-            let scan_constraints_by_data_type = self
-                .data_type_refs
-                .iter()
-                .map(|data_type_ref| {
-                    // Deanonymize the initial anonymous scan constraints against the current data type.
-                    let scan_constraints = self
-                        .scan_constraints
-                        .iter()
-                        .filter_map(|anonymous_scan_constraint| anonymous_scan_constraint.deanonymize_constraint(data_type_ref, floating_point_tolerance))
-                        .collect();
+            let scan_constraints_by_data_type = engine_privileged_state.read_symbol_registry(|symbol_registry| {
+                self.data_type_refs
+                    .iter()
+                    .map(|data_type_ref| {
+                        // Deanonymize the initial anonymous scan constraints against the current data type.
+                        let scan_constraints = self
+                            .scan_constraints
+                            .iter()
+                            .filter_map(|anonymous_scan_constraint| {
+                                anonymous_scan_constraint.deanonymize_constraint(symbol_registry, data_type_ref, floating_point_tolerance)
+                            })
+                            .collect();
 
-                    // Optimize the scan constraints by running them through each parameter rule sequentially.
-                    let scan_constraints_finalized = ElementScanRuleRegistry::get_instance()
-                        .get_scan_parameters_rule_registry()
-                        .iter()
-                        .fold(scan_constraints, |mut scan_constraint, (_id, scan_parameter_rule)| {
-                            scan_parameter_rule.map_parameters(&mut scan_constraint);
-                            scan_constraint
-                        })
-                        .into_iter()
-                        .map(|scan_constraint| ScanConstraintFinalized::new(scan_constraint))
-                        .collect();
+                        // Optimize the scan constraints by running them through each parameter rule sequentially.
+                        let scan_constraints_finalized = ElementScanRuleRegistry::get_instance()
+                            .get_scan_parameters_rule_registry()
+                            .iter()
+                            .fold(scan_constraints, |mut scan_constraint, (_id, scan_parameter_rule)| {
+                                scan_parameter_rule.map_parameters(symbol_registry, &mut scan_constraint);
+                                scan_constraint
+                            })
+                            .into_iter()
+                            .map(|scan_constraint| ScanConstraintFinalized::new(symbol_registry, scan_constraint))
+                            .collect();
 
-                    (data_type_ref.clone(), scan_constraints_finalized)
-                })
-                .collect();
+                        (data_type_ref.clone(), scan_constraints_finalized)
+                    })
+                    .collect()
+            });
 
             let element_scan_plan = ElementScanPlan::new(
                 scan_constraints_by_data_type,
@@ -76,7 +78,16 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
                     memory_read_provider.read_bytes(opened_process_info, address, values)
                 })),
             );
-            ElementScanExecutor::execute_scan(process_info, snapshot.clone(), element_scan_plan, true, &scan_execution_context);
+            engine_privileged_state.read_symbol_registry(|symbol_registry| {
+                ElementScanExecutor::execute_scan(
+                    process_info,
+                    snapshot.clone(),
+                    symbol_registry,
+                    element_scan_plan,
+                    true,
+                    &scan_execution_context,
+                );
+            });
 
             match snapshot.write() {
                 Ok(mut snapshot_guard) => {

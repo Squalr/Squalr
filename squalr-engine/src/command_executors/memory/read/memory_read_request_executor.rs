@@ -2,7 +2,6 @@ use crate::command_executors::privileged_request_executor::PrivilegedCommandRequ
 use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
-use squalr_engine_api::registries::registry_context::RegistryContext;
 use squalr_engine_api::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use std::sync::Arc;
@@ -24,10 +23,10 @@ impl PrivilegedCommandRequestExecutor for MemoryReadRequest {
                 log::info!("Reading value from address {}", self.address);
             }
 
-            let symbol_registry = engine_privileged_state.get_registries().get_symbol_registry();
-            let mut out_valued_struct = self
-                .symbolic_struct_definition
-                .get_default_valued_struct(&symbol_registry);
+            let mut out_valued_struct = engine_privileged_state.read_symbol_registry(|symbol_registry| {
+                self.symbolic_struct_definition
+                    .get_default_valued_struct(symbol_registry)
+            });
 
             if !self.module_name.is_empty() {
                 let modules = if let Some(opened_process_info) = engine_privileged_state

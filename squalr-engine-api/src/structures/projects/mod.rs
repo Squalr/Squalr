@@ -4,3 +4,4 @@ pub mod project_items;
 pub mod project_manager;
 pub mod project_manifest;
 pub mod project_ref;
+pub mod project_symbol_catalog;

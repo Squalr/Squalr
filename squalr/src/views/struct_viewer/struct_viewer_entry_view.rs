@@ -15,14 +15,11 @@ use crate::{
 };
 use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
-use squalr_engine_api::{
-    registries::symbols::symbol_registry::SymbolRegistry,
-    structures::{
-        data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-        data_types::data_type_ref::DataTypeRef,
-        data_values::anonymous_value_string::AnonymousValueString,
-        structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
-    },
+use squalr_engine_api::structures::{
+    data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+    data_types::data_type_ref::DataTypeRef,
+    data_values::anonymous_value_string::AnonymousValueString,
+    structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
 };
 use std::sync::Arc;
 
@@ -73,14 +70,16 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     }
 
     fn commit_field_edit(
+        app_context: &Arc<AppContext>,
         valued_struct_field: &ValuedStructField,
         validation_data_type_ref: &DataTypeRef,
         field_edit_value: &AnonymousValueString,
         struct_viewer_frame_action: &mut StructViewerFrameAction,
     ) {
-        let symbol_registry = SymbolRegistry::get_instance();
-
-        match symbol_registry.deanonymize_value_string(validation_data_type_ref, field_edit_value) {
+        match app_context
+            .engine_unprivileged_state
+            .deanonymize_value_string(validation_data_type_ref, field_edit_value)
+        {
             Ok(new_data_value) => {
                 let mut edited_field = valued_struct_field.clone();
 
@@ -103,23 +102,6 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
 
         edited_field.set_field_data(ValuedStructFieldData::Value(data_type_string_value));
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
-    }
-
-    fn available_data_type_refs() -> Vec<DataTypeRef> {
-        let symbol_registry = SymbolRegistry::get_instance();
-        let mut available_data_type_refs = symbol_registry
-            .get_data_type_registry()
-            .keys()
-            .map(|data_type_id| DataTypeRef::new(data_type_id))
-            .collect::<Vec<_>>();
-
-        available_data_type_refs.sort_by(|left_data_type_ref, right_data_type_ref| {
-            left_data_type_ref
-                .get_data_type_id()
-                .cmp(right_data_type_ref.get_data_type_id())
-        });
-
-        available_data_type_refs
     }
 }
 
@@ -191,6 +173,10 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             0.0
         };
         let value_box_width = (row_max_x - value_box_position_x - commit_button_space).max(0.0);
+        let available_data_type_refs = self
+            .app_context
+            .engine_unprivileged_state
+            .get_registered_data_type_refs();
 
         // Draw icon.
         let icon_rect = Rect::from_min_max(
@@ -255,6 +241,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                     if show_commit_button && commit_on_enter_pressed {
                         Self::commit_field_edit(
+                            &self.app_context,
                             self.valued_struct_field,
                             validation_data_type_ref,
                             field_edit_value,
@@ -280,6 +267,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                         if commit_response.clicked() {
                             Self::commit_field_edit(
+                                &self.app_context,
                                 self.valued_struct_field,
                                 validation_data_type_ref,
                                 field_edit_value,
@@ -301,7 +289,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             vec2(selector_width, available_size_rect.height()),
                         ),
                         DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
-                            .available_data_types(Self::available_data_type_refs())
+                            .available_data_types(available_data_type_refs.clone())
                             .hide_placeholder_entries()
                             .stacked_list()
                             .width(selector_width)

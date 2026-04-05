@@ -31,6 +31,7 @@ pub struct PointerScanTargetResolver;
 impl PointerScanTargetResolver {
     pub fn resolve_targets(
         target_request: &PointerScanTargetRequest,
+        symbol_registry: &SymbolRegistry,
         address_pointer_size: PointerScanPointerSize,
         snapshot: Arc<RwLock<Snapshot>>,
         process_info: OpenedProcessInfo,
@@ -45,8 +46,9 @@ impl PointerScanTargetResolver {
             target_request.target_value.as_ref(),
             target_request.target_data_type_ref.as_ref(),
         ) {
-            (Some(target_address), None, None) => Self::resolve_address_target(target_address, address_pointer_size),
+            (Some(target_address), None, None) => Self::resolve_address_target(symbol_registry, target_address, address_pointer_size),
             (None, Some(target_value), Some(target_data_type_ref)) => Self::resolve_value_target(
+                symbol_registry,
                 target_value,
                 target_data_type_ref,
                 snapshot,
@@ -68,10 +70,10 @@ impl PointerScanTargetResolver {
     }
 
     fn resolve_address_target(
+        symbol_registry: &SymbolRegistry,
         target_address: &AnonymousValueString,
         pointer_size: PointerScanPointerSize,
     ) -> Result<ResolvedPointerScanTargets, String> {
-        let symbol_registry = SymbolRegistry::get_instance();
         let target_address_data_type_ref = pointer_size.to_data_type_ref();
         let target_address_data_value = symbol_registry
             .deanonymize_value_string(&target_address_data_type_ref, target_address)
@@ -87,6 +89,7 @@ impl PointerScanTargetResolver {
     }
 
     fn resolve_value_target(
+        symbol_registry: &SymbolRegistry,
         target_value: &AnonymousValueString,
         target_data_type_ref: &DataTypeRef,
         snapshot: Arc<RwLock<Snapshot>>,
@@ -99,17 +102,17 @@ impl PointerScanTargetResolver {
     ) -> Result<ResolvedPointerScanTargets, String> {
         let exact_scan_constraint = AnonymousScanConstraint::new(ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal), Some(target_value.clone()));
         let scan_constraint = exact_scan_constraint
-            .deanonymize_constraint(target_data_type_ref, floating_point_tolerance)
+            .deanonymize_constraint(symbol_registry, target_data_type_ref, floating_point_tolerance)
             .ok_or_else(|| "Failed to parse pointer scan value target.".to_string())?;
         let finalized_scan_constraints = ElementScanRuleRegistry::get_instance()
             .get_scan_parameters_rule_registry()
             .iter()
             .fold(vec![scan_constraint], |mut scan_constraints, (_rule_id, scan_parameter_rule)| {
-                scan_parameter_rule.map_parameters(&mut scan_constraints);
+                scan_parameter_rule.map_parameters(symbol_registry, &mut scan_constraints);
                 scan_constraints
             })
             .into_iter()
-            .map(ScanConstraintFinalized::new)
+            .map(|scan_constraint| ScanConstraintFinalized::new(symbol_registry, scan_constraint))
             .collect::<Vec<_>>();
         let element_scan_plan = ElementScanPlan::new(
             HashMap::from([(target_data_type_ref.clone(), finalized_scan_constraints)]),
@@ -124,6 +127,7 @@ impl PointerScanTargetResolver {
         ElementScanExecutor::execute_scan(
             process_info,
             temporary_value_scan_snapshot.clone(),
+            symbol_registry,
             element_scan_plan,
             true,
             scan_execution_context,
@@ -132,7 +136,7 @@ impl PointerScanTargetResolver {
             .read()
             .map_err(|error| format!("Failed to access pointer scan value target snapshot: {}", error))?;
         let result_count = snapshot_guard.get_number_of_results();
-        let (_page_index, scan_results_page) = snapshot_guard.get_scan_results_page(None, 0, result_count.max(1));
+        let (_page_index, scan_results_page) = snapshot_guard.get_scan_results_page(symbol_registry, None, 0, result_count.max(1));
         let mut target_addresses = scan_results_page
             .into_iter()
             .map(|scan_result| scan_result.get_address())

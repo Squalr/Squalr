@@ -2,12 +2,9 @@ use crate::ui::widgets::controls::state_layer::StateLayer;
 use crate::{app_context::AppContext, ui::widgets::controls::data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView};
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, TextEdit, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2, vec2};
-use squalr_engine_api::{
-    registries::symbols::symbol_registry::SymbolRegistry,
-    structures::{
-        data_types::data_type_ref::DataTypeRef,
-        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
-    },
+use squalr_engine_api::structures::{
+    data_types::data_type_ref::DataTypeRef,
+    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
 };
 use std::sync::Arc;
 
@@ -169,8 +166,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let symbol_registry = SymbolRegistry::get_instance();
-        let is_valid = symbol_registry.validate_value_string(&self.validation_data_type, &self.anonymous_value_string);
+        let is_valid = self
+            .app_context
+            .engine_unprivileged_state
+            .validate_value_string(&self.validation_data_type, &self.anonymous_value_string);
         let foreground_color = match self.use_preview_foreground {
             true => theme.foreground_preview,
             false => theme.foreground,
@@ -359,7 +358,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
                         popup_user_interface.set_min_width(Self::MIN_POPUP_WIDTH);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
-                            let anonymous_value_string_formats = symbol_registry.get_supported_anonymous_value_string_formats(&self.validation_data_type);
+                            let anonymous_value_string_formats = self
+                                .app_context
+                                .engine_unprivileged_state
+                                .get_supported_anonymous_value_string_formats(&self.validation_data_type);
 
                             for anonymous_value_string_format in &anonymous_value_string_formats {
                                 let target_display_value = self.display_values.and_then(|display_values| {

@@ -59,13 +59,14 @@ impl SnapshotRegion {
     pub fn get_current_value(
         &self,
         element_address: u64,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = symbol_registry.get_unit_size_in_bytes(data_type_ref);
 
         if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
-            if let Some(mut data_value) = SymbolRegistry::get_instance().get_default_value(data_type_ref) {
+            if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
                 let end = start + data_type_size as usize;
                 data_value.copy_from_bytes(&self.current_values[start..end]);
@@ -83,13 +84,14 @@ impl SnapshotRegion {
     pub fn get_previous_value(
         &self,
         element_address: u64,
+        symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = SymbolRegistry::get_instance().get_unit_size_in_bytes(data_type_ref);
+        let data_type_size = symbol_registry.get_unit_size_in_bytes(data_type_ref);
 
         if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
-            if let Some(mut data_value) = SymbolRegistry::get_instance().get_default_value(data_type_ref) {
+            if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
                 let end = start + data_type_size as usize;
                 data_value.copy_from_bytes(&self.previous_values[start..end]);
@@ -155,6 +157,7 @@ impl SnapshotRegion {
 
     pub fn initialize_scan_results<'lifetime>(
         &mut self,
+        symbol_registry: &SymbolRegistry,
         data_type_refs_iterator: impl Iterator<Item = &'lifetime DataTypeRef>,
         memory_alignment: MemoryAlignment,
     ) {
@@ -165,6 +168,7 @@ impl SnapshotRegion {
         let snapshot_region_filter_collections = data_type_refs_iterator
             .map(|data_type_ref| {
                 SnapshotRegionFilterCollection::new(
+                    symbol_registry,
                     vec![vec![SnapshotRegionFilter::new(
                         self.get_base_address(),
                         self.get_region_size(),

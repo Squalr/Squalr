@@ -6,7 +6,6 @@ use squalr_engine_api::commands::project_items::add::project_items_add_response:
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
@@ -80,7 +79,13 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsAddRequest {
             }
         };
 
-        let added_file_paths = add_scan_results_to_project(opened_project, &project_directory_path, &scan_results, &self.target_directory_path);
+        let added_file_paths = add_scan_results_to_project(
+            engine_unprivileged_state,
+            opened_project,
+            &project_directory_path,
+            &scan_results,
+            &self.target_directory_path,
+        );
 
         if added_file_paths.is_empty() {
             return ProjectItemsAddResponse {
@@ -168,12 +173,12 @@ fn request_scan_results(
 }
 
 fn add_scan_results_to_project(
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     opened_project: &mut Project,
     project_directory_path: &PathBuf,
     scan_results: &[ScanResult],
     target_directory_path: &Option<PathBuf>,
 ) -> Vec<PathBuf> {
-    let symbol_registry = SymbolRegistry::get_instance();
     let project_items = opened_project.get_project_items_mut();
     let mut added_file_paths = Vec::new();
     let project_root_directory_path = project_directory_path.join(Project::PROJECT_DIR);
@@ -191,7 +196,7 @@ fn add_scan_results_to_project(
 
     for scan_result in scan_results {
         let data_type_ref = scan_result.get_data_type_ref();
-        let default_data_value = match symbol_registry.get_default_value(data_type_ref) {
+        let default_data_value = match engine_unprivileged_state.get_default_value(data_type_ref) {
             Some(default_data_value) => default_data_value,
             None => {
                 log::warn!("Skipping scan result add for unsupported data type: {}", data_type_ref.get_data_type_id());

@@ -90,18 +90,20 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
         let validation_snapshot = Arc::new(RwLock::new(validation_snapshot));
 
         ValueCollector::collect_values(process_info.clone(), validation_snapshot.clone(), true, &scan_execution_context);
-
-        let resolved_targets = match PointerScanTargetResolver::resolve_targets(
-            &self.target,
-            pointer_scan_session.get_pointer_size(),
-            validation_snapshot.clone(),
-            process_info.clone(),
-            ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
-            ScanSettingsConfig::get_floating_point_tolerance(),
-            ScanSettingsConfig::get_is_single_threaded_scan(),
-            ScanSettingsConfig::get_debug_perform_validation_scan(),
-            &scan_execution_context,
-        ) {
+        let resolved_targets = match engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            PointerScanTargetResolver::resolve_targets(
+                &self.target,
+                symbol_registry,
+                pointer_scan_session.get_pointer_size(),
+                validation_snapshot.clone(),
+                process_info.clone(),
+                ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
+                ScanSettingsConfig::get_floating_point_tolerance(),
+                ScanSettingsConfig::get_is_single_threaded_scan(),
+                ScanSettingsConfig::get_debug_perform_validation_scan(),
+                &scan_execution_context,
+            )
+        }) {
             Ok(resolved_targets) => resolved_targets,
             Err(error) => {
                 log::error!("{}", error);

@@ -1,6 +1,5 @@
 use crate::scanners::snapshot_scanner::Scanner;
 use crate::scanners::structures::snapshot_region_filter_run_length_encoder::SnapshotRegionFilterRunLengthEncoder;
-use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::data_types::generics::vector_comparer::VectorComparer;
 use squalr_engine_api::structures::data_types::generics::vector_function::GetVectorFunction;
 use squalr_engine_api::structures::data_types::generics::vector_generics::VectorGenerics;
@@ -8,6 +7,7 @@ use squalr_engine_api::structures::data_types::generics::vector_lane_count::Vect
 use squalr_engine_api::structures::data_values::data_value::DataValue;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
+use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::ScanFunctionScalar;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::plans::element_scan::snapshot_filter_element_scan_plan::SnapshotFilterElementScanPlan;
 use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
@@ -232,17 +232,22 @@ where
         }
 
         // Handle remainder elements.
-        if let Some(compare_func) = SymbolRegistry::get_instance()
-            .get_scalar_compare_func_immediate(&scan_compare_type_immediate, snapshot_filter_element_scan_plan.get_scan_constraint())
-        {
-            for index in vectorizable_element_count..vectorization_plan.element_count {
-                let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
-                let compare_result = compare_func(current_value_pointer);
+        if let Some(scalar_compare_function) = snapshot_filter_element_scan_plan.get_scan_function_scalar() {
+            match scalar_compare_function {
+                ScanFunctionScalar::Immediate(compare_func) => {
+                    for index in vectorizable_element_count..vectorization_plan.element_count {
+                        let current_value_pointer = unsafe { current_values_pointer.add(index as usize * memory_alignment_size as usize) };
+                        let compare_result = compare_func(current_value_pointer);
 
-                if compare_result {
-                    run_length_encoder.encode_range(memory_alignment_size);
-                } else {
-                    run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
+                        if compare_result {
+                            run_length_encoder.encode_range(memory_alignment_size);
+                        } else {
+                            run_length_encoder.finalize_current_encode_with_padding(memory_alignment_size, data_type_size_padding);
+                        }
+                    }
+                }
+                ScanFunctionScalar::RelativeOrDelta(_) => {
+                    log::error!("Invalid scalar compare function provided to bytewise staggered scan.");
                 }
             }
         }

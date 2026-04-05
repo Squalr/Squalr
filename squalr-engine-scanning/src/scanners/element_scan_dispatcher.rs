@@ -8,6 +8,7 @@ use crate::scanners::vector::scanner_vector_overlapping::ScannerVectorOverlappin
 use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
+use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
@@ -28,6 +29,7 @@ pub struct ElementScanDispatcher {}
 impl ElementScanDispatcher {
     /// Performs a scan over a provided filter collection, returning a new filter collection with the results.
     pub fn dispatch_scan(
+        symbol_registry: &SymbolRegistry,
         snapshot_region: &SnapshotRegion,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         element_scan_plan: &ElementScanPlan,
@@ -38,6 +40,7 @@ impl ElementScanDispatcher {
                 .iter()
                 .filter_map(|snapshot_region_filter| {
                     Self::dispatch_scan_for_snapshot_filter_collection(
+                        symbol_registry,
                         snapshot_region_filter_collection,
                         snapshot_region_filter,
                         snapshot_region,
@@ -50,6 +53,7 @@ impl ElementScanDispatcher {
                 .par_iter()
                 .filter_map(|snapshot_region_filter| {
                     Self::dispatch_scan_for_snapshot_filter_collection(
+                        symbol_registry,
                         snapshot_region_filter_collection,
                         snapshot_region_filter,
                         snapshot_region,
@@ -60,6 +64,7 @@ impl ElementScanDispatcher {
         };
 
         SnapshotRegionFilterCollection::new(
+            symbol_registry,
             result_snapshot_region_filters,
             snapshot_region_filter_collection.get_data_type_ref().clone(),
             snapshot_region_filter_collection.get_memory_alignment(),
@@ -70,6 +75,7 @@ impl ElementScanDispatcher {
     // Currently, this assumes only AND operations are supported, ie value >= 2000 && value <= 5000.
     // This works by simply running constraints sequentially to produce filters.
     fn dispatch_scan_for_snapshot_filter_collection(
+        symbol_registry: &SymbolRegistry,
         snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
         snapshot_region: &SnapshotRegion,
@@ -98,6 +104,7 @@ impl ElementScanDispatcher {
                 .iter()
             {
                 scan_filter_rule.map_parameters(
+                    symbol_registry,
                     snapshot_region,
                     snapshot_region_filter_collection,
                     snapshot_region_filter,
