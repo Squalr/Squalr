@@ -19,7 +19,7 @@ struct ProjectInfoStub {
     project_icon_rgba: Option<ProcessIcon>,
 
     /// The manifest for this project, containing the sort order of project items.
-    #[serde(rename = "manifest")]
+    #[serde(rename = "manifest", default)]
     project_manifest: ProjectManifest,
 
     /// User-authored symbolic struct definitions stored with this project.
@@ -79,6 +79,7 @@ mod tests {
         projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
+    use std::fs;
 
     #[test]
     fn project_info_round_trip_preserves_project_symbol_catalog() {
@@ -120,5 +121,22 @@ mod tests {
                 .get_struct_layout_id(),
             "player.health"
         );
+    }
+
+    #[test]
+    fn project_info_loads_when_symbols_object_omits_struct_layout_descriptors() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
+        let legacy_project_json = r#"{
+            "icon": null,
+            "manifest": {},
+            "symbols": {}
+        }"#;
+
+        fs::write(&project_file_path, legacy_project_json).expect("Expected legacy project json to write.");
+
+        let loaded_project_info = ProjectInfo::load_from_path(&project_file_path).expect("Expected legacy project info to load.");
+
+        assert!(loaded_project_info.get_project_symbol_catalog().is_empty());
     }
 }

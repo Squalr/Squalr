@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectSymbolCatalog {
+    #[serde(default)]
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
 }
 
