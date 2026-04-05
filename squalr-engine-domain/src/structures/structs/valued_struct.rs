@@ -32,7 +32,7 @@ impl ValuedStruct {
         }
     }
 
-    pub fn get_symbolic_struct(
+    pub fn get_struct_layout(
         &self,
         symbol_resolver: &impl SymbolResolver,
     ) -> Result<SymbolicStructDefinition, ValuedStructError> {
@@ -43,7 +43,7 @@ impl ValuedStruct {
         }
 
         symbol_resolver
-            .get_symbolic_struct(symbolic_struct_namespace)
+            .get_struct_layout(symbolic_struct_namespace)
             .as_deref()
             .cloned()
             .ok_or_else(|| ValuedStructError::symbolic_struct_not_registered(symbolic_struct_namespace.to_string()))

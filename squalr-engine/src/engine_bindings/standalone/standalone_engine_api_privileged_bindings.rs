@@ -24,7 +24,7 @@ impl EngineApiPrivilegedBindings for StandalonePrivilegedEngine {
         let registry_generation = self
             .engine_privileged_state
             .as_ref()
-            .map(|engine_privileged_state| engine_privileged_state.get_symbol_registry_generation())
+            .map(|engine_privileged_state| engine_privileged_state.get_registry_generation())
             .unwrap_or_default();
         let engine_event_envelope = EngineEventEnvelope::new(registry_generation, engine_event);
 

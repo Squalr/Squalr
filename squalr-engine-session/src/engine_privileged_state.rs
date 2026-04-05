@@ -14,8 +14,8 @@ use squalr_engine_api::registries::project_item_types::project_item_type_registr
 use squalr_engine_api::registries::registry_context::RegistryContext;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
-use squalr_engine_api::registries::symbols::symbol_registry_snapshot::RegistryMetadata;
-use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::StructLayoutDescriptor};
+use squalr_engine_api::registries::symbols::registry_metadata::RegistryMetadata;
+use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struct_layout_descriptor::StructLayoutDescriptor};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
@@ -119,7 +119,7 @@ impl EnginePrivilegedState {
         self.next_pointer_scan_session_id.fetch_add(1, Ordering::SeqCst) + 1
     }
 
-    pub fn get_symbol_registry_snapshot(&self) -> RegistryMetadata {
+    pub fn get_registry_metadata(&self) -> RegistryMetadata {
         let current_generation = self.symbol_registry_generation.load(Ordering::SeqCst);
 
         self.registries
@@ -127,13 +127,13 @@ impl EnginePrivilegedState {
             .create_snapshot(current_generation)
     }
 
-    pub fn notify_symbol_registry_changed(&self) {
+    pub fn notify_registry_changed(&self) {
         let next_generation = self.symbol_registry_generation.fetch_add(1, Ordering::SeqCst) + 1;
 
         self.emit_event(RegistryChangedEvent { generation: next_generation });
     }
 
-    pub fn get_symbol_registry_generation(&self) -> u64 {
+    pub fn get_registry_generation(&self) -> u64 {
         self.symbol_registry_generation.load(Ordering::SeqCst)
     }
 
@@ -151,7 +151,7 @@ impl EnginePrivilegedState {
         self.mutate_symbol_registry(|symbol_registry| symbol_registry.unregister_data_type_descriptor(data_type_id))
     }
 
-    pub fn register_symbolic_struct_descriptor(
+    pub fn register_struct_layout_descriptor(
         &self,
         struct_layout_descriptor: StructLayoutDescriptor,
     ) -> bool {
@@ -163,7 +163,7 @@ impl EnginePrivilegedState {
         })
     }
 
-    pub fn unregister_symbolic_struct_descriptor(
+    pub fn unregister_struct_layout_descriptor(
         &self,
         symbolic_struct_id: &str,
     ) -> bool {
@@ -274,7 +274,7 @@ impl EnginePrivilegedState {
         drop(mutation_guard);
 
         if did_change {
-            self.notify_symbol_registry_changed();
+            self.notify_registry_changed();
         }
 
         did_change
@@ -291,7 +291,7 @@ mod tests {
         engine_api_priviliged_bindings::EngineApiPrivilegedBindings, engine_binding_error::EngineBindingError, engine_event_envelope::EngineEventEnvelope,
     };
     use squalr_engine_api::events::{engine_event::EngineEvent, registry::registry_event::RegistryEvent};
-    use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::StructLayoutDescriptor};
+    use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struct_layout_descriptor::StructLayoutDescriptor};
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
@@ -394,12 +394,12 @@ mod tests {
             ),
         )]);
 
-        assert_eq!(engine_privileged_state.get_symbol_registry_generation(), 1);
+        assert_eq!(engine_privileged_state.get_registry_generation(), 1);
         assert!(engine_privileged_state.set_project_symbol_catalog(&project_symbol_catalog));
-        assert_eq!(engine_privileged_state.get_symbol_registry_generation(), 2);
+        assert_eq!(engine_privileged_state.get_registry_generation(), 2);
         assert!(
             engine_privileged_state
-                .get_symbol_registry_snapshot()
+            .get_registry_metadata()
                 .get_struct_layout_descriptors()
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "player.stats")
@@ -422,7 +422,7 @@ mod tests {
         let bindings = Arc::new(RwLock::new(CapturingPrivilegedBindings::new()));
         let engine_privileged_state = create_test_engine_privileged_state(bindings.clone());
 
-        assert_eq!(engine_privileged_state.get_symbol_registry_generation(), 1);
+        assert_eq!(engine_privileged_state.get_registry_generation(), 1);
         assert!(engine_privileged_state.register_symbol_data_type_descriptor(DataTypeDescriptor::new(
             String::from("remote.plugin.u24"),
             String::from("remote-icon"),
@@ -433,10 +433,10 @@ mod tests {
             false,
             false,
         )));
-        assert_eq!(engine_privileged_state.get_symbol_registry_generation(), 2);
+        assert_eq!(engine_privileged_state.get_registry_generation(), 2);
         assert!(
             engine_privileged_state
-                .get_symbol_registry_snapshot()
+            .get_registry_metadata()
                 .get_data_type_descriptors()
                 .iter()
                 .any(|data_type_descriptor| data_type_descriptor.get_data_type_id() == "remote.plugin.u24")

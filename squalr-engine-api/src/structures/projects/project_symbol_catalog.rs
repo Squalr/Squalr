@@ -1,4 +1,4 @@
-use crate::registries::symbols::symbolic_struct_descriptor::StructLayoutDescriptor;
+use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]

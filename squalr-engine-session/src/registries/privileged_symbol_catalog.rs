@@ -1,7 +1,7 @@
 use squalr_engine_api::{
     registries::symbols::{
-        data_type_descriptor::DataTypeDescriptor, symbol_registry::SymbolRegistry, symbol_registry_snapshot::RegistryMetadata,
-        symbolic_struct_descriptor::StructLayoutDescriptor,
+        data_type_descriptor::DataTypeDescriptor, registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor,
+        symbol_registry::SymbolRegistry,
     },
     structures::{
         data_types::data_type_ref::DataTypeRef,
@@ -152,18 +152,18 @@ impl PrivilegedSymbolCatalog {
             })
     }
 
-    pub fn resolve_symbolic_struct_definition(
+    pub fn resolve_struct_layout_definition(
         &self,
         symbolic_struct_id: &str,
     ) -> Option<SymbolicStructDefinition> {
-        self.get_symbolic_struct(symbolic_struct_id).as_deref().cloned()
+        self.get_struct_layout(symbolic_struct_id).as_deref().cloned()
     }
 
-    pub fn get_symbolic_struct(
+    pub fn get_struct_layout(
         &self,
         symbolic_struct_id: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {
-        self.find_symbolic_struct_descriptor(symbolic_struct_id)
+        self.find_struct_layout_descriptor(symbolic_struct_id)
             .map(|symbolic_struct_descriptor| {
                 Arc::new(
                     symbolic_struct_descriptor
@@ -188,7 +188,7 @@ impl PrivilegedSymbolCatalog {
             })
     }
 
-    fn find_symbolic_struct_descriptor(
+    fn find_struct_layout_descriptor(
         &self,
         symbolic_struct_id: &str,
     ) -> Option<&StructLayoutDescriptor> {
@@ -208,7 +208,7 @@ mod tests {
     use super::PrivilegedSymbolCatalog;
     use squalr_engine_api::registries::symbols::data_type_descriptor::DataTypeDescriptor;
     use squalr_engine_api::{
-        registries::symbols::{symbol_registry_snapshot::RegistryMetadata, symbolic_struct_descriptor::StructLayoutDescriptor},
+        registries::symbols::{registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor},
         structures::{
             data_types::data_type_ref::DataTypeRef,
             data_values::anonymous_value_string_format::AnonymousValueStringFormat,
@@ -284,7 +284,7 @@ mod tests {
         assert!(!privileged_symbol_catalog.is_registered_data_type_ref(&DataTypeRef::new("u16")));
         assert!(
             privileged_symbol_catalog
-                .resolve_symbolic_struct_definition("remote.test.struct")
+                .resolve_struct_layout_definition("remote.test.struct")
                 .is_some()
         );
     }

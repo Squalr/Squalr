@@ -3,7 +3,7 @@ use crate::structures::{
 };
 use std::sync::Arc;
 
-/// Resolves symbolic structs and data type defaults for struct materialization operations.
+/// Resolves struct layouts and data type defaults for struct materialization operations.
 pub trait SymbolResolver {
     fn get_default_value(
         &self,
@@ -15,7 +15,7 @@ pub trait SymbolResolver {
         data_type_ref: &DataTypeRef,
     ) -> u64;
 
-    fn get_symbolic_struct(
+    fn get_struct_layout(
         &self,
         symbolic_struct_namespace: &str,
     ) -> Option<Arc<SymbolicStructDefinition>>;

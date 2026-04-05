@@ -25,3 +25,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Privileged snapshots now feed a `PrivilegedSymbolCatalog` for data-type metadata and privileged-authored symbolic structs, while project-authored symbols resolve from the opened project's local `ProjectSymbolCatalog`.
 - Validation run: `cargo test -p squalr-engine-session --lib` passed after the unprivileged catalog refactor.
 - Validation run: `cargo test -p squalr-tests --test registry_sync_tests` passed after the same refactor.
+- Registry sync transport now uses `RegistryMetadata` and `StructLayoutDescriptor` consistently across command responses, bindings, session state, and tests; old `symbol_registry_snapshot` / `symbolic_struct_descriptor` module paths were removed.
+- Dead `SymbolRegistry::get_instance()` singleton entrypoints were removed from the API and domain registries. Validation run: `cargo build -p squalr-engine --locked` passed after the rename cleanup.

@@ -72,7 +72,7 @@ impl SerializableProjectFile for ProjectInfo {
 #[cfg(test)]
 mod tests {
     use super::SerializableProjectFile;
-    use squalr_engine_api::registries::symbols::symbolic_struct_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,

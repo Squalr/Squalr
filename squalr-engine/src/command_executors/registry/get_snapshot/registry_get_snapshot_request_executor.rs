@@ -12,7 +12,7 @@ impl PrivilegedCommandRequestExecutor for RegistryGetSnapshotRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         RegistryGetSnapshotResponse {
-            symbol_registry_snapshot: engine_privileged_state.get_symbol_registry_snapshot(),
+            registry_metadata: engine_privileged_state.get_registry_metadata(),
         }
     }
 }

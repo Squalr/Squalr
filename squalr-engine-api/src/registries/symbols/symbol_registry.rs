@@ -29,7 +29,6 @@ use crate::structures::{
     },
 };
 use squalr_engine_domain::structures::structs::symbol_resolver::SymbolResolver;
-use std::sync::Once;
 use std::{collections::HashMap, sync::Arc};
 
 /// Manages a symbolic struct registry and a data type registry. All registered data types are also registered into the symbolic struct
@@ -40,22 +39,6 @@ pub struct SymbolRegistry {
 }
 
 impl SymbolRegistry {
-    // JIRA: Deprecate this. Needs to support mutability, mirroring from client to server for non-standalone builds, etc.
-    pub fn get_instance() -> &'static SymbolRegistry {
-        static mut INSTANCE: Option<SymbolRegistry> = None;
-        static ONCE: Once = Once::new();
-
-        unsafe {
-            ONCE.call_once(|| {
-                let instance = SymbolRegistry::new();
-                INSTANCE = Some(instance);
-            });
-
-            #[allow(static_mut_refs)]
-            INSTANCE.as_ref().unwrap_unchecked()
-        }
-    }
-
     pub fn new() -> Self {
         let (symbolic_struct_registry, data_type_registry) = Self::create_built_in_registries();
 
@@ -421,7 +404,7 @@ impl SymbolResolver for SymbolRegistry {
         self.get_unit_size_in_bytes(data_type_ref)
     }
 
-    fn get_symbolic_struct(
+    fn get_struct_layout(
         &self,
         symbolic_struct_namespace: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {

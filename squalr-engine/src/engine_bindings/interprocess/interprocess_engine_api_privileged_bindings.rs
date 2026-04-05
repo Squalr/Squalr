@@ -40,7 +40,7 @@ impl EngineApiPrivilegedBindings for InterprocessEngineApiPrivilegedBindings {
         let registry_generation = self
             .engine_privileged_state
             .as_ref()
-            .map(|engine_privileged_state| engine_privileged_state.get_symbol_registry_generation())
+            .map(|engine_privileged_state| engine_privileged_state.get_registry_generation())
             .unwrap_or_default();
         let engine_event_envelope = EngineEventEnvelope::new(registry_generation, engine_event);
 
@@ -187,14 +187,14 @@ impl InterprocessEngineApiPrivilegedBindings {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
         privileged_command: PrivilegedCommand,
     ) -> PrivilegedCommandResult {
-        let should_include_symbol_registry_snapshot = privileged_command.should_include_symbol_registry_snapshot();
+        let should_include_registry_metadata = privileged_command.should_include_registry_metadata();
         let privileged_command_response = privileged_command.execute(engine_privileged_state);
-        let symbol_registry_snapshot = if should_include_symbol_registry_snapshot {
-            Some(engine_privileged_state.get_symbol_registry_snapshot())
+        let registry_metadata = if should_include_registry_metadata {
+            Some(engine_privileged_state.get_registry_metadata())
         } else {
             None
         };
 
-        PrivilegedCommandResult::new(privileged_command_response, symbol_registry_snapshot)
+        PrivilegedCommandResult::new(privileged_command_response, registry_metadata)
     }
 }

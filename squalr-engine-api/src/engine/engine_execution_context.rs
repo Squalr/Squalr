@@ -37,8 +37,8 @@ pub trait EngineExecutionContext: Send + Sync {
         data_type_ref: &DataTypeRef,
     ) -> Option<DataValue>;
 
-    /// Resolves a symbolic struct definition by namespace.
-    fn resolve_symbolic_struct_definition(
+    /// Resolves a struct layout definition by namespace.
+    fn resolve_struct_layout_definition(
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<SymbolicStructDefinition>;

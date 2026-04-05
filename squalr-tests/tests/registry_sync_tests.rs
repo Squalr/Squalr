@@ -12,8 +12,8 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::events::engine_event::EngineEventRequest;
 use squalr_engine_api::events::registry::changed::registry_changed_event::RegistryChangedEvent;
 use squalr_engine_api::registries::symbols::{
-    data_type_descriptor::DataTypeDescriptor, symbol_registry::SymbolRegistry, symbol_registry_snapshot::RegistryMetadata,
-    symbolic_struct_descriptor::StructLayoutDescriptor,
+    data_type_descriptor::DataTypeDescriptor, registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor,
+    symbol_registry::SymbolRegistry,
 };
 use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef,
@@ -36,24 +36,24 @@ struct TestEngineBindings {
 }
 
 impl TestEngineBindings {
-    fn new(initial_registry_snapshot: RegistryMetadata) -> Self {
+    fn new(initial_registry_metadata: RegistryMetadata) -> Self {
         let (event_sender, event_receiver) = unbounded();
 
         Self {
             next_registry_snapshot_response: Arc::new(RwLock::new(RegistryGetSnapshotResponse {
-                symbol_registry_snapshot: initial_registry_snapshot,
+                registry_metadata: initial_registry_metadata,
             })),
             event_sender,
             event_receiver,
         }
     }
 
-    fn set_registry_snapshot(
+    fn set_registry_metadata(
         &self,
-        symbol_registry_snapshot: RegistryMetadata,
+        registry_metadata: RegistryMetadata,
     ) {
         if let Ok(mut next_registry_snapshot_response) = self.next_registry_snapshot_response.write() {
-            *next_registry_snapshot_response = RegistryGetSnapshotResponse { symbol_registry_snapshot };
+            *next_registry_snapshot_response = RegistryGetSnapshotResponse { registry_metadata };
         }
     }
 
@@ -101,26 +101,26 @@ impl EngineApiUnprivilegedBindings for TestEngineBindings {
 }
 
 #[test]
-fn symbol_registry_snapshot_bootstraps_and_refreshes_through_engine_events() {
-    let initial_registry_snapshot = build_symbol_registry_snapshot(1, 16);
-    let refreshed_registry_snapshot = build_symbol_registry_snapshot(2, 32);
-    let engine_bindings = Arc::new(RwLock::new(TestEngineBindings::new(initial_registry_snapshot)));
+fn registry_metadata_bootstraps_and_refreshes_through_engine_events() {
+    let initial_registry_metadata = build_registry_metadata(1, 16);
+    let refreshed_registry_metadata = build_registry_metadata(2, 32);
+    let engine_bindings = Arc::new(RwLock::new(TestEngineBindings::new(initial_registry_metadata)));
     let engine_unprivileged_state = EngineUnprivilegedState::new(engine_bindings.clone());
 
     engine_unprivileged_state.initialize();
 
     assert!(wait_for_generation(&engine_unprivileged_state, 1));
     assert!(engine_unprivileged_state.is_registered_data_type_ref(&DataTypeRef::new("remote.test.type")));
-    assert_eq!(get_snapshot_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"), Some(16));
-    assert!(snapshot_contains_symbolic_struct(&engine_unprivileged_state, "remote.test.struct"));
+    assert_eq!(get_registry_metadata_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"), Some(16));
+    assert!(registry_metadata_contains_struct_layout(&engine_unprivileged_state, "remote.test.struct"));
 
     if let Ok(engine_bindings_guard) = engine_bindings.read() {
-        engine_bindings_guard.set_registry_snapshot(refreshed_registry_snapshot);
+        engine_bindings_guard.set_registry_metadata(refreshed_registry_metadata);
         engine_bindings_guard.emit_registry_changed(2);
     }
 
     assert!(wait_for_generation(&engine_unprivileged_state, 2));
-    assert_eq!(get_snapshot_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"), Some(32));
+    assert_eq!(get_registry_metadata_unit_size_in_bytes(&engine_unprivileged_state, "remote.test.type"), Some(32));
 }
 
 fn wait_for_generation(
@@ -128,7 +128,7 @@ fn wait_for_generation(
     expected_generation: u64,
 ) -> bool {
     for _ in 0..50 {
-        let current_generation = engine_unprivileged_state.get_privileged_symbol_generation();
+        let current_generation = engine_unprivileged_state.get_privileged_registry_generation();
 
         if current_generation >= expected_generation {
             return true;
@@ -140,12 +140,12 @@ fn wait_for_generation(
     false
 }
 
-fn build_symbol_registry_snapshot(
+fn build_registry_metadata(
     generation: u64,
     remote_type_unit_size_in_bytes: u64,
 ) -> RegistryMetadata {
-    let built_in_symbol_registry_snapshot = SymbolRegistry::new().create_snapshot(generation);
-    let mut data_type_descriptors = built_in_symbol_registry_snapshot
+    let built_in_registry_metadata = SymbolRegistry::new().create_snapshot(generation);
+    let mut data_type_descriptors = built_in_registry_metadata
         .get_data_type_descriptors()
         .to_vec();
     data_type_descriptors.push(DataTypeDescriptor::new(
@@ -159,7 +159,7 @@ fn build_symbol_registry_snapshot(
         false,
     ));
 
-    let mut struct_layout_descriptors = built_in_symbol_registry_snapshot
+    let mut struct_layout_descriptors = built_in_registry_metadata
         .get_struct_layout_descriptors()
         .to_vec();
     struct_layout_descriptors.push(StructLayoutDescriptor::new(
@@ -176,14 +176,14 @@ fn build_symbol_registry_snapshot(
     RegistryMetadata::new(generation, data_type_descriptors, struct_layout_descriptors)
 }
 
-fn get_snapshot_unit_size_in_bytes(
+fn get_registry_metadata_unit_size_in_bytes(
     engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     data_type_id: &str,
 ) -> Option<u64> {
     engine_unprivileged_state
-        .get_privileged_symbol_snapshot()
-        .and_then(|symbol_registry_snapshot| {
-            symbol_registry_snapshot
+        .get_privileged_registry_metadata()
+        .and_then(|registry_metadata| {
+            registry_metadata
                 .get_data_type_descriptors()
                 .iter()
                 .find(|data_type_descriptor| data_type_descriptor.get_data_type_id() == data_type_id)
@@ -191,17 +191,17 @@ fn get_snapshot_unit_size_in_bytes(
         })
 }
 
-fn snapshot_contains_symbolic_struct(
+fn registry_metadata_contains_struct_layout(
     engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     symbolic_struct_id: &str,
 ) -> bool {
     engine_unprivileged_state
-        .get_privileged_symbol_snapshot()
-        .map(|symbol_registry_snapshot| {
-            symbol_registry_snapshot
-            .get_struct_layout_descriptors()
+        .get_privileged_registry_metadata()
+        .map(|registry_metadata| {
+            registry_metadata
+                .get_struct_layout_descriptors()
                 .iter()
-            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_id)
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbolic_struct_id)
         })
         .unwrap_or(false)
 }

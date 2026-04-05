@@ -15,7 +15,7 @@ use squalr_engine_api::events::registry::registry_event::RegistryEvent;
 use squalr_engine_api::events::scan_results::scan_results_event::ScanResultsEvent;
 use squalr_engine_api::events::trackable_task::trackable_task_event::TrackableTaskEvent;
 use squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError;
-use squalr_engine_api::registries::symbols::symbol_registry_snapshot::RegistryMetadata;
+use squalr_engine_api::registries::symbols::registry_metadata::RegistryMetadata;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue,
@@ -86,14 +86,14 @@ impl EngineExecutionContext for EngineUnprivilegedState {
             .unwrap_or_default()
     }
 
-    fn resolve_symbolic_struct_definition(
+    fn resolve_struct_layout_definition(
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {
-        self.resolve_local_project_symbolic_struct_definition(symbolic_struct_ref_id)
+        self.resolve_local_project_struct_layout_definition(symbolic_struct_ref_id)
             .or_else(|| {
                 self.read_privileged_symbol_catalog(|privileged_symbol_catalog| {
-                    privileged_symbol_catalog.resolve_symbolic_struct_definition(symbolic_struct_ref_id)
+                    privileged_symbol_catalog.resolve_struct_layout_definition(symbolic_struct_ref_id)
                 })
                 .unwrap_or_default()
             })
@@ -124,7 +124,7 @@ impl EngineUnprivilegedState {
 
     pub fn initialize(self: &Arc<Self>) {
         self.start_event_dispatcher();
-        self.refresh_privileged_symbol_snapshot();
+        self.refresh_privileged_registry_metadata();
     }
 
     /// Gets the file system logger that routes log events to the log file.
@@ -132,12 +132,12 @@ impl EngineUnprivilegedState {
         &self.file_system_logger
     }
 
-    pub fn get_privileged_symbol_generation(&self) -> u64 {
+    pub fn get_privileged_registry_generation(&self) -> u64 {
         self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_generation())
             .unwrap_or_default()
     }
 
-    pub fn get_privileged_symbol_snapshot(&self) -> Option<RegistryMetadata> {
+    pub fn get_privileged_registry_metadata(&self) -> Option<RegistryMetadata> {
         self.read_privileged_symbol_catalog(|privileged_symbol_catalog| privileged_symbol_catalog.get_snapshot().cloned())
             .flatten()
     }
@@ -290,7 +290,7 @@ impl EngineUnprivilegedState {
         engine_unprivileged_state: &Arc<Self>,
         engine_event_envelope: EngineEventEnvelope,
     ) {
-        if !engine_unprivileged_state.ensure_privileged_symbol_snapshot_current(engine_event_envelope.get_registry_generation()) {
+        if !engine_unprivileged_state.ensure_privileged_registry_metadata_current(engine_event_envelope.get_registry_generation()) {
             log::error!(
                 "Failed to refresh privileged symbol catalog to generation {} before dispatching engine event.",
                 engine_event_envelope.get_registry_generation()
@@ -339,20 +339,20 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn refresh_privileged_symbol_snapshot(self: &Arc<Self>) {
+    fn refresh_privileged_registry_metadata(self: &Arc<Self>) {
         let registry_get_snapshot_request = RegistryGetSnapshotRequest::default();
         let engine_unprivileged_state = self.clone();
 
         let _ = registry_get_snapshot_request.send(self, move |registry_get_snapshot_response| {
-            engine_unprivileged_state.apply_privileged_symbol_snapshot(registry_get_snapshot_response.symbol_registry_snapshot);
+            engine_unprivileged_state.apply_privileged_registry_metadata(registry_get_snapshot_response.registry_metadata);
         });
     }
 
-    fn ensure_privileged_symbol_snapshot_current(
+    fn ensure_privileged_registry_metadata_current(
         self: &Arc<Self>,
         expected_generation: u64,
     ) -> bool {
-        let current_generation = self.get_privileged_symbol_generation();
+        let current_generation = self.get_privileged_registry_generation();
 
         if current_generation >= expected_generation {
             return true;
@@ -362,10 +362,10 @@ impl EngineUnprivilegedState {
         let engine_unprivileged_state = self.clone();
         let (completion_sender, completion_receiver) = bounded(1);
         let did_send = registry_get_snapshot_request.send(self, move |registry_get_snapshot_response| {
-            let symbol_registry_snapshot = registry_get_snapshot_response.symbol_registry_snapshot;
-            let applied_generation = symbol_registry_snapshot.get_generation();
+            let registry_metadata = registry_get_snapshot_response.registry_metadata;
+            let applied_generation = registry_metadata.get_generation();
 
-            engine_unprivileged_state.apply_privileged_symbol_snapshot(symbol_registry_snapshot);
+            engine_unprivileged_state.apply_privileged_registry_metadata(registry_metadata);
             let _ = completion_sender.send(applied_generation);
         });
 
@@ -390,12 +390,12 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn apply_privileged_symbol_snapshot(
+    fn apply_privileged_registry_metadata(
         &self,
-        symbol_registry_snapshot: squalr_engine_api::registries::symbols::symbol_registry_snapshot::RegistryMetadata,
+        registry_metadata: squalr_engine_api::registries::symbols::registry_metadata::RegistryMetadata,
     ) {
         if let Ok(mut privileged_symbol_catalog) = self.privileged_symbol_catalog.write() {
-            privileged_symbol_catalog.apply_snapshot(symbol_registry_snapshot);
+            privileged_symbol_catalog.apply_snapshot(registry_metadata);
         } else {
             log::error!("Failed to acquire privileged symbol catalog write lock while applying snapshot.");
         }
@@ -414,7 +414,7 @@ impl EngineUnprivilegedState {
         }
     }
 
-    fn resolve_local_project_symbolic_struct_definition(
+    fn resolve_local_project_struct_layout_definition(
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition> {

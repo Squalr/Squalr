@@ -78,15 +78,15 @@ impl StandaloneEngineApiUnprivilegedBindings {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
         privileged_command: PrivilegedCommand,
     ) -> PrivilegedCommandResult {
-        let should_include_symbol_registry_snapshot = privileged_command.should_include_symbol_registry_snapshot();
+        let should_include_registry_metadata = privileged_command.should_include_registry_metadata();
         let privileged_command_response = privileged_command.execute(engine_privileged_state);
-        let symbol_registry_snapshot = if should_include_symbol_registry_snapshot {
-            Some(engine_privileged_state.get_symbol_registry_snapshot())
+        let registry_metadata = if should_include_registry_metadata {
+            Some(engine_privileged_state.get_registry_metadata())
         } else {
             None
         };
 
-        PrivilegedCommandResult::new(privileged_command_response, symbol_registry_snapshot)
+        PrivilegedCommandResult::new(privileged_command_response, registry_metadata)
     }
 }
 
@@ -160,7 +160,7 @@ mod tests {
                     callback_sender
                         .send(
                             registry_get_snapshot_response
-                                .symbol_registry_snapshot
+                                .registry_metadata
                                 .get_data_type_descriptors()
                                 .iter()
                                 .any(|data_type_descriptor: &DataTypeDescriptor| data_type_descriptor.get_data_type_id() == "remote.test.type"),

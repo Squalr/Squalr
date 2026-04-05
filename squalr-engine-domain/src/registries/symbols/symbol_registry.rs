@@ -1,6 +1,6 @@
 use crate::registries::symbols::symbol_registry_error::SymbolRegistryError;
 use crate::registries::symbols::{
-    data_type_descriptor::DataTypeDescriptor, symbol_registry_snapshot::RegistryMetadata, symbolic_struct_descriptor::StructLayoutDescriptor,
+    data_type_descriptor::DataTypeDescriptor, registry_metadata::RegistryMetadata, struct_layout_descriptor::StructLayoutDescriptor,
 };
 use crate::structures::data_types::generics::vector_function::GetVectorFunction;
 use crate::structures::data_values::container_type::ContainerType;
@@ -34,7 +34,7 @@ use crate::structures::{
 };
 use std::{
     collections::HashMap,
-    sync::{Arc, OnceLock, RwLock},
+    sync::{Arc, RwLock},
 };
 
 /// Manages a symbolic struct registry and a data type registry. All registered data types are also registered into the symbolic struct
@@ -47,12 +47,6 @@ pub struct SymbolRegistry {
 }
 
 impl SymbolRegistry {
-    pub fn get_instance() -> &'static SymbolRegistry {
-        static INSTANCE: OnceLock<SymbolRegistry> = OnceLock::new();
-
-        INSTANCE.get_or_init(SymbolRegistry::new)
-    }
-
     pub fn new() -> Self {
         let (symbolic_struct_registry, data_type_registry, data_type_descriptor_registry) = Self::create_built_in_registries();
 
@@ -752,7 +746,7 @@ impl SymbolResolver for SymbolRegistry {
         self.get_unit_size_in_bytes(data_type_ref)
     }
 
-    fn get_symbolic_struct(
+    fn get_struct_layout(
         &self,
         symbolic_struct_namespace: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {
@@ -763,7 +757,7 @@ impl SymbolResolver for SymbolRegistry {
 #[cfg(test)]
 mod tests {
     use super::SymbolRegistry;
-    use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, symbolic_struct_descriptor::StructLayoutDescriptor};
+    use crate::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struct_layout_descriptor::StructLayoutDescriptor};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},

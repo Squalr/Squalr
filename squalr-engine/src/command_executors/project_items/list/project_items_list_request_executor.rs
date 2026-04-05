@@ -90,7 +90,7 @@ fn refresh_address_project_item_display_value(
     let symbolic_struct_namespace = symbolic_struct_reference
         .get_symbolic_struct_namespace()
         .to_string();
-    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_symbolic_struct_definition(&symbolic_struct_namespace) else {
+    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_struct_layout_definition(&symbolic_struct_namespace) else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -122,7 +122,7 @@ fn refresh_pointer_project_item_display_value(
     let symbolic_struct_namespace = symbolic_struct_reference
         .get_symbolic_struct_namespace()
         .to_string();
-    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_symbolic_struct_definition(&symbolic_struct_namespace) else {
+    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_struct_layout_definition(&symbolic_struct_namespace) else {
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -236,7 +236,7 @@ fn read_pointer_value(
     module_name: &str,
     pointer_size: PointerScanPointerSize,
 ) -> Option<u64> {
-    let symbolic_struct_definition = engine_unprivileged_state.resolve_symbolic_struct_definition(pointer_size.to_data_type_ref().get_data_type_id())?;
+    let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(pointer_size.to_data_type_ref().get_data_type_id())?;
     let memory_read_response = dispatch_memory_read_request(engine_unprivileged_state, address, module_name, &symbolic_struct_definition)?;
 
     if !memory_read_response.success {
