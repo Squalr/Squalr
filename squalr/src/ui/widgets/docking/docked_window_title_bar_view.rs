@@ -81,9 +81,7 @@ impl Widget for DockedWindowTitleBarView {
 
             if close.clicked() {
                 if let Ok(mut docking_manager) = docking_manager.try_write() {
-                    if let Some(docked_node) = docking_manager.get_node_by_id_mut(&self.identifier) {
-                        docked_node.set_visible(false);
-                    }
+                    docking_manager.set_window_visibility(&self.identifier, false);
                 }
             }
         });

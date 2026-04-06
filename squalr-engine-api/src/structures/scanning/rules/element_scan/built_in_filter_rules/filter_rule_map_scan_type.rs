@@ -1,4 +1,5 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
+use crate::structures::data_types::data_type_scan_preference::DataTypeScanPreference;
 use crate::structures::data_types::generics::vector_generics::VectorGenerics;
 use crate::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use crate::structures::scanning::rules::element_scan_filter_rule::ElementScanFilterRule;
@@ -68,6 +69,7 @@ impl ElementScanFilterRule for RuleMapScanType {
         let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
         let data_type_size_bytes = symbol_registry.get_unit_size_in_bytes(data_type_ref);
         let is_floating_point = symbol_registry.is_floating_point(data_type_ref);
+        let data_type_scan_preference = symbol_registry.get_scan_preference(data_type_ref);
         let memory_alignment_size = snapshot_filter_element_scan_plan.get_memory_alignment() as u64;
 
         // Decide whether to use a scalar or SIMD scan based on filter region size.
@@ -115,7 +117,7 @@ impl ElementScanFilterRule for RuleMapScanType {
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 match scan_compare_type_immediate {
                     ScanCompareTypeImmediate::Equal | ScanCompareTypeImmediate::NotEqual => {
-                        if !is_floating_point {
+                        if !is_floating_point && data_type_scan_preference != DataTypeScanPreference::PreferTypeScanner {
                             // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
                             // These are the only acceptable options, either the type is a primitive, or its a byte array.
                             snapshot_filter_element_scan_plan.set_planned_scan_type(PlannedScanType::ByteArray(PlannedScanTypeByteArray::ByteArrayBooyerMoore));

@@ -139,7 +139,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
     }
 
     fn build_status_text(plugin_state: &PluginState) -> String {
-        let mut status_parts = vec![Self::format_plugin_kind(plugin_state)];
+        let mut status_parts = vec![Self::format_plugin_capabilities(plugin_state)];
 
         if plugin_state.get_metadata().get_is_built_in() {
             status_parts.push(String::from("Built in"));
@@ -159,11 +159,14 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         status_parts.join(" • ")
     }
 
-    fn format_plugin_kind(plugin_state: &PluginState) -> String {
-        match plugin_state.get_metadata().get_plugin_kind() {
-            squalr_engine_api::plugins::PluginKind::MemoryView => String::from("Memory view"),
-            squalr_engine_api::plugins::PluginKind::DataType => String::from("Data type"),
-        }
+    fn format_plugin_capabilities(plugin_state: &PluginState) -> String {
+        plugin_state
+            .get_metadata()
+            .get_plugin_capabilities()
+            .iter()
+            .map(|plugin_capability| plugin_capability.get_display_name())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     fn resolve_status_color(

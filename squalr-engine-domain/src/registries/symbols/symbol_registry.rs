@@ -21,6 +21,7 @@ use crate::structures::{
         },
         data_type::DataType,
         data_type_ref::DataTypeRef,
+        data_type_scan_preference::DataTypeScanPreference,
         generics::vector_comparer::VectorComparer,
         generics::vector_lane_count::VectorLaneCount,
     },
@@ -724,6 +725,16 @@ impl SymbolRegistry {
         match self.get_data_type(data_type_ref.get_data_type_id()) {
             Some(data_type) => Some(data_type.get_default_value(data_type_ref.clone())),
             None => None,
+        }
+    }
+
+    pub fn get_scan_preference(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> DataTypeScanPreference {
+        match self.get_data_type(data_type_ref.get_data_type_id()) {
+            Some(data_type) => data_type.get_scan_preference(),
+            None => DataTypeScanPreference::UseDefault,
         }
     }
 

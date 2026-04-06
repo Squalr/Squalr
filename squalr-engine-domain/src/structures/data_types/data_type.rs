@@ -2,6 +2,7 @@ use crate::structures::data_types::comparisons::scalar_comparable::ScalarCompara
 use crate::structures::data_types::comparisons::vector_comparable::VectorComparable;
 use crate::structures::data_types::data_type_error::DataTypeError;
 use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::data_types::data_type_scan_preference::DataTypeScanPreference;
 use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
 use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use crate::structures::data_values::data_value::DataValue;
@@ -58,6 +59,10 @@ pub trait DataType: Debug + Send + Sync + ScalarComparable + VectorComparable {
         &self,
         data_type_ref: DataTypeRef,
     ) -> DataValue;
+
+    fn get_scan_preference(&self) -> DataTypeScanPreference {
+        DataTypeScanPreference::UseDefault
+    }
 
     fn get_ref(&self) -> DataTypeRef {
         DataTypeRef::new(self.get_data_type_id())

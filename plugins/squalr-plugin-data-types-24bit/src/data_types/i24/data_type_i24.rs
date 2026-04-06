@@ -2,6 +2,7 @@ use crate::data_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
 use squalr_engine_api::structures::data_types::data_type::DataType;
 use squalr_engine_api::structures::data_types::data_type_error::DataTypeError;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_types::data_type_scan_preference::DataTypeScanPreference;
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::data_value::DataValue;
@@ -92,5 +93,9 @@ impl DataType for DataTypeI24 {
         data_type_ref: DataTypeRef,
     ) -> DataValue {
         DataValue::new(data_type_ref, PrimitiveDataType24Bit::get_signed_value_bytes(0, Endian::Little))
+    }
+
+    fn get_scan_preference(&self) -> DataTypeScanPreference {
+        DataTypeScanPreference::PreferTypeScanner
     }
 }

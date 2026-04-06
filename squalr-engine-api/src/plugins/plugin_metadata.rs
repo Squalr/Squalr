@@ -1,4 +1,4 @@
-use crate::plugins::PluginKind;
+use crate::plugins::PluginCapability;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -6,7 +6,7 @@ pub struct PluginMetadata {
     plugin_id: String,
     display_name: String,
     description: String,
-    plugin_kind: PluginKind,
+    plugin_capabilities: Vec<PluginCapability>,
     is_built_in: bool,
     is_enabled_by_default: bool,
 }
@@ -16,15 +16,19 @@ impl PluginMetadata {
         plugin_id: impl Into<String>,
         display_name: impl Into<String>,
         description: impl Into<String>,
-        plugin_kind: PluginKind,
+        plugin_capabilities: Vec<PluginCapability>,
         is_built_in: bool,
         is_enabled_by_default: bool,
     ) -> Self {
+        let mut plugin_capabilities = plugin_capabilities;
+        plugin_capabilities.sort();
+        plugin_capabilities.dedup();
+
         Self {
             plugin_id: plugin_id.into(),
             display_name: display_name.into(),
             description: description.into(),
-            plugin_kind,
+            plugin_capabilities,
             is_built_in,
             is_enabled_by_default,
         }
@@ -42,8 +46,15 @@ impl PluginMetadata {
         &self.description
     }
 
-    pub fn get_plugin_kind(&self) -> PluginKind {
-        self.plugin_kind
+    pub fn get_plugin_capabilities(&self) -> &[PluginCapability] {
+        &self.plugin_capabilities
+    }
+
+    pub fn has_plugin_capability(
+        &self,
+        plugin_capability: PluginCapability,
+    ) -> bool {
+        self.plugin_capabilities.contains(&plugin_capability)
     }
 
     pub fn get_is_built_in(&self) -> bool {

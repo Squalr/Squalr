@@ -1,5 +1,5 @@
 pub struct BoyerMooreTable {
-    mismatch_shift_table: Vec<u64>,
+    mismatch_index_table: Vec<Option<usize>>,
     matching_suffix_shift_table: Vec<u64>,
     pattern_length: u64,
     aligned_pattern_length: u64,
@@ -14,7 +14,7 @@ impl BoyerMooreTable {
         let aligned_pattern_length = Self::round_up_to_alignment(pattern_length as u64, memory_alignment);
 
         let mut table = Self {
-            mismatch_shift_table: vec![aligned_pattern_length; u8::MAX as usize + 1usize],
+            mismatch_index_table: vec![None; u8::MAX as usize + 1usize],
             matching_suffix_shift_table: vec![0u64; pattern_length],
             pattern_length: pattern_length as u64,
             aligned_pattern_length,
@@ -28,8 +28,18 @@ impl BoyerMooreTable {
     pub fn get_mismatch_shift(
         &self,
         value: u8,
+        mismatch_pattern_index: usize,
+        memory_alignment: u64,
     ) -> u64 {
-        self.mismatch_shift_table[value as usize]
+        let raw_shift = match self.mismatch_index_table[value as usize] {
+            Some(rightmost_pattern_index) if rightmost_pattern_index < mismatch_pattern_index => {
+                mismatch_pattern_index.saturating_sub(rightmost_pattern_index) as u64
+            }
+            Some(_) => 1,
+            None => mismatch_pattern_index.saturating_add(1) as u64,
+        };
+
+        Self::round_up_to_alignment(raw_shift.max(1), memory_alignment)
     }
 
     pub fn get_good_suffix_shift(
@@ -58,16 +68,9 @@ impl BoyerMooreTable {
         // Build the Mismatch (Bad Character Rule) shift table.
         // This dictates how far we shift our comparison window if a byte match fails.
         {
-            // Build the table from right to left.
-            for index in (0..pattern_length).rev() {
+            for index in 0..pattern_length {
                 let byte_value = scan_pattern[index];
-                let shift_value = pattern_length_minus_one.saturating_sub(index).max(1);
-                let aligned_shift = Self::round_up_to_alignment(shift_value as u64, memory_alignment);
-
-                // Only set if not already set (this ensures rightmost occurrence is used).
-                if self.mismatch_shift_table[byte_value as usize] == self.aligned_pattern_length {
-                    self.mismatch_shift_table[byte_value as usize] = aligned_shift;
-                }
+                self.mismatch_index_table[byte_value as usize] = Some(index);
             }
         }
 
@@ -153,5 +156,19 @@ impl BoyerMooreTable {
 
         let remainder = value % alignment;
         value + (alignment - remainder) % alignment
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BoyerMooreTable;
+
+    #[test]
+    fn mismatch_shift_uses_the_mismatch_position() {
+        let boyer_moore_table = BoyerMooreTable::new(&[3u8, 0u8, 0u8], 1);
+
+        assert_eq!(boyer_moore_table.get_mismatch_shift(3u8, 1, 1), 1);
+        assert_eq!(boyer_moore_table.get_mismatch_shift(3u8, 2, 1), 2);
+        assert_eq!(boyer_moore_table.get_mismatch_shift(4u8, 1, 1), 2);
     }
 }

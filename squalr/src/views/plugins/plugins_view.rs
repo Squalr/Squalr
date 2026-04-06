@@ -64,11 +64,12 @@ impl PluginsView {
         if value { "Yes" } else { "No" }
     }
 
-    fn format_plugin_kind(plugin_kind: squalr_engine_api::plugins::PluginKind) -> &'static str {
-        match plugin_kind {
-            squalr_engine_api::plugins::PluginKind::MemoryView => "Memory view",
-            squalr_engine_api::plugins::PluginKind::DataType => "Data type",
-        }
+    fn format_plugin_capabilities(plugin_capabilities: &[squalr_engine_api::plugins::PluginCapability]) -> String {
+        plugin_capabilities
+            .iter()
+            .map(|plugin_capability| plugin_capability.get_display_name())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     fn format_activation_state(activation_state: PluginActivationState) -> &'static str {
@@ -216,9 +217,12 @@ impl Widget for PluginsView {
                     details_user_interface.horizontal_wrapped(|user_interface| {
                         user_interface.add(
                             Label::new(
-                                RichText::new(format!("Kind: {}", Self::format_plugin_kind(plugin_metadata.get_plugin_kind())))
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.foreground),
+                                RichText::new(format!(
+                                    "Capabilities: {}",
+                                    Self::format_plugin_capabilities(plugin_metadata.get_plugin_capabilities())
+                                ))
+                                .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                .color(theme.foreground),
                             )
                             .selectable(false),
                         );

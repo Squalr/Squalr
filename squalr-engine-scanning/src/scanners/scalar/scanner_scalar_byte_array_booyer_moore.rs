@@ -73,7 +73,7 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
                 if is_mismatch {
                     match_found = false;
 
-                    let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte);
+                    let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte, inverse_pattern_index, memory_alignment_size);
                     let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index + 1);
 
                     // Unlike classic Booyer-Moore we don't take the max of the shifts. Instead we prioritize a set good shift over the bad shift.

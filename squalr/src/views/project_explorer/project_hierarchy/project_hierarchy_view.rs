@@ -1678,10 +1678,7 @@ impl ProjectHierarchyView {
 
         match self.app_context.docking_manager.write() {
             Ok(mut docking_manager) => {
-                if let Some(pointer_scanner_dock_node) = docking_manager.get_node_by_id_mut(PointerScannerView::WINDOW_ID) {
-                    pointer_scanner_dock_node.set_visible(true);
-                }
-
+                docking_manager.set_window_visibility(PointerScannerView::WINDOW_ID, true);
                 docking_manager.select_tab_by_window_id(PointerScannerView::WINDOW_ID);
             }
             Err(error) => {

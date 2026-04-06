@@ -15,6 +15,7 @@ use squalr_engine_api::{
         settings::scan::{list::scan_settings_list_request::ScanSettingsListRequest, set::scan_settings_set_request::ScanSettingsSetRequest},
     },
     plugins::memory_view::PageRetrievalMode,
+    structures::memory::memory_alignment::MemoryAlignment,
     structures::settings::scan_settings::ScanSettings,
 };
 use std::sync::{Arc, RwLock};
@@ -64,6 +65,15 @@ impl SettingsTabScanView {
             PageRetrievalMode::FromNonModules => "Host non-modules",
             PageRetrievalMode::FromModules => "All modules",
             PageRetrievalMode::FromVirtualModules => "Virtual modules",
+        }
+    }
+
+    fn memory_alignment_label(memory_alignment: MemoryAlignment) -> &'static str {
+        match memory_alignment {
+            MemoryAlignment::Alignment1 => "1 byte",
+            MemoryAlignment::Alignment2 => "2 bytes",
+            MemoryAlignment::Alignment4 => "4 bytes",
+            MemoryAlignment::Alignment8 => "8 bytes",
         }
     }
 }
@@ -298,6 +308,55 @@ impl Widget for SettingsTabScanView {
                             user_interface.add_space(8.0);
                             user_interface.label(
                                 RichText::new("Page source")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+
+                        user_interface.add_space(8.0);
+                        user_interface.horizontal(|user_interface| {
+                            let selected_memory_alignment = cached_scan_settings
+                                .memory_alignment
+                                .unwrap_or(MemoryAlignment::Alignment1);
+
+                            user_interface.add(ComboBoxView::new(
+                                self.app_context.clone(),
+                                Self::memory_alignment_label(selected_memory_alignment),
+                                "settings_tab_scan_memory_alignment",
+                                None,
+                                |user_interface: &mut Ui, should_close: &mut bool| {
+                                    for memory_alignment in [
+                                        MemoryAlignment::Alignment1,
+                                        MemoryAlignment::Alignment2,
+                                        MemoryAlignment::Alignment4,
+                                        MemoryAlignment::Alignment8,
+                                    ] {
+                                        if user_interface
+                                            .add(ComboBoxItemView::new(
+                                                self.app_context.clone(),
+                                                Self::memory_alignment_label(memory_alignment),
+                                                None,
+                                                192.0,
+                                            ))
+                                            .clicked()
+                                        {
+                                            if let Ok(mut cached_scan_settings) = self.cached_scan_settings.write() {
+                                                cached_scan_settings.memory_alignment = Some(memory_alignment);
+                                            }
+
+                                            self.send_scan_settings_update(ScanSettingsSetRequest {
+                                                memory_alignment: Some(memory_alignment),
+                                                ..ScanSettingsSetRequest::default()
+                                            });
+                                            *should_close = true;
+                                        }
+                                    }
+                                },
+                            ));
+
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new("Scan alignment")
                                     .font(theme.font_library.font_noto_sans.font_normal.clone())
                                     .color(theme.foreground),
                             );

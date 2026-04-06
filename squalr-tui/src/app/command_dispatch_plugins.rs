@@ -2,8 +2,10 @@ use super::app_shell::AppShell;
 use squalr_engine::squalr_engine::SqualrEngine;
 use squalr_engine_api::commands::plugins::list::plugin_list_request::PluginListRequest;
 use squalr_engine_api::commands::plugins::set_enabled::plugin_set_enabled_request::PluginSetEnabledRequest;
-use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
-use std::sync::mpsc;
+use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
+use squalr_engine_api::commands::{privileged_command_request::PrivilegedCommandRequest, unprivileged_command_request::UnprivilegedCommandRequest};
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
 impl AppShell {
@@ -99,11 +101,21 @@ impl AppShell {
                     .plugins_pane_state
                     .apply_plugin_states(plugin_set_enabled_response.plugins);
                 self.app_state.plugins_pane_state.status_message = if plugin_set_enabled_response.did_update {
-                    format!(
+                    let save_status_message = self
+                        .persist_opened_project_plugin_configuration(engine_unprivileged_state)
+                        .unwrap_or_default();
+
+                    let base_status_message = format!(
                         "{} plugin '{}'.",
                         if target_enabled_state { "Enabled" } else { "Disabled" },
                         metadata.get_display_name()
-                    )
+                    );
+
+                    if save_status_message.is_empty() {
+                        base_status_message
+                    } else {
+                        format!("{} {}", base_status_message, save_status_message)
+                    }
                 } else {
                     format!(
                         "Plugin '{}' was already {} or could not be updated.",
@@ -118,5 +130,40 @@ impl AppShell {
         }
 
         self.app_state.plugins_pane_state.is_updating_plugin_enabled = false;
+    }
+
+    fn persist_opened_project_plugin_configuration(
+        &mut self,
+        engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
+    ) -> Option<String> {
+        let has_opened_project = match engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .read()
+        {
+            Ok(opened_project) => opened_project.is_some(),
+            Err(_) => false,
+        };
+
+        if !has_opened_project {
+            return None;
+        }
+
+        let project_save_request = ProjectSaveRequest {};
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_save_request.send(engine_unprivileged_state, move |project_save_response| {
+            let _ = response_sender.send(project_save_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_save_response) => {
+                if project_save_response.success {
+                    Some("Saved plugin configuration to the opened project.".to_string())
+                } else {
+                    Some("Project save failed while persisting plugin configuration.".to_string())
+                }
+            }
+            Err(receive_error) => Some(format!("Timed out waiting for project save response: {}", receive_error)),
+        }
     }
 }

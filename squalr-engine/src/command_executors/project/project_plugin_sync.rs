@@ -121,7 +121,7 @@ fn set_plugin_enabled(
     }
 
     match completion_receiver.recv_timeout(Duration::from_secs(PLUGIN_SYNC_TIMEOUT_SECONDS)) {
-        Ok(_) => true,
+        Ok(did_update) => did_update,
         Err(error) => {
             log::error!("Timed out waiting for plugin set-enabled response: {}", error);
             false

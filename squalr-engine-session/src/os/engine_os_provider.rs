@@ -803,6 +803,10 @@ impl MemoryWriteProvider for RoutedMemoryWriteProvider {
 mod tests {
     use super::{EngineOsProviders, MemoryQueryProvider, MemoryReadProvider, MemoryWriteProvider, ProcessQueryProvider};
     use crate::plugins::plugin_registry::PluginRegistry;
+    use squalr_engine_api::plugins::{
+        Plugin, PluginCapability, PluginMetadata, PluginPackage,
+        memory_view::{MemoryViewInstance, MemoryViewPlugin, MemoryViewPluginError},
+    };
     use squalr_engine_api::structures::{
         data_values::data_value::DataValue,
         memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
@@ -969,6 +973,99 @@ mod tests {
         }
     }
 
+    struct TestDolphinMemoryViewPlugin {
+        metadata: PluginMetadata,
+    }
+
+    impl TestDolphinMemoryViewPlugin {
+        fn new() -> Self {
+            Self {
+                metadata: PluginMetadata::new(
+                    "test.memory_view.dolphin",
+                    "Test Dolphin Memory View",
+                    "Deterministic routing test memory-view package",
+                    vec![PluginCapability::MemoryView],
+                    true,
+                    true,
+                ),
+            }
+        }
+    }
+
+    impl Plugin for TestDolphinMemoryViewPlugin {
+        fn metadata(&self) -> &PluginMetadata {
+            &self.metadata
+        }
+    }
+
+    impl PluginPackage for TestDolphinMemoryViewPlugin {
+        fn as_memory_view_plugin(&self) -> Option<&dyn MemoryViewPlugin> {
+            Some(self)
+        }
+    }
+
+    impl MemoryViewPlugin for TestDolphinMemoryViewPlugin {
+        fn can_attach(
+            &self,
+            process_info: &OpenedProcessInfo,
+        ) -> bool {
+            process_info.get_name().eq_ignore_ascii_case("Dolphin.exe")
+        }
+
+        fn create_instance(
+            &self,
+            _process_info: &OpenedProcessInfo,
+        ) -> Result<Box<dyn MemoryViewInstance>, MemoryViewPluginError> {
+            Ok(Box::new(TestDolphinMemoryViewInstance))
+        }
+    }
+
+    struct TestDolphinMemoryViewInstance;
+
+    impl MemoryViewInstance for TestDolphinMemoryViewInstance {
+        fn plugin_id(&self) -> &str {
+            "test.memory_view.dolphin"
+        }
+
+        fn owns_address(
+            &self,
+            address: u64,
+        ) -> bool {
+            (0x8000_0000..0x8000_0080).contains(&address)
+        }
+
+        fn get_virtual_pages(
+            &self,
+            _page_retrieval_mode: PageRetrievalMode,
+        ) -> Result<Vec<NormalizedRegion>, MemoryViewPluginError> {
+            Ok(vec![NormalizedRegion::new(0x8000_0000, 0x80)])
+        }
+
+        fn get_modules(&self) -> Result<Vec<NormalizedModule>, MemoryViewPluginError> {
+            Ok(Vec::new())
+        }
+
+        fn read_bytes(
+            &self,
+            _address: u64,
+            _values: &mut [u8],
+        ) -> Result<(), MemoryViewPluginError> {
+            Err(MemoryViewPluginError::message(self.plugin_id(), "test read failure"))
+        }
+
+        fn write_bytes(
+            &self,
+            _address: u64,
+            _values: &[u8],
+        ) -> Result<(), MemoryViewPluginError> {
+            Err(MemoryViewPluginError::message(self.plugin_id(), "test write failure"))
+        }
+    }
+
+    fn create_test_memory_view_plugin_registry() -> Arc<PluginRegistry> {
+        Arc::new(PluginRegistry::from_plugin_packages(vec![Arc::new(TestDolphinMemoryViewPlugin::new())]))
+    }
+
     #[test]
     fn memory_query_falls_back_to_base_provider_when_no_plugin_matches() {
         let module_query_count = Arc::new(Mutex::new(0));
@@ -1030,7 +1127,7 @@ mod tests {
                 write_count: write_count.clone(),
             }),
         )
-        .with_memory_view_routing(Arc::new(PluginRegistry::new()));
+        .with_memory_view_routing(create_test_memory_view_plugin_registry());
         let opened_process_info = OpenedProcessInfo::new(7, String::from("Dolphin.exe"), 42, Bitness::Bit64, None);
         let mut read_bytes = [0u8; 2];
 
@@ -1052,7 +1149,7 @@ mod tests {
             *page_query_count
                 .lock()
                 .expect("Expected page query count lock."),
-            3
+            2
         );
         assert_eq!(*read_bytes_count.lock().expect("Expected read byte count lock."), 0);
         assert_eq!(*write_count.lock().expect("Expected write count lock."), 0);
@@ -1077,7 +1174,7 @@ mod tests {
                 write_count: write_count.clone(),
             }),
         )
-        .with_memory_view_routing(Arc::new(PluginRegistry::new()));
+        .with_memory_view_routing(create_test_memory_view_plugin_registry());
         let opened_process_info = OpenedProcessInfo::new(7, String::from("Dolphin.exe"), 42, Bitness::Bit64, None);
         let mut read_bytes = [0u8; 2];
 

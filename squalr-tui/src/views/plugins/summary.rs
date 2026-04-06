@@ -1,5 +1,5 @@
 use crate::views::plugins::pane_state::PluginsPaneState;
-use squalr_engine_api::plugins::{PluginActivationState, PluginKind};
+use squalr_engine_api::plugins::{PluginActivationState, PluginCapability};
 
 pub fn build_plugins_summary_lines_with_capacity(
     plugins_pane_state: &PluginsPaneState,
@@ -50,9 +50,9 @@ pub fn build_plugins_summary_lines_with_capacity(
     if let Some(selected_plugin) = plugins_pane_state.selected_plugin() {
         let metadata = selected_plugin.get_metadata();
         summary_lines.push(format!(
-            "[SEL] {} | kind={} | built_in={}.",
+            "[SEL] {} | capabilities={} | built_in={}.",
             metadata.get_display_name(),
-            plugin_kind_label(metadata.get_plugin_kind()),
+            plugin_capabilities_label(metadata.get_plugin_capabilities()),
             metadata.get_is_built_in()
         ));
         summary_lines.push(format!(
@@ -73,11 +73,12 @@ pub fn build_plugins_summary_lines_with_capacity(
     summary_lines.into_iter().take(line_capacity).collect()
 }
 
-fn plugin_kind_label(plugin_kind: PluginKind) -> &'static str {
-    match plugin_kind {
-        PluginKind::MemoryView => "memory-view",
-        PluginKind::DataType => "data-type",
-    }
+fn plugin_capabilities_label(plugin_capabilities: &[PluginCapability]) -> String {
+    plugin_capabilities
+        .iter()
+        .map(|plugin_capability| plugin_capability.get_cli_label())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn plugin_activation_state_label(plugin_activation_state: PluginActivationState) -> &'static str {

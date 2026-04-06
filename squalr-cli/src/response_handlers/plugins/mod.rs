@@ -1,7 +1,7 @@
 use squalr_engine_api::commands::plugins::list::plugin_list_response::PluginListResponse;
 use squalr_engine_api::commands::plugins::plugins_response::PluginsResponse;
 use squalr_engine_api::commands::plugins::set_enabled::plugin_set_enabled_response::PluginSetEnabledResponse;
-use squalr_engine_api::plugins::{PluginActivationState, PluginKind, PluginState};
+use squalr_engine_api::plugins::{PluginActivationState, PluginCapability, PluginState};
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 
 pub fn handle_plugins_response(response: PluginsResponse) {
@@ -49,10 +49,10 @@ fn log_plugin_inventory(
     for plugin_state in plugins {
         let metadata = plugin_state.get_metadata();
         log::info!(
-            "{} | id={} | kind={} | built_in={} | enabled={} | eligible={} | state={} | active={}",
+            "{} | id={} | capabilities={} | built_in={} | enabled={} | eligible={} | state={} | active={}",
             metadata.get_display_name(),
             metadata.get_plugin_id(),
-            plugin_kind_label(metadata.get_plugin_kind()),
+            plugin_capabilities_label(metadata.get_plugin_capabilities()),
             metadata.get_is_built_in(),
             plugin_state.get_is_enabled(),
             plugin_state.get_can_activate_for_current_process(),
@@ -72,10 +72,12 @@ fn format_opened_process_context(opened_process_info: Option<&OpenedProcessInfo>
     }
 }
 
-fn plugin_kind_label(plugin_kind: PluginKind) -> &'static str {
-    match plugin_kind {
-        PluginKind::MemoryView => "memory-view",
-    }
+fn plugin_capabilities_label(plugin_capabilities: &[PluginCapability]) -> String {
+    plugin_capabilities
+        .iter()
+        .map(|plugin_capability| plugin_capability.get_cli_label())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 fn plugin_activation_state_label(plugin_activation_state: PluginActivationState) -> &'static str {

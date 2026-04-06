@@ -3,7 +3,7 @@ use crate::{
     constants::{TWENTY_FOUR_BIT_DATA_TYPE_IDS, TWENTY_FOUR_BIT_PLUGIN_DESCRIPTION, TWENTY_FOUR_BIT_PLUGIN_DISPLAY_NAME, TWENTY_FOUR_BIT_PLUGIN_ID},
 };
 use squalr_engine_api::{
-    plugins::{Plugin, PluginKind, PluginMetadata, data_type::DataTypePlugin},
+    plugins::{Plugin, PluginCapability, PluginMetadata, PluginPackage, data_type::DataTypePlugin},
     structures::data_types::data_type::DataType,
 };
 use std::sync::Arc;
@@ -20,7 +20,7 @@ impl TwentyFourBitDataTypesPlugin {
                 TWENTY_FOUR_BIT_PLUGIN_ID,
                 TWENTY_FOUR_BIT_PLUGIN_DISPLAY_NAME,
                 TWENTY_FOUR_BIT_PLUGIN_DESCRIPTION,
-                PluginKind::DataType,
+                vec![PluginCapability::DataType],
                 true,
                 false,
             ),
@@ -43,6 +43,12 @@ impl Default for TwentyFourBitDataTypesPlugin {
 impl Plugin for TwentyFourBitDataTypesPlugin {
     fn metadata(&self) -> &PluginMetadata {
         &self.metadata
+    }
+}
+
+impl PluginPackage for TwentyFourBitDataTypesPlugin {
+    fn as_data_type_plugin(&self) -> Option<&dyn DataTypePlugin> {
+        Some(self)
     }
 }
 

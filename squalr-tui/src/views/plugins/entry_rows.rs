@@ -1,7 +1,7 @@
 use crate::state::pane_entry_row::PaneEntryRow;
 use crate::views::entry_row_viewport::build_selection_relative_viewport_range;
 use crate::views::plugins::pane_state::PluginsPaneState;
-use squalr_engine_api::plugins::{PluginActivationState, PluginKind, PluginState};
+use squalr_engine_api::plugins::{PluginActivationState, PluginCapability, PluginState};
 
 pub fn build_visible_plugin_entry_rows(
     plugins_pane_state: &PluginsPaneState,
@@ -25,7 +25,7 @@ pub fn build_visible_plugin_entry_rows(
             let marker_text = build_plugin_marker_text(is_selected_plugin, plugin_state.get_activation_state(), plugin_state.get_is_enabled());
             let secondary_text = Some(format!(
                 "{} | {} | {} | {}",
-                plugin_kind_label(metadata.get_plugin_kind()),
+                plugin_capabilities_label(metadata.get_plugin_capabilities()),
                 if metadata.get_is_built_in() { "built-in" } else { "external" },
                 plugin_status_label(plugin_state),
                 metadata.get_description()
@@ -80,11 +80,12 @@ fn plugin_status_label(plugin_state: &PluginState) -> &'static str {
     }
 }
 
-fn plugin_kind_label(plugin_kind: PluginKind) -> &'static str {
-    match plugin_kind {
-        PluginKind::MemoryView => "memory-view",
-        PluginKind::DataType => "data-type",
-    }
+fn plugin_capabilities_label(plugin_capabilities: &[PluginCapability]) -> String {
+    plugin_capabilities
+        .iter()
+        .map(|plugin_capability| plugin_capability.get_cli_label())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[cfg(test)]
@@ -92,7 +93,7 @@ mod tests {
     use super::build_visible_plugin_entry_rows;
     use crate::state::pane_entry_row::PaneEntryRowTone;
     use crate::views::plugins::pane_state::PluginsPaneState;
-    use squalr_engine_api::plugins::{PluginActivationState, PluginKind, PluginMetadata, PluginState};
+    use squalr_engine_api::plugins::{PluginActivationState, PluginCapability, PluginMetadata, PluginState};
 
     fn create_plugin_state(
         plugin_id: &str,
@@ -101,7 +102,7 @@ mod tests {
         activation_state: PluginActivationState,
     ) -> PluginState {
         PluginState::new(
-            PluginMetadata::new(plugin_id, display_name, "Test plugin", PluginKind::MemoryView, true, true),
+            PluginMetadata::new(plugin_id, display_name, "Test plugin", vec![PluginCapability::MemoryView], true, true),
             is_enabled,
             activation_state,
         )
