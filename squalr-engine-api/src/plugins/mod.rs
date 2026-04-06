@@ -1,3 +1,4 @@
+pub mod data_type;
 pub mod memory_view;
 mod plugin_activation_state;
 mod plugin_kind;

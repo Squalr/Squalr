@@ -1,4 +1,5 @@
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use crate::command_executors::project::project_plugin_sync::get_enabled_plugin_ids;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -28,6 +29,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectSaveRequest {
                 return ProjectSaveResponse { success: false };
             }
         };
+
+        if let Some(enabled_plugin_ids) = get_enabled_plugin_ids(engine_unprivileged_state) {
+            let stored_enabled_plugin_ids = opened_project
+                .get_project_info()
+                .get_enabled_plugin_ids()
+                .map(|enabled_plugin_ids| enabled_plugin_ids.to_vec());
+
+            if stored_enabled_plugin_ids.as_ref() != Some(&enabled_plugin_ids) {
+                let project_info = opened_project.get_project_info_mut();
+                project_info.set_enabled_plugin_ids(Some(enabled_plugin_ids));
+                project_info.set_has_unsaved_changes(true);
+            }
+        }
 
         // JIRA: Reinstate this.
         /*

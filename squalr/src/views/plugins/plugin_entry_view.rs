@@ -156,6 +156,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
     fn format_plugin_kind(plugin_state: &PluginState) -> String {
         match plugin_state.get_metadata().get_plugin_kind() {
             squalr_engine_api::plugins::PluginKind::MemoryView => String::from("Memory view"),
+            squalr_engine_api::plugins::PluginKind::DataType => String::from("Data type"),
         }
     }
 

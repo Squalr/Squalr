@@ -67,6 +67,7 @@ impl PluginsView {
     fn format_plugin_kind(plugin_kind: squalr_engine_api::plugins::PluginKind) -> &'static str {
         match plugin_kind {
             squalr_engine_api::plugins::PluginKind::MemoryView => "Memory view",
+            squalr_engine_api::plugins::PluginKind::DataType => "Data type",
         }
     }
 

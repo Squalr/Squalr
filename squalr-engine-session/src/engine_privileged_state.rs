@@ -133,10 +133,30 @@ impl EnginePrivilegedState {
 
     pub fn get_privileged_registry_catalog(&self) -> PrivilegedRegistryCatalog {
         let current_generation = self.symbol_registry_generation.load(Ordering::SeqCst);
-
-        self.registries
+        let privileged_registry_catalog = self
+            .registries
             .get_symbol_registry()
-            .create_registry_catalog(current_generation)
+            .create_registry_catalog(current_generation);
+        let data_type_descriptors = privileged_registry_catalog
+            .get_data_type_descriptors()
+            .iter()
+            .filter(|data_type_descriptor| {
+                self.plugin_registry
+                    .is_data_type_enabled(data_type_descriptor.get_data_type_id())
+            })
+            .cloned()
+            .collect();
+        let struct_layout_descriptors = privileged_registry_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .filter(|struct_layout_descriptor| {
+                self.plugin_registry
+                    .is_data_type_enabled(struct_layout_descriptor.get_struct_layout_id())
+            })
+            .cloned()
+            .collect();
+
+        PrivilegedRegistryCatalog::new(current_generation, data_type_descriptors, struct_layout_descriptors)
     }
 
     pub fn notify_registry_changed(&self) {

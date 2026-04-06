@@ -76,6 +76,7 @@ pub fn build_plugins_summary_lines_with_capacity(
 fn plugin_kind_label(plugin_kind: PluginKind) -> &'static str {
     match plugin_kind {
         PluginKind::MemoryView => "memory-view",
+        PluginKind::DataType => "data-type",
     }
 }
 

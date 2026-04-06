@@ -108,7 +108,7 @@ mod tests {
 
     fn create_plugin_state(plugin_id: &str) -> PluginState {
         PluginState::new(
-            PluginMetadata::new(plugin_id, plugin_id, "Plugin", PluginKind::MemoryView, true),
+            PluginMetadata::new(plugin_id, plugin_id, "Plugin", PluginKind::MemoryView, true, true),
             true,
             PluginActivationState::Idle,
         )

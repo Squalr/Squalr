@@ -22,6 +22,7 @@ impl DolphinMemoryViewPlugin {
                 DOLPHIN_PLUGIN_DESCRIPTION,
                 PluginKind::MemoryView,
                 true,
+                true,
             ),
         }
     }

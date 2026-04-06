@@ -107,6 +107,15 @@ impl Widget for PointerScannerToolbarView {
                     .as_ref()
                     .map(|opened_process| opened_process.get_bitness())
             });
+        let available_data_types = self
+            .app_context
+            .engine_unprivileged_state
+            .get_registered_data_type_refs();
+        let available_pointer_size_data_types = ["u24", "u24be", "u32", "u32be", "u64", "u64be"]
+            .iter()
+            .map(|data_type_id| DataTypeRef::new(data_type_id))
+            .filter(|data_type_ref| available_data_types.contains(data_type_ref))
+            .collect::<Vec<_>>();
 
         {
             let mut pointer_scanner_view_data = match self
@@ -205,12 +214,7 @@ impl Widget for PointerScannerToolbarView {
                             )
                             .width(116.0)
                             .height(Self::CONTROL_HEIGHT)
-                            .available_data_types(vec![
-                                DataTypeRef::new("u32"),
-                                DataTypeRef::new("u32be"),
-                                DataTypeRef::new("u64"),
-                                DataTypeRef::new("u64be"),
-                            ])
+                            .available_data_types(available_pointer_size_data_types.clone())
                             .stacked_list()
                             .hide_placeholder_entries(),
                         );
@@ -225,6 +229,7 @@ impl Widget for PointerScannerToolbarView {
                             )
                             .width(132.0)
                             .height(Self::CONTROL_HEIGHT)
+                            .available_data_types(available_data_types.clone())
                             .hide_placeholder_entries(),
                         );
 

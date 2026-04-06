@@ -1,0 +1,8 @@
+[package]
+name = "squalr-plugin-data-types-24bit"
+version = "0.1.0"
+authors = ["Zachary Canann"]
+edition = "2024"
+
+[dependencies]
+squalr-engine-api = { path = "../../squalr-engine-api" }

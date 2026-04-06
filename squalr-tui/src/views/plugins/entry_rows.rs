@@ -83,6 +83,7 @@ fn plugin_status_label(plugin_state: &PluginState) -> &'static str {
 fn plugin_kind_label(plugin_kind: PluginKind) -> &'static str {
     match plugin_kind {
         PluginKind::MemoryView => "memory-view",
+        PluginKind::DataType => "data-type",
     }
 }
 
@@ -100,7 +101,7 @@ mod tests {
         activation_state: PluginActivationState,
     ) -> PluginState {
         PluginState::new(
-            PluginMetadata::new(plugin_id, display_name, "Test plugin", PluginKind::MemoryView, true),
+            PluginMetadata::new(plugin_id, display_name, "Test plugin", PluginKind::MemoryView, true, true),
             is_enabled,
             activation_state,
         )

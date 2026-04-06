@@ -87,28 +87,10 @@ impl SnapshotScanResultFreezeTask {
                             return None;
                         }
 
-                        match pointer_size {
-                            squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer32 => {
-                                let pointer_bytes: [u8; 4] = pointer_bytes.as_slice().try_into().ok()?;
-
-                                Some(u32::from_le_bytes(pointer_bytes) as u64)
-                            }
-                            squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer32be => {
-                                let pointer_bytes: [u8; 4] = pointer_bytes.as_slice().try_into().ok()?;
-
-                                Some(u32::from_be_bytes(pointer_bytes) as u64)
-                            }
-                            squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer64 => {
-                                let pointer_bytes: [u8; 8] = pointer_bytes.as_slice().try_into().ok()?;
-
-                                Some(u64::from_le_bytes(pointer_bytes))
-                            }
-                            squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize::Pointer64be => {
-                                let pointer_bytes: [u8; 8] = pointer_bytes.as_slice().try_into().ok()?;
-
-                                Some(u64::from_be_bytes(pointer_bytes))
-                            }
-                        }
+                        pointer_size.read_address_value(&squalr_engine_api::structures::data_values::data_value::DataValue::new(
+                            pointer_size.to_data_type_ref(),
+                            pointer_bytes,
+                        ))
                     },
                 );
 

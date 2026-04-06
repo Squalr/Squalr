@@ -8,6 +8,7 @@ pub struct PluginMetadata {
     description: String,
     plugin_kind: PluginKind,
     is_built_in: bool,
+    is_enabled_by_default: bool,
 }
 
 impl PluginMetadata {
@@ -17,6 +18,7 @@ impl PluginMetadata {
         description: impl Into<String>,
         plugin_kind: PluginKind,
         is_built_in: bool,
+        is_enabled_by_default: bool,
     ) -> Self {
         Self {
             plugin_id: plugin_id.into(),
@@ -24,6 +26,7 @@ impl PluginMetadata {
             description: description.into(),
             plugin_kind,
             is_built_in,
+            is_enabled_by_default,
         }
     }
 
@@ -45,5 +48,9 @@ impl PluginMetadata {
 
     pub fn get_is_built_in(&self) -> bool {
         self.is_built_in
+    }
+
+    pub fn get_is_enabled_by_default(&self) -> bool {
+        self.is_enabled_by_default
     }
 }

@@ -397,6 +397,16 @@ mod tests {
     ) -> MemoryReadResponse {
         let valued_struct = if success {
             let value_field = match pointer_size {
+                PointerScanPointerSize::Pointer24 => {
+                    squalr_engine_api::structures::data_types::built_in_types::u24::data_type_u24::DataTypeU24::get_value_from_primitive(pointer_value as u32)
+                        .to_named_valued_struct_field("value".to_string(), true)
+                }
+                PointerScanPointerSize::Pointer24be => {
+                    squalr_engine_api::structures::data_types::built_in_types::u24be::data_type_u24be::DataTypeU24be::get_value_from_primitive(
+                        pointer_value as u32,
+                    )
+                    .to_named_valued_struct_field("value".to_string(), true)
+                }
                 PointerScanPointerSize::Pointer32 => {
                     DataTypeU32::get_value_from_primitive(pointer_value as u32).to_named_valued_struct_field("value".to_string(), true)
                 }

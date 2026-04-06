@@ -1,3 +1,4 @@
+use crate::command_executors::project::project_plugin_sync::apply_project_plugin_configuration;
 use crate::command_executors::project::project_symbol_sync::sync_project_symbol_catalog;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 #[cfg(not(target_os = "android"))]
@@ -61,11 +62,17 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
 
         match Project::load_from_path(&project_directory_path) {
             Ok(project) => {
+                let project_plugin_configuration = project
+                    .get_project_info()
+                    .get_enabled_plugin_ids()
+                    .map(|enabled_plugin_ids| enabled_plugin_ids.to_vec());
                 let project_symbol_catalog = project.get_project_info().get_project_symbol_catalog().clone();
                 *opened_project = Some(project);
                 drop(opened_project);
 
-                if sync_project_symbol_catalog(engine_unprivileged_state, project_symbol_catalog) {
+                if apply_project_plugin_configuration(engine_unprivileged_state, project_plugin_configuration.as_deref())
+                    && sync_project_symbol_catalog(engine_unprivileged_state, project_symbol_catalog)
+                {
                     ProjectOpenResponse { success: true }
                 } else {
                     if let Ok(mut opened_project) = project_manager.get_opened_project().write() {

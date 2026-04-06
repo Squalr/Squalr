@@ -77,6 +77,10 @@ impl Widget for ElementScannerToolbarView {
             .layout(Layout::top_down(Align::Min));
 
         let mut toolbar_user_interface = user_interface.new_child(builder);
+        let available_data_types = self
+            .app_context
+            .engine_unprivileged_state
+            .get_registered_data_type_refs();
 
         let mut element_scanner_view_data = match self
             .element_scanner_view_data
@@ -118,7 +122,8 @@ impl Widget for ElementScannerToolbarView {
                         &mut element_scanner_view_data.data_type_selection,
                         "element_scanner_data_type_selector",
                     )
-                    .disabled(is_data_type_selection_disabled),
+                    .disabled(is_data_type_selection_disabled)
+                    .available_data_types(available_data_types.clone()),
                 );
 
                 // Collect values.

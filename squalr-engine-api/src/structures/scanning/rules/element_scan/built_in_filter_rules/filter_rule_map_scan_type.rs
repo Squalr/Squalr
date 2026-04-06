@@ -125,5 +125,25 @@ impl ElementScanFilterRule for RuleMapScanType {
                 }
             }
         };
+
+        let has_supported_vector_scan = match snapshot_filter_element_scan_plan.get_planned_scan_type() {
+            PlannedScanType::Vector(_, PlannedScanVectorizationSize::Vector16) => snapshot_filter_element_scan_plan
+                .get_scan_constraint_finalized()
+                .get_scan_function_vector::<16>()
+                .is_some(),
+            PlannedScanType::Vector(_, PlannedScanVectorizationSize::Vector32) => snapshot_filter_element_scan_plan
+                .get_scan_constraint_finalized()
+                .get_scan_function_vector::<32>()
+                .is_some(),
+            PlannedScanType::Vector(_, PlannedScanVectorizationSize::Vector64) => snapshot_filter_element_scan_plan
+                .get_scan_constraint_finalized()
+                .get_scan_function_vector::<64>()
+                .is_some(),
+            _ => true,
+        };
+
+        if !has_supported_vector_scan {
+            snapshot_filter_element_scan_plan.set_planned_scan_type(PlannedScanType::Scalar(PlannedScanTypeScalar::ScalarIterative));
+        }
     }
 }
