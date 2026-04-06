@@ -13,6 +13,7 @@ use squalr_engine_api::events::plugins::changed::plugins_changed_event::PluginsC
 use squalr_engine_api::events::process::process_event::ProcessEvent;
 use squalr_engine_api::events::registry::changed::registry_changed_event::RegistryChangedEvent;
 use squalr_engine_api::plugins::PluginState;
+use squalr_engine_api::plugins::data_type::DataTypePlugin;
 use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use squalr_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use squalr_engine_api::registries::registry_context::RegistryContext;
@@ -64,6 +65,23 @@ pub struct EnginePrivilegedState {
 }
 
 impl EnginePrivilegedState {
+    fn register_plugin_data_types(
+        symbol_registry: &SymbolRegistry,
+        data_type_plugins: &[Arc<dyn DataTypePlugin>],
+    ) {
+        for data_type_plugin in data_type_plugins {
+            for data_type in data_type_plugin.contributed_data_types() {
+                if !symbol_registry.register_data_type(data_type.clone()) {
+                    log::warn!(
+                        "Failed to register plugin-authored data type '{}' from plugin '{}'.",
+                        data_type.get_data_type_id(),
+                        data_type_plugin.metadata().get_plugin_id()
+                    );
+                }
+            }
+        }
+    }
+
     pub fn new(
         engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         os_providers: EngineOsProviders,
@@ -75,6 +93,7 @@ impl EnginePrivilegedState {
         let pointer_scan_session = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
         let plugin_registry = Arc::new(PluginRegistry::new());
+        Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_data_type_plugins());
         let os_providers = os_providers.with_memory_view_routing(plugin_registry.clone());
 
         SnapshotScanResultFreezeTask::start_task(

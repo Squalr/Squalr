@@ -1,10 +1,10 @@
-use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
-use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-use crate::structures::data_values::container_type::ContainerType;
-use crate::structures::memory::endian::Endian;
-use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use squalr_engine_api::structures::data_types::data_type_error::DataTypeError;
+use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::memory::endian::Endian;
+use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
+use squalr_engine_api::structures::scanning::constraints::scan_constraint::ScanConstraint;
 use std::sync::Arc;
 
 const TWENTY_FOUR_BIT_BYTE_COUNT: usize = 3;
@@ -189,8 +189,12 @@ impl PrimitiveDataType24Bit {
         endian: Endian,
     ) -> u32 {
         match endian {
-            Endian::Little => Self::unsigned_from_little_endian_bytes(unsafe { [*value_ptr, *value_ptr.add(1), *value_ptr.add(2)] }),
-            Endian::Big => Self::unsigned_from_big_endian_bytes(unsafe { [*value_ptr, *value_ptr.add(1), *value_ptr.add(2)] }),
+            Endian::Little => Self::unsigned_from_little_endian_bytes([unsafe { *value_ptr }, unsafe { *value_ptr.add(1) }, unsafe {
+                *value_ptr.add(2)
+            }]),
+            Endian::Big => Self::unsigned_from_big_endian_bytes([unsafe { *value_ptr }, unsafe { *value_ptr.add(1) }, unsafe {
+                *value_ptr.add(2)
+            }]),
         }
     }
 
@@ -761,10 +765,10 @@ impl PrimitiveDataType24Bit {
 #[cfg(test)]
 mod tests {
     use super::PrimitiveDataType24Bit;
-    use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
-    use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-    use crate::structures::data_values::container_type::ContainerType;
-    use crate::structures::memory::endian::Endian;
+    use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
+    use squalr_engine_api::structures::memory::endian::Endian;
 
     #[test]
     fn deanonymize_signed_hexadecimal_sign_extends_values() {

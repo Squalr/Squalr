@@ -1,9 +1,9 @@
-use crate::structures::data_types::built_in_types::i24::data_type_i24::DataTypeI24;
-use crate::structures::data_types::built_in_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
-use crate::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
-use crate::structures::memory::endian::Endian;
-use crate::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
-use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use crate::data_types::i24::data_type_i24::DataTypeI24;
+use crate::data_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
+use squalr_engine_api::structures::data_types::comparisons::scalar_comparable::ScalarComparable;
+use squalr_engine_api::structures::memory::endian::Endian;
+use squalr_engine_api::structures::scanning::comparisons::scan_function_scalar::{ScalarCompareFnDelta, ScalarCompareFnImmediate, ScalarCompareFnRelative};
+use squalr_engine_api::structures::scanning::constraints::scan_constraint::ScanConstraint;
 
 impl ScalarComparable for DataTypeI24 {
     fn get_compare_equal(

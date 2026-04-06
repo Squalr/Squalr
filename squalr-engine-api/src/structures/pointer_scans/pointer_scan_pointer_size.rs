@@ -1,8 +1,6 @@
-use crate::structures::data_types::built_in_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
 use crate::structures::data_types::{
     built_in_types::{
-        u24::data_type_u24::DataTypeU24, u24be::data_type_u24be::DataTypeU24be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
-        u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+        u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
     },
     data_type_ref::DataTypeRef,
 };
@@ -12,6 +10,21 @@ use crate::structures::memory::endian::Endian;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
+
+const POINTER_DATA_TYPE_ID_24: &str = "u24";
+const POINTER_DATA_TYPE_ID_24BE: &str = "u24be";
+
+fn read_unsigned_24_bit(
+    value_bytes: &[u8],
+    endian: Endian,
+) -> Option<u64> {
+    let value_bytes: [u8; 3] = value_bytes.try_into().ok()?;
+
+    Some(match endian {
+        Endian::Little => u32::from_le_bytes([value_bytes[0], value_bytes[1], value_bytes[2], 0]) as u64,
+        Endian::Big => u32::from_be_bytes([0, value_bytes[0], value_bytes[1], value_bytes[2]]) as u64,
+    })
+}
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub enum PointerScanPointerSize {
@@ -49,8 +62,8 @@ impl PointerScanPointerSize {
 
     pub fn to_data_type_ref(&self) -> DataTypeRef {
         match self {
-            Self::Pointer24 => DataTypeRef::new(DataTypeU24::DATA_TYPE_ID),
-            Self::Pointer24be => DataTypeRef::new(DataTypeU24be::DATA_TYPE_ID),
+            Self::Pointer24 => DataTypeRef::new(POINTER_DATA_TYPE_ID_24),
+            Self::Pointer24be => DataTypeRef::new(POINTER_DATA_TYPE_ID_24BE),
             Self::Pointer32 => DataTypeRef::new(DataTypeU32::DATA_TYPE_ID),
             Self::Pointer32be => DataTypeRef::new(DataTypeU32be::DATA_TYPE_ID),
             Self::Pointer64 => DataTypeRef::new(DataTypeU64::DATA_TYPE_ID),
@@ -65,12 +78,8 @@ impl PointerScanPointerSize {
         let value_bytes = data_value.get_value_bytes();
 
         match self {
-            Self::Pointer24 => PrimitiveDataType24Bit::read_unsigned(data_value.get_value_bytes(), Endian::Little)
-                .ok()
-                .map(|value| value as u64),
-            Self::Pointer24be => PrimitiveDataType24Bit::read_unsigned(data_value.get_value_bytes(), Endian::Big)
-                .ok()
-                .map(|value| value as u64),
+            Self::Pointer24 => read_unsigned_24_bit(data_value.get_value_bytes(), Endian::Little),
+            Self::Pointer24be => read_unsigned_24_bit(data_value.get_value_bytes(), Endian::Big),
             Self::Pointer32 => {
                 let value_bytes: [u8; 4] = value_bytes.as_slice().try_into().ok()?;
 
@@ -134,8 +143,7 @@ mod tests {
     use super::PointerScanPointerSize;
     use crate::structures::data_types::{
         built_in_types::{
-            u24::data_type_u24::DataTypeU24, u24be::data_type_u24be::DataTypeU24be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
-            u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+            u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
         },
         data_type_ref::DataTypeRef,
     };
@@ -154,8 +162,8 @@ mod tests {
 
     #[test]
     fn pointer_scan_pointer_size_reads_address_values() {
-        let pointer24_value = DataValue::new(DataTypeRef::new(DataTypeU24::DATA_TYPE_ID), vec![0x34, 0x12, 0x00]);
-        let pointer24be_value = DataValue::new(DataTypeRef::new(DataTypeU24be::DATA_TYPE_ID), vec![0x12, 0x34, 0x56]);
+        let pointer24_value = DataValue::new(DataTypeRef::new("u24"), vec![0x34, 0x12, 0x00]);
+        let pointer24be_value = DataValue::new(DataTypeRef::new("u24be"), vec![0x12, 0x34, 0x56]);
         let pointer32_value = DataValue::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID), 0x1234_u32.to_le_bytes().to_vec());
         let pointer32be_value = DataValue::new(DataTypeRef::new(DataTypeU32be::DATA_TYPE_ID), 0x1234_5678_u32.to_be_bytes().to_vec());
         let pointer64_value = DataValue::new(DataTypeRef::new(DataTypeU64::DATA_TYPE_ID), 0x1234_5678_9ABC_DEF0_u64.to_le_bytes().to_vec());

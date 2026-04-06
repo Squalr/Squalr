@@ -23,4 +23,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - 24-bit types are scalar-only for scans; the planner now falls back from vector to scalar when no vector comparer exists.
 - Pointer scanner now supports `u24` and `u24be`, including pointer reads and scalar search routing.
 - Visible data types are filtered through the privileged registry catalog based on enabled plugins.
+- 24-bit data types are now registered from the 24-bit plugin itself during session/cache startup; the core built-in symbol registries no longer own `u24`, `u24be`, `i24`, or `i24be`.
+- Deleted the old core `built_in_types/{u24,u24be,i24,i24be}` modules and the old core `primitive_data_type_24_bit` helper; the actual 24-bit comparison and parsing logic now lives only in the plugin crate.
+- Refactored the 24-bit plugin crate away from a macro-heavy `src/data_types.rs` blob into per-type modules under `src/data_types/{u24,u24be,i24,i24be}`, with the shared 24-bit helper and vector-none helper kept local to the plugin crate.
 - Enabled plugin ids are now persisted per-project and reapplied on project open.

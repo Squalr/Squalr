@@ -1,12 +1,16 @@
 use squalr_engine_api::structures::data_types::built_in_types::{
     bool8::data_type_bool8::DataTypeBool8, bool32::data_type_bool32::DataTypeBool32, f32::data_type_f32::DataTypeF32, f32be::data_type_f32be::DataTypeF32be,
     f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be, i8::data_type_i8::DataTypeI8, i16::data_type_i16::DataTypeI16,
-    i16be::data_type_i16be::DataTypeI16be, i24::data_type_i24::DataTypeI24, i24be::data_type_i24be::DataTypeI24be, i32::data_type_i32::DataTypeI32,
-    i32be::data_type_i32be::DataTypeI32be, i64::data_type_i64::DataTypeI64, i64be::data_type_i64be::DataTypeI64be,
-    string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8, u16::data_type_u16::DataTypeU16,
-    u16be::data_type_u16be::DataTypeU16be, u24::data_type_u24::DataTypeU24, u24be::data_type_u24be::DataTypeU24be, u32::data_type_u32::DataTypeU32,
-    u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+    i16be::data_type_i16be::DataTypeI16be, i32::data_type_i32::DataTypeI32, i32be::data_type_i32be::DataTypeI32be, i64::data_type_i64::DataTypeI64,
+    i64be::data_type_i64be::DataTypeI64be, string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8,
+    u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
+    u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
 };
+
+const DATA_TYPE_ID_U24: &str = "u24";
+const DATA_TYPE_ID_U24BE: &str = "u24be";
+const DATA_TYPE_ID_I24: &str = "i24";
+const DATA_TYPE_ID_I24BE: &str = "i24be";
 
 pub struct DataTypeToStringConverter {}
 
@@ -18,8 +22,8 @@ impl DataTypeToStringConverter {
             DataTypeU8::DATA_TYPE_ID => "u8",
             DataTypeU16::DATA_TYPE_ID => "u16",
             DataTypeU16be::DATA_TYPE_ID => "u16be",
-            DataTypeU24::DATA_TYPE_ID => "u24",
-            DataTypeU24be::DATA_TYPE_ID => "u24be",
+            DATA_TYPE_ID_U24 => "u24",
+            DATA_TYPE_ID_U24BE => "u24be",
             DataTypeU32::DATA_TYPE_ID => "u32",
             DataTypeU32be::DATA_TYPE_ID => "u32be",
             DataTypeU64::DATA_TYPE_ID => "u64",
@@ -27,8 +31,8 @@ impl DataTypeToStringConverter {
             DataTypeI8::DATA_TYPE_ID => "i8",
             DataTypeI16::DATA_TYPE_ID => "i16",
             DataTypeI16be::DATA_TYPE_ID => "i16be",
-            DataTypeI24::DATA_TYPE_ID => "i24",
-            DataTypeI24be::DATA_TYPE_ID => "i24be",
+            DATA_TYPE_ID_I24 => "i24",
+            DATA_TYPE_ID_I24BE => "i24be",
             DataTypeI32::DATA_TYPE_ID => "i32",
             DataTypeI32be::DATA_TYPE_ID => "i32be",
             DataTypeI64::DATA_TYPE_ID => "i64",

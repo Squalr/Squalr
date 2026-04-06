@@ -1,15 +1,26 @@
-use squalr_engine_api::structures::data_types::built_in_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
 use squalr_engine_api::structures::memory::endian::Endian;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use std::ptr;
+
+unsafe fn read_unsigned_24_bit_unchecked(
+    value_ptr: *const u8,
+    endian: Endian,
+) -> u64 {
+    let value_bytes = unsafe { [*value_ptr, *value_ptr.add(1), *value_ptr.add(2)] };
+
+    match endian {
+        Endian::Little => u32::from_le_bytes([value_bytes[0], value_bytes[1], value_bytes[2], 0]) as u64,
+        Endian::Big => u32::from_be_bytes([0, value_bytes[0], value_bytes[1], value_bytes[2]]) as u64,
+    }
+}
 
 pub(crate) unsafe fn read_pointer_value_unchecked(
     pointer_bytes_ptr: *const u8,
     pointer_size: PointerScanPointerSize,
 ) -> u64 {
     match pointer_size {
-        PointerScanPointerSize::Pointer24 => unsafe { PrimitiveDataType24Bit::read_unsigned_unchecked(pointer_bytes_ptr, Endian::Little) as u64 },
-        PointerScanPointerSize::Pointer24be => unsafe { PrimitiveDataType24Bit::read_unsigned_unchecked(pointer_bytes_ptr, Endian::Big) as u64 },
+        PointerScanPointerSize::Pointer24 => unsafe { read_unsigned_24_bit_unchecked(pointer_bytes_ptr, Endian::Little) },
+        PointerScanPointerSize::Pointer24be => unsafe { read_unsigned_24_bit_unchecked(pointer_bytes_ptr, Endian::Big) },
         PointerScanPointerSize::Pointer32 => u32::from_le(unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const u32) }) as u64,
         PointerScanPointerSize::Pointer32be => u32::from_be(unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const u32) }) as u64,
         PointerScanPointerSize::Pointer64 => u64::from_le(unsafe { ptr::read_unaligned(pointer_bytes_ptr as *const u64) }),

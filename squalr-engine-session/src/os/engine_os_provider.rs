@@ -10,10 +10,10 @@ use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_operating_system::memory_queryer::memory_queryer::MemoryQueryer;
 use squalr_engine_operating_system::memory_queryer::memory_queryer_trait::MemoryQueryerTrait;
 use squalr_engine_operating_system::memory_queryer::page_retrieval_mode::PageRetrievalMode;
-use squalr_engine_operating_system::memory_reader::memory_reader_trait::MemoryReaderTrait;
 use squalr_engine_operating_system::memory_reader::MemoryReader;
-use squalr_engine_operating_system::memory_writer::memory_writer_trait::MemoryWriterTrait;
+use squalr_engine_operating_system::memory_reader::memory_reader_trait::MemoryReaderTrait;
 use squalr_engine_operating_system::memory_writer::MemoryWriter;
+use squalr_engine_operating_system::memory_writer::memory_writer_trait::MemoryWriterTrait;
 use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
 use squalr_engine_operating_system::process_query::process_query_options::ProcessQueryOptions;
 use squalr_engine_operating_system::process_query::process_queryer::ProcessQuery;
@@ -1133,9 +1133,11 @@ mod tests {
 
         os_providers.clear_active_memory_view_instance();
 
-        assert!(os_providers
-            .get_active_memory_view_plugin_id(&opened_process_info)
-            .is_none());
+        assert!(
+            os_providers
+                .get_active_memory_view_plugin_id(&opened_process_info)
+                .is_none()
+        );
     }
 
     #[test]
@@ -1173,11 +1175,15 @@ mod tests {
             .memory_query
             .get_memory_page_bounds(&unsupported_process_info, PageRetrievalMode::FromUserMode);
 
-        assert!(os_providers
-            .get_active_memory_view_plugin_id(&dolphin_process_info)
-            .is_none());
-        assert!(os_providers
-            .get_active_memory_view_plugin_id(&unsupported_process_info)
-            .is_none());
+        assert!(
+            os_providers
+                .get_active_memory_view_plugin_id(&dolphin_process_info)
+                .is_none()
+        );
+        assert!(
+            os_providers
+                .get_active_memory_view_plugin_id(&unsupported_process_info)
+                .is_none()
+        );
     }
 }

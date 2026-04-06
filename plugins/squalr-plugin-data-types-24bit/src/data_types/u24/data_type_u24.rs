@@ -1,20 +1,19 @@
-use crate::structures::data_types::built_in_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
-use crate::structures::data_types::data_type::DataType;
-use crate::structures::data_types::data_type_error::DataTypeError;
-use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::anonymous_value_string::AnonymousValueString;
-use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
-use crate::structures::data_values::data_value::DataValue;
-use crate::structures::memory::endian::Endian;
-use serde::{Deserialize, Serialize};
+use crate::data_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
+use squalr_engine_api::structures::data_types::data_type::DataType;
+use squalr_engine_api::structures::data_types::data_type_error::DataTypeError;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+use squalr_engine_api::structures::data_values::data_value::DataValue;
+use squalr_engine_api::structures::memory::endian::Endian;
 
-type PrimitiveType = i32;
+type PrimitiveType = u32;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DataTypeI24be;
+#[derive(Clone, Debug)]
+pub struct DataTypeU24;
 
-impl DataTypeI24be {
-    pub const DATA_TYPE_ID: &str = "i24be";
+impl DataTypeU24 {
+    pub const DATA_TYPE_ID: &str = "u24";
 
     pub fn get_data_type_id() -> &'static str {
         Self::DATA_TYPE_ID
@@ -27,12 +26,12 @@ impl DataTypeI24be {
     pub fn get_value_from_primitive(value: PrimitiveType) -> DataValue {
         DataValue::new(
             DataTypeRef::new(Self::get_data_type_id()),
-            PrimitiveDataType24Bit::get_signed_value_bytes(value, Endian::Big),
+            PrimitiveDataType24Bit::get_unsigned_value_bytes(value, Endian::Little),
         )
     }
 }
 
-impl DataType for DataTypeI24be {
+impl DataType for DataTypeU24 {
     fn get_data_type_id(&self) -> &str {
         Self::get_data_type_id()
     }
@@ -56,7 +55,7 @@ impl DataType for DataTypeI24be {
         &self,
         anonymous_value_string: &AnonymousValueString,
     ) -> Result<DataValue, DataTypeError> {
-        PrimitiveDataType24Bit::deanonymize_signed(anonymous_value_string, Endian::Big)
+        PrimitiveDataType24Bit::deanonymize_unsigned(anonymous_value_string, Endian::Little)
             .map(|value_bytes| DataValue::new(DataTypeRef::new(Self::get_data_type_id()), value_bytes))
     }
 
@@ -65,7 +64,7 @@ impl DataType for DataTypeI24be {
         value_bytes: &[u8],
         anonymous_value_string_format: AnonymousValueStringFormat,
     ) -> Result<AnonymousValueString, DataTypeError> {
-        PrimitiveDataType24Bit::anonymize_signed(value_bytes, Endian::Big, anonymous_value_string_format)
+        PrimitiveDataType24Bit::anonymize_unsigned(value_bytes, Endian::Little, anonymous_value_string_format)
     }
 
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
@@ -77,7 +76,7 @@ impl DataType for DataTypeI24be {
     }
 
     fn get_endian(&self) -> Endian {
-        Endian::Big
+        Endian::Little
     }
 
     fn is_floating_point(&self) -> bool {
@@ -85,13 +84,13 @@ impl DataType for DataTypeI24be {
     }
 
     fn is_signed(&self) -> bool {
-        true
+        false
     }
 
     fn get_default_value(
         &self,
         data_type_ref: DataTypeRef,
     ) -> DataValue {
-        DataValue::new(data_type_ref, PrimitiveDataType24Bit::get_signed_value_bytes(0, Endian::Big))
+        DataValue::new(data_type_ref, PrimitiveDataType24Bit::get_unsigned_value_bytes(0, Endian::Little))
     }
 }

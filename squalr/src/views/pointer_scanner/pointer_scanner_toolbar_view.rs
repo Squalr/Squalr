@@ -12,8 +12,7 @@ use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedComma
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::{
     built_in_types::{
-        u24::data_type_u24::DataTypeU24, u24be::data_type_u24be::DataTypeU24be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
-        u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+        u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
     },
     data_type_ref::DataTypeRef,
 };
@@ -118,8 +117,8 @@ impl Widget for PointerScannerToolbarView {
             .engine_unprivileged_state
             .get_registered_data_type_refs();
         let available_pointer_size_data_types = [
-            DataTypeU24::DATA_TYPE_ID,
-            DataTypeU24be::DATA_TYPE_ID,
+            "u24",
+            "u24be",
             DataTypeU32::DATA_TYPE_ID,
             DataTypeU32be::DATA_TYPE_ID,
             DataTypeU64::DATA_TYPE_ID,
