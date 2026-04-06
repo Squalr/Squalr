@@ -112,11 +112,19 @@ impl ElementScanFilterRule for RuleMapScanType {
             snapshot_filter_element_scan_plan.set_planned_scan_type(PlannedScanType::Vector(PlannedScanTypeVector::Aligned, vectorization_size));
         }
 
+        if data_type_scan_preference == DataTypeScanPreference::PreferTypeScanner && data_type_size_bytes < memory_alignment_size {
+            // Plugin-owned packed types like 24-bit integers can provide overlap-capable vector compares,
+            // but sparse scans need lane-aligned masks keyed to memory alignment rather than packed element size.
+            snapshot_filter_element_scan_plan.set_planned_scan_type(PlannedScanType::Scalar(PlannedScanTypeScalar::ScalarIterative));
+
+            return;
+        }
+
         match snapshot_filter_element_scan_plan.get_compare_type() {
             ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => {}
             ScanCompareType::Immediate(scan_compare_type_immediate) => {
                 match scan_compare_type_immediate {
-                    ScanCompareTypeImmediate::Equal | ScanCompareTypeImmediate::NotEqual => {
+                    ScanCompareTypeImmediate::Equal => {
                         if !is_floating_point && data_type_scan_preference != DataTypeScanPreference::PreferTypeScanner {
                             // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
                             // These are the only acceptable options, either the type is a primitive, or its a byte array.

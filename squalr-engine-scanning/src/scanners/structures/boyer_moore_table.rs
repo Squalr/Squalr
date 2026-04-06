@@ -53,6 +53,22 @@ impl BoyerMooreTable {
         }
     }
 
+    pub fn get_safe_mismatch_shift(
+        &self,
+        value: u8,
+        mismatch_pattern_index: usize,
+        memory_alignment: u64,
+    ) -> u64 {
+        let bad_char_shift = self.get_mismatch_shift(value, mismatch_pattern_index, memory_alignment);
+        let good_suffix_shift = self.get_good_suffix_shift(mismatch_pattern_index + 1);
+
+        if good_suffix_shift > 0 {
+            bad_char_shift.min(good_suffix_shift).max(memory_alignment)
+        } else {
+            bad_char_shift.max(memory_alignment)
+        }
+    }
+
     pub fn get_aligned_pattern_length(&self) -> u64 {
         self.aligned_pattern_length
     }
@@ -163,6 +179,41 @@ impl BoyerMooreTable {
 mod tests {
     use super::BoyerMooreTable;
 
+    fn scan_offsets(
+        haystack: &[u8],
+        pattern: &[u8],
+        memory_alignment: u64,
+    ) -> Vec<usize> {
+        let boyer_moore_table = BoyerMooreTable::new(pattern, memory_alignment);
+        let mut scan_index = 0usize;
+        let mut results = Vec::new();
+
+        while scan_index + pattern.len() <= haystack.len() {
+            let mut match_found = true;
+            let mut shift_value = memory_alignment as usize;
+
+            for inverse_pattern_index in (0..pattern.len()).rev() {
+                let current_byte = haystack[scan_index + inverse_pattern_index];
+                let pattern_byte = pattern[inverse_pattern_index];
+
+                if current_byte != pattern_byte {
+                    match_found = false;
+                    shift_value = boyer_moore_table.get_safe_mismatch_shift(current_byte, inverse_pattern_index, memory_alignment) as usize;
+                    break;
+                }
+            }
+
+            if match_found {
+                results.push(scan_index);
+                scan_index += memory_alignment as usize;
+            } else {
+                scan_index += shift_value;
+            }
+        }
+
+        results
+    }
+
     #[test]
     fn mismatch_shift_uses_the_mismatch_position() {
         let boyer_moore_table = BoyerMooreTable::new(&[3u8, 0u8, 0u8], 1);
@@ -170,5 +221,25 @@ mod tests {
         assert_eq!(boyer_moore_table.get_mismatch_shift(3u8, 1, 1), 1);
         assert_eq!(boyer_moore_table.get_mismatch_shift(3u8, 2, 1), 2);
         assert_eq!(boyer_moore_table.get_mismatch_shift(4u8, 1, 1), 2);
+    }
+
+    #[test]
+    fn safe_mismatch_shift_preserves_overlapping_repeated_byte_matches() {
+        let pattern = [2u8, 2u8, 2u8];
+        let haystack = [
+            2u8, 2u8, 1u8, 0u8, 2u8, 2u8, 2u8, 2u8, 0u8, 0u8, 2u8, 1u8, 3u8, 3u8, 2u8, 2u8, 0u8,
+        ];
+
+        assert_eq!(scan_offsets(&haystack, &pattern, 1), vec![4usize, 5usize]);
+    }
+
+    #[test]
+    fn safe_mismatch_shift_preserves_four_byte_partial_suffix_matches() {
+        let pattern = [3u8, 1u8, 1u8, 1u8];
+        let haystack = [
+            0u8, 0u8, 3u8, 1u8, 2u8, 0u8, 0u8, 3u8, 1u8, 1u8, 1u8, 1u8, 1u8, 1u8,
+        ];
+
+        assert_eq!(scan_offsets(&haystack, &pattern, 1), vec![7usize]);
     }
 }

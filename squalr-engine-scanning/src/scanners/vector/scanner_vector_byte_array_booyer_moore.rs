@@ -73,12 +73,8 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
                 if is_mismatch {
                     match_found = false;
 
-                    let bad_char_shift = boyer_moore_table.get_mismatch_shift(current_byte, inverse_pattern_index, memory_alignment_size);
-                    let good_suffix_shift = boyer_moore_table.get_good_suffix_shift(inverse_pattern_index + 1);
-
-                    // Unlike classic Booyer-Moore we don't take the max of the shifts. Instead we prioritize a set good shift over the bad shift.
-                    // This reduces some skipping, but allows us to safely handle overlapping results.
-                    shift_value = (if good_suffix_shift > 0 { good_suffix_shift } else { bad_char_shift }).max(memory_alignment_size);
+                    // Overlap-preserving scans must choose the smallest safe shift or they can skip valid matches.
+                    shift_value = boyer_moore_table.get_safe_mismatch_shift(current_byte, inverse_pattern_index, memory_alignment_size);
                     break;
                 }
             }

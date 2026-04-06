@@ -1,3 +1,5 @@
+#![feature(portable_simd)]
+
 mod constants;
 mod data_types;
 mod plugin;
