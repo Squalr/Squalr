@@ -5,8 +5,8 @@ use crate::{
         widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
     },
 };
-use eframe::egui::{Label, RichText, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
-use epaint::{CornerRadius, StrokeKind};
+use eframe::egui::{Label, RichText, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use epaint::CornerRadius;
 use squalr_engine_api::plugins::{PluginActivationState, PluginState};
 use std::sync::Arc;
 
@@ -39,18 +39,13 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         user_interface: &mut Ui,
     ) -> PluginEntryViewResponse {
         let theme = &self.app_context.theme;
-        let row_height = 74.0;
-        let row_size = vec2(user_interface.available_width(), row_height);
-        let (row_id, row_rect) = user_interface.allocate_space(row_size);
-        let row_response = user_interface.interact(row_rect, row_id, Sense::click());
+        let row_height = 88.0;
+        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
 
         if self.is_selected {
             user_interface
                 .painter()
                 .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
-            user_interface
-                .painter()
-                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
         }
 
         StateLayer {
@@ -61,11 +56,19 @@ impl<'lifetime> PluginEntryView<'lifetime> {
             has_hover: row_response.hovered(),
             has_focus: row_response.has_focus(),
             corner_radius: CornerRadius::ZERO,
-            border_width: 0.0,
+            border_width: 1.0,
             hover_color: theme.hover_tint,
             pressed_color: theme.pressed_tint,
-            border_color: theme.background_control_secondary_dark,
-            border_color_focused: theme.background_control_secondary_dark,
+            border_color: if self.is_selected {
+                theme.selected_border
+            } else {
+                theme.background_control_secondary
+            },
+            border_color_focused: if self.is_selected {
+                theme.selected_border
+            } else {
+                theme.background_control_secondary
+            },
         }
         .ui(user_interface);
 
@@ -74,7 +77,10 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         let status_text = Self::build_status_text(self.plugin_state);
         let status_color = Self::resolve_status_color(theme, self.plugin_state);
 
-        user_interface.scope_builder(UiBuilder::new().max_rect(row_rect), |user_interface| {
+        let mut row_user_interface = user_interface.new_child(UiBuilder::new().max_rect(row_rect));
+        row_user_interface.set_clip_rect(row_rect);
+
+        row_user_interface.scope_builder(UiBuilder::new().max_rect(row_rect), |user_interface| {
             user_interface.horizontal(|user_interface| {
                 user_interface.add_space(8.0);
 

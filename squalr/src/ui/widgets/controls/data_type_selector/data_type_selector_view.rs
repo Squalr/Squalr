@@ -5,7 +5,6 @@ use crate::ui::widgets::controls::data_type_selector::data_type_item_view::DataT
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::{app_context::AppContext, ui::converters::data_type_to_icon_converter::DataTypeToIconConverter};
 use eframe::egui::{Grid, Id, Response, Ui, Widget, vec2};
-use epaint::TextureHandle;
 use squalr_engine_api::structures::data_types::{
     built_in_types::{
         f32::data_type_f32::DataTypeF32, f32be::data_type_f32be::DataTypeF32be, f64::data_type_f64::DataTypeF64, f64be::data_type_f64be::DataTypeF64be,
@@ -17,12 +16,6 @@ use squalr_engine_api::structures::data_types::{
     data_type_ref::DataTypeRef,
 };
 use std::sync::Arc;
-
-#[derive(Clone, Copy)]
-enum PlaceholderDataTypeEntry {
-    String,
-    Custom,
-}
 
 #[derive(Clone, Copy)]
 enum DataTypeSelectorLabelMode {
@@ -41,14 +34,13 @@ pub struct DataTypeSelectorView<'lifetime> {
     label_mode: DataTypeSelectorLabelMode,
     available_data_types: Option<Vec<DataTypeRef>>,
     selectable_data_type_column_count: usize,
-    show_placeholder_entries: bool,
     show_preview_text: bool,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
     const SELECTABLE_DATA_TYPE_COLUMN_COUNT: usize = 2;
-    const SELECTABLE_DATA_TYPE_ITEM_WIDTH: f32 = 120.0;
-    const SELECTABLE_DATA_TYPE_COLUMN_SPACING: f32 = 8.0;
+    const SELECTABLE_DATA_TYPE_ITEM_WIDTH: f32 = 128.0;
+    const SELECTABLE_DATA_TYPE_COLUMN_SPACING: f32 = 4.0;
     const SELECTABLE_DATA_TYPE_ROWS: [[&'static str; 2]; 9] = [
         [DataTypeU8::DATA_TYPE_ID, DataTypeI8::DATA_TYPE_ID],
         [DataTypeI16::DATA_TYPE_ID, DataTypeI16be::DATA_TYPE_ID],
@@ -59,10 +51,6 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         [DataTypeU64::DATA_TYPE_ID, DataTypeU64be::DATA_TYPE_ID],
         [DataTypeF32::DATA_TYPE_ID, DataTypeF32be::DATA_TYPE_ID],
         [DataTypeF64::DATA_TYPE_ID, DataTypeF64be::DATA_TYPE_ID],
-    ];
-    const PLACEHOLDER_DATA_TYPE_ROW: [PlaceholderDataTypeEntry; 2] = [
-        PlaceholderDataTypeEntry::String,
-        PlaceholderDataTypeEntry::Custom,
     ];
 
     pub fn new(
@@ -80,7 +68,6 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             label_mode: DataTypeSelectorLabelMode::Text,
             available_data_types: None,
             selectable_data_type_column_count: Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT,
-            show_placeholder_entries: true,
             show_preview_text: true,
         }
     }
@@ -124,11 +111,6 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
     pub fn stacked_list(mut self) -> Self {
         self.selectable_data_type_column_count = 1;
-        self
-    }
-
-    pub fn hide_placeholder_entries(mut self) -> Self {
-        self.show_placeholder_entries = false;
         self
     }
 
@@ -204,10 +186,6 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         Id::new(("selectable_data_type_grid", menu_id))
     }
 
-    fn placeholder_data_type_grid_id(menu_id: &str) -> Id {
-        Id::new(("placeholder_data_type_grid", menu_id))
-    }
-
     fn is_pointer_over_item(
         user_interface: &Ui,
         item_response: &Response,
@@ -271,30 +249,6 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         }
     }
 
-    fn placeholder_entry(
-        app_context: &Arc<AppContext>,
-        placeholder_data_type_entry: PlaceholderDataTypeEntry,
-    ) -> (&'static str, TextureHandle) {
-        match placeholder_data_type_entry {
-            PlaceholderDataTypeEntry::String => (
-                "String...",
-                app_context
-                    .theme
-                    .icon_library
-                    .icon_handle_data_type_string
-                    .clone(),
-            ),
-            PlaceholderDataTypeEntry::Custom => (
-                "Custom...",
-                app_context
-                    .theme
-                    .icon_library
-                    .icon_handle_data_type_purple_blocks_array
-                    .clone(),
-            ),
-        }
-    }
-
     fn default_selectable_data_types() -> Vec<DataTypeRef> {
         Self::SELECTABLE_DATA_TYPE_ROWS
             .iter()
@@ -340,7 +294,6 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let label_mode = self.label_mode;
         let available_data_types = self.available_data_types;
         let selectable_data_type_column_count = self.selectable_data_type_column_count.max(1);
-        let show_placeholder_entries = self.show_placeholder_entries;
         let show_preview_text = self.show_preview_text;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
@@ -360,7 +313,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             combo_label,
             menu_id,
             combo_icon,
-            move |popup_user_interface: &mut Ui, should_close: &mut bool| {
+            move |popup_user_interface: &mut Ui, _should_close: &mut bool| {
                 Self::reset_drag_state_if_needed(popup_user_interface, menu_id);
                 popup_user_interface.set_min_width(popup_width);
 
@@ -400,37 +353,6 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                                 user_interface.end_row();
                             }
                         });
-
-                    if show_placeholder_entries {
-                        user_interface.separator();
-                        Grid::new(Self::placeholder_data_type_grid_id(menu_id))
-                            .spacing(vec2(Self::SELECTABLE_DATA_TYPE_COLUMN_SPACING, 0.0))
-                            .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
-                            .show(user_interface, |user_interface| {
-                                for (placeholder_index, placeholder_data_type_entry) in Self::PLACEHOLDER_DATA_TYPE_ROW.iter().enumerate() {
-                                    let (label, icon) = Self::placeholder_entry(&app_context, *placeholder_data_type_entry);
-                                    if user_interface
-                                        .add(DataTypeItemView::new(
-                                            app_context.clone(),
-                                            label,
-                                            Some(icon),
-                                            Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
-                                        ))
-                                        .clicked()
-                                    {
-                                        *should_close = true;
-                                    }
-
-                                    if (placeholder_index + 1) % selectable_data_type_column_count == 0 {
-                                        user_interface.end_row();
-                                    }
-                                }
-
-                                if Self::PLACEHOLDER_DATA_TYPE_ROW.len() % selectable_data_type_column_count != 0 {
-                                    user_interface.end_row();
-                                }
-                            });
-                    }
                 });
             },
         )

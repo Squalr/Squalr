@@ -290,7 +290,6 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         ),
                         DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
                             .available_data_types(available_data_type_refs.clone())
-                            .hide_placeholder_entries()
                             .stacked_list()
                             .width(selector_width)
                             .height(available_size_rect.height()),

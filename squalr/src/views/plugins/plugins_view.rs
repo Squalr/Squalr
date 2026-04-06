@@ -145,7 +145,7 @@ impl Widget for PluginsView {
                 let mut content_user_interface = user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(content_response.rect)
-                        .layout(Layout::left_to_right(Align::Min)),
+                        .layout(Layout::top_down(Align::Min)),
                 );
 
                 ScrollArea::vertical()

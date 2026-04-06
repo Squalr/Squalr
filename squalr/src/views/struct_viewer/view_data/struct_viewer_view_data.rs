@@ -3,7 +3,7 @@ use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{S
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
-        data_types::data_type_ref::DataTypeRef,
+        data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
         projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
         structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
@@ -302,7 +302,7 @@ impl StructViewerViewData {
 
             let selected_data_type_ref = Self::read_data_type_reference_field(valued_struct_field)
                 .filter(|data_type_ref| engine_unprivileged_state.is_registered_data_type_ref(data_type_ref))
-                .unwrap_or_else(|| DataTypeRef::new("u8"));
+                .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
 
             field_data_type_selections.insert(valued_struct_field.get_name().to_string(), DataTypeSelection::new(selected_data_type_ref));
         }
@@ -352,7 +352,9 @@ mod tests {
     use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::structures::{
-        data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+        data_types::built_in_types::{
+            string::utf8::data_type_string_utf8::DataTypeStringUtf8, u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32,
+        },
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
         projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
@@ -435,7 +437,7 @@ mod tests {
     #[test]
     fn create_field_presentations_maps_symbolic_struct_reference_to_data_type_editor() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("u32")
+            DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
         ]);
 
@@ -467,7 +469,7 @@ mod tests {
     #[test]
     fn create_field_edit_values_uses_numeric_format_for_live_value_field() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("u16")
+            DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU16::DATA_TYPE_ID)
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("4660")
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
@@ -488,7 +490,7 @@ mod tests {
     #[test]
     fn create_field_data_type_selections_reads_current_symbolic_struct_reference() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("u32")
+            DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
         ]);
 
@@ -498,14 +500,14 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .expect("Expected data-type selection for the symbolic struct field.");
 
-        assert_eq!(field_data_type_selection.visible_data_type(), &DataTypeRef::new("u32"));
-        assert_eq!(field_data_type_selection.selected_data_types(), &[DataTypeRef::new("u32")]);
+        assert_eq!(field_data_type_selection.visible_data_type(), &DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+        assert_eq!(field_data_type_selection.selected_data_types(), &[DataTypeRef::new(DataTypeU32::DATA_TYPE_ID)]);
     }
 
     #[test]
     fn create_field_validation_data_type_refs_uses_symbolic_type_for_live_value_field() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("u16")
+            DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU16::DATA_TYPE_ID)
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("4660")
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
@@ -516,7 +518,7 @@ mod tests {
 
         assert_eq!(
             field_validation_data_type_refs.get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE),
-            Some(&DataTypeRef::new("u16"))
+            Some(&DataTypeRef::new(DataTypeU16::DATA_TYPE_ID))
         );
     }
 }

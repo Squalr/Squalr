@@ -73,7 +73,7 @@ impl<'a> Widget for DataTypeItemView<'a> {
         let is_selected = matches!(self.check_state, Some(CheckState::True | CheckState::Mixed));
 
         // Whole clickable area includes indentation.
-        let row_height = 32.0;
+        let row_height = 36.0;
         let sense = if self.disabled { Sense::hover() } else { Sense::click_and_drag() };
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(self.combo_box_width, row_height), sense);
 
@@ -92,16 +92,16 @@ impl<'a> Widget for DataTypeItemView<'a> {
             has_hover: response.hovered(),
             has_focus: response.has_focus(),
             corner_radius: CornerRadius::ZERO,
-            border_width: 1.0,
+            border_width: if is_selected { 1.0 } else { 0.0 },
             hover_color: theme.hover_tint,
             pressed_color: theme.pressed_tint,
             border_color: match is_selected {
                 true => theme.selected_border,
-                false => theme.background_control_secondary_dark,
+                false => theme.background_control_secondary,
             },
             border_color_focused: match is_selected {
                 true => theme.selected_border,
-                false => theme.background_control_secondary_dark,
+                false => theme.background_control_secondary,
             },
         }
         .ui(user_interface);

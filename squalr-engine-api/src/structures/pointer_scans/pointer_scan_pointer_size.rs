@@ -1,6 +1,12 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
-use crate::structures::data_values::data_value::DataValue;
 use crate::structures::data_types::built_in_types::primitive_data_type_24_bit::PrimitiveDataType24Bit;
+use crate::structures::data_types::{
+    built_in_types::{
+        u24::data_type_u24::DataTypeU24, u24be::data_type_u24be::DataTypeU24be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
+        u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+    },
+    data_type_ref::DataTypeRef,
+};
+use crate::structures::data_values::data_value::DataValue;
 use crate::structures::memory::bitness::Bitness;
 use crate::structures::memory::endian::Endian;
 use serde::{Deserialize, Serialize};
@@ -43,12 +49,12 @@ impl PointerScanPointerSize {
 
     pub fn to_data_type_ref(&self) -> DataTypeRef {
         match self {
-            Self::Pointer24 => DataTypeRef::new("u24"),
-            Self::Pointer24be => DataTypeRef::new("u24be"),
-            Self::Pointer32 => DataTypeRef::new("u32"),
-            Self::Pointer32be => DataTypeRef::new("u32be"),
-            Self::Pointer64 => DataTypeRef::new("u64"),
-            Self::Pointer64be => DataTypeRef::new("u64be"),
+            Self::Pointer24 => DataTypeRef::new(DataTypeU24::DATA_TYPE_ID),
+            Self::Pointer24be => DataTypeRef::new(DataTypeU24be::DATA_TYPE_ID),
+            Self::Pointer32 => DataTypeRef::new(DataTypeU32::DATA_TYPE_ID),
+            Self::Pointer32be => DataTypeRef::new(DataTypeU32be::DATA_TYPE_ID),
+            Self::Pointer64 => DataTypeRef::new(DataTypeU64::DATA_TYPE_ID),
+            Self::Pointer64be => DataTypeRef::new(DataTypeU64be::DATA_TYPE_ID),
         }
     }
 
@@ -116,7 +122,9 @@ impl FromStr for PointerScanPointerSize {
             "u32be" | "32be" => Ok(Self::Pointer32be),
             "8" | "64" | "u64" => Ok(Self::Pointer64),
             "u64be" | "64be" => Ok(Self::Pointer64be),
-            _ => Err(format!("Unsupported pointer size: {string}. Expected one of: 3, 4, 8, u24, u24be, u32, u32be, u64, u64be.")),
+            _ => Err(format!(
+                "Unsupported pointer size: {string}. Expected one of: 3, 4, 8, u24, u24be, u32, u32be, u64, u64be."
+            )),
         }
     }
 }
@@ -124,7 +132,13 @@ impl FromStr for PointerScanPointerSize {
 #[cfg(test)]
 mod tests {
     use super::PointerScanPointerSize;
-    use crate::structures::data_types::data_type_ref::DataTypeRef;
+    use crate::structures::data_types::{
+        built_in_types::{
+            u24::data_type_u24::DataTypeU24, u24be::data_type_u24be::DataTypeU24be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
+            u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+        },
+        data_type_ref::DataTypeRef,
+    };
     use crate::structures::data_values::data_value::DataValue;
     use std::str::FromStr;
 
@@ -140,12 +154,12 @@ mod tests {
 
     #[test]
     fn pointer_scan_pointer_size_reads_address_values() {
-        let pointer24_value = DataValue::new(DataTypeRef::new("u24"), vec![0x34, 0x12, 0x00]);
-        let pointer24be_value = DataValue::new(DataTypeRef::new("u24be"), vec![0x12, 0x34, 0x56]);
-        let pointer32_value = DataValue::new(DataTypeRef::new("u32"), 0x1234_u32.to_le_bytes().to_vec());
-        let pointer32be_value = DataValue::new(DataTypeRef::new("u32be"), 0x1234_5678_u32.to_be_bytes().to_vec());
-        let pointer64_value = DataValue::new(DataTypeRef::new("u64"), 0x1234_5678_9ABC_DEF0_u64.to_le_bytes().to_vec());
-        let pointer64be_value = DataValue::new(DataTypeRef::new("u64be"), 0x1234_5678_9ABC_DEF0_u64.to_be_bytes().to_vec());
+        let pointer24_value = DataValue::new(DataTypeRef::new(DataTypeU24::DATA_TYPE_ID), vec![0x34, 0x12, 0x00]);
+        let pointer24be_value = DataValue::new(DataTypeRef::new(DataTypeU24be::DATA_TYPE_ID), vec![0x12, 0x34, 0x56]);
+        let pointer32_value = DataValue::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID), 0x1234_u32.to_le_bytes().to_vec());
+        let pointer32be_value = DataValue::new(DataTypeRef::new(DataTypeU32be::DATA_TYPE_ID), 0x1234_5678_u32.to_be_bytes().to_vec());
+        let pointer64_value = DataValue::new(DataTypeRef::new(DataTypeU64::DATA_TYPE_ID), 0x1234_5678_9ABC_DEF0_u64.to_le_bytes().to_vec());
+        let pointer64be_value = DataValue::new(DataTypeRef::new(DataTypeU64be::DATA_TYPE_ID), 0x1234_5678_9ABC_DEF0_u64.to_be_bytes().to_vec());
 
         assert_eq!(PointerScanPointerSize::Pointer24.read_address_value(&pointer24_value), Some(0x1234));
         assert_eq!(PointerScanPointerSize::Pointer24be.read_address_value(&pointer24be_value), Some(0x123456));

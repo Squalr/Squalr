@@ -8,7 +8,7 @@ use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_r
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef};
 use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
 use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
@@ -125,7 +125,7 @@ impl PointerScannerViewData {
             pointer_scan_address_space: PointerScanAddressSpace::Auto,
             pointer_size,
             pointer_size_data_type_selection: DataTypeSelection::new(Self::pointer_size_data_type_ref(pointer_size)),
-            target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref("i32")),
+            target_data_type_selection: DataTypeSelection::new(Self::target_data_type_ref(DataTypeI32::DATA_TYPE_ID)),
             max_depth_input: Self::create_unsigned_input(String::from("5")),
             offset_radius_input: Self::create_unsigned_input(String::from("2048")),
             status_message: String::from("No pointer scan session."),
@@ -2019,7 +2019,7 @@ impl PointerScannerViewData {
         let trimmed_data_type_id = data_type_id.trim();
 
         if trimmed_data_type_id.is_empty() {
-            DataTypeRef::new("i32")
+            DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)
         } else {
             DataTypeRef::new(trimmed_data_type_id)
         }
