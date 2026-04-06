@@ -96,13 +96,14 @@ impl AppShell {
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(plugin_set_enabled_response) => {
+                let persisted_plugin_states = plugin_set_enabled_response.plugins.clone();
                 self.apply_engine_opened_process_state(plugin_set_enabled_response.opened_process_info.clone());
                 self.app_state
                     .plugins_pane_state
                     .apply_plugin_states(plugin_set_enabled_response.plugins);
                 self.app_state.plugins_pane_state.status_message = if plugin_set_enabled_response.did_update {
                     let save_status_message = self
-                        .persist_opened_project_plugin_configuration(engine_unprivileged_state)
+                        .persist_opened_project_plugin_configuration(engine_unprivileged_state, persisted_plugin_states)
                         .unwrap_or_default();
 
                     let base_status_message = format!(
@@ -135,13 +136,35 @@ impl AppShell {
     fn persist_opened_project_plugin_configuration(
         &mut self,
         engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
+        plugin_states: Vec<squalr_engine_api::plugins::PluginState>,
     ) -> Option<String> {
+        let enabled_plugin_ids = {
+            let mut enabled_plugin_ids = plugin_states
+                .into_iter()
+                .filter(|plugin_state| plugin_state.get_is_enabled())
+                .map(|plugin_state| plugin_state.get_metadata().get_plugin_id().to_string())
+                .collect::<Vec<_>>();
+
+            enabled_plugin_ids.sort();
+            enabled_plugin_ids.dedup();
+            enabled_plugin_ids
+        };
+
         let has_opened_project = match engine_unprivileged_state
             .get_project_manager()
             .get_opened_project()
-            .read()
+            .write()
         {
-            Ok(opened_project) => opened_project.is_some(),
+            Ok(mut opened_project) => {
+                if let Some(opened_project) = opened_project.as_mut() {
+                    let project_info = opened_project.get_project_info_mut();
+                    project_info.set_enabled_plugin_ids(Some(enabled_plugin_ids));
+                    project_info.set_has_unsaved_changes(true);
+                    true
+                } else {
+                    false
+                }
+            }
             Err(_) => false,
         };
 
