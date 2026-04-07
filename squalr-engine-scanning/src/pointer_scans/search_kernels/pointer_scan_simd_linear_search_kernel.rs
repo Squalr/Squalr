@@ -18,6 +18,14 @@ pub(crate) fn scan_region_simd_linear<VisitMatch>(
     VisitMatch: FnMut(PointerScanRegionMatch),
 {
     match pointer_size {
+        PointerScanPointerSize::Pointer24 | PointerScanPointerSize::Pointer24be => scan_region_scalar(
+            base_address,
+            current_values,
+            start_offset,
+            pointer_size,
+            |pointer_value| target_range_set.contains_value_linear(pointer_value),
+            visit_match,
+        ),
         PointerScanPointerSize::Pointer32 | PointerScanPointerSize::Pointer32be => {
             scan_region_simd_linear_u32(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
         }

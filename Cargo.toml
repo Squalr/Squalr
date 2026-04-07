@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "plugins/squalr-plugin-builtins",
+    "plugins/squalr-plugin-data-types-24bit",
     "plugins/squalr-plugin-memory-view-dolphin",
     "squalr-tests",
     "squalr-engine-api",

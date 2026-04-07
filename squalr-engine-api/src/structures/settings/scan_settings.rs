@@ -39,7 +39,7 @@ impl Default for ScanSettings {
             results_read_interval_ms: 200,
             project_read_interval_ms: 200,
             freeze_interval_ms: 50,
-            memory_alignment: None,
+            memory_alignment: Some(MemoryAlignment::Alignment1),
             floating_point_tolerance: FloatingPointTolerance::default(),
             memory_read_mode: MemoryReadMode::ReadBeforeScan,
             is_single_threaded_scan: false,

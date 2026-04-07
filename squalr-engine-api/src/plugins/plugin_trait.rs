@@ -1,9 +1,12 @@
-use crate::plugins::{PluginKind, PluginMetadata};
+use crate::plugins::{PluginCapability, PluginMetadata};
 
 pub trait Plugin: Send + Sync {
     fn metadata(&self) -> &PluginMetadata;
 
-    fn plugin_kind(&self) -> PluginKind {
-        self.metadata().get_plugin_kind()
+    fn supports_capability(
+        &self,
+        plugin_capability: PluginCapability,
+    ) -> bool {
+        self.metadata().has_plugin_capability(plugin_capability)
     }
 }

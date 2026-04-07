@@ -1,4 +1,5 @@
 use squalr_engine_api::{
+    plugins::PluginPackage,
     registries::symbols::{
         data_type_descriptor::DataTypeDescriptor, privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor,
         symbol_registry::SymbolRegistry,
@@ -9,6 +10,7 @@ use squalr_engine_api::{
         structs::symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
+use squalr_plugin_builtins::get_builtin_plugin_packages;
 use std::sync::Arc;
 
 /// Cache of the latest privileged registry catalog on the unprivileged side.
@@ -25,12 +27,41 @@ impl Default for PrivilegedRegistryCache {
     fn default() -> Self {
         Self {
             latest_privileged_registry_catalog: None,
-            built_in_symbol_registry: SymbolRegistry::new(),
+            built_in_symbol_registry: Self::create_builtin_symbol_registry(),
         }
     }
 }
 
 impl PrivilegedRegistryCache {
+    fn create_builtin_symbol_registry() -> SymbolRegistry {
+        let symbol_registry = SymbolRegistry::new();
+
+        for plugin_package in get_builtin_plugin_packages() {
+            Self::register_plugin_data_types(&symbol_registry, plugin_package.as_ref());
+        }
+
+        symbol_registry
+    }
+
+    fn register_plugin_data_types(
+        symbol_registry: &SymbolRegistry,
+        plugin_package: &dyn PluginPackage,
+    ) {
+        let Some(data_type_plugin) = plugin_package.as_data_type_plugin() else {
+            return;
+        };
+
+        for data_type in data_type_plugin.contributed_data_types() {
+            if !symbol_registry.register_data_type(data_type.clone()) {
+                log::warn!(
+                    "Failed to register plugin-authored data type '{}' from plugin '{}' in privileged registry cache.",
+                    data_type.get_data_type_id(),
+                    data_type_plugin.metadata().get_plugin_id()
+                );
+            }
+        }
+    }
+
     pub fn apply_registry_catalog(
         &mut self,
         privileged_registry_catalog: PrivilegedRegistryCatalog,
@@ -210,6 +241,7 @@ mod tests {
             structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
         },
     };
+    use squalr_plugin_builtins::get_builtin_plugin_packages;
 
     #[test]
     fn registered_data_type_refs_are_read_from_latest_privileged_registry_catalog() {
@@ -279,6 +311,23 @@ mod tests {
         assert!(
             privileged_registry_cache
                 .resolve_struct_layout_definition("remote.test.struct")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn builtin_plugin_data_types_are_available_in_default_cache_registry() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let built_in_plugin_packages = get_builtin_plugin_packages();
+        let first_plugin_data_type_id = built_in_plugin_packages
+            .iter()
+            .find_map(|plugin_package| plugin_package.as_data_type_plugin())
+            .expect("Expected at least one built-in data-type plugin package.")
+            .contributed_data_type_ids()[0];
+
+        assert!(
+            privileged_registry_cache
+                .get_default_value(&DataTypeRef::new(first_plugin_data_type_id))
                 .is_some()
         );
     }

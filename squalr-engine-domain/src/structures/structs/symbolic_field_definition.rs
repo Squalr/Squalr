@@ -1,5 +1,8 @@
 use crate::structures::{
-    data_types::data_type_ref::DataTypeRef,
+    data_types::{
+        built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64},
+        data_type_ref::DataTypeRef,
+    },
     data_values::container_type::ContainerType,
     structs::{
         symbol_resolver::SymbolResolver,
@@ -38,14 +41,14 @@ impl SymbolicFieldDefinition {
             }
             ContainerType::Pointer32 => {
                 let default_value = symbol_registry
-                    .get_default_value(&DataTypeRef::new("u32"))
+                    .get_default_value(&DataTypeRef::new(DataTypeU32::DATA_TYPE_ID))
                     .unwrap_or_default();
 
                 ValuedStructFieldData::Value(default_value)
             }
             ContainerType::Pointer64 => {
                 let default_value = symbol_registry
-                    .get_default_value(&DataTypeRef::new("u64"))
+                    .get_default_value(&DataTypeRef::new(DataTypeU64::DATA_TYPE_ID))
                     .unwrap_or_default();
 
                 ValuedStructFieldData::Value(default_value)

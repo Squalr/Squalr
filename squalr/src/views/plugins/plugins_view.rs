@@ -64,10 +64,12 @@ impl PluginsView {
         if value { "Yes" } else { "No" }
     }
 
-    fn format_plugin_kind(plugin_kind: squalr_engine_api::plugins::PluginKind) -> &'static str {
-        match plugin_kind {
-            squalr_engine_api::plugins::PluginKind::MemoryView => "Memory view",
-        }
+    fn format_plugin_capabilities(plugin_capabilities: &[squalr_engine_api::plugins::PluginCapability]) -> String {
+        plugin_capabilities
+            .iter()
+            .map(|plugin_capability| plugin_capability.get_display_name())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     fn format_activation_state(activation_state: PluginActivationState) -> &'static str {
@@ -97,6 +99,7 @@ impl Widget for PluginsView {
             .map(str::to_string);
         let is_loading = plugin_list_view_data.get_is_loading();
         drop(plugin_list_view_data);
+        let has_opened_project = PluginListViewData::has_opened_project(self.app_context.clone());
         let selected_plugin_state = selected_plugin_id.as_deref().and_then(|selected_plugin_id| {
             plugin_states
                 .iter()
@@ -136,6 +139,18 @@ impl Widget for PluginsView {
                         user_interface.add_space(4.0);
                         user_interface.spinner();
                     }
+
+                    if !has_opened_project {
+                        user_interface.add_space(8.0);
+                        user_interface.add(
+                            Label::new(
+                                RichText::new("No project open — plugin changes will not be saved.")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.background_control_warning),
+                            )
+                            .selectable(false),
+                        );
+                    }
                 });
 
                 let full_rectangle = user_interface.available_rect_before_wrap();
@@ -144,7 +159,7 @@ impl Widget for PluginsView {
                 let mut content_user_interface = user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(content_response.rect)
-                        .layout(Layout::left_to_right(Align::Min)),
+                        .layout(Layout::top_down(Align::Min)),
                 );
 
                 ScrollArea::vertical()
@@ -215,9 +230,12 @@ impl Widget for PluginsView {
                     details_user_interface.horizontal_wrapped(|user_interface| {
                         user_interface.add(
                             Label::new(
-                                RichText::new(format!("Kind: {}", Self::format_plugin_kind(plugin_metadata.get_plugin_kind())))
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.foreground),
+                                RichText::new(format!(
+                                    "Capabilities: {}",
+                                    Self::format_plugin_capabilities(plugin_metadata.get_plugin_capabilities())
+                                ))
+                                .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                .color(theme.foreground),
                             )
                             .selectable(false),
                         );

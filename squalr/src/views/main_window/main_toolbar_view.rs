@@ -225,9 +225,7 @@ impl Widget for MainToolbarView {
                 let docking_manager = &app_context.docking_manager;
 
                 if let Ok(mut docking_manager) = docking_manager.write() {
-                    if let Some(docked_node) = docking_manager.get_node_by_id_mut(selected_id) {
-                        docked_node.set_visible(!docked_node.is_visible());
-                    }
+                    docking_manager.toggle_window_visibility(selected_id);
                 }
             }
             MainToolbarView::ACTION_ID_RESET_LAYOUT => match app_context.docking_manager.write() {

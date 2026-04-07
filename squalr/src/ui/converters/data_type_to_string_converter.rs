@@ -7,6 +7,11 @@ use squalr_engine_api::structures::data_types::built_in_types::{
     u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
 };
 
+const DATA_TYPE_ID_U24: &str = "u24";
+const DATA_TYPE_ID_U24BE: &str = "u24be";
+const DATA_TYPE_ID_I24: &str = "i24";
+const DATA_TYPE_ID_I24BE: &str = "i24be";
+
 pub struct DataTypeToStringConverter {}
 
 impl DataTypeToStringConverter {
@@ -17,6 +22,8 @@ impl DataTypeToStringConverter {
             DataTypeU8::DATA_TYPE_ID => "u8",
             DataTypeU16::DATA_TYPE_ID => "u16",
             DataTypeU16be::DATA_TYPE_ID => "u16be",
+            DATA_TYPE_ID_U24 => "u24",
+            DATA_TYPE_ID_U24BE => "u24be",
             DataTypeU32::DATA_TYPE_ID => "u32",
             DataTypeU32be::DATA_TYPE_ID => "u32be",
             DataTypeU64::DATA_TYPE_ID => "u64",
@@ -24,6 +31,8 @@ impl DataTypeToStringConverter {
             DataTypeI8::DATA_TYPE_ID => "i8",
             DataTypeI16::DATA_TYPE_ID => "i16",
             DataTypeI16be::DATA_TYPE_ID => "i16be",
+            DATA_TYPE_ID_I24 => "i24",
+            DATA_TYPE_ID_I24BE => "i24be",
             DataTypeI32::DATA_TYPE_ID => "i32",
             DataTypeI32be::DATA_TYPE_ID => "i32be",
             DataTypeI64::DATA_TYPE_ID => "i64",

@@ -104,11 +104,11 @@ impl Default for PluginsPaneState {
 #[cfg(test)]
 mod tests {
     use super::PluginsPaneState;
-    use squalr_engine_api::plugins::{PluginActivationState, PluginKind, PluginMetadata, PluginState};
+    use squalr_engine_api::plugins::{PluginActivationState, PluginCapability, PluginMetadata, PluginState};
 
     fn create_plugin_state(plugin_id: &str) -> PluginState {
         PluginState::new(
-            PluginMetadata::new(plugin_id, plugin_id, "Plugin", PluginKind::MemoryView, true),
+            PluginMetadata::new(plugin_id, plugin_id, "Plugin", vec![PluginCapability::MemoryView], true, true),
             true,
             PluginActivationState::Idle,
         )

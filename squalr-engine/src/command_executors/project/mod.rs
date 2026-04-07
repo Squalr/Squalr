@@ -5,6 +5,7 @@ pub mod export;
 pub mod list;
 pub mod open;
 pub mod project_command_executor;
+pub mod project_plugin_sync;
 pub mod project_symbol_sync;
 pub mod rename;
 pub mod save;

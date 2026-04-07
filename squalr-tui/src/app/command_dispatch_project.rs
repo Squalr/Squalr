@@ -685,6 +685,7 @@ impl AppShell {
                     self.app_state.project_explorer_pane_state.clear_project_items();
                     self.app_state.project_explorer_pane_state.status_message = format!("Opened project '{}'.", selected_project_name);
                     self.refresh_project_items_list(squalr_engine);
+                    self.refresh_plugins_with_feedback(squalr_engine, false);
                 } else {
                     self.app_state.project_explorer_pane_state.status_message = "Project open request failed.".to_string();
                 }

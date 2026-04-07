@@ -3,8 +3,11 @@ use squalr_engine_api::{
     commands::{
         plugins::{list::plugin_list_request::PluginListRequest, set_enabled::plugin_set_enabled_request::PluginSetEnabledRequest},
         privileged_command_request::PrivilegedCommandRequest,
+        project::save::project_save_request::ProjectSaveRequest,
+        unprivileged_command_request::UnprivilegedCommandRequest,
     },
     dependency_injection::dependency::Dependency,
+    engine::engine_execution_context::EngineExecutionContext,
     plugins::PluginState,
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
@@ -81,17 +84,36 @@ impl PluginListViewData {
     ) {
         Self::set_loading(plugin_list_view_data.clone(), true);
         let plugin_list_view_data_for_response = plugin_list_view_data.clone();
+        let app_context_for_response = app_context.clone();
         let plugin_set_enabled_request = PluginSetEnabledRequest { plugin_id, is_enabled };
         let did_dispatch = plugin_set_enabled_request.send(&app_context.engine_unprivileged_state, move |plugin_set_enabled_response| {
+            let persisted_plugin_states = plugin_set_enabled_response.plugins.clone();
+
             Self::apply_snapshot(
                 plugin_list_view_data_for_response,
                 plugin_set_enabled_response.plugins,
                 plugin_set_enabled_response.opened_process_info,
             );
+
+            if plugin_set_enabled_response.did_update {
+                Self::persist_opened_project_plugin_configuration(app_context_for_response, persisted_plugin_states);
+            }
         });
 
         if !did_dispatch {
             Self::set_loading(plugin_list_view_data, false);
+        }
+    }
+
+    pub fn has_opened_project(app_context: Arc<AppContext>) -> bool {
+        match app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+        {
+            Ok(opened_project) => opened_project.is_some(),
+            Err(_) => false,
         }
     }
 
@@ -128,6 +150,53 @@ impl PluginListViewData {
             plugin_list_view_data.opened_process_info = opened_process_info;
             plugin_list_view_data.is_loading = false;
         }
+    }
+
+    fn persist_opened_project_plugin_configuration(
+        app_context: Arc<AppContext>,
+        plugin_states: Vec<PluginState>,
+    ) {
+        let enabled_plugin_ids = {
+            let mut enabled_plugin_ids = plugin_states
+                .into_iter()
+                .filter(|plugin_state| plugin_state.get_is_enabled())
+                .map(|plugin_state| plugin_state.get_metadata().get_plugin_id().to_string())
+                .collect::<Vec<_>>();
+
+            enabled_plugin_ids.sort();
+            enabled_plugin_ids.dedup();
+            enabled_plugin_ids
+        };
+
+        let has_opened_project = match app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+        {
+            Ok(mut opened_project) => {
+                if let Some(opened_project) = opened_project.as_mut() {
+                    let project_info = opened_project.get_project_info_mut();
+                    project_info.set_enabled_plugin_ids(Some(enabled_plugin_ids));
+                    project_info.set_has_unsaved_changes(true);
+                    true
+                } else {
+                    false
+                }
+            }
+            Err(_) => false,
+        };
+
+        if !has_opened_project {
+            return;
+        }
+
+        let project_save_request = ProjectSaveRequest {};
+        project_save_request.send(&app_context.engine_unprivileged_state, move |project_save_response| {
+            if !project_save_response.success {
+                log::error!("Failed to persist project plugin configuration after plugin enablement changed.");
+            }
+        });
     }
 }
 

@@ -23,6 +23,10 @@ pub struct ProjectInfo {
     #[serde(default)]
     project_symbol_catalog: ProjectSymbolCatalog,
 
+    /// Enabled plugin identifiers persisted with this project. Absent preserves plugin defaults.
+    #[serde(default)]
+    enabled_plugin_ids: Option<Vec<String>>,
+
     #[serde(skip)]
     has_unsaved_changes: bool,
 }
@@ -55,6 +59,7 @@ impl ProjectInfo {
             project_icon_rgba,
             project_manifest,
             project_symbol_catalog,
+            enabled_plugin_ids: None,
             has_unsaved_changes: true,
         }
     }
@@ -98,6 +103,21 @@ impl ProjectInfo {
 
     pub fn get_project_symbol_catalog_mut(&mut self) -> &mut ProjectSymbolCatalog {
         &mut self.project_symbol_catalog
+    }
+
+    pub fn get_enabled_plugin_ids(&self) -> Option<&[String]> {
+        self.enabled_plugin_ids.as_deref()
+    }
+
+    pub fn set_enabled_plugin_ids(
+        &mut self,
+        enabled_plugin_ids: Option<Vec<String>>,
+    ) {
+        self.enabled_plugin_ids = enabled_plugin_ids.map(|mut enabled_plugin_ids| {
+            enabled_plugin_ids.sort();
+            enabled_plugin_ids.dedup();
+            enabled_plugin_ids
+        });
     }
 
     pub fn get_has_unsaved_changes(&self) -> bool {

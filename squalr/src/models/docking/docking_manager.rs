@@ -98,7 +98,43 @@ impl DockingManager {
         window_id: &str,
     ) -> bool {
         let root = self.main_window_layout.get_root_mut();
-        root.select_tab_by_window_id(window_id)
+        let did_select_tab = root.select_tab_by_window_id(window_id);
+
+        if did_select_tab {
+            self.persist_layout();
+        }
+
+        did_select_tab
+    }
+
+    pub fn set_window_visibility(
+        &mut self,
+        window_id: &str,
+        is_visible: bool,
+    ) -> bool {
+        let Some(dock_node) = self.get_node_by_id_mut(window_id) else {
+            return false;
+        };
+
+        if dock_node.is_visible() == is_visible {
+            return true;
+        }
+
+        dock_node.set_visible(is_visible);
+        self.persist_layout();
+
+        true
+    }
+
+    pub fn toggle_window_visibility(
+        &mut self,
+        window_id: &str,
+    ) -> bool {
+        let Some(current_visibility) = self.get_node_by_id(window_id).map(DockNode::is_visible) else {
+            return false;
+        };
+
+        self.set_window_visibility(window_id, !current_visibility)
     }
 
     /// Given a `window_id`, this method determines which sibling tab is active, if any.
@@ -141,8 +177,15 @@ impl DockingManager {
         delta_x: i32,
         delta_y: i32,
     ) -> bool {
-        self.main_window_layout
-            .adjust_window_size(window_id, drag_dir, delta_x, delta_y)
+        let did_adjust_window_size = self
+            .main_window_layout
+            .adjust_window_size(window_id, drag_dir, delta_x, delta_y);
+
+        if did_adjust_window_size {
+            self.persist_layout();
+        }
+
+        did_adjust_window_size
     }
 
     pub fn reparent_window(

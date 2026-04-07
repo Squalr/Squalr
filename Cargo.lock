@@ -5325,7 +5325,15 @@ name = "squalr-plugin-builtins"
 version = "0.1.0"
 dependencies = [
  "squalr-engine-api",
+ "squalr-plugin-data-types-24bit",
  "squalr-plugin-memory-view-dolphin",
+]
+
+[[package]]
+name = "squalr-plugin-data-types-24bit"
+version = "0.1.0"
+dependencies = [
+ "squalr-engine-api",
 ]
 
 [[package]]

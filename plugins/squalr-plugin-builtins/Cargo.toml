@@ -6,4 +6,5 @@ edition = "2024"
 
 [dependencies]
 squalr-engine-api = { path = "../../squalr-engine-api" }
+squalr-plugin-data-types-24bit = { path = "../squalr-plugin-data-types-24bit" }
 squalr-plugin-memory-view-dolphin = { path = "../squalr-plugin-memory-view-dolphin" }

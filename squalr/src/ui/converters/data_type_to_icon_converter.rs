@@ -9,6 +9,11 @@ use squalr_engine_api::structures::data_types::built_in_types::{
     u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
 };
 
+const DATA_TYPE_ID_U24: &str = "u24";
+const DATA_TYPE_ID_U24BE: &str = "u24be";
+const DATA_TYPE_ID_I24: &str = "i24";
+const DATA_TYPE_ID_I24BE: &str = "i24be";
+
 pub struct DataTypeToIconConverter {}
 
 impl DataTypeToIconConverter {
@@ -24,6 +29,10 @@ impl DataTypeToIconConverter {
             DataTypeU16be::DATA_TYPE_ID => icon_library
                 .icon_handle_data_type_purple_blocks_reverse_2
                 .clone(),
+            DATA_TYPE_ID_U24 => icon_library.icon_handle_data_type_purple_blocks_4.clone(),
+            DATA_TYPE_ID_U24BE => icon_library
+                .icon_handle_data_type_purple_blocks_reverse_4
+                .clone(),
             DataTypeU32::DATA_TYPE_ID => icon_library.icon_handle_data_type_purple_blocks_4.clone(),
             DataTypeU32be::DATA_TYPE_ID => icon_library
                 .icon_handle_data_type_purple_blocks_reverse_4
@@ -35,6 +44,8 @@ impl DataTypeToIconConverter {
             DataTypeI8::DATA_TYPE_ID => icon_library.icon_handle_data_type_blue_blocks_1.clone(),
             DataTypeI16::DATA_TYPE_ID => icon_library.icon_handle_data_type_blue_blocks_2.clone(),
             DataTypeI16be::DATA_TYPE_ID => icon_library.icon_handle_data_type_blue_blocks_reverse_2.clone(),
+            DATA_TYPE_ID_I24 => icon_library.icon_handle_data_type_blue_blocks_4.clone(),
+            DATA_TYPE_ID_I24BE => icon_library.icon_handle_data_type_blue_blocks_reverse_4.clone(),
             DataTypeI32::DATA_TYPE_ID => icon_library.icon_handle_data_type_blue_blocks_4.clone(),
             DataTypeI32be::DATA_TYPE_ID => icon_library.icon_handle_data_type_blue_blocks_reverse_4.clone(),
             DataTypeI64::DATA_TYPE_ID => icon_library.icon_handle_data_type_blue_blocks_8.clone(),

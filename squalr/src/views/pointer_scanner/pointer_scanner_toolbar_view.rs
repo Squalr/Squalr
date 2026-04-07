@@ -10,7 +10,12 @@ use eframe::egui::{Color32, ComboBox, Response, Sense, Ui, UiBuilder, Widget, ve
 use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_types::{
+    built_in_types::{
+        u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be, u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
+    },
+    data_type_ref::DataTypeRef,
+};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use std::sync::Arc;
 
@@ -107,6 +112,22 @@ impl Widget for PointerScannerToolbarView {
                     .as_ref()
                     .map(|opened_process| opened_process.get_bitness())
             });
+        let available_data_types = self
+            .app_context
+            .engine_unprivileged_state
+            .get_registered_data_type_refs();
+        let available_pointer_size_data_types = [
+            "u24",
+            "u24be",
+            DataTypeU32::DATA_TYPE_ID,
+            DataTypeU32be::DATA_TYPE_ID,
+            DataTypeU64::DATA_TYPE_ID,
+            DataTypeU64be::DATA_TYPE_ID,
+        ]
+        .iter()
+        .map(|data_type_id| DataTypeRef::new(data_type_id))
+        .filter(|data_type_ref| available_data_types.contains(data_type_ref))
+        .collect::<Vec<_>>();
 
         {
             let mut pointer_scanner_view_data = match self
@@ -126,7 +147,7 @@ impl Widget for PointerScannerToolbarView {
             }
 
             let builder = UiBuilder::new().max_rect(toolbar_rectangle);
-            let unsigned_data_type = DataTypeRef::new("u64");
+            let unsigned_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
             let action_button_size = [36.0, 28.0];
             let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
             let target_placeholder = if has_active_pointer_scan_session {
@@ -205,14 +226,8 @@ impl Widget for PointerScannerToolbarView {
                             )
                             .width(116.0)
                             .height(Self::CONTROL_HEIGHT)
-                            .available_data_types(vec![
-                                DataTypeRef::new("u32"),
-                                DataTypeRef::new("u32be"),
-                                DataTypeRef::new("u64"),
-                                DataTypeRef::new("u64be"),
-                            ])
-                            .stacked_list()
-                            .hide_placeholder_entries(),
+                            .available_data_types(available_pointer_size_data_types.clone())
+                            .stacked_list(),
                         );
                         pointer_scanner_view_data.synchronize_pointer_size_from_selection();
 
@@ -225,7 +240,7 @@ impl Widget for PointerScannerToolbarView {
                             )
                             .width(132.0)
                             .height(Self::CONTROL_HEIGHT)
-                            .hide_placeholder_entries(),
+                            .available_data_types(available_data_types.clone()),
                         );
 
                         user_interface.add_space(Self::GROUP_SPACING);

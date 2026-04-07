@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::views::plugins::view_data::plugin_list_view_data::PluginListViewData;
 use epaint::Pos2;
 use squalr_engine_api::{
     commands::{
@@ -70,6 +71,11 @@ impl ProjectSelectorViewData {
             if !project_open_response.success {
                 log::error!("Failed to create new project!")
             }
+
+            let plugin_list_view_data = app_context_clone
+                .dependency_container
+                .get_dependency::<PluginListViewData>();
+            PluginListViewData::refresh(plugin_list_view_data, app_context_clone.clone());
 
             Self::cancel_renaming_project(project_selector_view_data.clone());
             Self::hide_context_menu(project_selector_view_data.clone());
@@ -236,6 +242,8 @@ impl ProjectSelectorViewData {
             project_name: None,
         };
 
+        let app_context_clone = app_context.clone();
+
         project_open_request.send(&app_context.engine_unprivileged_state, move |project_open_response| {
             if !project_open_response.success {
                 log::error!("Failed to open project!");
@@ -244,6 +252,11 @@ impl ProjectSelectorViewData {
 
                 Self::cancel_renaming_project(project_selector_view_data.clone());
                 Self::hide_context_menu(project_selector_view_data);
+
+                let plugin_list_view_data = app_context_clone
+                    .dependency_container
+                    .get_dependency::<PluginListViewData>();
+                PluginListViewData::refresh(plugin_list_view_data, app_context_clone.clone());
             }
         });
     }

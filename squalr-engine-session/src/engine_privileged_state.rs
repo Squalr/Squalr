@@ -12,7 +12,7 @@ use squalr_engine_api::events::engine_event::{EngineEvent, EngineEventRequest};
 use squalr_engine_api::events::plugins::changed::plugins_changed_event::PluginsChangedEvent;
 use squalr_engine_api::events::process::process_event::ProcessEvent;
 use squalr_engine_api::events::registry::changed::registry_changed_event::RegistryChangedEvent;
-use squalr_engine_api::plugins::PluginState;
+use squalr_engine_api::plugins::{PluginPackage, PluginState};
 use squalr_engine_api::registries::freeze_list::freeze_list_registry::FreezeListRegistry;
 use squalr_engine_api::registries::project_item_types::project_item_type_registry::ProjectItemTypeRegistry;
 use squalr_engine_api::registries::registry_context::RegistryContext;
@@ -64,6 +64,27 @@ pub struct EnginePrivilegedState {
 }
 
 impl EnginePrivilegedState {
+    fn register_plugin_data_types(
+        symbol_registry: &SymbolRegistry,
+        plugin_packages: &[Arc<dyn PluginPackage>],
+    ) {
+        for plugin_package in plugin_packages {
+            let Some(data_type_plugin) = plugin_package.as_data_type_plugin() else {
+                continue;
+            };
+
+            for data_type in data_type_plugin.contributed_data_types() {
+                if !symbol_registry.register_data_type(data_type.clone()) {
+                    log::warn!(
+                        "Failed to register plugin-authored data type '{}' from plugin '{}'.",
+                        data_type.get_data_type_id(),
+                        data_type_plugin.metadata().get_plugin_id()
+                    );
+                }
+            }
+        }
+    }
+
     pub fn new(
         engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>>,
         os_providers: EngineOsProviders,
@@ -75,6 +96,7 @@ impl EnginePrivilegedState {
         let pointer_scan_session = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
         let plugin_registry = Arc::new(PluginRegistry::new());
+        Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_plugin_packages());
         let os_providers = os_providers.with_memory_view_routing(plugin_registry.clone());
 
         SnapshotScanResultFreezeTask::start_task(
@@ -133,10 +155,30 @@ impl EnginePrivilegedState {
 
     pub fn get_privileged_registry_catalog(&self) -> PrivilegedRegistryCatalog {
         let current_generation = self.symbol_registry_generation.load(Ordering::SeqCst);
-
-        self.registries
+        let privileged_registry_catalog = self
+            .registries
             .get_symbol_registry()
-            .create_registry_catalog(current_generation)
+            .create_registry_catalog(current_generation);
+        let data_type_descriptors = privileged_registry_catalog
+            .get_data_type_descriptors()
+            .iter()
+            .filter(|data_type_descriptor| {
+                self.plugin_registry
+                    .is_data_type_enabled(data_type_descriptor.get_data_type_id())
+            })
+            .cloned()
+            .collect();
+        let struct_layout_descriptors = privileged_registry_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .filter(|struct_layout_descriptor| {
+                self.plugin_registry
+                    .is_data_type_enabled(struct_layout_descriptor.get_struct_layout_id())
+            })
+            .cloned()
+            .collect();
+
+        PrivilegedRegistryCatalog::new(current_generation, data_type_descriptors, struct_layout_descriptors)
     }
 
     pub fn notify_registry_changed(&self) {

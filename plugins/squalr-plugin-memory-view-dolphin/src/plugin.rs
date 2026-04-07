@@ -5,7 +5,7 @@ use crate::{
 };
 use squalr_engine_api::{
     plugins::memory_view::{MemoryViewInstance, MemoryViewPlugin, MemoryViewPluginError},
-    plugins::{Plugin, PluginKind, PluginMetadata},
+    plugins::{Plugin, PluginCapability, PluginMetadata, PluginPackage},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 
@@ -20,7 +20,8 @@ impl DolphinMemoryViewPlugin {
                 DOLPHIN_PLUGIN_ID,
                 DOLPHIN_PLUGIN_DISPLAY_NAME,
                 DOLPHIN_PLUGIN_DESCRIPTION,
-                PluginKind::MemoryView,
+                vec![PluginCapability::MemoryView],
+                true,
                 true,
             ),
         }
@@ -36,6 +37,12 @@ impl Default for DolphinMemoryViewPlugin {
 impl Plugin for DolphinMemoryViewPlugin {
     fn metadata(&self) -> &PluginMetadata {
         &self.metadata
+    }
+}
+
+impl PluginPackage for DolphinMemoryViewPlugin {
+    fn as_memory_view_plugin(&self) -> Option<&dyn MemoryViewPlugin> {
+        Some(self)
     }
 }
 

@@ -201,8 +201,39 @@ mod tests {
         pointer_size: PointerScanPointerSize,
         success: bool,
     ) -> MemoryReadResponse {
+        fn create_three_byte_pointer_value(
+            pointer_value: u32,
+            data_type_id: &str,
+            is_big_endian: bool,
+        ) -> squalr_engine_api::structures::data_values::data_value::DataValue {
+            let value_bytes = if is_big_endian {
+                vec![
+                    (pointer_value >> 16) as u8,
+                    (pointer_value >> 8) as u8,
+                    pointer_value as u8,
+                ]
+            } else {
+                vec![
+                    pointer_value as u8,
+                    (pointer_value >> 8) as u8,
+                    (pointer_value >> 16) as u8,
+                ]
+            };
+
+            squalr_engine_api::structures::data_values::data_value::DataValue::new(
+                squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef::new(data_type_id),
+                value_bytes,
+            )
+        }
+
         let valued_struct = if success {
             let value_field = match pointer_size {
+                PointerScanPointerSize::Pointer24 => {
+                    create_three_byte_pointer_value(pointer_value as u32, "u24", false).to_named_valued_struct_field("value".to_string(), true)
+                }
+                PointerScanPointerSize::Pointer24be => {
+                    create_three_byte_pointer_value(pointer_value as u32, "u24be", true).to_named_valued_struct_field("value".to_string(), true)
+                }
                 PointerScanPointerSize::Pointer32 => {
                     DataTypeU32::get_value_from_primitive(pointer_value as u32).to_named_valued_struct_field("value".to_string(), true)
                 }
@@ -1647,10 +1678,7 @@ impl ProjectHierarchyView {
 
         match self.app_context.docking_manager.write() {
             Ok(mut docking_manager) => {
-                if let Some(pointer_scanner_dock_node) = docking_manager.get_node_by_id_mut(PointerScannerView::WINDOW_ID) {
-                    pointer_scanner_dock_node.set_visible(true);
-                }
-
+                docking_manager.set_window_visibility(PointerScannerView::WINDOW_ID, true);
                 docking_manager.select_tab_by_window_id(PointerScannerView::WINDOW_ID);
             }
             Err(error) => {
