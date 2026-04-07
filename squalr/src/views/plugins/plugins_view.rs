@@ -99,6 +99,7 @@ impl Widget for PluginsView {
             .map(str::to_string);
         let is_loading = plugin_list_view_data.get_is_loading();
         drop(plugin_list_view_data);
+        let has_opened_project = PluginListViewData::has_opened_project(self.app_context.clone());
         let selected_plugin_state = selected_plugin_id.as_deref().and_then(|selected_plugin_id| {
             plugin_states
                 .iter()
@@ -137,6 +138,18 @@ impl Widget for PluginsView {
                     if is_loading {
                         user_interface.add_space(4.0);
                         user_interface.spinner();
+                    }
+
+                    if !has_opened_project {
+                        user_interface.add_space(8.0);
+                        user_interface.add(
+                            Label::new(
+                                RichText::new("No project open — plugin changes will not be saved.")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.background_control_warning),
+                            )
+                            .selectable(false),
+                        );
                     }
                 });
 

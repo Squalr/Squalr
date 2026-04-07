@@ -3,6 +3,7 @@ use crate::engine_privileged_state::EnginePrivilegedState;
 use squalr_engine_api::commands::plugins::set_enabled::{
     plugin_set_enabled_request::PluginSetEnabledRequest, plugin_set_enabled_response::PluginSetEnabledResponse,
 };
+use squalr_engine_api::events::plugins::changed::plugins_changed_event::PluginsChangedEvent;
 use squalr_engine_api::plugins::PluginCapability;
 use std::sync::Arc;
 
@@ -23,6 +24,8 @@ impl PrivilegedCommandRequestExecutor for PluginSetEnabledRequest {
             if plugin_registry.has_plugin_capability(&self.plugin_id, PluginCapability::DataType) {
                 engine_privileged_state.notify_registry_changed();
             }
+
+            engine_privileged_state.emit_event(PluginsChangedEvent {});
         }
         let opened_process_info = engine_privileged_state
             .get_process_manager()

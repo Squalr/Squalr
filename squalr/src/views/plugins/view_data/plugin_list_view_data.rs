@@ -105,6 +105,18 @@ impl PluginListViewData {
         }
     }
 
+    pub fn has_opened_project(app_context: Arc<AppContext>) -> bool {
+        match app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+        {
+            Ok(opened_project) => opened_project.is_some(),
+            Err(_) => false,
+        }
+    }
+
     fn set_loading(
         plugin_list_view_data: Dependency<PluginListViewData>,
         is_loading: bool,

@@ -169,7 +169,7 @@ impl AppShell {
         };
 
         if !has_opened_project {
-            return None;
+            return Some("No project open - plugin changes will not be saved.".to_string());
         }
 
         let project_save_request = ProjectSaveRequest {};
