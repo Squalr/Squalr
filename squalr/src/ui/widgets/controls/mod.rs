@@ -9,6 +9,5 @@ pub mod groupbox;
 pub mod scan_constraint_selector;
 pub mod slider;
 pub mod state_layer;
-pub mod symbolic_field_definition_selector;
 pub mod tab_menu;
 pub mod toolbar_menu;

@@ -5,17 +5,17 @@ use crate::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
             button::Button,
+            combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+            data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView},
             data_value_box::data_value_box_view::DataValueBoxView,
             state_layer::StateLayer,
-            symbolic_field_definition_selector::{
-                symbolic_field_definition_selection::SymbolicFieldDefinitionSelection,
-                symbolic_field_definition_selector_view::SymbolicFieldDefinitionSelectorView,
-            },
         },
     },
     views::struct_viewer::view_data::{
+        struct_viewer_container_mode::StructViewerContainerMode,
         struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation},
         struct_viewer_frame_action::StructViewerFrameAction,
+        struct_viewer_view_data::StructViewerViewData,
     },
 };
 use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
@@ -24,6 +24,7 @@ use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_types::data_type_ref::DataTypeRef,
     data_values::anonymous_value_string::AnonymousValueString,
+    structs::symbolic_field_definition::SymbolicFieldDefinition,
     structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
 };
 use std::sync::Arc;
@@ -37,7 +38,7 @@ pub struct StructViewerEntryView<'lifetime> {
     struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
     field_edit_value: Option<&'lifetime mut AnonymousValueString>,
     field_display_values: Option<&'lifetime [AnonymousValueString]>,
-    field_symbolic_field_definition_selection: Option<&'lifetime mut SymbolicFieldDefinitionSelection>,
+    field_data_type_selection: Option<&'lifetime mut DataTypeSelection>,
     validation_data_type_ref: Option<&'lifetime DataTypeRef>,
     name_splitter_x: f32,
     value_splitter_x: f32,
@@ -53,7 +54,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         struct_viewer_frame_action: &'lifetime mut StructViewerFrameAction,
         field_edit_value: Option<&'lifetime mut AnonymousValueString>,
         field_display_values: Option<&'lifetime [AnonymousValueString]>,
-        field_symbolic_field_definition_selection: Option<&'lifetime mut SymbolicFieldDefinitionSelection>,
+        field_data_type_selection: Option<&'lifetime mut DataTypeSelection>,
         validation_data_type_ref: Option<&'lifetime DataTypeRef>,
         name_splitter_x: f32,
         value_splitter_x: f32,
@@ -67,7 +68,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             struct_viewer_frame_action,
             field_edit_value,
             field_display_values,
-            field_symbolic_field_definition_selection,
+            field_data_type_selection,
             validation_data_type_ref,
             name_splitter_x,
             value_splitter_x,
@@ -97,18 +98,37 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         }
     }
 
-    fn commit_symbolic_field_definition_selection(
+    fn commit_data_type_selection(
         valued_struct_field: &ValuedStructField,
-        symbolic_field_definition_selection: &SymbolicFieldDefinitionSelection,
+        data_type_selection: &DataTypeSelection,
         struct_viewer_frame_action: &mut StructViewerFrameAction,
     ) {
         let mut edited_field = valued_struct_field.clone();
-        let updated_symbolic_field_definition = symbolic_field_definition_selection
-            .to_symbolic_field_definition()
-            .to_string();
+        let updated_symbolic_field_definition = StructViewerViewData::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
+            .map(|symbolic_field_definition| {
+                SymbolicFieldDefinition::new(data_type_selection.visible_data_type().clone(), symbolic_field_definition.get_container_type())
+            })
+            .map(|symbolic_field_definition| symbolic_field_definition.to_string())
+            .unwrap_or_else(|| {
+                data_type_selection
+                    .visible_data_type()
+                    .get_data_type_id()
+                    .to_string()
+            });
         let data_type_string_value = DataTypeStringUtf8::get_value_from_primitive_string(&updated_symbolic_field_definition);
 
         edited_field.set_field_data(ValuedStructFieldData::Value(data_type_string_value));
+        *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
+    }
+
+    fn commit_container_type_selection(
+        valued_struct_field: &ValuedStructField,
+        container_mode: StructViewerContainerMode,
+        struct_viewer_frame_action: &mut StructViewerFrameAction,
+    ) {
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(container_mode.label())
+            .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
+
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
     }
 }
@@ -192,11 +212,9 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             pos2(name_position_x, available_size_rect.max.y),
         );
         let icon_center = icon_rect.center();
-        let icon_data_type_id = match (self.field_presentation.editor_kind(), self.field_symbolic_field_definition_selection.as_ref()) {
-            (StructViewerFieldEditorKind::SymbolicFieldDefinitionSelector, Some(field_symbolic_field_definition_selection)) => {
-                field_symbolic_field_definition_selection
-                    .visible_data_type()
-                    .get_data_type_id()
+        let icon_data_type_id = match (self.field_presentation.editor_kind(), self.field_data_type_selection.as_ref()) {
+            (StructViewerFieldEditorKind::DataTypeSelector, Some(field_data_type_selection)) => {
+                field_data_type_selection.visible_data_type().get_data_type_id()
             }
             _ => self.valued_struct_field.get_icon_id(),
         };
@@ -287,10 +305,10 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     }
                 }
             }
-            StructViewerFieldEditorKind::SymbolicFieldDefinitionSelector => {
-                if let Some(field_symbolic_field_definition_selection) = self.field_symbolic_field_definition_selection {
-                    let previous_symbolic_field_definition_selection = field_symbolic_field_definition_selection.clone();
-                    let symbolic_field_definition_selector_id = format!("struct_viewer_field_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
+            StructViewerFieldEditorKind::DataTypeSelector => {
+                if let Some(field_data_type_selection) = self.field_data_type_selection {
+                    let previous_data_type_ref = field_data_type_selection.visible_data_type().clone();
+                    let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
                     let selector_width = (row_max_x - value_box_position_x - value_column_padding).max(0.0);
 
                     user_interface.put(
@@ -298,23 +316,56 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             pos2(value_box_position_x, available_size_rect.min.y),
                             vec2(selector_width, available_size_rect.height()),
                         ),
-                        SymbolicFieldDefinitionSelectorView::new(
-                            self.app_context.clone(),
-                            field_symbolic_field_definition_selection,
-                            &symbolic_field_definition_selector_id,
-                        )
-                        .available_data_types(available_data_type_refs.clone())
-                        .width(selector_width)
-                        .height(available_size_rect.height()),
+                        DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
+                            .available_data_types(available_data_type_refs.clone())
+                            .stacked_list()
+                            .width(selector_width)
+                            .height(available_size_rect.height()),
                     );
 
-                    if previous_symbolic_field_definition_selection != *field_symbolic_field_definition_selection {
-                        Self::commit_symbolic_field_definition_selection(
-                            self.valued_struct_field,
-                            field_symbolic_field_definition_selection,
-                            self.struct_viewer_frame_action,
-                        );
+                    let selected_data_type_ref = field_data_type_selection.visible_data_type().clone();
+                    field_data_type_selection.replace_selected_data_types(vec![selected_data_type_ref.clone()]);
+
+                    if previous_data_type_ref != selected_data_type_ref {
+                        Self::commit_data_type_selection(self.valued_struct_field, field_data_type_selection, self.struct_viewer_frame_action);
                     }
+                }
+            }
+            StructViewerFieldEditorKind::ContainerTypeSelector => {
+                let container_selector_id = format!("struct_viewer_container_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
+                let current_container_mode = StructViewerViewData::read_utf8_field_text(self.valued_struct_field)
+                    .parse::<StructViewerContainerMode>()
+                    .unwrap_or(StructViewerContainerMode::Element);
+                let mut selected_container_mode = None;
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(value_box_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        current_container_mode.label(),
+                        &container_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for container_mode in StructViewerContainerMode::ALL {
+                                let container_mode_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), container_mode.label(), None, value_box_width));
+
+                                if container_mode_response.clicked() {
+                                    selected_container_mode = Some(container_mode);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(value_box_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_container_mode) = selected_container_mode {
+                    Self::commit_container_type_selection(self.valued_struct_field, selected_container_mode, self.struct_viewer_frame_action);
                 }
             }
         }
