@@ -22,16 +22,19 @@ use crate::structures::{
         data_type::DataType,
         data_type_ref::DataTypeRef,
         data_type_scan_preference::DataTypeScanPreference,
+        floating_point_tolerance::FloatingPointTolerance,
         generics::vector_comparer::VectorComparer,
         generics::vector_lane_count::VectorLaneCount,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
     scanning::comparisons::{
+        scan_compare_type::ScanCompareType,
         scan_compare_type_delta::ScanCompareTypeDelta,
         scan_compare_type_immediate::ScanCompareTypeImmediate,
         scan_compare_type_relative::ScanCompareTypeRelative,
         scan_function_scalar::{ScalarCompareFnImmediate, ScalarCompareFnRelative},
     },
+    scanning::constraints::{anonymous_scan_constraint::AnonymousScanConstraint, scan_constraint_builder::ScanConstraintBuilder},
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -607,6 +610,20 @@ impl SymbolRegistry {
         }
 
         true
+    }
+
+    pub fn validate_scan_constraint(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        let scan_constraint_builder = ScanConstraintBuilder::new(self, FloatingPointTolerance::default());
+        let anonymous_scan_constraint = AnonymousScanConstraint::new(scan_compare_type, Some(anonymous_value_string.clone()));
+
+        scan_constraint_builder
+            .build(&anonymous_scan_constraint, data_type_ref)
+            .is_ok_and(|scan_constraint| scan_constraint.is_some())
     }
 
     pub fn deanonymize_value_string(

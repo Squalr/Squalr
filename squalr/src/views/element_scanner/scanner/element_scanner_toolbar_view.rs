@@ -179,15 +179,18 @@ impl Widget for ElementScannerToolbarView {
                         }
                         _ => {
                             user_interface.add_space(8.0);
-                            user_interface.add(DataValueBoxView::new(
-                                self.app_context.clone(),
-                                &mut scan_values_and_constraint.current_scan_value,
-                                &selected_data_type,
-                                false,
-                                true,
-                                "Enter a value or comma-separated array...",
-                                &format!("data_value_box_scan_value_index_{}", index),
-                            ));
+                            user_interface.add(
+                                DataValueBoxView::new(
+                                    self.app_context.clone(),
+                                    &mut scan_values_and_constraint.current_scan_value,
+                                    &selected_data_type,
+                                    false,
+                                    true,
+                                    "Enter a value or comma-separated array...",
+                                    &format!("data_value_box_scan_value_index_{}", index),
+                                )
+                                .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type),
+                            );
                         }
                     }
 
