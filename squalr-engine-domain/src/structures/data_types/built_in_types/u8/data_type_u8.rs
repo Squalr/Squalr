@@ -77,7 +77,12 @@ impl DataType for DataTypeU8 {
     }
 
     fn get_supported_anonymous_value_string_formats(&self) -> Vec<AnonymousValueStringFormat> {
-        PrimitiveDataTypeNumeric::get_supported_anonymous_value_string_formats()
+        vec![
+            AnonymousValueStringFormat::Binary,
+            AnonymousValueStringFormat::Decimal,
+            AnonymousValueStringFormat::Hexadecimal,
+            AnonymousValueStringFormat::HexPattern,
+        ]
     }
 
     fn get_default_anonymous_value_string_format(&self) -> AnonymousValueStringFormat {

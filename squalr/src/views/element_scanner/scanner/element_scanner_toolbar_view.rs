@@ -185,7 +185,7 @@ impl Widget for ElementScannerToolbarView {
                                 &selected_data_type,
                                 false,
                                 true,
-                                "Enter a scan value...",
+                                "Enter a value or comma-separated array...",
                                 &format!("data_value_box_scan_value_index_{}", index),
                             ));
                         }

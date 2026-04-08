@@ -16,7 +16,7 @@ impl ScannerScalarByteArrayBooyerMoore {}
 /// Boyer-Moore speeds up scans through use of pre-made shifting tables, allowing for skipping multiple elements on failed matches.
 impl Scanner for ScannerScalarByteArrayBooyerMoore {
     fn get_scanner_name(&self) -> &'static str {
-        &"Byte Array (Booyer Moore)"
+        &"Byte Array (Booyer-Moore)"
     }
 
     /// Performs a sequential iteration over a region of memory, performing the scan comparison. A run-length encoding algorithm
@@ -67,7 +67,6 @@ impl Scanner for ScannerScalarByteArrayBooyerMoore {
                 let current_byte = unsafe { *current_value_pointer.add((scan_index + inverse_pattern_index as u64) as usize) };
                 let pattern_byte = scan_pattern[inverse_pattern_index];
 
-                // JIRA: Also check masking table when we decide to support masking.
                 let is_mismatch = current_byte != pattern_byte;
 
                 if is_mismatch {

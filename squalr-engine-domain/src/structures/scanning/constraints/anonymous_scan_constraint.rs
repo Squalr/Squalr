@@ -7,6 +7,7 @@ use crate::structures::scanning::comparisons::scan_compare_type_delta::ScanCompa
 use crate::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use crate::structures::scanning::comparisons::scan_compare_type_relative::ScanCompareTypeRelative;
 use crate::structures::scanning::constraints::scan_constraint::ScanConstraint;
+use crate::structures::scanning::constraints::scan_constraint_builder::ScanConstraintBuilder;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -43,14 +44,15 @@ impl AnonymousScanConstraint {
         data_type_ref: &DataTypeRef,
         floating_point_tolerance: FloatingPointTolerance,
     ) -> Option<ScanConstraint> {
-        if let Some(anonymous_value_string) = &self.anonymous_value_string {
-            match symbol_registry.deanonymize_value_string(&data_type_ref, &anonymous_value_string) {
-                Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance)),
-                Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
+        let scan_constraint_builder = ScanConstraintBuilder::new(symbol_registry, floating_point_tolerance);
+
+        match scan_constraint_builder.build(self, data_type_ref) {
+            Ok(scan_constraint) => scan_constraint,
+            Err(error) => {
+                log::error!("Unable to create scan constraint: {}", error);
+                None
             }
         }
-
-        None
     }
 }
 

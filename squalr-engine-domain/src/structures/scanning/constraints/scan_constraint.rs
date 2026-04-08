@@ -7,6 +7,10 @@ pub struct ScanConstraint {
     scan_compare_type: ScanCompareType,
     data_value: DataValue,
     floating_point_tolerance: FloatingPointTolerance,
+    /// Per-byte mask for masked pattern scans.  A mask byte of `0xFF` means exact match;
+    /// `0xF0` / `0x0F` wildcard the low / high nibble; `0x00` is a full-byte wildcard.
+    /// `None` indicates a literal scan with no masking.
+    mask: Option<Vec<u8>>,
 }
 
 impl ScanConstraint {
@@ -19,6 +23,21 @@ impl ScanConstraint {
             scan_compare_type,
             data_value,
             floating_point_tolerance,
+            mask: None,
+        }
+    }
+
+    pub fn new_masked(
+        scan_compare_type: ScanCompareType,
+        data_value: DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
+        mask: Vec<u8>,
+    ) -> Self {
+        Self {
+            scan_compare_type,
+            data_value,
+            floating_point_tolerance,
+            mask: Some(mask),
         }
     }
 
@@ -65,5 +84,13 @@ impl ScanConstraint {
         floating_point_tolerance: FloatingPointTolerance,
     ) {
         self.floating_point_tolerance = floating_point_tolerance
+    }
+
+    pub fn get_mask(&self) -> Option<&Vec<u8>> {
+        self.mask.as_ref()
+    }
+
+    pub fn has_mask(&self) -> bool {
+        self.mask.is_some()
     }
 }

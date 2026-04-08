@@ -14,6 +14,9 @@ pub struct SnapshotRegionFilterCollection {
     // The memory alignment of all elements in this filter.
     memory_alignment: MemoryAlignment,
 
+    // The width in bytes of each logical result represented by this collection.
+    result_value_size_in_bytes: u64,
+
     // The total number of results contained in this collection.
     number_of_results: u64,
 }
@@ -23,9 +26,27 @@ impl SnapshotRegionFilterCollection {
     /// representing regions of memory with the specified data type and alignment.
     pub fn new(
         symbol_registry: &SymbolRegistry,
+        snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
+        data_type_ref: DataTypeRef,
+        memory_alignment: MemoryAlignment,
+    ) -> Self {
+        let result_value_size_in_bytes = symbol_registry.get_unit_size_in_bytes(&data_type_ref);
+
+        Self::new_with_result_size(
+            symbol_registry,
+            snapshot_region_filters,
+            data_type_ref,
+            memory_alignment,
+            result_value_size_in_bytes,
+        )
+    }
+
+    pub fn new_with_result_size(
+        _symbol_registry: &SymbolRegistry,
         mut snapshot_region_filters: Vec<Vec<SnapshotRegionFilter>>,
         data_type_ref: DataTypeRef,
         memory_alignment: MemoryAlignment,
+        result_value_size_in_bytes: u64,
     ) -> Self {
         // Sort each inner vector by base address.
         // JIRA: This data is likely already sorted. Should we just cut this?
@@ -42,11 +63,10 @@ impl SnapshotRegionFilterCollection {
                 .unwrap_or(u64::MAX)
         });
 
-        let data_type_size = symbol_registry.get_unit_size_in_bytes(&data_type_ref);
         let number_of_results = snapshot_region_filters
             .iter()
             .flatten()
-            .map(|filter| filter.get_element_count(data_type_size, memory_alignment))
+            .map(|filter| filter.get_element_count(result_value_size_in_bytes, memory_alignment))
             .sum();
 
         Self {
@@ -54,6 +74,7 @@ impl SnapshotRegionFilterCollection {
             number_of_results,
             data_type_ref,
             memory_alignment,
+            result_value_size_in_bytes,
         }
     }
 
@@ -94,6 +115,10 @@ impl SnapshotRegionFilterCollection {
     /// Gets the memory alignment of this snapshot region filter collection.
     pub fn get_memory_alignment(&self) -> MemoryAlignment {
         self.memory_alignment
+    }
+
+    pub fn get_result_value_size_in_bytes(&self) -> u64 {
+        self.result_value_size_in_bytes
     }
 
     /// Iterates the snapshot region filters sequentially, which are sorted by base address ascending.

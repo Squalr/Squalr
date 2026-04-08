@@ -6,6 +6,7 @@ use squalr_engine_api::commands::scan::element_scan::element_scan_response::Elem
 use squalr_engine_api::events::scan_results::updated::scan_results_updated_event::ScanResultsUpdatedEvent;
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
+use squalr_engine_api::structures::scanning::constraints::scan_constraint_builder::ScanConstraintBuilder;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
@@ -40,6 +41,8 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
             // Deanonymize all scan constraints against all data types.
             // For example, an immediate comparison of >= 23 could end up being a byte, float, etc.
             let scan_constraints_by_data_type = engine_privileged_state.read_symbol_registry(|symbol_registry| {
+                let scan_constraint_builder = ScanConstraintBuilder::new(symbol_registry, floating_point_tolerance);
+
                 self.data_type_refs
                     .iter()
                     .map(|data_type_ref| {
@@ -47,9 +50,15 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
                         let scan_constraints = self
                             .scan_constraints
                             .iter()
-                            .filter_map(|anonymous_scan_constraint| {
-                                anonymous_scan_constraint.deanonymize_constraint(symbol_registry, data_type_ref, floating_point_tolerance)
-                            })
+                            .filter_map(
+                                |anonymous_scan_constraint| match scan_constraint_builder.build(anonymous_scan_constraint, data_type_ref) {
+                                    Ok(scan_constraint) => scan_constraint,
+                                    Err(error) => {
+                                        log::error!("Unable to create scan constraint: {}", error);
+                                        None
+                                    }
+                                },
+                            )
                             .collect();
 
                         // Optimize the scan constraints by running them through each parameter rule sequentially.

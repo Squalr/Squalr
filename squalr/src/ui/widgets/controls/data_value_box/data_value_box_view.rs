@@ -151,7 +151,9 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         match self.anonymous_value_string.get_anonymous_value_string_format() {
             AnonymousValueStringFormat::Binary => &icon_library.icon_handle_display_type_binary,
             AnonymousValueStringFormat::Decimal => &icon_library.icon_handle_display_type_decimal,
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => &icon_library.icon_handle_display_type_hexadecimal,
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
+                &icon_library.icon_handle_display_type_hexadecimal
+            }
             AnonymousValueStringFormat::String
             | AnonymousValueStringFormat::Bool
             | AnonymousValueStringFormat::DataTypeRef
@@ -185,10 +187,12 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                             false => theme.binary_blue,
                         },
                         AnonymousValueStringFormat::Decimal => foreground_color,
-                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => match self.use_preview_foreground {
-                            true => theme.hexadecimal_green_preview,
-                            false => theme.hexadecimal_green,
-                        },
+                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
+                            match self.use_preview_foreground {
+                                true => theme.hexadecimal_green_preview,
+                                false => theme.hexadecimal_green,
+                            }
+                        }
                         AnonymousValueStringFormat::DataTypeRef => foreground_color,
                         AnonymousValueStringFormat::Enumeration => foreground_color,
                     }

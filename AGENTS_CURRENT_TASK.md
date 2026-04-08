@@ -10,6 +10,8 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
+- Need human verification: exercise element scanner array equality UX with comma-separated numeric input (for example `i32` + `1, 2, 3`) and confirm the results page now shows one array-width match instead of multiple scalar matches.
+- Need human verification: exercise masked hex-pattern scans in the element scanner (for example `u8` + `hex_pattern` + `xx D4`) to confirm wildcarded prefix/suffix matches are no longer skipped in the live process path.
 - Need human verification: exercise the plugin list surfaces in GUI, TUI, and CLI to confirm bundled capability labels read cleanly and match expected terminology.
 - Need human verification: retry the reported `i24` scan repro against `winmine.exe+0579c` after the explicit 1-byte default and new GUI alignment control; engine-side exact and relative i24 scans did not reproduce the loss in deterministic tests.
 
@@ -36,3 +38,9 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - The 24-bit plugin data types (`u24`, `u24be`, `i24`, `i24be`) now return `PreferTypeScanner`, which keeps them on their type-owned scalar/vector compare path instead of forcing generic byte-array planning.
 - The 24-bit plugin crate now explicitly enables `portable_simd`; the shared 24-bit vector compare helper names `std::simd::Simd` directly, so this crate currently builds on nightly-style feature gating rather than hiding that type behind another abstraction.
 - The byte-array Boyer-Moore overlap path was still overshifting on some partial-suffix mismatches because it preferred any non-zero good-suffix shift over the bad-character shift; overlap-preserving scans need the smaller safe shift. `RuleMapScanType` also now keeps `NotEqual` off the equality-only byte-array scanner.
+- Numeric scan inputs now infer array equality from comma-separated values, so `i32` plus `1, 2, 3` builds one 12-byte constraint instead of failing numeric parsing.
+- Scan constraint building now rejects non-equality comparisons when the parsed value spans multiple elements, keeping typed-array and hex-pattern scans on the equality-only path explicitly.
+- Snapshot filter collections now track logical result width separately from the base data type unit size, so array-pattern scans page/count/materialize as one container-width result and the results pane can display `i32` array payloads like `1, 2`.
+- `RuleMapScanType` now chooses byte-array scanners before the small-filter scalar early return, so array rescans on narrowed filters keep array semantics instead of dropping to scalar single-element comparisons.
+- The masked byte-array scanner now uses a mask-aware bad-character shift fallback instead of the exact-byte Boyer-Moore table for wildcard patterns; this fixes skipped matches like `xx D4` over `32 D4`.
+- Validation run completed: `cargo test -p squalr-engine-domain primitive_data_type_numeric -- --nocapture`, `cargo test -p squalr-engine-domain scan_constraint_builder -- --nocapture`, `cargo test -p squalr-engine-api get_scan_results_page_reads_multi_element_result_payloads -- --nocapture`, `cargo test -p squalr-engine-scanning scanner_scalar_byte_array_booyer_moore_masked -- --nocapture`, and `cargo check -p squalr-engine-domain -p squalr-engine-api -p squalr-engine-scanning -p squalr-engine -p squalr`.

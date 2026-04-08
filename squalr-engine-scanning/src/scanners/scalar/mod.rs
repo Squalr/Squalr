@@ -1,3 +1,4 @@
 pub mod scanner_scalar_byte_array_booyer_moore;
+pub mod scanner_scalar_byte_array_booyer_moore_masked;
 pub mod scanner_scalar_iterative;
 pub mod scanner_scalar_single_element;

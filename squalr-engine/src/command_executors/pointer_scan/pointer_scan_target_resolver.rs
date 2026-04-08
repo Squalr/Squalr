@@ -11,6 +11,7 @@ use squalr_engine_api::structures::processes::opened_process_info::OpenedProcess
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use squalr_engine_api::structures::scanning::comparisons::scan_compare_type_immediate::ScanCompareTypeImmediate;
 use squalr_engine_api::structures::scanning::constraints::anonymous_scan_constraint::AnonymousScanConstraint;
+use squalr_engine_api::structures::scanning::constraints::scan_constraint_builder::ScanConstraintBuilder;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::memory_read_mode::MemoryReadMode;
 use squalr_engine_api::structures::scanning::plans::element_scan::element_scan_plan::ElementScanPlan;
@@ -101,8 +102,10 @@ impl PointerScanTargetResolver {
         scan_execution_context: &ScanExecutionContext,
     ) -> Result<ResolvedPointerScanTargets, String> {
         let exact_scan_constraint = AnonymousScanConstraint::new(ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal), Some(target_value.clone()));
-        let scan_constraint = exact_scan_constraint
-            .deanonymize_constraint(symbol_registry, target_data_type_ref, floating_point_tolerance)
+        let scan_constraint_builder = ScanConstraintBuilder::new(symbol_registry, floating_point_tolerance);
+        let scan_constraint = scan_constraint_builder
+            .build(&exact_scan_constraint, target_data_type_ref)
+            .map_err(|error| format!("Failed to create pointer scan value target constraint: {}", error))?
             .ok_or_else(|| "Failed to parse pointer scan value target.".to_string())?;
         let finalized_scan_constraints = ElementScanRuleRegistry::get_instance()
             .get_scan_parameters_rule_registry()
