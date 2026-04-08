@@ -10,13 +10,11 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: exercise element scanner array equality UX with comma-separated numeric input (for example `i32` + `1, 2, 3`) and confirm the results page now shows one array-width match instead of multiple scalar matches.
-- Need human verification: add an array scan result to the project (for example `u8[3]` or `i32[2]`) and confirm the project item preserves the fixed container width for live display/edit/freeze rather than collapsing back to the scalar base type.
-- Need human verification: select an address or pointer project item in the struct viewer, change `container_type` between `Element` and `Array`, edit `array_size` through the value box, and confirm the live value editor/preview updates while the persisted symbolic field definition stays in sync.
+- Need human verification: element scanner UX — container type dropdown (Element/Array selector) + comma-separated numeric values (e.g. `i32` + `1, 2, 3`). Confirm: (1) dropdown changes container_mode state, (2) Array mode with comma-separated values builds one array-width constraint instead of multiple, (3) results page shows one array match instead of multiple scalar matches.
+- Need human verification: struct viewer project-item — `container_type` and `array_size` field rows. Confirm: (1) selecting Array changes container, (2) editing `array_size` through the DataValueBox updates the live symbolic field definition, (3) struct size calculation includes array width.
 - Need human verification: in the element scanner, enter an array or masked pattern value under a non-`==` compare (for example `Changed` + `1, 2` or `Not Equal` + `xx D4`) and confirm the value box is flagged invalid before dispatch.
 - Need human verification: exercise masked hex-pattern scans in the element scanner (for example `u8` + `hex_pattern` + `xx D4`) to confirm wildcarded prefix/suffix matches are no longer skipped in the live process path.
 - Need human verification: exercise the plugin list surfaces in GUI, TUI, and CLI to confirm bundled capability labels read cleanly and match expected terminology.
-- Need human verification: retry the reported `i24` scan repro against `winmine.exe+0579c` after the explicit 1-byte default and new GUI alignment control; engine-side exact and relative i24 scans did not reproduce the loss in deterministic tests.
 
 
 ## Important Information
@@ -55,3 +53,7 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Struct viewer project-item fields now synthesize explicit `container_type` and conditional `array_size` rows in the view model while keeping `symbolic_struct_definition_reference` as the only persisted source of truth; virtual row edits are recomposed back into the symbolic field definition before project persistence.
 - The project-item struct viewer no longer exposes pointer container choices in this surface. `container_type` is limited to `Element` and `Array`, and `array_size` uses the normal `DataValueBox` flow so validation/formatting stays aligned with other numeric edits.
 - Validation run completed: `cargo test -p squalr struct_viewer_view_data -- --nocapture`, `cargo check -p squalr --quiet`, and `cargo fmt --all`.
+- Element scanner now has `ElementScannerContainerMode` enum with `Element` and `Array` variants; container mode selection is rendered in the toolbar using proper `ComboBoxView` styling (not default egui ComboBox).
+- Container type in element scanner is now **implicit** — no explicit `array_size` input field. Array sizing is derived from the parsed constraint value (e.g., comma-separated `1, 2, 3` infers the array length). Constraint building applies the selected container type based on mode and parsed value semantics.
+- Struct viewer `DataTypeSelector` and `ContainerTypeSelector` now reserve trailing space for checkbox column alignment (matches the fixed 28px + padding pattern used elsewhere). Both widgets use `ComboBoxView` for consistent dropdown styling.
+- Validation run completed: `cargo build --bin squalr --package squalr --locked` (13 pre-existing warnings in settings template code, 0 new errors).

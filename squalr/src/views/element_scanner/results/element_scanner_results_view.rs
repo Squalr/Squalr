@@ -117,8 +117,9 @@ impl Widget for ElementScannerResultsView {
                 // Draw the header.
                 let header_height = 32.0;
                 let (header_rectangle, _header_response) =
-                    user_interface.allocate_exact_size(vec2(user_interface.available_size().x, header_height), Sense::empty());
-                let (separator_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, FAUX_BAR_THICKNESS), Sense::empty());
+                    user_interface.allocate_exact_size(vec2(user_interface.available_size().x.max(1.0), header_height), Sense::empty());
+                let (separator_rect, _) =
+                    user_interface.allocate_exact_size(vec2(user_interface.available_size().x.max(1.0), FAUX_BAR_THICKNESS), Sense::empty());
 
                 user_interface
                     .painter()

@@ -309,17 +309,20 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 if let Some(field_data_type_selection) = self.field_data_type_selection {
                     let previous_data_type_ref = field_data_type_selection.visible_data_type().clone();
                     let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
-                    let selector_width = (row_max_x - value_box_position_x - value_column_padding).max(0.0);
+
+                    // Reserve space for checkbox (fixed 28px), data type selector takes natural width
+                    let trailing_checkbox_space = commit_button_width + value_column_padding;
+                    let available_for_selectors = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                     user_interface.put(
                         Rect::from_min_size(
                             pos2(value_box_position_x, available_size_rect.min.y),
-                            vec2(selector_width, available_size_rect.height()),
+                            vec2(available_for_selectors, available_size_rect.height()),
                         ),
                         DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
                             .available_data_types(available_data_type_refs.clone())
                             .stacked_list()
-                            .width(selector_width)
+                            .width(available_for_selectors)
                             .height(available_size_rect.height()),
                     );
 
@@ -338,10 +341,14 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .unwrap_or(StructViewerContainerMode::Element);
                 let mut selected_container_mode = None;
 
+                // Reserve space for checkbox, container selector takes natural width
+                let trailing_checkbox_space = commit_button_width + value_column_padding;
+                let container_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
                 user_interface.put(
                     Rect::from_min_size(
                         pos2(value_box_position_x, available_size_rect.min.y),
-                        vec2(value_box_width, available_size_rect.height()),
+                        vec2(container_width, available_size_rect.height()),
                     ),
                     ComboBoxView::new(
                         self.app_context.clone(),
@@ -351,7 +358,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
                             for container_mode in StructViewerContainerMode::ALL {
                                 let container_mode_response =
-                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), container_mode.label(), None, value_box_width));
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), container_mode.label(), None, container_width));
 
                                 if container_mode_response.clicked() {
                                     selected_container_mode = Some(container_mode);
@@ -360,7 +367,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
-                    .width(value_box_width)
+                    .width(container_width)
                     .height(available_size_rect.height()),
                 );
 

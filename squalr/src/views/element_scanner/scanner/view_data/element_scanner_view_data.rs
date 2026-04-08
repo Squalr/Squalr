@@ -13,7 +13,7 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
+        data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         scanning::{
             comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
             constraints::anonymous_scan_constraint::AnonymousScanConstraint,
@@ -23,11 +23,29 @@ use squalr_engine_api::{
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::Arc;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ElementScannerContainerMode {
+    Element,
+    Array,
+}
+
+impl ElementScannerContainerMode {
+    pub const ALL: &'static [Self] = &[Self::Element, Self::Array];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Element => "Element",
+            Self::Array => "Array",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ElementScannerViewData {
     pub data_type_selection: DataTypeSelection,
     pub active_display_format: AnonymousValueStringFormat,
     pub view_state: ElementScannerViewState,
+    pub container_mode: ElementScannerContainerMode,
     pub scan_values_and_constraints: Vec<ElementScannerValueViewData>,
 }
 
@@ -39,6 +57,7 @@ impl ElementScannerViewData {
             data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::get_data_type_id())),
             active_display_format: AnonymousValueStringFormat::Decimal,
             view_state: ElementScannerViewState::NoResults,
+            container_mode: ElementScannerContainerMode::Element,
             scan_values_and_constraints: vec![ElementScannerValueViewData::new(Self::create_menu_id(0))],
         }
     }
@@ -178,10 +197,19 @@ impl ElementScannerViewData {
             .scan_values_and_constraints
             .iter()
             .map(|scan_value_and_constraint| {
-                AnonymousScanConstraint::new(
-                    scan_value_and_constraint.selected_scan_compare_type,
-                    Some(scan_value_and_constraint.current_scan_value.clone()),
-                )
+                let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
+                // If Array mode is selected, infer the array size from the constraint value's container type.
+                // The constraint value already contains the parsed container info from comma-separated values.
+                if element_scanner_view_data.container_mode == ElementScannerContainerMode::Array {
+                    // If the value is already parsed as an array, keep it; otherwise force ArrayFixed(1).
+                    if constraint_value.get_container_type() == ContainerType::None {
+                        constraint_value.set_container_type(ContainerType::ArrayFixed(1));
+                    }
+                } else {
+                    // Element mode: always use ContainerType::None.
+                    constraint_value.set_container_type(ContainerType::None);
+                }
+                AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, Some(constraint_value))
             })
             .collect();
         let element_scan_request = ElementScanRequest {

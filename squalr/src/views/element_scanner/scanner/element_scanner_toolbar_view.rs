@@ -3,11 +3,14 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
-            button::Button, data_type_selector::data_type_selector_view::DataTypeSelectorView, data_value_box::data_value_box_view::DataValueBoxView,
+            button::Button,
+            combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+            data_type_selector::data_type_selector_view::DataTypeSelectorView,
+            data_value_box::data_value_box_view::DataValueBoxView,
             scan_constraint_selector::scan_compare_type_selector_view::ScanCompareTypeSelectorView,
         },
     },
-    views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData,
+    views::element_scanner::scanner::view_data::element_scanner_view_data::{ElementScannerContainerMode, ElementScannerViewData},
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
@@ -64,7 +67,8 @@ impl Widget for ElementScannerToolbarView {
         let top_row_height = self.get_top_row_height();
         let constraint_row_height = self.get_constraint_row_height();
 
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), total_height), Sense::hover());
+        let (allocated_size_rectangle, response) =
+            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), total_height), Sense::hover());
 
         // Background.
         user_interface
@@ -96,6 +100,7 @@ impl Widget for ElementScannerToolbarView {
         let mut should_start_scan = false;
         let mut should_add_new_scan_constraint = false;
         let mut remove_scan_constraint_index = 0;
+        let mut selected_container_mode: Option<ElementScannerContainerMode> = None;
         let is_data_type_selection_disabled = element_scanner_view_data.view_state.has_active_scan();
 
         // Top row.
@@ -125,6 +130,33 @@ impl Widget for ElementScannerToolbarView {
                     .disabled(is_data_type_selection_disabled)
                     .available_data_types(available_data_types.clone()),
                 );
+
+                // Container type selector.
+                user_interface.add_space(8.0);
+                user_interface.add(
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        element_scanner_view_data.container_mode.label(),
+                        "element_scanner_container_mode",
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for mode in ElementScannerContainerMode::ALL {
+                                let item_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), mode.label(), None, 100.0));
+
+                                if item_response.clicked() {
+                                    selected_container_mode = Some(*mode);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(100.0)
+                    .height(28.0),
+                );
+
+                if let Some(new_mode) = selected_container_mode {
+                    element_scanner_view_data.container_mode = new_mode;
+                }
 
                 // Collect values.
                 let button_collect_values = user_interface.add_sized(

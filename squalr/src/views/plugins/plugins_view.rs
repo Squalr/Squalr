@@ -112,7 +112,7 @@ impl Widget for PluginsView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let toolbar_height = 28.0;
                 let (toolbar_rect, _toolbar_response) =
-                    user_interface.allocate_exact_size(vec2(user_interface.available_width(), toolbar_height), Sense::empty());
+                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), toolbar_height), Sense::empty());
                 user_interface
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
@@ -186,7 +186,7 @@ impl Widget for PluginsView {
                     });
 
                 let (details_rectangle, _details_response) =
-                    user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::DETAILS_HEIGHT), Sense::empty());
+                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::DETAILS_HEIGHT), Sense::empty());
 
                 user_interface
                     .painter()

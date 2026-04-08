@@ -65,7 +65,7 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
         let button_size = vec2(36.0, 28.0);
 
         let (allocated_size_rectangle, response) =
-            user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.get_height()), Sense::hover());
+            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), self.get_height()), Sense::hover());
 
         let builder = UiBuilder::new()
             .max_rect(allocated_size_rectangle)

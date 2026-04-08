@@ -221,7 +221,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         };
 
         let display_format_icon = self.display_format_icon();
-        let desired_size = vec2(self.width, self.height);
+        let desired_size = vec2(self.width.max(1.0), self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::hover());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
 

@@ -86,7 +86,7 @@ impl Widget for PointerScannerToolbarView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let (toolbar_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.get_height()), Sense::hover());
+        let (toolbar_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), self.get_height()), Sense::hover());
 
         user_interface
             .painter()
