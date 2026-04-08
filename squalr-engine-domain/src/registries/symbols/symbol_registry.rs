@@ -38,6 +38,7 @@ use crate::structures::{
 };
 use std::{
     collections::{HashMap, HashSet},
+    str::FromStr,
     sync::{Arc, RwLock},
 };
 
@@ -91,9 +92,15 @@ impl SymbolRegistry {
                     project_symbolic_struct_registry
                         .get(symbolic_struct_ref_id.trim())
                         .cloned()
+                        .or_else(|| {
+                            SymbolicStructDefinition::from_str(symbolic_struct_ref_id.trim())
+                                .ok()
+                                .map(Arc::new)
+                        })
                 } else {
-                    log::warn!("Failed to find symbolic struct in registry: {}", symbolic_struct_ref_id);
-                    None
+                    SymbolicStructDefinition::from_str(symbolic_struct_ref_id.trim())
+                        .ok()
+                        .map(Arc::new)
                 }
             }
             Err(error) => {

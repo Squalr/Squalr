@@ -6,6 +6,8 @@ use squalr_engine_api::structures::data_types::built_in_types::{
     u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
     u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
 };
+use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+use std::str::FromStr;
 
 const DATA_TYPE_ID_U24: &str = "u24";
 const DATA_TYPE_ID_U24BE: &str = "u24be";
@@ -16,7 +18,17 @@ pub struct DataTypeToStringConverter {}
 
 impl DataTypeToStringConverter {
     pub fn convert_data_type_to_string(data_type_id: &str) -> &'static str {
-        match data_type_id {
+        let normalized_data_type_id = SymbolicFieldDefinition::from_str(data_type_id)
+            .ok()
+            .map(|symbolic_field_definition| {
+                symbolic_field_definition
+                    .get_data_type_ref()
+                    .get_data_type_id()
+                    .to_string()
+            })
+            .unwrap_or_else(|| data_type_id.to_string());
+
+        match normalized_data_type_id.as_str() {
             DataTypeBool8::DATA_TYPE_ID => "bool8",
             DataTypeBool32::DATA_TYPE_ID => "bool32",
             DataTypeU8::DATA_TYPE_ID => "u8",

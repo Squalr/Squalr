@@ -19,8 +19,10 @@ use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_types::data_type_ref::DataTypeRef,
     data_values::anonymous_value_string::AnonymousValueString,
+    structs::symbolic_field_definition::SymbolicFieldDefinition,
     structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
 };
+use std::str::FromStr;
 use std::sync::Arc;
 
 pub struct StructViewerEntryView<'lifetime> {
@@ -98,7 +100,22 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         struct_viewer_frame_action: &mut StructViewerFrameAction,
     ) {
         let mut edited_field = valued_struct_field.clone();
-        let data_type_string_value = DataTypeStringUtf8::get_value_from_primitive_string(data_type_selection.visible_data_type().get_data_type_id());
+        let existing_symbolic_field_definition = valued_struct_field
+            .get_data_value()
+            .and_then(|data_value| String::from_utf8(data_value.get_value_bytes().clone()).ok())
+            .and_then(|symbolic_field_definition| SymbolicFieldDefinition::from_str(symbolic_field_definition.trim()).ok());
+        let updated_symbolic_field_definition = existing_symbolic_field_definition
+            .map(|symbolic_field_definition| {
+                SymbolicFieldDefinition::new(data_type_selection.visible_data_type().clone(), symbolic_field_definition.get_container_type())
+            })
+            .map(|symbolic_field_definition| symbolic_field_definition.to_string())
+            .unwrap_or_else(|| {
+                data_type_selection
+                    .visible_data_type()
+                    .get_data_type_id()
+                    .to_string()
+            });
+        let data_type_string_value = DataTypeStringUtf8::get_value_from_primitive_string(&updated_symbolic_field_definition);
 
         edited_field.set_field_data(ValuedStructFieldData::Value(data_type_string_value));
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);

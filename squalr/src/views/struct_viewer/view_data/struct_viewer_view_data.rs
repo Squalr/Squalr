@@ -6,11 +6,12 @@ use squalr_engine_api::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
         projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
-        structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
     },
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -145,12 +146,16 @@ impl StructViewerViewData {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> HashMap<String, AnonymousValueString> {
         let mut field_edit_values = HashMap::new();
+        let symbolic_field_container_type = Self::read_symbolic_field_definition_reference(valued_struct)
+            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
+            .unwrap_or(ContainerType::None);
 
         for valued_struct_field in valued_struct.get_fields() {
             if Self::is_live_value_field(valued_struct_field) {
                 let live_value_edit_value = Self::create_live_value_edit_value(
                     valued_struct_field,
                     field_validation_data_type_refs.get(valued_struct_field.get_name()),
+                    symbolic_field_container_type,
                     engine_unprivileged_state,
                 );
 
@@ -179,12 +184,16 @@ impl StructViewerViewData {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> HashMap<String, Vec<AnonymousValueString>> {
         let mut field_display_values = HashMap::new();
+        let symbolic_field_container_type = Self::read_symbolic_field_definition_reference(valued_struct)
+            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
+            .unwrap_or(ContainerType::None);
 
         for valued_struct_field in valued_struct.get_fields() {
             if Self::is_live_value_field(valued_struct_field) {
                 let live_value_display_values = Self::create_live_value_display_values(
                     valued_struct_field,
                     field_validation_data_type_refs.get(valued_struct_field.get_name()),
+                    symbolic_field_container_type,
                     engine_unprivileged_state,
                 );
 
@@ -217,6 +226,7 @@ impl StructViewerViewData {
     fn create_live_value_edit_value(
         valued_struct_field: &ValuedStructField,
         validation_data_type_ref: Option<&DataTypeRef>,
+        container_type: ContainerType,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> AnonymousValueString {
         let raw_display_value = Self::read_utf8_field_text(valued_struct_field);
@@ -224,18 +234,20 @@ impl StructViewerViewData {
             .map(|validation_data_type_ref| engine_unprivileged_state.get_default_anonymous_value_string_format(validation_data_type_ref))
             .unwrap_or_default();
 
-        AnonymousValueString::new(raw_display_value, anonymous_value_string_format, ContainerType::None)
+        AnonymousValueString::new(raw_display_value, anonymous_value_string_format, container_type)
     }
 
     fn create_live_value_display_values(
         valued_struct_field: &ValuedStructField,
         validation_data_type_ref: Option<&DataTypeRef>,
+        container_type: ContainerType,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> Vec<AnonymousValueString> {
         let Some(validation_data_type_ref) = validation_data_type_ref else {
             return Vec::new();
         };
-        let live_value_edit_value = Self::create_live_value_edit_value(valued_struct_field, Some(validation_data_type_ref), engine_unprivileged_state);
+        let live_value_edit_value =
+            Self::create_live_value_edit_value(valued_struct_field, Some(validation_data_type_ref), container_type, engine_unprivileged_state);
         let Ok(data_value) = engine_unprivileged_state.deanonymize_value_string(validation_data_type_ref, &live_value_edit_value) else {
             return Vec::new();
         };
@@ -265,10 +277,9 @@ impl StructViewerViewData {
 
     fn create_field_validation_data_type_refs(
         valued_struct: &ValuedStruct,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> HashMap<String, DataTypeRef> {
-        let symbolic_struct_data_type_ref = Self::read_symbolic_struct_definition_reference(valued_struct)
-            .filter(|data_type_ref| engine_unprivileged_state.is_registered_data_type_ref(data_type_ref));
+        let symbolic_struct_data_type_ref = Self::read_symbolic_struct_definition_reference(valued_struct);
         let mut field_validation_data_type_refs = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
@@ -291,7 +302,7 @@ impl StructViewerViewData {
 
     fn create_field_data_type_selections(
         valued_struct: &ValuedStruct,
-        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> HashMap<String, DataTypeSelection> {
         let mut field_data_type_selections = HashMap::new();
 
@@ -300,9 +311,8 @@ impl StructViewerViewData {
                 continue;
             }
 
-            let selected_data_type_ref = Self::read_data_type_reference_field(valued_struct_field)
-                .filter(|data_type_ref| engine_unprivileged_state.is_registered_data_type_ref(data_type_ref))
-                .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
+            let selected_data_type_ref =
+                Self::read_data_type_reference_field(valued_struct_field).unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
 
             field_data_type_selections.insert(valued_struct_field.get_name().to_string(), DataTypeSelection::new(selected_data_type_ref));
         }
@@ -321,20 +331,29 @@ impl StructViewerViewData {
     }
 
     fn read_symbolic_struct_definition_reference(valued_struct: &ValuedStruct) -> Option<DataTypeRef> {
+        Self::read_symbolic_field_definition_reference(valued_struct).map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
+    }
+
+    fn read_symbolic_field_definition_reference(valued_struct: &ValuedStruct) -> Option<SymbolicFieldDefinition> {
         valued_struct
             .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
-            .and_then(Self::read_data_type_reference_field)
+            .and_then(Self::read_symbolic_field_definition_reference_from_field_set)
     }
 
     fn read_data_type_reference_field(valued_struct_field: &ValuedStructField) -> Option<DataTypeRef> {
-        let data_value = valued_struct_field.get_data_value()?;
-        let data_type_id = String::from_utf8(data_value.get_value_bytes().clone()).ok()?;
-        let trimmed_data_type_id = data_type_id.trim();
+        Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
+            .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
+    }
 
-        if trimmed_data_type_id.is_empty() {
+    fn read_symbolic_field_definition_reference_from_field_set(valued_struct_field: &ValuedStructField) -> Option<SymbolicFieldDefinition> {
+        let data_value = valued_struct_field.get_data_value()?;
+        let symbolic_field_definition_string = String::from_utf8(data_value.get_value_bytes().clone()).ok()?;
+        let trimmed_symbolic_field_definition = symbolic_field_definition_string.trim();
+
+        if trimmed_symbolic_field_definition.is_empty() {
             None
         } else {
-            Some(DataTypeRef::new(trimmed_data_type_id))
+            SymbolicFieldDefinition::from_str(trimmed_symbolic_field_definition).ok()
         }
     }
 
@@ -484,6 +503,27 @@ mod tests {
                 .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
                 .map(AnonymousValueString::get_anonymous_value_string_format),
             Some(AnonymousValueStringFormat::Decimal)
+        );
+    }
+
+    #[test]
+    fn create_field_edit_values_preserves_array_container_for_live_value_field() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("u16[2]")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("1, 2")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
+        ]);
+
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct, &engine_unprivileged_state);
+        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state);
+
+        assert_eq!(
+            field_edit_values
+                .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+                .map(AnonymousValueString::get_container_type),
+            Some(squalr_engine_api::structures::data_values::container_type::ContainerType::ArrayFixed(2))
         );
     }
 
