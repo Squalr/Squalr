@@ -1,4 +1,4 @@
-use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+use crate::ui::widgets::controls::symbolic_field_definition_selector::symbolic_field_definition_selection::SymbolicFieldDefinitionSelection;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -23,7 +23,7 @@ pub struct StructViewerViewData {
     pub field_display_values: HashMap<String, Vec<AnonymousValueString>>,
     pub field_presentations: HashMap<String, StructViewerFieldPresentation>,
     pub field_validation_data_type_refs: HashMap<String, DataTypeRef>,
-    pub field_data_type_selections: HashMap<String, DataTypeSelection>,
+    pub field_symbolic_field_definition_selections: HashMap<String, SymbolicFieldDefinitionSelection>,
     pub value_splitter_ratio: f32,
 }
 
@@ -39,7 +39,7 @@ impl StructViewerViewData {
             field_display_values: HashMap::new(),
             field_presentations: HashMap::new(),
             field_validation_data_type_refs: HashMap::new(),
-            field_data_type_selections: HashMap::new(),
+            field_symbolic_field_definition_selections: HashMap::new(),
             value_splitter_ratio: Self::DEFAULT_NAME_SPLITTER_RATIO,
         }
     }
@@ -102,7 +102,9 @@ impl StructViewerViewData {
         struct_viewer_view_data.field_edit_values.clear();
         struct_viewer_view_data.field_display_values.clear();
         struct_viewer_view_data.field_validation_data_type_refs.clear();
-        struct_viewer_view_data.field_data_type_selections.clear();
+        struct_viewer_view_data
+            .field_symbolic_field_definition_selections
+            .clear();
         struct_viewer_view_data.selected_field_name = Arc::new(None);
         struct_viewer_view_data.struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_field_modified_callback = None;
@@ -114,30 +116,31 @@ impl StructViewerViewData {
         valued_struct: Option<ValuedStruct>,
         valued_struct_field_edited_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
     ) {
-        self.field_presentations = valued_struct
-            .as_ref()
-            .map(Self::create_field_presentations)
-            .unwrap_or_default();
-        let field_validation_data_type_refs = valued_struct
-            .as_ref()
-            .map(|valued_struct| Self::create_field_validation_data_type_refs(valued_struct, &engine_unprivileged_state))
-            .unwrap_or_default();
-        self.field_edit_values = valued_struct
-            .as_ref()
-            .map(|valued_struct| Self::create_field_edit_values(valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state))
-            .unwrap_or_default();
-        self.field_display_values = valued_struct
-            .as_ref()
-            .map(|valued_struct| Self::create_field_display_values(valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state))
-            .unwrap_or_default();
-        self.field_validation_data_type_refs = field_validation_data_type_refs;
-        self.field_data_type_selections = valued_struct
-            .as_ref()
-            .map(|valued_struct| Self::create_field_data_type_selections(valued_struct, &engine_unprivileged_state))
-            .unwrap_or_default();
         self.selected_field_name = Arc::new(None);
         self.struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = valued_struct_field_edited_callback;
+        self.refresh_cached_field_state(&engine_unprivileged_state);
+    }
+
+    pub fn refresh_cached_field_state(
+        &mut self,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) {
+        let Some(struct_under_view) = self.struct_under_view.as_ref().as_ref() else {
+            self.field_presentations.clear();
+            self.field_edit_values.clear();
+            self.field_display_values.clear();
+            self.field_validation_data_type_refs.clear();
+            self.field_symbolic_field_definition_selections.clear();
+            return;
+        };
+        let field_validation_data_type_refs = Self::create_field_validation_data_type_refs(struct_under_view, engine_unprivileged_state);
+
+        self.field_presentations = Self::create_field_presentations(struct_under_view);
+        self.field_edit_values = Self::create_field_edit_values(struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
+        self.field_display_values = Self::create_field_display_values(struct_under_view, &field_validation_data_type_refs, engine_unprivileged_state);
+        self.field_validation_data_type_refs = field_validation_data_type_refs;
+        self.field_symbolic_field_definition_selections = Self::create_field_symbolic_field_definition_selections(struct_under_view);
     }
 
     fn create_field_edit_values(
@@ -262,7 +265,7 @@ impl StructViewerViewData {
 
         for valued_struct_field in valued_struct.get_fields() {
             let field_presentation = if Self::is_data_type_reference_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("data_type"), StructViewerFieldEditorKind::DataTypeSelector)
+                StructViewerFieldPresentation::new(String::from("type"), StructViewerFieldEditorKind::SymbolicFieldDefinitionSelector)
             } else if Self::is_live_value_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::ValueBox)
             } else {
@@ -300,24 +303,24 @@ impl StructViewerViewData {
         field_validation_data_type_refs
     }
 
-    fn create_field_data_type_selections(
-        valued_struct: &ValuedStruct,
-        _engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
-    ) -> HashMap<String, DataTypeSelection> {
-        let mut field_data_type_selections = HashMap::new();
+    fn create_field_symbolic_field_definition_selections(valued_struct: &ValuedStruct) -> HashMap<String, SymbolicFieldDefinitionSelection> {
+        let mut field_symbolic_field_definition_selections = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
             if !Self::is_data_type_reference_field(valued_struct_field) {
                 continue;
             }
 
-            let selected_data_type_ref =
-                Self::read_data_type_reference_field(valued_struct_field).unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
+            let symbolic_field_definition = Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
+                .unwrap_or_else(|| SymbolicFieldDefinition::new(DataTypeRef::new(DataTypeU8::DATA_TYPE_ID), ContainerType::None));
 
-            field_data_type_selections.insert(valued_struct_field.get_name().to_string(), DataTypeSelection::new(selected_data_type_ref));
+            field_symbolic_field_definition_selections.insert(
+                valued_struct_field.get_name().to_string(),
+                SymbolicFieldDefinitionSelection::new(symbolic_field_definition),
+            );
         }
 
-        field_data_type_selections
+        field_symbolic_field_definition_selections
     }
 
     fn is_data_type_reference_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -338,11 +341,6 @@ impl StructViewerViewData {
         valued_struct
             .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .and_then(Self::read_symbolic_field_definition_reference_from_field_set)
-    }
-
-    fn read_data_type_reference_field(valued_struct_field: &ValuedStructField) -> Option<DataTypeRef> {
-        Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
-            .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
     }
 
     fn read_symbolic_field_definition_reference_from_field_set(valued_struct_field: &ValuedStructField) -> Option<SymbolicFieldDefinition> {
@@ -368,6 +366,7 @@ impl StructViewerViewData {
 #[cfg(test)]
 mod tests {
     use super::StructViewerViewData;
+    use crate::ui::widgets::controls::symbolic_field_definition_selector::symbolic_field_definition_selection::SymbolicFieldDefinitionContainerKind;
     use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::structures::{
@@ -465,8 +464,8 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .expect("Expected data-type field presentation.");
 
-        assert_eq!(field_presentation.display_name(), "data_type");
-        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::DataTypeSelector);
+        assert_eq!(field_presentation.display_name(), "type");
+        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::SymbolicFieldDefinitionSelector);
     }
 
     #[test]
@@ -528,20 +527,25 @@ mod tests {
     }
 
     #[test]
-    fn create_field_data_type_selections_reads_current_symbolic_struct_reference() {
+    fn create_field_symbolic_field_definition_selections_reads_current_symbolic_struct_reference() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
         ]);
 
-        let engine_unprivileged_state = create_test_engine_unprivileged_state();
-        let field_data_type_selections = StructViewerViewData::create_field_data_type_selections(&valued_struct, &engine_unprivileged_state);
-        let field_data_type_selection = field_data_type_selections
+        let field_symbolic_field_definition_selections = StructViewerViewData::create_field_symbolic_field_definition_selections(&valued_struct);
+        let field_symbolic_field_definition_selection = field_symbolic_field_definition_selections
             .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .expect("Expected data-type selection for the symbolic struct field.");
 
-        assert_eq!(field_data_type_selection.visible_data_type(), &DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
-        assert_eq!(field_data_type_selection.selected_data_types(), &[DataTypeRef::new(DataTypeU32::DATA_TYPE_ID)]);
+        assert_eq!(
+            field_symbolic_field_definition_selection.visible_data_type(),
+            &DataTypeRef::new(DataTypeU32::DATA_TYPE_ID)
+        );
+        assert_eq!(
+            field_symbolic_field_definition_selection.container_kind(),
+            SymbolicFieldDefinitionContainerKind::Value
+        );
     }
 
     #[test]

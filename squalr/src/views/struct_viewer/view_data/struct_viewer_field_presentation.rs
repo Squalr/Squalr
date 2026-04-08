@@ -1,7 +1,7 @@
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StructViewerFieldEditorKind {
     ValueBox,
-    DataTypeSelector,
+    SymbolicFieldDefinitionSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -6,6 +6,7 @@ use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, W
 use epaint::{Rect, pos2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructFieldData;
 use std::sync::Arc;
 
@@ -121,9 +122,9 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::DataTypeSelector => {
-                                        let field_data_type_selection = struct_viewer_view_data
-                                            .field_data_type_selections
+                                    StructViewerFieldEditorKind::SymbolicFieldDefinitionSelector => {
+                                        let field_symbolic_field_definition_selection = struct_viewer_view_data
+                                            .field_symbolic_field_definition_selections
                                             .get_mut(field.get_name());
 
                                         inner_ui.add(StructViewerEntryView::new(
@@ -135,7 +136,7 @@ impl Widget for StructViewerView {
                                             &mut frame_action,
                                             None,
                                             field_display_values,
-                                            field_data_type_selection,
+                                            field_symbolic_field_definition_selection,
                                             validation_data_type_ref.as_ref(),
                                             ICON_COLUMN_WIDTH + BAR_THICKNESS,
                                             value_splitter_x + BAR_THICKNESS,
@@ -194,6 +195,8 @@ impl Widget for StructViewerView {
             }
             StructViewerFrameAction::EditValue(edited_field) => {
                 if let Some(mut struct_viewer_view_data) = self.struct_viewer_view_data.write("Struct viewer edit value") {
+                    let did_edit_symbolic_field_definition = edited_field.get_name() == ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE;
+
                     if let Some(struct_under_view) = Arc::make_mut(&mut struct_viewer_view_data.struct_under_view).as_mut() {
                         if let Some(field_under_view) = struct_under_view.get_field_mut(edited_field.get_name()) {
                             field_under_view.set_field_data(edited_field.get_field_data().clone());
@@ -237,6 +240,10 @@ impl Widget for StructViewerView {
 
                     if let Some(struct_field_modified_callback) = struct_viewer_view_data.struct_field_modified_callback.clone() {
                         struct_field_modified_callback(edited_field);
+                    }
+
+                    if did_edit_symbolic_field_definition {
+                        struct_viewer_view_data.refresh_cached_field_state(&self.app_context.engine_unprivileged_state);
                     }
                 }
             }
