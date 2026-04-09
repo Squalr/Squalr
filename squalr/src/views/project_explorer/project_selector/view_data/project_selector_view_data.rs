@@ -151,6 +151,8 @@ impl ProjectSelectorViewData {
 
         project_selector_view_data.context_menu_focus_file_path = None;
         project_selector_view_data.context_menu_position = None;
+        project_selector_view_data.renaming_project_file_path = None;
+        Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
         project_selector_view_data.selected_project_file_path = Some(project_file_path);
     }
 
@@ -175,6 +177,7 @@ impl ProjectSelectorViewData {
 
         project_selector_view_data.context_menu_focus_file_path = None;
         project_selector_view_data.context_menu_position = None;
+        project_selector_view_data.selected_project_file_path = Some(project_file_path.clone());
         project_selector_view_data.renaming_project_file_path = Some(project_file_path);
     }
 
@@ -185,6 +188,7 @@ impl ProjectSelectorViewData {
         };
 
         project_selector_view_data.renaming_project_file_path = None;
+        Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
     }
 
     pub fn rename_project(
@@ -197,6 +201,7 @@ impl ProjectSelectorViewData {
             project_selector_view_data.renaming_project_file_path = None;
             project_selector_view_data.context_menu_focus_file_path = None;
             project_selector_view_data.context_menu_position = None;
+            Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
         }
 
         let project_directory_path = match project_file_path.parent() {
@@ -228,6 +233,17 @@ impl ProjectSelectorViewData {
                 );
             }
         });
+    }
+
+    fn clear_rename_project_text(rename_project_text: &Arc<RwLock<(String, bool)>>) {
+        match rename_project_text.write() {
+            Ok(mut rename_project_text) => {
+                *rename_project_text = (String::new(), false);
+            }
+            Err(error) => {
+                log::error!("Failed to clear project name text after rename state change: {}", error);
+            }
+        }
     }
 
     pub fn open_project(

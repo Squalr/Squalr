@@ -974,15 +974,26 @@ impl Widget for ProjectHierarchyView {
             Self::clear_project_item_rename_state(user_interface, &project_item_path);
 
             if let Some(project_item_rename_request) = Self::build_project_item_rename_request(&project_item_path, &project_item_type_id, edited_name.trim()) {
-                project_item_rename_request.send(&self.app_context.engine_unprivileged_state, |project_items_rename_response| {
+                let project_hierarchy_view_data = self.project_hierarchy_view_data.clone();
+                let app_context = self.app_context.clone();
+                let previous_project_item_path = project_item_path.clone();
+
+                project_item_rename_request.send(&self.app_context.engine_unprivileged_state, move |project_items_rename_response| {
                     if !project_items_rename_response.success {
                         log::warn!("Project item rename command failed in hierarchy F2 rename flow.");
+                        return;
                     }
+
+                    ProjectHierarchyViewData::finish_project_item_rename(
+                        project_hierarchy_view_data.clone(),
+                        &previous_project_item_path,
+                        &project_items_rename_response.renamed_project_item_path,
+                    );
+                    ProjectHierarchyViewData::refresh_project_items(project_hierarchy_view_data, app_context);
                 });
             }
 
             ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
-            ProjectHierarchyViewData::refresh_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone());
         }
 
         if let Some((project_item_paths, is_activated)) = keyboard_activation_toggle_target {
@@ -1026,68 +1037,87 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
-        if !is_rename_take_over_active {
-            match project_hierarchy_frame_action {
-                ProjectHierarchyFrameAction::None => {}
-                ProjectHierarchyFrameAction::SelectProjectItem {
-                    project_item_path,
-                    additive_selection,
-                    range_selection,
-                } => {
-                    ProjectHierarchyViewData::select_project_item(
-                        self.project_hierarchy_view_data.clone(),
-                        project_item_path,
-                        additive_selection,
-                        range_selection,
-                    );
-                    self.focus_selected_project_items_in_struct_viewer();
+        match project_hierarchy_frame_action {
+            ProjectHierarchyFrameAction::None => {}
+            ProjectHierarchyFrameAction::SelectProjectItem {
+                project_item_path,
+                additive_selection,
+                range_selection,
+            } => {
+                if is_rename_take_over_active {
+                    Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
-                ProjectHierarchyFrameAction::ToggleDirectoryExpansion(project_item_path) => {
-                    ProjectHierarchyViewData::toggle_directory_expansion(self.project_hierarchy_view_data.clone(), project_item_path);
+
+                ProjectHierarchyViewData::select_project_item(self.project_hierarchy_view_data.clone(), project_item_path, additive_selection, range_selection);
+                self.focus_selected_project_items_in_struct_viewer();
+            }
+            ProjectHierarchyFrameAction::ToggleDirectoryExpansion(project_item_path) => {
+                if is_rename_take_over_active {
+                    Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
-                ProjectHierarchyFrameAction::SetProjectItemActivation(project_item_path, is_activated) => {
-                    let project_item_paths = self
-                        .project_hierarchy_view_data
-                        .read("Project hierarchy checkbox activation selection")
-                        .map(|project_hierarchy_view_data| {
-                            if project_hierarchy_view_data
-                                .selected_project_item_paths
-                                .contains(&project_item_path)
-                            {
-                                project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order()
-                            } else {
-                                vec![project_item_path.clone()]
-                            }
-                        })
-                        .unwrap_or_else(|| vec![project_item_path.clone()]);
-                    ProjectHierarchyViewData::set_project_item_activation(
-                        self.project_hierarchy_view_data.clone(),
-                        self.app_context.clone(),
-                        project_item_paths,
-                        is_activated,
-                    );
+
+                ProjectHierarchyViewData::toggle_directory_expansion(self.project_hierarchy_view_data.clone(), project_item_path);
+            }
+            ProjectHierarchyFrameAction::SetProjectItemActivation(project_item_path, is_activated) => {
+                if is_rename_take_over_active {
+                    return response;
                 }
-                ProjectHierarchyFrameAction::CreateProjectItem {
+
+                let project_item_paths = self
+                    .project_hierarchy_view_data
+                    .read("Project hierarchy checkbox activation selection")
+                    .map(|project_hierarchy_view_data| {
+                        if project_hierarchy_view_data
+                            .selected_project_item_paths
+                            .contains(&project_item_path)
+                        {
+                            project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order()
+                        } else {
+                            vec![project_item_path.clone()]
+                        }
+                    })
+                    .unwrap_or_else(|| vec![project_item_path.clone()]);
+                ProjectHierarchyViewData::set_project_item_activation(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    project_item_paths,
+                    is_activated,
+                );
+            }
+            ProjectHierarchyFrameAction::CreateProjectItem {
+                target_project_item_path,
+                create_item_kind,
+            } => {
+                if is_rename_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::create_project_item(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
                     target_project_item_path,
                     create_item_kind,
-                } => {
-                    ProjectHierarchyViewData::create_project_item(
-                        self.project_hierarchy_view_data.clone(),
-                        self.app_context.clone(),
-                        target_project_item_path,
-                        create_item_kind,
-                    );
+                );
+            }
+            ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
+                address,
+                module_name,
+                data_type_id,
+            } => {
+                if is_rename_take_over_active {
+                    return response;
                 }
-                ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
-                    address,
-                    module_name,
-                    data_type_id,
-                } => {
-                    self.focus_pointer_scanner_for_address(address, &module_name, &data_type_id);
+
+                self.focus_pointer_scanner_for_address(address, &module_name, &data_type_id);
+            }
+            ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
+                if is_rename_take_over_active {
+                    return response;
                 }
-                ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
-                    ProjectHierarchyViewData::request_delete_confirmation(self.project_hierarchy_view_data.clone(), project_item_paths);
-                }
+
+                ProjectHierarchyViewData::request_delete_confirmation(self.project_hierarchy_view_data.clone(), project_item_paths);
             }
         }
 
@@ -1943,6 +1973,22 @@ impl ProjectHierarchyView {
             data.remove::<String>(rename_text_storage_id);
             data.remove::<bool>(rename_highlight_storage_id);
         });
+    }
+
+    fn clear_active_project_item_rename_state(
+        user_interface: &Ui,
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+    ) {
+        let active_project_item_path = project_hierarchy_view_data
+            .read("Project hierarchy resolve active inline rename state")
+            .and_then(|project_hierarchy_view_data| match &project_hierarchy_view_data.take_over_state {
+                ProjectHierarchyTakeOverState::RenameProjectItem { project_item_path, .. } => Some(project_item_path.clone()),
+                _ => None,
+            });
+
+        if let Some(active_project_item_path) = active_project_item_path {
+            Self::clear_project_item_rename_state(user_interface, &active_project_item_path);
+        }
     }
 
     fn build_default_project_item_rename_text(

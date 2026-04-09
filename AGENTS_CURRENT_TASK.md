@@ -13,7 +13,7 @@ Our current task, from `README.md`, is:
 - need human verification: Rename collision handling in project explorer now blocks rename/move when destination already exists (no overwrite).
 - need human verification: Project item ordering metadata now persists across add/create/delete/move/rename/reorder operations.
 - need human verification: Adding scan results from TUI now targets selected project folder; if no folder is selected, items append at root.
-- need human verification: Project hierarchy now supports F2 inline rename on the selected tree row (Enter confirms, Escape cancels) without fullscreen takeover or struct viewer routing.
+- need human verification: Project hierarchy now supports F2 inline rename on the selected tree row with async refresh after submit, click-away cancel/select behavior, and project selector F2 inline rename support.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -21,4 +21,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added shared sort-order reconciler in `squalr-engine` project-item command executors to prevent manifest replacement and keep order entries complete.
 - TUI hierarchy graph previously sorted by filesystem path; now consults project manifest sort order when available, then falls back to path order.
 - Verified with `cargo check -p squalr-engine -p squalr-tui` and `cargo test -p squalr-tests --test project_items_command_tests`.
-- Project hierarchy rename now renders as an inline focused row editor, clears stale rename text on cancel/submit, and keeps delete confirmation as the only fullscreen takeover.
+- Project hierarchy rename now refreshes only after the async rename response, preserves selection/expanded state across the renamed path, and cancels cleanly when another row is selected.
+- Project selector now enters inline rename from F2 on the selected project and clears rename state when selection changes or rename is canceled.

@@ -395,6 +395,59 @@ impl ProjectHierarchyViewData {
         project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
     }
 
+    pub fn finish_project_item_rename(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        previous_project_item_path: &Path,
+        renamed_project_item_path: &Path,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy finish project item rename") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+
+        if project_hierarchy_view_data
+            .selected_project_item_path
+            .as_deref()
+            == Some(previous_project_item_path)
+        {
+            project_hierarchy_view_data.selected_project_item_path = Some(renamed_project_item_path.to_path_buf());
+        }
+
+        if project_hierarchy_view_data
+            .selection_anchor_project_item_path
+            .as_deref()
+            == Some(previous_project_item_path)
+        {
+            project_hierarchy_view_data.selection_anchor_project_item_path = Some(renamed_project_item_path.to_path_buf());
+        }
+
+        if project_hierarchy_view_data
+            .selected_project_item_paths
+            .remove(previous_project_item_path)
+        {
+            project_hierarchy_view_data
+                .selected_project_item_paths
+                .insert(renamed_project_item_path.to_path_buf());
+        }
+
+        project_hierarchy_view_data.expanded_directory_paths = project_hierarchy_view_data
+            .expanded_directory_paths
+            .iter()
+            .map(|expanded_directory_path| {
+                Self::replace_project_item_path_prefix(expanded_directory_path, previous_project_item_path, renamed_project_item_path)
+            })
+            .collect();
+
+        if let Some(dragged_project_item_paths) = project_hierarchy_view_data.dragged_project_item_paths.as_mut() {
+            for dragged_project_item_path in dragged_project_item_paths.iter_mut() {
+                *dragged_project_item_path =
+                    Self::replace_project_item_path_prefix(dragged_project_item_path, previous_project_item_path, renamed_project_item_path);
+            }
+        }
+    }
+
     pub fn begin_reorder_drag(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         project_item_path: PathBuf,
@@ -1308,6 +1361,22 @@ impl ProjectHierarchyViewData {
             .map(|tree_entry| tree_entry.project_item_path.clone())
             .collect()
     }
+
+    fn replace_project_item_path_prefix(
+        project_item_path: &Path,
+        previous_project_item_path: &Path,
+        renamed_project_item_path: &Path,
+    ) -> PathBuf {
+        if !project_item_path.starts_with(previous_project_item_path) {
+            return project_item_path.to_path_buf();
+        }
+
+        let renamed_child_suffix = project_item_path
+            .strip_prefix(previous_project_item_path)
+            .unwrap_or_else(|_| Path::new(""));
+
+        renamed_project_item_path.join(renamed_child_suffix)
+    }
 }
 
 #[cfg(test)]
@@ -1684,6 +1753,72 @@ mod tests {
         let dragged_project_item_paths = project_hierarchy_view_data.collect_dragged_project_item_paths(&second_child_path);
 
         assert_eq!(dragged_project_item_paths, vec![second_child_path]);
+    }
+
+    #[test]
+    fn finish_project_item_rename_updates_selected_and_expanded_paths() {
+        let dependency_container = DependencyContainer::new();
+        let previous_directory_path = PathBuf::from("C:/Projects/TestProject/project_items/Cheats");
+        let renamed_directory_path = PathBuf::from("C:/Projects/TestProject/project_items/Player Cheats");
+        let nested_previous_path = previous_directory_path.join("health.json");
+        let nested_renamed_path = renamed_directory_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::RenameProjectItem {
+            project_item_path: previous_directory_path.clone(),
+            project_item_type_id: ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID.to_string(),
+        };
+        project_hierarchy_view_data.selected_project_item_path = Some(previous_directory_path.clone());
+        project_hierarchy_view_data.selection_anchor_project_item_path = Some(previous_directory_path.clone());
+        project_hierarchy_view_data
+            .selected_project_item_paths
+            .insert(previous_directory_path.clone());
+        project_hierarchy_view_data
+            .expanded_directory_paths
+            .insert(previous_directory_path.clone());
+        project_hierarchy_view_data
+            .expanded_directory_paths
+            .insert(nested_previous_path.clone());
+        project_hierarchy_view_data.dragged_project_item_paths = Some(vec![previous_directory_path.clone(), nested_previous_path.clone()]);
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        ProjectHierarchyViewData::finish_project_item_rename(project_hierarchy_view_data.clone(), &previous_directory_path, &renamed_directory_path);
+
+        let project_hierarchy_view_data = project_hierarchy_view_data
+            .read("Project hierarchy finish project item rename test")
+            .expect("Expected project hierarchy view data after rename.");
+
+        assert_eq!(project_hierarchy_view_data.selected_project_item_path.as_ref(), Some(&renamed_directory_path));
+        assert_eq!(
+            project_hierarchy_view_data
+                .selection_anchor_project_item_path
+                .as_ref(),
+            Some(&renamed_directory_path)
+        );
+        assert!(
+            project_hierarchy_view_data
+                .selected_project_item_paths
+                .contains(&renamed_directory_path)
+        );
+        assert!(
+            !project_hierarchy_view_data
+                .selected_project_item_paths
+                .contains(&previous_directory_path)
+        );
+        assert!(
+            project_hierarchy_view_data
+                .expanded_directory_paths
+                .contains(&renamed_directory_path)
+        );
+        assert!(
+            project_hierarchy_view_data
+                .expanded_directory_paths
+                .contains(&nested_renamed_path)
+        );
+        assert_eq!(
+            project_hierarchy_view_data.dragged_project_item_paths,
+            Some(vec![renamed_directory_path.clone(), nested_renamed_path])
+        );
+        assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
     }
 
     #[test]

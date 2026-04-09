@@ -6,7 +6,7 @@ use crate::{
         view_data::{project_selector_frame_action::ProjectSelectorFrameAction, project_selector_view_data::ProjectSelectorViewData},
     },
 };
-use eframe::egui::{Align, Layout, Response, ScrollArea, Ui, Widget};
+use eframe::egui::{Align, Key, Layout, Response, ScrollArea, Ui, Widget};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -50,6 +50,17 @@ impl Widget for ProjectSelectorView {
                     None => return,
                 };
                 let rename_project_text = project_selector_view_data.rename_project_text.clone();
+                let renaming_project_file_path = project_selector_view_data.renaming_project_file_path.clone();
+                let selected_project_for_rename = project_selector_view_data
+                    .selected_project_file_path
+                    .as_ref()
+                    .and_then(|selected_project_file_path| {
+                        project_selector_view_data
+                            .project_list
+                            .iter()
+                            .find(|project_info| project_info.get_project_file_path() == selected_project_file_path)
+                            .map(|project_info| (project_info.get_project_file_path().to_path_buf(), project_info.get_name().to_string()))
+                    });
 
                 user_interface.add(self.project_selector_toolbar_view);
 
@@ -88,6 +99,16 @@ impl Widget for ProjectSelectorView {
                             ));
                         }
                     });
+
+                if renaming_project_file_path.is_none() && user_interface.input(|input_state| input_state.key_pressed(Key::F2)) {
+                    if let Some((project_file_path, project_name)) = selected_project_for_rename {
+                        project_selector_frame_action = ProjectSelectorFrameAction::StartRenamingProject(project_file_path, project_name);
+                    }
+                }
+
+                if renaming_project_file_path.is_some() && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+                    project_selector_frame_action = ProjectSelectorFrameAction::CancelRenamingProject();
+                }
             })
             .response;
 
