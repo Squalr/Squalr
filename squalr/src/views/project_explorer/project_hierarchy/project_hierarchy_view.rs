@@ -665,73 +665,11 @@ impl Widget for ProjectHierarchyView {
                 is_value_edit_take_over_active = active_value_edit_project_item_path.is_some();
 
                 match take_over_state {
-                    ProjectHierarchyTakeOverState::None
-                    | ProjectHierarchyTakeOverState::RenameProjectItem { .. }
-                    | ProjectHierarchyTakeOverState::EditProjectItemValue { .. } => {
+                    ProjectHierarchyTakeOverState::None | ProjectHierarchyTakeOverState::RenameProjectItem { .. } => {
                         ScrollArea::vertical()
                             .id_salt("project_hierarchy")
                             .auto_shrink([false, false])
                             .show(user_interface, |user_interface| {
-                                if let Some(active_value_edit_project_item_path) = active_value_edit_project_item_path.as_ref() {
-                                    let Some(project_item) = tree_entries
-                                        .iter()
-                                        .find(|tree_entry| &tree_entry.project_item_path == active_value_edit_project_item_path)
-                                        .map(|tree_entry| tree_entry.project_item.clone())
-                                    else {
-                                        should_cancel_take_over = true;
-                                        return;
-                                    };
-                                    let Some(value_edit_context) =
-                                        Self::build_project_item_value_edit_context(&self.app_context.engine_unprivileged_state, &project_item)
-                                    else {
-                                        should_cancel_take_over = true;
-                                        return;
-                                    };
-                                    let value_edit_storage_id =
-                                        Self::project_item_value_edit_storage_id(active_value_edit_project_item_path);
-                                    let mut value_edit = user_interface
-                                        .ctx()
-                                        .data_mut(|data| data.get_temp::<AnonymousValueString>(value_edit_storage_id))
-                                        .unwrap_or_else(|| value_edit_context.initial_value_edit.clone());
-                                    let value_edit_display_values = Self::build_project_item_value_edit_display_values(
-                                        &self.app_context.engine_unprivileged_state,
-                                        &value_edit_context.validation_data_type_ref,
-                                        &value_edit,
-                                    );
-                                    let value_editor_id = format!(
-                                        "project_hierarchy_value_editor_{}",
-                                        active_value_edit_project_item_path.to_string_lossy()
-                                    );
-                                    let value_edit_take_over_response = ProjectItemValueEditTakeOverView::new(
-                                        self.app_context.clone(),
-                                        &value_edit_context.project_item_name,
-                                        &mut value_edit,
-                                        &value_edit_context.validation_data_type_ref,
-                                        &value_edit_display_values,
-                                        &value_editor_id,
-                                    )
-                                    .show(user_interface);
-
-                                    user_interface
-                                        .ctx()
-                                        .data_mut(|data| data.insert_temp(value_edit_storage_id, value_edit.clone()));
-
-                                    if value_edit_take_over_response.should_commit {
-                                        value_edit_project_item_submission = Some((
-                                            active_value_edit_project_item_path.clone(),
-                                            value_edit_context.value_field_name.clone(),
-                                            value_edit_context.validation_data_type_ref.clone(),
-                                            value_edit,
-                                        ));
-                                    }
-
-                                    if value_edit_take_over_response.should_cancel {
-                                        should_cancel_take_over = true;
-                                    }
-
-                                    return;
-                                }
-
                                 for tree_entry in &tree_entries {
                                     let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path);
                                     let icon = Self::resolve_tree_entry_icon(self.app_context.clone(), &tree_entry.project_item);
@@ -958,6 +896,70 @@ impl Widget for ProjectHierarchyView {
                                     }
                                 }
                             });
+                    }
+                    ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => {
+                        is_value_edit_take_over_active = true;
+
+                        let project_item = tree_entries
+                            .iter()
+                            .find(|tree_entry| tree_entry.project_item_path == project_item_path)
+                            .map(|tree_entry| tree_entry.project_item.clone());
+                        let Some(project_item) = project_item else {
+                            should_cancel_take_over = true;
+                            return;
+                        };
+                        let Some(value_edit_context) =
+                            Self::build_project_item_value_edit_context(&self.app_context.engine_unprivileged_state, &project_item)
+                        else {
+                            should_cancel_take_over = true;
+                            return;
+                        };
+                        let value_edit_storage_id = Self::project_item_value_edit_storage_id(&project_item_path);
+                        let mut value_edit = user_interface
+                            .ctx()
+                            .data_mut(|data| data.get_temp::<AnonymousValueString>(value_edit_storage_id))
+                            .unwrap_or_else(|| value_edit_context.initial_value_edit.clone());
+                        let value_edit_display_values = Self::build_project_item_value_edit_display_values(
+                            &self.app_context.engine_unprivileged_state,
+                            &value_edit_context.validation_data_type_ref,
+                            &value_edit,
+                        );
+                        let value_editor_id = format!("project_hierarchy_value_editor_{}", project_item_path.to_string_lossy());
+                        let panel_width = user_interface.available_width().clamp(320.0, 560.0);
+
+                        user_interface.add_space(12.0);
+                        user_interface.horizontal(|user_interface| {
+                            let side_spacing = ((user_interface.available_width() - panel_width) * 0.5).max(0.0);
+                            user_interface.add_space(side_spacing);
+                            user_interface.allocate_ui_with_layout(vec2(panel_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
+                                let value_edit_take_over_response = ProjectItemValueEditTakeOverView::new(
+                                    self.app_context.clone(),
+                                    &value_edit_context.project_item_name,
+                                    &mut value_edit,
+                                    &value_edit_context.validation_data_type_ref,
+                                    &value_edit_display_values,
+                                    &value_editor_id,
+                                )
+                                .show(user_interface);
+
+                                if value_edit_take_over_response.should_commit {
+                                    value_edit_project_item_submission = Some((
+                                        project_item_path.clone(),
+                                        value_edit_context.value_field_name.clone(),
+                                        value_edit_context.validation_data_type_ref.clone(),
+                                        value_edit.clone(),
+                                    ));
+                                }
+
+                                if value_edit_take_over_response.should_cancel {
+                                    should_cancel_take_over = true;
+                                }
+                            });
+                        });
+
+                        user_interface
+                            .ctx()
+                            .data_mut(|data| data.insert_temp(value_edit_storage_id, value_edit));
                     }
                     ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
                         is_delete_confirmation_active = true;

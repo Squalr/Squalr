@@ -126,6 +126,7 @@ impl ProjectHierarchyViewData {
             );
 
             project_hierarchy_view_data.retain_valid_selection();
+            project_hierarchy_view_data.retain_valid_take_over_state();
 
             if let Some(dragged_project_item_paths) = &project_hierarchy_view_data.dragged_project_item_paths {
                 let visible_project_item_paths: HashSet<PathBuf> = project_hierarchy_view_data
@@ -219,6 +220,31 @@ impl ProjectHierarchyViewData {
         self.selected_project_item_path = Some(project_item_path.clone());
         self.selection_anchor_project_item_path = Some(project_item_path);
         self.retain_valid_selection();
+    }
+
+    fn retain_valid_take_over_state(&mut self) {
+        let visible_project_item_paths: HashSet<PathBuf> = self
+            .project_items
+            .iter()
+            .map(|(project_item_ref, _)| project_item_ref.get_project_item_path().clone())
+            .collect();
+
+        match &mut self.take_over_state {
+            ProjectHierarchyTakeOverState::None => {}
+            ProjectHierarchyTakeOverState::RenameProjectItem { project_item_path, .. }
+            | ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => {
+                if !visible_project_item_paths.contains(project_item_path) {
+                    self.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
+            ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
+                project_item_paths.retain(|project_item_path| visible_project_item_paths.contains(project_item_path));
+
+                if project_item_paths.is_empty() {
+                    self.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
+        }
     }
 
     pub fn get_selected_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
@@ -1941,6 +1967,19 @@ mod tests {
         let project_hierarchy_view_data = project_hierarchy_view_data
             .read("Project hierarchy request value edit directory test")
             .expect("Expected project hierarchy view data after requesting value edit.");
+
+        assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
+    }
+
+    #[test]
+    fn retain_valid_take_over_state_clears_missing_value_edit_takeover() {
+        let missing_project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::EditProjectItemValue {
+            project_item_path: missing_project_item_path,
+        };
+
+        project_hierarchy_view_data.retain_valid_take_over_state();
 
         assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
     }

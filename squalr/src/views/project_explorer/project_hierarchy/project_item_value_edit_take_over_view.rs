@@ -55,24 +55,21 @@ impl<'lifetime> ProjectItemValueEditTakeOverView<'lifetime> {
         });
         user_interface.add_space(12.0);
 
-        user_interface.horizontal_centered(|user_interface| {
-            let value_editor_width = user_interface.available_width().min(520.0).max(260.0);
-            user_interface.add_space(((user_interface.available_width() - value_editor_width) * 0.5).max(0.0));
-            user_interface.add(
-                DataValueBoxView::new(
-                    self.app_context.clone(),
-                    self.value_edit,
-                    self.validation_data_type_ref,
-                    false,
-                    true,
-                    "",
-                    self.value_editor_id,
-                )
-                .display_values(self.display_values)
-                .width(value_editor_width)
-                .height(32.0),
-            );
-        });
+        let value_editor_width = user_interface.available_width().max(260.0);
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                self.value_edit,
+                self.validation_data_type_ref,
+                false,
+                true,
+                "",
+                self.value_editor_id,
+            )
+            .display_values(self.display_values)
+            .width(value_editor_width)
+            .height(32.0),
+        );
 
         if DataValueBoxView::consume_commit_on_enter(user_interface, self.value_editor_id) {
             should_commit = true;
