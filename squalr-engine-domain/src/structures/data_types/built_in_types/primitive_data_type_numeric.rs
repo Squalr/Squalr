@@ -66,8 +66,7 @@ impl PrimitiveDataTypeNumeric {
     {
         let primitive_size = size_of::<T>();
         let value_string = anonymous_value_string.get_anonymous_value_string();
-        let has_multiple_elements =
-            matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) || value_string.contains(',');
+        let has_multiple_elements = matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_));
 
         if !has_multiple_elements {
             return Self::deanonymize_single::<T>(value_string, anonymous_value_string.get_anonymous_value_string_format(), is_big_endian);
@@ -226,8 +225,8 @@ mod tests {
     }
 
     #[test]
-    fn deanonymize_supports_decimal_array_values() {
-        let anonymous_value_string = AnonymousValueString::new(String::from("1, 2, 3"), AnonymousValueStringFormat::Decimal, ContainerType::None);
+    fn deanonymize_supports_decimal_array_values_when_container_type_is_array() {
+        let anonymous_value_string = AnonymousValueString::new(String::from("1, 2, 3"), AnonymousValueStringFormat::Decimal, ContainerType::Array);
 
         let value_bytes = PrimitiveDataTypeNumeric::deanonymize::<u32>(&anonymous_value_string, false).expect("Expected decimal array input to parse.");
 
@@ -240,6 +239,15 @@ mod tests {
             ]
             .concat()
         );
+    }
+
+    #[test]
+    fn deanonymize_rejects_decimal_array_values_when_container_type_is_element() {
+        let anonymous_value_string = AnonymousValueString::new(String::from("1, 2, 3"), AnonymousValueStringFormat::Decimal, ContainerType::None);
+
+        let result = PrimitiveDataTypeNumeric::deanonymize::<u32>(&anonymous_value_string, false);
+
+        assert!(result.is_err());
     }
 
     #[test]

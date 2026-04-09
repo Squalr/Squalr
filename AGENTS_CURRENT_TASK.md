@@ -10,12 +10,11 @@ Our current task, from `README.md`, is:
 ## Current Tasklist (ordered)
 (Remove as completed, add remaining concrete tasks. If no tasks, audit the GUI project against the TUI and look for gaps in functionality. Note that many of the mouse or drag heavy functionality are not really the primary UX, so some UX judgement calls are required).
 
-- Need human verification: element scanner UX — container type dropdown (Element/Array selector) + comma-separated numeric values (e.g. `i32` + `1, 2, 3`). Confirm: (1) dropdown changes container_mode state, (2) Array mode with comma-separated values builds one array-width constraint instead of multiple, (3) results page shows one array match instead of multiple scalar matches.
-- Need human verification: struct viewer project-item — `container_type` and `array_size` field rows. Confirm: (1) selecting Array changes container, (2) editing `array_size` through the DataValueBox updates the live symbolic field definition, (3) struct size calculation includes array width.
+- Need human verification: element scanner UX - container type dropdown (`Element`/`Array`) plus comma-separated numeric values (for example `i32` + `1, 2, 3`). Confirm: (1) `Element` mode marks comma-separated numeric input invalid before dispatch, (2) `Array` mode accepts the same input, (3) `Array` mode builds one array-width constraint and the results page shows one array match instead of multiple scalar matches.
+- Need human verification: struct viewer project-item - `container_type` and `array_size` field rows. Confirm: (1) selecting `Array` changes container, (2) editing `array_size` through the `DataValueBox` updates the live symbolic field definition, (3) struct size calculation includes array width.
 - Need human verification: in the element scanner, enter an array or masked pattern value under a non-`==` compare (for example `Changed` + `1, 2` or `Not Equal` + `xx D4`) and confirm the value box is flagged invalid before dispatch.
 - Need human verification: exercise masked hex-pattern scans in the element scanner (for example `u8` + `hex_pattern` + `xx D4`) to confirm wildcarded prefix/suffix matches are no longer skipped in the live process path.
 - Need human verification: exercise the plugin list surfaces in GUI, TUI, and CLI to confirm bundled capability labels read cleanly and match expected terminology.
-
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -39,7 +38,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - The 24-bit plugin data types (`u24`, `u24be`, `i24`, `i24be`) now return `PreferTypeScanner`, which keeps them on their type-owned scalar/vector compare path instead of forcing generic byte-array planning.
 - The 24-bit plugin crate now explicitly enables `portable_simd`; the shared 24-bit vector compare helper names `std::simd::Simd` directly, so this crate currently builds on nightly-style feature gating rather than hiding that type behind another abstraction.
 - The byte-array Boyer-Moore overlap path was still overshifting on some partial-suffix mismatches because it preferred any non-zero good-suffix shift over the bad-character shift; overlap-preserving scans need the smaller safe shift. `RuleMapScanType` also now keeps `NotEqual` off the equality-only byte-array scanner.
-- Numeric scan inputs now infer array equality from comma-separated values, so `i32` plus `1, 2, 3` builds one 12-byte constraint instead of failing numeric parsing.
 - Scan constraint building now rejects non-equality comparisons when the parsed value spans multiple elements, keeping typed-array and hex-pattern scans on the equality-only path explicitly.
 - Snapshot filter collections now track logical result width separately from the base data type unit size, so array-pattern scans page/count/materialize as one container-width result and the results pane can display `i32` array payloads like `1, 2`.
 - `RuleMapScanType` now chooses byte-array scanners before the small-filter scalar early return, so array rescans on narrowed filters keep array semantics instead of dropping to scalar single-element comparisons.
@@ -53,7 +51,9 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Struct viewer project-item fields now synthesize explicit `container_type` and conditional `array_size` rows in the view model while keeping `symbolic_struct_definition_reference` as the only persisted source of truth; virtual row edits are recomposed back into the symbolic field definition before project persistence.
 - The project-item struct viewer no longer exposes pointer container choices in this surface. `container_type` is limited to `Element` and `Array`, and `array_size` uses the normal `DataValueBox` flow so validation/formatting stays aligned with other numeric edits.
 - Validation run completed: `cargo test -p squalr struct_viewer_view_data -- --nocapture`, `cargo check -p squalr --quiet`, and `cargo fmt --all`.
-- Element scanner now has `ElementScannerContainerMode` enum with `Element` and `Array` variants; container mode selection is rendered in the toolbar using proper `ComboBoxView` styling (not default egui ComboBox).
-- Container type in element scanner is now **implicit** — no explicit `array_size` input field. Array sizing is derived from the parsed constraint value (e.g., comma-separated `1, 2, 3` infers the array length). Constraint building applies the selected container type based on mode and parsed value semantics.
-- Struct viewer `DataTypeSelector` and `ContainerTypeSelector` now reserve trailing space for checkbox column alignment (matches the fixed 28px + padding pattern used elsewhere). Both widgets use `ComboBoxView` for consistent dropdown styling.
-- Validation run completed: `cargo build --bin squalr --package squalr --locked` (13 pre-existing warnings in settings template code, 0 new errors).
+- Element scanner now has `ElementScannerContainerMode` enum with `Element` and `Array` variants; container mode selection is rendered in the toolbar using proper `ComboBoxView` styling.
+- Numeric primitive parsing no longer treats commas as an implicit array signal; array parsing now requires explicit array container metadata from the caller.
+- Element scanner container mode now actively stamps the anonymous constraint value before both validation and dispatch. `Element` forces `ContainerType::None`, while `Array` forces `ContainerType::Array`, so comma-separated numeric input is rejected in element mode but accepted in array mode.
+- Validation run completed: `cargo test -p squalr-engine-domain primitive_data_type_numeric -- --nocapture`, `cargo test -p squalr-engine-session validate_scan_constraint_ -- --nocapture`, `cargo test -p squalr element_scanner_view_data -- --nocapture`, `cargo check -p squalr --quiet`, and `cargo fmt --all`.
+- Added an engine-level regression for `ElementScanRequest` with `i32` + decimal array `1, 2`; the request path now proves one array-width result is produced at the expected address and materializes back as decimal `1, 2`.
+- Validation run completed: `cargo test -p squalr-engine element_scan_request_finds_i32_array_matches -- --nocapture`.

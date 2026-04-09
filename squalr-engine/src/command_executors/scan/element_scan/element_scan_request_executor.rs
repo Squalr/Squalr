@@ -131,6 +131,7 @@ mod tests {
     use super::ElementScanExecutor;
     use crate::command_executors::privileged_request_executor::PrivilegedCommandRequestExecutor;
     use crate::engine_privileged_state::EnginePrivilegedState;
+    use squalr_engine_api::commands::scan::element_scan::element_scan_request::ElementScanRequest;
     use squalr_engine_api::commands::scan::new::scan_new_request::ScanNewRequest;
     use squalr_engine_api::engine::{
         engine_api_priviliged_bindings::EngineApiPrivilegedBindings, engine_binding_error::EngineBindingError, engine_event_envelope::EngineEventEnvelope,
@@ -453,6 +454,19 @@ mod tests {
         bytes[start_offset..start_offset + encoded_value.len()].copy_from_slice(&encoded_value);
     }
 
+    fn write_i32_array_value(
+        memory_bytes: &Arc<RwLock<Vec<u8>>>,
+        start_address: u64,
+        values: &[i32],
+    ) {
+        let mut bytes = memory_bytes.write().expect("Expected memory bytes write lock.");
+        let start_offset = (start_address - TEST_REGION_BASE_ADDRESS) as usize;
+        let encoded_values: Vec<u8> = values.iter().flat_map(|value| value.to_le_bytes()).collect();
+        let end_offset = start_offset + encoded_values.len();
+
+        bytes[start_offset..end_offset].copy_from_slice(&encoded_values);
+    }
+
     fn write_region_bytes(
         memory_bytes: &Arc<RwLock<Vec<u8>>>,
         region_bytes: &[u8],
@@ -633,5 +647,44 @@ mod tests {
             1
         );
         assert_eq!(get_first_result_address(&engine_privileged_state), Some(TEST_MATCH_ADDRESS));
+    }
+
+    #[test]
+    fn element_scan_request_finds_i32_array_matches() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("1, 2"),
+                    AnonymousValueStringFormat::Decimal,
+                    ContainerType::Array,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("i32")],
+        };
+
+        write_i32_array_value(&memory_bytes, match_address, &[1, 2]);
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected an i32 array scan result.");
+            let decimal_display_value = scan_result
+                .get_current_display_value(AnonymousValueStringFormat::Decimal)
+                .expect("Expected decimal display value for i32 array scan result.");
+
+            assert_eq!(scan_result.get_address(), match_address);
+            assert_eq!(decimal_display_value.get_anonymous_value_string(), "1, 2");
+            assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(2));
+        });
     }
 }

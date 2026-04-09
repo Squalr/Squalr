@@ -362,7 +362,19 @@ mod tests {
         assert!(privileged_registry_cache.validate_scan_constraint(
             &data_type_ref,
             ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
-            &anonymous_value_string,
+            &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_rejects_comma_separated_element_input() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("i32");
+
+        assert!(!privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None),
         ));
     }
 }

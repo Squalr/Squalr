@@ -190,10 +190,12 @@ impl Widget for ElementScannerToolbarView {
             .data_type_selection
             .visible_data_type()
             .clone();
+        let selected_container_mode = element_scanner_view_data.container_mode;
 
         // Constraint rows.
         for index in 0..element_scanner_view_data.scan_values_and_constraints.len() {
             let scan_values_and_constraint = &mut element_scanner_view_data.scan_values_and_constraints[index];
+            ElementScannerViewData::apply_container_mode_to_constraint_value(selected_container_mode, &mut scan_values_and_constraint.current_scan_value);
 
             toolbar_user_interface.allocate_ui(vec2(toolbar_user_interface.available_width(), constraint_row_height), |user_interface| {
                 user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
@@ -218,7 +220,7 @@ impl Widget for ElementScannerToolbarView {
                                     &selected_data_type,
                                     false,
                                     true,
-                                    "Enter a value or comma-separated array...",
+                                    "Enter a value...",
                                     &format!("data_value_box_scan_value_index_{}", index),
                                 )
                                 .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type),
