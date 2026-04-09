@@ -17,6 +17,7 @@ Our current task, from `README.md`, is:
 - Need human verification: project explorer delete-confirmation takeover centers both `Cancel` and `Delete` buttons as a group instead of pinning the left button to the left edge.
 - Need human verification: in the element scanner, enter an array or masked pattern value under a non-`==` compare (for example `Changed` + `1, 2` or `Not Equal` + `xx D4`) and confirm the value box is flagged invalid before dispatch.
 - Need human verification: exercise masked hex-pattern scans in the element scanner (for example `u8` + `hex_pattern` + `xx D4`) to confirm wildcarded prefix/suffix matches are no longer skipped in the live process path.
+- Need human verification: enable element scan debug validation and run representative live scans for previously noisy built-in types (`i8`, `f32`, and any other affected primitives) to confirm specialized scanners no longer log scalar-validation mismatches.
 - Need human verification: exercise the plugin list surfaces in GUI, TUI, and CLI to confirm bundled capability labels read cleanly and match expected terminology.
 
 ## Important Information
@@ -68,3 +69,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Validation run completed: `cargo test -p squalr-engine format_project_item_preview_value_ -- --nocapture` and `cargo check -p squalr-engine --quiet`.
 - The project hierarchy delete-confirmation takeover now centers its action row directly instead of nesting the buttons inside a fixed-width child UI that could anchor incorrectly.
 - Validation run completed: `cargo check -p squalr --quiet`.
+- Built-in numeric/float vector compare adapters had a shared lane-count bug: the 32-byte and 16-byte compare closures were parameterized with 64-byte element counts, which could overread SIMD inputs and trigger shadow-scan mismatches across types like `i8` and `f32`.
+- Fixed the built-in vector compare adapters to use vector-width-correct lane counts for 16/32/64-byte closures, and added focused regression tests in the `i8` and `f32` adapters to lock the byte-count math.
+- Validation run completed: `cargo test -p squalr-engine-domain vector_lane_counts_match -- --nocapture` and `cargo check -p squalr-engine-domain -p squalr-engine-scanning -p squalr-engine --quiet`.
