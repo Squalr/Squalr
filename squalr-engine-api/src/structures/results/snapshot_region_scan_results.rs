@@ -3,6 +3,7 @@ use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
+    data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
     scan_results::{scan_result_data_type_count::ScanResultDataTypeCount, scan_result_valued::ScanResultValued},
     scanning::filters::snapshot_region_filter::SnapshotRegionFilter,
     scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
@@ -149,6 +150,7 @@ impl<'a> ScanResultsPageCursor<'a> {
                     .anonymize_value_to_supported_formats(data_value)
                     .ok()
             })
+            .map(|display_values| Self::apply_result_container_type(display_values, self.collection, symbol_registry))
             .unwrap_or_default();
         let previous_display_values = previous_value
             .as_ref()
@@ -157,6 +159,7 @@ impl<'a> ScanResultsPageCursor<'a> {
                     .anonymize_value_to_supported_formats(data_value)
                     .ok()
             })
+            .map(|display_values| Self::apply_result_container_type(display_values, self.collection, symbol_registry))
             .unwrap_or_default();
         let icon_id = symbol_registry.get_icon_id(data_type_ref);
 
@@ -170,6 +173,33 @@ impl<'a> ScanResultsPageCursor<'a> {
             previous_display_values,
             ScanResultRef::new(global_scan_result_index),
         ))
+    }
+
+    fn apply_result_container_type(
+        mut display_values: Vec<AnonymousValueString>,
+        collection: &SnapshotRegionFilterCollection,
+        symbol_registry: &SymbolRegistry,
+    ) -> Vec<AnonymousValueString> {
+        let result_container_type = collection.get_result_container_type();
+
+        if !matches!(result_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) {
+            return display_values;
+        }
+
+        let unit_size_in_bytes = symbol_registry
+            .get_unit_size_in_bytes(collection.get_data_type_ref())
+            .max(1);
+        let fixed_array_length = match result_container_type {
+            ContainerType::ArrayFixed(array_length) => array_length.max(1),
+            ContainerType::Array => (collection.get_result_value_size_in_bytes() / unit_size_in_bytes).max(1),
+            _ => 1,
+        };
+
+        for display_value in &mut display_values {
+            display_value.set_container_type(ContainerType::ArrayFixed(fixed_array_length));
+        }
+
+        display_values
     }
 }
 
@@ -943,5 +973,34 @@ mod tests {
             .expect("Expected decimal display value for array result.");
         assert_eq!(decimal_display_value.get_anonymous_value_string(), "1, 2");
         assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(2));
+    }
+
+    #[test]
+    fn get_scan_results_page_preserves_single_element_array_container_hints() {
+        let symbol_registry = SymbolRegistry::new();
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x6000, 0x20), Vec::new());
+        snapshot_region.current_values = 1_i32.to_le_bytes().to_vec();
+
+        let array_collection = SnapshotRegionFilterCollection::new_with_result_size(
+            &symbol_registry,
+            vec![vec![SnapshotRegionFilter::new(0x6000, 4)]],
+            DataTypeRef::new("i32"),
+            MemoryAlignment::Alignment4,
+            4,
+        )
+        .with_result_container_type(ContainerType::Array);
+        snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![array_collection]));
+
+        let scan_results_page = snapshot_region
+            .get_scan_results()
+            .get_scan_results_page(&snapshot_region, &symbol_registry, None, 0, 0, 1, &BTreeSet::new());
+
+        assert_eq!(scan_results_page.len(), 1);
+
+        let decimal_display_value = scan_results_page[0]
+            .get_current_display_value(AnonymousValueStringFormat::Decimal)
+            .expect("Expected decimal display value for single-element array result.");
+        assert_eq!(decimal_display_value.get_anonymous_value_string(), "1");
+        assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(1));
     }
 }

@@ -45,12 +45,10 @@ impl<'a> ScanConstraintBuilder<'a> {
             .deanonymize_value_string(data_type_ref, anonymous_value_string)?;
 
         self.validate_scan_shape(anonymous_scan_constraint, data_type_ref, &data_value)?;
+        let mut scan_constraint = ScanConstraint::new(anonymous_scan_constraint.get_scan_compare_type(), data_value, self.floating_point_tolerance);
+        scan_constraint.set_result_container_type(anonymous_value_string.get_container_type());
 
-        Ok(Some(ScanConstraint::new(
-            anonymous_scan_constraint.get_scan_compare_type(),
-            data_value,
-            self.floating_point_tolerance,
-        )))
+        Ok(Some(scan_constraint))
     }
 
     fn build_hex_pattern_constraint(
@@ -69,18 +67,20 @@ impl<'a> ScanConstraintBuilder<'a> {
         self.validate_scan_shape(anonymous_scan_constraint, data_type_ref, &data_value)?;
 
         if ConversionsFromHexPattern::has_wildcards(&mask_bytes) {
-            Ok(Some(ScanConstraint::new_masked(
+            let mut scan_constraint = ScanConstraint::new_masked(
                 anonymous_scan_constraint.get_scan_compare_type(),
                 data_value,
                 self.floating_point_tolerance,
                 mask_bytes,
-            )))
+            );
+            scan_constraint.set_result_container_type(anonymous_value_string.get_container_type());
+
+            Ok(Some(scan_constraint))
         } else {
-            Ok(Some(ScanConstraint::new(
-                anonymous_scan_constraint.get_scan_compare_type(),
-                data_value,
-                self.floating_point_tolerance,
-            )))
+            let mut scan_constraint = ScanConstraint::new(anonymous_scan_constraint.get_scan_compare_type(), data_value, self.floating_point_tolerance);
+            scan_constraint.set_result_container_type(anonymous_value_string.get_container_type());
+
+            Ok(Some(scan_constraint))
         }
     }
 

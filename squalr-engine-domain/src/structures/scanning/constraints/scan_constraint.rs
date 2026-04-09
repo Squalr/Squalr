@@ -1,5 +1,6 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 
@@ -11,6 +12,7 @@ pub struct ScanConstraint {
     /// `0xF0` / `0x0F` wildcard the low / high nibble; `0x00` is a full-byte wildcard.
     /// `None` indicates a literal scan with no masking.
     mask: Option<Vec<u8>>,
+    result_container_type: ContainerType,
 }
 
 impl ScanConstraint {
@@ -24,6 +26,7 @@ impl ScanConstraint {
             data_value,
             floating_point_tolerance,
             mask: None,
+            result_container_type: ContainerType::None,
         }
     }
 
@@ -38,6 +41,7 @@ impl ScanConstraint {
             data_value,
             floating_point_tolerance,
             mask: Some(mask),
+            result_container_type: ContainerType::None,
         }
     }
 
@@ -92,5 +96,16 @@ impl ScanConstraint {
 
     pub fn has_mask(&self) -> bool {
         self.mask.is_some()
+    }
+
+    pub fn get_result_container_type(&self) -> ContainerType {
+        self.result_container_type
+    }
+
+    pub fn set_result_container_type(
+        &mut self,
+        result_container_type: ContainerType,
+    ) {
+        self.result_container_type = result_container_type;
     }
 }

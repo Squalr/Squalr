@@ -6,6 +6,7 @@ use squalr_engine_api::commands::project_items::add::project_items_add_response:
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
@@ -242,17 +243,43 @@ fn build_symbolic_field_definition_string(
         .or_else(|| scan_result.get_valued_result().get_current_value().as_ref())
         .map(|data_value| data_value.get_size_in_bytes())
         .unwrap_or(unit_size_in_bytes);
+    let explicit_array_length = resolve_scan_result_array_length(scan_result, value_size_in_bytes, unit_size_in_bytes);
+
+    if let Some(array_length) = explicit_array_length {
+        return SymbolicFieldDefinition::new(data_type_ref, ContainerType::ArrayFixed(array_length)).to_string();
+    }
 
     if unit_size_in_bytes == 0 || value_size_in_bytes <= unit_size_in_bytes || value_size_in_bytes % unit_size_in_bytes != 0 {
         return data_type_ref.to_string();
     }
 
     let element_count = value_size_in_bytes / unit_size_in_bytes;
-    SymbolicFieldDefinition::new(
-        data_type_ref,
-        squalr_engine_api::structures::data_values::container_type::ContainerType::ArrayFixed(element_count),
-    )
-    .to_string()
+    SymbolicFieldDefinition::new(data_type_ref, ContainerType::ArrayFixed(element_count)).to_string()
+}
+
+fn resolve_scan_result_array_length(
+    scan_result: &ScanResult,
+    value_size_in_bytes: u64,
+    unit_size_in_bytes: u64,
+) -> Option<u64> {
+    let display_container_type = scan_result
+        .get_recently_read_display_values()
+        .iter()
+        .chain(scan_result.get_current_display_values().iter())
+        .map(|display_value| display_value.get_container_type())
+        .find(|container_type| matches!(container_type, ContainerType::Array | ContainerType::ArrayFixed(_)))?;
+
+    match display_container_type {
+        ContainerType::ArrayFixed(array_length) => Some(array_length.max(1)),
+        ContainerType::Array => {
+            if unit_size_in_bytes == 0 {
+                Some(1)
+            } else {
+                Some((value_size_in_bytes / unit_size_in_bytes).max(1))
+            }
+        }
+        _ => None,
+    }
 }
 
 fn generate_unique_project_item_file_path(
@@ -406,6 +433,9 @@ mod tests {
     };
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
     use squalr_engine_api::structures::data_values::data_value::DataValue;
     use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
     use squalr_engine_api::structures::projects::project::Project;
@@ -607,5 +637,37 @@ mod tests {
         let symbolic_field_definition = build_symbolic_field_definition_string(&engine_execution_context, &scan_result);
 
         assert_eq!(symbolic_field_definition, "u8[3]");
+    }
+
+    #[test]
+    fn build_symbolic_field_definition_string_preserves_single_element_array_container() {
+        let engine_execution_context = create_test_engine_execution_context();
+        let scan_result_valued = ScanResultValued::new(
+            0x1000,
+            DataTypeRef::new("u8"),
+            String::new(),
+            Some(DataValue::new(DataTypeRef::new("u8"), vec![0x11])),
+            vec![AnonymousValueString::new(
+                "11".to_string(),
+                AnonymousValueStringFormat::Hexadecimal,
+                ContainerType::ArrayFixed(1),
+            )],
+            None,
+            Vec::new(),
+            ScanResultRef::new(2),
+        );
+        let scan_result = ScanResult::new(
+            scan_result_valued,
+            "game.exe".to_string(),
+            0x20,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let symbolic_field_definition = build_symbolic_field_definition_string(&engine_execution_context, &scan_result);
+
+        assert_eq!(symbolic_field_definition, "u8[1]");
     }
 }

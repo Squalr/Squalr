@@ -687,4 +687,43 @@ mod tests {
             assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(2));
         });
     }
+
+    #[test]
+    fn element_scan_request_preserves_single_element_array_container() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("1"),
+                    AnonymousValueStringFormat::Decimal,
+                    ContainerType::Array,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("i32")],
+        };
+
+        write_i32_array_value(&memory_bytes, match_address, &[1]);
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected an i32 single-element array scan result.");
+            let decimal_display_value = scan_result
+                .get_current_display_value(AnonymousValueStringFormat::Decimal)
+                .expect("Expected decimal display value for i32 single-element array scan result.");
+
+            assert_eq!(scan_result.get_address(), match_address);
+            assert_eq!(decimal_display_value.get_anonymous_value_string(), "1");
+            assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(1));
+        });
+    }
 }

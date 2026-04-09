@@ -10,6 +10,7 @@ use crate::scanners::vector::scanner_vector_sparse::ScannerVectorSparse;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::ElementScanRuleRegistry;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::scanning::constraints::scan_constraint_finalized::ScanConstraintFinalized;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use squalr_engine_api::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
@@ -64,6 +65,7 @@ impl ElementScanDispatcher {
                 .collect()
         };
         let result_value_size_in_bytes = Self::resolve_result_value_size_in_bytes(snapshot_region_filter_collection, element_scan_plan);
+        let result_container_type = Self::resolve_result_container_type(snapshot_region_filter_collection, element_scan_plan);
 
         SnapshotRegionFilterCollection::new_with_result_size(
             symbol_registry,
@@ -72,6 +74,7 @@ impl ElementScanDispatcher {
             snapshot_region_filter_collection.get_memory_alignment(),
             result_value_size_in_bytes,
         )
+        .with_result_container_type(result_container_type)
     }
 
     // This method orchestrates multiple scan parameters to combine when scanning a single snapshot region.
@@ -230,6 +233,26 @@ impl ElementScanDispatcher {
                     })
             })
             .unwrap_or(default_result_value_size_in_bytes)
+    }
+
+    fn resolve_result_container_type(
+        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
+        element_scan_plan: &ElementScanPlan,
+    ) -> ContainerType {
+        element_scan_plan
+            .get_scan_constraints_by_data_type()
+            .get(snapshot_region_filter_collection.get_data_type_ref())
+            .and_then(|scan_constraints| {
+                scan_constraints
+                    .iter()
+                    .map(|scan_constraint| {
+                        scan_constraint
+                            .get_scan_constraint()
+                            .get_result_container_type()
+                    })
+                    .find(|result_container_type| matches!(result_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)))
+            })
+            .unwrap_or(ContainerType::None)
     }
 
     /// Performs a second scan over the provided snapshot region filter to ensure that the results of a specialized scan match

@@ -1,5 +1,6 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 
@@ -7,6 +8,7 @@ pub struct ScanConstraint {
     scan_compare_type: ScanCompareType,
     data_value: DataValue,
     floating_point_tolerance: FloatingPointTolerance,
+    result_container_type: ContainerType,
 }
 
 impl ScanConstraint {
@@ -19,6 +21,7 @@ impl ScanConstraint {
             scan_compare_type,
             data_value,
             floating_point_tolerance,
+            result_container_type: ContainerType::None,
         }
     }
 
@@ -65,5 +68,16 @@ impl ScanConstraint {
         floating_point_tolerance: FloatingPointTolerance,
     ) {
         self.floating_point_tolerance = floating_point_tolerance
+    }
+
+    pub fn get_result_container_type(&self) -> ContainerType {
+        self.result_container_type
+    }
+
+    pub fn set_result_container_type(
+        &mut self,
+        result_container_type: ContainerType,
+    ) {
+        self.result_container_type = result_container_type;
     }
 }

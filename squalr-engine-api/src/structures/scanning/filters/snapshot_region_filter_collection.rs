@@ -1,4 +1,5 @@
 use crate::registries::symbols::symbol_registry::SymbolRegistry;
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::memory::memory_alignment::MemoryAlignment;
 use crate::structures::{data_types::data_type_ref::DataTypeRef, scanning::filters::snapshot_region_filter::SnapshotRegionFilter};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -16,6 +17,9 @@ pub struct SnapshotRegionFilterCollection {
 
     // The width in bytes of each logical result represented by this collection.
     result_value_size_in_bytes: u64,
+
+    // The logical container semantics of each result represented by this collection.
+    result_container_type: ContainerType,
 
     // The total number of results contained in this collection.
     number_of_results: u64,
@@ -75,6 +79,7 @@ impl SnapshotRegionFilterCollection {
             data_type_ref,
             memory_alignment,
             result_value_size_in_bytes,
+            result_container_type: ContainerType::None,
         }
     }
 
@@ -119,6 +124,18 @@ impl SnapshotRegionFilterCollection {
 
     pub fn get_result_value_size_in_bytes(&self) -> u64 {
         self.result_value_size_in_bytes
+    }
+
+    pub fn get_result_container_type(&self) -> ContainerType {
+        self.result_container_type
+    }
+
+    pub fn with_result_container_type(
+        mut self,
+        result_container_type: ContainerType,
+    ) -> Self {
+        self.result_container_type = result_container_type;
+        self
     }
 
     /// Iterates the snapshot region filters sequentially, which are sorted by base address ascending.
