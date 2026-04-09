@@ -320,6 +320,49 @@ impl ProjectHierarchyViewData {
         }
     }
 
+    pub fn request_rename_for_selected_project_item(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy request selected item rename") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        if project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
+            return;
+        }
+
+        let Some(selected_project_item_path) = project_hierarchy_view_data.selected_project_item_path.clone() else {
+            return;
+        };
+        let Some((_, selected_project_item)) = project_hierarchy_view_data
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &selected_project_item_path)
+        else {
+            return;
+        };
+        let selected_project_item_type_id = selected_project_item
+            .get_item_type()
+            .get_project_item_type_id()
+            .to_string();
+        let Some(project_root_path) = Self::resolve_project_root_path(
+            project_hierarchy_view_data.opened_project_info.as_ref(),
+            &project_hierarchy_view_data.project_items,
+        ) else {
+            return;
+        };
+
+        if selected_project_item_path == project_root_path {
+            return;
+        }
+
+        project_hierarchy_view_data.menu_target = None;
+        project_hierarchy_view_data.menu_position = None;
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::RenameProjectItem {
+            project_item_path: selected_project_item_path,
+            project_item_type_id: selected_project_item_type_id,
+        };
+    }
+
     pub fn request_delete_confirmation(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         project_item_paths: Vec<PathBuf>,
