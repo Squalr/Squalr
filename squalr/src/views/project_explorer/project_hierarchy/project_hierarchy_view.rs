@@ -9,6 +9,7 @@ use crate::{
         project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
         project_item_entry_view::ProjectItemEntryView,
         project_item_inline_rename_view::ProjectItemInlineRenameView,
+        project_item_value_edit_take_over_view::ProjectItemValueEditTakeOverView,
         view_data::{
             project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
             project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
@@ -31,7 +32,8 @@ use squalr_engine_api::commands::settings::scan::list::scan_settings_list_reques
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project::Project;
@@ -40,7 +42,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
-use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructField;
+use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
+use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -77,6 +80,14 @@ impl PointerScannerContextAction {
             Self::Address { label, .. } | Self::ResolvedPointer { label, .. } => label,
         }
     }
+}
+
+#[derive(Clone)]
+struct ProjectItemValueEditContext {
+    project_item_name: String,
+    value_field_name: String,
+    validation_data_type_ref: DataTypeRef,
+    initial_value_edit: AnonymousValueString,
 }
 
 impl ProjectHierarchyView {
@@ -121,6 +132,7 @@ mod tests {
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64 as DataTypeU64Pointer,
     };
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -267,6 +279,14 @@ mod tests {
 
     fn create_execution_context(mock_memory_read_bindings: MockMemoryReadBindings) -> Arc<dyn EngineExecutionContext> {
         let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(mock_memory_read_bindings));
+
+        EngineUnprivilegedState::new_with_options(engine_bindings, EngineUnprivilegedStateOptions { enable_console_logging: false })
+    }
+
+    fn create_test_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {
+        let engine_bindings: Arc<RwLock<dyn EngineApiUnprivilegedBindings>> = Arc::new(RwLock::new(MockMemoryReadBindings::new(|_memory_read_request| {
+            create_pointer_memory_read_response(0, PointerScanPointerSize::Pointer64, false)
+        })));
 
         EngineUnprivilegedState::new_with_options(engine_bindings, EngineUnprivilegedStateOptions { enable_console_logging: false })
     }
@@ -516,6 +536,53 @@ mod tests {
     }
 
     #[test]
+    fn build_project_item_value_edit_context_for_address_uses_runtime_value_field() {
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "4660");
+
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item)
+            .expect("Expected value edit context for address project item.");
+
+        assert_eq!(value_edit_context.project_item_name, "Health");
+        assert_eq!(value_edit_context.value_field_name, ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE);
+        assert_eq!(
+            value_edit_context.validation_data_type_ref,
+            squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef::new(DataTypeU16::DATA_TYPE_ID)
+        );
+        assert_eq!(
+            value_edit_context
+                .initial_value_edit
+                .get_anonymous_value_string(),
+            "4660"
+        );
+    }
+
+    #[test]
+    fn build_project_item_value_edit_context_preserves_array_container_type() {
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let pointer = Pointer::new(0x1000, vec![0x20], "game.exe".to_string());
+        let mut project_item = ProjectItemTypePointer::new_project_item("Ammo", &pointer, "", "u16[2]");
+        ProjectItemTypePointer::set_field_freeze_data_value_interpreter(&mut project_item, "1, 2");
+
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item)
+            .expect("Expected value edit context for pointer project item.");
+
+        assert_eq!(value_edit_context.initial_value_edit.get_container_type(), ContainerType::ArrayFixed(2));
+    }
+
+    #[test]
+    fn build_project_item_value_edit_context_returns_none_for_directory() {
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
+        let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
+
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item);
+
+        assert!(value_edit_context.is_none());
+    }
+
+    #[test]
     fn should_apply_struct_field_edit_to_project_item_ignores_runtime_value_field() {
         assert!(!ProjectHierarchyView::should_apply_struct_field_edit_to_project_item(
             ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID,
@@ -545,9 +612,11 @@ impl Widget for ProjectHierarchyView {
         let mut should_cancel_take_over = false;
         let mut delete_confirmation_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
         let mut rename_project_item_submission: Option<(PathBuf, String, String)> = None;
+        let mut value_edit_project_item_submission: Option<(PathBuf, String, DataTypeRef, AnonymousValueString)> = None;
         let mut keyboard_activation_toggle_target: Option<(Vec<PathBuf>, bool)> = None;
         let mut is_delete_confirmation_active = false;
         let mut is_rename_take_over_active = false;
+        let mut is_value_edit_take_over_active = false;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let project_hierarchy_view_data = match self.project_hierarchy_view_data.read("Project hierarchy view") {
@@ -589,13 +658,80 @@ impl Widget for ProjectHierarchyView {
                     _ => None,
                 };
                 is_rename_take_over_active = active_inline_rename.is_some();
+                let active_value_edit_project_item_path = match &take_over_state {
+                    ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => Some(project_item_path.clone()),
+                    _ => None,
+                };
+                is_value_edit_take_over_active = active_value_edit_project_item_path.is_some();
 
                 match take_over_state {
-                    ProjectHierarchyTakeOverState::None | ProjectHierarchyTakeOverState::RenameProjectItem { .. } => {
+                    ProjectHierarchyTakeOverState::None
+                    | ProjectHierarchyTakeOverState::RenameProjectItem { .. }
+                    | ProjectHierarchyTakeOverState::EditProjectItemValue { .. } => {
                         ScrollArea::vertical()
                             .id_salt("project_hierarchy")
                             .auto_shrink([false, false])
                             .show(user_interface, |user_interface| {
+                                if let Some(active_value_edit_project_item_path) = active_value_edit_project_item_path.as_ref() {
+                                    let Some(project_item) = tree_entries
+                                        .iter()
+                                        .find(|tree_entry| &tree_entry.project_item_path == active_value_edit_project_item_path)
+                                        .map(|tree_entry| tree_entry.project_item.clone())
+                                    else {
+                                        should_cancel_take_over = true;
+                                        return;
+                                    };
+                                    let Some(value_edit_context) =
+                                        Self::build_project_item_value_edit_context(&self.app_context.engine_unprivileged_state, &project_item)
+                                    else {
+                                        should_cancel_take_over = true;
+                                        return;
+                                    };
+                                    let value_edit_storage_id =
+                                        Self::project_item_value_edit_storage_id(active_value_edit_project_item_path);
+                                    let mut value_edit = user_interface
+                                        .ctx()
+                                        .data_mut(|data| data.get_temp::<AnonymousValueString>(value_edit_storage_id))
+                                        .unwrap_or_else(|| value_edit_context.initial_value_edit.clone());
+                                    let value_edit_display_values = Self::build_project_item_value_edit_display_values(
+                                        &self.app_context.engine_unprivileged_state,
+                                        &value_edit_context.validation_data_type_ref,
+                                        &value_edit,
+                                    );
+                                    let value_editor_id = format!(
+                                        "project_hierarchy_value_editor_{}",
+                                        active_value_edit_project_item_path.to_string_lossy()
+                                    );
+                                    let value_edit_take_over_response = ProjectItemValueEditTakeOverView::new(
+                                        self.app_context.clone(),
+                                        &value_edit_context.project_item_name,
+                                        &mut value_edit,
+                                        &value_edit_context.validation_data_type_ref,
+                                        &value_edit_display_values,
+                                        &value_editor_id,
+                                    )
+                                    .show(user_interface);
+
+                                    user_interface
+                                        .ctx()
+                                        .data_mut(|data| data.insert_temp(value_edit_storage_id, value_edit.clone()));
+
+                                    if value_edit_take_over_response.should_commit {
+                                        value_edit_project_item_submission = Some((
+                                            active_value_edit_project_item_path.clone(),
+                                            value_edit_context.value_field_name.clone(),
+                                            value_edit_context.validation_data_type_ref.clone(),
+                                            value_edit,
+                                        ));
+                                    }
+
+                                    if value_edit_take_over_response.should_cancel {
+                                        should_cancel_take_over = true;
+                                    }
+
+                                    return;
+                                }
+
                                 for tree_entry in &tree_entries {
                                     let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path);
                                     let icon = Self::resolve_tree_entry_icon(self.app_context.clone(), &tree_entry.project_item);
@@ -604,7 +740,7 @@ impl Widget for ProjectHierarchyView {
                                         .as_ref()
                                         .map(|(project_item_path, _)| project_item_path == &tree_entry.project_item_path)
                                         .unwrap_or(false);
-                                    let row_response = if is_inline_rename_row {
+                                    let (row_response, should_request_rename, should_request_value_edit) = if is_inline_rename_row {
                                         let (_, project_item_type_id) = active_inline_rename
                                             .as_ref()
                                             .unwrap_or_else(|| panic!("Expected inline rename state for rename row."));
@@ -652,9 +788,9 @@ impl Widget for ProjectHierarchyView {
                                             data.insert_temp(rename_highlight_storage_id, should_highlight_text);
                                         });
 
-                                        inline_rename_response.row_response
+                                        (inline_rename_response.row_response, false, false)
                                     } else {
-                                        user_interface.add(ProjectItemEntryView::new(
+                                        let project_item_entry_view_response = ProjectItemEntryView::new(
                                             self.app_context.clone(),
                                             &tree_entry.project_item_path,
                                             &tree_entry.display_name,
@@ -668,11 +804,26 @@ impl Widget for ProjectHierarchyView {
                                             tree_entry.has_children,
                                             tree_entry.is_expanded,
                                             &mut project_hierarchy_frame_action,
-                                        ))
+                                        )
+                                        .show(user_interface);
+
+                                        (
+                                            project_item_entry_view_response.row_response,
+                                            project_item_entry_view_response.should_request_rename,
+                                            project_item_entry_view_response.should_request_value_edit,
+                                        )
                                     };
 
-                                    if is_rename_take_over_active {
+                                    if is_rename_take_over_active || is_value_edit_take_over_active {
                                         continue;
+                                    }
+
+                                    if should_request_rename {
+                                        project_hierarchy_frame_action =
+                                            ProjectHierarchyFrameAction::RequestRename(tree_entry.project_item_path.clone());
+                                    } else if should_request_value_edit {
+                                        project_hierarchy_frame_action =
+                                            ProjectHierarchyFrameAction::RequestValueEdit(tree_entry.project_item_path.clone());
                                     }
 
                                     if row_response.drag_started() {
@@ -899,15 +1050,27 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
-        if !is_delete_confirmation_active && !is_rename_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
+        if !is_delete_confirmation_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
+        {
             ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
         }
 
-        if !is_delete_confirmation_active && !is_rename_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::F2)) {
+        if !is_delete_confirmation_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && user_interface.input(|input_state| input_state.key_pressed(Key::F2))
+        {
             ProjectHierarchyViewData::request_rename_for_selected_project_item(self.project_hierarchy_view_data.clone());
         }
 
-        if !is_delete_confirmation_active && !is_rename_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Space)) {
+        if !is_delete_confirmation_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && user_interface.input(|input_state| input_state.key_pressed(Key::Space))
+        {
             keyboard_activation_toggle_target = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy keyboard activation toggle")
@@ -942,6 +1105,16 @@ impl Widget for ProjectHierarchyView {
             {
                 Self::clear_project_item_rename_state(user_interface, &project_item_path);
             }
+            if let Some(project_item_path) = self
+                .project_hierarchy_view_data
+                .read("Project hierarchy clear value edit state on cancel")
+                .and_then(|project_hierarchy_view_data| match &project_hierarchy_view_data.take_over_state {
+                    ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => Some(project_item_path.clone()),
+                    _ => None,
+                })
+            {
+                Self::clear_project_item_value_edit_state(user_interface, &project_item_path);
+            }
             ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
         }
 
@@ -973,6 +1146,25 @@ impl Widget for ProjectHierarchyView {
             }
 
             ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+        }
+
+        if let Some((project_item_path, value_field_name, validation_data_type_ref, value_edit)) = value_edit_project_item_submission {
+            match self
+                .app_context
+                .engine_unprivileged_state
+                .deanonymize_value_string(&validation_data_type_ref, &value_edit)
+            {
+                Ok(edited_data_value) => {
+                    let edited_field = ValuedStructField::new(value_field_name, ValuedStructFieldData::Value(edited_data_value), false);
+
+                    Self::apply_project_item_edits(self.app_context.clone(), vec![project_item_path.clone()], edited_field);
+                    Self::clear_project_item_value_edit_state(user_interface, &project_item_path);
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                }
+                Err(error) => {
+                    log::warn!("Failed to commit project hierarchy runtime value edit: {}", error);
+                }
+            }
         }
 
         if let Some((project_item_paths, is_activated)) = keyboard_activation_toggle_target {
@@ -1027,6 +1219,9 @@ impl Widget for ProjectHierarchyView {
                     Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
+                if is_value_edit_take_over_active {
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                }
 
                 ProjectHierarchyViewData::select_project_item(self.project_hierarchy_view_data.clone(), project_item_path, additive_selection, range_selection);
                 self.focus_selected_project_items_in_struct_viewer();
@@ -1036,11 +1231,14 @@ impl Widget for ProjectHierarchyView {
                     Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
+                if is_value_edit_take_over_active {
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                }
 
                 ProjectHierarchyViewData::toggle_directory_expansion(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::SetProjectItemActivation(project_item_path, is_activated) => {
-                if is_rename_take_over_active {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1069,7 +1267,7 @@ impl Widget for ProjectHierarchyView {
                 target_project_item_path,
                 create_item_kind,
             } => {
-                if is_rename_take_over_active {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1085,14 +1283,33 @@ impl Widget for ProjectHierarchyView {
                 module_name,
                 data_type_id,
             } => {
-                if is_rename_take_over_active {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
                 self.focus_pointer_scanner_for_address(address, &module_name, &data_type_id);
             }
-            ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
+            ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
+                if is_value_edit_take_over_active {
+                    return response;
+                }
+
                 if is_rename_take_over_active {
+                    Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
+                }
+
+                ProjectHierarchyViewData::request_rename_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
+            }
+            ProjectHierarchyFrameAction::RequestValueEdit(project_item_path) => {
+                if is_rename_take_over_active {
+                    Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                }
+
+                ProjectHierarchyViewData::request_value_edit_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
+            }
+            ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1968,6 +2185,71 @@ impl ProjectHierarchyView {
         if let Some(active_project_item_path) = active_project_item_path {
             Self::clear_project_item_rename_state(user_interface, &active_project_item_path);
         }
+    }
+
+    fn project_item_value_edit_storage_id(project_item_path: &Path) -> Id {
+        Id::new(("project_hierarchy_value_edit", project_item_path.to_path_buf()))
+    }
+
+    fn clear_project_item_value_edit_state(
+        user_interface: &Ui,
+        project_item_path: &Path,
+    ) {
+        let value_edit_storage_id = Self::project_item_value_edit_storage_id(project_item_path);
+
+        user_interface.ctx().data_mut(|data| {
+            data.remove::<AnonymousValueString>(value_edit_storage_id);
+        });
+    }
+
+    fn build_project_item_value_edit_context(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        project_item: &ProjectItem,
+    ) -> Option<ProjectItemValueEditContext> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+        let value_field_name = if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
+        } else {
+            return None;
+        };
+        let value_field = project_item.get_properties().get_field(value_field_name)?;
+        let value_data_value = value_field.get_data_value()?;
+        let symbolic_field_definition = project_item
+            .get_properties()
+            .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+            .and_then(StructViewerViewData::read_symbolic_field_definition_reference_from_field_set);
+        let validation_data_type_ref = symbolic_field_definition
+            .as_ref()
+            .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
+            .unwrap_or_else(|| value_data_value.get_data_type_ref().clone());
+        let container_type = symbolic_field_definition
+            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
+            .unwrap_or(ContainerType::None);
+        let default_format = engine_unprivileged_state.get_default_anonymous_value_string_format(&validation_data_type_ref);
+        let raw_display_value = String::from_utf8(value_data_value.get_value_bytes().clone()).unwrap_or_default();
+
+        Some(ProjectItemValueEditContext {
+            project_item_name: project_item.get_field_name(),
+            value_field_name: value_field_name.to_string(),
+            validation_data_type_ref,
+            initial_value_edit: AnonymousValueString::new(raw_display_value, default_format, container_type),
+        })
+    }
+
+    fn build_project_item_value_edit_display_values(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        validation_data_type_ref: &DataTypeRef,
+        value_edit: &AnonymousValueString,
+    ) -> Vec<AnonymousValueString> {
+        let Ok(data_value) = engine_unprivileged_state.deanonymize_value_string(validation_data_type_ref, value_edit) else {
+            return Vec::new();
+        };
+
+        engine_unprivileged_state
+            .anonymize_value_to_supported_formats(&data_value)
+            .unwrap_or_else(|_| vec![value_edit.clone()])
     }
 
     fn build_project_item_rename_request(

@@ -20,5 +20,7 @@ pub enum ProjectHierarchyFrameAction {
         module_name: String,
         data_type_id: String,
     },
+    RequestRename(PathBuf),
+    RequestValueEdit(PathBuf),
     RequestDeleteConfirmation(Vec<PathBuf>),
 }
