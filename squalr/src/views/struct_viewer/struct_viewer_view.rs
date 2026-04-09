@@ -5,8 +5,6 @@ use crate::{app_context::AppContext, views::struct_viewer::view_data::struct_vie
 use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
 use epaint::{Rect, pos2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
-use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructFieldData;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -141,6 +139,22 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
+                                    StructViewerFieldEditorKind::ContainerTypeSelector => {
+                                        inner_ui.add(StructViewerEntryView::new(
+                                            self.app_context.clone(),
+                                            &field,
+                                            &field_presentation,
+                                            field_row_index,
+                                            is_selected,
+                                            &mut frame_action,
+                                            None,
+                                            field_display_values,
+                                            None,
+                                            validation_data_type_ref.as_ref(),
+                                            ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                            value_splitter_x + BAR_THICKNESS,
+                                        ));
+                                    }
                                 }
                             }
                         }
@@ -194,49 +208,26 @@ impl Widget for StructViewerView {
             }
             StructViewerFrameAction::EditValue(edited_field) => {
                 if let Some(mut struct_viewer_view_data) = self.struct_viewer_view_data.write("Struct viewer edit value") {
-                    if let Some(struct_under_view) = Arc::make_mut(&mut struct_viewer_view_data.struct_under_view).as_mut() {
-                        if let Some(field_under_view) = struct_under_view.get_field_mut(edited_field.get_name()) {
-                            field_under_view.set_field_data(edited_field.get_field_data().clone());
+                    let Some(source_edited_field) = struct_viewer_view_data.resolve_source_field_edit(&edited_field) else {
+                        return response;
+                    };
+
+                    if let Some(source_struct_under_view) = Arc::make_mut(&mut struct_viewer_view_data.source_struct_under_view).as_mut() {
+                        if let Some(field_under_view) = source_struct_under_view.get_field_mut(source_edited_field.get_name()) {
+                            field_under_view.set_field_data(source_edited_field.get_field_data().clone());
+                        } else {
+                            source_struct_under_view.set_field_data(
+                                source_edited_field.get_name(),
+                                source_edited_field.get_field_data().clone(),
+                                source_edited_field.get_is_read_only(),
+                            );
                         }
                     }
 
-                    if let ValuedStructFieldData::Value(new_data_value) = edited_field.get_field_data() {
-                        if let Some(edit_value) = struct_viewer_view_data
-                            .field_edit_values
-                            .get_mut(edited_field.get_name())
-                        {
-                            let current_anonymous_value_string_format = edit_value.get_anonymous_value_string_format();
-                            let new_anonymous_value_string = self
-                                .app_context
-                                .engine_unprivileged_state
-                                .anonymize_value(new_data_value, current_anonymous_value_string_format)
-                                .unwrap_or_else(|error| {
-                                    log::warn!("Failed to anonymize edited struct value: {}", error);
-                                    let data_type_ref = new_data_value.get_data_type_ref();
-                                    let default_anonymous_value_string_format = self
-                                        .app_context
-                                        .engine_unprivileged_state
-                                        .get_default_anonymous_value_string_format(data_type_ref);
-
-                                    AnonymousValueString::new(String::new(), default_anonymous_value_string_format, ContainerType::None)
-                                });
-
-                            *edit_value = new_anonymous_value_string;
-                        }
-
-                        let field_display_values = self
-                            .app_context
-                            .engine_unprivileged_state
-                            .anonymize_value_to_supported_formats(new_data_value)
-                            .unwrap_or_default();
-
-                        struct_viewer_view_data
-                            .field_display_values
-                            .insert(edited_field.get_name().to_string(), field_display_values);
-                    }
+                    struct_viewer_view_data.refresh_cached_field_state(&self.app_context.engine_unprivileged_state);
 
                     if let Some(struct_field_modified_callback) = struct_viewer_view_data.struct_field_modified_callback.clone() {
-                        struct_field_modified_callback(edited_field);
+                        struct_field_modified_callback(source_edited_field);
                     }
                 }
             }

@@ -7,6 +7,7 @@ use squalr_engine_api::{
     structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, data_value::DataValue},
+        scanning::comparisons::scan_compare_type::ScanCompareType,
         structs::symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
@@ -138,6 +139,16 @@ impl PrivilegedRegistryCache {
             .validate_value_string(data_type_ref, anonymous_value_string)
     }
 
+    pub fn validate_scan_constraint(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .validate_scan_constraint(data_type_ref, scan_compare_type, anonymous_value_string)
+    }
+
     pub fn deanonymize_value_string(
         &self,
         data_type_ref: &DataTypeRef,
@@ -236,8 +247,13 @@ mod tests {
         registries::symbols::{privileged_registry_catalog::PrivilegedRegistryCatalog, struct_layout_descriptor::StructLayoutDescriptor},
         structures::{
             data_types::data_type_ref::DataTypeRef,
-            data_values::anonymous_value_string_format::AnonymousValueStringFormat,
+            data_values::{
+                anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+            },
             memory::endian::Endian,
+            scanning::comparisons::{
+                scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate, scan_compare_type_relative::ScanCompareTypeRelative,
+            },
             structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
         },
     };
@@ -330,5 +346,59 @@ mod tests {
                 .get_default_value(&DataTypeRef::new(first_plugin_data_type_id))
                 .is_some()
         );
+    }
+
+    #[test]
+    fn validate_scan_constraint_rejects_non_equality_array_values() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("i32");
+        let anonymous_value_string = AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None);
+
+        assert!(!privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Relative(ScanCompareTypeRelative::Changed),
+            &anonymous_value_string,
+        ));
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_rejects_comma_separated_element_input() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("i32");
+
+        assert!(!privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_accepts_decimal_array_wildcards() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("u8");
+
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1 xx 55".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_accepts_hex_array_nibble_wildcards() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("u8");
+
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1 7x 55".to_string(), AnonymousValueStringFormat::Hexadecimal, ContainerType::Array),
+        ));
     }
 }

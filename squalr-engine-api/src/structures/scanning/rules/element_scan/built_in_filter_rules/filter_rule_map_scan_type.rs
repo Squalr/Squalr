@@ -31,9 +31,9 @@ impl ElementScanFilterRule for RuleMapScanType {
         &self,
         symbol_registry: &SymbolRegistry,
         snapshot_region: &SnapshotRegion,
-        _snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
+        snapshot_region_filter_collection: &SnapshotRegionFilterCollection,
         snapshot_region_filter: &SnapshotRegionFilter,
-        _scan_constraint_finalized: &ScanConstraintFinalized,
+        scan_constraint_finalized: &ScanConstraintFinalized,
         snapshot_filter_element_scan_plan: &mut SnapshotFilterElementScanPlan,
     ) {
         let is_valid_for_snapshot_region = if snapshot_region.has_current_values() {
@@ -51,7 +51,29 @@ impl ElementScanFilterRule for RuleMapScanType {
             return;
         }
 
+        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
         let region_size = snapshot_region_filter.get_region_size();
+        let data_type_size_bytes = snapshot_region_filter_collection.get_result_value_size_in_bytes();
+        let is_floating_point = symbol_registry.is_floating_point(data_type_ref);
+        let data_type_scan_preference = symbol_registry.get_scan_preference(data_type_ref);
+        let memory_alignment_size = snapshot_filter_element_scan_plan.get_memory_alignment() as u64;
+        let should_use_byte_array_scan = matches!(
+            snapshot_filter_element_scan_plan.get_compare_type(),
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal)
+        ) && !is_floating_point
+            && data_type_scan_preference != DataTypeScanPreference::PreferTypeScanner;
+
+        if should_use_byte_array_scan {
+            let planned_scan_type_byte_array = if scan_constraint_finalized.get_scan_constraint().has_mask() {
+                PlannedScanTypeByteArray::ByteArrayBooyerMooreMasked
+            } else {
+                PlannedScanTypeByteArray::ByteArrayBooyerMoore
+            };
+
+            snapshot_filter_element_scan_plan.set_planned_scan_type(PlannedScanType::ByteArray(planned_scan_type_byte_array));
+
+            return;
+        }
 
         // Early check as to whether we are smaller than the smallest possible vector.
         // Saves some computation to check this now, as this is a very frequent case.
@@ -66,11 +88,6 @@ impl ElementScanFilterRule for RuleMapScanType {
         // For example, if scanning for i32, 1-byte aligned, a single region of 64 bytes is not actually very helpful.
         // This is because we would actually want to overlap based on alignment, and thus would need at least 67 bytes.
         // This is derived from scanning for four i32 values at alignments 0, 1, 2, and 3.
-        let data_type_ref = snapshot_filter_element_scan_plan.get_data_type_ref();
-        let data_type_size_bytes = symbol_registry.get_unit_size_in_bytes(data_type_ref);
-        let is_floating_point = symbol_registry.is_floating_point(data_type_ref);
-        let data_type_scan_preference = symbol_registry.get_scan_preference(data_type_ref);
-        let memory_alignment_size = snapshot_filter_element_scan_plan.get_memory_alignment() as u64;
 
         // Decide whether to use a scalar or SIMD scan based on filter region size.
         let vectorization_size = if VectorGenerics::plan_vector_scan::<64>(region_size, data_type_size_bytes, memory_alignment_size).is_valid() {
@@ -119,22 +136,6 @@ impl ElementScanFilterRule for RuleMapScanType {
 
             return;
         }
-
-        match snapshot_filter_element_scan_plan.get_compare_type() {
-            ScanCompareType::Relative(_) | ScanCompareType::Delta(_) => {}
-            ScanCompareType::Immediate(scan_compare_type_immediate) => {
-                match scan_compare_type_immediate {
-                    ScanCompareTypeImmediate::Equal => {
-                        if !is_floating_point && data_type_scan_preference != DataTypeScanPreference::PreferTypeScanner {
-                            // Perform a byte array scan, since we were unable to map the byte array to a primitive type.
-                            // These are the only acceptable options, either the type is a primitive, or its a byte array.
-                            snapshot_filter_element_scan_plan.set_planned_scan_type(PlannedScanType::ByteArray(PlannedScanTypeByteArray::ByteArrayBooyerMoore));
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        };
 
         let has_supported_vector_scan = match snapshot_filter_element_scan_plan.get_planned_scan_type() {
             PlannedScanType::Vector(_, PlannedScanVectorizationSize::Vector16) => snapshot_filter_element_scan_plan

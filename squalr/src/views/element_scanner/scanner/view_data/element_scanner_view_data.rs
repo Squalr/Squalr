@@ -13,7 +13,7 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
-        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         scanning::{
             comparisons::{scan_compare_type::ScanCompareType, scan_compare_type_immediate::ScanCompareTypeImmediate},
             constraints::anonymous_scan_constraint::AnonymousScanConstraint,
@@ -23,11 +23,29 @@ use squalr_engine_api::{
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::Arc;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ElementScannerContainerMode {
+    Element,
+    Array,
+}
+
+impl ElementScannerContainerMode {
+    pub const ALL: &'static [Self] = &[Self::Element, Self::Array];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Element => "Element",
+            Self::Array => "Array",
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ElementScannerViewData {
     pub data_type_selection: DataTypeSelection,
     pub active_display_format: AnonymousValueStringFormat,
     pub view_state: ElementScannerViewState,
+    pub container_mode: ElementScannerContainerMode,
     pub scan_values_and_constraints: Vec<ElementScannerValueViewData>,
 }
 
@@ -39,6 +57,7 @@ impl ElementScannerViewData {
             data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::get_data_type_id())),
             active_display_format: AnonymousValueStringFormat::Decimal,
             view_state: ElementScannerViewState::NoResults,
+            container_mode: ElementScannerContainerMode::Element,
             scan_values_and_constraints: vec![ElementScannerValueViewData::new(Self::create_menu_id(0))],
         }
     }
@@ -178,10 +197,9 @@ impl ElementScannerViewData {
             .scan_values_and_constraints
             .iter()
             .map(|scan_value_and_constraint| {
-                AnonymousScanConstraint::new(
-                    scan_value_and_constraint.selected_scan_compare_type,
-                    Some(scan_value_and_constraint.current_scan_value.clone()),
-                )
+                let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
+                Self::apply_container_mode_to_constraint_value(element_scanner_view_data.container_mode, &mut constraint_value);
+                AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, Some(constraint_value))
             })
             .collect();
         let element_scan_request = ElementScanRequest {
@@ -253,5 +271,41 @@ impl ElementScannerViewData {
 
     fn create_menu_id(index: usize) -> String {
         format!("element_scanner_data_type_selector_{}", index)
+    }
+
+    pub fn apply_container_mode_to_constraint_value(
+        container_mode: ElementScannerContainerMode,
+        constraint_value: &mut AnonymousValueString,
+    ) {
+        match container_mode {
+            ElementScannerContainerMode::Element => constraint_value.set_container_type(ContainerType::None),
+            ElementScannerContainerMode::Array => constraint_value.set_container_type(ContainerType::Array),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ElementScannerContainerMode, ElementScannerViewData};
+    use squalr_engine_api::structures::data_values::{
+        anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+    };
+
+    #[test]
+    fn apply_container_mode_to_constraint_value_sets_none_for_element_mode() {
+        let mut anonymous_value_string = AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array);
+
+        ElementScannerViewData::apply_container_mode_to_constraint_value(ElementScannerContainerMode::Element, &mut anonymous_value_string);
+
+        assert_eq!(anonymous_value_string.get_container_type(), ContainerType::None);
+    }
+
+    #[test]
+    fn apply_container_mode_to_constraint_value_sets_array_for_array_mode() {
+        let mut anonymous_value_string = AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None);
+
+        ElementScannerViewData::apply_container_mode_to_constraint_value(ElementScannerContainerMode::Array, &mut anonymous_value_string);
+
+        assert_eq!(anonymous_value_string.get_container_type(), ContainerType::Array);
     }
 }

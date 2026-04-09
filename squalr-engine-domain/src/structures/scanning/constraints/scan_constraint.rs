@@ -1,5 +1,6 @@
 use crate::structures::data_types::data_type_ref::DataTypeRef;
 use crate::structures::data_types::floating_point_tolerance::FloatingPointTolerance;
+use crate::structures::data_values::container_type::ContainerType;
 use crate::structures::data_values::data_value::DataValue;
 use crate::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 
@@ -7,6 +8,11 @@ pub struct ScanConstraint {
     scan_compare_type: ScanCompareType,
     data_value: DataValue,
     floating_point_tolerance: FloatingPointTolerance,
+    /// Per-byte mask for masked pattern scans.  A mask byte of `0xFF` means exact match;
+    /// `0xF0` / `0x0F` wildcard the low / high nibble; `0x00` is a full-byte wildcard.
+    /// `None` indicates a literal scan with no masking.
+    mask: Option<Vec<u8>>,
+    result_container_type: ContainerType,
 }
 
 impl ScanConstraint {
@@ -19,6 +25,23 @@ impl ScanConstraint {
             scan_compare_type,
             data_value,
             floating_point_tolerance,
+            mask: None,
+            result_container_type: ContainerType::None,
+        }
+    }
+
+    pub fn new_masked(
+        scan_compare_type: ScanCompareType,
+        data_value: DataValue,
+        floating_point_tolerance: FloatingPointTolerance,
+        mask: Vec<u8>,
+    ) -> Self {
+        Self {
+            scan_compare_type,
+            data_value,
+            floating_point_tolerance,
+            mask: Some(mask),
+            result_container_type: ContainerType::None,
         }
     }
 
@@ -65,5 +88,24 @@ impl ScanConstraint {
         floating_point_tolerance: FloatingPointTolerance,
     ) {
         self.floating_point_tolerance = floating_point_tolerance
+    }
+
+    pub fn get_mask(&self) -> Option<&Vec<u8>> {
+        self.mask.as_ref()
+    }
+
+    pub fn has_mask(&self) -> bool {
+        self.mask.is_some()
+    }
+
+    pub fn get_result_container_type(&self) -> ContainerType {
+        self.result_container_type
+    }
+
+    pub fn set_result_container_type(
+        &mut self,
+        result_container_type: ContainerType,
+    ) {
+        self.result_container_type = result_container_type;
     }
 }

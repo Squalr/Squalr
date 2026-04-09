@@ -45,7 +45,12 @@ impl AnonymousScanConstraint {
     ) -> Option<ScanConstraint> {
         if let Some(anonymous_value_string) = &self.anonymous_value_string {
             match symbol_registry.deanonymize_value_string(&data_type_ref, &anonymous_value_string) {
-                Ok(data_value) => return Some(ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance)),
+                Ok(data_value) => {
+                    let mut scan_constraint = ScanConstraint::new(self.scan_compare_type, data_value, floating_point_tolerance);
+                    scan_constraint.set_result_container_type(anonymous_value_string.get_container_type());
+
+                    return Some(scan_constraint);
+                }
                 Err(error) => log::error!("Unable to parse value in anonymous constraint: {}", error),
             }
         }

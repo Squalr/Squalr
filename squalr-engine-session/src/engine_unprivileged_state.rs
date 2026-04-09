@@ -23,6 +23,7 @@ use squalr_engine_api::structures::data_values::{
 };
 use squalr_engine_api::structures::projects::project_manager::ProjectManager;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::scanning::comparisons::scan_compare_type::ScanCompareType;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
@@ -179,6 +180,18 @@ impl EngineUnprivilegedState {
     ) -> bool {
         self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.validate_value_string(data_type_ref, anonymous_value_string))
             .unwrap_or(false)
+    }
+
+    pub fn validate_scan_constraint(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| {
+            privileged_registry_cache.validate_scan_constraint(data_type_ref, scan_compare_type, anonymous_value_string)
+        })
+        .unwrap_or(false)
     }
 
     pub fn deanonymize_value_string(

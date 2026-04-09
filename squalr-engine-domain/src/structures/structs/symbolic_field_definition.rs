@@ -10,9 +10,10 @@ use crate::structures::{
     },
 };
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::str::FromStr;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolicFieldDefinition {
     data_type_ref: DataTypeRef,
     container_type: ContainerType,
@@ -80,11 +81,23 @@ impl SymbolicFieldDefinition {
         &self,
         symbol_registry: &impl SymbolResolver,
     ) -> u64 {
-        symbol_registry.get_unit_size_in_bytes(&self.data_type_ref)
+        let unit_size_in_bytes = symbol_registry.get_unit_size_in_bytes(&self.data_type_ref);
+
+        match self.container_type {
+            ContainerType::None => unit_size_in_bytes,
+            ContainerType::Pointer32 => 4,
+            ContainerType::Pointer64 => 8,
+            ContainerType::Array => unit_size_in_bytes,
+            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length),
+        }
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
         &self.data_type_ref
+    }
+
+    pub fn get_container_type(&self) -> ContainerType {
+        self.container_type
     }
 }
 
@@ -125,5 +138,36 @@ impl FromStr for SymbolicFieldDefinition {
         let data_type = DataTypeRef::from_str(type_str.trim())?;
 
         Ok(SymbolicFieldDefinition::new(data_type, container_type))
+    }
+}
+
+impl fmt::Display for SymbolicFieldDefinition {
+    fn fmt(
+        &self,
+        formatter: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(formatter, "{}{}", self.data_type_ref, self.container_type)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SymbolicFieldDefinition;
+    use crate::registries::symbols::symbol_registry::SymbolRegistry;
+    use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::container_type::ContainerType};
+
+    #[test]
+    fn get_size_in_bytes_scales_fixed_arrays_by_element_count() {
+        let symbol_registry = SymbolRegistry::new();
+        let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("u16"), ContainerType::ArrayFixed(3));
+
+        assert_eq!(symbolic_field_definition.get_size_in_bytes(&symbol_registry), 6);
+    }
+
+    #[test]
+    fn display_round_trips_base_type_and_container() {
+        let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("u8"), ContainerType::ArrayFixed(4));
+
+        assert_eq!(symbolic_field_definition.to_string(), "u8[4]");
     }
 }

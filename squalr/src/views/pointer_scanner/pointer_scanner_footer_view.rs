@@ -42,7 +42,7 @@ impl Widget for PointerScannerFooterView {
             .get_height()
             .min(user_interface.available_height().max(0.0));
         let row_height = height * 0.5;
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), height), Sense::empty());
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), height), Sense::empty());
 
         if height <= 0.0 {
             return response;

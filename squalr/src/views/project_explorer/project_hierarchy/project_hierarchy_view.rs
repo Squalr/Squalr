@@ -769,16 +769,19 @@ impl Widget for ProjectHierarchyView {
                                         );
                                     }
                                 });
-                            });
+                        });
 
                         user_interface.add_space(8.0);
-                        user_interface.horizontal_centered(|user_interface| {
-                            user_interface.allocate_ui_with_layout(
-                                vec2(252.0, 32.0),
-                                Layout::left_to_right(Align::Center),
-                                |user_interface| {
-                                user_interface.spacing_mut().item_spacing.x = 12.0;
-                                let button_size = vec2(120.0, 28.0);
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(120.0, 28.0);
+                            let button_spacing = 12.0;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
+
                                 let button_cancel = user_interface.add_sized(
                                     button_size,
                                     eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
@@ -800,8 +803,7 @@ impl Widget for ProjectHierarchyView {
                                 if button_confirm_delete.clicked() {
                                     delete_confirmation_project_item_paths = Some(project_item_paths);
                                 }
-                                },
-                            );
+                            });
                         });
                     }
                 }

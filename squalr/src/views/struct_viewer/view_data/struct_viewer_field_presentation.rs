@@ -2,6 +2,7 @@
 pub enum StructViewerFieldEditorKind {
     ValueBox,
     DataTypeSelector,
+    ContainerTypeSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

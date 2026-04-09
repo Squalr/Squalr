@@ -280,10 +280,9 @@ impl Snapshot {
 
     pub fn collect_scan_result_addresses_for_data_type(
         &self,
-        symbol_registry: &SymbolRegistry,
+        _symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
     ) -> Vec<u64> {
-        let data_type_size_in_bytes = symbol_registry.get_unit_size_in_bytes(data_type_ref);
         let mut scan_result_addresses = Vec::new();
 
         for snapshot_region in &self.snapshot_regions {
@@ -297,8 +296,10 @@ impl Snapshot {
 
             for snapshot_region_filter in snapshot_region_filter_collection.iter() {
                 let filter_base_address = snapshot_region_filter.get_base_address();
-                let filter_result_count =
-                    snapshot_region_filter.get_element_count(data_type_size_in_bytes, snapshot_region_filter_collection.get_memory_alignment());
+                let filter_result_count = snapshot_region_filter.get_element_count(
+                    snapshot_region_filter_collection.get_result_value_size_in_bytes(),
+                    snapshot_region_filter_collection.get_memory_alignment(),
+                );
 
                 for result_index in 0..filter_result_count {
                     scan_result_addresses.push(filter_base_address.saturating_add(result_index.saturating_mul(memory_alignment)));

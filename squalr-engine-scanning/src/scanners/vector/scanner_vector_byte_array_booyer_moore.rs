@@ -67,7 +67,6 @@ impl Scanner for ScannerVectorByteArrayBooyerMoore {
                 let current_byte = unsafe { *current_values_pointer.add((scan_index + inverse_pattern_index as u64) as usize) };
                 let pattern_byte = scan_pattern[inverse_pattern_index];
 
-                // JIRA: Also check masking table when we decide to support masking.
                 let is_mismatch = current_byte != pattern_byte;
 
                 if is_mismatch {

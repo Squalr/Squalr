@@ -40,7 +40,7 @@ impl<'lifetime> PluginEntryView<'lifetime> {
     ) -> PluginEntryViewResponse {
         let theme = &self.app_context.theme;
         let row_height = 88.0;
-        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
+        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), row_height), Sense::click());
 
         if self.is_selected {
             user_interface

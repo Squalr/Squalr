@@ -134,7 +134,8 @@ impl PointerScannerResultsView {
         resolved_splitter_position_x: f32,
     ) {
         let theme = &self.app_context.theme;
-        let (row_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
+        let (row_rectangle, row_response) =
+            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::ROW_HEIGHT), Sense::click());
         let row_background = if pointer_scanner_tree_row.is_selected {
             theme.selected_background
         } else if row_response.hovered() {
@@ -288,7 +289,8 @@ impl Widget for PointerScannerResultsView {
                     response
                 };
 
-                let (header_rectangle, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::HEADER_HEIGHT), Sense::empty());
+                let (header_rectangle, _) =
+                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::HEADER_HEIGHT), Sense::empty());
                 let content_clip_rectangle = user_interface
                     .available_rect_before_wrap()
                     .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);

@@ -61,14 +61,14 @@ impl SnapshotRegion {
         element_address: u64,
         symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
+        value_size_in_bytes: u64,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = symbol_registry.get_unit_size_in_bytes(data_type_ref);
 
-        if byte_offset.saturating_add(data_type_size) <= self.current_values.len() as u64 {
+        if byte_offset.saturating_add(value_size_in_bytes) <= self.current_values.len() as u64 {
             if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
-                let end = start + data_type_size as usize;
+                let end = start + value_size_in_bytes as usize;
                 data_value.copy_from_bytes(&self.current_values[start..end]);
 
                 Some(data_value)
@@ -86,14 +86,14 @@ impl SnapshotRegion {
         element_address: u64,
         symbol_registry: &SymbolRegistry,
         data_type_ref: &DataTypeRef,
+        value_size_in_bytes: u64,
     ) -> Option<DataValue> {
         let byte_offset: u64 = element_address.saturating_sub(self.get_base_address());
-        let data_type_size = symbol_registry.get_unit_size_in_bytes(data_type_ref);
 
-        if byte_offset.saturating_add(data_type_size) <= self.previous_values.len() as u64 {
+        if byte_offset.saturating_add(value_size_in_bytes) <= self.previous_values.len() as u64 {
             if let Some(mut data_value) = symbol_registry.get_default_value(data_type_ref) {
                 let start = byte_offset as usize;
-                let end = start + data_type_size as usize;
+                let end = start + value_size_in_bytes as usize;
                 data_value.copy_from_bytes(&self.previous_values[start..end]);
 
                 Some(data_value)

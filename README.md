@@ -337,11 +337,6 @@ Branch: `pr/engine-event-hooks`
 
 When the engine emits events, it would be nice for listeners and plugins to hook into these.
 
-### Plugin Support for Data Types
-Branch: `pr/plugins-data-types`
-
-Self explanatory
-
 ### Symbol authoring
 Branch: `pr/symbol-authoring`
 

@@ -3,6 +3,7 @@ use crate::structures::scan_results::scan_result_ref::ScanResultRef;
 use crate::structures::snapshots::snapshot_region::SnapshotRegion;
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
+    data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
     scan_results::{scan_result_data_type_count::ScanResultDataTypeCount, scan_result_valued::ScanResultValued},
     scanning::filters::snapshot_region_filter::SnapshotRegionFilter,
     scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection,
@@ -32,10 +33,9 @@ struct ScanResultsPageCursor<'a> {
 impl<'a> ScanResultsPageCursor<'a> {
     fn new(
         collection: &'a SnapshotRegionFilterCollection,
-        symbol_registry: &SymbolRegistry,
         is_selected: bool,
     ) -> Option<Self> {
-        let data_type_size_in_bytes = symbol_registry.get_unit_size_in_bytes(collection.get_data_type_ref());
+        let data_type_size_in_bytes = collection.get_result_value_size_in_bytes();
         let mut filter_iterator = collection.iter();
         let current_filter = filter_iterator.next();
 
@@ -131,8 +131,18 @@ impl<'a> ScanResultsPageCursor<'a> {
     ) -> Option<ScanResultValued> {
         let current_address = self.get_current_address()?;
         let data_type_ref = self.collection.get_data_type_ref();
-        let current_value = snapshot_region.get_current_value(current_address, symbol_registry, data_type_ref);
-        let previous_value = snapshot_region.get_previous_value(current_address, symbol_registry, data_type_ref);
+        let current_value = snapshot_region.get_current_value(
+            current_address,
+            symbol_registry,
+            data_type_ref,
+            self.collection.get_result_value_size_in_bytes(),
+        );
+        let previous_value = snapshot_region.get_previous_value(
+            current_address,
+            symbol_registry,
+            data_type_ref,
+            self.collection.get_result_value_size_in_bytes(),
+        );
         let current_display_values = current_value
             .as_ref()
             .and_then(|data_value| {
@@ -140,6 +150,7 @@ impl<'a> ScanResultsPageCursor<'a> {
                     .anonymize_value_to_supported_formats(data_value)
                     .ok()
             })
+            .map(|display_values| Self::apply_result_container_type(display_values, self.collection, symbol_registry))
             .unwrap_or_default();
         let previous_display_values = previous_value
             .as_ref()
@@ -148,6 +159,7 @@ impl<'a> ScanResultsPageCursor<'a> {
                     .anonymize_value_to_supported_formats(data_value)
                     .ok()
             })
+            .map(|display_values| Self::apply_result_container_type(display_values, self.collection, symbol_registry))
             .unwrap_or_default();
         let icon_id = symbol_registry.get_icon_id(data_type_ref);
 
@@ -161,6 +173,33 @@ impl<'a> ScanResultsPageCursor<'a> {
             previous_display_values,
             ScanResultRef::new(global_scan_result_index),
         ))
+    }
+
+    fn apply_result_container_type(
+        mut display_values: Vec<AnonymousValueString>,
+        collection: &SnapshotRegionFilterCollection,
+        symbol_registry: &SymbolRegistry,
+    ) -> Vec<AnonymousValueString> {
+        let result_container_type = collection.get_result_container_type();
+
+        if !matches!(result_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) {
+            return display_values;
+        }
+
+        let unit_size_in_bytes = symbol_registry
+            .get_unit_size_in_bytes(collection.get_data_type_ref())
+            .max(1);
+        let fixed_array_length = match result_container_type {
+            ContainerType::ArrayFixed(array_length) => array_length.max(1),
+            ContainerType::Array => (collection.get_result_value_size_in_bytes() / unit_size_in_bytes).max(1),
+            _ => 1,
+        };
+
+        for display_value in &mut display_values {
+            display_value.set_container_type(ContainerType::ArrayFixed(fixed_array_length));
+        }
+
+        display_values
     }
 }
 
@@ -238,7 +277,7 @@ impl SnapshotRegionScanResults {
 
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
             let is_selected = Self::is_data_type_selected(filtered_data_types, snapshot_region_filter_collection.get_data_type_ref());
-            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, symbol_registry, is_selected) else {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, is_selected) else {
                 continue;
             };
             let Some(current_address) = collection_cursor.get_current_address() else {
@@ -486,7 +525,7 @@ impl SnapshotRegionScanResults {
 
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
             let is_selected = Self::is_data_type_selected(filtered_data_types, snapshot_region_filter_collection.get_data_type_ref());
-            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, symbol_registry, is_selected) else {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, is_selected) else {
                 continue;
             };
             let Some(current_address) = collection_cursor.get_current_address() else {
@@ -563,14 +602,14 @@ impl SnapshotRegionScanResults {
 
     fn get_scan_result_metadata_by_local_scan_result_index(
         &self,
-        symbol_registry: &SymbolRegistry,
+        _symbol_registry: &SymbolRegistry,
         local_scan_result_index: u64,
     ) -> Option<(u64, DataTypeRef)> {
         let mut collection_cursors = Vec::new();
         let mut collection_cursor_heap: BinaryHeap<Reverse<(u64, usize)>> = BinaryHeap::new();
 
         for snapshot_region_filter_collection in &self.snapshot_region_filter_collections {
-            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, symbol_registry, true) else {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, true) else {
                 continue;
             };
             let Some(current_address) = collection_cursor.get_current_address() else {
@@ -717,6 +756,8 @@ mod tests {
     use super::SnapshotRegionScanResults;
     use crate::registries::symbols::symbol_registry::SymbolRegistry;
     use crate::structures::data_types::data_type_ref::DataTypeRef;
+    use crate::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use crate::structures::data_values::container_type::ContainerType;
     use crate::structures::memory::memory_alignment::MemoryAlignment;
     use crate::structures::memory::normalized_region::NormalizedRegion;
     use crate::structures::scan_results::scan_result_data_type_count::ScanResultDataTypeCount;
@@ -896,5 +937,70 @@ mod tests {
             scan_results.get_result_counts_by_data_type(),
             vec![ScanResultDataTypeCount::new(DataTypeRef::new("u16"), 3)]
         );
+    }
+
+    #[test]
+    fn get_scan_results_page_reads_multi_element_result_payloads() {
+        let symbol_registry = SymbolRegistry::new();
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x5000, 0x20), Vec::new());
+        snapshot_region.current_values = [1_i32.to_le_bytes().as_slice(), 2_i32.to_le_bytes().as_slice()].concat();
+
+        let array_collection = SnapshotRegionFilterCollection::new_with_result_size(
+            &symbol_registry,
+            vec![vec![SnapshotRegionFilter::new(0x5000, 8)]],
+            DataTypeRef::new("i32"),
+            MemoryAlignment::Alignment4,
+            8,
+        );
+        snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![array_collection]));
+
+        let scan_results_page = snapshot_region
+            .get_scan_results()
+            .get_scan_results_page(&snapshot_region, &symbol_registry, None, 0, 0, 1, &BTreeSet::new());
+
+        assert_eq!(scan_results_page.len(), 1);
+        assert_eq!(
+            scan_results_page[0]
+                .get_current_value()
+                .as_ref()
+                .expect("Expected current value for array result.")
+                .get_value_bytes(),
+            &[1, 0, 0, 0, 2, 0, 0, 0]
+        );
+
+        let decimal_display_value = scan_results_page[0]
+            .get_current_display_value(AnonymousValueStringFormat::Decimal)
+            .expect("Expected decimal display value for array result.");
+        assert_eq!(decimal_display_value.get_anonymous_value_string(), "1, 2");
+        assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(2));
+    }
+
+    #[test]
+    fn get_scan_results_page_preserves_single_element_array_container_hints() {
+        let symbol_registry = SymbolRegistry::new();
+        let mut snapshot_region = SnapshotRegion::new(NormalizedRegion::new(0x6000, 0x20), Vec::new());
+        snapshot_region.current_values = 1_i32.to_le_bytes().to_vec();
+
+        let array_collection = SnapshotRegionFilterCollection::new_with_result_size(
+            &symbol_registry,
+            vec![vec![SnapshotRegionFilter::new(0x6000, 4)]],
+            DataTypeRef::new("i32"),
+            MemoryAlignment::Alignment4,
+            4,
+        )
+        .with_result_container_type(ContainerType::Array);
+        snapshot_region.set_scan_results(SnapshotRegionScanResults::new(vec![array_collection]));
+
+        let scan_results_page = snapshot_region
+            .get_scan_results()
+            .get_scan_results_page(&snapshot_region, &symbol_registry, None, 0, 0, 1, &BTreeSet::new());
+
+        assert_eq!(scan_results_page.len(), 1);
+
+        let decimal_display_value = scan_results_page[0]
+            .get_current_display_value(AnonymousValueStringFormat::Decimal)
+            .expect("Expected decimal display value for single-element array result.");
+        assert_eq!(decimal_display_value.get_anonymous_value_string(), "1");
+        assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(1));
     }
 }

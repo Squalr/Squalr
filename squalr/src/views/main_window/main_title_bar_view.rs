@@ -36,7 +36,8 @@ impl Widget for MainTitleBarView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::empty());
+        let (allocated_size_rectangle, response) =
+            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), self.height), Sense::empty());
         let theme = &self.app_context.theme;
         let context = &self.app_context.context;
 

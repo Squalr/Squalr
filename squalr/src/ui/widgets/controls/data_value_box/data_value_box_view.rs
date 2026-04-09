@@ -5,6 +5,7 @@ use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, StrokeKind, Vec2, pos2
 use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
+    scanning::comparisons::scan_compare_type::ScanCompareType,
 };
 use std::sync::Arc;
 
@@ -12,6 +13,7 @@ pub struct DataValueBoxView<'lifetime> {
     app_context: Arc<AppContext>,
     anonymous_value_string: &'lifetime mut AnonymousValueString,
     validation_data_type: &'lifetime DataTypeRef,
+    validation_scan_compare_type: Option<ScanCompareType>,
     display_values: Option<&'lifetime [AnonymousValueString]>,
     is_read_only: bool,
     is_value_owned: bool,
@@ -46,6 +48,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             app_context,
             anonymous_value_string,
             validation_data_type,
+            validation_scan_compare_type: None,
             display_values: None,
             is_read_only,
             is_value_owned,
@@ -71,6 +74,14 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         border_width: f32,
     ) -> Self {
         self.border_width = border_width;
+        self
+    }
+
+    pub fn validation_scan_compare_type(
+        mut self,
+        validation_scan_compare_type: ScanCompareType,
+    ) -> Self {
+        self.validation_scan_compare_type = Some(validation_scan_compare_type);
         self
     }
 
@@ -151,7 +162,9 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         match self.anonymous_value_string.get_anonymous_value_string_format() {
             AnonymousValueStringFormat::Binary => &icon_library.icon_handle_display_type_binary,
             AnonymousValueStringFormat::Decimal => &icon_library.icon_handle_display_type_decimal,
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => &icon_library.icon_handle_display_type_hexadecimal,
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
+                &icon_library.icon_handle_display_type_hexadecimal
+            }
             AnonymousValueStringFormat::String
             | AnonymousValueStringFormat::Bool
             | AnonymousValueStringFormat::DataTypeRef
@@ -166,10 +179,16 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let is_valid = self
-            .app_context
-            .engine_unprivileged_state
-            .validate_value_string(&self.validation_data_type, &self.anonymous_value_string);
+        let is_valid = match self.validation_scan_compare_type {
+            Some(scan_compare_type) => self
+                .app_context
+                .engine_unprivileged_state
+                .validate_scan_constraint(&self.validation_data_type, scan_compare_type, &self.anonymous_value_string),
+            None => self
+                .app_context
+                .engine_unprivileged_state
+                .validate_value_string(&self.validation_data_type, &self.anonymous_value_string),
+        };
         let foreground_color = match self.use_preview_foreground {
             true => theme.foreground_preview,
             false => theme.foreground,
@@ -185,10 +204,12 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                             false => theme.binary_blue,
                         },
                         AnonymousValueStringFormat::Decimal => foreground_color,
-                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => match self.use_preview_foreground {
-                            true => theme.hexadecimal_green_preview,
-                            false => theme.hexadecimal_green,
-                        },
+                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
+                            match self.use_preview_foreground {
+                                true => theme.hexadecimal_green_preview,
+                                false => theme.hexadecimal_green,
+                            }
+                        }
                         AnonymousValueStringFormat::DataTypeRef => foreground_color,
                         AnonymousValueStringFormat::Enumeration => foreground_color,
                     }
@@ -200,7 +221,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         };
 
         let display_format_icon = self.display_format_icon();
-        let desired_size = vec2(self.width, self.height);
+        let desired_size = vec2(self.width.max(1.0), self.height);
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::hover());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
 

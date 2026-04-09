@@ -13,10 +13,10 @@ const BYTE_COUNT_64: usize = 64;
 const ELEMENT_COUNT_64: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
 
 const BYTE_COUNT_32: usize = 32;
-const ELEMENT_COUNT_32: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+const ELEMENT_COUNT_32: usize = BYTE_COUNT_32 / size_of::<PrimitiveType>();
 
 const BYTE_COUNT_16: usize = 16;
-const ELEMENT_COUNT_16: usize = BYTE_COUNT_64 / size_of::<PrimitiveType>();
+const ELEMENT_COUNT_16: usize = BYTE_COUNT_16 / size_of::<PrimitiveType>();
 
 impl VectorComparable for DataTypeI8 {
     fn get_vector_compare_equal_64(
@@ -437,5 +437,17 @@ impl VectorComparable for DataTypeI8 {
         scan_constraint: &ScanConstraint,
     ) -> Option<VectorCompareFnDelta16> {
         VectorComparisonsInteger::get_vector_compare_logical_xor_by::<{ BYTE_COUNT_16 }, { ELEMENT_COUNT_16 }, PrimitiveType>(scan_constraint)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vector_lane_counts_match_i8_vector_widths() {
+        assert_eq!(ELEMENT_COUNT_64 * size_of::<PrimitiveType>(), BYTE_COUNT_64);
+        assert_eq!(ELEMENT_COUNT_32 * size_of::<PrimitiveType>(), BYTE_COUNT_32);
+        assert_eq!(ELEMENT_COUNT_16 * size_of::<PrimitiveType>(), BYTE_COUNT_16);
     }
 }

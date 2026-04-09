@@ -6,11 +6,13 @@ use squalr_engine_api::commands::project_items::add::project_items_add_response:
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_request::ScanResultsRefreshRequest;
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
+use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs::{self, File};
@@ -209,19 +211,75 @@ fn add_scan_results_to_project(
         let project_item_ref = ProjectItemRef::new(project_item_absolute_path.clone());
 
         let project_item_name = build_project_item_name(scan_result);
-        let project_item = ProjectItemTypeAddress::new_project_item(
+        let mut project_item = ProjectItemTypeAddress::new_project_item(
             &project_item_name,
             scan_result.get_module_offset(),
             scan_result.get_module(),
             "",
             default_data_value,
         );
+        let symbolic_field_definition = build_symbolic_field_definition_string(engine_unprivileged_state, scan_result);
+        ProjectItemTypeAddress::set_field_symbolic_struct_definition_reference(&mut project_item, &symbolic_field_definition);
 
         project_items.insert(project_item_ref, project_item);
         added_file_paths.push(project_item_absolute_path);
     }
 
     added_file_paths
+}
+
+fn build_symbolic_field_definition_string(
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    scan_result: &ScanResult,
+) -> String {
+    let data_type_ref = scan_result.get_data_type_ref().clone();
+    let unit_size_in_bytes = engine_unprivileged_state
+        .get_default_value(&data_type_ref)
+        .map(|default_data_value| default_data_value.get_size_in_bytes())
+        .unwrap_or(0);
+    let value_size_in_bytes = scan_result
+        .get_recently_read_value()
+        .as_ref()
+        .or_else(|| scan_result.get_valued_result().get_current_value().as_ref())
+        .map(|data_value| data_value.get_size_in_bytes())
+        .unwrap_or(unit_size_in_bytes);
+    let explicit_array_length = resolve_scan_result_array_length(scan_result, value_size_in_bytes, unit_size_in_bytes);
+
+    if let Some(array_length) = explicit_array_length {
+        return SymbolicFieldDefinition::new(data_type_ref, ContainerType::ArrayFixed(array_length)).to_string();
+    }
+
+    if unit_size_in_bytes == 0 || value_size_in_bytes <= unit_size_in_bytes || value_size_in_bytes % unit_size_in_bytes != 0 {
+        return data_type_ref.to_string();
+    }
+
+    let element_count = value_size_in_bytes / unit_size_in_bytes;
+    SymbolicFieldDefinition::new(data_type_ref, ContainerType::ArrayFixed(element_count)).to_string()
+}
+
+fn resolve_scan_result_array_length(
+    scan_result: &ScanResult,
+    value_size_in_bytes: u64,
+    unit_size_in_bytes: u64,
+) -> Option<u64> {
+    let display_container_type = scan_result
+        .get_recently_read_display_values()
+        .iter()
+        .chain(scan_result.get_current_display_values().iter())
+        .map(|display_value| display_value.get_container_type())
+        .find(|container_type| matches!(container_type, ContainerType::Array | ContainerType::ArrayFixed(_)))?;
+
+    match display_container_type {
+        ContainerType::ArrayFixed(array_length) => Some(array_length.max(1)),
+        ContainerType::Array => {
+            if unit_size_in_bytes == 0 {
+                Some(1)
+            } else {
+                Some((value_size_in_bytes / unit_size_in_bytes).max(1))
+            }
+        }
+        _ => None,
+    }
 }
 
 fn generate_unique_project_item_file_path(
@@ -366,8 +424,19 @@ fn sanitize_file_name_component(file_name_component: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{build_project_item_file_stem, generate_unique_project_item_file_path, resolve_selected_directory_path};
+    use crate::command_executors::project_items::add::project_items_add_request_executor::build_symbolic_field_definition_string;
+    use crossbeam_channel::{Receiver, unbounded};
+    use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
+    use squalr_engine_api::engine::{
+        engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_binding_error::EngineBindingError, engine_event_envelope::EngineEventEnvelope,
+        engine_execution_context::EngineExecutionContext,
+    };
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::anonymous_value_string::AnonymousValueString;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
+    use squalr_engine_api::structures::data_values::data_value::DataValue;
     use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
     use squalr_engine_api::structures::projects::project::Project;
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
@@ -379,6 +448,7 @@ mod tests {
     use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
+    use std::sync::{Arc, RwLock};
 
     fn create_directory_item_map(
         paths: &[&str],
@@ -474,6 +544,39 @@ mod tests {
         )
     }
 
+    struct TestEngineBindings;
+
+    impl EngineApiUnprivilegedBindings for TestEngineBindings {
+        fn dispatch_privileged_command(
+            &self,
+            _engine_command: PrivilegedCommand,
+            _callback: Box<dyn FnOnce(PrivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            Err(EngineBindingError::unavailable("project-items add test privileged dispatch"))
+        }
+
+        fn dispatch_unprivileged_command(
+            &self,
+            _engine_command: squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand,
+            _engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+            _callback: Box<dyn FnOnce(squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse) + Send + Sync + 'static>,
+        ) -> Result<(), EngineBindingError> {
+            Err(EngineBindingError::unavailable("project-items add test unprivileged dispatch"))
+        }
+
+        fn subscribe_to_engine_events(&self) -> Result<Receiver<EngineEventEnvelope>, EngineBindingError> {
+            let (_event_sender, event_receiver) = unbounded();
+            Ok(event_receiver)
+        }
+    }
+
+    fn create_test_engine_execution_context() -> Arc<dyn EngineExecutionContext> {
+        let engine_unprivileged_state =
+            squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState::new(Arc::new(RwLock::new(TestEngineBindings)));
+
+        engine_unprivileged_state as Arc<dyn EngineExecutionContext>
+    }
+
     #[test]
     fn build_project_item_file_stem_uses_module_and_sanitizes_special_characters() {
         let scan_result = create_scan_result("game.exe (x64)", 0x20, 0x1000, 1);
@@ -506,5 +609,65 @@ mod tests {
         let generated_path = generate_unique_project_item_file_path(project_directory_path, directory_relative_path, &project_items, "address_0x401000");
 
         assert_eq!(generated_path, project_directory_path.join("project_items/Addresses/address_0x401000_1.json"));
+    }
+
+    #[test]
+    fn build_symbolic_field_definition_string_uses_fixed_array_for_multi_element_scan_result() {
+        let engine_execution_context = create_test_engine_execution_context();
+        let scan_result_valued = ScanResultValued::new(
+            0x1000,
+            DataTypeRef::new("u8"),
+            String::new(),
+            Some(DataValue::new(DataTypeRef::new("u8"), vec![0x11, 0x22, 0x33])),
+            Vec::new(),
+            None,
+            Vec::new(),
+            ScanResultRef::new(1),
+        );
+        let scan_result = ScanResult::new(
+            scan_result_valued,
+            "game.exe".to_string(),
+            0x20,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let symbolic_field_definition = build_symbolic_field_definition_string(&engine_execution_context, &scan_result);
+
+        assert_eq!(symbolic_field_definition, "u8[3]");
+    }
+
+    #[test]
+    fn build_symbolic_field_definition_string_preserves_single_element_array_container() {
+        let engine_execution_context = create_test_engine_execution_context();
+        let scan_result_valued = ScanResultValued::new(
+            0x1000,
+            DataTypeRef::new("u8"),
+            String::new(),
+            Some(DataValue::new(DataTypeRef::new("u8"), vec![0x11])),
+            vec![AnonymousValueString::new(
+                "11".to_string(),
+                AnonymousValueStringFormat::Hexadecimal,
+                ContainerType::ArrayFixed(1),
+            )],
+            None,
+            Vec::new(),
+            ScanResultRef::new(2),
+        );
+        let scan_result = ScanResult::new(
+            scan_result_valued,
+            "game.exe".to_string(),
+            0x20,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let symbolic_field_definition = build_symbolic_field_definition_string(&engine_execution_context, &scan_result);
+
+        assert_eq!(symbolic_field_definition, "u8[1]");
     }
 }

@@ -66,63 +66,41 @@ impl PrimitiveDataTypeNumeric {
     {
         let primitive_size = size_of::<T>();
         let value_string = anonymous_value_string.get_anonymous_value_string();
-        let value_bytes = match anonymous_value_string.get_anonymous_value_string_format() {
-            AnonymousValueStringFormat::Binary => match ConversionsFromBinary::binary_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
-                Ok(value_bytes) => {
-                    if value_bytes.len() < primitive_size {
-                        return Err(DataTypeError::ParseError(format!(
-                            "Failed to decode binary bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
-                            value_string,
-                            value_bytes.len(),
-                            primitive_size,
-                            type_name::<T>()
-                        )));
-                    }
-                    value_bytes
-                }
-                Err(error) => {
-                    return Err(DataTypeError::ParseError(format!("Failed to parse binary value '{}': {}", value_string, error)));
-                }
-            },
-            AnonymousValueStringFormat::Address | AnonymousValueStringFormat::Hexadecimal => {
-                match ConversionsFromHexadecimal::hex_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
-                    Ok(value_bytes) => {
-                        if value_bytes.len() < primitive_size {
-                            return Err(DataTypeError::ParseError(format!(
-                                "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
-                                value_string,
-                                value_bytes.len(),
-                                primitive_size,
-                                type_name::<T>()
-                            )));
-                        }
-                        value_bytes
-                    }
-                    Err(error) => {
-                        return Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, error)));
-                    }
-                }
-            }
-            _ => match value_string.parse::<T>() {
-                Ok(value) => {
-                    if is_big_endian {
-                        value.to_be_bytes().into()
-                    } else {
-                        value.to_le_bytes().into()
-                    }
-                }
-                Err(error) => {
-                    return Err(DataTypeError::ParseError(format!(
-                        "Failed to parse {} value '{}': {}",
-                        type_name::<T>(),
-                        value_string,
-                        error
-                    )));
-                }
-            },
-        };
+        let has_multiple_elements = matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_));
 
-        Ok(value_bytes)
+        if !has_multiple_elements {
+            return Self::deanonymize_single::<T>(value_string, anonymous_value_string.get_anonymous_value_string_format(), is_big_endian);
+        }
+
+        let value_parts = value_string
+            .split(|character: char| character == ',' || character.is_whitespace())
+            .map(|value_part| value_part.trim())
+            .filter(|value_part| !value_part.is_empty())
+            .collect::<Vec<_>>();
+
+        if value_parts.is_empty() {
+            return Err(DataTypeError::ParseError("Numeric array scans require at least one value.".to_string()));
+        }
+
+        if let ContainerType::ArrayFixed(expected_value_count) = anonymous_value_string.get_container_type() {
+            if value_parts.len() as u64 != expected_value_count {
+                return Err(DataTypeError::ParseError(format!(
+                    "Expected {} values for array input, but found {}.",
+                    expected_value_count,
+                    value_parts.len()
+                )));
+            }
+        }
+
+        let mut combined_value_bytes = Vec::with_capacity(value_parts.len() * primitive_size);
+
+        for value_part in value_parts {
+            let value_bytes = Self::deanonymize_single::<T>(value_part, anonymous_value_string.get_anonymous_value_string_format(), is_big_endian)?;
+
+            combined_value_bytes.extend(value_bytes);
+        }
+
+        Ok(combined_value_bytes)
     }
 
     pub fn anonymize<T: Copy + num_traits::ToBytes + From<u8>, F>(
@@ -163,6 +141,70 @@ impl PrimitiveDataTypeNumeric {
 
         Ok(AnonymousValueString::new(value_string, anonymous_value_string_format, container_type))
     }
+
+    fn deanonymize_single<T: Copy + FromStr + ToBytes + Bounded + ToPrimitive>(
+        value_string: &str,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+        is_big_endian: bool,
+    ) -> Result<Vec<u8>, DataTypeError>
+    where
+        T::Bytes: Into<Vec<u8>>,
+        <T as FromStr>::Err: std::fmt::Display,
+    {
+        let primitive_size = size_of::<T>();
+
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Binary => match ConversionsFromBinary::binary_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
+                Ok(value_bytes) => {
+                    if value_bytes.len() < primitive_size {
+                        return Err(DataTypeError::ParseError(format!(
+                            "Failed to decode binary bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
+                            value_string,
+                            value_bytes.len(),
+                            primitive_size,
+                            type_name::<T>()
+                        )));
+                    }
+
+                    Ok(value_bytes)
+                }
+                Err(error) => Err(DataTypeError::ParseError(format!("Failed to parse binary value '{}': {}", value_string, error))),
+            },
+            AnonymousValueStringFormat::Address | AnonymousValueStringFormat::Hexadecimal => {
+                match ConversionsFromHexadecimal::hex_to_primitive_aligned_bytes::<T>(&value_string, is_big_endian) {
+                    Ok(value_bytes) => {
+                        if value_bytes.len() < primitive_size {
+                            return Err(DataTypeError::ParseError(format!(
+                                "Failed to decode hex bytes '{}'. Length is {} bytes, but expected at least {} bytes for {}.",
+                                value_string,
+                                value_bytes.len(),
+                                primitive_size,
+                                type_name::<T>()
+                            )));
+                        }
+
+                        Ok(value_bytes)
+                    }
+                    Err(error) => Err(DataTypeError::ParseError(format!("Failed to parse hex value '{}': {}", value_string, error))),
+                }
+            }
+            _ => match value_string.parse::<T>() {
+                Ok(value) => {
+                    if is_big_endian {
+                        Ok(value.to_be_bytes().into())
+                    } else {
+                        Ok(value.to_le_bytes().into())
+                    }
+                }
+                Err(error) => Err(DataTypeError::ParseError(format!(
+                    "Failed to parse {} value '{}': {}",
+                    type_name::<T>(),
+                    value_string,
+                    error
+                ))),
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -180,5 +222,40 @@ mod tests {
             PrimitiveDataTypeNumeric::deanonymize::<u64>(&anonymous_value_string, false).expect("Expected the address-formatted numeric value to parse.");
 
         assert_eq!(value_bytes, 0x3010_u64.to_le_bytes());
+    }
+
+    #[test]
+    fn deanonymize_supports_decimal_array_values_when_container_type_is_array() {
+        let anonymous_value_string = AnonymousValueString::new(String::from("1, 2, 3"), AnonymousValueStringFormat::Decimal, ContainerType::Array);
+
+        let value_bytes = PrimitiveDataTypeNumeric::deanonymize::<u32>(&anonymous_value_string, false).expect("Expected decimal array input to parse.");
+
+        assert_eq!(
+            value_bytes,
+            [
+                1_u32.to_le_bytes().as_slice(),
+                2_u32.to_le_bytes().as_slice(),
+                3_u32.to_le_bytes().as_slice(),
+            ]
+            .concat()
+        );
+    }
+
+    #[test]
+    fn deanonymize_rejects_decimal_array_values_when_container_type_is_element() {
+        let anonymous_value_string = AnonymousValueString::new(String::from("1, 2, 3"), AnonymousValueStringFormat::Decimal, ContainerType::None);
+
+        let result = PrimitiveDataTypeNumeric::deanonymize::<u32>(&anonymous_value_string, false);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn deanonymize_rejects_mismatched_fixed_array_length() {
+        let anonymous_value_string = AnonymousValueString::new(String::from("1, 2"), AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(3));
+
+        let result = PrimitiveDataTypeNumeric::deanonymize::<u16>(&anonymous_value_string, false);
+
+        assert!(result.is_err());
     }
 }
