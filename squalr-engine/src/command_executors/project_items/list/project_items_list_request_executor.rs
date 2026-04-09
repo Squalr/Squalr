@@ -17,14 +17,16 @@ use squalr_engine_api::structures::projects::project_items::project_item_ref::Pr
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::Duration;
 
 struct PointerPreviewEvaluation {
     resolved_target_address: Option<(u64, String)>,
     evaluated_path: String,
 }
+
+const MAX_ARRAY_PREVIEW_CHARACTER_COUNT: usize = 96;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
@@ -207,10 +209,27 @@ fn format_project_item_preview_value(
     let display_value = anonymous_value_string.get_anonymous_value_string();
 
     if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
-        format!("[{}]", display_value)
+        format!("[{}]", truncate_array_preview_value(display_value))
     } else {
         display_value.to_string()
     }
+}
+
+fn truncate_array_preview_value(display_value: &str) -> String {
+    let display_value_character_count = display_value.chars().count();
+
+    if display_value_character_count <= MAX_ARRAY_PREVIEW_CHARACTER_COUNT {
+        return display_value.to_string();
+    }
+
+    let truncated_prefix: String = display_value
+        .chars()
+        .take(MAX_ARRAY_PREVIEW_CHARACTER_COUNT)
+        .collect::<String>()
+        .trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'))
+        .to_string();
+
+    format!("{}...", truncated_prefix)
 }
 
 fn evaluate_pointer_for_preview(
@@ -335,8 +354,10 @@ fn dispatch_memory_read_request(
 
 #[cfg(test)]
 mod tests {
-    use super::{evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value};
-    use crossbeam_channel::{Receiver, unbounded};
+    use super::{
+        evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value, MAX_ARRAY_PREVIEW_CHARACTER_COUNT,
+    };
+    use crossbeam_channel::{unbounded, Receiver};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -730,5 +751,34 @@ mod tests {
         );
 
         assert_eq!(preview_value, "[1]");
+    }
+
+    #[test]
+    fn format_project_item_preview_value_truncates_long_array_previews() {
+        let long_array_preview = (0..80)
+            .map(|value| value.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let preview_value = format_project_item_preview_value(
+            &AnonymousValueString::new(long_array_preview, AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(80)),
+            ContainerType::None,
+        );
+
+        assert!(preview_value.starts_with('['));
+        assert!(preview_value.ends_with("...]"));
+        assert!(preview_value.len() <= MAX_ARRAY_PREVIEW_CHARACTER_COUNT + 5);
+    }
+
+    #[test]
+    fn format_project_item_preview_value_does_not_truncate_scalar_previews() {
+        let long_scalar_preview = "1234567890".repeat(20);
+
+        let preview_value = format_project_item_preview_value(
+            &AnonymousValueString::new(long_scalar_preview.clone(), AnonymousValueStringFormat::Decimal, ContainerType::None),
+            ContainerType::None,
+        );
+
+        assert_eq!(preview_value, long_scalar_preview);
     }
 }
