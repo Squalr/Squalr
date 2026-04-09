@@ -73,7 +73,7 @@ impl PrimitiveDataTypeNumeric {
         }
 
         let value_parts = value_string
-            .split(',')
+            .split(|character: char| character == ',' || character.is_whitespace())
             .map(|value_part| value_part.trim())
             .filter(|value_part| !value_part.is_empty())
             .collect::<Vec<_>>();

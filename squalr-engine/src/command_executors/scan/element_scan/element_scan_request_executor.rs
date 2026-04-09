@@ -834,4 +834,60 @@ mod tests {
             assert_eq!(result_addresses, vec![match_address]);
         });
     }
+
+    #[test]
+    fn element_scan_request_finds_decimal_wildcard_array_matches() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 2;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("1 xx 55"),
+                    AnonymousValueStringFormat::Decimal,
+                    ContainerType::Array,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("u8")],
+        };
+
+        write_region_bytes(&memory_bytes, &[0u8, 0u8, 1u8, 42u8, 55u8, 0u8]);
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
+    }
+
+    #[test]
+    fn element_scan_request_finds_hex_wildcard_array_matches() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 3;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("1 7x 55"),
+                    AnonymousValueStringFormat::Hexadecimal,
+                    ContainerType::Array,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("u8")],
+        };
+
+        write_region_bytes(&memory_bytes, &[0u8, 0u8, 0u8, 0x01u8, 0x7Au8, 0x55u8, 0u8]);
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
+    }
 }

@@ -377,4 +377,28 @@ mod tests {
             &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None),
         ));
     }
+
+    #[test]
+    fn validate_scan_constraint_accepts_decimal_array_wildcards() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("u8");
+
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1 xx 55".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array),
+        ));
+    }
+
+    #[test]
+    fn validate_scan_constraint_accepts_hex_array_nibble_wildcards() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_type_ref = DataTypeRef::new("u8");
+
+        assert!(privileged_registry_cache.validate_scan_constraint(
+            &data_type_ref,
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            &AnonymousValueString::new("1 7x 55".to_string(), AnonymousValueStringFormat::Hexadecimal, ContainerType::Array),
+        ));
+    }
 }
