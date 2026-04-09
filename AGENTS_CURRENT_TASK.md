@@ -14,6 +14,7 @@ Our current task, from `README.md`, is:
 - need human verification: Project item ordering metadata now persists across add/create/delete/move/rename/reorder operations.
 - need human verification: Adding scan results from TUI now targets selected project folder; if no folder is selected, items append at root.
 - need human verification: Project hierarchy now supports F2 inline rename on the selected tree row with async refresh after submit, click-away cancel/select behavior, and project selector F2 inline rename support.
+- need human verification: Project item rename now keeps the tree label synced with the item `name` property instead of diverging between visible label and backing filename.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -23,3 +24,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Verified with `cargo check -p squalr-engine -p squalr-tui` and `cargo test -p squalr-tests --test project_items_command_tests`.
 - Project hierarchy rename now refreshes only after the async rename response, preserves selection/expanded state across the renamed path, and cancels cleanly when another row is selected.
 - Project selector now enters inline rename from F2 on the selected project and clears rename state when selection changes or rename is canceled.
+- Tree rows render the project item `name` property when present; the rename executor now updates that stored name alongside the path rename so labels no longer lag behind filenames.

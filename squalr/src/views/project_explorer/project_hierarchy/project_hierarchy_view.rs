@@ -342,22 +342,6 @@ mod tests {
     }
 
     #[test]
-    fn build_default_project_item_rename_text_strips_file_extension() {
-        let project_item_path = Path::new("C:/Projects/TestProject/project_items/health.json");
-        let rename_text = ProjectHierarchyView::build_default_project_item_rename_text(project_item_path, ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID);
-
-        assert_eq!(rename_text, "health".to_string());
-    }
-
-    #[test]
-    fn build_default_project_item_rename_text_preserves_directory_name() {
-        let project_item_path = Path::new("C:/Projects/TestProject/project_items/Folder");
-        let rename_text = ProjectHierarchyView::build_default_project_item_rename_text(project_item_path, ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID);
-
-        assert_eq!(rename_text, "Folder".to_string());
-    }
-
-    #[test]
     fn build_project_item_rename_request_returns_none_when_name_is_unchanged() {
         let project_item_path = Path::new("C:/Projects/TestProject/project_items/health.json");
         let rename_request =
@@ -631,12 +615,7 @@ impl Widget for ProjectHierarchyView {
                                         let mut rename_text = user_interface
                                             .ctx()
                                             .data_mut(|data| data.get_temp::<String>(rename_text_storage_id))
-                                            .unwrap_or_else(|| {
-                                                Self::build_default_project_item_rename_text(
-                                                    &tree_entry.project_item_path,
-                                                    project_item_type_id,
-                                                )
-                                            });
+                                            .unwrap_or_else(|| tree_entry.display_name.clone());
                                         let mut should_highlight_text = user_interface
                                             .ctx()
                                             .data_mut(|data| data.get_temp::<bool>(rename_highlight_storage_id))
@@ -1988,26 +1967,6 @@ impl ProjectHierarchyView {
 
         if let Some(active_project_item_path) = active_project_item_path {
             Self::clear_project_item_rename_state(user_interface, &active_project_item_path);
-        }
-    }
-
-    fn build_default_project_item_rename_text(
-        project_item_path: &Path,
-        project_item_type_id: &str,
-    ) -> String {
-        let current_file_name = project_item_path
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default();
-
-        if project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
-            current_file_name.to_string()
-        } else {
-            Path::new(current_file_name)
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or(current_file_name)
-                .to_string()
         }
     }
 
