@@ -398,6 +398,41 @@ mod tests {
         )
     }
 
+    fn build_i8_array_exact_scan_plan(
+        symbol_registry: &SymbolRegistry,
+        values: &[i8],
+        memory_alignment: MemoryAlignment,
+    ) -> ElementScanPlan {
+        let data_type_ref = DataTypeRef::new("i8");
+        let anonymous_scan_constraint = AnonymousScanConstraint::new(
+            ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+            Some(AnonymousValueString::new(
+                values
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                AnonymousValueStringFormat::Decimal,
+                ContainerType::Array,
+            )),
+        );
+        let scan_constraint = anonymous_scan_constraint
+            .deanonymize_constraint(symbol_registry, &data_type_ref, FloatingPointTolerance::default())
+            .expect("Expected i8 array scan constraint to deanonymize.");
+        let scan_constraint_finalized = ScanConstraintFinalized::new(symbol_registry, scan_constraint);
+        let mut scan_constraints_by_data_type = HashMap::new();
+        scan_constraints_by_data_type.insert(data_type_ref, vec![scan_constraint_finalized]);
+
+        ElementScanPlan::new(
+            scan_constraints_by_data_type,
+            memory_alignment,
+            FloatingPointTolerance::default(),
+            MemoryReadMode::ReadBeforeScan,
+            true,
+            false,
+        )
+    }
+
     fn execute_scan_plan(
         engine_privileged_state: &Arc<EnginePrivilegedState>,
         element_scan_plan: ElementScanPlan,
@@ -462,6 +497,19 @@ mod tests {
         let mut bytes = memory_bytes.write().expect("Expected memory bytes write lock.");
         let start_offset = (start_address - TEST_REGION_BASE_ADDRESS) as usize;
         let encoded_values: Vec<u8> = values.iter().flat_map(|value| value.to_le_bytes()).collect();
+        let end_offset = start_offset + encoded_values.len();
+
+        bytes[start_offset..end_offset].copy_from_slice(&encoded_values);
+    }
+
+    fn write_i8_array_value(
+        memory_bytes: &Arc<RwLock<Vec<u8>>>,
+        start_address: u64,
+        values: &[i8],
+    ) {
+        let mut bytes = memory_bytes.write().expect("Expected memory bytes write lock.");
+        let start_offset = (start_address - TEST_REGION_BASE_ADDRESS) as usize;
+        let encoded_values: Vec<u8> = values.iter().map(|value| *value as u8).collect();
         let end_offset = start_offset + encoded_values.len();
 
         bytes[start_offset..end_offset].copy_from_slice(&encoded_values);
@@ -724,6 +772,66 @@ mod tests {
             assert_eq!(scan_result.get_address(), match_address);
             assert_eq!(decimal_display_value.get_anonymous_value_string(), "1");
             assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(1));
+        });
+    }
+
+    #[test]
+    fn i8_array_exact_scan_with_alignment_1_materializes_one_result() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 1;
+
+        write_i8_array_value(&memory_bytes, match_address, &[1, 2, 3]);
+
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            execute_scan_plan(
+                &engine_privileged_state,
+                build_i8_array_exact_scan_plan(symbol_registry, &[1, 2, 3], MemoryAlignment::Alignment1),
+            );
+        });
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected an i8 array scan result.");
+            let decimal_display_value = scan_result
+                .get_current_display_value(AnonymousValueStringFormat::Decimal)
+                .expect("Expected decimal display value for i8 array scan result.");
+
+            assert_eq!(scan_result.get_address(), match_address);
+            assert_eq!(decimal_display_value.get_anonymous_value_string(), "1, 2, 3");
+            assert_eq!(decimal_display_value.get_container_type(), ContainerType::ArrayFixed(3));
+        });
+    }
+
+    #[test]
+    fn i8_array_exact_scan_with_alignment_2_preserves_alignment_in_results() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 4;
+
+        write_i8_array_value(&memory_bytes, match_address, &[1, 2, 3]);
+
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            execute_scan_plan(
+                &engine_privileged_state,
+                build_i8_array_exact_scan_plan(symbol_registry, &[1, 2, 3], MemoryAlignment::Alignment2),
+            );
+        });
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let result_addresses = snapshot_guard.collect_scan_result_addresses_for_data_type(symbol_registry, &DataTypeRef::new("i8"));
+
+            assert_eq!(result_addresses, vec![match_address]);
         });
     }
 }

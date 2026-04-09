@@ -52,6 +52,14 @@ impl SnapshotRegionFilterCollection {
         memory_alignment: MemoryAlignment,
         result_value_size_in_bytes: u64,
     ) -> Self {
+        // Some scanner paths can emit trailing windows that are smaller than the logical result width.
+        // These windows cannot materialize any results, so drop them before sorting/counting.
+        for filters in &mut snapshot_region_filters {
+            filters.retain(|filter| filter.get_region_size() >= result_value_size_in_bytes);
+        }
+
+        snapshot_region_filters.retain(|filters| !filters.is_empty());
+
         // Sort each inner vector by base address.
         // JIRA: This data is likely already sorted. Should we just cut this?
         for filters in &mut snapshot_region_filters {

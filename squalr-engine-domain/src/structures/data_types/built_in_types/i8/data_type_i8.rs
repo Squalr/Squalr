@@ -89,7 +89,7 @@ impl DataType for DataTypeI8 {
     }
 
     fn is_floating_point(&self) -> bool {
-        true
+        false
     }
 
     fn is_signed(&self) -> bool {

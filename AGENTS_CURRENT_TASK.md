@@ -18,6 +18,7 @@ Our current task, from `README.md`, is:
 - Need human verification: in the element scanner, enter an array or masked pattern value under a non-`==` compare (for example `Changed` + `1, 2` or `Not Equal` + `xx D4`) and confirm the value box is flagged invalid before dispatch.
 - Need human verification: exercise masked hex-pattern scans in the element scanner (for example `u8` + `hex_pattern` + `xx D4`) to confirm wildcarded prefix/suffix matches are no longer skipped in the live process path.
 - Need human verification: enable element scan debug validation and run representative live scans for previously noisy built-in types (`i8`, `f32`, and any other affected primitives) to confirm specialized scanners no longer log scalar-validation mismatches.
+- Need human verification: run a live `i8` array element scan against `winmine.exe` using decimal `1, 2, 3` (and optionally alignment 2 if convenient) to confirm the scan now returns one typed array result instead of tripping an assert or returning zero results.
 - Need human verification: exercise the plugin list surfaces in GUI, TUI, and CLI to confirm bundled capability labels read cleanly and match expected terminology.
 
 ## Important Information
@@ -72,3 +73,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Built-in numeric/float vector compare adapters had a shared lane-count bug: the 32-byte and 16-byte compare closures were parameterized with 64-byte element counts, which could overread SIMD inputs and trigger shadow-scan mismatches across types like `i8` and `f32`.
 - Fixed the built-in vector compare adapters to use vector-width-correct lane counts for 16/32/64-byte closures, and added focused regression tests in the `i8` and `f32` adapters to lock the byte-count math.
 - Validation run completed: `cargo test -p squalr-engine-domain vector_lane_counts_match -- --nocapture` and `cargo check -p squalr-engine-domain -p squalr-engine-scanning -p squalr-engine --quiet`.
+- `i8` was also misclassified as floating point in the built-in data type metadata, which forced `i8` array scans off the byte-array path and down the scalar single-element planner. That produced one-byte filters for `i8 == 1` instead of a typed `i8[3]` array match.
+- Fixed `DataTypeI8::is_floating_point()` to return `false`, added engine regressions for `i8` array exact scans at alignments 1 and 2, and hardened filter collections to discard undersized zero-result windows instead of asserting during result counting.
+- Validation run completed: `cargo test -p squalr-engine i8_array_exact_scan_ -- --nocapture`, `cargo test -p squalr-engine element_scan_request_ -- --nocapture`, and `cargo check -p squalr-engine-domain -p squalr-engine-api -p squalr-engine-scanning -p squalr-engine --quiet`.

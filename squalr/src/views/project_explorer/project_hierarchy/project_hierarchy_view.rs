@@ -17,7 +17,7 @@ use crate::{
     },
     views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
 };
-use eframe::egui::{vec2, Align, CursorIcon, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget};
+use eframe::egui::{Align, CursorIcon, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -42,8 +42,8 @@ use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_api::structures::structs::valued_struct_field::ValuedStructField;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
@@ -105,7 +105,7 @@ impl ProjectHierarchyView {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyView;
-    use crossbeam_channel::{unbounded, Receiver};
+    use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -769,13 +769,19 @@ impl Widget for ProjectHierarchyView {
                                         );
                                     }
                                 });
-                            });
+                        });
 
                         user_interface.add_space(8.0);
-                        user_interface.horizontal_centered(|user_interface| {
-                            user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
-                                user_interface.spacing_mut().item_spacing.x = 12.0;
-                                let button_size = vec2(120.0, 28.0);
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(120.0, 28.0);
+                            let button_spacing = 12.0;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
+
                                 let button_cancel = user_interface.add_sized(
                                     button_size,
                                     eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
@@ -1787,11 +1793,7 @@ impl ProjectHierarchyView {
         let edited_name = String::from_utf8(data_value.get_value_bytes().clone()).ok()?;
         let edited_name = edited_name.trim();
 
-        if edited_name.is_empty() {
-            None
-        } else {
-            Some(edited_name.to_string())
-        }
+        if edited_name.is_empty() { None } else { Some(edited_name.to_string()) }
     }
 
     fn build_project_item_rename_request(
