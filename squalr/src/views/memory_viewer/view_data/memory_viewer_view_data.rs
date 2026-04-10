@@ -12,7 +12,7 @@ use squalr_engine_api::{
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
-        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        memory::{address_display::format_module_address, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
         projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
@@ -44,6 +44,13 @@ struct MemoryViewerFocusRequest {
 struct MemoryViewerSelectionRange {
     anchor_address: u64,
     active_address: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemoryViewerHexEditState {
+    pub cursor_address: u64,
+    pub active_nibble_index: u8,
+    pub pending_high_nibble: Option<u8>,
 }
 
 impl MemoryViewerPageCache {
@@ -85,7 +92,7 @@ pub struct MemoryViewerViewData {
     pending_focus_request: Option<MemoryViewerFocusRequest>,
     pending_scroll_address: Option<u64>,
     selected_byte_range: Option<MemoryViewerSelectionRange>,
-    pending_hex_edit: String,
+    hex_edit_state: Option<MemoryViewerHexEditState>,
     has_keyboard_focus: bool,
     context_menu_address: Option<u64>,
     context_menu_position: Option<Pos2>,
@@ -117,7 +124,7 @@ impl MemoryViewerViewData {
             pending_focus_request: None,
             pending_scroll_address: None,
             selected_byte_range: None,
-            pending_hex_edit: String::new(),
+            hex_edit_state: None,
             has_keyboard_focus: false,
             context_menu_address: None,
             context_menu_position: None,
@@ -301,12 +308,16 @@ impl MemoryViewerViewData {
         address: u64,
     ) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer begin byte selection") {
-            memory_viewer_view_data.selected_byte_range = Some(MemoryViewerSelectionRange {
-                anchor_address: address,
-                active_address: address,
-            });
-            memory_viewer_view_data.pending_hex_edit.clear();
-            memory_viewer_view_data.has_keyboard_focus = true;
+            memory_viewer_view_data.begin_selection_internal(address, false);
+        }
+    }
+
+    pub fn extend_byte_selection(
+        memory_viewer_view_data: Dependency<Self>,
+        address: u64,
+    ) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer extend byte selection") {
+            memory_viewer_view_data.begin_selection_internal(address, true);
         }
     }
 
@@ -315,10 +326,7 @@ impl MemoryViewerViewData {
         address: u64,
     ) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer update byte selection") {
-            if let Some(selected_byte_range) = memory_viewer_view_data.selected_byte_range.as_mut() {
-                selected_byte_range.active_address = address;
-                memory_viewer_view_data.pending_hex_edit.clear();
-            }
+            memory_viewer_view_data.update_selection_internal(address);
         }
     }
 
@@ -341,7 +349,7 @@ impl MemoryViewerViewData {
 
     pub fn handle_hex_edit_backspace(memory_viewer_view_data: Dependency<Self>) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer hex edit backspace") {
-            memory_viewer_view_data.pending_hex_edit.pop();
+            memory_viewer_view_data.handle_hex_edit_backspace_internal();
         }
     }
 
@@ -356,41 +364,7 @@ impl MemoryViewerViewData {
         }
 
         let mut memory_viewer_view_data = memory_viewer_view_data.write("Memory viewer append hex edit character")?;
-        let (selection_start_address, selection_end_address) = memory_viewer_view_data.resolve_selected_address_bounds()?;
-        let selected_byte_count = selection_end_address
-            .saturating_sub(selection_start_address)
-            .saturating_add(1) as usize;
-        let required_hex_character_count = selected_byte_count.saturating_mul(2);
-
-        if required_hex_character_count == 0 {
-            return None;
-        }
-
-        if memory_viewer_view_data.pending_hex_edit.len() >= required_hex_character_count {
-            memory_viewer_view_data.pending_hex_edit.clear();
-        }
-
-        memory_viewer_view_data
-            .pending_hex_edit
-            .push(upper_hex_character);
-
-        if memory_viewer_view_data.pending_hex_edit.len() < required_hex_character_count {
-            return None;
-        }
-
-        let edited_bytes = memory_viewer_view_data
-            .pending_hex_edit
-            .as_bytes()
-            .chunks(2)
-            .map(|byte_pair| {
-                std::str::from_utf8(byte_pair)
-                    .ok()
-                    .and_then(|byte_pair| u8::from_str_radix(byte_pair, 16).ok())
-            })
-            .collect::<Option<Vec<u8>>>()?;
-        memory_viewer_view_data.pending_hex_edit.clear();
-
-        Some((selection_start_address, edited_bytes))
+        memory_viewer_view_data.append_hex_edit_character_internal(upper_hex_character)
     }
 
     pub fn apply_memory_write(
@@ -447,7 +421,10 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.has_keyboard_focus = has_keyboard_focus;
 
             if !has_keyboard_focus {
-                memory_viewer_view_data.pending_hex_edit.clear();
+                if let Some(hex_edit_state) = memory_viewer_view_data.hex_edit_state.as_mut() {
+                    hex_edit_state.active_nibble_index = 0;
+                    hex_edit_state.pending_high_nibble = None;
+                }
             }
         }
     }
@@ -457,6 +434,12 @@ impl MemoryViewerViewData {
             .read("Memory viewer has keyboard focus")
             .map(|memory_viewer_view_data| memory_viewer_view_data.has_keyboard_focus)
             .unwrap_or(false)
+    }
+
+    pub fn get_hex_edit_state(memory_viewer_view_data: Dependency<Self>) -> Option<MemoryViewerHexEditState> {
+        memory_viewer_view_data
+            .read("Memory viewer hex edit state")
+            .and_then(|memory_viewer_view_data| memory_viewer_view_data.hex_edit_state.clone())
     }
 
     pub fn show_context_menu(
@@ -494,7 +477,7 @@ impl MemoryViewerViewData {
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
-            project_item_name: format!("0x{:X}", project_item_address),
+            project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
             project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
             pointer: None,
             address: Some(project_item_address),
@@ -639,7 +622,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.unreadable_page_base_addresses.clear();
             memory_viewer_view_data.pending_scroll_address = None;
             memory_viewer_view_data.selected_byte_range = None;
-            memory_viewer_view_data.pending_hex_edit.clear();
+            memory_viewer_view_data.hex_edit_state = None;
             memory_viewer_view_data.has_keyboard_focus = false;
             memory_viewer_view_data.context_menu_address = None;
             memory_viewer_view_data.context_menu_position = None;
@@ -821,7 +804,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.current_page_index = bounded_page_index;
             memory_viewer_view_data.pending_scroll_address = None;
             memory_viewer_view_data.selected_byte_range = None;
-            memory_viewer_view_data.pending_hex_edit.clear();
+            memory_viewer_view_data.hex_edit_state = None;
             memory_viewer_view_data.context_menu_address = None;
             memory_viewer_view_data.context_menu_position = None;
 
@@ -943,6 +926,136 @@ impl MemoryViewerViewData {
         (absolute_address, String::new())
     }
 
+    fn begin_selection_internal(
+        &mut self,
+        address: u64,
+        extend_existing_selection: bool,
+    ) {
+        let selection_anchor_address = if extend_existing_selection {
+            self.selected_byte_range
+                .as_ref()
+                .map(|selected_byte_range| selected_byte_range.anchor_address)
+                .unwrap_or(address)
+        } else {
+            address
+        };
+
+        self.selected_byte_range = Some(MemoryViewerSelectionRange {
+            anchor_address: selection_anchor_address,
+            active_address: address,
+        });
+        self.has_keyboard_focus = true;
+        self.sync_hex_edit_cursor_to_selection_start();
+    }
+
+    fn update_selection_internal(
+        &mut self,
+        address: u64,
+    ) {
+        if let Some(selected_byte_range) = self.selected_byte_range.as_mut() {
+            selected_byte_range.active_address = address;
+            self.sync_hex_edit_cursor_to_selection_start();
+        }
+    }
+
+    fn sync_hex_edit_cursor_to_selection_start(&mut self) {
+        self.hex_edit_state = self
+            .resolve_selected_address_bounds()
+            .map(|(selection_start_address, _selection_end_address)| MemoryViewerHexEditState {
+                cursor_address: selection_start_address,
+                active_nibble_index: 0,
+                pending_high_nibble: None,
+            });
+    }
+
+    fn handle_hex_edit_backspace_internal(&mut self) {
+        let current_page_address_range = self.resolve_current_page_address_range();
+        let Some(hex_edit_state) = self.hex_edit_state.as_mut() else {
+            return;
+        };
+
+        if hex_edit_state.pending_high_nibble.take().is_some() || hex_edit_state.active_nibble_index == 1 {
+            hex_edit_state.active_nibble_index = 0;
+
+            return;
+        }
+
+        let Some(current_page_address_range) = current_page_address_range else {
+            self.hex_edit_state = None;
+
+            return;
+        };
+        let last_page_address = current_page_address_range.end.saturating_sub(1);
+
+        if hex_edit_state.cursor_address >= current_page_address_range.end {
+            hex_edit_state.cursor_address = last_page_address;
+            hex_edit_state.active_nibble_index = 0;
+
+            return;
+        }
+
+        if hex_edit_state.cursor_address > current_page_address_range.start {
+            hex_edit_state.cursor_address = hex_edit_state.cursor_address.saturating_sub(1);
+        }
+    }
+
+    fn append_hex_edit_character_internal(
+        &mut self,
+        character: char,
+    ) -> Option<(u64, Vec<u8>)> {
+        let nibble_value = character.to_digit(16)? as u8;
+        let current_page_address_range = self.resolve_current_page_address_range()?;
+
+        if self.hex_edit_state.is_none() {
+            self.sync_hex_edit_cursor_to_selection_start();
+        }
+
+        let hex_edit_state = self.hex_edit_state.as_mut()?;
+
+        if hex_edit_state.cursor_address >= current_page_address_range.end {
+            return None;
+        }
+
+        if hex_edit_state.active_nibble_index == 0 {
+            hex_edit_state.pending_high_nibble = Some(nibble_value);
+            hex_edit_state.active_nibble_index = 1;
+
+            return None;
+        }
+
+        let edited_byte = (hex_edit_state.pending_high_nibble.take().unwrap_or(0) << 4) | nibble_value;
+        let write_start_address = hex_edit_state.cursor_address;
+        let next_cursor_address = write_start_address.saturating_add(1);
+
+        hex_edit_state.active_nibble_index = 0;
+        hex_edit_state.cursor_address = if next_cursor_address < current_page_address_range.end {
+            next_cursor_address
+        } else {
+            current_page_address_range.end
+        };
+
+        Some((write_start_address, vec![edited_byte]))
+    }
+
+    fn resolve_current_page_address_range(&self) -> Option<Range<u64>> {
+        let current_page = self.virtual_pages.get(self.current_page_index as usize)?;
+        let current_page_base_address = current_page.get_base_address();
+        let current_page_end_address = current_page.get_end_address();
+
+        (current_page_base_address < current_page_end_address).then_some(current_page_base_address..current_page_end_address)
+    }
+
+    fn format_project_item_name(
+        project_item_address: u64,
+        project_item_module_name: &str,
+    ) -> String {
+        if project_item_module_name.is_empty() {
+            format!("0x{:X}", project_item_address)
+        } else {
+            format_module_address(project_item_module_name, project_item_address)
+        }
+    }
+
     fn begin_memory_pages_request(&mut self) -> u64 {
         let request_revision = self.next_memory_pages_request_revision;
         self.next_memory_pages_request_revision = self.next_memory_pages_request_revision.saturating_add(1);
@@ -1047,5 +1160,64 @@ mod tests {
         let resolved_address = MemoryViewerViewData::resolve_focus_address(&modules, 0x120, "winmine.exe");
 
         assert_eq!(resolved_address, Some(0x4120));
+    }
+
+    #[test]
+    fn format_project_item_name_uses_module_relative_text_when_module_exists() {
+        let project_item_name = MemoryViewerViewData::format_project_item_name(0x22, "winmine.exe");
+
+        assert_eq!(project_item_name, String::from("winmine.exe+0x22"));
+    }
+
+    #[test]
+    fn append_hex_edit_character_internal_advances_past_original_selection() {
+        let mut memory_viewer_view_data = MemoryViewerViewData::new();
+        memory_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x1000, 3)];
+        memory_viewer_view_data.cached_last_page_index = 0;
+        memory_viewer_view_data.begin_selection_internal(0x1001, false);
+
+        assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('A'), None);
+        assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('1'), Some((0x1001, vec![0xA1])));
+        assert_eq!(
+            memory_viewer_view_data.hex_edit_state,
+            Some(super::MemoryViewerHexEditState {
+                cursor_address: 0x1002,
+                active_nibble_index: 0,
+                pending_high_nibble: None,
+            })
+        );
+
+        assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('B'), None);
+        assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('2'), Some((0x1002, vec![0xB2])));
+        assert_eq!(
+            memory_viewer_view_data.hex_edit_state,
+            Some(super::MemoryViewerHexEditState {
+                cursor_address: 0x1003,
+                active_nibble_index: 0,
+                pending_high_nibble: None,
+            })
+        );
+        assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('C'), None);
+    }
+
+    #[test]
+    fn handle_hex_edit_backspace_internal_clears_pending_nibble_before_moving_cursor() {
+        let mut memory_viewer_view_data = MemoryViewerViewData::new();
+        memory_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x2000, 4)];
+        memory_viewer_view_data.cached_last_page_index = 0;
+        memory_viewer_view_data.begin_selection_internal(0x2001, false);
+
+        assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('F'), None);
+
+        memory_viewer_view_data.handle_hex_edit_backspace_internal();
+
+        assert_eq!(
+            memory_viewer_view_data.hex_edit_state,
+            Some(super::MemoryViewerHexEditState {
+                cursor_address: 0x2001,
+                active_nibble_index: 0,
+                pending_high_nibble: None,
+            })
+        );
     }
 }

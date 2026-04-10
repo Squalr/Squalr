@@ -8,6 +8,7 @@ use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_req
 use squalr_engine_api::commands::scan_results::refresh::scan_results_refresh_response::ScanResultsRefreshResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::memory::address_display::format_module_address;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
@@ -379,7 +380,7 @@ fn create_placeholder_files(file_paths: &[PathBuf]) -> Result<(), String> {
 
 fn build_project_item_name(scan_result: &ScanResult) -> String {
     if scan_result.is_module() {
-        scan_result.get_address_display_text()
+        format_module_address(scan_result.get_module(), scan_result.get_module_offset())
     } else {
         format!("0x{:X}", scan_result.get_address())
     }
@@ -426,7 +427,7 @@ fn sanitize_file_name_component(file_name_component: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_project_item_file_stem, generate_unique_project_item_file_path, resolve_selected_directory_path};
+    use super::{build_project_item_file_stem, build_project_item_name, generate_unique_project_item_file_path, resolve_selected_directory_path};
     use crate::command_executors::project_items::add::project_items_add_request_executor::build_symbolic_field_definition_string;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
@@ -596,6 +597,24 @@ mod tests {
         let file_stem = build_project_item_file_stem(&scan_result);
 
         assert_eq!(file_stem, String::from("address_0x401020"));
+    }
+
+    #[test]
+    fn build_project_item_name_uses_module_relative_text_for_module_scan_result() {
+        let scan_result = create_scan_result("winmine.exe", 0x22, 0x401022, 3);
+
+        let project_item_name = build_project_item_name(&scan_result);
+
+        assert_eq!(project_item_name, String::from("winmine.exe+0x22"));
+    }
+
+    #[test]
+    fn build_project_item_name_uses_absolute_text_for_non_module_scan_result() {
+        let scan_result = create_scan_result("", 0, 0x401020, 4);
+
+        let project_item_name = build_project_item_name(&scan_result);
+
+        assert_eq!(project_item_name, String::from("0x401020"));
     }
 
     #[test]
