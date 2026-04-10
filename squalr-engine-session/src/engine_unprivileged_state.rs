@@ -1,5 +1,8 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
 use crate::registries::privileged_registry_cache::PrivilegedRegistryCache;
+use crate::virtual_snapshots::{
+    virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries,
+};
 use crossbeam_channel::bounded;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::registry::get_metadata::registry_get_metadata_request::RegistryGetMetadataRequest;
@@ -28,7 +31,7 @@ use std::{
     any::{Any, TypeId},
     collections::HashMap,
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 /// Exposes the ability to send commands to the engine and handle events from the engine.
@@ -43,6 +46,8 @@ pub struct EngineUnprivilegedState {
     project_manager: Arc<ProjectManager>,
     /// Cached privileged-owned registry catalog synchronized from the engine.
     privileged_registry_cache: Arc<RwLock<PrivilegedRegistryCache>>,
+    /// Session-owned virtual snapshots used by interactive views.
+    virtual_snapshots: Arc<RwLock<HashMap<String, VirtualSnapshot>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -121,6 +126,7 @@ impl EngineUnprivilegedState {
             })),
             project_manager,
             privileged_registry_cache: Arc::new(RwLock::new(PrivilegedRegistryCache::default())),
+            virtual_snapshots: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -225,6 +231,84 @@ impl EngineUnprivilegedState {
     ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
         self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value_to_supported_formats(data_value))
             .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
+    }
+
+    pub fn set_virtual_snapshot_queries(
+        &self,
+        virtual_snapshot_id: &str,
+        refresh_interval: Duration,
+        queries: Vec<VirtualSnapshotQuery>,
+    ) {
+        match self.virtual_snapshots.write() {
+            Ok(mut virtual_snapshots) => {
+                let virtual_snapshot = virtual_snapshots
+                    .entry(virtual_snapshot_id.to_string())
+                    .or_insert_with(|| VirtualSnapshot::new(refresh_interval));
+
+                virtual_snapshot.set_refresh_interval(refresh_interval);
+                virtual_snapshot.set_queries(queries);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots write lock while setting queries: {}", error);
+            }
+        }
+    }
+
+    pub fn get_virtual_snapshot(
+        &self,
+        virtual_snapshot_id: &str,
+    ) -> Option<VirtualSnapshot> {
+        match self.virtual_snapshots.read() {
+            Ok(virtual_snapshots) => virtual_snapshots.get(virtual_snapshot_id).cloned(),
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots read lock while reading snapshot: {}", error);
+                None
+            }
+        }
+    }
+
+    pub fn request_virtual_snapshot_refresh(
+        self: &Arc<Self>,
+        virtual_snapshot_id: &str,
+    ) {
+        let (queries, refresh_query_version) = match self.virtual_snapshots.write() {
+            Ok(mut virtual_snapshots) => {
+                let Some(virtual_snapshot) = virtual_snapshots.get_mut(virtual_snapshot_id) else {
+                    return;
+                };
+                let now = Instant::now();
+
+                if !virtual_snapshot.should_refresh(now) {
+                    return;
+                }
+
+                let refresh_query_version = virtual_snapshot.mark_refresh_started(now);
+
+                (virtual_snapshot.get_queries().to_vec(), refresh_query_version)
+            }
+            Err(error) => {
+                log::error!("Failed to acquire virtual snapshots write lock while requesting refresh: {}", error);
+                return;
+            }
+        };
+        let engine_unprivileged_state = self.clone();
+        let virtual_snapshot_id = virtual_snapshot_id.to_string();
+
+        std::thread::spawn(move || {
+            let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+            let query_results = materialize_virtual_snapshot_queries(&engine_execution_context, &queries);
+
+            match engine_unprivileged_state.virtual_snapshots.write() {
+                Ok(mut virtual_snapshots) => {
+                    if let Some(virtual_snapshot) = virtual_snapshots.get_mut(&virtual_snapshot_id) {
+                        virtual_snapshot.apply_refresh_results(refresh_query_version, query_results, Instant::now());
+                    }
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire virtual snapshots write lock while applying refresh results: {}", error);
+                }
+            }
+        });
     }
 
     /// Registers a listener for each time a particular engine event is fired.

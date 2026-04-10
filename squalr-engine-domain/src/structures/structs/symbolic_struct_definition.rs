@@ -4,7 +4,7 @@ use crate::structures::structs::{
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolicStructDefinition {
     symbol_namespace: String,
     fields: Vec<SymbolicFieldDefinition>,

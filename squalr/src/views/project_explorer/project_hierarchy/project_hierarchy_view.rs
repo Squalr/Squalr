@@ -41,11 +41,17 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
-use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
-use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
-use std::collections::HashSet;
+use squalr_engine_api::structures::structs::{
+    symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
+};
+use squalr_engine_session::{
+    engine_unprivileged_state::EngineUnprivilegedState,
+    virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_query_result::VirtualSnapshotQueryResult},
+};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -1150,7 +1156,7 @@ impl Widget for ProjectHierarchyView {
             && !is_value_edit_take_over_active
             && ProjectHierarchyViewData::set_visible_preview_project_item_paths(self.project_hierarchy_view_data.clone(), visible_preview_project_item_paths)
         {
-            ProjectHierarchyViewData::refresh_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone());
+            self.sync_project_item_virtual_snapshot(project_read_interval);
         }
 
         if should_cancel_take_over {
@@ -1387,6 +1393,9 @@ impl ProjectHierarchyView {
     const PROJECT_ITEM_MENU_WIDTH: f32 = 220.0;
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
+    const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
+    const MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 96;
+    const MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT: u64 = 64;
 
     fn show_toolbar_add_menu(
         &self,
@@ -1647,7 +1656,86 @@ impl ProjectHierarchyView {
             .unwrap_or(false);
 
         if should_refresh_project_items {
-            ProjectHierarchyViewData::refresh_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone());
+            self.sync_project_item_virtual_snapshot(project_read_interval);
+        }
+    }
+
+    fn sync_project_item_virtual_snapshot(
+        &self,
+        project_read_interval: Duration,
+    ) {
+        let virtual_snapshot_queries = self
+            .project_hierarchy_view_data
+            .read("Project hierarchy build virtual snapshot queries")
+            .map(|project_hierarchy_view_data| {
+                if project_hierarchy_view_data.opened_project_info.is_none() {
+                    return Vec::new();
+                }
+
+                let requested_preview_project_item_paths = project_hierarchy_view_data.collect_requested_preview_project_item_paths();
+
+                requested_preview_project_item_paths
+                    .into_iter()
+                    .filter_map(|project_item_path| {
+                        project_hierarchy_view_data
+                            .project_items
+                            .iter()
+                            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
+                            .and_then(|(_, project_item)| {
+                                Self::build_project_item_virtual_snapshot_query(&project_item_path, project_item, &self.app_context.engine_unprivileged_state)
+                            })
+                    })
+                    .collect::<Vec<VirtualSnapshotQuery>>()
+            })
+            .unwrap_or_default();
+
+        self.app_context
+            .engine_unprivileged_state
+            .set_virtual_snapshot_queries(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID, project_read_interval, virtual_snapshot_queries);
+        self.app_context
+            .engine_unprivileged_state
+            .request_virtual_snapshot_refresh(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID);
+        self.apply_project_item_virtual_snapshot_results();
+    }
+
+    fn apply_project_item_virtual_snapshot_results(&self) {
+        let Some(virtual_snapshot) = self
+            .app_context
+            .engine_unprivileged_state
+            .get_virtual_snapshot(Self::PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID)
+        else {
+            return;
+        };
+        let preview_fields_by_project_item_path = self
+            .project_hierarchy_view_data
+            .read("Project hierarchy apply virtual snapshot results")
+            .map(|project_hierarchy_view_data| {
+                project_hierarchy_view_data
+                    .project_items
+                    .iter()
+                    .filter_map(|(project_item_ref, project_item)| {
+                        let project_item_path = project_item_ref.get_project_item_path();
+                        let query_id = project_item_path.to_string_lossy().to_string();
+                        let query_result = virtual_snapshot.get_query_results().get(&query_id)?;
+                        let preview_value = Self::build_project_item_preview_value_from_virtual_snapshot_result(
+                            &self.app_context.engine_unprivileged_state,
+                            project_item,
+                            query_result,
+                        );
+                        let preview_path = if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+                            query_result.evaluated_pointer_path.clone()
+                        } else {
+                            String::new()
+                        };
+
+                        Some((project_item_path.clone(), (preview_value, preview_path)))
+                    })
+                    .collect::<HashMap<PathBuf, (String, String)>>()
+            })
+            .unwrap_or_default();
+
+        if !preview_fields_by_project_item_path.is_empty() {
+            let _ = ProjectHierarchyViewData::set_project_item_preview_fields(self.project_hierarchy_view_data.clone(), &preview_fields_by_project_item_path);
         }
     }
 
@@ -2377,6 +2465,198 @@ impl ProjectHierarchyView {
         engine_unprivileged_state
             .anonymize_value_to_supported_formats(&data_value)
             .unwrap_or_else(|_| vec![value_edit.clone()])
+    }
+
+    fn build_project_item_virtual_snapshot_query(
+        project_item_path: &Path,
+        project_item: &ProjectItem,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) -> Option<VirtualSnapshotQuery> {
+        let query_id = project_item_path.to_string_lossy().to_string();
+        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(project_item)?;
+        let symbolic_struct_definition = Self::build_project_item_preview_symbolic_struct_definition(engine_unprivileged_state, &symbolic_struct_namespace)?;
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+
+            return Some(VirtualSnapshotQuery::Address {
+                query_id,
+                address: ProjectItemTypeAddress::get_field_address(&mut project_item),
+                module_name: ProjectItemTypeAddress::get_field_module(&mut project_item),
+                symbolic_struct_definition,
+            });
+        }
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            return Some(VirtualSnapshotQuery::Pointer {
+                query_id,
+                pointer: ProjectItemTypePointer::get_field_pointer(project_item),
+                symbolic_struct_definition,
+            });
+        }
+
+        None
+    }
+
+    fn build_project_item_preview_symbolic_struct_definition(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        symbolic_struct_namespace: &str,
+    ) -> Option<SymbolicStructDefinition> {
+        let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
+        let preview_field_definition = SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok();
+
+        let Some(preview_field_definition) = preview_field_definition else {
+            return Some(symbolic_struct_definition);
+        };
+
+        let preview_container_type = match preview_field_definition.get_container_type() {
+            ContainerType::ArrayFixed(length) if length > Self::MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT => {
+                ContainerType::ArrayFixed(Self::MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT)
+            }
+            container_type => container_type,
+        };
+
+        if preview_container_type == preview_field_definition.get_container_type() {
+            Some(symbolic_struct_definition)
+        } else {
+            Some(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+                preview_field_definition.get_data_type_ref().clone(),
+                preview_container_type,
+            )]))
+        }
+    }
+
+    fn build_project_item_preview_value_from_virtual_snapshot_result(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        project_item: &ProjectItem,
+        virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
+    ) -> String {
+        let Some(memory_read_response) = virtual_snapshot_query_result.memory_read_response.as_ref() else {
+            return String::new();
+        };
+
+        if !memory_read_response.success {
+            return String::new();
+        }
+
+        let first_read_field_data_value = memory_read_response
+            .valued_struct
+            .get_fields()
+            .first()
+            .and_then(|valued_struct_field| valued_struct_field.get_data_value());
+        let Some(first_read_field_data_value) = first_read_field_data_value else {
+            return String::new();
+        };
+
+        let default_anonymous_value_string_format =
+            engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
+        let symbolic_field_container_type = Self::resolve_project_item_symbolic_container_type(project_item);
+        let preview_was_truncated = Self::project_item_preview_was_truncated(project_item);
+
+        engine_unprivileged_state
+            .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
+            .map(|anonymous_value_string| {
+                Self::format_project_item_preview_value(&anonymous_value_string, symbolic_field_container_type, preview_was_truncated)
+            })
+            .unwrap_or_default()
+    }
+
+    fn resolve_project_item_symbolic_struct_namespace(project_item: &ProjectItem) -> Option<String> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+
+            return ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item).map(|symbolic_struct_reference| {
+                symbolic_struct_reference
+                    .get_symbolic_struct_namespace()
+                    .to_string()
+            });
+        }
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item).map(|symbolic_struct_reference| {
+                symbolic_struct_reference
+                    .get_symbolic_struct_namespace()
+                    .to_string()
+            });
+        }
+
+        None
+    }
+
+    fn resolve_project_item_symbolic_container_type(project_item: &ProjectItem) -> ContainerType {
+        Self::resolve_project_item_symbolic_struct_namespace(project_item)
+            .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok())
+            .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
+            .unwrap_or(ContainerType::None)
+    }
+
+    fn project_item_preview_was_truncated(project_item: &ProjectItem) -> bool {
+        let Some(symbolic_struct_namespace) = Self::resolve_project_item_symbolic_struct_namespace(project_item) else {
+            return false;
+        };
+        let Some(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok() else {
+            return false;
+        };
+
+        matches!(
+            symbolic_field_definition.get_container_type(),
+            ContainerType::ArrayFixed(length) if length > Self::MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT
+        )
+    }
+
+    fn format_project_item_preview_value(
+        anonymous_value_string: &AnonymousValueString,
+        symbolic_field_container_type: ContainerType,
+        preview_was_truncated: bool,
+    ) -> String {
+        let effective_container_type = if matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) {
+            anonymous_value_string.get_container_type()
+        } else {
+            symbolic_field_container_type
+        };
+        let display_value = anonymous_value_string.get_anonymous_value_string();
+
+        if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
+            let preview_value = if preview_was_truncated {
+                Self::append_project_item_preview_ellipsis(display_value)
+            } else {
+                Self::truncate_project_item_preview_value(display_value)
+            };
+
+            format!("[{}]", preview_value)
+        } else {
+            display_value.to_string()
+        }
+    }
+
+    fn append_project_item_preview_ellipsis(display_value: &str) -> String {
+        let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
+
+        if trimmed_display_value.is_empty() {
+            String::from("...")
+        } else {
+            format!("{}...", trimmed_display_value)
+        }
+    }
+
+    fn truncate_project_item_preview_value(display_value: &str) -> String {
+        let display_value_character_count = display_value.chars().count();
+
+        if display_value_character_count <= Self::MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT {
+            return display_value.to_string();
+        }
+
+        let truncated_prefix: String = display_value
+            .chars()
+            .take(Self::MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT)
+            .collect::<String>()
+            .trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'))
+            .to_string();
+
+        format!("{}...", truncated_prefix)
     }
 
     fn build_project_item_rename_request(

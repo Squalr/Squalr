@@ -100,7 +100,7 @@ impl ProjectHierarchyViewData {
 
                 project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Refreshing;
 
-                Some(project_hierarchy_view_data.collect_requested_preview_project_item_paths())
+                Some(Vec::new())
             } else {
                 None
             };
@@ -285,7 +285,7 @@ impl ProjectHierarchyViewData {
         }
     }
 
-    fn collect_requested_preview_project_item_paths(&self) -> Vec<PathBuf> {
+    pub fn collect_requested_preview_project_item_paths(&self) -> Vec<PathBuf> {
         let mut requested_preview_project_item_paths = self.visible_preview_project_item_paths.clone();
 
         if let Some(selected_project_item_path) = self.selected_project_item_path.as_ref() {
@@ -300,6 +300,57 @@ impl ProjectHierarchyViewData {
         requested_preview_project_item_paths.dedup();
 
         requested_preview_project_item_paths
+    }
+
+    pub fn set_project_item_preview_fields(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        preview_fields_by_project_item_path: &HashMap<PathBuf, (String, String)>,
+    ) -> bool {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy set project item preview fields") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return false,
+        };
+        let mut did_change = false;
+
+        for (project_item_ref, project_item) in &mut project_hierarchy_view_data.project_items {
+            let Some((preview_value, preview_path)) = preview_fields_by_project_item_path.get(project_item_ref.get_project_item_path()) else {
+                continue;
+            };
+            let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+            if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+                let mut comparison_project_item = project_item.clone();
+                let existing_preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut comparison_project_item);
+
+                if existing_preview_value != *preview_value {
+                    ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, preview_value);
+                    did_change = true;
+                }
+            } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+                let existing_preview_value = ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item);
+                let existing_preview_path = ProjectItemTypePointer::get_field_evaluated_pointer_path(project_item);
+
+                if existing_preview_value != *preview_value {
+                    ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, preview_value);
+                    did_change = true;
+                }
+
+                if existing_preview_path != *preview_path {
+                    ProjectItemTypePointer::set_field_evaluated_pointer_path(project_item, preview_path);
+                    did_change = true;
+                }
+            }
+        }
+
+        if did_change {
+            project_hierarchy_view_data.tree_entries = Self::build_tree_entries(
+                project_hierarchy_view_data.opened_project_info.as_ref(),
+                &project_hierarchy_view_data.project_items,
+                &project_hierarchy_view_data.expanded_directory_paths,
+            );
+        }
+
+        did_change
     }
 
     fn merge_project_item_preview_fields(
