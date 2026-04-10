@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::widgets::controls::button::Button,
+    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
     views::{
         memory_viewer::view_data::memory_viewer_view_data::{MemoryViewerSelectionSummary, MemoryViewerViewData},
         project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
@@ -384,10 +384,6 @@ impl MemoryViewerInterpretationPanelView {
         truncated_text
     }
 
-    fn build_add_button_label() -> String {
-        String::from("+")
-    }
-
     fn render_entry(
         &self,
         user_interface: &mut Ui,
@@ -405,7 +401,6 @@ impl MemoryViewerInterpretationPanelView {
 
             user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
                 if let Some(add_data_type_id) = interpretation_entry.add_data_type_id.clone() {
-                    let add_button_label = Self::build_add_button_label();
                     let add_button = user_interface.add_sized(
                         vec2(Self::ACTION_BUTTON_WIDTH, Self::ACTION_BUTTON_HEIGHT),
                         Button::new_from_theme(theme)
@@ -413,13 +408,7 @@ impl MemoryViewerInterpretationPanelView {
                             .with_tooltip_text(&format!("Create a project item from the current selection as `{}`.", add_data_type_id)),
                     );
 
-                    user_interface.painter().text(
-                        add_button.rect.center(),
-                        eframe::egui::Align2::CENTER_CENTER,
-                        add_button_label,
-                        theme.font_library.font_noto_sans.font_small.clone(),
-                        theme.foreground,
-                    );
+                    IconDraw::draw(user_interface, add_button.rect, &theme.icon_library.icon_handle_common_add);
 
                     if add_button.clicked() {
                         self.dispatch_add_selection_to_project(selection_summary, add_data_type_id);
@@ -511,13 +500,6 @@ impl Widget for MemoryViewerInterpretationPanelView {
 mod tests {
     use super::{MemoryViewerInterpretationEntry, MemoryViewerInterpretationPanelView};
     use crate::views::memory_viewer::view_data::memory_viewer_view_data::MemoryViewerSelectionSummary;
-
-    #[test]
-    fn build_add_button_label_is_compact_plus() {
-        let add_button_label = MemoryViewerInterpretationPanelView::build_add_button_label();
-
-        assert_eq!(add_button_label, String::from("+"));
-    }
 
     #[test]
     fn format_truncated_list_appends_ellipsis_when_preview_is_trimmed() {
