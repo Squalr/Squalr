@@ -4,6 +4,7 @@ use crate::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
         widgets::controls::{context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
     },
+    views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
     views::project_explorer::project_hierarchy::{
         project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
@@ -61,6 +62,7 @@ pub struct ProjectHierarchyView {
     app_context: Arc<AppContext>,
     project_hierarchy_toolbar_view: ProjectHierarchyToolbarView,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+    memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
 }
@@ -105,6 +107,9 @@ impl ProjectHierarchyView {
         let struct_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<StructViewerViewData>();
+        let memory_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<MemoryViewerViewData>();
         let pointer_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<PointerScannerViewData>();
@@ -114,6 +119,7 @@ impl ProjectHierarchyView {
             app_context,
             project_hierarchy_toolbar_view,
             project_hierarchy_view_data,
+            memory_viewer_view_data,
             pointer_scanner_view_data,
             struct_viewer_view_data,
         }
@@ -826,6 +832,7 @@ impl Widget for ProjectHierarchyView {
 
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
                                     let pointer_scanner_context_actions = Self::build_pointer_scanner_context_actions(&tree_entry.project_item);
+                                    let can_open_in_memory_viewer = Self::can_open_project_item_in_memory_viewer(&tree_entry.project_item);
                                     let is_context_menu_visible =
                                         matches!(menu_target.as_ref(), Some(ProjectHierarchyMenuTarget::ProjectItem(menu_project_item_path)) if menu_project_item_path == &tree_entry.project_item_path);
                                     let default_context_menu_position = row_response.rect.left_bottom();
@@ -891,6 +898,36 @@ impl Widget for ProjectHierarchyView {
                                                                 );
                                                             }
                                                         }
+                                                    }
+                                                }
+
+                                                if user_interface
+                                                    .add_enabled(
+                                                        can_open_in_memory_viewer,
+                                                        ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Open in Memory Viewer",
+                                                            "project_hierarchy_ctx_open_memory_viewer",
+                                                            &None,
+                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                        ),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    let engine_execution_context: Arc<dyn EngineExecutionContext> =
+                                                        self.app_context.engine_unprivileged_state.clone();
+
+                                                    if let Some((address, module_name)) =
+                                                        Self::resolve_project_item_runtime_value_target(&engine_execution_context, &tree_entry.project_item)
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress { address, module_name };
+                                                        *should_close = true;
+                                                    } else {
+                                                        log::error!(
+                                                            "Failed to resolve memory viewer target for project item: {:?}.",
+                                                            tree_entry_project_item_path
+                                                        );
                                                     }
                                                 }
 
@@ -1353,6 +1390,13 @@ impl Widget for ProjectHierarchyView {
                 }
 
                 self.focus_pointer_scanner_for_address(address, &module_name, &data_type_id);
+            }
+            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress { address, module_name } => {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                self.focus_memory_viewer_for_address(address, &module_name);
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_value_edit_take_over_active {
@@ -2029,6 +2073,12 @@ impl ProjectHierarchyView {
         Vec::new()
     }
 
+    fn can_open_project_item_in_memory_viewer(project_item: &ProjectItem) -> bool {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+    }
+
     fn resolve_pointer_scanner_context_action(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         pointer_scanner_context_action: &PointerScannerContextAction,
@@ -2187,6 +2237,29 @@ impl ProjectHierarchyView {
             }
             Err(error) => {
                 log::error!("Failed to acquire docking manager while opening the pointer scanner: {}", error);
+            }
+        }
+    }
+
+    fn focus_memory_viewer_for_address(
+        &self,
+        address: u64,
+        module_name: &str,
+    ) {
+        MemoryViewerViewData::request_focus_address(
+            self.memory_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            address,
+            module_name.to_string(),
+        );
+
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(MemoryViewerView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(MemoryViewerView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire docking manager while opening the memory viewer: {}", error);
             }
         }
     }

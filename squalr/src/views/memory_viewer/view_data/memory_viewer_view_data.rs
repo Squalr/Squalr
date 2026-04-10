@@ -30,6 +30,12 @@ pub struct MemoryViewerPageCache {
     cached_chunks: BTreeMap<u64, Vec<u8>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MemoryViewerFocusRequest {
+    address: u64,
+    module_name: String,
+}
+
 impl MemoryViewerPageCache {
     fn cache_chunk(
         &mut self,
@@ -66,6 +72,8 @@ pub struct MemoryViewerViewData {
     last_applied_snapshot_generation: u64,
     page_caches_by_base_address: HashMap<u64, MemoryViewerPageCache>,
     unreadable_page_base_addresses: HashSet<u64>,
+    pending_focus_request: Option<MemoryViewerFocusRequest>,
+    pending_scroll_address: Option<u64>,
 }
 
 impl MemoryViewerViewData {
@@ -91,6 +99,32 @@ impl MemoryViewerViewData {
             last_applied_snapshot_generation: 0,
             page_caches_by_base_address: HashMap::new(),
             unreadable_page_base_addresses: HashSet::new(),
+            pending_focus_request: None,
+            pending_scroll_address: None,
+        }
+    }
+
+    pub fn request_focus_address(
+        memory_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        address: u64,
+        module_name: String,
+    ) {
+        let should_refresh_memory_pages = match memory_viewer_view_data.write("Memory viewer request focus address") {
+            Some(mut memory_viewer_view_data) => {
+                memory_viewer_view_data.pending_focus_request = Some(MemoryViewerFocusRequest { address, module_name });
+
+                if memory_viewer_view_data.try_apply_pending_focus_request() {
+                    false
+                } else {
+                    memory_viewer_view_data.virtual_pages.is_empty() && !memory_viewer_view_data.is_querying_memory_pages
+                }
+            }
+            None => return,
+        };
+
+        if should_refresh_memory_pages {
+            Self::refresh_memory_pages(memory_viewer_view_data, engine_unprivileged_state);
         }
     }
 
@@ -376,6 +410,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.last_applied_snapshot_generation = 0;
             memory_viewer_view_data.page_caches_by_base_address.clear();
             memory_viewer_view_data.unreadable_page_base_addresses.clear();
+            memory_viewer_view_data.pending_scroll_address = None;
             memory_viewer_view_data.complete_memory_pages_request();
         }
 
@@ -418,6 +453,26 @@ impl MemoryViewerViewData {
                     .unwrap_or(false)
             })
             .unwrap_or(false)
+    }
+
+    pub fn take_pending_scroll_row_index(
+        memory_viewer_view_data: Dependency<Self>,
+        normalized_region: &NormalizedRegion,
+    ) -> Option<usize> {
+        let mut memory_viewer_view_data = memory_viewer_view_data.write("Memory viewer take pending scroll row index")?;
+        let pending_scroll_address = memory_viewer_view_data.pending_scroll_address?;
+
+        if !normalized_region.contains_address(pending_scroll_address) {
+            return None;
+        }
+
+        let row_index = pending_scroll_address
+            .saturating_sub(normalized_region.get_base_address())
+            .checked_div(Self::BYTES_PER_ROW)
+            .and_then(|row_index| usize::try_from(row_index).ok())?;
+        memory_viewer_view_data.pending_scroll_address = None;
+
+        Some(row_index)
     }
 
     fn format_stats_for_page_from_modules(
@@ -483,14 +538,16 @@ impl MemoryViewerViewData {
                 memory_viewer_view_data.unreadable_page_base_addresses.clear();
                 memory_viewer_view_data.last_applied_snapshot_generation = 0;
                 memory_viewer_view_data.cached_last_page_index = memory_viewer_view_data.virtual_pages.len().saturating_sub(1) as u64;
-                memory_viewer_view_data.current_page_index =
-                    Self::resolve_page_index_after_refresh(&memory_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
-                        Self::resolve_initial_page_index(&memory_viewer_view_data.virtual_pages, &memory_viewer_view_data.modules).unwrap_or(
-                            memory_viewer_view_data
-                                .current_page_index
-                                .clamp(0, memory_viewer_view_data.cached_last_page_index),
-                        )
-                    });
+                if !memory_viewer_view_data.try_apply_pending_focus_request() {
+                    memory_viewer_view_data.current_page_index =
+                        Self::resolve_page_index_after_refresh(&memory_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
+                            Self::resolve_initial_page_index(&memory_viewer_view_data.virtual_pages, &memory_viewer_view_data.modules).unwrap_or(
+                                memory_viewer_view_data
+                                    .current_page_index
+                                    .clamp(0, memory_viewer_view_data.cached_last_page_index),
+                            )
+                        });
+                }
 
                 let current_page = memory_viewer_view_data
                     .virtual_pages
@@ -530,6 +587,7 @@ impl MemoryViewerViewData {
             }
 
             memory_viewer_view_data.current_page_index = bounded_page_index;
+            memory_viewer_view_data.pending_scroll_address = None;
 
             let current_page = memory_viewer_view_data
                 .virtual_pages
@@ -568,6 +626,57 @@ impl MemoryViewerViewData {
             .map(|normalized_module| normalized_module.get_base_address())?;
 
         Self::resolve_page_index_after_refresh(virtual_pages, Some(first_module_base_address))
+    }
+
+    fn try_apply_pending_focus_request(&mut self) -> bool {
+        let Some(pending_focus_request) = self.pending_focus_request.clone() else {
+            return false;
+        };
+
+        let Some(focus_address) = Self::resolve_focus_address(&self.modules, pending_focus_request.address, &pending_focus_request.module_name) else {
+            if !self.modules.is_empty() || pending_focus_request.module_name.is_empty() {
+                self.pending_focus_request = None;
+            }
+
+            return false;
+        };
+
+        let Some(page_index) = Self::resolve_page_index_after_refresh(&self.virtual_pages, Some(focus_address)) else {
+            if !self.virtual_pages.is_empty() {
+                self.pending_focus_request = None;
+            }
+
+            return false;
+        };
+
+        self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
+        self.pending_scroll_address = Some(focus_address);
+        self.pending_focus_request = None;
+        self.last_applied_snapshot_generation = 0;
+
+        let current_page = self.virtual_pages.get(self.current_page_index as usize);
+        self.stats_string = Self::format_stats_for_page_from_modules(&self.modules, &self.unreadable_page_base_addresses, current_page);
+
+        true
+    }
+
+    fn resolve_focus_address(
+        modules: &[NormalizedModule],
+        address: u64,
+        module_name: &str,
+    ) -> Option<u64> {
+        if module_name.is_empty() {
+            return Some(address);
+        }
+
+        modules
+            .iter()
+            .find(|normalized_module| {
+                normalized_module
+                    .get_module_name()
+                    .eq_ignore_ascii_case(module_name)
+            })
+            .and_then(|normalized_module| normalized_module.get_base_address().checked_add(address))
     }
 
     fn begin_memory_pages_request(&mut self) -> u64 {
@@ -658,5 +767,21 @@ mod tests {
         let resolved_page_index = MemoryViewerViewData::resolve_initial_page_index(&virtual_pages, &modules);
 
         assert_eq!(resolved_page_index, Some(1));
+    }
+
+    #[test]
+    fn resolve_focus_address_uses_absolute_address_without_module() {
+        let resolved_address = MemoryViewerViewData::resolve_focus_address(&[], 0x1234, "");
+
+        assert_eq!(resolved_address, Some(0x1234));
+    }
+
+    #[test]
+    fn resolve_focus_address_adds_module_base_for_module_relative_addresses() {
+        let modules = vec![NormalizedModule::new("winmine.exe", 0x4000, 0x1000)];
+
+        let resolved_address = MemoryViewerViewData::resolve_focus_address(&modules, 0x120, "winmine.exe");
+
+        assert_eq!(resolved_address, Some(0x4120));
     }
 }

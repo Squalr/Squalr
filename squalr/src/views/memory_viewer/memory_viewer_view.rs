@@ -158,60 +158,65 @@ impl Widget for MemoryViewerView {
                     Some(current_page) => {
                         let row_count = MemoryViewerViewData::get_page_row_count(&current_page);
                         let page_base_address = current_page.get_base_address();
-
-                        ScrollArea::vertical()
+                        let pending_scroll_row_index = MemoryViewerViewData::take_pending_scroll_row_index(self.memory_viewer_view_data.clone(), &current_page);
+                        let mut rows_scroll_area = ScrollArea::vertical()
                             .id_salt("memory_viewer_rows")
-                            .auto_shrink([false, false])
-                            .show_rows(&mut content_user_interface, Self::ROW_HEIGHT, row_count, |user_interface, visible_row_range| {
-                                let visible_chunk_queries = MemoryViewerViewData::build_visible_chunk_queries(&current_page, visible_row_range.clone());
+                            .auto_shrink([false, false]);
 
-                                self.app_context
-                                    .engine_unprivileged_state
-                                    .set_virtual_snapshot_queries(
-                                        MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID,
-                                        MemoryViewerViewData::SNAPSHOT_REFRESH_INTERVAL,
-                                        visible_chunk_queries,
-                                    );
-                                self.app_context
-                                    .engine_unprivileged_state
-                                    .request_virtual_snapshot_refresh(MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
+                        if let Some(pending_scroll_row_index) = pending_scroll_row_index {
+                            rows_scroll_area = rows_scroll_area.vertical_scroll_offset((pending_scroll_row_index as f32) * Self::ROW_HEIGHT);
+                        }
 
-                                for row_index in visible_row_range {
-                                    let (row_rect, _row_response) =
-                                        user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::hover());
-                                    let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
-                                    let row_address = Self::format_row_address(&current_page, row_index);
-                                    let mut hex_columns = Vec::new();
-                                    let mut ascii_columns = String::new();
+                        rows_scroll_area.show_rows(&mut content_user_interface, Self::ROW_HEIGHT, row_count, |user_interface, visible_row_range| {
+                            let visible_chunk_queries = MemoryViewerViewData::build_visible_chunk_queries(&current_page, visible_row_range.clone());
 
-                                    for column_index in 0..MemoryViewerViewData::BYTES_PER_ROW {
-                                        let byte_offset = row_offset.saturating_add(column_index);
-                                        let byte_value = if byte_offset < current_page.get_region_size() {
-                                            MemoryViewerViewData::get_cached_byte_for_page(self.memory_viewer_view_data.clone(), page_base_address, byte_offset)
-                                        } else {
-                                            None
-                                        };
+                            self.app_context
+                                .engine_unprivileged_state
+                                .set_virtual_snapshot_queries(
+                                    MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID,
+                                    MemoryViewerViewData::SNAPSHOT_REFRESH_INTERVAL,
+                                    visible_chunk_queries,
+                                );
+                            self.app_context
+                                .engine_unprivileged_state
+                                .request_virtual_snapshot_refresh(MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
 
-                                        hex_columns.push(Self::format_hex_cell(byte_value));
+                            for row_index in visible_row_range {
+                                let (row_rect, _row_response) =
+                                    user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::hover());
+                                let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
+                                let row_address = Self::format_row_address(&current_page, row_index);
+                                let mut hex_columns = Vec::new();
+                                let mut ascii_columns = String::new();
 
-                                        if byte_offset < current_page.get_region_size() {
-                                            ascii_columns.push(Self::format_ascii_cell(byte_value));
-                                        } else {
-                                            ascii_columns.push(' ');
-                                        }
+                                for column_index in 0..MemoryViewerViewData::BYTES_PER_ROW {
+                                    let byte_offset = row_offset.saturating_add(column_index);
+                                    let byte_value = if byte_offset < current_page.get_region_size() {
+                                        MemoryViewerViewData::get_cached_byte_for_page(self.memory_viewer_view_data.clone(), page_base_address, byte_offset)
+                                    } else {
+                                        None
+                                    };
+
+                                    hex_columns.push(Self::format_hex_cell(byte_value));
+
+                                    if byte_offset < current_page.get_region_size() {
+                                        ascii_columns.push(Self::format_ascii_cell(byte_value));
+                                    } else {
+                                        ascii_columns.push(' ');
                                     }
-
-                                    let row_text = format!("{:016X}  {}  |{}|", row_address, hex_columns.join(" "), ascii_columns);
-
-                                    user_interface.painter().text(
-                                        row_rect.min + vec2(8.0, 3.0),
-                                        Align2::LEFT_TOP,
-                                        row_text,
-                                        theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                                        theme.foreground,
-                                    );
                                 }
-                            });
+
+                                let row_text = format!("{:016X}  {}  |{}|", row_address, hex_columns.join(" "), ascii_columns);
+
+                                user_interface.painter().text(
+                                    row_rect.min + vec2(8.0, 3.0),
+                                    Align2::LEFT_TOP,
+                                    row_text,
+                                    theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                                    theme.foreground,
+                                );
+                            }
+                        });
 
                         if current_page_is_unreadable {
                             content_user_interface.add_space(8.0);
