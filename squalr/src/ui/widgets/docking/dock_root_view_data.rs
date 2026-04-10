@@ -72,4 +72,25 @@ impl DockRootViewData {
             }
         }
     }
+
+    pub fn is_window_maximized(
+        &self,
+        window_identifier: &str,
+    ) -> bool {
+        self.get_maximized_window_identifier().as_deref() == Some(window_identifier)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DockRootViewData;
+
+    #[test]
+    fn is_window_maximized_matches_active_identifier() {
+        let dock_root_view_data = DockRootViewData::new();
+        dock_root_view_data.set_maximized_window_identifier(Some(String::from("memory_viewer")));
+
+        assert!(dock_root_view_data.is_window_maximized("memory_viewer"));
+        assert!(!dock_root_view_data.is_window_maximized("project_explorer"));
+    }
 }

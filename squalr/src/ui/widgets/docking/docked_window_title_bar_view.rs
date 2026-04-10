@@ -41,14 +41,21 @@ impl Widget for DockedWindowTitleBarView {
             user_interface.allocate_exact_size(vec2(user_interface.available_width(), self.height), Sense::click_and_drag());
         let theme = &self.app_context.theme;
         let docking_manager = &self.app_context.docking_manager;
+        let is_window_maximized = self
+            .dock_view_data
+            .is_window_maximized(self.identifier.as_ref());
 
         // Background highlight if this is the actively dragged window.
         let background = if let Ok(docking_manager) = docking_manager.read() {
             if docking_manager.active_dragged_window_id() == Some(self.identifier.as_ref()) {
                 theme.selected_background
+            } else if is_window_maximized {
+                theme.background_control_primary
             } else {
                 theme.background_primary
             }
+        } else if is_window_maximized {
+            theme.background_control_primary
         } else {
             theme.background_primary
         };
@@ -72,6 +79,15 @@ impl Widget for DockedWindowTitleBarView {
                 .color(theme.foreground)
                 .font(theme.font_library.font_noto_sans.font_window_title.clone()),
         );
+
+        if is_window_maximized {
+            child_user_interface.add_space(8.0);
+            child_user_interface.label(
+                RichText::new("Fullscreen")
+                    .color(theme.selected_border)
+                    .font(theme.font_library.font_noto_sans.font_small.clone()),
+            );
+        }
 
         child_user_interface.add_space(child_user_interface.available_width());
 
@@ -122,6 +138,12 @@ impl Widget for DockedWindowTitleBarView {
                 }
             }
 
+            user_interface.ctx().request_repaint();
+        }
+
+        if drag.double_clicked() {
+            self.dock_view_data
+                .toggle_maximized_window_identifier(&self.identifier);
             user_interface.ctx().request_repaint();
         }
 
