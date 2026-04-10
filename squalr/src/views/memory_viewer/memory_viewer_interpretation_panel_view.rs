@@ -29,7 +29,7 @@ impl MemoryViewerInterpretationPanelView {
     const MAX_ARRAY_PREVIEW_ITEMS: usize = 8;
     const MAX_HEX_PREVIEW_BYTES: usize = 16;
     const MAX_UTF8_PREVIEW_CHARACTERS: usize = 80;
-    const ACTION_BUTTON_WIDTH: f32 = 120.0;
+    const ACTION_BUTTON_WIDTH: f32 = 24.0;
     const ACTION_BUTTON_HEIGHT: f32 = 24.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -384,8 +384,8 @@ impl MemoryViewerInterpretationPanelView {
         truncated_text
     }
 
-    fn build_add_button_label(data_type_id: &str) -> String {
-        format!("Add {}", data_type_id)
+    fn build_add_button_label() -> String {
+        String::from("+")
     }
 
     fn render_entry(
@@ -405,12 +405,9 @@ impl MemoryViewerInterpretationPanelView {
 
             user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
                 if let Some(add_data_type_id) = interpretation_entry.add_data_type_id.clone() {
-                    let add_button_label = Self::build_add_button_label(&add_data_type_id);
+                    let add_button_label = Self::build_add_button_label();
                     let add_button = user_interface.add_sized(
-                        vec2(
-                            Self::ACTION_BUTTON_WIDTH.min(user_interface.available_width().max(1.0)),
-                            Self::ACTION_BUTTON_HEIGHT,
-                        ),
+                        vec2(Self::ACTION_BUTTON_WIDTH, Self::ACTION_BUTTON_HEIGHT),
                         Button::new_from_theme(theme)
                             .background_color(theme.background_control_secondary)
                             .with_tooltip_text(&format!("Create a project item from the current selection as `{}`.", add_data_type_id)),
@@ -516,10 +513,10 @@ mod tests {
     use crate::views::memory_viewer::view_data::memory_viewer_view_data::MemoryViewerSelectionSummary;
 
     #[test]
-    fn build_add_button_label_uses_data_type_id() {
-        let add_button_label = MemoryViewerInterpretationPanelView::build_add_button_label("u16[4]");
+    fn build_add_button_label_is_compact_plus() {
+        let add_button_label = MemoryViewerInterpretationPanelView::build_add_button_label();
 
-        assert_eq!(add_button_label, String::from("Add u16[4]"));
+        assert_eq!(add_button_label, String::from("+"));
     }
 
     #[test]
