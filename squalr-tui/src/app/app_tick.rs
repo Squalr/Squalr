@@ -22,6 +22,9 @@ impl AppShell {
         let did_synchronize_opened_process = self.synchronize_opened_process_from_engine_event_if_pending();
         if did_synchronize_opened_process {
             self.invalidate_plugins_for_process_change();
+            if let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() {
+                self.clear_memory_viewer_for_process_change(engine_unprivileged_state);
+            }
         }
         self.refresh_plugins_if_engine_event_pending(squalr_engine);
         let did_requery_after_scan_results_update = self.query_scan_results_page_if_engine_event_pending(squalr_engine);
@@ -45,7 +48,11 @@ impl AppShell {
             self.last_project_items_auto_refresh_attempt_time = Some(current_tick_time);
             self.refresh_project_items_list_with_feedback(squalr_engine, false);
         }
+        if let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() {
+            self.sync_project_item_virtual_snapshot(engine_unprivileged_state);
+        }
 
+        let _ = self.sync_memory_viewer_on_tick(squalr_engine);
         self.refresh_settings_on_tick_if_eligible(squalr_engine);
         self.refresh_plugins_on_tick_if_eligible(squalr_engine);
     }

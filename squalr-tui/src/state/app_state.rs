@@ -3,6 +3,7 @@ use crate::state::pane_entry_row::PaneEntryRow;
 use crate::state::pane_layout_state::PaneLayoutState;
 use crate::state::workspace_page::TuiWorkspacePage;
 use crate::views::element_scanner::pane_state::ElementScannerPaneState;
+use crate::views::memory_viewer::pane_state::MemoryViewerPaneState;
 use crate::views::output::pane_state::OutputPaneState;
 use crate::views::output::summary::OUTPUT_FIXED_SUMMARY_LINE_COUNT;
 use crate::views::plugins::pane_state::PluginsPaneState;
@@ -22,6 +23,7 @@ pub struct TuiAppState {
     pub scan_results_pane_state: ScanResultsPaneState,
     pub project_explorer_pane_state: ProjectExplorerPaneState,
     pub struct_viewer_pane_state: StructViewerPaneState,
+    pub memory_viewer_pane_state: MemoryViewerPaneState,
     pub output_pane_state: OutputPaneState,
     pub settings_pane_state: SettingsPaneState,
     pub plugins_pane_state: PluginsPaneState,
@@ -72,7 +74,7 @@ impl TuiAppState {
                 if self.process_selector_pane_state.is_process_selector_view_active {
                     vec![TuiPane::ProcessSelector, TuiPane::Output]
                 } else {
-                    vec![TuiPane::ProjectExplorer, TuiPane::Output]
+                    vec![TuiPane::ProjectExplorer, TuiPane::StructViewer, TuiPane::Output]
                 }
             }
             _ => self.pane_layout_state.visible_panes_in_order(),
@@ -102,6 +104,7 @@ impl TuiAppState {
             TuiPane::StructViewer => self
                 .struct_viewer_pane_state
                 .summary_lines(pane_content_height.saturating_sub(STRUCT_VIEWER_FIXED_SUMMARY_LINE_COUNT)),
+            TuiPane::MemoryViewer => self.memory_viewer_pane_state.summary_lines(),
             TuiPane::Output => self
                 .output_pane_state
                 .summary_lines(pane_content_height.saturating_sub(OUTPUT_FIXED_SUMMARY_LINE_COUNT)),
@@ -137,6 +140,7 @@ impl TuiAppState {
                 );
                 entry_rows
             }
+            TuiPane::MemoryViewer => self.memory_viewer_pane_state.visible_row_entries(),
             TuiPane::Plugins => self
                 .plugins_pane_state
                 .visible_plugin_entry_rows(pane_entry_row_capacity),
@@ -158,9 +162,17 @@ impl TuiAppState {
                     project_entry_row_capacity, project_item_entry_row_capacity
                 ))
             }
+            TuiPane::MemoryViewer => Some(format!("[ROWS] visible={}.", pane_entry_row_capacity)),
             TuiPane::Plugins => Some(format!("[ROWS] visible={}", pane_entry_row_capacity)),
             _ => None,
         }
+    }
+
+    pub fn project_explorer_entry_row_capacities_for_total(
+        &self,
+        total_entry_row_capacity: usize,
+    ) -> (usize, usize) {
+        self.project_explorer_entry_row_capacities(total_entry_row_capacity)
     }
 
     fn project_explorer_entry_row_capacities(
@@ -281,12 +293,31 @@ mod tests {
 
         assert_eq!(tui_app_state.focused_pane(), TuiPane::ProjectExplorer);
         tui_app_state.cycle_focus_forward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::StructViewer);
+        tui_app_state.cycle_focus_forward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
         tui_app_state.cycle_focus_forward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::ProjectExplorer);
 
         tui_app_state.cycle_focus_backward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
+        tui_app_state.cycle_focus_backward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::StructViewer);
+    }
+
+    #[test]
+    fn switching_workspace_page_keeps_focus_for_struct_viewer_when_it_remains_visible() {
+        let mut tui_app_state = TuiAppState::default();
+        tui_app_state
+            .process_selector_pane_state
+            .is_process_selector_view_active = false;
+        tui_app_state.set_focused_pane(TuiPane::StructViewer);
+
+        tui_app_state.set_active_workspace_page(TuiWorkspacePage::ProjectWorkspace);
+
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::StructViewer);
+        tui_app_state.cycle_focus_backward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::ProjectExplorer);
     }
 
     #[test]
@@ -334,5 +365,17 @@ mod tests {
 
         tui_app_state.cycle_focus_backward();
         assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
+    }
+
+    #[test]
+    fn memory_workspace_focus_cycle_loops_in_page_order() {
+        let mut tui_app_state = TuiAppState::default();
+        tui_app_state.set_active_workspace_page(TuiWorkspacePage::MemoryWorkspace);
+
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::MemoryViewer);
+        tui_app_state.cycle_focus_forward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::Output);
+        tui_app_state.cycle_focus_forward();
+        assert_eq!(tui_app_state.focused_pane(), TuiPane::MemoryViewer);
     }
 }

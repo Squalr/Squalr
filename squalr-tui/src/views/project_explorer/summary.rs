@@ -23,7 +23,7 @@ pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &Projec
             project_explorer_pane_state.pending_project_name_input
         ));
     } else {
-        summary_lines.push("[TREE] Up/Down move | Home/End jump | l/Right expand | h/Left collapse | Space activate.".to_string());
+        summary_lines.push("[TREE] Up/Down move | Home/End jump | l/Right expand | h/Left collapse | Space activate | o memory.".to_string());
         summary_lines.push("[MOVE] m stage | b move | [/] reorder | u clear-stage.".to_string());
         summary_lines.push(format!(
             "[PROJ] selected={} | active={} | dir={}.",

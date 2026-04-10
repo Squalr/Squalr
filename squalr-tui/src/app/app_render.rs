@@ -9,7 +9,7 @@ use ratatui::widgets::Paragraph;
 
 impl AppShell {
     pub(super) fn draw_pane_layout(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         body_area: Rect,
     ) {
@@ -18,11 +18,12 @@ impl AppShell {
             TuiWorkspacePage::ScannerWorkspace => self.draw_scanner_workspace_layout(frame, body_area),
             TuiWorkspacePage::SettingsWorkspace => self.draw_settings_workspace_layout(frame, body_area),
             TuiWorkspacePage::PluginsWorkspace => self.draw_plugins_workspace_layout(frame, body_area),
+            TuiWorkspacePage::MemoryWorkspace => self.draw_memory_workspace_layout(frame, body_area),
         }
     }
 
     fn draw_project_workspace_layout(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         body_area: Rect,
     ) {
@@ -37,14 +38,25 @@ impl AppShell {
             .is_process_selector_view_active
         {
             self.draw_single_pane(frame, rows[0], TuiPane::ProcessSelector);
+            self.draw_single_pane(frame, rows[1], TuiPane::Output);
         } else {
-            self.draw_single_pane(frame, rows[0], TuiPane::ProjectExplorer);
+            let explorer_rows = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(45),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(30),
+                ])
+                .split(body_area);
+
+            self.draw_single_pane(frame, explorer_rows[0], TuiPane::ProjectExplorer);
+            self.draw_single_pane(frame, explorer_rows[1], TuiPane::StructViewer);
+            self.draw_single_pane(frame, explorer_rows[2], TuiPane::Output);
         }
-        self.draw_single_pane(frame, rows[1], TuiPane::Output);
     }
 
     fn draw_scanner_workspace_layout(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         body_area: Rect,
     ) {
@@ -63,7 +75,7 @@ impl AppShell {
     }
 
     fn draw_settings_workspace_layout(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         body_area: Rect,
     ) {
@@ -77,7 +89,7 @@ impl AppShell {
     }
 
     fn draw_plugins_workspace_layout(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         body_area: Rect,
     ) {
@@ -90,8 +102,22 @@ impl AppShell {
         self.draw_single_pane(frame, rows[1], TuiPane::Output);
     }
 
+    fn draw_memory_workspace_layout(
+        &mut self,
+        frame: &mut ratatui::Frame<'_>,
+        body_area: Rect,
+    ) {
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(body_area);
+
+        self.draw_single_pane(frame, rows[0], TuiPane::MemoryViewer);
+        self.draw_single_pane(frame, rows[1], TuiPane::Output);
+    }
+
     fn draw_single_pane(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         pane_area: Rect,
         pane: TuiPane,
@@ -114,6 +140,18 @@ impl AppShell {
                 self.app_state
                     .pane_row_telemetry_line(pane, pane_entry_row_capacity)
             });
+        if pane == TuiPane::ProjectExplorer {
+            let (_, project_item_entry_row_capacity) = self
+                .app_state
+                .project_explorer_entry_row_capacities_for_total(entry_row_capacity);
+            self.app_state
+                .project_explorer_pane_state
+                .set_project_item_viewport_capacity(project_item_entry_row_capacity);
+        } else if pane == TuiPane::MemoryViewer {
+            self.app_state
+                .memory_viewer_pane_state
+                .set_viewport_row_capacity(entry_row_capacity);
+        }
         let summary_lines = Self::fold_scan_results_visible_rows_into_page_line(pane, summary_lines, entry_row_capacity);
         let display_summary_lines = self.fit_summary_lines_to_width(summary_lines, pane_content_width);
         let pane_lines: Vec<Line<'static>> = display_summary_lines.into_iter().map(Line::from).collect();
@@ -308,7 +346,7 @@ impl AppShell {
     fn is_entry_heavy_pane(pane: TuiPane) -> bool {
         matches!(
             pane,
-            TuiPane::ProcessSelector | TuiPane::ScanResults | TuiPane::ProjectExplorer | TuiPane::Plugins
+            TuiPane::ProcessSelector | TuiPane::ScanResults | TuiPane::ProjectExplorer | TuiPane::MemoryViewer | TuiPane::Plugins
         )
     }
 
