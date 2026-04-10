@@ -19,6 +19,7 @@ Our current task, from `README.md`, is:
 - need human verification: Project hierarchy preview refresh now only requests visible/selected item previews, preserves cached preview text for off-screen rows, deduplicates duplicate address/pointer reads per refresh, and caps large fixed-array preview reads while still loading the full live value when entering value edit.
 - need human verification: `VirtualSnapshots` now exist as a session-owned materialized memory-view layer in `squalr-engine-session`, and the GUI project hierarchy preview path now uses one named virtual snapshot instead of list-command-coupled preview refresh.
 - need human verification: Added a dockable GUI `Memory Viewer` with results-style virtual-page navigation, sparse `??`-until-read hex/ASCII rendering, and visible-chunk refresh through a dedicated virtual snapshot.
+- need human verification: Memory viewer refresh now preserves the selected page by base address instead of raw page index, prefers the first module-backed page on initial load, and labels pages as unreadable when visible chunk reads fail.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -38,3 +39,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Entering project-item value edit now performs a dedicated full live memory read for the item's configured type, so preview truncation does not leak into editing; the current takeover view remains the seam for a future dedicated byte/hex editor.
 - Added `MemoryQueryRequest/Response` so GUI consumers can query routed virtual memory pages and modules for the currently opened process through the existing memory-view plugin path.
 - The new GUI memory viewer keeps page metadata separate from byte materialization: page lists come from `MemoryQueryRequest`, while visible hex rows issue aligned `u8[N]` virtual-snapshot chunk queries and cache materialized bytes sparsely per page.
+- The memory viewer currently enumerates raw usermode committed pages, so genuinely unreadable/guard pages can still exist; the viewer now preserves selection by page base address across refresh and explicitly marks pages as unreadable when visible chunk reads fail.

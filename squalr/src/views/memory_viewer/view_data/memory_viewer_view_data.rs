@@ -19,7 +19,7 @@ use squalr_engine_session::{
     virtual_snapshots::{virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery},
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
     sync::Arc,
     time::{Duration, Instant},
@@ -65,6 +65,7 @@ pub struct MemoryViewerViewData {
     next_memory_pages_request_revision: u64,
     last_applied_snapshot_generation: u64,
     page_caches_by_base_address: HashMap<u64, MemoryViewerPageCache>,
+    unreadable_page_base_addresses: HashSet<u64>,
 }
 
 impl MemoryViewerViewData {
@@ -89,6 +90,7 @@ impl MemoryViewerViewData {
             next_memory_pages_request_revision: 1,
             last_applied_snapshot_generation: 0,
             page_caches_by_base_address: HashMap::new(),
+            unreadable_page_base_addresses: HashSet::new(),
         }
     }
 
@@ -108,6 +110,14 @@ impl MemoryViewerViewData {
             .read("Memory viewer refresh pages retrieval mode")
             .map(|memory_viewer_view_data| memory_viewer_view_data.page_retrieval_mode)
             .unwrap_or(PageRetrievalMode::FromUserMode);
+        let selected_page_base_address = memory_viewer_view_data
+            .read("Memory viewer refresh pages selected base address")
+            .and_then(|memory_viewer_view_data| {
+                memory_viewer_view_data
+                    .virtual_pages
+                    .get(Self::load_current_page_index(&memory_viewer_view_data) as usize)
+                    .map(|normalized_region| normalized_region.get_base_address())
+            });
         let request_revision = match memory_viewer_view_data.write("Memory viewer refresh pages begin") {
             Some(mut memory_viewer_view_data) => {
                 let request_revision = memory_viewer_view_data.begin_memory_pages_request();
@@ -126,6 +136,7 @@ impl MemoryViewerViewData {
                 memory_viewer_view_data_for_response,
                 engine_unprivileged_state_for_response,
                 request_revision,
+                selected_page_base_address,
                 memory_query_response,
             );
         });
@@ -313,6 +324,9 @@ impl MemoryViewerViewData {
                 };
 
                 if !memory_read_response.success {
+                    memory_viewer_view_data
+                        .unreadable_page_base_addresses
+                        .insert(page_base_address);
                     continue;
                 }
 
@@ -331,9 +345,21 @@ impl MemoryViewerViewData {
                     .entry(page_base_address)
                     .or_default()
                     .cache_chunk(chunk_offset, chunk_bytes);
+                memory_viewer_view_data
+                    .unreadable_page_base_addresses
+                    .remove(&page_base_address);
             }
 
             memory_viewer_view_data.last_applied_snapshot_generation = virtual_snapshot.get_generation();
+            let current_page = memory_viewer_view_data
+                .virtual_pages
+                .get(memory_viewer_view_data.current_page_index as usize)
+                .cloned();
+            memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
+                &memory_viewer_view_data.modules,
+                &memory_viewer_view_data.unreadable_page_base_addresses,
+                current_page.as_ref(),
+            );
         }
     }
 
@@ -349,6 +375,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.stats_string.clear();
             memory_viewer_view_data.last_applied_snapshot_generation = 0;
             memory_viewer_view_data.page_caches_by_base_address.clear();
+            memory_viewer_view_data.unreadable_page_base_addresses.clear();
             memory_viewer_view_data.complete_memory_pages_request();
         }
 
@@ -376,8 +403,26 @@ impl MemoryViewerViewData {
             .map(|normalized_module| normalized_module.get_module_name().to_string())
     }
 
+    pub fn get_current_page_is_unreadable(memory_viewer_view_data: Dependency<Self>) -> bool {
+        memory_viewer_view_data
+            .read("Memory viewer current page unreadable")
+            .map(|memory_viewer_view_data| {
+                memory_viewer_view_data
+                    .virtual_pages
+                    .get(Self::load_current_page_index(&memory_viewer_view_data) as usize)
+                    .map(|normalized_region| {
+                        memory_viewer_view_data
+                            .unreadable_page_base_addresses
+                            .contains(&normalized_region.get_base_address())
+                    })
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false)
+    }
+
     fn format_stats_for_page_from_modules(
         modules: &[NormalizedModule],
+        unreadable_page_base_addresses: &HashSet<u64>,
         normalized_region: Option<&NormalizedRegion>,
     ) -> String {
         let Some(normalized_region) = normalized_region else {
@@ -391,10 +436,15 @@ impl MemoryViewerViewData {
         let page_size_label = StorageSizeConversions::value_to_metric_size(normalized_region.get_region_size() as u128);
 
         format!(
-            "Base 0x{:X} | Size {} | Module {}",
+            "Base 0x{:X} | Size {} | Module {}{}",
             normalized_region.get_base_address(),
             page_size_label,
-            module_label
+            module_label,
+            if unreadable_page_base_addresses.contains(&normalized_region.get_base_address()) {
+                " | Unreadable"
+            } else {
+                ""
+            }
         )
     }
 
@@ -417,6 +467,7 @@ impl MemoryViewerViewData {
         memory_viewer_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         request_revision: u64,
+        selected_page_base_address: Option<u64>,
         memory_query_response: MemoryQueryResponse,
     ) {
         let has_pages = match memory_viewer_view_data.write("Memory viewer apply memory query response") {
@@ -429,17 +480,27 @@ impl MemoryViewerViewData {
                 memory_viewer_view_data.virtual_pages = memory_query_response.virtual_pages;
                 memory_viewer_view_data.modules = memory_query_response.modules;
                 memory_viewer_view_data.page_caches_by_base_address.clear();
+                memory_viewer_view_data.unreadable_page_base_addresses.clear();
                 memory_viewer_view_data.last_applied_snapshot_generation = 0;
                 memory_viewer_view_data.cached_last_page_index = memory_viewer_view_data.virtual_pages.len().saturating_sub(1) as u64;
-                memory_viewer_view_data.current_page_index = memory_viewer_view_data
-                    .current_page_index
-                    .clamp(0, memory_viewer_view_data.cached_last_page_index);
+                memory_viewer_view_data.current_page_index =
+                    Self::resolve_page_index_after_refresh(&memory_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
+                        Self::resolve_initial_page_index(&memory_viewer_view_data.virtual_pages, &memory_viewer_view_data.modules).unwrap_or(
+                            memory_viewer_view_data
+                                .current_page_index
+                                .clamp(0, memory_viewer_view_data.cached_last_page_index),
+                        )
+                    });
 
                 let current_page = memory_viewer_view_data
                     .virtual_pages
                     .get(memory_viewer_view_data.current_page_index as usize)
                     .cloned();
-                memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(&memory_viewer_view_data.modules, current_page.as_ref());
+                memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
+                    &memory_viewer_view_data.modules,
+                    &memory_viewer_view_data.unreadable_page_base_addresses,
+                    current_page.as_ref(),
+                );
 
                 !memory_viewer_view_data.virtual_pages.is_empty()
             }
@@ -474,9 +535,39 @@ impl MemoryViewerViewData {
                 .virtual_pages
                 .get(bounded_page_index as usize)
                 .cloned();
-            memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(&memory_viewer_view_data.modules, current_page.as_ref());
+            memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
+                &memory_viewer_view_data.modules,
+                &memory_viewer_view_data.unreadable_page_base_addresses,
+                current_page.as_ref(),
+            );
             memory_viewer_view_data.last_applied_snapshot_generation = 0;
         }
+    }
+
+    fn resolve_page_index_after_refresh(
+        virtual_pages: &[NormalizedRegion],
+        selected_page_base_address: Option<u64>,
+    ) -> Option<u64> {
+        let selected_page_base_address = selected_page_base_address?;
+
+        virtual_pages
+            .iter()
+            .position(|normalized_region| {
+                normalized_region.get_base_address() == selected_page_base_address
+                    || (selected_page_base_address >= normalized_region.get_base_address() && selected_page_base_address < normalized_region.get_end_address())
+            })
+            .map(|page_index| page_index as u64)
+    }
+
+    fn resolve_initial_page_index(
+        virtual_pages: &[NormalizedRegion],
+        modules: &[NormalizedModule],
+    ) -> Option<u64> {
+        let first_module_base_address = modules
+            .first()
+            .map(|normalized_module| normalized_module.get_base_address())?;
+
+        Self::resolve_page_index_after_refresh(virtual_pages, Some(first_module_base_address))
     }
 
     fn begin_memory_pages_request(&mut self) -> u64 {
@@ -503,7 +594,7 @@ impl MemoryViewerViewData {
 #[cfg(test)]
 mod tests {
     use super::MemoryViewerViewData;
-    use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+    use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion};
 
     #[test]
     fn build_visible_chunk_queries_aligns_visible_rows_to_prefetched_chunk_window() {
@@ -540,5 +631,32 @@ mod tests {
         let normalized_region = NormalizedRegion::new(0x3000, 17);
 
         assert_eq!(MemoryViewerViewData::get_page_row_count(&normalized_region), 2);
+    }
+
+    #[test]
+    fn resolve_page_index_after_refresh_matches_page_identity_by_base_address() {
+        let virtual_pages = vec![
+            NormalizedRegion::new(0x1000, 0x100),
+            NormalizedRegion::new(0x2000, 0x100),
+            NormalizedRegion::new(0x3000, 0x100),
+        ];
+
+        let resolved_page_index = MemoryViewerViewData::resolve_page_index_after_refresh(&virtual_pages, Some(0x2000));
+
+        assert_eq!(resolved_page_index, Some(1));
+    }
+
+    #[test]
+    fn resolve_initial_page_index_prefers_first_module_page() {
+        let virtual_pages = vec![
+            NormalizedRegion::new(0x1000, 0x100),
+            NormalizedRegion::new(0x4000, 0x100),
+            NormalizedRegion::new(0x8000, 0x100),
+        ];
+        let modules = vec![NormalizedModule::new("winmine.exe", 0x4000, 0x1000)];
+
+        let resolved_page_index = MemoryViewerViewData::resolve_initial_page_index(&virtual_pages, &modules);
+
+        assert_eq!(resolved_page_index, Some(1));
     }
 }

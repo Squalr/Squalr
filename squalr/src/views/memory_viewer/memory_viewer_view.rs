@@ -148,6 +148,7 @@ impl Widget for MemoryViewerView {
                         .layout(Layout::top_down(Align::Min)),
                 );
                 let current_page = MemoryViewerViewData::get_current_page(self.memory_viewer_view_data.clone());
+                let current_page_is_unreadable = MemoryViewerViewData::get_current_page_is_unreadable(self.memory_viewer_view_data.clone());
 
                 content_user_interface
                     .painter()
@@ -211,6 +212,15 @@ impl Widget for MemoryViewerView {
                                     );
                                 }
                             });
+
+                        if current_page_is_unreadable {
+                            content_user_interface.add_space(8.0);
+                            content_user_interface.label(
+                                RichText::new("This page is currently unreadable, so visible bytes remain as ??.")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.background_control_warning),
+                            );
+                        }
                     }
                     None if is_querying_memory_pages => {
                         content_user_interface.allocate_ui_with_layout(
