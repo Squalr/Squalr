@@ -40,3 +40,4 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Added `MemoryQueryRequest/Response` so GUI consumers can query routed virtual memory pages and modules for the currently opened process through the existing memory-view plugin path.
 - The new GUI memory viewer keeps page metadata separate from byte materialization: page lists come from `MemoryQueryRequest`, while visible hex rows issue aligned `u8[N]` virtual-snapshot chunk queries and cache materialized bytes sparsely per page.
 - The memory viewer currently enumerates raw usermode committed pages, so genuinely unreadable/guard pages can still exist; the viewer now preserves selection by page base address across refresh and explicitly marks pages as unreadable when visible chunk reads fail.
+- Memory viewer page stats now show the module name directly with a `(No Module)` fallback instead of prefixing labels with `Module`.

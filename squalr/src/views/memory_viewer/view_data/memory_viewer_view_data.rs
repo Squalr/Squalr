@@ -432,11 +432,11 @@ impl MemoryViewerViewData {
             .iter()
             .find(|normalized_module| normalized_module.contains_address(normalized_region.get_base_address()))
             .map(|normalized_module| normalized_module.get_module_name().to_string())
-            .unwrap_or_else(|| String::from("No module"));
+            .unwrap_or_else(|| String::from("(No Module)"));
         let page_size_label = StorageSizeConversions::value_to_metric_size(normalized_region.get_region_size() as u128);
 
         format!(
-            "Base 0x{:X} | Size {} | Module {}{}",
+            "Base 0x{:X} | Size {} | {}{}",
             normalized_region.get_base_address(),
             page_size_label,
             module_label,
