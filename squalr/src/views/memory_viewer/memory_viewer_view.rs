@@ -1,17 +1,32 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
+    ui::{
+        draw::icon_draw::IconDraw,
+        widgets::controls::{button::Button, context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
+    },
     views::memory_viewer::{memory_viewer_footer_view::MemoryViewerFooterView, view_data::memory_viewer_view_data::MemoryViewerViewData},
+    views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
-use eframe::egui::{Align, Align2, Color32, Direction, Layout, Response, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, vec2};
-use epaint::CornerRadius;
-use squalr_engine_api::{dependency_injection::dependency::Dependency, events::process::changed::process_changed_event::ProcessChangedEvent};
+use eframe::egui::{
+    Align, Align2, Color32, Direction, Event, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2,
+};
+use epaint::{Color32 as EpaintColor32, CornerRadius, Stroke};
+use squalr_engine_api::{
+    commands::{
+        memory::write::memory_write_request::MemoryWriteRequest,
+        privileged_command_request::PrivilegedCommandRequest,
+        unprivileged_command_request::UnprivilegedCommandRequest,
+    },
+    dependency_injection::dependency::Dependency,
+    events::process::changed::process_changed_event::ProcessChangedEvent,
+};
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct MemoryViewerView {
     app_context: Arc<AppContext>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
+    project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
     memory_viewer_footer_view: MemoryViewerFooterView,
 }
 
@@ -19,15 +34,27 @@ impl MemoryViewerView {
     pub const WINDOW_ID: &'static str = "window_memory_viewer";
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 20.0;
+    const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
+    const HEX_CELL_WIDTH: f32 = 22.0;
+    const ASCII_CELL_WIDTH: f32 = 10.0;
+    const HEX_COLUMN_LEFT_PADDING: f32 = 8.0;
+    const ASCII_COLUMN_LEFT_PADDING: f32 = 16.0;
+    const ADDRESS_TEXT_LEFT_PADDING: f32 = 8.0;
+    const ROW_TEXT_TOP_PADDING: f32 = 3.0;
+    const CONTEXT_MENU_WIDTH: f32 = 220.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let memory_viewer_view_data = app_context
             .dependency_container
             .register(MemoryViewerViewData::new());
+        let project_hierarchy_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProjectHierarchyViewData>();
         let instance = Self {
             memory_viewer_footer_view: MemoryViewerFooterView::new(app_context.clone()),
             app_context,
             memory_viewer_view_data,
+            project_hierarchy_view_data,
         };
 
         MemoryViewerViewData::refresh_memory_pages(instance.memory_viewer_view_data.clone(), instance.app_context.engine_unprivileged_state.clone());
@@ -69,6 +96,106 @@ impl MemoryViewerView {
             Some(_) => '.',
             None => '?',
         }
+    }
+
+    fn get_hex_columns_left(row_rect: Rect) -> f32 {
+        row_rect.min.x + Self::ADDRESS_COLUMN_WIDTH + Self::HEX_COLUMN_LEFT_PADDING
+    }
+
+    fn get_ascii_columns_left(row_rect: Rect) -> f32 {
+        Self::get_hex_columns_left(row_rect) + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::HEX_CELL_WIDTH) + Self::ASCII_COLUMN_LEFT_PADDING
+    }
+
+    fn resolve_byte_address_for_pointer(
+        normalized_region: &squalr_engine_api::structures::memory::normalized_region::NormalizedRegion,
+        row_index: usize,
+        row_rect: Rect,
+        pointer_position: Pos2,
+    ) -> Option<u64> {
+        if !row_rect.contains(pointer_position) {
+            return None;
+        }
+
+        let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
+        let hex_columns_left = Self::get_hex_columns_left(row_rect);
+        let ascii_columns_left = Self::get_ascii_columns_left(row_rect);
+        let column_index = if pointer_position.x >= hex_columns_left
+            && pointer_position.x < hex_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::HEX_CELL_WIDTH)
+        {
+            ((pointer_position.x - hex_columns_left) / Self::HEX_CELL_WIDTH).floor() as u64
+        } else if pointer_position.x >= ascii_columns_left
+            && pointer_position.x < ascii_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::ASCII_CELL_WIDTH)
+        {
+            ((pointer_position.x - ascii_columns_left) / Self::ASCII_CELL_WIDTH).floor() as u64
+        } else {
+            return None;
+        };
+
+        let byte_offset = row_offset.saturating_add(column_index);
+
+        if byte_offset >= normalized_region.get_region_size() {
+            return None;
+        }
+
+        Some(normalized_region.get_base_address().saturating_add(byte_offset))
+    }
+
+    fn draw_selection_background(
+        user_interface: &Ui,
+        rect: Rect,
+        fill_color: EpaintColor32,
+        border_color: EpaintColor32,
+    ) {
+        user_interface
+            .painter()
+            .rect_filled(rect, CornerRadius::same(3), fill_color);
+        user_interface
+            .painter()
+            .rect_stroke(rect, CornerRadius::same(3), Stroke::new(1.0, border_color), epaint::StrokeKind::Inside);
+    }
+
+    fn dispatch_memory_write(
+        &self,
+        write_start_address: u64,
+        written_bytes: Vec<u8>,
+    ) {
+        let memory_viewer_view_data = self.memory_viewer_view_data.clone();
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
+        let engine_unprivileged_state_for_callback = engine_unprivileged_state.clone();
+        let written_bytes_for_refresh = written_bytes.clone();
+        let memory_write_request = MemoryWriteRequest {
+            address: write_start_address,
+            module_name: String::new(),
+            value: written_bytes,
+        };
+
+        memory_write_request.send(&engine_unprivileged_state, move |memory_write_response| {
+            if memory_write_response.success {
+                MemoryViewerViewData::apply_memory_write(memory_viewer_view_data.clone(), write_start_address, &written_bytes_for_refresh);
+                engine_unprivileged_state_for_callback.request_virtual_snapshot_refresh(MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
+            } else {
+                log::warn!("Memory viewer hex edit memory write command failed.");
+            }
+        });
+    }
+
+    fn dispatch_add_address_to_project(
+        &self,
+        absolute_address: u64,
+    ) {
+        let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
+        let Some(project_items_create_request) =
+            MemoryViewerViewData::build_address_project_item_create_request(self.memory_viewer_view_data.clone(), absolute_address, target_directory_path)
+        else {
+            log::warn!("Failed to build memory viewer project item create request.");
+            return;
+        };
+
+        project_items_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
+            if !project_items_create_response.success {
+                log::warn!("Memory viewer add-to-project command failed.");
+            }
+        });
     }
 }
 
@@ -141,13 +268,55 @@ impl Widget for MemoryViewerView {
                 let content_rect = user_interface
                     .available_rect_before_wrap()
                     .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
-                let content_response = user_interface.allocate_rect(content_rect, Sense::empty());
+                let content_response = user_interface.allocate_rect(content_rect, Sense::click_and_drag());
                 let mut content_user_interface = user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(content_response.rect)
                         .layout(Layout::top_down(Align::Min)),
                 );
                 content_user_interface.set_clip_rect(content_response.rect);
+                if content_response.clicked() || content_response.drag_started() {
+                    MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
+                }
+
+                if user_interface.input(|input_state| input_state.pointer.any_pressed())
+                    && user_interface
+                        .input(|input_state| input_state.pointer.interact_pos())
+                        .map(|pointer_position| !content_response.rect.contains(pointer_position))
+                        .unwrap_or(false)
+                {
+                    MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), false);
+                    MemoryViewerViewData::hide_context_menu(self.memory_viewer_view_data.clone());
+                }
+
+                let memory_viewer_has_keyboard_focus = MemoryViewerViewData::has_keyboard_focus(self.memory_viewer_view_data.clone());
+
+                if memory_viewer_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(Key::Backspace)) {
+                    MemoryViewerViewData::handle_hex_edit_backspace(self.memory_viewer_view_data.clone());
+                }
+
+                if memory_viewer_has_keyboard_focus {
+                    let typed_hex_characters = user_interface.input(|input_state| {
+                        input_state
+                            .events
+                            .iter()
+                            .filter_map(|event| match event {
+                                Event::Text(text) => Some(text.clone()),
+                                _ => None,
+                            })
+                            .collect::<Vec<String>>()
+                    });
+
+                    for typed_text in typed_hex_characters {
+                        for typed_character in typed_text.chars() {
+                            if let Some((write_start_address, written_bytes)) =
+                                MemoryViewerViewData::append_hex_edit_character(self.memory_viewer_view_data.clone(), typed_character)
+                            {
+                                self.dispatch_memory_write(write_start_address, written_bytes);
+                            }
+                        }
+                    }
+                }
                 let current_page = MemoryViewerViewData::get_current_page(self.memory_viewer_view_data.clone());
                 let current_page_is_unreadable = MemoryViewerViewData::get_current_page_is_unreadable(self.memory_viewer_view_data.clone());
 
@@ -183,42 +352,109 @@ impl Widget for MemoryViewerView {
                                 .request_virtual_snapshot_refresh(MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
 
                             for row_index in visible_row_range {
-                                let (row_rect, _row_response) =
-                                    user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::hover());
+                                let (row_rect, row_response) =
+                                    user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click_and_drag());
                                 let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
                                 let row_address = Self::format_row_address(&current_page, row_index);
-                                let mut hex_columns = Vec::new();
-                                let mut ascii_columns = String::new();
+                                let hovered_byte_address = row_response
+                                    .hover_pos()
+                                    .and_then(|pointer_position| Self::resolve_byte_address_for_pointer(&current_page, row_index, row_rect, pointer_position));
 
-                                for column_index in 0..MemoryViewerViewData::BYTES_PER_ROW {
-                                    let byte_offset = row_offset.saturating_add(column_index);
-                                    let byte_value = if byte_offset < current_page.get_region_size() {
-                                        MemoryViewerViewData::get_cached_byte_for_page(self.memory_viewer_view_data.clone(), page_base_address, byte_offset)
-                                    } else {
-                                        None
-                                    };
+                                if row_response.clicked() {
+                                    MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
 
-                                    hex_columns.push(Self::format_hex_cell(byte_value));
-
-                                    if byte_offset < current_page.get_region_size() {
-                                        ascii_columns.push(Self::format_ascii_cell(byte_value));
-                                    } else {
-                                        ascii_columns.push(' ');
+                                    if let Some(hovered_byte_address) = hovered_byte_address {
+                                        MemoryViewerViewData::begin_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
                                     }
                                 }
 
-                                let row_text = format!("{:016X}  {}  |{}|", row_address, hex_columns.join(" "), ascii_columns);
+                                if row_response.drag_started() {
+                                    MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
+
+                                    if let Some(hovered_byte_address) = hovered_byte_address {
+                                        MemoryViewerViewData::begin_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
+                                    }
+                                }
+
+                                if row_response.dragged() {
+                                    if let Some(hovered_byte_address) = hovered_byte_address {
+                                        MemoryViewerViewData::update_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
+                                    }
+                                }
+
+                                if row_response.secondary_clicked() {
+                                    MemoryViewerViewData::show_context_menu(
+                                        self.memory_viewer_view_data.clone(),
+                                        hovered_byte_address.unwrap_or(row_address),
+                                        row_response.hover_pos().unwrap_or(row_rect.left_bottom()),
+                                    );
+                                }
 
                                 user_interface
                                     .painter()
                                     .with_clip_rect(row_rect.intersect(user_interface.clip_rect()))
                                     .text(
-                                        row_rect.min + vec2(8.0, 3.0),
+                                        pos2(row_rect.min.x + Self::ADDRESS_TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
                                         Align2::LEFT_TOP,
-                                        row_text,
+                                        format!("{:016X}", row_address),
                                         theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                                         theme.foreground,
                                     );
+
+                                let hex_columns_left = Self::get_hex_columns_left(row_rect);
+                                let ascii_columns_left = Self::get_ascii_columns_left(row_rect);
+
+                                for column_index in 0..MemoryViewerViewData::BYTES_PER_ROW {
+                                    let byte_offset = row_offset.saturating_add(column_index);
+
+                                    if byte_offset >= current_page.get_region_size() {
+                                        continue;
+                                    }
+
+                                    let byte_address = page_base_address.saturating_add(byte_offset);
+                                    let byte_value =
+                                        MemoryViewerViewData::get_cached_byte_for_page(self.memory_viewer_view_data.clone(), page_base_address, byte_offset);
+                                    let hex_text = Self::format_hex_cell(byte_value);
+                                    let ascii_text = Self::format_ascii_cell(byte_value).to_string();
+                                    let hex_rect = Rect::from_min_max(
+                                        pos2(hex_columns_left + (column_index as f32) * Self::HEX_CELL_WIDTH, row_rect.min.y + 1.0),
+                                        pos2(
+                                            hex_columns_left + ((column_index + 1) as f32) * Self::HEX_CELL_WIDTH - 2.0,
+                                            row_rect.max.y - 1.0,
+                                        ),
+                                    );
+                                    let ascii_rect = Rect::from_min_max(
+                                        pos2(ascii_columns_left + (column_index as f32) * Self::ASCII_CELL_WIDTH, row_rect.min.y + 1.0),
+                                        pos2(ascii_columns_left + ((column_index + 1) as f32) * Self::ASCII_CELL_WIDTH, row_rect.max.y - 1.0),
+                                    );
+                                    let is_selected_byte = MemoryViewerViewData::is_byte_selected(self.memory_viewer_view_data.clone(), byte_address);
+
+                                    if is_selected_byte {
+                                        Self::draw_selection_background(user_interface, hex_rect, theme.selected_background, theme.selected_border);
+                                        Self::draw_selection_background(user_interface, ascii_rect, theme.selected_background, theme.selected_border);
+                                    }
+
+                                    user_interface
+                                        .painter()
+                                        .with_clip_rect(hex_rect.intersect(user_interface.clip_rect()))
+                                        .text(
+                                            pos2(hex_rect.min.x + 1.0, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                                            Align2::LEFT_TOP,
+                                            hex_text,
+                                            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                                            theme.hexadecimal_green,
+                                        );
+                                    user_interface
+                                        .painter()
+                                        .with_clip_rect(ascii_rect.intersect(user_interface.clip_rect()))
+                                        .text(
+                                            pos2(ascii_rect.min.x + 1.0, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                                            Align2::LEFT_TOP,
+                                            ascii_text,
+                                            theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                                            theme.foreground,
+                                        );
+                                }
                             }
                         });
 
@@ -248,6 +484,39 @@ impl Widget for MemoryViewerView {
                                     .color(theme.foreground_preview),
                             );
                         });
+                    }
+                }
+
+                if let Some((context_menu_address, context_menu_position)) = MemoryViewerViewData::get_context_menu_state(self.memory_viewer_view_data.clone())
+                {
+                    let mut open = true;
+
+                    ContextMenu::new(
+                        self.app_context.clone(),
+                        "memory_viewer_context_menu",
+                        context_menu_position,
+                        |user_interface, should_close| {
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    "Add Address To Project",
+                                    "memory_viewer_ctx_add_to_project",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                self.dispatch_add_address_to_project(context_menu_address);
+                                *should_close = true;
+                            }
+                        },
+                    )
+                    .width(Self::CONTEXT_MENU_WIDTH)
+                    .corner_radius(8)
+                    .show(user_interface, &mut open);
+
+                    if !open {
+                        MemoryViewerViewData::hide_context_menu(self.memory_viewer_view_data.clone());
                     }
                 }
 

@@ -1,8 +1,10 @@
 use arc_swap::Guard;
+use eframe::egui::Pos2;
 use squalr_engine_api::{
     commands::{
         memory::query::{memory_query_request::MemoryQueryRequest, memory_query_response::MemoryQueryResponse},
         privileged_command_request::PrivilegedCommandRequest,
+        project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     },
     conversions::storage_size_conversions::StorageSizeConversions,
     dependency_injection::dependency::Dependency,
@@ -11,6 +13,7 @@ use squalr_engine_api::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
         memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -21,6 +24,7 @@ use squalr_engine_session::{
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -34,6 +38,12 @@ pub struct MemoryViewerPageCache {
 struct MemoryViewerFocusRequest {
     address: u64,
     module_name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MemoryViewerSelectionRange {
+    anchor_address: u64,
+    active_address: u64,
 }
 
 impl MemoryViewerPageCache {
@@ -74,6 +84,11 @@ pub struct MemoryViewerViewData {
     unreadable_page_base_addresses: HashSet<u64>,
     pending_focus_request: Option<MemoryViewerFocusRequest>,
     pending_scroll_address: Option<u64>,
+    selected_byte_range: Option<MemoryViewerSelectionRange>,
+    pending_hex_edit: String,
+    has_keyboard_focus: bool,
+    context_menu_address: Option<u64>,
+    context_menu_position: Option<Pos2>,
 }
 
 impl MemoryViewerViewData {
@@ -101,6 +116,11 @@ impl MemoryViewerViewData {
             unreadable_page_base_addresses: HashSet::new(),
             pending_focus_request: None,
             pending_scroll_address: None,
+            selected_byte_range: None,
+            pending_hex_edit: String::new(),
+            has_keyboard_focus: false,
+            context_menu_address: None,
+            context_menu_position: None,
         }
     }
 
@@ -276,6 +296,213 @@ impl MemoryViewerViewData {
             })
     }
 
+    pub fn begin_byte_selection(
+        memory_viewer_view_data: Dependency<Self>,
+        address: u64,
+    ) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer begin byte selection") {
+            memory_viewer_view_data.selected_byte_range = Some(MemoryViewerSelectionRange {
+                anchor_address: address,
+                active_address: address,
+            });
+            memory_viewer_view_data.pending_hex_edit.clear();
+            memory_viewer_view_data.has_keyboard_focus = true;
+        }
+    }
+
+    pub fn update_byte_selection(
+        memory_viewer_view_data: Dependency<Self>,
+        address: u64,
+    ) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer update byte selection") {
+            if let Some(selected_byte_range) = memory_viewer_view_data.selected_byte_range.as_mut() {
+                selected_byte_range.active_address = address;
+                memory_viewer_view_data.pending_hex_edit.clear();
+            }
+        }
+    }
+
+    pub fn is_byte_selected(
+        memory_viewer_view_data: Dependency<Self>,
+        address: u64,
+    ) -> bool {
+        memory_viewer_view_data
+            .read("Memory viewer is byte selected")
+            .and_then(|memory_viewer_view_data| memory_viewer_view_data.resolve_selected_address_bounds())
+            .map(|(selection_start_address, selection_end_address)| address >= selection_start_address && address <= selection_end_address)
+            .unwrap_or(false)
+    }
+
+    pub fn get_selected_address_bounds(memory_viewer_view_data: Dependency<Self>) -> Option<(u64, u64)> {
+        memory_viewer_view_data
+            .read("Memory viewer selected address bounds")
+            .and_then(|memory_viewer_view_data| memory_viewer_view_data.resolve_selected_address_bounds())
+    }
+
+    pub fn handle_hex_edit_backspace(memory_viewer_view_data: Dependency<Self>) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer hex edit backspace") {
+            memory_viewer_view_data.pending_hex_edit.pop();
+        }
+    }
+
+    pub fn append_hex_edit_character(
+        memory_viewer_view_data: Dependency<Self>,
+        character: char,
+    ) -> Option<(u64, Vec<u8>)> {
+        let upper_hex_character = character.to_ascii_uppercase();
+
+        if !upper_hex_character.is_ascii_hexdigit() {
+            return None;
+        }
+
+        let mut memory_viewer_view_data = memory_viewer_view_data.write("Memory viewer append hex edit character")?;
+        let (selection_start_address, selection_end_address) = memory_viewer_view_data.resolve_selected_address_bounds()?;
+        let selected_byte_count = selection_end_address
+            .saturating_sub(selection_start_address)
+            .saturating_add(1) as usize;
+        let required_hex_character_count = selected_byte_count.saturating_mul(2);
+
+        if required_hex_character_count == 0 {
+            return None;
+        }
+
+        if memory_viewer_view_data.pending_hex_edit.len() >= required_hex_character_count {
+            memory_viewer_view_data.pending_hex_edit.clear();
+        }
+
+        memory_viewer_view_data
+            .pending_hex_edit
+            .push(upper_hex_character);
+
+        if memory_viewer_view_data.pending_hex_edit.len() < required_hex_character_count {
+            return None;
+        }
+
+        let edited_bytes = memory_viewer_view_data
+            .pending_hex_edit
+            .as_bytes()
+            .chunks(2)
+            .map(|byte_pair| {
+                std::str::from_utf8(byte_pair)
+                    .ok()
+                    .and_then(|byte_pair| u8::from_str_radix(byte_pair, 16).ok())
+            })
+            .collect::<Option<Vec<u8>>>()?;
+        memory_viewer_view_data.pending_hex_edit.clear();
+
+        Some((selection_start_address, edited_bytes))
+    }
+
+    pub fn apply_memory_write(
+        memory_viewer_view_data: Dependency<Self>,
+        write_start_address: u64,
+        written_bytes: &[u8],
+    ) {
+        let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer apply memory write") else {
+            return;
+        };
+        let Some(current_page) = memory_viewer_view_data
+            .virtual_pages
+            .get(memory_viewer_view_data.current_page_index as usize)
+            .cloned()
+        else {
+            return;
+        };
+        let current_page_base_address = current_page.get_base_address();
+        let current_page_end_address = current_page.get_end_address();
+
+        for (written_byte_index, written_byte) in written_bytes.iter().enumerate() {
+            let written_byte_address = write_start_address.saturating_add(written_byte_index as u64);
+
+            if written_byte_address < current_page_base_address || written_byte_address >= current_page_end_address {
+                continue;
+            }
+
+            let byte_offset = written_byte_address.saturating_sub(current_page_base_address);
+            let chunk_offset = byte_offset - (byte_offset % Self::QUERY_CHUNK_SIZE_IN_BYTES);
+            let chunk_local_index = byte_offset.saturating_sub(chunk_offset) as usize;
+            let chunk_length = current_page
+                .get_region_size()
+                .saturating_sub(chunk_offset)
+                .min(Self::QUERY_CHUNK_SIZE_IN_BYTES) as usize;
+            let chunk_bytes = memory_viewer_view_data
+                .page_caches_by_base_address
+                .entry(current_page_base_address)
+                .or_default()
+                .cached_chunks
+                .entry(chunk_offset)
+                .or_insert_with(|| vec![0; chunk_length]);
+
+            if chunk_local_index < chunk_bytes.len() {
+                chunk_bytes[chunk_local_index] = *written_byte;
+            }
+        }
+    }
+
+    pub fn set_keyboard_focus(
+        memory_viewer_view_data: Dependency<Self>,
+        has_keyboard_focus: bool,
+    ) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer set keyboard focus") {
+            memory_viewer_view_data.has_keyboard_focus = has_keyboard_focus;
+
+            if !has_keyboard_focus {
+                memory_viewer_view_data.pending_hex_edit.clear();
+            }
+        }
+    }
+
+    pub fn has_keyboard_focus(memory_viewer_view_data: Dependency<Self>) -> bool {
+        memory_viewer_view_data
+            .read("Memory viewer has keyboard focus")
+            .map(|memory_viewer_view_data| memory_viewer_view_data.has_keyboard_focus)
+            .unwrap_or(false)
+    }
+
+    pub fn show_context_menu(
+        memory_viewer_view_data: Dependency<Self>,
+        address: u64,
+        position: Pos2,
+    ) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer show context menu") {
+            memory_viewer_view_data.context_menu_address = Some(address);
+            memory_viewer_view_data.context_menu_position = Some(position);
+            memory_viewer_view_data.has_keyboard_focus = true;
+        }
+    }
+
+    pub fn hide_context_menu(memory_viewer_view_data: Dependency<Self>) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer hide context menu") {
+            memory_viewer_view_data.context_menu_address = None;
+            memory_viewer_view_data.context_menu_position = None;
+        }
+    }
+
+    pub fn get_context_menu_state(memory_viewer_view_data: Dependency<Self>) -> Option<(u64, Pos2)> {
+        let memory_viewer_view_data = memory_viewer_view_data.read("Memory viewer context menu state")?;
+
+        Some((memory_viewer_view_data.context_menu_address?, memory_viewer_view_data.context_menu_position?))
+    }
+
+    pub fn build_address_project_item_create_request(
+        memory_viewer_view_data: Dependency<Self>,
+        absolute_address: u64,
+        target_directory_path: Option<PathBuf>,
+    ) -> Option<ProjectItemsCreateRequest> {
+        let memory_viewer_view_data = memory_viewer_view_data.read("Memory viewer build address project item request")?;
+        let (project_item_address, project_item_module_name) = memory_viewer_view_data.resolve_project_item_address(absolute_address);
+
+        Some(ProjectItemsCreateRequest {
+            parent_directory_path: target_directory_path.unwrap_or_default(),
+            project_item_name: format!("0x{:X}", project_item_address),
+            project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
+            pointer: None,
+            address: Some(project_item_address),
+            module_name: Some(project_item_module_name),
+            data_type_id: Some(String::from("u8")),
+        })
+    }
+
     pub fn get_page_row_count(normalized_region: &NormalizedRegion) -> usize {
         let row_count_u64 = normalized_region
             .get_region_size()
@@ -411,6 +638,11 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.page_caches_by_base_address.clear();
             memory_viewer_view_data.unreadable_page_base_addresses.clear();
             memory_viewer_view_data.pending_scroll_address = None;
+            memory_viewer_view_data.selected_byte_range = None;
+            memory_viewer_view_data.pending_hex_edit.clear();
+            memory_viewer_view_data.has_keyboard_focus = false;
+            memory_viewer_view_data.context_menu_address = None;
+            memory_viewer_view_data.context_menu_position = None;
             memory_viewer_view_data.complete_memory_pages_request();
         }
 
@@ -588,6 +820,10 @@ impl MemoryViewerViewData {
 
             memory_viewer_view_data.current_page_index = bounded_page_index;
             memory_viewer_view_data.pending_scroll_address = None;
+            memory_viewer_view_data.selected_byte_range = None;
+            memory_viewer_view_data.pending_hex_edit.clear();
+            memory_viewer_view_data.context_menu_address = None;
+            memory_viewer_view_data.context_menu_position = None;
 
             let current_page = memory_viewer_view_data
                 .virtual_pages
@@ -677,6 +913,34 @@ impl MemoryViewerViewData {
                     .eq_ignore_ascii_case(module_name)
             })
             .and_then(|normalized_module| normalized_module.get_base_address().checked_add(address))
+    }
+
+    fn resolve_selected_address_bounds(&self) -> Option<(u64, u64)> {
+        let selected_byte_range = self.selected_byte_range.as_ref()?;
+
+        Some((
+            selected_byte_range
+                .anchor_address
+                .min(selected_byte_range.active_address),
+            selected_byte_range
+                .anchor_address
+                .max(selected_byte_range.active_address),
+        ))
+    }
+
+    fn resolve_project_item_address(
+        &self,
+        absolute_address: u64,
+    ) -> (u64, String) {
+        if let Some(module) = self
+            .modules
+            .iter()
+            .find(|normalized_module| normalized_module.contains_address(absolute_address))
+        {
+            return (absolute_address.saturating_sub(module.get_base_address()), module.get_module_name().to_string());
+        }
+
+        (absolute_address, String::new())
     }
 
     fn begin_memory_pages_request(&mut self) -> u64 {

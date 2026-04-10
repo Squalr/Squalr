@@ -79,14 +79,6 @@ impl Widget for DockedWindowTitleBarView {
         child_user_interface.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let button_size = vec2(36.0, self.height);
 
-            let maximize = ui.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
-            IconDraw::draw(ui, maximize.rect, &theme.icon_library.icon_handle_maximize);
-
-            if maximize.clicked() {
-                self.dock_view_data
-                    .toggle_maximized_window_identifier(&self.identifier);
-            }
-
             // Close button.
             let close = ui.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(ui, close.rect, &theme.icon_library.icon_handle_close);
@@ -99,6 +91,14 @@ impl Widget for DockedWindowTitleBarView {
                 if let Ok(mut docking_manager) = docking_manager.try_write() {
                     docking_manager.set_window_visibility(&self.identifier, false);
                 }
+            }
+
+            let maximize = ui.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(ui, maximize.rect, &theme.icon_library.icon_handle_maximize);
+
+            if maximize.clicked() {
+                self.dock_view_data
+                    .toggle_maximized_window_identifier(&self.identifier);
             }
         });
 

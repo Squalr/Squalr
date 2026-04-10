@@ -25,6 +25,14 @@ pub struct ProjectItemsCreateRequest {
 
     #[serde(default)]
     #[structopt(skip)]
+    pub address: Option<u64>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub module_name: Option<String>,
+
+    #[serde(default)]
+    #[structopt(skip)]
     pub data_type_id: Option<String>,
 }
 

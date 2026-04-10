@@ -22,6 +22,7 @@ Our current task, from `README.md`, is:
 - need human verification: Memory viewer refresh now preserves the selected page by base address instead of raw page index, prefers the first module-backed page on initial load, and labels pages as unreadable when visible chunk reads fail.
 - need human verification: Project hierarchy context menus now support `Open in Memory Viewer` for address/pointer items, opening the viewer on the target address, resolving module-relative addresses, and scrolling the containing row into view.
 - need human verification: Docked windows now have a title-bar maximize toggle that expands the selected panel to fill the dock area, and memory viewer row rendering is clipped to its panel bounds instead of bleeding outside the dock.
+- need human verification: Memory viewer now renders hex bytes in the theme hexadecimal color, supports byte-range selection plus nibble-based live hex writes, and can add the clicked address to the current project folder/root from a context menu.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -47,3 +48,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Memory viewer focus requests are now asynchronous and module-aware: the viewer stores a pending target, resolves module-relative offsets against its current module list after refresh, then applies a one-shot row scroll on the containing page.
 - Dock maximize is transient UI state in `DockRootViewData` rather than persisted layout state; the dock root swaps normal split rendering for the maximized panel, and the title bar uses the existing maximize icon as a toggle.
 - `DockedWindowView` now clips child content to the dock content rect, and the memory viewer additionally clips each painted hex row to the visible row rect to stop overflow.
+- `ProjectItemsCreateRequest` address items can now optionally carry explicit `address` and `module_name` fields, and the create executor seeds those into new address project items instead of always creating zero-address placeholders.
+- Memory viewer selection is contiguous-address based within the current page; typed hex accumulates in a transient edit buffer and dispatches a write once enough nibbles are entered for the selected byte count.
+- Memory viewer right-click actions currently target the clicked byte address when over hex/ASCII cells, otherwise the row base address, and `Add Address To Project` creates a `u8` address item using the current project selection as the parent directory when available.

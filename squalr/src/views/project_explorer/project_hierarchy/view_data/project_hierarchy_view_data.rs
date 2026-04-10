@@ -1470,6 +1470,8 @@ impl ProjectHierarchyViewData {
                 project_item_name: Self::build_unique_directory_name(project_items, &parent_directory_path),
                 project_item_type: ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID.to_string(),
                 pointer: None,
+                address: None,
+                module_name: None,
                 data_type_id: None,
             },
             ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
@@ -1477,6 +1479,8 @@ impl ProjectHierarchyViewData {
                 project_item_name: ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME.to_string(),
                 project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
                 pointer: None,
+                address: None,
+                module_name: None,
                 data_type_id: Some(String::from("u8")),
             },
             ProjectHierarchyCreateItemKind::Pointer => ProjectItemsCreateRequest {
@@ -1484,6 +1488,8 @@ impl ProjectHierarchyViewData {
                 project_item_name: ProjectItemTypePointer::DEFAULT_PROJECT_ITEM_NAME.to_string(),
                 project_item_type: ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID.to_string(),
                 pointer: Some(Pointer::new(0, Vec::new(), String::new())),
+                address: None,
+                module_name: None,
                 data_type_id: Some(String::from("u8")),
             },
         }
