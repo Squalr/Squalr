@@ -16,17 +16,62 @@ use squalr_engine_api::structures::projects::project_items::project_item::Projec
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;
 
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+struct CachedMemoryReadKey {
+    address: u64,
+    module_name: String,
+    layout_key: String,
+}
+
+struct ProjectItemPreviewRefreshSession {
+    requested_preview_project_item_paths: Option<HashSet<PathBuf>>,
+    cached_memory_read_responses: HashMap<CachedMemoryReadKey, Option<MemoryReadResponse>>,
+    cached_pointer_preview_evaluations: HashMap<Pointer, PointerPreviewEvaluation>,
+}
+
+#[derive(Clone)]
+struct ProjectItemPreviewReadDefinition {
+    layout_key: String,
+    symbolic_struct_definition: SymbolicStructDefinition,
+    symbolic_field_container_type: ContainerType,
+    preview_was_truncated: bool,
+}
+
+impl ProjectItemPreviewRefreshSession {
+    fn new(requested_preview_project_item_paths: Option<Vec<PathBuf>>) -> Self {
+        Self {
+            requested_preview_project_item_paths: requested_preview_project_item_paths.map(|project_item_paths| project_item_paths.into_iter().collect()),
+            cached_memory_read_responses: HashMap::new(),
+            cached_pointer_preview_evaluations: HashMap::new(),
+        }
+    }
+
+    fn should_refresh_preview(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        self.requested_preview_project_item_paths
+            .as_ref()
+            .map(|requested_preview_project_item_paths| requested_preview_project_item_paths.contains(project_item_path))
+            .unwrap_or(true)
+    }
+}
+
+#[derive(Clone)]
 struct PointerPreviewEvaluation {
     resolved_target_address: Option<(u64, String)>,
     evaluated_path: String,
 }
 
 const MAX_ARRAY_PREVIEW_CHARACTER_COUNT: usize = 96;
+const MAX_ARRAY_PREVIEW_ELEMENT_COUNT: u64 = 64;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
@@ -50,8 +95,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
                     .iter()
                     .map(|(project_item_ref, project_item)| (project_item_ref.clone(), project_item.clone()))
                     .collect::<Vec<(ProjectItemRef, ProjectItem)>>();
+                let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(self.preview_project_item_paths.clone());
 
-                refresh_project_item_display_values(engine_unprivileged_state, &mut opened_project_items);
+                refresh_project_item_display_values(engine_unprivileged_state, &mut opened_project_items, &mut project_item_preview_refresh_session);
 
                 ProjectItemsListResponse {
                     opened_project_info: Some(opened_project.get_project_info().clone()),
@@ -70,14 +116,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
 fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     opened_project_items: &mut [(ProjectItemRef, ProjectItem)],
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
-    for (_, project_item) in opened_project_items.iter_mut() {
+    for (project_item_ref, project_item) in opened_project_items.iter_mut() {
+        if !project_item_preview_refresh_session.should_refresh_preview(project_item_ref.get_project_item_path()) {
+            continue;
+        }
+
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            refresh_address_project_item_display_value(engine_unprivileged_state, project_item);
+            refresh_address_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item);
+            refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         }
     }
 }
@@ -85,6 +136,7 @@ fn refresh_project_item_display_values(
 fn refresh_address_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     project_item: &mut ProjectItem,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let address = ProjectItemTypeAddress::get_field_address(project_item);
     let module_name = ProjectItemTypeAddress::get_field_module(project_item);
@@ -95,18 +147,17 @@ fn refresh_address_project_item_display_value(
     let symbolic_struct_namespace = symbolic_struct_reference
         .get_symbolic_struct_namespace()
         .to_string();
-    let symbolic_field_container_type = resolve_project_item_container_type(&symbolic_struct_namespace);
-    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_struct_layout_definition(&symbolic_struct_namespace) else {
+    let Some(project_item_preview_read_definition) = build_project_item_preview_read_definition(engine_unprivileged_state, &symbolic_struct_namespace) else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
 
     refresh_project_item_display_value_from_memory_read(
         engine_unprivileged_state,
+        project_item_preview_refresh_session,
         address,
         &module_name,
-        symbolic_field_container_type,
-        &symbolic_struct_definition,
+        &project_item_preview_read_definition,
         |freeze_display_value| {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
@@ -116,9 +167,10 @@ fn refresh_address_project_item_display_value(
 fn refresh_pointer_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     project_item: &mut ProjectItem,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
-    let pointer_preview_evaluation = evaluate_pointer_for_preview(engine_unprivileged_state, &pointer);
+    let pointer_preview_evaluation = evaluate_pointer_for_preview(engine_unprivileged_state, &pointer, project_item_preview_refresh_session);
 
     ProjectItemTypePointer::set_field_evaluated_pointer_path(project_item, &pointer_preview_evaluation.evaluated_path);
 
@@ -129,8 +181,7 @@ fn refresh_pointer_project_item_display_value(
     let symbolic_struct_namespace = symbolic_struct_reference
         .get_symbolic_struct_namespace()
         .to_string();
-    let symbolic_field_container_type = resolve_project_item_container_type(&symbolic_struct_namespace);
-    let Some(symbolic_struct_definition) = engine_unprivileged_state.resolve_struct_layout_definition(&symbolic_struct_namespace) else {
+    let Some(project_item_preview_read_definition) = build_project_item_preview_read_definition(engine_unprivileged_state, &symbolic_struct_namespace) else {
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -141,10 +192,10 @@ fn refresh_pointer_project_item_display_value(
 
     refresh_project_item_display_value_from_memory_read(
         engine_unprivileged_state,
+        project_item_preview_refresh_session,
         resolved_address,
         &resolved_module_name,
-        symbolic_field_container_type,
-        &symbolic_struct_definition,
+        &project_item_preview_read_definition,
         |freeze_display_value| {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
@@ -153,15 +204,22 @@ fn refresh_pointer_project_item_display_value(
 
 fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
     address: u64,
     module_name: &str,
-    symbolic_field_container_type: ContainerType,
-    symbolic_struct_definition: &SymbolicStructDefinition,
+    project_item_preview_read_definition: &ProjectItemPreviewReadDefinition,
     set_display_value: SetDisplayValue,
 ) where
     SetDisplayValue: FnOnce(&str),
 {
-    let Some(memory_read_response) = dispatch_memory_read_request(engine_unprivileged_state, address, module_name, symbolic_struct_definition) else {
+    let Some(memory_read_response) = dispatch_memory_read_request(
+        engine_unprivileged_state,
+        project_item_preview_refresh_session,
+        address,
+        module_name,
+        &project_item_preview_read_definition.layout_key,
+        &project_item_preview_read_definition.symbolic_struct_definition,
+    ) else {
         set_display_value("");
         return;
     };
@@ -185,10 +243,58 @@ fn refresh_project_item_display_value_from_memory_read<SetDisplayValue>(
         engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
     let freeze_display_value = engine_unprivileged_state
         .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
-        .map(|anonymous_value_string| format_project_item_preview_value(&anonymous_value_string, symbolic_field_container_type))
+        .map(|anonymous_value_string| {
+            format_project_item_preview_value(
+                &anonymous_value_string,
+                project_item_preview_read_definition.symbolic_field_container_type,
+                project_item_preview_read_definition.preview_was_truncated,
+            )
+        })
         .unwrap_or_default();
 
     set_display_value(&freeze_display_value);
+}
+
+fn build_project_item_preview_read_definition(
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    symbolic_struct_namespace: &str,
+) -> Option<ProjectItemPreviewReadDefinition> {
+    let symbolic_field_container_type = resolve_project_item_container_type(symbolic_struct_namespace);
+    let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(symbolic_struct_namespace)?;
+    let preview_field_definition = SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok();
+
+    let Some(preview_field_definition) = preview_field_definition else {
+        return Some(ProjectItemPreviewReadDefinition {
+            layout_key: symbolic_struct_namespace.to_string(),
+            symbolic_struct_definition,
+            symbolic_field_container_type,
+            preview_was_truncated: false,
+        });
+    };
+
+    let preview_container_type = match preview_field_definition.get_container_type() {
+        ContainerType::ArrayFixed(length) if length > MAX_ARRAY_PREVIEW_ELEMENT_COUNT => ContainerType::ArrayFixed(MAX_ARRAY_PREVIEW_ELEMENT_COUNT),
+        container_type => container_type,
+    };
+    let preview_was_truncated = preview_container_type != preview_field_definition.get_container_type();
+
+    Some(ProjectItemPreviewReadDefinition {
+        layout_key: if preview_was_truncated {
+            format!("{}|preview:{}", symbolic_struct_namespace, preview_container_type)
+        } else {
+            symbolic_struct_namespace.to_string()
+        },
+        symbolic_struct_definition: if preview_was_truncated {
+            SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+                preview_field_definition.get_data_type_ref().clone(),
+                preview_container_type,
+            )])
+        } else {
+            symbolic_struct_definition
+        },
+        symbolic_field_container_type,
+        preview_was_truncated,
+    })
 }
 
 fn resolve_project_item_container_type(symbolic_struct_namespace: &str) -> ContainerType {
@@ -200,6 +306,7 @@ fn resolve_project_item_container_type(symbolic_struct_namespace: &str) -> Conta
 fn format_project_item_preview_value(
     anonymous_value_string: &AnonymousValueString,
     symbolic_field_container_type: ContainerType,
+    preview_was_truncated: bool,
 ) -> String {
     let effective_container_type = if matches!(anonymous_value_string.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_)) {
         anonymous_value_string.get_container_type()
@@ -209,9 +316,25 @@ fn format_project_item_preview_value(
     let display_value = anonymous_value_string.get_anonymous_value_string();
 
     if matches!(effective_container_type, ContainerType::Array | ContainerType::ArrayFixed(_)) && !display_value.is_empty() {
-        format!("[{}]", truncate_array_preview_value(display_value))
+        let preview_value = if preview_was_truncated {
+            append_array_preview_ellipsis(display_value)
+        } else {
+            truncate_array_preview_value(display_value)
+        };
+
+        format!("[{}]", preview_value)
     } else {
         display_value.to_string()
+    }
+}
+
+fn append_array_preview_ellipsis(display_value: &str) -> String {
+    let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
+
+    if trimmed_display_value.is_empty() {
+        String::from("...")
+    } else {
+        format!("{}...", trimmed_display_value)
     }
 }
 
@@ -235,27 +358,53 @@ fn truncate_array_preview_value(display_value: &str) -> String {
 fn evaluate_pointer_for_preview(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     pointer: &Pointer,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) -> PointerPreviewEvaluation {
+    if let Some(pointer_preview_evaluation) = project_item_preview_refresh_session
+        .cached_pointer_preview_evaluations
+        .get(pointer)
+    {
+        return pointer_preview_evaluation.clone();
+    }
+
     let mut evaluated_path_segments = vec![format_pointer_root_segment(pointer)];
     let mut current_address = pointer.get_address();
     let mut current_module_name = pointer.get_module_name().to_string();
 
     for pointer_offset in pointer.get_offsets() {
-        let Some(pointer_value) = read_pointer_value(engine_unprivileged_state, current_address, &current_module_name, pointer.get_pointer_size()) else {
+        let Some(pointer_value) = read_pointer_value(
+            engine_unprivileged_state,
+            project_item_preview_refresh_session,
+            current_address,
+            &current_module_name,
+            pointer.get_pointer_size(),
+        ) else {
             evaluated_path_segments.push(String::from("??"));
 
-            return PointerPreviewEvaluation {
+            let pointer_preview_evaluation = PointerPreviewEvaluation {
                 resolved_target_address: None,
                 evaluated_path: evaluated_path_segments.join(" -> "),
             };
+
+            project_item_preview_refresh_session
+                .cached_pointer_preview_evaluations
+                .insert(pointer.clone(), pointer_preview_evaluation.clone());
+
+            return pointer_preview_evaluation;
         };
         let Some(next_address) = Pointer::apply_pointer_offset(pointer_value, *pointer_offset) else {
             evaluated_path_segments.push(String::from("??"));
 
-            return PointerPreviewEvaluation {
+            let pointer_preview_evaluation = PointerPreviewEvaluation {
                 resolved_target_address: None,
                 evaluated_path: evaluated_path_segments.join(" -> "),
             };
+
+            project_item_preview_refresh_session
+                .cached_pointer_preview_evaluations
+                .insert(pointer.clone(), pointer_preview_evaluation.clone());
+
+            return pointer_preview_evaluation;
         };
 
         current_address = next_address;
@@ -263,10 +412,16 @@ fn evaluate_pointer_for_preview(
         evaluated_path_segments.push(format_pointer_address_segment(current_address));
     }
 
-    PointerPreviewEvaluation {
+    let pointer_preview_evaluation = PointerPreviewEvaluation {
         resolved_target_address: Some((current_address, current_module_name)),
         evaluated_path: evaluated_path_segments.join(" -> "),
-    }
+    };
+
+    project_item_preview_refresh_session
+        .cached_pointer_preview_evaluations
+        .insert(pointer.clone(), pointer_preview_evaluation.clone());
+
+    pointer_preview_evaluation
 }
 
 fn format_pointer_root_segment(pointer: &Pointer) -> String {
@@ -279,12 +434,20 @@ fn format_pointer_address_segment(address: u64) -> String {
 
 fn read_pointer_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
     address: u64,
     module_name: &str,
     pointer_size: PointerScanPointerSize,
 ) -> Option<u64> {
     let symbolic_struct_definition = engine_unprivileged_state.resolve_struct_layout_definition(pointer_size.to_data_type_ref().get_data_type_id())?;
-    let memory_read_response = dispatch_memory_read_request(engine_unprivileged_state, address, module_name, &symbolic_struct_definition)?;
+    let memory_read_response = dispatch_memory_read_request(
+        engine_unprivileged_state,
+        project_item_preview_refresh_session,
+        address,
+        module_name,
+        &pointer_size.to_string(),
+        &symbolic_struct_definition,
+    )?;
 
     if !memory_read_response.success {
         return None;
@@ -301,10 +464,25 @@ fn read_pointer_value(
 
 fn dispatch_memory_read_request(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
     address: u64,
     module_name: &str,
+    layout_key: &str,
     symbolic_struct_definition: &SymbolicStructDefinition,
 ) -> Option<MemoryReadResponse> {
+    let cached_memory_read_key = CachedMemoryReadKey {
+        address,
+        module_name: module_name.to_string(),
+        layout_key: layout_key.to_string(),
+    };
+
+    if let Some(cached_memory_read_response) = project_item_preview_refresh_session
+        .cached_memory_read_responses
+        .get(&cached_memory_read_key)
+    {
+        return cached_memory_read_response.clone();
+    }
+
     let memory_read_request = MemoryReadRequest {
         address,
         module_name: module_name.to_string(),
@@ -339,7 +517,7 @@ fn dispatch_memory_read_request(
         return None;
     }
 
-    match memory_read_response_receiver.recv_timeout(Duration::from_secs(2)) {
+    let memory_read_response = match memory_read_response_receiver.recv_timeout(Duration::from_secs(2)) {
         Ok(Ok(memory_read_response)) => Some(memory_read_response),
         Ok(Err(error)) => {
             log::error!("Failed to convert project-items list memory read response: {}", error);
@@ -349,13 +527,20 @@ fn dispatch_memory_read_request(
             log::error!("Timed out waiting for project-items list memory read response: {}", error);
             None
         }
-    }
+    };
+
+    project_item_preview_refresh_session
+        .cached_memory_read_responses
+        .insert(cached_memory_read_key, memory_read_response.clone());
+
+    memory_read_response
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_ARRAY_PREVIEW_CHARACTER_COUNT, evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value,
+        MAX_ARRAY_PREVIEW_CHARACTER_COUNT, MAX_ARRAY_PREVIEW_ELEMENT_COUNT, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
+        evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value, refresh_project_item_display_values,
     };
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
@@ -376,9 +561,13 @@ mod tests {
     };
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
-    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::{
+        project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+    };
+    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
+    use std::path::PathBuf;
     use std::sync::{Arc, Mutex, RwLock};
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -550,8 +739,9 @@ mod tests {
         let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
-
-        let resolved_target_address = evaluate_pointer_for_preview(&engine_execution_context, &pointer).resolved_target_address;
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+        let resolved_target_address =
+            evaluate_pointer_for_preview(&engine_execution_context, &pointer, &mut project_item_preview_refresh_session).resolved_target_address;
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
             .expect("Expected captured pointer preview memory reads.");
@@ -584,8 +774,9 @@ mod tests {
             );
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x10, 0x8], "game.exe".to_string(), PointerScanPointerSize::Pointer32);
-
-        let resolved_target_address = evaluate_pointer_for_preview(&engine_execution_context, &pointer).resolved_target_address;
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+        let resolved_target_address =
+            evaluate_pointer_for_preview(&engine_execution_context, &pointer, &mut project_item_preview_refresh_session).resolved_target_address;
 
         assert!(resolved_target_address.is_none());
     }
@@ -602,8 +793,8 @@ mod tests {
             );
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
-
-        let pointer_preview_evaluation = evaluate_pointer_for_preview(&engine_execution_context, &pointer);
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+        let pointer_preview_evaluation = evaluate_pointer_for_preview(&engine_execution_context, &pointer, &mut project_item_preview_refresh_session);
 
         assert_eq!(pointer_preview_evaluation.resolved_target_address, Some((0x2FF0, String::new())));
         assert_eq!(pointer_preview_evaluation.evaluated_path, "game.exe+0x1000 -> 0x2020 -> 0x2FF0");
@@ -621,8 +812,8 @@ mod tests {
             );
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x10, 0x8], "game.exe".to_string(), PointerScanPointerSize::Pointer32);
-
-        let pointer_preview_evaluation = evaluate_pointer_for_preview(&engine_execution_context, &pointer);
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+        let pointer_preview_evaluation = evaluate_pointer_for_preview(&engine_execution_context, &pointer, &mut project_item_preview_refresh_session);
 
         assert_eq!(pointer_preview_evaluation.resolved_target_address, None);
         assert_eq!(pointer_preview_evaluation.evaluated_path, "game.exe+0x1000 -> 0x2010 -> ??");
@@ -643,8 +834,9 @@ mod tests {
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
         let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Pointer", &pointer, "", "u16");
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 
-        refresh_pointer_project_item_display_value(&engine_execution_context, &mut pointer_project_item);
+        refresh_pointer_project_item_display_value(&engine_execution_context, &mut pointer_project_item, &mut project_item_preview_refresh_session);
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -693,8 +885,13 @@ mod tests {
         let mut deserialized_pointer_project_item =
             serde_json::from_str::<squalr_engine_api::structures::projects::project_items::project_item::ProjectItem>(&serialized_pointer_project_item)
                 .expect("Expected pointer project item deserialization to succeed.");
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 
-        refresh_pointer_project_item_display_value(&engine_execution_context, &mut deserialized_pointer_project_item);
+        refresh_pointer_project_item_display_value(
+            &engine_execution_context,
+            &mut deserialized_pointer_project_item,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -734,10 +931,184 @@ mod tests {
     }
 
     #[test]
+    fn refresh_project_item_display_values_skips_unrequested_previews() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            panic!(
+                "Did not expect memory read request while refresh was filtered out: {:?}",
+                (memory_read_request.address, memory_read_request.module_name.as_str())
+            )
+        });
+        let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let mut opened_project_items = vec![(
+            ProjectItemRef::new(PathBuf::from("project/health.json")),
+            ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0)),
+        )];
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(Some(Vec::new()));
+
+        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+
+        let captured_memory_read_requests = captured_memory_read_requests
+            .lock()
+            .expect("Expected captured preview-filter memory reads.");
+
+        assert!(captured_memory_read_requests.is_empty());
+    }
+
+    #[test]
+    fn refresh_project_item_display_values_deduplicates_duplicate_address_reads() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x1234);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x1234), true)
+        });
+        let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let mut opened_project_items = vec![
+            (
+                ProjectItemRef::new(PathBuf::from("project/health.json")),
+                ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0)),
+            ),
+            (
+                ProjectItemRef::new(PathBuf::from("project/health_copy.json")),
+                ProjectItemTypeAddress::new_project_item("Health Copy", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0)),
+            ),
+        ];
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+
+        let captured_memory_read_requests = captured_memory_read_requests
+            .lock()
+            .expect("Expected captured duplicate address preview memory reads.");
+
+        assert_eq!(
+            *captured_memory_read_requests,
+            vec![CapturedMemoryReadRequest {
+                address: 0x1234,
+                module_name: "game.exe".to_string(),
+            }]
+        );
+
+        let first_preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut opened_project_items[0].1);
+        let second_preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut opened_project_items[1].1);
+
+        assert_eq!(first_preview_value, "4660");
+        assert_eq!(second_preview_value, "4660");
+    }
+
+    #[test]
+    fn refresh_project_item_display_values_deduplicates_duplicate_pointer_reads() {
+        let mock_memory_read_bindings =
+            MockMemoryReadBindings::new(
+                |memory_read_request| match (memory_read_request.address, memory_read_request.module_name.as_str()) {
+                    (0x1000, "game.exe") => create_pointer_memory_read_response(0x2000, PointerScanPointerSize::Pointer64, true),
+                    (0x2020, "") => create_pointer_memory_read_response(0x3000, PointerScanPointerSize::Pointer64, true),
+                    (0x2FF0, "") => create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x1234), true),
+                    unexpected_request => panic!("Unexpected duplicate pointer memory read request: {unexpected_request:?}"),
+                },
+            );
+        let captured_memory_read_requests = mock_memory_read_bindings.captured_memory_read_requests();
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
+        let mut opened_project_items = vec![
+            (
+                ProjectItemRef::new(PathBuf::from("project/ammo.json")),
+                ProjectItemTypePointer::new_project_item("Ammo", &pointer, "", "u16"),
+            ),
+            (
+                ProjectItemRef::new(PathBuf::from("project/ammo_copy.json")),
+                ProjectItemTypePointer::new_project_item("Ammo Copy", &pointer, "", "u16"),
+            ),
+        ];
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+
+        let captured_memory_read_requests = captured_memory_read_requests
+            .lock()
+            .expect("Expected captured duplicate pointer preview memory reads.");
+
+        assert_eq!(
+            *captured_memory_read_requests,
+            vec![
+                CapturedMemoryReadRequest {
+                    address: 0x1000,
+                    module_name: "game.exe".to_string(),
+                },
+                CapturedMemoryReadRequest {
+                    address: 0x2020,
+                    module_name: String::new(),
+                },
+                CapturedMemoryReadRequest {
+                    address: 0x2FF0,
+                    module_name: String::new(),
+                },
+            ]
+        );
+
+        assert_eq!(
+            ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&opened_project_items[0].1),
+            "4660"
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&opened_project_items[1].1),
+            "4660"
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_evaluated_pointer_path(&opened_project_items[0].1),
+            "game.exe+0x1000 -> 0x2020 -> 0x2FF0"
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_evaluated_pointer_path(&opened_project_items[1].1),
+            "game.exe+0x1000 -> 0x2020 -> 0x2FF0"
+        );
+    }
+
+    #[test]
+    fn build_project_item_preview_read_definition_truncates_large_fixed_arrays() {
+        let engine_execution_context = create_execution_context(MockMemoryReadBindings::new(|_memory_read_request| {
+            create_pointer_memory_read_response(0, PointerScanPointerSize::Pointer64, false)
+        }));
+
+        let project_item_preview_read_definition =
+            build_project_item_preview_read_definition(&engine_execution_context, "u8[128]").expect("Expected preview read definition for fixed array type.");
+
+        assert!(project_item_preview_read_definition.preview_was_truncated);
+        assert_eq!(
+            project_item_preview_read_definition.symbolic_field_container_type,
+            ContainerType::ArrayFixed(128)
+        );
+        assert!(
+            project_item_preview_read_definition
+                .layout_key
+                .contains("preview")
+        );
+        assert!(
+            project_item_preview_read_definition
+                .layout_key
+                .contains(&MAX_ARRAY_PREVIEW_ELEMENT_COUNT.to_string())
+        );
+    }
+
+    #[test]
+    fn format_project_item_preview_value_appends_ellipsis_for_truncated_array_reads() {
+        let preview_value = format_project_item_preview_value(
+            &AnonymousValueString::new("1, 2, 3, ".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(3)),
+            ContainerType::None,
+            true,
+        );
+
+        assert_eq!(preview_value, "[1, 2, 3...]");
+    }
+
+    #[test]
     fn format_project_item_preview_value_wraps_array_values_in_brackets() {
         let preview_value = format_project_item_preview_value(
             &AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(2)),
             ContainerType::None,
+            false,
         );
 
         assert_eq!(preview_value, "[1, 2]");
@@ -748,6 +1119,7 @@ mod tests {
         let preview_value = format_project_item_preview_value(
             &AnonymousValueString::new("1".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None),
             ContainerType::ArrayFixed(1),
+            false,
         );
 
         assert_eq!(preview_value, "[1]");
@@ -763,6 +1135,7 @@ mod tests {
         let preview_value = format_project_item_preview_value(
             &AnonymousValueString::new(long_array_preview, AnonymousValueStringFormat::Decimal, ContainerType::ArrayFixed(80)),
             ContainerType::None,
+            false,
         );
 
         assert!(preview_value.starts_with('['));
@@ -777,6 +1150,7 @@ mod tests {
         let preview_value = format_project_item_preview_value(
             &AnonymousValueString::new(long_scalar_preview.clone(), AnonymousValueStringFormat::Decimal, ContainerType::None),
             ContainerType::None,
+            false,
         );
 
         assert_eq!(preview_value, long_scalar_preview);

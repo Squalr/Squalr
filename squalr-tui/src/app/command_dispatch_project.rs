@@ -155,7 +155,9 @@ impl AppShell {
             self.app_state.project_explorer_pane_state.status_message = "Refreshing project item hierarchy.".to_string();
         }
 
-        let project_items_list_request = ProjectItemsListRequest {};
+        let project_items_list_request = ProjectItemsListRequest {
+            preview_project_item_paths: None,
+        };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_list_request.send(engine_unprivileged_state, move |project_items_list_response| {
             let _ = response_sender.send(project_items_list_response);

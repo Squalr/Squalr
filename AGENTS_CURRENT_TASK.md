@@ -16,6 +16,7 @@ Our current task, from `README.md`, is:
 - need human verification: Project hierarchy now supports F2 inline rename on the selected tree row with async refresh after submit, click-away cancel/select behavior, and project selector F2 inline rename support.
 - need human verification: Project item rename now keeps the tree label synced with the item `name` property instead of diverging between visible label and backing filename.
 - need human verification: Project hierarchy now supports double-click name-to-rename and double-click value-to-edit with a centered `DataValueBox` takeover, explicit commit/cancel actions, and close-project cleanup for address/pointer items.
+- need human verification: Project hierarchy preview refresh now only requests visible/selected item previews, preserves cached preview text for off-screen rows, deduplicates duplicate address/pointer reads per refresh, and caps large fixed-array preview reads while still loading the full live value when entering value edit.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -28,3 +29,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Tree rows render the project item `name` property when present; the rename executor now updates that stored name alongside the path rename so labels no longer lag behind filenames.
 - Project hierarchy row double-clicks are now split by hitbox: the name region enters rename, while the trailing value region opens a takeover editor backed by the existing runtime-value write path.
 - Project hierarchy refresh now drops stale rename/value/delete takeovers when the targeted project items disappear, preventing orphaned modals after closing or switching projects.
+- `ProjectItemsListRequest` now accepts an internal-only optional `preview_project_item_paths` filter; `None` keeps legacy full preview refresh behavior for existing callers like the TUI.
+- GUI project hierarchy preview refresh now caches duplicate `(address, module, layout)` reads and duplicate pointer-chain evaluations within a refresh pass, and large fixed arrays are preview-read with a capped anonymous layout instead of the full array.
+- Entering project-item value edit now performs a dedicated full live memory read for the item’s configured type, so preview truncation does not leak into editing; the current takeover view remains the seam for a future dedicated byte/hex editor.
