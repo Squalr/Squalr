@@ -23,7 +23,7 @@ Our current task, from `README.md`, is:
 - need human verification: Project hierarchy context menus now support `Open in Memory Viewer` for address/pointer items, opening the viewer on the target address, resolving module-relative addresses, and scrolling the containing row into view.
 - need human verification: Docked windows now have a title-bar maximize toggle that expands the selected panel to fill the dock area, and memory viewer row rendering is clipped to its panel bounds instead of bleeding outside the dock.
 - need human verification: Scan-result and memory-viewer add-to-project now use `module+0xOFFSET` names whenever module metadata exists instead of plain offsets.
-- need human verification: Memory viewer now renders hex bytes in the theme hexadecimal color, supports cross-row byte-range selection, shows a blinking hex nibble caret, advances live hex writes forward byte-by-byte until the end of the page, and can add the clicked address to the current project folder/root from a context menu.
+- need human verification: Memory viewer now renders hex bytes in the theme hexadecimal color, supports restored cross-row drag selection, arrow-key cursor movement, merged per-row selection bands, a blinking hex nibble caret, forward byte-by-byte live hex writes until the end of the page, and add-to-project from the context menu.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -51,5 +51,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `DockedWindowView` now clips child content to the dock content rect, and the memory viewer additionally clips each painted hex row to the visible row rect to stop overflow.
 - `ProjectItemsCreateRequest` address items can now optionally carry explicit `address` and `module_name` fields, and the create executor seeds those into new address project items instead of always creating zero-address placeholders.
 - Project-item names created from scan results or memory-viewer addresses now force module-relative `module+0xOFFSET` text when module metadata exists, independent of the current scan-result display mode.
-- Memory viewer selection is contiguous-address based within the current page; drag selection can now span rows, and live hex editing uses a cursor/nibble state that writes one byte at a time and keeps advancing until the current page ends.
+- Memory viewer selection is contiguous-address based within the current page; drag selection now follows the live pointer while the button is held, arrow keys move or extend the active cursor by byte/row, and live hex editing uses a cursor/nibble state that writes one byte at a time and keeps advancing until the current page ends.
 - Memory viewer right-click actions currently target the clicked byte address when over hex/ASCII cells, otherwise the row base address, and `Add Address To Project` creates a `u8` address item using the current project selection as the parent directory when available.
