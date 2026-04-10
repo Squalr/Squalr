@@ -72,6 +72,7 @@ struct PointerPreviewEvaluation {
 
 const MAX_ARRAY_PREVIEW_CHARACTER_COUNT: usize = 96;
 const MAX_ARRAY_PREVIEW_ELEMENT_COUNT: u64 = 64;
+const MAX_ARRAY_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 4;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;
@@ -329,6 +330,10 @@ fn format_project_item_preview_value(
 }
 
 fn append_array_preview_ellipsis(display_value: &str) -> String {
+    if let Some(truncated_array_preview) = format_array_preview_from_elements(display_value, true) {
+        return truncated_array_preview;
+    }
+
     let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
 
     if trimmed_display_value.is_empty() {
@@ -339,6 +344,49 @@ fn append_array_preview_ellipsis(display_value: &str) -> String {
 }
 
 fn truncate_array_preview_value(display_value: &str) -> String {
+    if let Some(truncated_array_preview) = format_array_preview_from_elements(display_value, false) {
+        return truncated_array_preview;
+    }
+
+    truncate_array_preview_by_character_count(display_value)
+}
+
+fn format_array_preview_from_elements(
+    display_value: &str,
+    force_ellipsis: bool,
+) -> Option<String> {
+    let array_elements = split_array_preview_elements(display_value);
+
+    if array_elements.len() <= 1 {
+        return None;
+    }
+
+    let visible_element_count = array_elements
+        .len()
+        .min(MAX_ARRAY_PREVIEW_DISPLAY_ELEMENT_COUNT);
+    let mut preview_elements = array_elements
+        .iter()
+        .take(visible_element_count)
+        .map(|array_element| (*array_element).to_string())
+        .collect::<Vec<_>>();
+    let has_hidden_elements = force_ellipsis || array_elements.len() > visible_element_count;
+
+    if has_hidden_elements {
+        preview_elements.push(String::from("..."));
+    }
+
+    Some(preview_elements.join(", "))
+}
+
+fn split_array_preview_elements(display_value: &str) -> Vec<&str> {
+    display_value
+        .split([',', ';'])
+        .map(str::trim)
+        .filter(|array_element| !array_element.is_empty())
+        .collect::<Vec<_>>()
+}
+
+fn truncate_array_preview_by_character_count(display_value: &str) -> String {
     let display_value_character_count = display_value.chars().count();
 
     if display_value_character_count <= MAX_ARRAY_PREVIEW_CHARACTER_COUNT {
@@ -539,7 +587,7 @@ fn dispatch_memory_read_request(
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_ARRAY_PREVIEW_CHARACTER_COUNT, MAX_ARRAY_PREVIEW_ELEMENT_COUNT, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
+        MAX_ARRAY_PREVIEW_ELEMENT_COUNT, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
         evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value, refresh_project_item_display_values,
     };
     use crossbeam_channel::{Receiver, unbounded};
@@ -1100,7 +1148,7 @@ mod tests {
             true,
         );
 
-        assert_eq!(preview_value, "[1, 2, 3...]");
+        assert_eq!(preview_value, "[1, 2, 3, ...]");
     }
 
     #[test]
@@ -1138,9 +1186,7 @@ mod tests {
             false,
         );
 
-        assert!(preview_value.starts_with('['));
-        assert!(preview_value.ends_with("...]"));
-        assert!(preview_value.len() <= MAX_ARRAY_PREVIEW_CHARACTER_COUNT + 5);
+        assert_eq!(preview_value, "[0, 1, 2, 3, ...]");
     }
 
     #[test]
