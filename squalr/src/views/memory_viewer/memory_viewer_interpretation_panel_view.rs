@@ -119,12 +119,14 @@ impl MemoryViewerInterpretationPanelView {
             add_data_type_id: None,
         });
 
-        if let Some(interpreted_value) = Self::try_read_u8(&readable_bytes) {
+        if Self::has_exact_byte_count(&readable_bytes, 1) {
+            let interpreted_value = Self::try_read_u8(&readable_bytes).unwrap_or_default();
             interpretation_entries.push(Self::build_typed_entry("u8", interpreted_value.to_string(), Some(String::from("u8"))));
             interpretation_entries.push(Self::build_typed_entry("i8", (interpreted_value as i8).to_string(), Some(String::from("i8"))));
         }
 
-        if let Some(interpreted_value) = Self::try_read_u16(&readable_bytes) {
+        if Self::has_exact_byte_count(&readable_bytes, 2) {
+            let interpreted_value = Self::try_read_u16(&readable_bytes).unwrap_or_default();
             interpretation_entries.push(Self::build_typed_entry("u16 (LE)", interpreted_value.to_string(), Some(String::from("u16"))));
             interpretation_entries.push(Self::build_typed_entry(
                 "i16 (LE)",
@@ -133,7 +135,8 @@ impl MemoryViewerInterpretationPanelView {
             ));
         }
 
-        if let Some(interpreted_value) = Self::try_read_u32(&readable_bytes) {
+        if Self::has_exact_byte_count(&readable_bytes, 4) {
+            let interpreted_value = Self::try_read_u32(&readable_bytes).unwrap_or_default();
             interpretation_entries.push(Self::build_typed_entry("u32 (LE)", interpreted_value.to_string(), Some(String::from("u32"))));
             interpretation_entries.push(Self::build_typed_entry(
                 "i32 (LE)",
@@ -147,7 +150,8 @@ impl MemoryViewerInterpretationPanelView {
             ));
         }
 
-        if let Some(interpreted_value) = Self::try_read_u64(&readable_bytes) {
+        if Self::has_exact_byte_count(&readable_bytes, 8) {
+            let interpreted_value = Self::try_read_u64(&readable_bytes).unwrap_or_default();
             interpretation_entries.push(Self::build_typed_entry("u64 (LE)", interpreted_value.to_string(), Some(String::from("u64"))));
             interpretation_entries.push(Self::build_typed_entry(
                 "i64 (LE)",
@@ -288,6 +292,13 @@ impl MemoryViewerInterpretationPanelView {
         let array_bytes: [u8; 8] = readable_bytes.get(..8)?.try_into().ok()?;
 
         Some(u64::from_le_bytes(array_bytes))
+    }
+
+    fn has_exact_byte_count(
+        readable_bytes: &[u8],
+        expected_byte_count: usize,
+    ) -> bool {
+        readable_bytes.len() == expected_byte_count
     }
 
     fn format_hex_preview(selected_bytes: &[Option<u8>]) -> String {
@@ -551,5 +562,47 @@ mod tests {
             value: String::from("[1, 2, 3, 4]"),
             add_data_type_id: Some(String::from("u16[4]")),
         }));
+    }
+
+    #[test]
+    fn build_interpretation_entries_omits_scalar_types_for_non_matching_selection_sizes() {
+        let selection_summary = MemoryViewerSelectionSummary {
+            selection_start_address: 0x1000,
+            selection_end_address: 0x1007,
+            selection_display_text: String::from("00001000"),
+            selected_bytes: vec![
+                Some(0x01),
+                Some(0x00),
+                Some(0x02),
+                Some(0x00),
+                Some(0x03),
+                Some(0x00),
+                Some(0x04),
+                Some(0x00),
+            ],
+        };
+
+        let interpretation_entries = MemoryViewerInterpretationPanelView::build_interpretation_entries(&selection_summary);
+
+        assert!(
+            !interpretation_entries
+                .iter()
+                .any(|entry| entry.label == "u16 (LE)")
+        );
+        assert!(
+            !interpretation_entries
+                .iter()
+                .any(|entry| entry.label == "u32 (LE)")
+        );
+        assert!(
+            interpretation_entries
+                .iter()
+                .any(|entry| entry.label == "u64 (LE)")
+        );
+        assert!(
+            interpretation_entries
+                .iter()
+                .any(|entry| entry.label == "u16[4]")
+        );
     }
 }
