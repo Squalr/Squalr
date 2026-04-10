@@ -366,13 +366,6 @@ impl Widget for MemoryViewerView {
                     .map(|memory_viewer_view_data| memory_viewer_view_data.is_querying_memory_pages)
                     .unwrap_or(false);
 
-                toolbar_user_interface.add_space(8.0);
-                toolbar_user_interface.label(
-                    RichText::new("Memory Viewer")
-                        .font(theme.font_library.font_noto_sans.font_header.clone())
-                        .color(theme.foreground),
-                );
-
                 if is_querying_memory_pages {
                     toolbar_user_interface.add_space(8.0);
                     toolbar_user_interface.add(Spinner::new().color(theme.foreground));

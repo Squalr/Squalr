@@ -85,7 +85,7 @@ impl Widget for DockedWindowTitleBarView {
             child_user_interface.label(
                 RichText::new("Fullscreen")
                     .color(theme.selected_border)
-                    .font(theme.font_library.font_noto_sans.font_small.clone()),
+                    .font(theme.font_library.font_noto_sans.font_normal.clone()),
             );
         }
 
