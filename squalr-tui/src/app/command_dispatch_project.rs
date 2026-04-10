@@ -163,10 +163,11 @@ impl AppShell {
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(project_items_list_response) => {
+                let opened_project_info = project_items_list_response.opened_project_info;
                 let project_item_count = project_items_list_response.opened_project_items.len();
                 self.app_state
                     .project_explorer_pane_state
-                    .apply_project_items_list(project_items_list_response.opened_project_items);
+                    .apply_project_items_list(opened_project_info, project_items_list_response.opened_project_items);
                 if should_update_status_message {
                     self.app_state.project_explorer_pane_state.status_message = format!("Loaded {} project items.", project_item_count);
                 }

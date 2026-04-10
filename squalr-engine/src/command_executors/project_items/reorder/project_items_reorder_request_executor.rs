@@ -1,10 +1,9 @@
+use crate::command_executors::project_items::project_item_sort_order::apply_reorder_subset_to_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_response::ProjectItemsReorderResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::utils::file_system::file_system_utils::FileSystemUtils;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsReorderRequest {
@@ -49,18 +48,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsReorderRequest {
                 };
             }
         };
-        let sort_order_paths: Vec<PathBuf> = self
-            .project_item_paths
-            .iter()
-            .map(|project_item_path| to_manifest_path(&project_directory_path, project_item_path))
-            .collect();
-
-        opened_project
-            .get_project_manifest_mut()
-            .set_project_item_sort_order(sort_order_paths);
-        opened_project
-            .get_project_info_mut()
-            .set_has_unsaved_changes(true);
+        apply_reorder_subset_to_sort_order(opened_project, &project_directory_path, &self.project_item_paths);
 
         if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
             log::error!("Failed to persist project item reorder metadata: {}", error);
@@ -76,57 +64,5 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsReorderRequest {
             success: true,
             reordered_project_item_count: self.project_item_paths.len() as u64,
         }
-    }
-}
-
-fn to_manifest_path(
-    project_directory_path: &Path,
-    project_item_path: &Path,
-) -> PathBuf {
-    let resolved_project_item_path = if FileSystemUtils::is_cross_platform_absolute_path(project_item_path) {
-        project_item_path.to_path_buf()
-    } else {
-        project_directory_path.join(project_item_path)
-    };
-
-    match resolved_project_item_path.strip_prefix(project_directory_path) {
-        Ok(relative_project_item_path) => relative_project_item_path.to_path_buf(),
-        Err(_) => resolved_project_item_path,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::to_manifest_path;
-    use std::path::{Path, PathBuf};
-
-    #[test]
-    fn to_manifest_path_converts_absolute_path_inside_project_to_relative_path() {
-        let project_directory_path = Path::new("C:/Projects/TestProject");
-        let project_item_path = Path::new("C:/Projects/TestProject/Addresses/health.json");
-
-        let manifest_path = to_manifest_path(project_directory_path, project_item_path);
-
-        assert_eq!(manifest_path, PathBuf::from("Addresses/health.json"));
-    }
-
-    #[test]
-    fn to_manifest_path_leaves_relative_path_relative_to_project_directory() {
-        let project_directory_path = Path::new("C:/Projects/TestProject");
-        let project_item_path = Path::new("Addresses/health.json");
-
-        let manifest_path = to_manifest_path(project_directory_path, project_item_path);
-
-        assert_eq!(manifest_path, PathBuf::from("Addresses/health.json"));
-    }
-
-    #[test]
-    fn to_manifest_path_returns_absolute_path_when_outside_project_directory() {
-        let project_directory_path = Path::new("C:/Projects/TestProject");
-        let project_item_path = Path::new("C:/Projects/OtherProject/Addresses/health.json");
-
-        let manifest_path = to_manifest_path(project_directory_path, project_item_path);
-
-        assert_eq!(manifest_path, PathBuf::from("C:/Projects/OtherProject/Addresses/health.json"));
     }
 }

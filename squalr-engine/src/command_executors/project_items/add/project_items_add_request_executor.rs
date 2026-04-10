@@ -1,3 +1,4 @@
+use crate::command_executors::project_items::project_item_sort_order::append_project_items_to_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -104,6 +105,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsAddRequest {
                 added_project_item_count: 0,
             };
         }
+
+        append_project_items_to_sort_order(opened_project, &project_directory_path, &added_file_paths);
 
         if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
             log::error!("Failed to save project after add operation: {}", error);

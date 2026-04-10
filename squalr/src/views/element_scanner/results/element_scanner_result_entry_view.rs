@@ -63,7 +63,8 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         let text_left_padding = 8.0;
         let row_height = self.get_height();
 
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x.max(1.0), row_height), Sense::click());
+        let (allocated_size_rectangle, response) =
+            user_interface.allocate_exact_size(vec2(user_interface.available_size().x.max(1.0), row_height), Sense::click());
 
         if self.is_selected {
             // Draw the background.

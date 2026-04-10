@@ -136,10 +136,11 @@ impl ProjectExplorerPaneState {
 
     pub fn apply_project_items_list(
         &mut self,
+        opened_project_info: Option<ProjectInfo>,
         opened_project_items: Vec<(ProjectItemRef, ProjectItem)>,
     ) {
         let selected_project_item_path_before_refresh = self.selected_project_item_path();
-        let hierarchy_graph = build_project_item_hierarchy_graph(opened_project_items);
+        let hierarchy_graph = build_project_item_hierarchy_graph(opened_project_info.as_ref(), opened_project_items);
         self.opened_project_item_map = hierarchy_graph.opened_project_item_map;
         self.child_paths_by_parent_path = hierarchy_graph.child_paths_by_parent_path;
         self.root_project_item_paths = hierarchy_graph.root_project_item_paths;

@@ -17,8 +17,8 @@ use squalr_engine_api::structures::projects::project_items::project_item_ref::Pr
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use std::str::FromStr;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Duration;
 
 struct PointerPreviewEvaluation {
@@ -355,9 +355,9 @@ fn dispatch_memory_read_request(
 #[cfg(test)]
 mod tests {
     use super::{
-        evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value, MAX_ARRAY_PREVIEW_CHARACTER_COUNT,
+        MAX_ARRAY_PREVIEW_CHARACTER_COUNT, evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value,
     };
-    use crossbeam_channel::{unbounded, Receiver};
+    use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
