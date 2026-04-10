@@ -20,7 +20,7 @@ use crate::{
     },
     views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
 };
-use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
+use eframe::egui::{vec2, Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -53,8 +53,8 @@ use squalr_engine_session::{
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
@@ -129,7 +129,7 @@ impl ProjectHierarchyView {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyView;
-    use crossbeam_channel::{Receiver, unbounded};
+    use crossbeam_channel::{unbounded, Receiver};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -921,7 +921,15 @@ impl Widget for ProjectHierarchyView {
                                                         Self::resolve_project_item_runtime_value_target(&engine_execution_context, &tree_entry.project_item)
                                                     {
                                                         project_hierarchy_frame_action =
-                                                            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress { address, module_name };
+                                                            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
+                                                                address,
+                                                                module_name,
+                                                                selection_byte_count: Self::resolve_project_item_runtime_value_byte_count(
+                                                                    &self.app_context.engine_unprivileged_state,
+                                                                    &tree_entry.project_item,
+                                                                )
+                                                                .unwrap_or(1),
+                                                            };
                                                         *should_close = true;
                                                     } else {
                                                         log::error!(
@@ -1391,12 +1399,16 @@ impl Widget for ProjectHierarchyView {
 
                 self.focus_pointer_scanner_for_address(address, &module_name, &data_type_id);
             }
-            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress { address, module_name } => {
+            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
+                address,
+                module_name,
+                selection_byte_count,
+            } => {
                 if is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
-                self.focus_memory_viewer_for_address(address, &module_name);
+                self.focus_memory_viewer_for_address(address, &module_name, selection_byte_count);
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_value_edit_take_over_active {
@@ -1439,7 +1451,8 @@ impl ProjectHierarchyView {
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
     const MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 96;
-    const MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT: u64 = 64;
+    const MAX_PROJECT_ITEM_PREVIEW_ELEMENT_COUNT: u64 = 4;
+    const MAX_PROJECT_ITEM_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 4;
 
     fn show_toolbar_add_menu(
         &self,
@@ -2245,12 +2258,14 @@ impl ProjectHierarchyView {
         &self,
         address: u64,
         module_name: &str,
+        selection_byte_count: u64,
     ) {
-        MemoryViewerViewData::request_focus_address(
+        MemoryViewerViewData::request_focus_address_range(
             self.memory_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
             address,
             module_name.to_string(),
+            selection_byte_count,
         );
 
         match self.app_context.docking_manager.write() {
@@ -2368,7 +2383,11 @@ impl ProjectHierarchyView {
         let edited_name = String::from_utf8(data_value.get_value_bytes().clone()).ok()?;
         let edited_name = edited_name.trim();
 
-        if edited_name.is_empty() { None } else { Some(edited_name.to_string()) }
+        if edited_name.is_empty() {
+            None
+        } else {
+            Some(edited_name.to_string())
+        }
     }
 
     fn project_item_rename_text_storage_id(project_item_path: &Path) -> Id {
@@ -2680,6 +2699,29 @@ impl ProjectHierarchyView {
         )
     }
 
+    fn resolve_project_item_runtime_value_byte_count(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        project_item: &ProjectItem,
+    ) -> Option<u64> {
+        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(project_item)?;
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok()?;
+        let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
+            ContainerType::Pointer32 => 4,
+            ContainerType::Pointer64 => 8,
+            _ => engine_unprivileged_state
+                .get_default_value(symbolic_field_definition.get_data_type_ref())?
+                .get_size_in_bytes(),
+        };
+
+        Some(match symbolic_field_definition.get_container_type() {
+            ContainerType::None => unit_size_in_bytes,
+            ContainerType::Pointer32 => 4,
+            ContainerType::Pointer64 => 8,
+            ContainerType::Array => unit_size_in_bytes,
+            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length.max(1)),
+        })
+    }
+
     fn format_project_item_preview_value(
         anonymous_value_string: &AnonymousValueString,
         symbolic_field_container_type: ContainerType,
@@ -2706,6 +2748,10 @@ impl ProjectHierarchyView {
     }
 
     fn append_project_item_preview_ellipsis(display_value: &str) -> String {
+        if let Some(truncated_array_preview) = Self::format_project_item_preview_from_elements(display_value, true) {
+            return truncated_array_preview;
+        }
+
         let trimmed_display_value = display_value.trim_end_matches(|character: char| character.is_ascii_whitespace() || matches!(character, ',' | ';'));
 
         if trimmed_display_value.is_empty() {
@@ -2716,6 +2762,10 @@ impl ProjectHierarchyView {
     }
 
     fn truncate_project_item_preview_value(display_value: &str) -> String {
+        if let Some(truncated_array_preview) = Self::format_project_item_preview_from_elements(display_value, false) {
+            return truncated_array_preview;
+        }
+
         let display_value_character_count = display_value.chars().count();
 
         if display_value_character_count <= Self::MAX_PROJECT_ITEM_PREVIEW_ARRAY_CHARACTER_COUNT {
@@ -2730,6 +2780,41 @@ impl ProjectHierarchyView {
             .to_string();
 
         format!("{}...", truncated_prefix)
+    }
+
+    fn format_project_item_preview_from_elements(
+        display_value: &str,
+        force_ellipsis: bool,
+    ) -> Option<String> {
+        let array_elements = Self::split_project_item_preview_elements(display_value);
+
+        if array_elements.len() <= 1 {
+            return None;
+        }
+
+        let visible_element_count = array_elements
+            .len()
+            .min(Self::MAX_PROJECT_ITEM_PREVIEW_DISPLAY_ELEMENT_COUNT);
+        let mut preview_elements = array_elements
+            .iter()
+            .take(visible_element_count)
+            .map(|array_element| (*array_element).to_string())
+            .collect::<Vec<_>>();
+        let has_hidden_elements = force_ellipsis || array_elements.len() > visible_element_count;
+
+        if has_hidden_elements {
+            preview_elements.push(String::from("..."));
+        }
+
+        Some(preview_elements.join(", "))
+    }
+
+    fn split_project_item_preview_elements(display_value: &str) -> Vec<&str> {
+        display_value
+            .split([',', ';'])
+            .map(str::trim)
+            .filter(|array_element| !array_element.is_empty())
+            .collect::<Vec<_>>()
     }
 
     fn build_project_item_rename_request(

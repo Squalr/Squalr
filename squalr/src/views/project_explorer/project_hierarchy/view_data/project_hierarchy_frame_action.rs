@@ -23,6 +23,7 @@ pub enum ProjectHierarchyFrameAction {
     OpenMemoryViewerForAddress {
         address: u64,
         module_name: String,
+        selection_byte_count: u64,
     },
     RequestRename(PathBuf),
     RequestValueEdit(PathBuf),

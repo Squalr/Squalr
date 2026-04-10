@@ -19,8 +19,8 @@ use squalr_engine_api::structures::structs::symbolic_struct_definition::Symbolic
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::sync::mpsc;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
@@ -71,7 +71,7 @@ struct PointerPreviewEvaluation {
 }
 
 const MAX_ARRAY_PREVIEW_CHARACTER_COUNT: usize = 96;
-const MAX_ARRAY_PREVIEW_ELEMENT_COUNT: u64 = 64;
+const MAX_ARRAY_PREVIEW_ELEMENT_COUNT: u64 = 4;
 const MAX_ARRAY_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 4;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
@@ -587,10 +587,10 @@ fn dispatch_memory_read_request(
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_ARRAY_PREVIEW_ELEMENT_COUNT, ProjectItemPreviewRefreshSession, build_project_item_preview_read_definition,
-        evaluate_pointer_for_preview, format_project_item_preview_value, refresh_pointer_project_item_display_value, refresh_project_item_display_values,
+        build_project_item_preview_read_definition, evaluate_pointer_for_preview, format_project_item_preview_value,
+        refresh_pointer_project_item_display_value, refresh_project_item_display_values, ProjectItemPreviewRefreshSession, MAX_ARRAY_PREVIEW_ELEMENT_COUNT,
     };
-    use crossbeam_channel::{Receiver, unbounded};
+    use crossbeam_channel::{unbounded, Receiver};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -1128,16 +1128,12 @@ mod tests {
             project_item_preview_read_definition.symbolic_field_container_type,
             ContainerType::ArrayFixed(128)
         );
-        assert!(
-            project_item_preview_read_definition
-                .layout_key
-                .contains("preview")
-        );
-        assert!(
-            project_item_preview_read_definition
-                .layout_key
-                .contains(&MAX_ARRAY_PREVIEW_ELEMENT_COUNT.to_string())
-        );
+        assert!(project_item_preview_read_definition
+            .layout_key
+            .contains("preview"));
+        assert!(project_item_preview_read_definition
+            .layout_key
+            .contains(&MAX_ARRAY_PREVIEW_ELEMENT_COUNT.to_string()));
     }
 
     #[test]

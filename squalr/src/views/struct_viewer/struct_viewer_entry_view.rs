@@ -18,8 +18,8 @@ use crate::{
         struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
-use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
+use eframe::egui::{vec2, Align2, Response, Sense, Ui, Widget};
+use epaint::{pos2, CornerRadius, Rect, Stroke, StrokeKind};
 use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_types::data_type_ref::DataTypeRef,
@@ -303,6 +303,28 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             );
                         }
                     }
+                }
+            }
+            StructViewerFieldEditorKind::MemoryViewerButton => {
+                let button_rect = Rect::from_min_size(
+                    pos2(value_box_position_x, available_size_rect.min.y + value_column_padding),
+                    vec2(value_box_width, available_size_rect.height() - value_column_padding * 2.0),
+                );
+                let button_response = user_interface.put(
+                    button_rect,
+                    Button::new_from_theme(theme).with_tooltip_text("Open this value in the Memory Viewer."),
+                );
+
+                user_interface.painter().text(
+                    button_response.rect.center(),
+                    Align2::CENTER_CENTER,
+                    "Edit in Memory Viewer",
+                    theme.font_library.font_noto_sans.font_normal.clone(),
+                    theme.foreground,
+                );
+
+                if button_response.clicked() {
+                    *self.struct_viewer_frame_action = StructViewerFrameAction::OpenInMemoryViewer(self.valued_struct_field.get_name().to_string());
                 }
             }
             StructViewerFieldEditorKind::DataTypeSelector => {

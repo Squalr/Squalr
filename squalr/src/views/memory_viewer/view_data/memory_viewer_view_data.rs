@@ -42,6 +42,7 @@ pub struct MemoryViewerPageCache {
 struct MemoryViewerFocusRequest {
     address: u64,
     module_name: String,
+    selection_byte_count: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -151,9 +152,23 @@ impl MemoryViewerViewData {
         address: u64,
         module_name: String,
     ) {
+        Self::request_focus_address_range(memory_viewer_view_data, engine_unprivileged_state, address, module_name, 1);
+    }
+
+    pub fn request_focus_address_range(
+        memory_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        address: u64,
+        module_name: String,
+        selection_byte_count: u64,
+    ) {
         let should_refresh_memory_pages = match memory_viewer_view_data.write("Memory viewer request focus address") {
             Some(mut memory_viewer_view_data) => {
-                memory_viewer_view_data.pending_focus_request = Some(MemoryViewerFocusRequest { address, module_name });
+                memory_viewer_view_data.pending_focus_request = Some(MemoryViewerFocusRequest {
+                    address,
+                    module_name,
+                    selection_byte_count: selection_byte_count.max(1),
+                });
 
                 if memory_viewer_view_data.try_apply_pending_focus_request() {
                     false
@@ -971,6 +986,13 @@ impl MemoryViewerViewData {
 
         self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
         self.pending_scroll_address = Some(focus_address);
+        self.selected_byte_range = Some(MemoryViewerSelectionRange {
+            anchor_address: focus_address,
+            active_address: focus_address.saturating_add(pending_focus_request.selection_byte_count.saturating_sub(1)),
+        });
+        self.is_drag_selection_active = false;
+        self.has_keyboard_focus = true;
+        self.set_hex_edit_cursor(focus_address);
         self.pending_focus_request = None;
         self.last_applied_snapshot_generation = 0;
 
@@ -1355,6 +1377,29 @@ mod tests {
         let resolved_address = MemoryViewerViewData::resolve_focus_address(&modules, 0x120, "winmine.exe");
 
         assert_eq!(resolved_address, Some(0x4120));
+    }
+
+    #[test]
+    fn try_apply_pending_focus_request_selects_requested_byte_range() {
+        let mut memory_viewer_view_data = MemoryViewerViewData::new();
+        memory_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(0x4000, 0x100)];
+        memory_viewer_view_data.cached_last_page_index = 0;
+        memory_viewer_view_data.pending_focus_request = Some(super::MemoryViewerFocusRequest {
+            address: 0x4010,
+            module_name: String::new(),
+            selection_byte_count: 4,
+        });
+
+        assert!(memory_viewer_view_data.try_apply_pending_focus_request());
+        assert_eq!(memory_viewer_view_data.resolve_selected_address_bounds(), Some((0x4010, 0x4013)));
+        assert_eq!(
+            memory_viewer_view_data.hex_edit_state,
+            Some(super::MemoryViewerHexEditState {
+                cursor_address: 0x4010,
+                active_nibble_index: 0,
+                pending_high_nibble: None,
+            })
+        );
     }
 
     #[test]

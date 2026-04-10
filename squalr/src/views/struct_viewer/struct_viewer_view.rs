@@ -1,16 +1,36 @@
 use crate::views::struct_viewer::struct_viewer_entry_view::StructViewerEntryView;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use crate::views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction;
-use crate::{app_context::AppContext, views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData};
+use crate::{
+    app_context::AppContext,
+    views::{
+        memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
+        struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
+    },
+};
 use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
-use epaint::{Rect, pos2};
+use epaint::{pos2, Rect};
+use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
+use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::{
+    engine::engine_execution_context::EngineExecutionContext,
+    structures::{
+        data_values::container_type::ContainerType,
+        memory::pointer::Pointer,
+        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+        projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
+    },
+};
+use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct StructViewerView {
     app_context: Arc<AppContext>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
+    memory_viewer_view_data: Dependency<MemoryViewerViewData>,
 }
 
 impl StructViewerView {
@@ -22,8 +42,223 @@ impl StructViewerView {
             .register(StructViewerViewData::new());
 
         Self {
-            app_context,
+            app_context: app_context.clone(),
             struct_viewer_view_data,
+            memory_viewer_view_data: app_context
+                .dependency_container
+                .get_dependency::<MemoryViewerViewData>(),
+        }
+    }
+
+    fn resolve_memory_viewer_target_for_field(
+        &self,
+        field_name: &str,
+    ) -> Option<(u64, String, u64)> {
+        let struct_viewer_view_data = self
+            .struct_viewer_view_data
+            .read("Struct viewer resolve memory viewer target")?;
+        let source_struct_under_view = struct_viewer_view_data
+            .source_struct_under_view
+            .as_ref()
+            .as_ref()?;
+
+        if field_name != ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE && field_name != ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE {
+            return None;
+        }
+
+        let symbolic_field_definition = StructViewerViewData::read_symbolic_field_definition_reference_from_field_set(
+            source_struct_under_view.get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)?,
+        )?;
+
+        if !matches!(
+            symbolic_field_definition.get_container_type(),
+            ContainerType::Array | ContainerType::ArrayFixed(_)
+        ) {
+            return None;
+        }
+
+        let selection_byte_count = Self::resolve_symbolic_field_definition_byte_count(&self.app_context.engine_unprivileged_state, &symbolic_field_definition)?;
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+
+        Self::resolve_struct_runtime_value_target(&engine_execution_context, source_struct_under_view)
+            .map(|(address, module_name)| (address, module_name, selection_byte_count.max(1)))
+    }
+
+    fn resolve_struct_runtime_value_target(
+        engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        source_struct_under_view: &ValuedStruct,
+    ) -> Option<(u64, String)> {
+        if let Some(address_field) = source_struct_under_view.get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS) {
+            let address = Self::read_u64_field_value(address_field)?;
+            let module_name = source_struct_under_view
+                .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
+                .map(StructViewerViewData::read_utf8_field_text)
+                .unwrap_or_default();
+
+            return Some((address, module_name));
+        }
+
+        let pointer_offset_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_OFFSET)?;
+        let pointer_module_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_MODULE)?;
+        let pointer_offsets_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_POINTER_OFFSETS)?;
+        let pointer_size_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_POINTER_SIZE)?;
+        let pointer_offsets_json = StructViewerViewData::read_utf8_field_text(pointer_offsets_field);
+        let pointer_offsets = serde_json::from_str::<Vec<i64>>(&pointer_offsets_json).ok()?;
+        let pointer_size_text = StructViewerViewData::read_utf8_field_text(pointer_size_field);
+        let pointer_size = PointerScanPointerSize::from_str(&pointer_size_text).ok()?;
+        let pointer = Pointer::new_with_size(
+            Self::read_u64_field_value(pointer_offset_field)?,
+            pointer_offsets,
+            StructViewerViewData::read_utf8_field_text(pointer_module_field),
+            pointer_size,
+        );
+
+        Self::resolve_pointer_write_target(engine_execution_context, &pointer)
+    }
+
+    fn resolve_pointer_write_target(
+        engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        pointer: &Pointer,
+    ) -> Option<(u64, String)> {
+        let mut current_address = pointer.get_address();
+        let mut current_module_name = pointer.get_module_name().to_string();
+
+        for pointer_offset in pointer.get_offsets() {
+            let pointer_value = Self::read_pointer_value(engine_execution_context, current_address, &current_module_name, pointer.get_pointer_size())?;
+            current_address = Pointer::apply_pointer_offset(pointer_value, *pointer_offset)?;
+            current_module_name.clear();
+        }
+
+        Some((current_address, current_module_name))
+    }
+
+    fn read_pointer_value(
+        engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        address: u64,
+        module_name: &str,
+        pointer_size: PointerScanPointerSize,
+    ) -> Option<u64> {
+        let symbolic_struct_definition =
+            squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+                pointer_size.to_data_type_ref(),
+                ContainerType::None,
+            )]);
+        let memory_read_request = squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest {
+            address,
+            module_name: module_name.to_string(),
+            symbolic_struct_definition,
+            suppress_logging: true,
+        };
+        let (memory_read_response_sender, memory_read_response_receiver) = std::sync::mpsc::channel();
+        let memory_read_command = memory_read_request.to_engine_command();
+        let dispatch_result = match engine_execution_context.get_bindings().read() {
+            Ok(engine_bindings) => engine_bindings.dispatch_privileged_command(
+                memory_read_command,
+                Box::new(move |engine_response| {
+                    let conversion_result = squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse::from_engine_response(
+                        engine_response,
+                    )
+                    .map_err(|unexpected_response| format!("Unexpected response variant for Struct Viewer memory read request: {:?}", unexpected_response));
+                    let _ = memory_read_response_sender.send(conversion_result);
+                }),
+            ),
+            Err(error) => {
+                log::error!("Failed to acquire engine bindings lock for Struct Viewer memory read request: {}", error);
+                return None;
+            }
+        };
+
+        if let Err(error) = dispatch_result {
+            log::error!("Failed to dispatch Struct Viewer memory read request: {}", error);
+            return None;
+        }
+
+        let memory_read_response = match memory_read_response_receiver.recv_timeout(std::time::Duration::from_secs(2)) {
+            Ok(Ok(memory_read_response)) => memory_read_response,
+            Ok(Err(error)) => {
+                log::error!("Failed to convert Struct Viewer memory read response: {}", error);
+                return None;
+            }
+            Err(error) => {
+                log::error!("Timed out waiting for Struct Viewer memory read response: {}", error);
+                return None;
+            }
+        };
+
+        if !memory_read_response.success {
+            return None;
+        }
+
+        let data_value = memory_read_response
+            .valued_struct
+            .get_fields()
+            .first()
+            .and_then(|valued_struct_field: &ValuedStructField| valued_struct_field.get_data_value())?;
+
+        pointer_size.read_address_value(data_value)
+    }
+
+    fn read_u64_field_value(valued_struct_field: &ValuedStructField) -> Option<u64> {
+        let data_value = valued_struct_field.get_data_value()?;
+        let value_bytes = data_value.get_value_bytes();
+
+        match value_bytes.len() {
+            8 => <[u8; 8]>::try_from(value_bytes.as_slice())
+                .ok()
+                .map(u64::from_le_bytes),
+            4 => <[u8; 4]>::try_from(value_bytes.as_slice())
+                .ok()
+                .map(|value_bytes| u32::from_le_bytes(value_bytes) as u64),
+            _ => None,
+        }
+    }
+
+    fn resolve_symbolic_field_definition_byte_count(
+        engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
+        symbolic_field_definition: &SymbolicFieldDefinition,
+    ) -> Option<u64> {
+        let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
+            ContainerType::Pointer32 => 4,
+            ContainerType::Pointer64 => 8,
+            _ => engine_unprivileged_state
+                .get_default_value(symbolic_field_definition.get_data_type_ref())?
+                .get_size_in_bytes(),
+        };
+
+        Some(match symbolic_field_definition.get_container_type() {
+            ContainerType::None => unit_size_in_bytes,
+            ContainerType::Pointer32 => 4,
+            ContainerType::Pointer64 => 8,
+            ContainerType::Array => unit_size_in_bytes,
+            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length.max(1)),
+        })
+    }
+
+    fn focus_memory_viewer_for_address_range(
+        &self,
+        address: u64,
+        module_name: &str,
+        selection_byte_count: u64,
+    ) {
+        MemoryViewerViewData::request_focus_address_range(
+            self.memory_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            address,
+            module_name.to_string(),
+            selection_byte_count,
+        );
+
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(MemoryViewerView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(MemoryViewerView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!(
+                    "Failed to acquire docking manager while opening the memory viewer from the Struct Viewer: {}",
+                    error
+                );
+            }
         }
     }
 }
@@ -112,6 +347,22 @@ impl Widget for StructViewerView {
                                             is_selected,
                                             &mut frame_action,
                                             field_edit_value,
+                                            field_display_values,
+                                            None,
+                                            validation_data_type_ref.as_ref(),
+                                            ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                            value_splitter_x + BAR_THICKNESS,
+                                        ));
+                                    }
+                                    StructViewerFieldEditorKind::MemoryViewerButton => {
+                                        inner_ui.add(StructViewerEntryView::new(
+                                            self.app_context.clone(),
+                                            &field,
+                                            &field_presentation,
+                                            field_row_index,
+                                            is_selected,
+                                            &mut frame_action,
+                                            None,
                                             field_display_values,
                                             None,
                                             validation_data_type_ref.as_ref(),
@@ -229,6 +480,13 @@ impl Widget for StructViewerView {
                     if let Some(struct_field_modified_callback) = struct_viewer_view_data.struct_field_modified_callback.clone() {
                         struct_field_modified_callback(source_edited_field);
                     }
+                }
+            }
+            StructViewerFrameAction::OpenInMemoryViewer(field_name) => {
+                if let Some((address, module_name, selection_byte_count)) = self.resolve_memory_viewer_target_for_field(&field_name) {
+                    self.focus_memory_viewer_for_address_range(address, &module_name, selection_byte_count);
+                } else {
+                    log::warn!("Failed to resolve Struct Viewer memory viewer target for field: {}.", field_name);
                 }
             }
         }
