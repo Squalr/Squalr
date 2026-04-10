@@ -362,6 +362,10 @@ impl Widget for MemoryViewerView {
                     MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
                 }
 
+                if user_interface.input(|input_state| input_state.pointer.primary_released()) {
+                    MemoryViewerViewData::set_drag_selection_active(self.memory_viewer_view_data.clone(), false);
+                }
+
                 if user_interface.input(|input_state| input_state.pointer.any_pressed())
                     && user_interface
                         .input(|input_state| input_state.pointer.interact_pos())
@@ -370,6 +374,7 @@ impl Widget for MemoryViewerView {
                 {
                     MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), false);
                     MemoryViewerViewData::hide_context_menu(self.memory_viewer_view_data.clone());
+                    MemoryViewerViewData::set_drag_selection_active(self.memory_viewer_view_data.clone(), false);
                 }
 
                 if memory_viewer_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(Key::Backspace)) {
@@ -440,8 +445,8 @@ impl Widget for MemoryViewerView {
 
                         rows_scroll_area.show_rows(&mut content_user_interface, Self::ROW_HEIGHT, row_count, |user_interface, visible_row_range| {
                             let pointer_interaction_position = user_interface.input(|input_state| input_state.pointer.interact_pos());
-                            let is_primary_pointer_down = user_interface.input(|input_state| input_state.pointer.primary_down());
                             let is_shift_modifier_active = user_interface.input(|input_state| input_state.modifiers.shift);
+                            let is_drag_selection_active = MemoryViewerViewData::is_drag_selection_active(self.memory_viewer_view_data.clone());
                             let caret_is_visible = memory_viewer_has_keyboard_focus
                                 && ((user_interface.input(|input_state| input_state.time) / Self::HEX_CARET_BLINK_INTERVAL.as_secs_f64()).floor() as u64)
                                     .is_multiple_of(2);
@@ -473,6 +478,7 @@ impl Widget for MemoryViewerView {
 
                                 if row_response.clicked() {
                                     MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
+                                    MemoryViewerViewData::set_drag_selection_active(self.memory_viewer_view_data.clone(), false);
 
                                     if let Some(hovered_byte_address) = hovered_byte_address {
                                         if is_shift_modifier_active {
@@ -485,6 +491,7 @@ impl Widget for MemoryViewerView {
 
                                 if row_response.drag_started() {
                                     MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
+                                    MemoryViewerViewData::set_drag_selection_active(self.memory_viewer_view_data.clone(), true);
 
                                     if let Some(hovered_byte_address) = hovered_byte_address {
                                         if is_shift_modifier_active {
@@ -495,7 +502,7 @@ impl Widget for MemoryViewerView {
                                     }
                                 }
 
-                                if is_primary_pointer_down {
+                                if is_drag_selection_active {
                                     if let Some(pointer_byte_address) = pointer_byte_address.filter(|_| selected_address_bounds.is_some()) {
                                         MemoryViewerViewData::update_byte_selection(self.memory_viewer_view_data.clone(), pointer_byte_address);
                                     }

@@ -92,6 +92,7 @@ pub struct MemoryViewerViewData {
     pending_focus_request: Option<MemoryViewerFocusRequest>,
     pending_scroll_address: Option<u64>,
     selected_byte_range: Option<MemoryViewerSelectionRange>,
+    is_drag_selection_active: bool,
     hex_edit_state: Option<MemoryViewerHexEditState>,
     has_keyboard_focus: bool,
     context_menu_address: Option<u64>,
@@ -124,6 +125,7 @@ impl MemoryViewerViewData {
             pending_focus_request: None,
             pending_scroll_address: None,
             selected_byte_range: None,
+            is_drag_selection_active: false,
             hex_edit_state: None,
             has_keyboard_focus: false,
             context_menu_address: None,
@@ -328,6 +330,22 @@ impl MemoryViewerViewData {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer update byte selection") {
             memory_viewer_view_data.update_selection_internal(address);
         }
+    }
+
+    pub fn set_drag_selection_active(
+        memory_viewer_view_data: Dependency<Self>,
+        is_drag_selection_active: bool,
+    ) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer set drag selection active") {
+            memory_viewer_view_data.is_drag_selection_active = is_drag_selection_active;
+        }
+    }
+
+    pub fn is_drag_selection_active(memory_viewer_view_data: Dependency<Self>) -> bool {
+        memory_viewer_view_data
+            .read("Memory viewer is drag selection active")
+            .map(|memory_viewer_view_data| memory_viewer_view_data.is_drag_selection_active)
+            .unwrap_or(false)
     }
 
     pub fn move_cursor_horizontal(
@@ -642,6 +660,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.unreadable_page_base_addresses.clear();
             memory_viewer_view_data.pending_scroll_address = None;
             memory_viewer_view_data.selected_byte_range = None;
+            memory_viewer_view_data.is_drag_selection_active = false;
             memory_viewer_view_data.hex_edit_state = None;
             memory_viewer_view_data.has_keyboard_focus = false;
             memory_viewer_view_data.context_menu_address = None;
@@ -824,6 +843,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.current_page_index = bounded_page_index;
             memory_viewer_view_data.pending_scroll_address = None;
             memory_viewer_view_data.selected_byte_range = None;
+            memory_viewer_view_data.is_drag_selection_active = false;
             memory_viewer_view_data.hex_edit_state = None;
             memory_viewer_view_data.context_menu_address = None;
             memory_viewer_view_data.context_menu_position = None;
