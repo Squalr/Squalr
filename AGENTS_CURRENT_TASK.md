@@ -18,6 +18,7 @@ Our current task, from `README.md`, is:
 - need human verification: Project hierarchy now supports double-click name-to-rename and double-click value-to-edit with a centered `DataValueBox` takeover, explicit commit/cancel actions, and close-project cleanup for address/pointer items.
 - need human verification: Project hierarchy preview refresh now only requests visible/selected item previews, preserves cached preview text for off-screen rows, deduplicates duplicate address/pointer reads per refresh, and caps large fixed-array preview reads while still loading the full live value when entering value edit.
 - need human verification: `VirtualSnapshots` now exist as a session-owned materialized memory-view layer in `squalr-engine-session`, and the GUI project hierarchy preview path now uses one named virtual snapshot instead of list-command-coupled preview refresh.
+- need human verification: Added a dockable GUI `Memory Viewer` with results-style virtual-page navigation, sparse `??`-until-read hex/ASCII rendering, and visible-chunk refresh through a dedicated virtual snapshot.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -34,4 +35,6 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - GUI project hierarchy preview refresh now caches duplicate `(address, module, layout)` reads and duplicate pointer-chain evaluations within a refresh pass, and large fixed arrays are preview-read with a capped anonymous layout instead of the full array.
 - Added a first-pass `VirtualSnapshots` subsystem to `squalr-engine-session`; queries are declarative replacement sets, refreshes are async per snapshot, and results carry materialized address/pointer reads plus pointer-path metadata.
 - GUI project hierarchy now keeps project item metadata refresh on `ProjectItemsList`, but it skips list-driven previews and instead builds consumer-specific virtual snapshot queries for visible/selected project items, then overlays preview fields from the latest snapshot generation.
-- Entering project-item value edit now performs a dedicated full live memory read for the item’s configured type, so preview truncation does not leak into editing; the current takeover view remains the seam for a future dedicated byte/hex editor.
+- Entering project-item value edit now performs a dedicated full live memory read for the item's configured type, so preview truncation does not leak into editing; the current takeover view remains the seam for a future dedicated byte/hex editor.
+- Added `MemoryQueryRequest/Response` so GUI consumers can query routed virtual memory pages and modules for the currently opened process through the existing memory-view plugin path.
+- The new GUI memory viewer keeps page metadata separate from byte materialization: page lists come from `MemoryQueryRequest`, while visible hex rows issue aligned `u8[N]` virtual-snapshot chunk queries and cache materialized bytes sparsely per page.

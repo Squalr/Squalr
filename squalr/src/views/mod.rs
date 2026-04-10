@@ -1,5 +1,6 @@
 pub mod element_scanner;
 pub mod main_window;
+pub mod memory_viewer;
 pub mod output;
 pub mod plugins;
 pub mod pointer_scanner;

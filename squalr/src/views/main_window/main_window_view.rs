@@ -7,6 +7,7 @@ use crate::views::main_window::main_footer_view::MainFooterView;
 use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
 use crate::views::main_window::main_title_bar_view::MainTitleBarView;
 use crate::views::main_window::main_toolbar_view::MainToolbarView;
+use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
 use crate::views::plugins::{plugins_view::PluginsView, view_data::plugin_list_view_data::PluginListViewData};
 use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
@@ -77,6 +78,15 @@ impl MainWindowView {
             Rc::new("window_struct_viewer".to_string()),
         );
 
+        let app_context_for_memory_viewer = app_context.clone();
+        let memory_viewer_view = DockedWindowView::new(
+            app_context_for_memory_viewer.clone(),
+            dock_view_data.clone(),
+            MemoryViewerView::new(app_context_for_memory_viewer.clone()),
+            Rc::new("Memory Viewer".to_string()),
+            Rc::new(MemoryViewerView::WINDOW_ID.to_string()),
+        );
+
         let app_context_for_project_explorer = app_context.clone();
         let project_explorer_view = DockedWindowView::new(
             app_context_for_project_explorer.clone(),
@@ -126,6 +136,7 @@ impl MainWindowView {
             Box::new(output_view),
             Box::new(settings_view),
             Box::new(struct_viewer_view),
+            Box::new(memory_viewer_view),
             Box::new(project_explorer_view),
             Box::new(process_selector_view),
             Box::new(element_scanner_view),

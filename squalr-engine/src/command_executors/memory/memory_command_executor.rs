@@ -16,6 +16,9 @@ impl PrivilegedCommandExecutor for MemoryCommand {
             MemoryCommand::Freeze { memory_freeze_request } => memory_freeze_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),
+            MemoryCommand::Query { memory_query_request } => memory_query_request
+                .execute(engine_privileged_state)
+                .to_engine_response(),
             MemoryCommand::Write { memory_write_request } => memory_write_request
                 .execute(engine_privileged_state)
                 .to_engine_response(),

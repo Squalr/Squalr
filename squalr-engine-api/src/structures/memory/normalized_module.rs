@@ -9,6 +9,7 @@ pub enum ModuleAddressDisplay {
     AbsoluteAddress,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NormalizedModule {
     base_region: NormalizedRegion,
     module_name: String,
