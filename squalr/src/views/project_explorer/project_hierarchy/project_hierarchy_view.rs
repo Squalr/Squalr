@@ -20,7 +20,7 @@ use crate::{
     },
     views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
 };
-use eframe::egui::{vec2, Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget};
+use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -53,8 +53,8 @@ use squalr_engine_session::{
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 #[derive(Clone)]
@@ -129,7 +129,7 @@ impl ProjectHierarchyView {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyView;
-    use crossbeam_channel::{unbounded, Receiver};
+    use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -2383,11 +2383,7 @@ impl ProjectHierarchyView {
         let edited_name = String::from_utf8(data_value.get_value_bytes().clone()).ok()?;
         let edited_name = edited_name.trim();
 
-        if edited_name.is_empty() {
-            None
-        } else {
-            Some(edited_name.to_string())
-        }
+        if edited_name.is_empty() { None } else { Some(edited_name.to_string()) }
     }
 
     fn project_item_rename_text_storage_id(project_item_path: &Path) -> Id {

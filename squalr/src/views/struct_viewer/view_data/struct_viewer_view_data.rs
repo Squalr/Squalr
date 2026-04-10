@@ -5,7 +5,7 @@ use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
         data_types::{
-            built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64, u8::data_type_u8::DataTypeU8},
+            built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
             data_type_ref::DataTypeRef,
         },
         data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
@@ -268,9 +268,11 @@ impl StructViewerViewData {
                 .unwrap_or_else(|_| {
                     let data_type_ref = data_value.get_data_type_ref();
                     let default_format = engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref);
-                    vec![engine_unprivileged_state
-                        .anonymize_value(data_value, default_format)
-                        .unwrap_or_else(|_| AnonymousValueString::new(String::new(), default_format, ContainerType::None))]
+                    vec![
+                        engine_unprivileged_state
+                            .anonymize_value(data_value, default_format)
+                            .unwrap_or_else(|_| AnonymousValueString::new(String::new(), default_format, ContainerType::None)),
+                    ]
                 });
 
             field_display_values.insert(valued_struct_field.get_name().to_string(), display_values);
@@ -525,7 +527,7 @@ mod tests {
     use super::StructViewerViewData;
     use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
     use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind;
-    use crossbeam_channel::{unbounded, Receiver};
+    use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::structures::{
         data_types::built_in_types::{
             string::utf8::data_type_string_utf8::DataTypeStringUtf8, u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32,
@@ -627,8 +629,10 @@ mod tests {
 
     #[test]
     fn create_field_presentations_maps_live_value_field_to_value_editor() {
-        let valued_struct = ValuedStruct::new_anonymous(vec![DataTypeStringUtf8::get_value_from_primitive_string("1234")
-            .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true)]);
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("1234")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
+        ]);
 
         let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
         let field_presentation = field_presentations
@@ -716,30 +720,32 @@ mod tests {
 
     #[test]
     fn create_presented_struct_adds_virtual_container_rows() {
-        let valued_struct = ValuedStruct::new_anonymous(vec![DataTypeStringUtf8::get_value_from_primitive_string("u16[4]")
-            .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false)]);
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("u16[4]")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
+        ]);
 
         let presented_struct = StructViewerViewData::create_presented_struct(&valued_struct);
 
-        assert!(presented_struct
-            .get_field(StructViewerViewData::VIRTUAL_FIELD_CONTAINER_TYPE)
-            .is_some());
-        assert!(presented_struct
-            .get_field(StructViewerViewData::VIRTUAL_FIELD_ARRAY_SIZE)
-            .is_some());
+        assert!(
+            presented_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_CONTAINER_TYPE)
+                .is_some()
+        );
+        assert!(
+            presented_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_ARRAY_SIZE)
+                .is_some()
+        );
     }
 
     #[test]
     fn resolve_source_field_edit_maps_virtual_container_row_back_to_symbolic_definition() {
         let mut struct_viewer_view_data = StructViewerViewData::new();
-        struct_viewer_view_data.source_struct_under_view =
-            Arc::new(Some(ValuedStruct::new_anonymous(vec![DataTypeStringUtf8::get_value_from_primitive_string(
-                "u16",
-            )
-            .to_named_valued_struct_field(
-                ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(),
-                false,
-            )])));
+        struct_viewer_view_data.source_struct_under_view = Arc::new(Some(ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("u16")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
+        ])));
 
         let edited_virtual_field = DataTypeStringUtf8::get_value_from_primitive_string(StructViewerContainerMode::Array.label())
             .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_CONTAINER_TYPE.to_string(), false);

@@ -18,8 +18,8 @@ use crate::{
         struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{vec2, Align2, Response, Sense, Ui, Widget};
-use epaint::{pos2, CornerRadius, Rect, Stroke, StrokeKind};
+use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
+use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
 use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_types::data_type_ref::DataTypeRef,

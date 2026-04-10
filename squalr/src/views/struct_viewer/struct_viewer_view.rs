@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
-use epaint::{pos2, Rect};
+use epaint::{Rect, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
