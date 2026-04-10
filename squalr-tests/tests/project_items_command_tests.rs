@@ -176,7 +176,9 @@ fn project_items_list_request_dispatches_unprivileged_command_and_invokes_typed_
 
     let execution_context = shared_execution_context();
 
-    let project_items_list_request = ProjectItemsListRequest {};
+    let project_items_list_request = ProjectItemsListRequest {
+        preview_project_item_paths: None,
+    };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
@@ -208,7 +210,9 @@ fn project_items_list_request_does_not_invoke_callback_when_response_variant_is_
 
     let execution_context = shared_execution_context();
 
-    let project_items_list_request = ProjectItemsListRequest {};
+    let project_items_list_request = ProjectItemsListRequest {
+        preview_project_item_paths: None,
+    };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();
 
@@ -372,6 +376,8 @@ fn project_items_create_request_dispatches_unprivileged_command_and_invokes_type
         project_item_name: "New Folder".to_string(),
         project_item_type: "directory".to_string(),
         pointer: None,
+        address: None,
+        module_name: None,
         data_type_id: None,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));

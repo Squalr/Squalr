@@ -5,4 +5,5 @@ pub enum StructViewerFrameAction {
     None,
     SelectField(String),
     EditValue(ValuedStructField),
+    OpenInMemoryViewer(String),
 }

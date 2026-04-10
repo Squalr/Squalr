@@ -99,14 +99,14 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         .ui(user_interface);
 
         // Handle clicks and double-clicks on the overall area.
-        if response.double_clicked() {
+        if !self.is_renaming && response.double_clicked() {
             *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
                 self.project_info.get_project_directory().unwrap_or_default(),
                 self.project_info.get_name().to_string(),
             );
-        } else if response.clicked() {
+        } else if !self.is_renaming && response.clicked() {
             *self.project_selector_frame_action = ProjectSelectorFrameAction::SelectProject(self.project_info.get_project_file_path().to_path_buf());
-        } else if response.secondary_clicked() {
+        } else if !self.is_renaming && response.secondary_clicked() {
             // Only allow overriding other context menu actions.
             match self.project_selector_frame_action {
                 ProjectSelectorFrameAction::None | ProjectSelectorFrameAction::HideContextMenu() | ProjectSelectorFrameAction::SelectProject(_) => {

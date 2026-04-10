@@ -1104,6 +1104,8 @@ impl PointerScannerViewData {
             project_item_name,
             project_item_type: String::from("pointer"),
             pointer: Some(pointer),
+            address: None,
+            module_name: None,
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
         })
     }
@@ -1128,6 +1130,8 @@ impl PointerScannerViewData {
             project_item_name,
             project_item_type: String::from("pointer"),
             pointer: Some(pointer),
+            address: None,
+            module_name: None,
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
         })
     }

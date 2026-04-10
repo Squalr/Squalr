@@ -1,5 +1,6 @@
 pub mod element_scanner;
 pub mod entry_row_viewport;
+pub mod memory_viewer;
 pub mod output;
 pub mod plugins;
 pub mod process_selector;

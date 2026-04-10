@@ -3,10 +3,14 @@ use crate::commands::project_items::project_items_response::ProjectItemsResponse
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::{project_items::list::project_items_list_response::ProjectItemsListResponse, unprivileged_command_request::UnprivilegedCommandRequest};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use structopt::StructOpt;
 
-#[derive(Clone, StructOpt, Debug, Serialize, Deserialize)]
-pub struct ProjectItemsListRequest {}
+#[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
+pub struct ProjectItemsListRequest {
+    #[structopt(skip)]
+    pub preview_project_item_paths: Option<Vec<PathBuf>>,
+}
 
 impl UnprivilegedCommandRequest for ProjectItemsListRequest {
     type ResponseType = ProjectItemsListResponse;

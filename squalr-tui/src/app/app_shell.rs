@@ -138,7 +138,7 @@ impl AppShell {
     }
 
     fn draw(
-        &self,
+        &mut self,
         frame: &mut ratatui::Frame<'_>,
         engine_mode: EngineMode,
     ) {
@@ -172,7 +172,7 @@ impl AppShell {
     }
 
     fn footer_navigation_controls_line() -> &'static str {
-        "[NAV] F1 Project | F2 Scanner | F3 Settings | F4 Process | F5 Plugins | Tab/Shift+Tab focus | Ctrl+Q/C exit."
+        "[NAV] F1 Project | F2 Scanner | F3 Settings | F4 Process | F5 Plugins | F6 Memory | Tab/Shift+Tab focus | Ctrl+Q/C exit."
     }
 
     fn session_opened_process_metadata_line(&self) -> String {
@@ -230,7 +230,7 @@ impl AppShell {
             {
                 "Process Selector -> Output"
             } else {
-                "Project Explorer -> Output"
+                "Project Explorer -> Struct Viewer -> Output"
             }
         } else {
             active_workspace_page.focus_cycle_hint()
@@ -422,5 +422,19 @@ mod tests {
 
         assert!(was_consumed);
         assert_eq!(app_shell.app_state.active_workspace_page(), TuiWorkspacePage::PluginsWorkspace);
+    }
+
+    #[test]
+    fn f6_switches_to_memory_workspace() {
+        let mut app_shell = AppShell::new(Duration::from_millis(100));
+        app_shell
+            .app_state
+            .set_active_workspace_page(TuiWorkspacePage::ScannerWorkspace);
+        let f6_key_event = KeyEvent::new(KeyCode::F(6), KeyModifiers::NONE);
+
+        let was_consumed = app_shell.handle_global_key_event(f6_key_event);
+
+        assert!(was_consumed);
+        assert_eq!(app_shell.app_state.active_workspace_page(), TuiWorkspacePage::MemoryWorkspace);
     }
 }

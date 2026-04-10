@@ -1,3 +1,4 @@
+use crate::command_executors::project_items::project_item_sort_order::remove_project_items_from_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_response::ProjectItemsDeleteResponse;
@@ -60,6 +61,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
 
         let mut deleted_project_item_count = 0_u64;
         let mut operation_success = true;
+        let mut deleted_project_item_paths: Vec<PathBuf> = Vec::new();
 
         for project_item_path in &self.project_item_paths {
             let resolved_project_item_path = resolve_project_item_path(&project_directory_path, project_item_path);
@@ -78,6 +80,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
                 match fs::remove_file(&resolved_project_item_path) {
                     Ok(()) => {
                         deleted_project_item_count += 1;
+                        deleted_project_item_paths.push(resolved_project_item_path.clone());
                     }
                     Err(error) => {
                         log::error!("Failed to delete project item file {:?}: {}", resolved_project_item_path, error);
@@ -88,6 +91,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
                 match fs::remove_dir_all(&resolved_project_item_path) {
                     Ok(()) => {
                         deleted_project_item_count += 1;
+                        deleted_project_item_paths.push(resolved_project_item_path.clone());
                     }
                     Err(error) => {
                         log::error!("Failed to delete project item directory {:?}: {}", resolved_project_item_path, error);
@@ -102,6 +106,25 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsDeleteRequest {
                 success: false,
                 deleted_project_item_count,
             };
+        }
+
+        if deleted_project_item_count > 0 {
+            let Some(reloaded_opened_project) = opened_project_guard.as_mut() else {
+                return ProjectItemsDeleteResponse {
+                    success: false,
+                    deleted_project_item_count,
+                };
+            };
+
+            remove_project_items_from_sort_order(reloaded_opened_project, &project_directory_path, &deleted_project_item_paths);
+
+            if let Err(error) = reloaded_opened_project.save_to_path(&project_directory_path, false) {
+                log::error!("Failed to save project after project item delete operation: {}", error);
+                return ProjectItemsDeleteResponse {
+                    success: false,
+                    deleted_project_item_count,
+                };
+            }
         }
 
         if deleted_project_item_count > 0 {

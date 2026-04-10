@@ -1,3 +1,4 @@
+use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
@@ -15,7 +16,10 @@ pub struct ProjectItemHierarchyGraph {
 }
 
 /// Builds hierarchy graph maps for project-item reducers.
-pub fn build_project_item_hierarchy_graph(opened_project_items: Vec<(ProjectItemRef, ProjectItem)>) -> ProjectItemHierarchyGraph {
+pub fn build_project_item_hierarchy_graph(
+    opened_project_info: Option<&ProjectInfo>,
+    opened_project_items: Vec<(ProjectItemRef, ProjectItem)>,
+) -> ProjectItemHierarchyGraph {
     let opened_project_item_map: HashMap<PathBuf, ProjectItem> = opened_project_items
         .into_iter()
         .map(|(project_item_ref, project_item)| (project_item_ref.get_project_item_path().clone(), project_item))
@@ -42,9 +46,10 @@ pub fn build_project_item_hierarchy_graph(opened_project_items: Vec<(ProjectItem
         }
     }
 
-    root_project_item_paths.sort();
+    let sort_order_lookup = build_sort_order_lookup(opened_project_info);
+    root_project_item_paths.sort_by(|left_path, right_path| compare_paths(left_path, right_path, &sort_order_lookup));
     for child_paths in child_paths_by_parent_path.values_mut() {
-        child_paths.sort();
+        child_paths.sort_by(|left_path, right_path| compare_paths(left_path, right_path, &sort_order_lookup));
     }
 
     let valid_directory_paths: HashSet<PathBuf> = opened_project_item_map
@@ -65,6 +70,38 @@ pub fn build_project_item_hierarchy_graph(opened_project_items: Vec<(ProjectItem
         valid_project_item_paths,
         valid_directory_paths,
     }
+}
+
+fn build_sort_order_lookup(opened_project_info: Option<&ProjectInfo>) -> HashMap<PathBuf, usize> {
+    let Some(opened_project_info) = opened_project_info else {
+        return HashMap::new();
+    };
+    let Some(project_directory_path) = opened_project_info.get_project_directory() else {
+        return HashMap::new();
+    };
+
+    opened_project_info
+        .get_project_manifest()
+        .get_project_item_sort_order()
+        .iter()
+        .enumerate()
+        .map(|(sort_order_position, relative_project_item_path)| (project_directory_path.join(relative_project_item_path), sort_order_position))
+        .collect()
+}
+
+fn compare_paths(
+    left_path: &PathBuf,
+    right_path: &PathBuf,
+    sort_order_lookup: &HashMap<PathBuf, usize>,
+) -> std::cmp::Ordering {
+    let left_sort_order_position = sort_order_lookup.get(left_path).copied().unwrap_or(usize::MAX);
+    let right_sort_order_position = sort_order_lookup.get(right_path).copied().unwrap_or(usize::MAX);
+
+    if left_sort_order_position != right_sort_order_position {
+        return left_sort_order_position.cmp(&right_sort_order_position);
+    }
+
+    left_path.cmp(right_path)
 }
 
 /// Returns true when a project item is a directory node.

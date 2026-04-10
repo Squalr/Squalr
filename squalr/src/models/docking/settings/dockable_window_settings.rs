@@ -2,6 +2,7 @@ use crate::models::docking::builder::dock_builder::DockBuilder;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
+use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
 use crate::views::plugins::plugins_view::PluginsView;
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
@@ -56,6 +57,7 @@ impl DockSettingsConfig {
                 DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
                     .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false))
                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
             )
@@ -76,6 +78,7 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
                             .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false))
                             .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
                     ),
@@ -89,6 +92,7 @@ impl DockSettingsConfig {
 
     fn ensure_required_windows_present(&mut self) {
         Self::ensure_hidden_tab_window(&mut self.dock_root, SettingsView::WINDOW_ID, PluginsView::WINDOW_ID);
+        Self::ensure_hidden_tab_window(&mut self.dock_root, SettingsView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
     }
 
     fn ensure_hidden_tab_window(

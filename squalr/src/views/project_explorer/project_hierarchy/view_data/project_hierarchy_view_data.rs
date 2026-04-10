@@ -55,6 +55,7 @@ pub struct ProjectHierarchyViewData {
     pub menu_target: Option<ProjectHierarchyMenuTarget>,
     pub menu_position: Option<Pos2>,
     pub dragged_project_item_paths: Option<Vec<PathBuf>>,
+    pub visible_preview_project_item_paths: Vec<PathBuf>,
     pub take_over_state: ProjectHierarchyTakeOverState,
     pub pending_operation: ProjectHierarchyPendingOperation,
     pub project_read_interval_ms: u64,
@@ -77,6 +78,7 @@ impl ProjectHierarchyViewData {
             menu_target: None,
             menu_position: None,
             dragged_project_item_paths: None,
+            visible_preview_project_item_paths: Vec::new(),
             take_over_state: ProjectHierarchyTakeOverState::None,
             pending_operation: ProjectHierarchyPendingOperation::None,
             project_read_interval_ms: ScanSettings::default().project_read_interval_ms,
@@ -90,15 +92,21 @@ impl ProjectHierarchyViewData {
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
     ) {
-        if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Project hierarchy view data refresh request") {
-            if project_hierarchy_view_data.pending_operation == ProjectHierarchyPendingOperation::Refreshing {
-                return;
-            }
+        let requested_preview_project_item_paths =
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Project hierarchy view data refresh request") {
+                if project_hierarchy_view_data.pending_operation == ProjectHierarchyPendingOperation::Refreshing {
+                    return;
+                }
 
-            project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Refreshing;
-        }
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Refreshing;
 
-        let project_items_list_request = ProjectItemsListRequest {};
+                Some(Vec::new())
+            } else {
+                None
+            };
+        let project_items_list_request = ProjectItemsListRequest {
+            preview_project_item_paths: requested_preview_project_item_paths.clone(),
+        };
 
         project_items_list_request.send(&app_context.engine_unprivileged_state, move |project_items_list_response| {
             let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy view data refresh response") {
@@ -108,7 +116,11 @@ impl ProjectHierarchyViewData {
 
             project_hierarchy_view_data.opened_project_info = project_items_list_response.opened_project_info;
             project_hierarchy_view_data.opened_project_root = project_items_list_response.opened_project_root;
-            project_hierarchy_view_data.project_items = project_items_list_response.opened_project_items;
+            project_hierarchy_view_data.project_items = Self::merge_project_item_preview_fields(
+                &project_hierarchy_view_data.project_items,
+                project_items_list_response.opened_project_items,
+                requested_preview_project_item_paths.as_deref(),
+            );
 
             if let Some(project_root_directory_path) = Self::resolve_project_root_path(
                 project_hierarchy_view_data.opened_project_info.as_ref(),
@@ -126,6 +138,15 @@ impl ProjectHierarchyViewData {
             );
 
             project_hierarchy_view_data.retain_valid_selection();
+            project_hierarchy_view_data.retain_valid_take_over_state();
+            let valid_project_item_paths = project_hierarchy_view_data
+                .project_items
+                .iter()
+                .map(|(project_item_ref, _)| project_item_ref.get_project_item_path().clone())
+                .collect::<HashSet<PathBuf>>();
+            project_hierarchy_view_data
+                .visible_preview_project_item_paths
+                .retain(|project_item_path| valid_project_item_paths.contains(project_item_path));
 
             if let Some(dragged_project_item_paths) = &project_hierarchy_view_data.dragged_project_item_paths {
                 let visible_project_item_paths: HashSet<PathBuf> = project_hierarchy_view_data
@@ -144,6 +165,24 @@ impl ProjectHierarchyViewData {
 
             project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
         });
+    }
+
+    pub fn set_visible_preview_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        visible_preview_project_item_paths: Vec<PathBuf>,
+    ) -> bool {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy set visible preview project item paths") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return false,
+        };
+
+        if project_hierarchy_view_data.visible_preview_project_item_paths == visible_preview_project_item_paths {
+            return false;
+        }
+
+        project_hierarchy_view_data.visible_preview_project_item_paths = visible_preview_project_item_paths;
+
+        true
     }
 
     pub fn select_project_item(
@@ -219,6 +258,149 @@ impl ProjectHierarchyViewData {
         self.selected_project_item_path = Some(project_item_path.clone());
         self.selection_anchor_project_item_path = Some(project_item_path);
         self.retain_valid_selection();
+    }
+
+    fn retain_valid_take_over_state(&mut self) {
+        let visible_project_item_paths: HashSet<PathBuf> = self
+            .project_items
+            .iter()
+            .map(|(project_item_ref, _)| project_item_ref.get_project_item_path().clone())
+            .collect();
+
+        match &mut self.take_over_state {
+            ProjectHierarchyTakeOverState::None => {}
+            ProjectHierarchyTakeOverState::RenameProjectItem { project_item_path, .. }
+            | ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => {
+                if !visible_project_item_paths.contains(project_item_path) {
+                    self.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
+            ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
+                project_item_paths.retain(|project_item_path| visible_project_item_paths.contains(project_item_path));
+
+                if project_item_paths.is_empty() {
+                    self.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
+        }
+    }
+
+    pub fn collect_requested_preview_project_item_paths(&self) -> Vec<PathBuf> {
+        let mut requested_preview_project_item_paths = self.visible_preview_project_item_paths.clone();
+
+        if let Some(selected_project_item_path) = self.selected_project_item_path.as_ref() {
+            requested_preview_project_item_paths.push(selected_project_item_path.clone());
+        }
+
+        if let ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } = &self.take_over_state {
+            requested_preview_project_item_paths.push(project_item_path.clone());
+        }
+
+        requested_preview_project_item_paths.sort();
+        requested_preview_project_item_paths.dedup();
+
+        requested_preview_project_item_paths
+    }
+
+    pub fn set_project_item_preview_fields(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        preview_fields_by_project_item_path: &HashMap<PathBuf, (String, String)>,
+    ) -> bool {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy set project item preview fields") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return false,
+        };
+        let mut did_change = false;
+
+        for (project_item_ref, project_item) in &mut project_hierarchy_view_data.project_items {
+            let Some((preview_value, preview_path)) = preview_fields_by_project_item_path.get(project_item_ref.get_project_item_path()) else {
+                continue;
+            };
+            let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+            if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+                let mut comparison_project_item = project_item.clone();
+                let existing_preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut comparison_project_item);
+
+                if existing_preview_value != *preview_value {
+                    ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, preview_value);
+                    did_change = true;
+                }
+            } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+                let existing_preview_value = ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item);
+                let existing_preview_path = ProjectItemTypePointer::get_field_evaluated_pointer_path(project_item);
+
+                if existing_preview_value != *preview_value {
+                    ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, preview_value);
+                    did_change = true;
+                }
+
+                if existing_preview_path != *preview_path {
+                    ProjectItemTypePointer::set_field_evaluated_pointer_path(project_item, preview_path);
+                    did_change = true;
+                }
+            }
+        }
+
+        if did_change {
+            project_hierarchy_view_data.tree_entries = Self::build_tree_entries(
+                project_hierarchy_view_data.opened_project_info.as_ref(),
+                &project_hierarchy_view_data.project_items,
+                &project_hierarchy_view_data.expanded_directory_paths,
+            );
+        }
+
+        did_change
+    }
+
+    fn merge_project_item_preview_fields(
+        previous_project_items: &[(ProjectItemRef, ProjectItem)],
+        next_project_items: Vec<(ProjectItemRef, ProjectItem)>,
+        refreshed_project_item_paths: Option<&[PathBuf]>,
+    ) -> Vec<(ProjectItemRef, ProjectItem)> {
+        let Some(refreshed_project_item_paths) = refreshed_project_item_paths else {
+            return next_project_items;
+        };
+        let refreshed_project_item_path_set: HashSet<&PathBuf> = refreshed_project_item_paths.iter().collect();
+        let previous_project_item_map: HashMap<&PathBuf, &ProjectItem> = previous_project_items
+            .iter()
+            .map(|(project_item_ref, project_item)| (project_item_ref.get_project_item_path(), project_item))
+            .collect();
+
+        next_project_items
+            .into_iter()
+            .map(|(project_item_ref, mut project_item)| {
+                let project_item_path = project_item_ref.get_project_item_path();
+
+                if !refreshed_project_item_path_set.contains(project_item_path) {
+                    if let Some(previous_project_item) = previous_project_item_map.get(project_item_path) {
+                        Self::copy_project_item_preview_fields(previous_project_item, &mut project_item);
+                    }
+                }
+
+                (project_item_ref, project_item)
+            })
+            .collect()
+    }
+
+    fn copy_project_item_preview_fields(
+        source_project_item: &ProjectItem,
+        target_project_item: &mut ProjectItem,
+    ) {
+        let project_item_type_id = target_project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut source_project_item = source_project_item.clone();
+            let preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut source_project_item);
+
+            ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            let preview_value = ProjectItemTypePointer::get_field_freeze_data_value_interpreter(source_project_item);
+            let preview_path = ProjectItemTypePointer::get_field_evaluated_pointer_path(source_project_item);
+
+            ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+            ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
+        }
     }
 
     pub fn get_selected_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
@@ -320,6 +502,118 @@ impl ProjectHierarchyViewData {
         }
     }
 
+    pub fn request_rename_for_selected_project_item(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
+        let selected_project_item_path = project_hierarchy_view_data
+            .read("Project hierarchy selected item path for rename request")
+            .and_then(|project_hierarchy_view_data| project_hierarchy_view_data.selected_project_item_path.clone());
+
+        let Some(selected_project_item_path) = selected_project_item_path else {
+            return;
+        };
+
+        Self::request_rename_for_project_item(project_hierarchy_view_data, selected_project_item_path);
+    }
+
+    pub fn request_rename_for_project_item(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_path: PathBuf,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy request selected item rename") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        if project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
+            return;
+        }
+
+        let Some((_, selected_project_item)) = project_hierarchy_view_data
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
+        else {
+            return;
+        };
+        let selected_project_item_type_id = selected_project_item
+            .get_item_type()
+            .get_project_item_type_id()
+            .to_string();
+        let Some(project_root_path) = Self::resolve_project_root_path(
+            project_hierarchy_view_data.opened_project_info.as_ref(),
+            &project_hierarchy_view_data.project_items,
+        ) else {
+            return;
+        };
+
+        if project_item_path == project_root_path {
+            return;
+        }
+
+        project_hierarchy_view_data.menu_target = None;
+        project_hierarchy_view_data.menu_position = None;
+        project_hierarchy_view_data.selected_project_item_paths.clear();
+        project_hierarchy_view_data
+            .selected_project_item_paths
+            .insert(project_item_path.clone());
+        project_hierarchy_view_data.selection_anchor_project_item_path = Some(project_item_path.clone());
+        project_hierarchy_view_data.selected_project_item_path = Some(project_item_path.clone());
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::RenameProjectItem {
+            project_item_path,
+            project_item_type_id: selected_project_item_type_id,
+        };
+    }
+
+    pub fn request_value_edit_for_selected_project_item(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
+        let selected_project_item_path = project_hierarchy_view_data
+            .read("Project hierarchy selected item path for value edit request")
+            .and_then(|project_hierarchy_view_data| project_hierarchy_view_data.selected_project_item_path.clone());
+
+        let Some(selected_project_item_path) = selected_project_item_path else {
+            return;
+        };
+
+        Self::request_value_edit_for_project_item(project_hierarchy_view_data, selected_project_item_path);
+    }
+
+    pub fn request_value_edit_for_project_item(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_path: PathBuf,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy request value edit") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        if project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
+            return;
+        }
+
+        let is_editable_value_project_item = project_hierarchy_view_data
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
+            .map(|(_, project_item)| {
+                let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+            })
+            .unwrap_or(false);
+
+        if !is_editable_value_project_item {
+            return;
+        }
+
+        project_hierarchy_view_data.menu_target = None;
+        project_hierarchy_view_data.menu_position = None;
+        project_hierarchy_view_data.selected_project_item_paths.clear();
+        project_hierarchy_view_data
+            .selected_project_item_paths
+            .insert(project_item_path.clone());
+        project_hierarchy_view_data.selection_anchor_project_item_path = Some(project_item_path.clone());
+        project_hierarchy_view_data.selected_project_item_path = Some(project_item_path.clone());
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path };
+    }
+
     pub fn request_delete_confirmation(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         project_item_paths: Vec<PathBuf>,
@@ -350,6 +644,59 @@ impl ProjectHierarchyViewData {
         };
 
         project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+    }
+
+    pub fn finish_project_item_rename(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        previous_project_item_path: &Path,
+        renamed_project_item_path: &Path,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy finish project item rename") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+
+        if project_hierarchy_view_data
+            .selected_project_item_path
+            .as_deref()
+            == Some(previous_project_item_path)
+        {
+            project_hierarchy_view_data.selected_project_item_path = Some(renamed_project_item_path.to_path_buf());
+        }
+
+        if project_hierarchy_view_data
+            .selection_anchor_project_item_path
+            .as_deref()
+            == Some(previous_project_item_path)
+        {
+            project_hierarchy_view_data.selection_anchor_project_item_path = Some(renamed_project_item_path.to_path_buf());
+        }
+
+        if project_hierarchy_view_data
+            .selected_project_item_paths
+            .remove(previous_project_item_path)
+        {
+            project_hierarchy_view_data
+                .selected_project_item_paths
+                .insert(renamed_project_item_path.to_path_buf());
+        }
+
+        project_hierarchy_view_data.expanded_directory_paths = project_hierarchy_view_data
+            .expanded_directory_paths
+            .iter()
+            .map(|expanded_directory_path| {
+                Self::replace_project_item_path_prefix(expanded_directory_path, previous_project_item_path, renamed_project_item_path)
+            })
+            .collect();
+
+        if let Some(dragged_project_item_paths) = project_hierarchy_view_data.dragged_project_item_paths.as_mut() {
+            for dragged_project_item_path in dragged_project_item_paths.iter_mut() {
+                *dragged_project_item_path =
+                    Self::replace_project_item_path_prefix(dragged_project_item_path, previous_project_item_path, renamed_project_item_path);
+            }
+        }
     }
 
     pub fn begin_reorder_drag(
@@ -1123,6 +1470,8 @@ impl ProjectHierarchyViewData {
                 project_item_name: Self::build_unique_directory_name(project_items, &parent_directory_path),
                 project_item_type: ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID.to_string(),
                 pointer: None,
+                address: None,
+                module_name: None,
                 data_type_id: None,
             },
             ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
@@ -1130,6 +1479,8 @@ impl ProjectHierarchyViewData {
                 project_item_name: ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME.to_string(),
                 project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
                 pointer: None,
+                address: None,
+                module_name: None,
                 data_type_id: Some(String::from("u8")),
             },
             ProjectHierarchyCreateItemKind::Pointer => ProjectItemsCreateRequest {
@@ -1137,6 +1488,8 @@ impl ProjectHierarchyViewData {
                 project_item_name: ProjectItemTypePointer::DEFAULT_PROJECT_ITEM_NAME.to_string(),
                 project_item_type: ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID.to_string(),
                 pointer: Some(Pointer::new(0, Vec::new(), String::new())),
+                address: None,
+                module_name: None,
                 data_type_id: Some(String::from("u8")),
             },
         }
@@ -1264,6 +1617,22 @@ impl ProjectHierarchyViewData {
             .iter()
             .map(|tree_entry| tree_entry.project_item_path.clone())
             .collect()
+    }
+
+    fn replace_project_item_path_prefix(
+        project_item_path: &Path,
+        previous_project_item_path: &Path,
+        renamed_project_item_path: &Path,
+    ) -> PathBuf {
+        if !project_item_path.starts_with(previous_project_item_path) {
+            return project_item_path.to_path_buf();
+        }
+
+        let renamed_child_suffix = project_item_path
+            .strip_prefix(previous_project_item_path)
+            .unwrap_or_else(|_| Path::new(""));
+
+        renamed_project_item_path.join(renamed_child_suffix)
     }
 }
 
@@ -1641,6 +2010,140 @@ mod tests {
         let dragged_project_item_paths = project_hierarchy_view_data.collect_dragged_project_item_paths(&second_child_path);
 
         assert_eq!(dragged_project_item_paths, vec![second_child_path]);
+    }
+
+    #[test]
+    fn finish_project_item_rename_updates_selected_and_expanded_paths() {
+        let dependency_container = DependencyContainer::new();
+        let previous_directory_path = PathBuf::from("C:/Projects/TestProject/project_items/Cheats");
+        let renamed_directory_path = PathBuf::from("C:/Projects/TestProject/project_items/Player Cheats");
+        let nested_previous_path = previous_directory_path.join("health.json");
+        let nested_renamed_path = renamed_directory_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::RenameProjectItem {
+            project_item_path: previous_directory_path.clone(),
+            project_item_type_id: ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID.to_string(),
+        };
+        project_hierarchy_view_data.selected_project_item_path = Some(previous_directory_path.clone());
+        project_hierarchy_view_data.selection_anchor_project_item_path = Some(previous_directory_path.clone());
+        project_hierarchy_view_data
+            .selected_project_item_paths
+            .insert(previous_directory_path.clone());
+        project_hierarchy_view_data
+            .expanded_directory_paths
+            .insert(previous_directory_path.clone());
+        project_hierarchy_view_data
+            .expanded_directory_paths
+            .insert(nested_previous_path.clone());
+        project_hierarchy_view_data.dragged_project_item_paths = Some(vec![previous_directory_path.clone(), nested_previous_path.clone()]);
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        ProjectHierarchyViewData::finish_project_item_rename(project_hierarchy_view_data.clone(), &previous_directory_path, &renamed_directory_path);
+
+        let project_hierarchy_view_data = project_hierarchy_view_data
+            .read("Project hierarchy finish project item rename test")
+            .expect("Expected project hierarchy view data after rename.");
+
+        assert_eq!(project_hierarchy_view_data.selected_project_item_path.as_ref(), Some(&renamed_directory_path));
+        assert_eq!(
+            project_hierarchy_view_data
+                .selection_anchor_project_item_path
+                .as_ref(),
+            Some(&renamed_directory_path)
+        );
+        assert!(
+            project_hierarchy_view_data
+                .selected_project_item_paths
+                .contains(&renamed_directory_path)
+        );
+        assert!(
+            !project_hierarchy_view_data
+                .selected_project_item_paths
+                .contains(&previous_directory_path)
+        );
+        assert!(
+            project_hierarchy_view_data
+                .expanded_directory_paths
+                .contains(&renamed_directory_path)
+        );
+        assert!(
+            project_hierarchy_view_data
+                .expanded_directory_paths
+                .contains(&nested_renamed_path)
+        );
+        assert_eq!(
+            project_hierarchy_view_data.dragged_project_item_paths,
+            Some(vec![renamed_directory_path.clone(), nested_renamed_path])
+        );
+        assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
+    }
+
+    #[test]
+    fn request_value_edit_for_selected_project_item_enters_takeover_for_address() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_project_item_path = hidden_project_root_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&hidden_project_root_path),
+            (
+                ProjectItemRef::new(child_project_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+        project_hierarchy_view_data.selected_project_item_path = Some(child_project_item_path.clone());
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        ProjectHierarchyViewData::request_value_edit_for_selected_project_item(project_hierarchy_view_data.clone());
+
+        let project_hierarchy_view_data = project_hierarchy_view_data
+            .read("Project hierarchy request value edit address test")
+            .expect("Expected project hierarchy view data after requesting value edit.");
+
+        assert_eq!(project_hierarchy_view_data.selected_project_item_path.as_ref(), Some(&child_project_item_path));
+        assert!(matches!(
+            &project_hierarchy_view_data.take_over_state,
+            ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } if project_item_path == &child_project_item_path
+        ));
+    }
+
+    #[test]
+    fn request_value_edit_for_selected_project_item_ignores_directory() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_directory_path = hidden_project_root_path.join("Folder");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&hidden_project_root_path),
+            create_directory_project_item(&child_directory_path),
+        ];
+        project_hierarchy_view_data.selected_project_item_path = Some(child_directory_path);
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        ProjectHierarchyViewData::request_value_edit_for_selected_project_item(project_hierarchy_view_data.clone());
+
+        let project_hierarchy_view_data = project_hierarchy_view_data
+            .read("Project hierarchy request value edit directory test")
+            .expect("Expected project hierarchy view data after requesting value edit.");
+
+        assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
+    }
+
+    #[test]
+    fn retain_valid_take_over_state_clears_missing_value_edit_takeover() {
+        let missing_project_item_path = PathBuf::from("C:/Projects/TestProject/project_items/health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::EditProjectItemValue {
+            project_item_path: missing_project_item_path,
+        };
+
+        project_hierarchy_view_data.retain_valid_take_over_state();
+
+        assert!(matches!(project_hierarchy_view_data.take_over_state, ProjectHierarchyTakeOverState::None));
     }
 
     #[test]

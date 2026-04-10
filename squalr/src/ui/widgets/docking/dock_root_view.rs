@@ -17,6 +17,19 @@ impl DockRootView {
     ) -> Self {
         Self { app_context, dock_view_data }
     }
+
+    fn resolve_effective_maximized_window_identifier(
+        requested_maximized_window_identifier: Option<&str>,
+        active_tab_identifier: Option<&str>,
+    ) -> Option<String> {
+        match requested_maximized_window_identifier {
+            Some(requested_maximized_window_identifier) => active_tab_identifier
+                .filter(|active_tab_identifier| !active_tab_identifier.is_empty())
+                .map(str::to_string)
+                .or_else(|| Some(requested_maximized_window_identifier.to_string())),
+            None => None,
+        }
+    }
 }
 
 impl Widget for DockRootView {
@@ -35,6 +48,7 @@ impl Widget for DockRootView {
                 return response;
             }
         };
+        let requested_maximized_window_identifier = self.dock_view_data.get_maximized_window_identifier();
 
         // Background.
         user_interface
@@ -60,8 +74,35 @@ impl Widget for DockRootView {
             }
         }
 
+        let effective_maximized_window_identifier = match requested_maximized_window_identifier.as_deref() {
+            Some(requested_maximized_window_identifier) => match docking_manager.read() {
+                Ok(docking_manager) => {
+                    let active_tab_identifier = docking_manager.get_active_tab(requested_maximized_window_identifier);
+
+                    Self::resolve_effective_maximized_window_identifier(Some(requested_maximized_window_identifier), Some(active_tab_identifier.as_str()))
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire docking manager lock while resolving maximized tab state: {}", error);
+                    Some(requested_maximized_window_identifier.to_string())
+                }
+            },
+            None => None,
+        };
+
+        if effective_maximized_window_identifier != requested_maximized_window_identifier {
+            self.dock_view_data
+                .set_maximized_window_identifier(effective_maximized_window_identifier.clone());
+        }
+
         for window in windows.iter() {
             let window_identifier = window.get_identifier();
+            let should_render_only_maximized_window = effective_maximized_window_identifier
+                .as_deref()
+                .is_some_and(|maximized_window_identifier| maximized_window_identifier != window_identifier);
+
+            if should_render_only_maximized_window {
+                continue;
+            }
             let active_tab_id = match docking_manager.read() {
                 Ok(docking_manager) => docking_manager.get_active_tab(&window_identifier),
                 Err(_) => String::new(),
@@ -72,17 +113,17 @@ impl Widget for DockRootView {
                 continue;
             }
 
-            let window_rect = {
-                if let Ok(docking_manager) = docking_manager.read() {
-                    docking_manager
-                        .find_window_rect(window_identifier)
-                        .map(|(x, y, w, h)| {
-                            let offset = available_size_rect.min;
-                            Rect::from_min_size(pos2(offset.x + x as f32, offset.y + y as f32), vec2(w as f32, h as f32))
-                        })
-                } else {
-                    None
-                }
+            let window_rect = if effective_maximized_window_identifier.as_deref() == Some(window_identifier) {
+                Some(available_size_rect)
+            } else if let Ok(docking_manager) = docking_manager.read() {
+                docking_manager
+                    .find_window_rect(window_identifier)
+                    .map(|(x, y, w, h)| {
+                        let offset = available_size_rect.min;
+                        Rect::from_min_size(pos2(offset.x + x as f32, offset.y + y as f32), vec2(w as f32, h as f32))
+                    })
+            } else {
+                None
             };
 
             if let Some(window_rect) = window_rect {
@@ -113,6 +154,33 @@ impl Widget for DockRootView {
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DockRootView;
+
+    #[test]
+    fn resolve_effective_maximized_window_identifier_transfers_to_active_sibling_tab() {
+        let effective_maximized_window_identifier =
+            DockRootView::resolve_effective_maximized_window_identifier(Some("memory_viewer"), Some("project_explorer"));
+
+        assert_eq!(effective_maximized_window_identifier, Some(String::from("project_explorer")));
+    }
+
+    #[test]
+    fn resolve_effective_maximized_window_identifier_keeps_current_window_without_active_tab() {
+        let effective_maximized_window_identifier = DockRootView::resolve_effective_maximized_window_identifier(Some("memory_viewer"), Some(""));
+
+        assert_eq!(effective_maximized_window_identifier, Some(String::from("memory_viewer")));
+    }
+
+    #[test]
+    fn resolve_effective_maximized_window_identifier_is_none_when_not_maximized() {
+        let effective_maximized_window_identifier = DockRootView::resolve_effective_maximized_window_identifier(None, Some("memory_viewer"));
+
+        assert_eq!(effective_maximized_window_identifier, None);
     }
 }
 

@@ -591,10 +591,14 @@ impl AppShell {
             .scan_results_pane_state
             .is_adding_scan_results_to_project = true;
         self.app_state.scan_results_pane_state.status_message = format!("Adding {} scan results to project.", selected_scan_result_refs.len());
+        let target_directory_path = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_project_item_directory_target_path();
 
         let project_items_add_request = ProjectItemsAddRequest {
             scan_result_refs: selected_scan_result_refs,
-            target_directory_path: None,
+            target_directory_path,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_add_request.send(engine_unprivileged_state, move |project_items_add_response| {

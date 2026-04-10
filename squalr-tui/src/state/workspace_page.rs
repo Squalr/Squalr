@@ -7,6 +7,7 @@ pub enum TuiWorkspacePage {
     ScannerWorkspace,
     SettingsWorkspace,
     PluginsWorkspace,
+    MemoryWorkspace,
 }
 
 impl TuiWorkspacePage {
@@ -16,6 +17,7 @@ impl TuiWorkspacePage {
             3 => Some(Self::SettingsWorkspace),
             5 => Some(Self::PluginsWorkspace),
             4 => Some(Self::ProjectWorkspace),
+            6 => Some(Self::MemoryWorkspace),
             _ => None,
         }
     }
@@ -26,15 +28,17 @@ impl TuiWorkspacePage {
             Self::ScannerWorkspace => "Scanner Workspace",
             Self::SettingsWorkspace => "Settings Workspace",
             Self::PluginsWorkspace => "Plugins Workspace",
+            Self::MemoryWorkspace => "Memory Workspace",
         }
     }
 
     pub fn focus_cycle_hint(self) -> &'static str {
         match self {
-            Self::ProjectWorkspace => "Process Selector -> Project Explorer -> Output",
+            Self::ProjectWorkspace => "Project Explorer -> Struct Viewer -> Output",
             Self::ScannerWorkspace => "Element Scanner -> Scan Results -> Output",
             Self::SettingsWorkspace => "Settings -> Output",
             Self::PluginsWorkspace => "Plugins -> Output",
+            Self::MemoryWorkspace => "Memory Viewer -> Output",
         }
     }
 
@@ -43,11 +47,13 @@ impl TuiWorkspacePage {
             Self::ProjectWorkspace => &[
                 TuiPane::ProcessSelector,
                 TuiPane::ProjectExplorer,
+                TuiPane::StructViewer,
                 TuiPane::Output,
             ],
             Self::ScannerWorkspace => &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output],
             Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Output],
             Self::PluginsWorkspace => &[TuiPane::Plugins, TuiPane::Output],
+            Self::MemoryWorkspace => &[TuiPane::MemoryViewer, TuiPane::Output],
         }
     }
 }
@@ -70,6 +76,7 @@ mod tests {
         assert_eq!(TuiWorkspacePage::from_function_key(3), Some(TuiWorkspacePage::SettingsWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(5), Some(TuiWorkspacePage::PluginsWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(4), Some(TuiWorkspacePage::ProjectWorkspace));
+        assert_eq!(TuiWorkspacePage::from_function_key(6), Some(TuiWorkspacePage::MemoryWorkspace));
     }
 
     #[test]
@@ -79,6 +86,7 @@ mod tests {
             &[
                 TuiPane::ProcessSelector,
                 TuiPane::ProjectExplorer,
+                TuiPane::StructViewer,
                 TuiPane::Output
             ]
         );
@@ -88,5 +96,6 @@ mod tests {
         );
         assert_eq!(TuiWorkspacePage::SettingsWorkspace.visible_panes(), &[TuiPane::Settings, TuiPane::Output]);
         assert_eq!(TuiWorkspacePage::PluginsWorkspace.visible_panes(), &[TuiPane::Plugins, TuiPane::Output]);
+        assert_eq!(TuiWorkspacePage::MemoryWorkspace.visible_panes(), &[TuiPane::MemoryViewer, TuiPane::Output]);
     }
 }

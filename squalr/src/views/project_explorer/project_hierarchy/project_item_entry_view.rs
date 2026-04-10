@@ -26,6 +26,12 @@ pub struct ProjectItemEntryView<'lifetime> {
     project_hierarchy_frame_action: &'lifetime mut ProjectHierarchyFrameAction,
 }
 
+pub struct ProjectItemEntryViewResponse {
+    pub row_response: Response,
+    pub should_request_rename: bool,
+    pub should_request_value_edit: bool,
+}
+
 impl<'lifetime> ProjectItemEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
@@ -60,11 +66,11 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
     }
 }
 
-impl<'lifetime> Widget for ProjectItemEntryView<'lifetime> {
-    fn ui(
+impl<'lifetime> ProjectItemEntryView<'lifetime> {
+    pub fn show(
         self,
         user_interface: &mut Ui,
-    ) -> Response {
+    ) -> ProjectItemEntryViewResponse {
         let theme = &self.app_context.theme;
         let icon_size = vec2(16.0, 16.0);
         let expand_arrow_size = vec2(10.0, 10.0);
@@ -165,6 +171,12 @@ impl<'lifetime> Widget for ProjectItemEntryView<'lifetime> {
         let preview_value_width = Self::measure_text_width(user_interface, self.preview_value, &preview_value_font, theme.foreground_preview);
         let left_text_max_x = preview_pos.x - preview_value_width - 12.0;
         let max_left_text_width = (left_text_max_x - text_pos.x).max(0.0);
+        let value_hit_box_left = left_text_max_x.clamp(text_pos.x, allocated_size_rectangle.max.x);
+        let name_hit_box_rect = Rect::from_min_max(
+            pos2(text_pos.x, allocated_size_rectangle.min.y),
+            pos2(value_hit_box_left, allocated_size_rectangle.max.y),
+        );
+        let value_hit_box_rect = Rect::from_min_max(pos2(value_hit_box_left, allocated_size_rectangle.min.y), allocated_size_rectangle.max);
 
         if let Some(icon) = &self.icon {
             IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
@@ -213,10 +225,30 @@ impl<'lifetime> Widget for ProjectItemEntryView<'lifetime> {
             theme.foreground_preview,
         );
 
-        if self.preview_path.is_empty() {
+        let click_position = response
+            .interact_pointer_pos()
+            .unwrap_or_else(|| allocated_size_rectangle.center());
+        let should_request_value_edit = response.double_clicked()
+            && !checkbox_response.clicked()
+            && !arrow_click_response.clicked()
+            && !self.is_directory
+            && !self.preview_value.is_empty()
+            && value_hit_box_rect.contains(click_position);
+        let should_request_rename = response.double_clicked()
+            && !checkbox_response.clicked()
+            && !arrow_click_response.clicked()
+            && name_hit_box_rect.contains(click_position)
+            && !should_request_value_edit;
+        let row_response = if self.preview_path.is_empty() {
             response
         } else {
             response.on_hover_text(format!("{}: {}", self.display_name, self.preview_path))
+        };
+
+        ProjectItemEntryViewResponse {
+            row_response,
+            should_request_rename,
+            should_request_value_edit,
         }
     }
 }

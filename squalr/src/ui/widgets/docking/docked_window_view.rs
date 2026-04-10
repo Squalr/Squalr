@@ -43,7 +43,7 @@ impl<W: Widget> DockedWindowView<W> {
         title: Rc<String>,
         identifier: Rc<String>,
     ) -> Self {
-        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), title.clone(), identifier.clone());
+        let docked_window_title_bar_view = DockedWindowTitleBarView::new(app_context.clone(), dock_view_data.clone(), title.clone(), identifier.clone());
         let docked_window_footer_view = DockedWindowFooterView::new(app_context.clone(), dock_view_data, identifier.clone());
 
         Self {
@@ -173,6 +173,7 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                         .max_rect(content_response.rect)
                         .layout(Layout::left_to_right(Align::Min)),
                 );
+                content_user_interface.set_clip_rect(content_response.rect);
 
                 content_user_interface.add(self.widget);
 

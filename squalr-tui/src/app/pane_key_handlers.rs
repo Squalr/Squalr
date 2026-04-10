@@ -18,6 +18,7 @@ impl AppShell {
             TuiPane::ScanResults => self.handle_scan_results_key_event(key_event, squalr_engine),
             TuiPane::ProjectExplorer => self.handle_project_explorer_key_event(key_event, squalr_engine),
             TuiPane::StructViewer => self.handle_struct_viewer_key_event(key_event, squalr_engine),
+            TuiPane::MemoryViewer => self.handle_memory_viewer_key_event(key_event, squalr_engine),
             TuiPane::Output => self.handle_output_key_event(key_event.code, squalr_engine),
             TuiPane::Settings => self.handle_settings_key_event(key_event, squalr_engine),
             TuiPane::Plugins => self.handle_plugins_key_event(key_event, squalr_engine),
@@ -563,6 +564,7 @@ impl AppShell {
                 self.toggle_selected_project_item_activation(squalr_engine);
                 self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
+            KeyCode::Char('o') => self.open_memory_viewer_for_selected_project_item(squalr_engine),
             KeyCode::Char('n') => {
                 if !self
                     .app_state
@@ -704,6 +706,25 @@ impl AppShell {
                         .append_pending_edit_character(pending_character);
                 }
             }
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_memory_viewer_key_event(
+        &mut self,
+        key_event: KeyEvent,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        match key_event.code {
+            KeyCode::Char('r') => self.refresh_memory_viewer_pages(squalr_engine),
+            KeyCode::Char('[') => self.app_state.memory_viewer_pane_state.navigate_previous_page(),
+            KeyCode::Char(']') => self.app_state.memory_viewer_pane_state.navigate_next_page(),
+            KeyCode::Home => self.app_state.memory_viewer_pane_state.navigate_first_page(),
+            KeyCode::End => self.app_state.memory_viewer_pane_state.navigate_last_page(),
+            KeyCode::Up => self.app_state.memory_viewer_pane_state.select_previous_row(),
+            KeyCode::Down => self.app_state.memory_viewer_pane_state.select_next_row(),
+            KeyCode::PageUp => self.app_state.memory_viewer_pane_state.page_up_rows(),
+            KeyCode::PageDown => self.app_state.memory_viewer_pane_state.page_down_rows(),
             _ => {}
         }
     }

@@ -1,3 +1,4 @@
+use crate::command_executors::project_items::project_item_sort_order::{append_project_items_to_sort_order, remove_project_items_from_sort_order};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_response::ProjectItemsMoveResponse;
@@ -69,6 +70,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsMoveRequest {
 
         let mut moved_project_item_count = 0_u64;
         let mut operation_success = true;
+        let mut moved_project_item_paths: Vec<(PathBuf, PathBuf)> = Vec::new();
 
         for project_item_path in &self.project_item_paths {
             let source_project_item_path = resolve_project_item_path(&project_directory_path, project_item_path);
@@ -82,9 +84,20 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsMoveRequest {
             };
             let destination_project_item_path = target_directory_path.join(source_file_name);
 
+            if destination_project_item_path.exists() {
+                log::warn!(
+                    "Cannot move project item from {:?} to {:?} because the destination already exists.",
+                    source_project_item_path,
+                    destination_project_item_path
+                );
+                operation_success = false;
+                continue;
+            }
+
             match fs::rename(&source_project_item_path, &destination_project_item_path) {
                 Ok(()) => {
                     moved_project_item_count += 1;
+                    moved_project_item_paths.push((source_project_item_path, destination_project_item_path));
                 }
                 Err(error) => {
                     log::error!(
@@ -103,6 +116,35 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsMoveRequest {
                 success: false,
                 moved_project_item_count,
             };
+        }
+
+        if moved_project_item_count > 0 {
+            let Some(reloaded_opened_project) = opened_project_guard.as_mut() else {
+                return ProjectItemsMoveResponse {
+                    success: false,
+                    moved_project_item_count,
+                };
+            };
+
+            let moved_source_project_item_paths: Vec<PathBuf> = moved_project_item_paths
+                .iter()
+                .map(|(source_project_item_path, _)| source_project_item_path.clone())
+                .collect();
+            let moved_destination_project_item_paths: Vec<PathBuf> = moved_project_item_paths
+                .iter()
+                .map(|(_, destination_project_item_path)| destination_project_item_path.clone())
+                .collect();
+
+            remove_project_items_from_sort_order(reloaded_opened_project, &project_directory_path, &moved_source_project_item_paths);
+            append_project_items_to_sort_order(reloaded_opened_project, &project_directory_path, &moved_destination_project_item_paths);
+
+            if let Err(error) = reloaded_opened_project.save_to_path(&project_directory_path, false) {
+                log::error!("Failed to save project after project item move operation: {}", error);
+                return ProjectItemsMoveResponse {
+                    success: false,
+                    moved_project_item_count,
+                };
+            }
         }
 
         if moved_project_item_count > 0 {

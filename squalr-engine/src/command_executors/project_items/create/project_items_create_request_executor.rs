@@ -1,3 +1,4 @@
+use crate::command_executors::project_items::project_item_sort_order::append_project_items_to_sort_order;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::create::project_items_create_response::ProjectItemsCreateResponse;
@@ -105,6 +106,24 @@ fn create_directory_item(
         };
     }
 
+    let Some(reloaded_opened_project) = opened_project_guard.as_mut() else {
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    };
+
+    append_project_items_to_sort_order(reloaded_opened_project, &project_directory_path, &[created_project_item_path.clone()]);
+
+    if let Err(error) = reloaded_opened_project.save_to_path(&project_directory_path, false) {
+        log::error!("Failed to save project after directory create operation: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
     project_manager.notify_project_items_changed();
 
     ProjectItemsCreateResponse {
@@ -167,10 +186,15 @@ fn create_address_item(
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
+    let requested_address = project_items_create_request.address.unwrap_or(0);
+    let requested_module_name = project_items_create_request
+        .module_name
+        .as_deref()
+        .unwrap_or("");
     let mut project_item = ProjectItemTypeAddress::new_project_item(
         &project_items_create_request.project_item_name,
-        0,
-        "",
+        requested_address,
+        requested_module_name,
         "",
         DataTypeU8::get_value_from_primitive(0),
     );
@@ -188,6 +212,8 @@ fn create_address_item(
             created_project_item_path: PathBuf::new(),
         };
     }
+
+    append_project_items_to_sort_order(opened_project, &project_directory_path, &[created_project_item_path.clone()]);
 
     if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
         log::error!("Failed to save project after address create operation: {}", error);
@@ -282,6 +308,8 @@ fn create_pointer_item(
             created_project_item_path: PathBuf::new(),
         };
     }
+
+    append_project_items_to_sort_order(opened_project, &project_directory_path, &[created_project_item_path.clone()]);
 
     if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
         log::error!("Failed to save project after pointer create operation: {}", error);

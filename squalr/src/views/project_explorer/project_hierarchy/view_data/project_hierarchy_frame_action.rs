@@ -20,5 +20,12 @@ pub enum ProjectHierarchyFrameAction {
         module_name: String,
         data_type_id: String,
     },
+    OpenMemoryViewerForAddress {
+        address: u64,
+        module_name: String,
+        selection_byte_count: u64,
+    },
+    RequestRename(PathBuf),
+    RequestValueEdit(PathBuf),
     RequestDeleteConfirmation(Vec<PathBuf>),
 }

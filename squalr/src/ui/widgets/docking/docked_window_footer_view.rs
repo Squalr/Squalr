@@ -74,6 +74,7 @@ impl Widget for DockedWindowFooterView {
             .layout(Layout::left_to_right(Align::Center));
         let mut child_user_interface = user_interface.new_child(builder);
         let mut selected_tab_id = None;
+        let mut toggled_maximized_tab_id = None;
         let mut drag_start_request = None;
         let mut hovered_tab_drop_target = None;
 
@@ -122,6 +123,11 @@ impl Widget for DockedWindowFooterView {
                 selected_tab_id = Some(sibling_id.clone());
             }
 
+            if response.double_clicked() {
+                selected_tab_id = Some(sibling_id.clone());
+                toggled_maximized_tab_id = Some(sibling_id.clone());
+            }
+
             if response.drag_started() {
                 let pointer_press_origin = child_user_interface
                     .input(|input_state| input_state.pointer.press_origin())
@@ -166,6 +172,11 @@ impl Widget for DockedWindowFooterView {
             if let Ok(mut docking_manager) = self.app_context.docking_manager.write() {
                 docking_manager.select_tab_by_window_id(&selected_tab_id);
             }
+        }
+
+        if let Some(toggled_maximized_tab_id) = toggled_maximized_tab_id {
+            self.dock_view_data
+                .toggle_maximized_window_identifier(&toggled_maximized_tab_id);
         }
 
         response

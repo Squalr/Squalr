@@ -5,4 +5,5 @@ pub mod os;
 pub mod plugins;
 pub mod registries;
 pub mod tasks;
+pub mod virtual_snapshots;
 pub use logging::platform::platform_log_hooks;
