@@ -21,6 +21,7 @@ Our current task, from `README.md`, is:
 - need human verification: Added a dockable GUI `Memory Viewer` with results-style virtual-page navigation, sparse `??`-until-read hex/ASCII rendering, and visible-chunk refresh through a dedicated virtual snapshot.
 - need human verification: Memory viewer refresh now preserves the selected page by base address instead of raw page index, prefers the first module-backed page on initial load, and labels pages as unreadable when visible chunk reads fail.
 - need human verification: Project hierarchy context menus now support `Open in Memory Viewer` for address/pointer items, opening the viewer on the target address, resolving module-relative addresses, and scrolling the containing row into view.
+- need human verification: Docked windows now have a title-bar maximize toggle that expands the selected panel to fill the dock area, and memory viewer row rendering is clipped to its panel bounds instead of bleeding outside the dock.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -44,3 +45,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - Memory viewer page stats now show the module name directly with a `(No Module)` fallback instead of prefixing labels with `Module`.
 - Memory viewer initial load currently resolves to the first page containing the first reported module base address, which can yield a nonzero page index if the raw page list begins with unowned gaps.
 - Memory viewer focus requests are now asynchronous and module-aware: the viewer stores a pending target, resolves module-relative offsets against its current module list after refresh, then applies a one-shot row scroll on the containing page.
+- Dock maximize is transient UI state in `DockRootViewData` rather than persisted layout state; the dock root swaps normal split rendering for the maximized panel, and the title bar uses the existing maximize icon as a toggle.
+- `DockedWindowView` now clips child content to the dock content rect, and the memory viewer additionally clips each painted hex row to the visible row rect to stop overflow.

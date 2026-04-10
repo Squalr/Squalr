@@ -147,6 +147,7 @@ impl Widget for MemoryViewerView {
                         .max_rect(content_response.rect)
                         .layout(Layout::top_down(Align::Min)),
                 );
+                content_user_interface.set_clip_rect(content_response.rect);
                 let current_page = MemoryViewerViewData::get_current_page(self.memory_viewer_view_data.clone());
                 let current_page_is_unreadable = MemoryViewerViewData::get_current_page_is_unreadable(self.memory_viewer_view_data.clone());
 
@@ -208,13 +209,16 @@ impl Widget for MemoryViewerView {
 
                                 let row_text = format!("{:016X}  {}  |{}|", row_address, hex_columns.join(" "), ascii_columns);
 
-                                user_interface.painter().text(
-                                    row_rect.min + vec2(8.0, 3.0),
-                                    Align2::LEFT_TOP,
-                                    row_text,
-                                    theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                                    theme.foreground,
-                                );
+                                user_interface
+                                    .painter()
+                                    .with_clip_rect(row_rect.intersect(user_interface.clip_rect()))
+                                    .text(
+                                        row_rect.min + vec2(8.0, 3.0),
+                                        Align2::LEFT_TOP,
+                                        row_text,
+                                        theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                                        theme.foreground,
+                                    );
                             }
                         });
 

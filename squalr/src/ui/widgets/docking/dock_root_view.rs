@@ -35,6 +35,7 @@ impl Widget for DockRootView {
                 return response;
             }
         };
+        let maximized_window_identifier = self.dock_view_data.get_maximized_window_identifier();
 
         // Background.
         user_interface
@@ -62,6 +63,13 @@ impl Widget for DockRootView {
 
         for window in windows.iter() {
             let window_identifier = window.get_identifier();
+            let should_render_only_maximized_window = maximized_window_identifier
+                .as_deref()
+                .is_some_and(|maximized_window_identifier| maximized_window_identifier != window_identifier);
+
+            if should_render_only_maximized_window {
+                continue;
+            }
             let active_tab_id = match docking_manager.read() {
                 Ok(docking_manager) => docking_manager.get_active_tab(&window_identifier),
                 Err(_) => String::new(),
@@ -72,17 +80,17 @@ impl Widget for DockRootView {
                 continue;
             }
 
-            let window_rect = {
-                if let Ok(docking_manager) = docking_manager.read() {
-                    docking_manager
-                        .find_window_rect(window_identifier)
-                        .map(|(x, y, w, h)| {
-                            let offset = available_size_rect.min;
-                            Rect::from_min_size(pos2(offset.x + x as f32, offset.y + y as f32), vec2(w as f32, h as f32))
-                        })
-                } else {
-                    None
-                }
+            let window_rect = if maximized_window_identifier.as_deref() == Some(window_identifier) {
+                Some(available_size_rect)
+            } else if let Ok(docking_manager) = docking_manager.read() {
+                docking_manager
+                    .find_window_rect(window_identifier)
+                    .map(|(x, y, w, h)| {
+                        let offset = available_size_rect.min;
+                        Rect::from_min_size(pos2(offset.x + x as f32, offset.y + y as f32), vec2(w as f32, h as f32))
+                    })
+            } else {
+                None
             };
 
             if let Some(window_rect) = window_rect {

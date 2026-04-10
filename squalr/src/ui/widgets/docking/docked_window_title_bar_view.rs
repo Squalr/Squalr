@@ -1,6 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::button::Button;
+use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use eframe::egui::{Align, CursorIcon, Id, Layout, Rect, Response, RichText, Sense, Ui, UiBuilder, Widget, pos2};
 use epaint::{Color32, CornerRadius, vec2};
 use std::{rc::Rc, sync::Arc};
@@ -8,6 +9,7 @@ use std::{rc::Rc, sync::Arc};
 #[derive(Clone)]
 pub struct DockedWindowTitleBarView {
     app_context: Arc<AppContext>,
+    dock_view_data: Arc<DockRootViewData>,
     height: f32,
     title: Rc<String>,
     identifier: Rc<String>,
@@ -16,11 +18,13 @@ pub struct DockedWindowTitleBarView {
 impl DockedWindowTitleBarView {
     pub fn new(
         app_context: Arc<AppContext>,
+        dock_view_data: Arc<DockRootViewData>,
         title: Rc<String>,
         identifier: Rc<String>,
     ) -> Self {
         Self {
             app_context,
+            dock_view_data,
             height: 28.0,
             title,
             identifier,
@@ -75,21 +79,33 @@ impl Widget for DockedWindowTitleBarView {
         child_user_interface.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let button_size = vec2(36.0, self.height);
 
-            // Close button
+            let maximize = ui.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
+            IconDraw::draw(ui, maximize.rect, &theme.icon_library.icon_handle_maximize);
+
+            if maximize.clicked() {
+                self.dock_view_data
+                    .toggle_maximized_window_identifier(&self.identifier);
+            }
+
+            // Close button.
             let close = ui.add_sized(button_size, Button::new_from_theme(&theme).background_color(Color32::TRANSPARENT));
             IconDraw::draw(ui, close.rect, &theme.icon_library.icon_handle_close);
 
             if close.clicked() {
+                if self.dock_view_data.get_maximized_window_identifier().as_deref() == Some(self.identifier.as_ref()) {
+                    self.dock_view_data.set_maximized_window_identifier(None);
+                }
+
                 if let Ok(mut docking_manager) = docking_manager.try_write() {
                     docking_manager.set_window_visibility(&self.identifier, false);
                 }
             }
         });
 
-        // Drag area = everything except the close button
+        // Drag area = everything except the title bar buttons.
         let drag_rect = Rect::from_min_max(
             allocated_size_rectangle.min,
-            pos2(allocated_size_rectangle.max.x - 36.0, allocated_size_rectangle.max.y),
+            pos2(allocated_size_rectangle.max.x - 72.0, allocated_size_rectangle.max.y),
         );
         let drag = user_interface
             .interact(drag_rect, Id::new(format!("dock_titlebar_{}", self.identifier)), Sense::click_and_drag())
