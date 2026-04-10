@@ -413,7 +413,13 @@ impl Widget for MemoryViewerView {
                 }
 
                 if memory_viewer_has_keyboard_focus {
+                    let is_select_all_shortcut_pressed =
+                        user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::A));
                     let is_shift_modifier_active = user_interface.input(|input_state| input_state.modifiers.shift);
+
+                    if is_select_all_shortcut_pressed {
+                        MemoryViewerViewData::select_all_bytes_on_current_page(self.memory_viewer_view_data.clone());
+                    }
 
                     if user_interface.input(|input_state| input_state.key_pressed(Key::ArrowLeft)) {
                         MemoryViewerViewData::move_cursor_horizontal(self.memory_viewer_view_data.clone(), -1, is_shift_modifier_active);

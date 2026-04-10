@@ -403,6 +403,23 @@ impl MemoryViewerViewData {
             .and_then(|memory_viewer_view_data| memory_viewer_view_data.build_selection_summary())
     }
 
+    pub fn select_all_bytes_on_current_page(memory_viewer_view_data: Dependency<Self>) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer select all bytes on current page") {
+            let Some(current_page_address_range) = memory_viewer_view_data.resolve_current_page_address_range() else {
+                return;
+            };
+
+            let selection_end_address = current_page_address_range.end.saturating_sub(1);
+
+            memory_viewer_view_data.selected_byte_range = Some(MemoryViewerSelectionRange {
+                anchor_address: current_page_address_range.start,
+                active_address: selection_end_address,
+            });
+            memory_viewer_view_data.has_keyboard_focus = true;
+            memory_viewer_view_data.set_hex_edit_cursor(current_page_address_range.start);
+        }
+    }
+
     pub fn handle_hex_edit_backspace(memory_viewer_view_data: Dependency<Self>) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer hex edit backspace") {
             memory_viewer_view_data.handle_hex_edit_backspace_internal();
@@ -528,6 +545,15 @@ impl MemoryViewerViewData {
         absolute_address: u64,
         target_directory_path: Option<PathBuf>,
     ) -> Option<ProjectItemsCreateRequest> {
+        Self::build_address_project_item_create_request_with_data_type(memory_viewer_view_data, absolute_address, target_directory_path, None)
+    }
+
+    pub fn build_address_project_item_create_request_with_data_type(
+        memory_viewer_view_data: Dependency<Self>,
+        absolute_address: u64,
+        target_directory_path: Option<PathBuf>,
+        explicit_data_type_id: Option<String>,
+    ) -> Option<ProjectItemsCreateRequest> {
         let memory_viewer_view_data = memory_viewer_view_data.read("Memory viewer build address project item request")?;
         let (selection_start_address, selection_end_address) = memory_viewer_view_data
             .resolve_selected_address_bounds()
@@ -540,11 +566,13 @@ impl MemoryViewerViewData {
             .saturating_sub(selection_start_address)
             .saturating_add(1)
             .max(1);
-        let default_data_type_id = if selected_byte_count > 1 {
-            format!("u8[{}]", selected_byte_count)
-        } else {
-            String::from("u8")
-        };
+        let resolved_data_type_id = explicit_data_type_id.unwrap_or_else(|| {
+            if selected_byte_count > 1 {
+                format!("u8[{}]", selected_byte_count)
+            } else {
+                String::from("u8")
+            }
+        });
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
@@ -553,7 +581,7 @@ impl MemoryViewerViewData {
             pointer: None,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
-            data_type_id: Some(default_data_type_id),
+            data_type_id: Some(resolved_data_type_id),
         })
     }
 
@@ -1463,5 +1491,57 @@ mod tests {
 
         assert_eq!(create_request.address, Some(0x6004));
         assert_eq!(create_request.data_type_id, Some(String::from("u8")));
+    }
+
+    #[test]
+    fn build_address_project_item_create_request_uses_explicit_data_type_override() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test explicit type create request") {
+            memory_viewer_view_data_guard.virtual_pages = vec![NormalizedRegion::new(0x7000, 0x20)];
+            memory_viewer_view_data_guard.cached_last_page_index = 0;
+            memory_viewer_view_data_guard.begin_selection_internal(0x7004, false);
+            memory_viewer_view_data_guard.update_selection_internal(0x7007);
+        }
+
+        let create_request = MemoryViewerViewData::build_address_project_item_create_request_with_data_type(
+            memory_viewer_view_data.clone(),
+            0x7005,
+            None,
+            Some(String::from("u16[2]")),
+        )
+        .expect("Expected create request.");
+
+        assert_eq!(create_request.address, Some(0x7004));
+        assert_eq!(create_request.data_type_id, Some(String::from("u16[2]")));
+    }
+
+    #[test]
+    fn select_all_bytes_on_current_page_selects_entire_page_range() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test select all setup") {
+            memory_viewer_view_data_guard.virtual_pages = vec![NormalizedRegion::new(0x8000, 0x20)];
+            memory_viewer_view_data_guard.cached_last_page_index = 0;
+        }
+
+        MemoryViewerViewData::select_all_bytes_on_current_page(memory_viewer_view_data.clone());
+
+        let selected_address_bounds = MemoryViewerViewData::get_selected_address_bounds(memory_viewer_view_data.clone());
+        let hex_edit_state = memory_viewer_view_data
+            .read("Test select all cursor")
+            .and_then(|memory_viewer_view_data_guard| memory_viewer_view_data_guard.hex_edit_state.clone());
+
+        assert_eq!(selected_address_bounds, Some((0x8000, 0x801F)));
+        assert_eq!(
+            hex_edit_state,
+            Some(super::MemoryViewerHexEditState {
+                cursor_address: 0x8000,
+                active_nibble_index: 0,
+                pending_high_nibble: None,
+            })
+        );
     }
 }
