@@ -24,6 +24,7 @@ Our current task, from `README.md`, is:
 - need human verification: Docked windows now support both title-bar maximize and tab double-click maximize, transfer maximize state to the newly active sibling tab inside tab groups instead of blanking the dock, and clip memory viewer row rendering to panel bounds.
 - need human verification: Scan-result and memory-viewer add-to-project now use `module+0xOFFSET` names whenever module metadata exists instead of plain offsets.
 - need human verification: Memory viewer now renders hex bytes in the theme hexadecimal color, clears drag-selection mode on mouse release, supports restored cross-row drag selection without stale follow-on drags, arrow-key cursor movement, merged per-row selection bands, a blinking hex nibble caret, forward byte-by-byte live hex writes until the end of the page, and add-to-project from the context menu.
+- need human verification: Memory viewer now has a right-side interpretation panel for the current selection, and adding selected memory to the project defaults to `u8` for one byte or `u8[n]` for multi-byte selections.
 
 ## Important Information
 Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lines)
@@ -52,4 +53,5 @@ Append important discoveries. Compact regularly ( > ~40 lines, compact to 20 lin
 - `ProjectItemsCreateRequest` address items can now optionally carry explicit `address` and `module_name` fields, and the create executor seeds those into new address project items instead of always creating zero-address placeholders.
 - Project-item names created from scan results or memory-viewer addresses now force module-relative `module+0xOFFSET` text when module metadata exists, independent of the current scan-result display mode.
 - Memory viewer selection is contiguous-address based within the current page; drag selection now follows the live pointer only while an explicit drag gesture is active, mouse release clears the drag-selection state, arrow keys move or extend the active cursor by byte/row, and live hex editing uses a cursor/nibble state that writes one byte at a time and keeps advancing until the current page ends.
-- Memory viewer right-click actions currently target the clicked byte address when over hex/ASCII cells, otherwise the row base address, and `Add Address To Project` creates a `u8` address item using the current project selection as the parent directory when available.
+- Memory viewer now splits its content area into the main hex grid plus a right-side interpretation panel; the panel shows raw bytes plus common scalar/string interpretations of the current selection and includes a quick add button.
+- Memory viewer right-click actions currently target the clicked byte address when over hex/ASCII cells, otherwise the row base address, and selection-aware add now creates a `u8` item for a single byte or `u8[n]` for multi-byte selections using the current project selection as the parent directory when available.

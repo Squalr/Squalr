@@ -12,7 +12,11 @@ use squalr_engine_api::{
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
-        memory::{address_display::format_module_address, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        memory::{
+            address_display::{format_absolute_address, format_module_address},
+            normalized_module::NormalizedModule,
+            normalized_region::NormalizedRegion,
+        },
         projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
@@ -51,6 +55,14 @@ pub struct MemoryViewerHexEditState {
     pub cursor_address: u64,
     pub active_nibble_index: u8,
     pub pending_high_nibble: Option<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemoryViewerSelectionSummary {
+    pub selection_start_address: u64,
+    pub selection_end_address: u64,
+    pub selection_display_text: String,
+    pub selected_bytes: Vec<Option<u8>>,
 }
 
 impl MemoryViewerPageCache {
@@ -385,6 +397,12 @@ impl MemoryViewerViewData {
             .and_then(|memory_viewer_view_data| memory_viewer_view_data.resolve_selected_address_bounds())
     }
 
+    pub fn get_selection_summary(memory_viewer_view_data: Dependency<Self>) -> Option<MemoryViewerSelectionSummary> {
+        memory_viewer_view_data
+            .read("Memory viewer selection summary")
+            .and_then(|memory_viewer_view_data| memory_viewer_view_data.build_selection_summary())
+    }
+
     pub fn handle_hex_edit_backspace(memory_viewer_view_data: Dependency<Self>) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer hex edit backspace") {
             memory_viewer_view_data.handle_hex_edit_backspace_internal();
@@ -511,7 +529,22 @@ impl MemoryViewerViewData {
         target_directory_path: Option<PathBuf>,
     ) -> Option<ProjectItemsCreateRequest> {
         let memory_viewer_view_data = memory_viewer_view_data.read("Memory viewer build address project item request")?;
-        let (project_item_address, project_item_module_name) = memory_viewer_view_data.resolve_project_item_address(absolute_address);
+        let (selection_start_address, selection_end_address) = memory_viewer_view_data
+            .resolve_selected_address_bounds()
+            .filter(|(selection_start_address, selection_end_address)| {
+                absolute_address >= *selection_start_address && absolute_address <= *selection_end_address
+            })
+            .unwrap_or((absolute_address, absolute_address));
+        let (project_item_address, project_item_module_name) = memory_viewer_view_data.resolve_project_item_address(selection_start_address);
+        let selected_byte_count = selection_end_address
+            .saturating_sub(selection_start_address)
+            .saturating_add(1)
+            .max(1);
+        let default_data_type_id = if selected_byte_count > 1 {
+            format!("u8[{}]", selected_byte_count)
+        } else {
+            String::from("u8")
+        };
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
@@ -520,7 +553,7 @@ impl MemoryViewerViewData {
             pointer: None,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
-            data_type_id: Some(String::from("u8")),
+            data_type_id: Some(default_data_type_id),
         })
     }
 
@@ -1091,6 +1124,40 @@ impl MemoryViewerViewData {
         (current_page_base_address < current_page_end_address).then_some(current_page_base_address..current_page_end_address)
     }
 
+    fn build_selection_summary(&self) -> Option<MemoryViewerSelectionSummary> {
+        let (selection_start_address, selection_end_address) = self.resolve_selected_address_bounds()?;
+        let current_page = self.virtual_pages.get(self.current_page_index as usize)?;
+        let current_page_base_address = current_page.get_base_address();
+        let current_page_end_address = current_page.get_end_address();
+
+        if selection_start_address < current_page_base_address || selection_end_address >= current_page_end_address {
+            return None;
+        }
+
+        let selected_bytes = (selection_start_address..=selection_end_address)
+            .map(|selected_byte_address| {
+                let selected_byte_offset = selected_byte_address.saturating_sub(current_page_base_address);
+
+                self.page_caches_by_base_address
+                    .get(&current_page_base_address)
+                    .and_then(|memory_viewer_page_cache| memory_viewer_page_cache.get_cached_byte(selected_byte_offset))
+            })
+            .collect::<Vec<_>>();
+        let (selection_display_address, selection_display_module_name) = self.resolve_project_item_address(selection_start_address);
+        let selection_display_text = if selection_display_module_name.is_empty() {
+            format_absolute_address(selection_start_address)
+        } else {
+            format_module_address(&selection_display_module_name, selection_display_address)
+        };
+
+        Some(MemoryViewerSelectionSummary {
+            selection_start_address,
+            selection_end_address,
+            selection_display_text,
+            selected_bytes,
+        })
+    }
+
     fn move_cursor_internal(
         &mut self,
         byte_delta: i64,
@@ -1177,7 +1244,10 @@ impl MemoryViewerViewData {
 #[cfg(test)]
 mod tests {
     use super::MemoryViewerViewData;
-    use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion};
+    use squalr_engine_api::{
+        dependency_injection::dependency_container::DependencyContainer,
+        structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+    };
 
     #[test]
     fn build_visible_chunk_queries_aligns_visible_rows_to_prefetched_chunk_window() {
@@ -1356,5 +1426,42 @@ mod tests {
                 pending_high_nibble: None,
             })
         );
+    }
+
+    #[test]
+    fn build_address_project_item_create_request_uses_u8_array_type_for_multi_byte_selection() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test selection create request") {
+            memory_viewer_view_data_guard.virtual_pages = vec![NormalizedRegion::new(0x5000, 0x20)];
+            memory_viewer_view_data_guard.cached_last_page_index = 0;
+            memory_viewer_view_data_guard.begin_selection_internal(0x5004, false);
+            memory_viewer_view_data_guard.update_selection_internal(0x5006);
+        }
+
+        let create_request =
+            MemoryViewerViewData::build_address_project_item_create_request(memory_viewer_view_data.clone(), 0x5005, None).expect("Expected create request.");
+
+        assert_eq!(create_request.address, Some(0x5004));
+        assert_eq!(create_request.data_type_id, Some(String::from("u8[3]")));
+    }
+
+    #[test]
+    fn build_address_project_item_create_request_uses_u8_for_single_byte_selection() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test single-byte create request") {
+            memory_viewer_view_data_guard.virtual_pages = vec![NormalizedRegion::new(0x6000, 0x20)];
+            memory_viewer_view_data_guard.cached_last_page_index = 0;
+            memory_viewer_view_data_guard.begin_selection_internal(0x6004, false);
+        }
+
+        let create_request =
+            MemoryViewerViewData::build_address_project_item_create_request(memory_viewer_view_data.clone(), 0x6004, None).expect("Expected create request.");
+
+        assert_eq!(create_request.address, Some(0x6004));
+        assert_eq!(create_request.data_type_id, Some(String::from("u8")));
     }
 }
