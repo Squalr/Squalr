@@ -7,7 +7,7 @@ use squalr_engine_api::{
     plugins::memory_view::PageRetrievalMode,
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
-        data_values::container_type::ContainerType,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{address_display::format_absolute_address, bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
@@ -55,6 +55,8 @@ pub struct CodeViewerViewData {
     selected_instruction_address: Option<u64>,
     viewport_start_address: Option<u64>,
     breakpoint_addresses: HashSet<u64>,
+    pub go_to_address_input: AnonymousValueString,
+    has_keyboard_focus: bool,
 }
 
 impl CodeViewerPageCache {
@@ -125,6 +127,8 @@ impl CodeViewerViewData {
             selected_instruction_address: None,
             viewport_start_address: None,
             breakpoint_addresses: HashSet::new(),
+            go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Address, ContainerType::None),
+            has_keyboard_focus: false,
         }
     }
 
@@ -240,6 +244,7 @@ impl CodeViewerViewData {
             code_viewer_view_data.pending_scroll_address = None;
             code_viewer_view_data.selected_instruction_address = None;
             code_viewer_view_data.viewport_start_address = None;
+            code_viewer_view_data.has_keyboard_focus = false;
             code_viewer_view_data.complete_memory_pages_request();
         }
 
@@ -325,6 +330,24 @@ impl CodeViewerViewData {
             .unwrap_or_else(|| String::from("0x0"))
     }
 
+    pub fn get_go_to_address_preview_text(code_viewer_view_data: Dependency<Self>) -> String {
+        code_viewer_view_data
+            .read("Code viewer go to address preview")
+            .and_then(|code_viewer_view_data| {
+                code_viewer_view_data
+                    .selected_instruction_address
+                    .or_else(|| code_viewer_view_data.resolve_viewport_start_address())
+                    .or_else(|| {
+                        code_viewer_view_data
+                            .virtual_pages
+                            .get(code_viewer_view_data.current_page_index as usize)
+                            .map(|normalized_region| normalized_region.get_base_address())
+                    })
+                    .map(format_absolute_address)
+            })
+            .unwrap_or_else(|| String::from("Go to address"))
+    }
+
     pub fn set_viewport_start_string(
         code_viewer_view_data: Dependency<Self>,
         viewport_start_text: &str,
@@ -334,6 +357,25 @@ impl CodeViewerViewData {
         };
 
         Self::set_viewport_start_address(code_viewer_view_data, viewport_start_address);
+    }
+
+    pub fn seek_to_input_address(code_viewer_view_data: Dependency<Self>) {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer seek to input address") else {
+            return;
+        };
+        let Some(target_address) = parse_address_text(
+            code_viewer_view_data
+                .go_to_address_input
+                .get_anonymous_value_string(),
+        ) else {
+            return;
+        };
+
+        if let Some(resolved_address) = code_viewer_view_data.seek_to_address_internal(target_address) {
+            code_viewer_view_data
+                .go_to_address_input
+                .set_anonymous_value_string(format_absolute_address(resolved_address));
+        }
     }
 
     pub fn shift_viewport_window(
@@ -516,13 +558,24 @@ impl CodeViewerViewData {
         code_viewer_view_data.pending_scroll_address.take()
     }
 
+    pub fn resolve_scroll_target_address(
+        pending_scroll_address: Option<u64>,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<u64> {
+        let pending_scroll_address = pending_scroll_address?;
+
+        instruction_lines
+            .iter()
+            .min_by_key(|instruction_line| instruction_line.address.abs_diff(pending_scroll_address))
+            .map(|instruction_line| instruction_line.address)
+    }
+
     pub fn select_instruction_address(
         code_viewer_view_data: Dependency<Self>,
         address: u64,
     ) {
         if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer select instruction address") {
             code_viewer_view_data.selected_instruction_address = Some(address);
-            code_viewer_view_data.pending_scroll_address = Some(address);
         }
     }
 
@@ -550,6 +603,29 @@ impl CodeViewerViewData {
         code_viewer_view_data
             .read("Code viewer breakpoint lookup")
             .map(|code_viewer_view_data| code_viewer_view_data.breakpoint_addresses.contains(&address))
+            .unwrap_or(false)
+    }
+
+    pub fn clear_selection(code_viewer_view_data: Dependency<Self>) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer clear selection") {
+            code_viewer_view_data.selected_instruction_address = None;
+            code_viewer_view_data.pending_scroll_address = None;
+        }
+    }
+
+    pub fn set_keyboard_focus(
+        code_viewer_view_data: Dependency<Self>,
+        has_keyboard_focus: bool,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer set keyboard focus") {
+            code_viewer_view_data.has_keyboard_focus = has_keyboard_focus;
+        }
+    }
+
+    pub fn has_keyboard_focus(code_viewer_view_data: Dependency<Self>) -> bool {
+        code_viewer_view_data
+            .read("Code viewer has keyboard focus")
+            .map(|code_viewer_view_data| code_viewer_view_data.has_keyboard_focus)
             .unwrap_or(false)
     }
 
@@ -744,12 +820,7 @@ impl CodeViewerViewData {
             return false;
         };
 
-        let Some(page_index) = self
-            .virtual_pages
-            .iter()
-            .position(|normalized_region| normalized_region.contains_address(focus_address))
-            .map(|page_index| page_index as u64)
-        else {
+        let Some((page_index, resolved_address)) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, focus_address) else {
             self.pending_focus_request = None;
 
             return false;
@@ -757,7 +828,7 @@ impl CodeViewerViewData {
 
         self.current_page_index = page_index;
         if let Some(current_page) = self.virtual_pages.get(page_index as usize) {
-            self.viewport_start_address = Some(Self::derive_viewport_start_for_focus_address(current_page, focus_address));
+            self.viewport_start_address = Some(Self::derive_viewport_start_for_focus_address(current_page, resolved_address));
             self.stats_string = Self::format_stats_for_page_from_modules(
                 &self.modules,
                 &self.unreadable_page_base_addresses,
@@ -765,11 +836,36 @@ impl CodeViewerViewData {
                 self.viewport_start_address,
             );
         }
-        self.selected_instruction_address = Some(focus_address);
-        self.pending_scroll_address = Some(focus_address);
+        self.selected_instruction_address = Some(resolved_address);
+        self.pending_scroll_address = Some(resolved_address);
         self.pending_focus_request = None;
+        self.has_keyboard_focus = true;
 
         true
+    }
+
+    fn seek_to_address_internal(
+        &mut self,
+        target_address: u64,
+    ) -> Option<u64> {
+        let (page_index, resolved_address) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, target_address)?;
+        self.current_page_index = page_index.min(self.cached_last_page_index);
+
+        if let Some(current_page) = self.virtual_pages.get(self.current_page_index as usize) {
+            self.viewport_start_address = Some(Self::derive_viewport_start_for_focus_address(current_page, resolved_address));
+            self.stats_string = Self::format_stats_for_page_from_modules(
+                &self.modules,
+                &self.unreadable_page_base_addresses,
+                Some(current_page),
+                self.viewport_start_address,
+            );
+        }
+
+        self.selected_instruction_address = Some(resolved_address);
+        self.pending_scroll_address = Some(resolved_address);
+        self.has_keyboard_focus = true;
+
+        Some(resolved_address)
     }
 
     fn resolve_focus_address(
@@ -789,6 +885,29 @@ impl CodeViewerViewData {
                     .eq_ignore_ascii_case(module_name)
             })
             .map(|normalized_module| normalized_module.get_base_address().saturating_add(address))
+    }
+
+    fn resolve_nearest_page_index_and_address(
+        virtual_pages: &[NormalizedRegion],
+        target_address: u64,
+    ) -> Option<(u64, u64)> {
+        virtual_pages
+            .iter()
+            .enumerate()
+            .filter_map(|(page_index, normalized_region)| {
+                let page_base_address = normalized_region.get_base_address();
+                let page_end_address = normalized_region.get_end_address();
+
+                if page_base_address >= page_end_address {
+                    return None;
+                }
+
+                let clamped_address = target_address.clamp(page_base_address, page_end_address.saturating_sub(1));
+
+                Some((page_index as u64, clamped_address, clamped_address.abs_diff(target_address)))
+            })
+            .min_by_key(|(page_index, clamped_address, distance)| (*distance, *page_index, *clamped_address))
+            .map(|(page_index, clamped_address, _)| (page_index, clamped_address))
     }
 
     fn resolve_viewport_start_address(&self) -> Option<u64> {
@@ -916,7 +1035,10 @@ fn parse_address_text(address_text: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::CodeViewerViewData;
-    use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion};
+    use squalr_engine_api::{
+        dependency_injection::dependency_container::DependencyContainer,
+        structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+    };
 
     #[test]
     fn build_visible_chunk_queries_aligns_viewport_to_chunk_window() {
@@ -952,5 +1074,72 @@ mod tests {
         let resolved_page_index = CodeViewerViewData::resolve_initial_page_index(&virtual_pages, &modules);
 
         assert_eq!(resolved_page_index, Some(1));
+    }
+
+    #[test]
+    fn select_instruction_address_does_not_queue_auto_scroll() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+
+        CodeViewerViewData::select_instruction_address(code_viewer_view_data.clone(), 0x4010);
+
+        assert_eq!(
+            CodeViewerViewData::get_selected_instruction_address(code_viewer_view_data.clone()),
+            Some(0x4010)
+        );
+        assert_eq!(CodeViewerViewData::take_pending_scroll_address(code_viewer_view_data.clone()), None);
+    }
+
+    #[test]
+    fn resolve_scroll_target_address_chooses_nearest_instruction_address() {
+        let instruction_lines = vec![
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x1000,
+                length: 1,
+                bytes: vec![0x90],
+                text: String::from("nop"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x1010,
+                length: 1,
+                bytes: vec![0x90],
+                text: String::from("nop"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+        ];
+
+        assert_eq!(
+            CodeViewerViewData::resolve_scroll_target_address(Some(0x100E), &instruction_lines),
+            Some(0x1010)
+        );
+    }
+
+    #[test]
+    fn seek_to_input_address_clamps_to_nearest_page_when_target_is_missing() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+
+        if let Some(mut code_viewer_view_data_guard) = code_viewer_view_data.write("Test code viewer seek input") {
+            code_viewer_view_data_guard.virtual_pages = vec![
+                NormalizedRegion::new(0x1000, 0x100),
+                NormalizedRegion::new(0x4000, 0x100),
+            ];
+            code_viewer_view_data_guard.cached_last_page_index = 1;
+            code_viewer_view_data_guard
+                .go_to_address_input
+                .set_anonymous_value_string(String::from("0x3800"));
+        }
+
+        CodeViewerViewData::seek_to_input_address(code_viewer_view_data.clone());
+
+        let code_viewer_view_data_guard = code_viewer_view_data
+            .read("Test code viewer seek state")
+            .expect("Expected code viewer state.");
+        assert_eq!(code_viewer_view_data_guard.current_page_index, 1);
+        assert_eq!(code_viewer_view_data_guard.selected_instruction_address, Some(0x4000));
+        assert_eq!(code_viewer_view_data_guard.pending_scroll_address, Some(0x4000));
     }
 }

@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use eframe::egui::{
-    Align, Align2, Color32, Direction, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Color32, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius};
 use squalr_engine_api::{
@@ -229,7 +229,7 @@ impl CodeViewerView {
         &self,
         user_interface: &mut Ui,
         instruction_line: &DisassembledInstruction,
-        pending_scroll_address: Option<u64>,
+        scroll_target_address: Option<u64>,
     ) -> Rect {
         let theme = &self.app_context.theme;
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
@@ -270,11 +270,12 @@ impl CodeViewerView {
         }
 
         if row_response.clicked() {
+            CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), true);
             CodeViewerViewData::select_instruction_address(self.code_viewer_view_data.clone(), instruction_line.address);
         }
 
-        if pending_scroll_address
-            .map(|pending_scroll_address| pending_scroll_address == instruction_line.address)
+        if scroll_target_address
+            .map(|scroll_target_address| scroll_target_address == instruction_line.address)
             .unwrap_or(false)
         {
             user_interface.scroll_to_rect(row_rect, Some(Align::Center));
@@ -331,6 +332,7 @@ impl Widget for CodeViewerView {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
+        let code_viewer_has_keyboard_focus = CodeViewerViewData::has_keyboard_focus(self.code_viewer_view_data.clone());
         CodeViewerViewData::clear_stale_request_state_if_needed(self.code_viewer_view_data.clone());
         user_interface
             .ctx()
@@ -449,6 +451,22 @@ impl Widget for CodeViewerView {
                         .layout(Layout::top_down(Align::Min)),
                 );
                 content_user_interface.set_clip_rect(content_response.rect);
+                if content_response.clicked() {
+                    CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), true);
+                }
+
+                if user_interface.input(|input_state| input_state.pointer.any_pressed())
+                    && user_interface
+                        .input(|input_state| input_state.pointer.interact_pos())
+                        .map(|pointer_position| !content_response.rect.contains(pointer_position))
+                        .unwrap_or(false)
+                {
+                    CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), false);
+                }
+
+                if code_viewer_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+                    CodeViewerViewData::clear_selection(self.code_viewer_view_data.clone());
+                }
                 content_user_interface
                     .painter()
                     .rect_filled(content_user_interface.max_rect(), CornerRadius::ZERO, theme.background_panel);
@@ -474,6 +492,7 @@ impl Widget for CodeViewerView {
 
                         let instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), process_bitness);
                         let pending_scroll_address = CodeViewerViewData::take_pending_scroll_address(self.code_viewer_view_data.clone());
+                        let scroll_target_address = CodeViewerViewData::resolve_scroll_target_address(pending_scroll_address, &instruction_lines);
                         let current_page_is_unreadable = CodeViewerViewData::is_current_page_unreadable(self.code_viewer_view_data.clone(), &current_page);
 
                         if instruction_lines.is_empty() && current_page_is_unreadable {
@@ -500,7 +519,7 @@ impl Widget for CodeViewerView {
                                     let mut row_rects_by_address = HashMap::new();
 
                                     for instruction_line in &instruction_lines {
-                                        let row_rect = self.render_instruction_row(user_interface, instruction_line, pending_scroll_address);
+                                        let row_rect = self.render_instruction_row(user_interface, instruction_line, scroll_target_address);
                                         row_rects_by_address.insert(instruction_line.address, row_rect);
                                     }
 
