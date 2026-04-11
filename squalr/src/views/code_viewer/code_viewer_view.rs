@@ -2,11 +2,15 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView},
+        widgets::controls::{
+            button::Button, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView,
+            toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+        },
     },
     views::{
         code_viewer::{code_viewer_footer_view::CodeViewerFooterView, view_data::code_viewer_view_data::CodeViewerViewData},
         process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
+        project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
     },
 };
 use eframe::egui::{
@@ -14,6 +18,7 @@ use eframe::egui::{
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius};
 use squalr_engine_api::{
+    commands::unprivileged_command_request::UnprivilegedCommandRequest,
     dependency_injection::dependency::Dependency,
     events::process::changed::process_changed_event::ProcessChangedEvent,
     structures::{
@@ -22,20 +27,24 @@ use squalr_engine_api::{
     },
 };
 use squalr_plugin_instructions_x86::DisassembledInstruction;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 #[derive(Clone)]
 pub struct CodeViewerView {
     app_context: Arc<AppContext>,
     code_viewer_view_data: Dependency<CodeViewerViewData>,
     process_selector_view_data: Dependency<ProcessSelectorViewData>,
+    project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
     code_viewer_footer_view: CodeViewerFooterView,
 }
 
 impl CodeViewerView {
     const GO_TO_ADDRESS_INPUT_ID: &'static str = "code_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_code_viewer";
-    const TOOLBAR_HEIGHT: f32 = 58.0;
+    const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
@@ -48,6 +57,7 @@ impl CodeViewerView {
     const BRANCH_LANE_SPACING: f32 = 8.0;
     const BRANCH_LANE_RIGHT_PADDING: f32 = 8.0;
     const MAX_BRANCH_LANES: usize = 5;
+    const CONTEXT_MENU_WIDTH: f32 = 220.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let code_viewer_view_data = app_context
@@ -56,9 +66,13 @@ impl CodeViewerView {
         let process_selector_view_data = app_context
             .dependency_container
             .get_dependency::<ProcessSelectorViewData>();
+        let project_hierarchy_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProjectHierarchyViewData>();
         let instance = Self {
             code_viewer_footer_view: CodeViewerFooterView::new(app_context.clone()),
             process_selector_view_data,
+            project_hierarchy_view_data,
             code_viewer_view_data,
             app_context,
         };
@@ -235,17 +249,52 @@ impl CodeViewerView {
         }
     }
 
+    fn dispatch_add_instructions_to_project(
+        &self,
+        absolute_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) {
+        let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
+        let Some(project_items_create_request) = CodeViewerViewData::build_instruction_project_item_create_request(
+            self.code_viewer_view_data.clone(),
+            absolute_address,
+            target_directory_path,
+            self.get_process_bitness(),
+            instruction_lines,
+        ) else {
+            log::warn!("Failed to build code viewer instruction project item create request.");
+            return;
+        };
+
+        project_items_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
+            if !project_items_create_response.success {
+                log::warn!("Code viewer add-instructions-to-project command failed.");
+            }
+        });
+    }
+
+    fn build_context_menu_add_label(
+        &self,
+        context_menu_address: u64,
+        selected_instruction_addresses: &HashSet<u64>,
+    ) -> String {
+        if selected_instruction_addresses.contains(&context_menu_address) && selected_instruction_addresses.len() > 1 {
+            String::from("Add Instructions to Project")
+        } else {
+            String::from("Add Instruction to Project")
+        }
+    }
+
     fn render_instruction_row(
         &self,
         user_interface: &mut Ui,
         instruction_line: &DisassembledInstruction,
+        selected_instruction_addresses: &HashSet<u64>,
         scroll_target_address: Option<u64>,
     ) -> Rect {
         let theme = &self.app_context.theme;
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
-        let is_selected = CodeViewerViewData::get_selected_instruction_address(self.code_viewer_view_data.clone())
-            .map(|selected_instruction_address| selected_instruction_address == instruction_line.address)
-            .unwrap_or(false);
+        let is_selected = selected_instruction_addresses.contains(&instruction_line.address);
         let breakpoint_gutter_rect = Rect::from_min_max(row_rect.min, pos2(row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, row_rect.max.y));
         let branch_gutter_rect = Rect::from_min_max(
             pos2(breakpoint_gutter_rect.max.x, row_rect.min.y),
@@ -280,8 +329,27 @@ impl CodeViewerView {
         }
 
         if row_response.clicked() {
+            let should_extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+
             CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), true);
-            CodeViewerViewData::select_instruction_address(self.code_viewer_view_data.clone(), instruction_line.address);
+
+            if should_extend_selection {
+                CodeViewerViewData::extend_instruction_selection(self.code_viewer_view_data.clone(), instruction_line.address);
+            } else {
+                CodeViewerViewData::select_instruction_address(self.code_viewer_view_data.clone(), instruction_line.address);
+            }
+        }
+
+        if row_response.secondary_clicked() {
+            if !selected_instruction_addresses.contains(&instruction_line.address) {
+                CodeViewerViewData::select_instruction_address(self.code_viewer_view_data.clone(), instruction_line.address);
+            }
+
+            CodeViewerViewData::show_context_menu(
+                self.code_viewer_view_data.clone(),
+                instruction_line.address,
+                row_response.hover_pos().unwrap_or(row_rect.left_bottom()),
+            );
         }
 
         if scroll_target_address
@@ -305,7 +373,7 @@ impl CodeViewerView {
                 Align2::LEFT_TOP,
                 format!("{:016X}", instruction_line.address),
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                theme.foreground,
+                theme.hexadecimal_green,
             );
         user_interface
             .painter()
@@ -365,11 +433,9 @@ impl Widget for CodeViewerView {
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
 
-                let toolbar_top_row = Rect::from_min_max(toolbar_rect.min, pos2(toolbar_rect.max.x, toolbar_rect.min.y + Self::TOOLBAR_ROW_HEIGHT));
-                let toolbar_bottom_row = Rect::from_min_max(pos2(toolbar_rect.min.x, toolbar_top_row.max.y), toolbar_rect.max);
                 let mut toolbar_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(toolbar_top_row)
+                        .max_rect(toolbar_rect)
                         .layout(Layout::left_to_right(Align::Center)),
                 );
                 let refresh_button = toolbar_user_interface.add_sized(
@@ -454,18 +520,13 @@ impl Widget for CodeViewerView {
 
                 let go_to_preview_text = CodeViewerViewData::get_go_to_address_preview_text(self.code_viewer_view_data.clone());
                 let address_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
-                let mut toolbar_seek_user_interface = user_interface.new_child(
-                    UiBuilder::new()
-                        .max_rect(toolbar_bottom_row)
-                        .layout(Layout::left_to_right(Align::Center)),
-                );
                 let mut should_seek_to_address = DataValueBoxView::consume_commit_on_enter(user_interface, Self::GO_TO_ADDRESS_INPUT_ID);
-                toolbar_seek_user_interface.add_space(8.0);
+                toolbar_user_interface.add_space(12.0);
                 if let Some(mut code_viewer_view_data) = self
                     .code_viewer_view_data
                     .write("Code viewer toolbar go to address input")
                 {
-                    toolbar_seek_user_interface.add(
+                    toolbar_user_interface.add(
                         DataValueBoxView::new(
                             self.app_context.clone(),
                             &mut code_viewer_view_data.go_to_address_input,
@@ -481,15 +542,15 @@ impl Widget for CodeViewerView {
                         .use_format_text_colors(false),
                     );
                 }
-                toolbar_seek_user_interface.add_space(6.0);
-                let apply_go_to_button = toolbar_seek_user_interface.add_sized(
+                toolbar_user_interface.add_space(6.0);
+                let apply_go_to_button = toolbar_user_interface.add_sized(
                     vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Seek the code viewer to the requested address."),
                 );
                 IconDraw::draw(
-                    &toolbar_seek_user_interface,
+                    &toolbar_user_interface,
                     apply_go_to_button.rect,
                     &theme.icon_library.icon_handle_navigation_right_arrow,
                 );
@@ -532,6 +593,7 @@ impl Widget for CodeViewerView {
 
                 let process_bitness = self.get_process_bitness();
                 let current_page = CodeViewerViewData::get_current_page(self.code_viewer_view_data.clone());
+                let mut visible_instruction_lines = Vec::new();
 
                 match current_page {
                     Some(current_page) => {
@@ -549,12 +611,12 @@ impl Widget for CodeViewerView {
                             .engine_unprivileged_state
                             .request_virtual_snapshot_refresh(CodeViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
 
-                        let instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), process_bitness);
+                        visible_instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), process_bitness);
                         let pending_scroll_address = CodeViewerViewData::take_pending_scroll_address(self.code_viewer_view_data.clone());
-                        let scroll_target_address = CodeViewerViewData::resolve_scroll_target_address(pending_scroll_address, &instruction_lines);
+                        let scroll_target_address = CodeViewerViewData::resolve_scroll_target_address(pending_scroll_address, &visible_instruction_lines);
                         let current_page_is_unreadable = CodeViewerViewData::is_current_page_unreadable(self.code_viewer_view_data.clone(), &current_page);
 
-                        if instruction_lines.is_empty() && current_page_is_unreadable {
+                        if visible_instruction_lines.is_empty() && current_page_is_unreadable {
                             content_user_interface.centered_and_justified(|user_interface| {
                                 user_interface.label(
                                     RichText::new("This page is currently unreadable, so no code rows could be decoded.")
@@ -562,7 +624,7 @@ impl Widget for CodeViewerView {
                                         .color(theme.background_control_warning),
                                 );
                             });
-                        } else if instruction_lines.is_empty() {
+                        } else if visible_instruction_lines.is_empty() {
                             content_user_interface.centered_and_justified(|user_interface| {
                                 user_interface.label(
                                     RichText::new("The current code window has no decoded instructions yet. Scroll or refresh to materialize more bytes.")
@@ -576,13 +638,20 @@ impl Widget for CodeViewerView {
                                 .auto_shrink([false, false])
                                 .show(&mut content_user_interface, |user_interface| {
                                     let mut row_rects_by_address = HashMap::new();
+                                    let selected_instruction_addresses =
+                                        CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
 
-                                    for instruction_line in &instruction_lines {
-                                        let row_rect = self.render_instruction_row(user_interface, instruction_line, scroll_target_address);
+                                    for instruction_line in &visible_instruction_lines {
+                                        let row_rect = self.render_instruction_row(
+                                            user_interface,
+                                            instruction_line,
+                                            &selected_instruction_addresses,
+                                            scroll_target_address,
+                                        );
                                         row_rects_by_address.insert(instruction_line.address, row_rect);
                                     }
 
-                                    Self::draw_jump_visuals(user_interface, &row_rects_by_address, &instruction_lines, theme);
+                                    Self::draw_jump_visuals(user_interface, &row_rects_by_address, &visible_instruction_lines, theme);
                                 });
                         }
                     }
@@ -603,6 +672,41 @@ impl Widget for CodeViewerView {
                                     .color(theme.foreground_preview),
                             );
                         });
+                    }
+                }
+
+                if let Some((context_menu_address, context_menu_position)) = CodeViewerViewData::get_context_menu_state(self.code_viewer_view_data.clone()) {
+                    let mut open = true;
+                    let selected_instruction_addresses =
+                        CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
+                    let add_action_label = self.build_context_menu_add_label(context_menu_address, &selected_instruction_addresses);
+
+                    ContextMenu::new(
+                        self.app_context.clone(),
+                        "code_viewer_context_menu",
+                        context_menu_position,
+                        |user_interface, should_close| {
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    &add_action_label,
+                                    "code_viewer_ctx_add_to_project",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                self.dispatch_add_instructions_to_project(context_menu_address, &visible_instruction_lines);
+                                *should_close = true;
+                            }
+                        },
+                    )
+                    .width(Self::CONTEXT_MENU_WIDTH)
+                    .corner_radius(8)
+                    .show(user_interface, &mut open);
+
+                    if !open {
+                        CodeViewerViewData::hide_context_menu(self.code_viewer_view_data.clone());
                     }
                 }
 
