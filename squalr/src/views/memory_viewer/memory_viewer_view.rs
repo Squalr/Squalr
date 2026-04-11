@@ -2,13 +2,11 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{
-            button::Button, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView,
-            toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
-        },
+        widgets::controls::{button::Button, context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
     },
     views::memory_viewer::{
-        memory_viewer_interpretation_panel_view::MemoryViewerInterpretationPanelView, view_data::memory_viewer_view_data::MemoryViewerViewData,
+        memory_viewer_footer_view::MemoryViewerFooterView, memory_viewer_interpretation_panel_view::MemoryViewerInterpretationPanelView,
+        view_data::memory_viewer_view_data::MemoryViewerViewData,
     },
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
@@ -23,7 +21,6 @@ use squalr_engine_api::{
     },
     dependency_injection::dependency::Dependency,
     events::process::changed::process_changed_event::ProcessChangedEvent,
-    structures::data_types::{built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef},
 };
 use std::{sync::Arc, time::Duration};
 
@@ -32,14 +29,13 @@ pub struct MemoryViewerView {
     app_context: Arc<AppContext>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+    memory_viewer_footer_view: MemoryViewerFooterView,
     memory_viewer_interpretation_panel_view: MemoryViewerInterpretationPanelView,
 }
 
 impl MemoryViewerView {
-    const GO_TO_ADDRESS_INPUT_ID: &'static str = "memory_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_memory_viewer";
-    const TOOLBAR_HEIGHT: f32 = 58.0;
-    const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
+    const TOOLBAR_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 20.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
     const HEX_CELL_WIDTH: f32 = 22.0;
@@ -61,6 +57,7 @@ impl MemoryViewerView {
             .dependency_container
             .get_dependency::<ProjectHierarchyViewData>();
         let instance = Self {
+            memory_viewer_footer_view: MemoryViewerFooterView::new(app_context.clone()),
             memory_viewer_interpretation_panel_view: MemoryViewerInterpretationPanelView::new(app_context.clone()),
             app_context,
             memory_viewer_view_data,
@@ -344,15 +341,14 @@ impl Widget for MemoryViewerView {
                 user_interface
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
-                let toolbar_top_row = Rect::from_min_max(toolbar_rect.min, pos2(toolbar_rect.max.x, toolbar_rect.min.y + Self::TOOLBAR_ROW_HEIGHT));
-                let toolbar_bottom_row = Rect::from_min_max(pos2(toolbar_rect.min.x, toolbar_top_row.max.y), toolbar_rect.max);
+
                 let mut toolbar_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(toolbar_top_row)
+                        .max_rect(toolbar_rect)
                         .layout(Layout::left_to_right(Align::Center)),
                 );
                 let refresh_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
+                    vec2(36.0, Self::TOOLBAR_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Refresh memory pages."),
@@ -375,110 +371,10 @@ impl Widget for MemoryViewerView {
                     toolbar_user_interface.add(Spinner::new().color(theme.foreground));
                 }
 
-                let page_box_width = 84.0;
-                let page_box_height = 24.0;
-                let mut page_index_text = MemoryViewerViewData::get_current_page_index_string(self.memory_viewer_view_data.clone());
-                toolbar_user_interface.add_space(10.0);
-                let page_number_edit_response = toolbar_user_interface.add_sized(
-                    vec2(page_box_width, page_box_height),
-                    eframe::egui::TextEdit::singleline(&mut page_index_text)
-                        .horizontal_align(Align::Center)
-                        .vertical_align(Align::Center)
-                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                        .background_color(theme.background_primary)
-                        .text_color(theme.foreground)
-                        .frame(true),
-                );
-                let previous_page_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Previous page."),
-                );
-                IconDraw::draw(
-                    &toolbar_user_interface,
-                    previous_page_button.rect,
-                    &theme.icon_library.icon_handle_navigation_left_arrow,
-                );
-                let next_page_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Next page."),
-                );
-                IconDraw::draw(
-                    &toolbar_user_interface,
-                    next_page_button.rect,
-                    &theme.icon_library.icon_handle_navigation_right_arrow,
-                );
-                let go_to_preview_text = MemoryViewerViewData::get_go_to_address_preview_text(self.memory_viewer_view_data.clone());
-                let address_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
-                toolbar_user_interface.add_space(10.0);
-                if let Some(mut memory_viewer_view_data) = self
-                    .memory_viewer_view_data
-                    .write("Memory viewer toolbar go to address input")
-                {
-                    toolbar_user_interface.add(
-                        DataValueBoxView::new(
-                            self.app_context.clone(),
-                            &mut memory_viewer_view_data.go_to_address_input,
-                            &address_data_type,
-                            false,
-                            true,
-                            &go_to_preview_text,
-                            Self::GO_TO_ADDRESS_INPUT_ID,
-                        )
-                        .width(220.0)
-                        .height(Self::TOOLBAR_ROW_HEIGHT)
-                        .use_preview_foreground(true)
-                        .use_format_text_colors(false),
-                    );
-                }
-                let mut should_seek_to_address = DataValueBoxView::consume_commit_on_enter(user_interface, Self::GO_TO_ADDRESS_INPUT_ID);
-                let apply_go_to_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Seek the memory viewer to the requested address."),
-                );
-                IconDraw::draw(
-                    &toolbar_user_interface,
-                    apply_go_to_button.rect,
-                    &theme.icon_library.icon_handle_navigation_right_arrow,
-                );
-                should_seek_to_address |= apply_go_to_button.clicked();
-
-                if page_number_edit_response.changed() {
-                    MemoryViewerViewData::set_page_index_string(self.memory_viewer_view_data.clone(), &page_index_text);
-                } else if previous_page_button.clicked() {
-                    MemoryViewerViewData::navigate_previous_page(self.memory_viewer_view_data.clone());
-                } else if next_page_button.clicked() {
-                    MemoryViewerViewData::navigate_next_page(self.memory_viewer_view_data.clone());
-                }
-
-                if should_seek_to_address {
-                    MemoryViewerViewData::seek_to_input_address(self.memory_viewer_view_data.clone());
-                }
-
-                let page_stats_text = self
-                    .memory_viewer_view_data
-                    .read("Memory viewer header stats")
-                    .map(|memory_viewer_view_data| memory_viewer_view_data.stats_string.clone())
-                    .unwrap_or_else(|| String::from("No page selected."));
-                let mut toolbar_stats_user_interface = user_interface.new_child(
-                    UiBuilder::new()
-                        .max_rect(toolbar_bottom_row)
-                        .layout(Layout::left_to_right(Align::Center)),
-                );
-                toolbar_stats_user_interface.centered_and_justified(|user_interface| {
-                    user_interface.label(
-                        RichText::new(page_stats_text)
-                            .font(theme.font_library.font_noto_sans.font_normal.clone())
-                            .color(theme.foreground),
-                    );
-                });
-
-                let content_rect = user_interface.available_rect_before_wrap();
+                let footer_height = self.memory_viewer_footer_view.get_height();
+                let content_rect = user_interface
+                    .available_rect_before_wrap()
+                    .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
                 let content_response = user_interface.allocate_rect(content_rect, Sense::click_and_drag());
                 let mut content_user_interface = user_interface.new_child(
                     UiBuilder::new()
@@ -863,6 +759,8 @@ impl Widget for MemoryViewerView {
                         MemoryViewerViewData::hide_context_menu(self.memory_viewer_view_data.clone());
                     }
                 }
+
+                user_interface.add(self.memory_viewer_footer_view.clone());
             })
             .response
     }
