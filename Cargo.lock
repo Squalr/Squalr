@@ -5335,6 +5335,8 @@ version = "0.3.0"
 dependencies = [
  "squalr-engine-api",
  "squalr-plugin-data-types-24bit",
+ "squalr-plugin-instructions-arm",
+ "squalr-plugin-instructions-powerpc",
  "squalr-plugin-instructions-x86",
  "squalr-plugin-memory-view-dolphin",
 ]
@@ -5342,6 +5344,20 @@ dependencies = [
 [[package]]
 name = "squalr-plugin-data-types-24bit"
 version = "0.3.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-instructions-arm"
+version = "0.1.0"
+dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-instructions-powerpc"
+version = "0.1.0"
 dependencies = [
  "squalr-engine-api",
 ]

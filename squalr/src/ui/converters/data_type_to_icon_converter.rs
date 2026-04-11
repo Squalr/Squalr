@@ -15,8 +15,7 @@ const DATA_TYPE_ID_U24: &str = "u24";
 const DATA_TYPE_ID_U24BE: &str = "u24be";
 const DATA_TYPE_ID_I24: &str = "i24";
 const DATA_TYPE_ID_I24BE: &str = "i24be";
-const DATA_TYPE_ID_I_X86: &str = "i_x86";
-const DATA_TYPE_ID_I_X64: &str = "i_x64";
+const INSTRUCTION_DATA_TYPE_PREFIX: &str = "i_";
 
 pub struct DataTypeToIconConverter {}
 
@@ -34,6 +33,10 @@ impl DataTypeToIconConverter {
                     .to_string()
             })
             .unwrap_or_else(|| data_type_id.to_string());
+
+        if normalized_data_type_id.starts_with(INSTRUCTION_DATA_TYPE_PREFIX) {
+            return icon_library.icon_handle_project_cpu_instruction.clone();
+        }
 
         match normalized_data_type_id.as_str() {
             DataTypeBool8::DATA_TYPE_ID => icon_library.icon_handle_data_type_bool.clone(),
@@ -73,7 +76,6 @@ impl DataTypeToIconConverter {
                 .icon_handle_data_type_orange_blocks_reverse_8
                 .clone(),
             DataTypeStringUtf8::DATA_TYPE_ID => icon_library.icon_handle_data_type_string.clone(),
-            DATA_TYPE_ID_I_X86 | DATA_TYPE_ID_I_X64 => icon_library.icon_handle_project_cpu_instruction.clone(),
             _ => icon_library.icon_handle_data_type_unknown.clone(),
         }
     }
