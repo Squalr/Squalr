@@ -150,6 +150,16 @@ impl ScanResult {
             .cloned()
     }
 
+    pub fn get_preferred_current_display_value(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Option<&AnonymousValueString> {
+        self.get_recently_read_display_value(anonymous_value_string_format)
+            .or_else(|| self.get_current_display_value(anonymous_value_string_format))
+            .or_else(|| self.get_current_display_values().first())
+            .or_else(|| self.get_recently_read_display_values().first())
+    }
+
     pub fn get_current_value(&self) -> &Option<DataValue> {
         &self.valued_result.get_current_value()
     }
@@ -180,6 +190,14 @@ impl ScanResult {
     ) -> Option<&AnonymousValueString> {
         self.valued_result
             .get_previous_display_value(anonymous_value_string_format)
+    }
+
+    pub fn get_preferred_previous_display_value(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> Option<&AnonymousValueString> {
+        self.get_previous_display_value(anonymous_value_string_format)
+            .or_else(|| self.get_previous_display_values().first())
     }
 
     pub fn get_is_frozen(&self) -> bool {
@@ -376,6 +394,70 @@ mod tests {
                 .get_recently_read_display_value_resolved(AnonymousValueStringFormat::Decimal)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn get_preferred_current_display_value_falls_back_to_current_scan_display_values() {
+        let scan_result = ScanResult::new(
+            ScanResultValued::new(
+                0x1000,
+                DataTypeRef::new("i_x86"),
+                String::new(),
+                Some(DataTypeU8::get_value_from_primitive(0xB8)),
+                vec![AnonymousValueString::new(
+                    "mov eax, 0".to_string(),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )],
+                None,
+                Vec::new(),
+                ScanResultRef::new(1),
+            ),
+            String::new(),
+            0,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let preferred_display_value = scan_result
+            .get_preferred_current_display_value(AnonymousValueStringFormat::String)
+            .map(|display_value| display_value.get_anonymous_value_string().to_string());
+
+        assert_eq!(preferred_display_value, Some("mov eax, 0".to_string()));
+    }
+
+    #[test]
+    fn get_preferred_previous_display_value_falls_back_to_first_previous_display_value() {
+        let scan_result = ScanResult::new(
+            ScanResultValued::new(
+                0x1000,
+                DataTypeRef::new("i_x86"),
+                String::new(),
+                None,
+                Vec::new(),
+                None,
+                vec![AnonymousValueString::new(
+                    "mov eax, 0".to_string(),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )],
+                ScanResultRef::new(1),
+            ),
+            String::new(),
+            0,
+            ModuleAddressDisplay::ModuleRelative,
+            None,
+            Vec::new(),
+            false,
+        );
+
+        let preferred_display_value = scan_result
+            .get_preferred_previous_display_value(AnonymousValueStringFormat::Decimal)
+            .map(|display_value| display_value.get_anonymous_value_string().to_string());
+
+        assert_eq!(preferred_display_value, Some("mov eax, 0".to_string()));
     }
 
     #[test]

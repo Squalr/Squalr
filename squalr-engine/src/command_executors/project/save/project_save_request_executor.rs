@@ -1,8 +1,9 @@
-use crate::command_executors::project::project_plugin_sync::get_enabled_plugin_ids;
+use crate::command_executors::project::project_plugin_sync::get_plugin_states;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::project::save::project_save_response::ProjectSaveResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::PluginEnablementOverrides;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::sync::Arc;
 
@@ -30,15 +31,16 @@ impl UnprivilegedCommandRequestExecutor for ProjectSaveRequest {
             }
         };
 
-        if let Some(enabled_plugin_ids) = get_enabled_plugin_ids(engine_unprivileged_state) {
-            let stored_enabled_plugin_ids = opened_project
+        if let Some(plugin_states) = get_plugin_states(engine_unprivileged_state) {
+            let current_plugin_enablement_overrides = PluginEnablementOverrides::from_plugin_states(&plugin_states);
+            let stored_plugin_enablement_overrides = opened_project
                 .get_project_info()
-                .get_enabled_plugin_ids()
-                .map(|enabled_plugin_ids| enabled_plugin_ids.to_vec());
+                .get_plugin_enablement_overrides()
+                .cloned();
 
-            if stored_enabled_plugin_ids.as_ref() != Some(&enabled_plugin_ids) {
+            if stored_plugin_enablement_overrides != current_plugin_enablement_overrides {
                 let project_info = opened_project.get_project_info_mut();
-                project_info.set_enabled_plugin_ids(Some(enabled_plugin_ids));
+                project_info.set_plugin_enablement_overrides(current_plugin_enablement_overrides);
                 project_info.set_has_unsaved_changes(true);
             }
         }

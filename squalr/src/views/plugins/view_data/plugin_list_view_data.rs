@@ -8,7 +8,7 @@ use squalr_engine_api::{
     },
     dependency_injection::dependency::Dependency,
     engine::engine_execution_context::EngineExecutionContext,
-    plugins::PluginState,
+    plugins::{PluginEnablementOverrides, PluginState},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 use std::sync::Arc;
@@ -156,17 +156,7 @@ impl PluginListViewData {
         app_context: Arc<AppContext>,
         plugin_states: Vec<PluginState>,
     ) {
-        let enabled_plugin_ids = {
-            let mut enabled_plugin_ids = plugin_states
-                .into_iter()
-                .filter(|plugin_state| plugin_state.get_is_enabled())
-                .map(|plugin_state| plugin_state.get_metadata().get_plugin_id().to_string())
-                .collect::<Vec<_>>();
-
-            enabled_plugin_ids.sort();
-            enabled_plugin_ids.dedup();
-            enabled_plugin_ids
-        };
+        let plugin_enablement_overrides = PluginEnablementOverrides::from_plugin_states(&plugin_states);
 
         let has_opened_project = match app_context
             .engine_unprivileged_state
@@ -177,7 +167,7 @@ impl PluginListViewData {
             Ok(mut opened_project) => {
                 if let Some(opened_project) = opened_project.as_mut() {
                     let project_info = opened_project.get_project_info_mut();
-                    project_info.set_enabled_plugin_ids(Some(enabled_plugin_ids));
+                    project_info.set_plugin_enablement_overrides(plugin_enablement_overrides);
                     project_info.set_has_unsaved_changes(true);
                     true
                 } else {

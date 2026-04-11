@@ -23,7 +23,7 @@ use squalr_engine_api::{
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::Arc;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ElementScannerContainerMode {
     Element,
     Array,
@@ -51,6 +51,7 @@ pub struct ElementScannerViewData {
 
 impl ElementScannerViewData {
     const MAX_CONSTRAINTS: usize = 5;
+    const INSTRUCTION_SEQUENCE_DATA_TYPE_PREFIX: &'static str = "i_";
 
     pub fn new() -> Self {
         Self {
@@ -187,6 +188,12 @@ impl ElementScannerViewData {
         let data_type_refs = element_scanner_view_data
             .data_type_selection
             .scan_data_type_refs();
+        let effective_container_mode = Self::resolve_container_mode_for_data_type(
+            element_scanner_view_data
+                .data_type_selection
+                .visible_data_type(),
+            element_scanner_view_data.container_mode,
+        );
 
         if data_type_refs.is_empty() {
             log::error!("Cannot start an element scan without at least one selected data type.");
@@ -198,7 +205,7 @@ impl ElementScannerViewData {
             .iter()
             .map(|scan_value_and_constraint| {
                 let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
-                Self::apply_container_mode_to_constraint_value(element_scanner_view_data.container_mode, &mut constraint_value);
+                Self::apply_container_mode_to_constraint_value(effective_container_mode, &mut constraint_value);
                 AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, Some(constraint_value))
             })
             .collect();
@@ -282,11 +289,40 @@ impl ElementScannerViewData {
             ElementScannerContainerMode::Array => constraint_value.set_container_type(ContainerType::Array),
         }
     }
+
+    pub fn is_instruction_sequence_data_type(data_type_ref: &DataTypeRef) -> bool {
+        data_type_ref
+            .get_data_type_id()
+            .starts_with(Self::INSTRUCTION_SEQUENCE_DATA_TYPE_PREFIX)
+    }
+
+    pub fn resolve_container_mode_for_data_type(
+        data_type_ref: &DataTypeRef,
+        requested_container_mode: ElementScannerContainerMode,
+    ) -> ElementScannerContainerMode {
+        if Self::is_instruction_sequence_data_type(data_type_ref) {
+            ElementScannerContainerMode::Element
+        } else {
+            requested_container_mode
+        }
+    }
+
+    pub fn get_container_mode_label(
+        data_type_ref: &DataTypeRef,
+        container_mode: ElementScannerContainerMode,
+    ) -> &'static str {
+        if Self::is_instruction_sequence_data_type(data_type_ref) {
+            "Sequence"
+        } else {
+            container_mode.label()
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{ElementScannerContainerMode, ElementScannerViewData};
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::{
         anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
     };
@@ -307,5 +343,20 @@ mod tests {
         ElementScannerViewData::apply_container_mode_to_constraint_value(ElementScannerContainerMode::Array, &mut anonymous_value_string);
 
         assert_eq!(anonymous_value_string.get_container_type(), ContainerType::Array);
+    }
+
+    #[test]
+    fn resolve_container_mode_for_instruction_data_type_forces_element_mode() {
+        let resolved_container_mode =
+            ElementScannerViewData::resolve_container_mode_for_data_type(&DataTypeRef::new("i_x86"), ElementScannerContainerMode::Array);
+
+        assert_eq!(resolved_container_mode, ElementScannerContainerMode::Element);
+    }
+
+    #[test]
+    fn get_container_mode_label_returns_sequence_for_instruction_data_type() {
+        let container_mode_label = ElementScannerViewData::get_container_mode_label(&DataTypeRef::new("i_x64"), ElementScannerContainerMode::Element);
+
+        assert_eq!(container_mode_label, "Sequence");
     }
 }

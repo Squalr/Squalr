@@ -1,5 +1,6 @@
 use crate::project::serialization::serializable_project_file::SerializableProjectFile;
 use serde::{Deserialize, Serialize};
+use squalr_engine_api::plugins::PluginEnablementOverrides;
 use squalr_engine_api::structures::{
     processes::process_icon::ProcessIcon,
     projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog},
@@ -8,6 +9,13 @@ use std::{
     fs::{File, OpenOptions},
     path::Path,
 };
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+enum ProjectPluginConfigurationStub {
+    LegacyEnabledPluginIds(Vec<String>),
+    PluginEnablementOverrides(PluginEnablementOverrides),
+}
 
 /// Represents a condensed version of project info excluding information that we do not want to serialize.
 /// Note that #[serde(skip)] is insufficient, as we still want to serialize across commands,
@@ -26,9 +34,9 @@ struct ProjectInfoStub {
     #[serde(rename = "symbols", default)]
     project_symbol_catalog: ProjectSymbolCatalog,
 
-    /// Enabled plugin identifiers stored with this project.
+    /// Plugin enablement overrides stored with this project.
     #[serde(rename = "plugins", default, skip_serializing_if = "Option::is_none")]
-    enabled_plugin_ids: Option<Vec<String>>,
+    plugin_configuration: Option<ProjectPluginConfigurationStub>,
 }
 
 impl SerializableProjectFile for ProjectInfo {
@@ -50,9 +58,10 @@ impl SerializableProjectFile for ProjectInfo {
                 project_icon_rgba: self.get_project_icon_rgba().clone(),
                 project_manifest: self.get_project_manifest().clone(),
                 project_symbol_catalog: self.get_project_symbol_catalog().clone(),
-                enabled_plugin_ids: self
-                    .get_enabled_plugin_ids()
-                    .map(|enabled_plugin_ids| enabled_plugin_ids.to_vec()),
+                plugin_configuration: self
+                    .get_plugin_enablement_overrides()
+                    .cloned()
+                    .map(ProjectPluginConfigurationStub::PluginEnablementOverrides),
             };
 
             serde_json::to_writer(file, &project_info_stub)?;
@@ -73,7 +82,13 @@ impl SerializableProjectFile for ProjectInfo {
             project_info_stub.project_manifest,
             project_info_stub.project_symbol_catalog,
         );
-        project_info.set_enabled_plugin_ids(project_info_stub.enabled_plugin_ids);
+        project_info.set_plugin_enablement_overrides(match project_info_stub.plugin_configuration {
+            Some(ProjectPluginConfigurationStub::LegacyEnabledPluginIds(enabled_plugin_ids)) => {
+                Some(PluginEnablementOverrides::new(enabled_plugin_ids, Vec::new()))
+            }
+            Some(ProjectPluginConfigurationStub::PluginEnablementOverrides(plugin_enablement_overrides)) => Some(plugin_enablement_overrides),
+            None => None,
+        });
 
         Ok(project_info)
     }
@@ -82,6 +97,7 @@ impl SerializableProjectFile for ProjectInfo {
 #[cfg(test)]
 mod tests {
     use super::SerializableProjectFile;
+    use squalr_engine_api::plugins::PluginEnablementOverrides;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
@@ -134,16 +150,15 @@ mod tests {
     }
 
     #[test]
-    fn project_info_round_trip_preserves_enabled_plugin_ids() {
+    fn project_info_round_trip_preserves_plugin_enablement_overrides() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
         let mut project_info = ProjectInfo::new_with_symbol_catalog(project_file_path, None, ProjectManifest::default(), ProjectSymbolCatalog::default());
 
-        project_info.set_enabled_plugin_ids(Some(vec![
-            String::from("builtin.data-type.24bit-integers"),
-            String::from("builtin.memory-view.dolphin"),
-            String::from("builtin.data-type.24bit-integers"),
-        ]));
+        project_info.set_plugin_enablement_overrides(Some(PluginEnablementOverrides::new(
+            vec![String::from("builtin.data-type.24bit-integers")],
+            vec![String::from("builtin.memory-view.dolphin")],
+        )));
 
         project_info
             .save_to_path(temp_directory.path(), true)
@@ -152,13 +167,38 @@ mod tests {
         let loaded_project_info = ProjectInfo::load_from_path(&temp_directory.path().join(Project::PROJECT_FILE)).expect("Expected project info to load.");
 
         assert_eq!(
-            loaded_project_info.get_enabled_plugin_ids(),
-            Some(
-                &[
+            loaded_project_info.get_plugin_enablement_overrides(),
+            Some(&PluginEnablementOverrides::new(
+                vec![String::from("builtin.data-type.24bit-integers")],
+                vec![String::from("builtin.memory-view.dolphin")],
+            ))
+        );
+    }
+
+    #[test]
+    fn project_info_loads_legacy_plugin_list_as_enabled_overrides() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
+        let legacy_project_json = r#"{
+            "icon": null,
+            "manifest": {},
+            "symbols": {},
+            "plugins": ["builtin.data-type.24bit-integers", "builtin.memory-view.dolphin"]
+        }"#;
+
+        fs::write(&project_file_path, legacy_project_json).expect("Expected legacy project json to write.");
+
+        let loaded_project_info = ProjectInfo::load_from_path(&project_file_path).expect("Expected legacy project info to load.");
+
+        assert_eq!(
+            loaded_project_info.get_plugin_enablement_overrides(),
+            Some(&PluginEnablementOverrides::new(
+                vec![
                     String::from("builtin.data-type.24bit-integers"),
                     String::from("builtin.memory-view.dolphin"),
-                ][..]
-            )
+                ],
+                Vec::new(),
+            ))
         );
     }
 

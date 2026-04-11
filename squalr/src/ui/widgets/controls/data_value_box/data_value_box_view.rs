@@ -178,6 +178,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        self.app_context
+            .engine_unprivileged_state
+            .normalize_anonymous_value_string_format(self.validation_data_type, self.anonymous_value_string);
+
         let theme = &self.app_context.theme;
         let is_valid = match self.validation_scan_compare_type {
             Some(scan_compare_type) => self

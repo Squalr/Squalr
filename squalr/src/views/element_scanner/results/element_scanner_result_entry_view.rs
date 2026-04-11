@@ -212,22 +212,8 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         );
         let current_value_string = self
             .scan_result
-            .get_recently_read_display_value_resolved(self.active_display_format)
-            .map(|recently_read_display_value| {
-                recently_read_display_value
-                    .get_anonymous_value_string()
-                    .to_string()
-            })
-            .or_else(|| {
-                self.scan_result
-                    .get_recently_read_display_values()
-                    .first()
-                    .map(|recently_read_display_value| {
-                        recently_read_display_value
-                            .get_anonymous_value_string()
-                            .to_string()
-                    })
-            })
+            .get_preferred_current_display_value(self.active_display_format)
+            .map(|display_value| display_value.get_anonymous_value_string().to_string())
             .unwrap_or_else(|| "??".to_string());
 
         user_interface
@@ -252,7 +238,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
         );
         let previous_value_string = match self
             .scan_result
-            .get_previous_display_value(self.active_display_format)
+            .get_preferred_previous_display_value(self.active_display_format)
         {
             Some(previous_value) => previous_value.get_anonymous_value_string(),
             None => "??",

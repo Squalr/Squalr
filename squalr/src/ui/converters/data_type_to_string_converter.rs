@@ -13,11 +13,13 @@ const DATA_TYPE_ID_U24: &str = "u24";
 const DATA_TYPE_ID_U24BE: &str = "u24be";
 const DATA_TYPE_ID_I24: &str = "i24";
 const DATA_TYPE_ID_I24BE: &str = "i24be";
+const DATA_TYPE_ID_I_X86: &str = "i_x86";
+const DATA_TYPE_ID_I_X64: &str = "i_x64";
 
 pub struct DataTypeToStringConverter {}
 
 impl DataTypeToStringConverter {
-    pub fn convert_data_type_to_string(data_type_id: &str) -> &'static str {
+    pub fn convert_data_type_to_string(data_type_id: &str) -> String {
         let normalized_data_type_id = SymbolicFieldDefinition::from_str(data_type_id)
             .ok()
             .map(|symbolic_field_definition| {
@@ -29,32 +31,34 @@ impl DataTypeToStringConverter {
             .unwrap_or_else(|| data_type_id.to_string());
 
         match normalized_data_type_id.as_str() {
-            DataTypeBool8::DATA_TYPE_ID => "bool8",
-            DataTypeBool32::DATA_TYPE_ID => "bool32",
-            DataTypeU8::DATA_TYPE_ID => "u8",
-            DataTypeU16::DATA_TYPE_ID => "u16",
-            DataTypeU16be::DATA_TYPE_ID => "u16be",
-            DATA_TYPE_ID_U24 => "u24",
-            DATA_TYPE_ID_U24BE => "u24be",
-            DataTypeU32::DATA_TYPE_ID => "u32",
-            DataTypeU32be::DATA_TYPE_ID => "u32be",
-            DataTypeU64::DATA_TYPE_ID => "u64",
-            DataTypeU64be::DATA_TYPE_ID => "u64be",
-            DataTypeI8::DATA_TYPE_ID => "i8",
-            DataTypeI16::DATA_TYPE_ID => "i16",
-            DataTypeI16be::DATA_TYPE_ID => "i16be",
-            DATA_TYPE_ID_I24 => "i24",
-            DATA_TYPE_ID_I24BE => "i24be",
-            DataTypeI32::DATA_TYPE_ID => "i32",
-            DataTypeI32be::DATA_TYPE_ID => "i32be",
-            DataTypeI64::DATA_TYPE_ID => "i64",
-            DataTypeI64be::DATA_TYPE_ID => "i64be",
-            DataTypeF32::DATA_TYPE_ID => "f32",
-            DataTypeF32be::DATA_TYPE_ID => "f32be",
-            DataTypeF64::DATA_TYPE_ID => "f64",
-            DataTypeF64be::DATA_TYPE_ID => "f64be",
-            DataTypeStringUtf8::DATA_TYPE_ID => "String (UTF-8)",
-            _ => "Unknown",
+            DataTypeBool8::DATA_TYPE_ID => String::from("bool8"),
+            DataTypeBool32::DATA_TYPE_ID => String::from("bool32"),
+            DataTypeU8::DATA_TYPE_ID => String::from("u8"),
+            DataTypeU16::DATA_TYPE_ID => String::from("u16"),
+            DataTypeU16be::DATA_TYPE_ID => String::from("u16be"),
+            DATA_TYPE_ID_U24 => String::from("u24"),
+            DATA_TYPE_ID_U24BE => String::from("u24be"),
+            DataTypeU32::DATA_TYPE_ID => String::from("u32"),
+            DataTypeU32be::DATA_TYPE_ID => String::from("u32be"),
+            DataTypeU64::DATA_TYPE_ID => String::from("u64"),
+            DataTypeU64be::DATA_TYPE_ID => String::from("u64be"),
+            DataTypeI8::DATA_TYPE_ID => String::from("i8"),
+            DataTypeI16::DATA_TYPE_ID => String::from("i16"),
+            DataTypeI16be::DATA_TYPE_ID => String::from("i16be"),
+            DATA_TYPE_ID_I24 => String::from("i24"),
+            DATA_TYPE_ID_I24BE => String::from("i24be"),
+            DataTypeI32::DATA_TYPE_ID => String::from("i32"),
+            DataTypeI32be::DATA_TYPE_ID => String::from("i32be"),
+            DataTypeI64::DATA_TYPE_ID => String::from("i64"),
+            DataTypeI64be::DATA_TYPE_ID => String::from("i64be"),
+            DataTypeF32::DATA_TYPE_ID => String::from("f32"),
+            DataTypeF32be::DATA_TYPE_ID => String::from("f32be"),
+            DataTypeF64::DATA_TYPE_ID => String::from("f64"),
+            DataTypeF64be::DATA_TYPE_ID => String::from("f64be"),
+            DataTypeStringUtf8::DATA_TYPE_ID => String::from("String (UTF-8)"),
+            DATA_TYPE_ID_I_X86 => String::from("i_x86"),
+            DATA_TYPE_ID_I_X64 => String::from("i_x64"),
+            _ => normalized_data_type_id,
         }
     }
 }

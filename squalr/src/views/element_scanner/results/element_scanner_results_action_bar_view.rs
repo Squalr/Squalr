@@ -140,6 +140,9 @@ impl<'lifetime> Widget for ElementScannerResultsActionBarView<'lifetime> {
                 .data_type_filter_selection
                 .visible_data_type()
                 .clone();
+            self.app_context
+                .engine_unprivileged_state
+                .normalize_anonymous_value_string_format(&validation_data_type_ref, &mut element_scanner_results_view_data.current_display_string);
 
             user_interface.put(
                 Rect::from_min_size(
