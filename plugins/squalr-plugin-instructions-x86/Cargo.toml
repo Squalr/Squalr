@@ -5,5 +5,5 @@ authors = ["Zachary Canann"]
 edition = "2024"
 
 [dependencies]
-iced-x86 = { version = "1.21.0", default-features = false, features = ["std", "decoder", "encoder", "instr_info", "gas", "intel", "nasm", "masm", "code_asm"] }
+iced-x86 = { version = "1.21.0", default-features = false, features = ["std", "decoder", "encoder", "instr_info", "op_code_info", "gas", "intel", "nasm", "masm", "code_asm"] }
 squalr-engine-api = { path = "../../squalr-engine-api" }
