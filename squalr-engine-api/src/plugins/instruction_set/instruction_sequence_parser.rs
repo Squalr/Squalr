@@ -568,12 +568,15 @@ fn parse_immediate(immediate_text: &str) -> Result<Option<i128>, InstructionSynt
         return Ok(None);
     }
 
-    let (sign_multiplier, unsigned_immediate_text) = if let Some(stripped_immediate_text) = trimmed_immediate_text.strip_prefix('-') {
+    let unsigned_prefixed_immediate_text = trimmed_immediate_text
+        .strip_prefix('#')
+        .unwrap_or(trimmed_immediate_text);
+    let (sign_multiplier, unsigned_immediate_text) = if let Some(stripped_immediate_text) = unsigned_prefixed_immediate_text.strip_prefix('-') {
         (-1_i128, stripped_immediate_text)
-    } else if let Some(stripped_immediate_text) = trimmed_immediate_text.strip_prefix('+') {
+    } else if let Some(stripped_immediate_text) = unsigned_prefixed_immediate_text.strip_prefix('+') {
         (1_i128, stripped_immediate_text)
     } else {
-        (1_i128, trimmed_immediate_text)
+        (1_i128, unsigned_prefixed_immediate_text)
     };
 
     if unsigned_immediate_text.is_empty() {
@@ -644,6 +647,19 @@ mod tests {
             &[
                 InstructionOperand::Identifier(String::from("eax")),
                 InstructionOperand::Immediate(-5)
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_instruction_sequence_parses_hash_prefixed_immediates() {
+        let parsed_instructions = parse_instruction_sequence("mov x0, #5").expect("Expected hash-prefixed immediate operand to parse.");
+
+        assert_eq!(
+            parsed_instructions.instructions()[0].operands(),
+            &[
+                InstructionOperand::Identifier(String::from("x0")),
+                InstructionOperand::Immediate(5)
             ]
         );
     }

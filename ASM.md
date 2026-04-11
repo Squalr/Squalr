@@ -686,3 +686,61 @@ After that, the best second deliverable is:
 **Instruction-aware address items**, not a brand-new project item type.
 
 That path gives you useful assembly scanning quickly, fits the current architecture well, and keeps the future door open for a true instruction data type or project item once the ISA service layer exists.
+
+## Current proof-out status
+
+The multi-ISA path is now proven out enough to keep iterating on this branch:
+
+- `squalr-engine-api` owns shared instruction text plumbing:
+  - parsed instruction/operand model,
+  - label-aware sequence splitting,
+  - decorator parsing,
+  - `#imm` parsing,
+  - shared string/hex instruction-value conversion helpers.
+- Built-in ISA family plugins now exist for:
+  - x86/x64 via `builtin.instruction-set.x86-family`,
+  - ARM/ARM64 via `builtin.instruction-set.arm-family`,
+  - PowerPC via `builtin.instruction-set.powerpc-family`.
+- Concrete instruction data types now include:
+  - `i_x86`,
+  - `i_x64`,
+  - `i_arm`,
+  - `i_arm64`,
+  - `i_ppc32be`.
+- The scanner/UI path now treats any `i_*` data type as an instruction sequence type, and built-in plugin registration/default enablement survives project serialization because project files now save plugin overrides relative to built-in defaults.
+
+### Current ARM subset
+
+- `i_arm` currently supports:
+  - `nop`,
+  - `bx <reg>`,
+  - `b` / `bl`,
+  - `mov <reg>, #imm` for ARM-encodable rotated immediates,
+  - `add <reg>, <reg>, #imm` for ARM-encodable rotated immediates,
+  - `ldr` / `str` with base-plus-immediate forms like `[r1, #4]`.
+- `i_arm64` currently supports:
+  - `nop`,
+  - `ret`,
+  - `b` / `bl`,
+  - `mov <w/x reg>, #imm` via the current `movz`-backed subset,
+  - `add <w/x reg>, <w/x reg>, #imm`,
+  - `ldr` / `str` unsigned-immediate forms like `[x1, #16]`.
+
+### Current PowerPC subset
+
+- `i_ppc32be` currently supports:
+  - `nop`,
+  - `blr`,
+  - `b` / `bl`,
+  - `li`,
+  - `addi`,
+  - `lwz`,
+  - `stw`,
+  - `mr`.
+
+### Remaining gaps
+
+- ARM and PowerPC are currently proof-of-architecture plugins, not full-spec assemblers.
+- ARM still needs broader alias coverage, richer immediates, richer addressing modes, Thumb/T32, and clearer decisions about A32 vs Thumb plugin boundaries.
+- PowerPC still needs more arithmetic/logical ops, condition-register and branch-condition forms, update-addressing variants, and a product decision about whether 64-bit / little-endian variants belong in the same package.
+- The x86/x64 path is still the most mature backend and remains ahead of ARM/PowerPC in text-frontend parity.

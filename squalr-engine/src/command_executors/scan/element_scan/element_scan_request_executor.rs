@@ -929,4 +929,92 @@ mod tests {
             assert_eq!(instruction_display_value.get_anonymous_value_string(), "mov eax, 5; push ebp");
         });
     }
+
+    #[test]
+    fn element_scan_request_finds_arm64_instruction_sequence_matches() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 2;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("mov x0, #5; ret"),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("i_arm64")],
+        };
+
+        write_region_bytes(
+            &memory_bytes,
+            &[
+                0x00u8, 0x00u8, 0xA0u8, 0x00u8, 0x80u8, 0xD2u8, 0xC0u8, 0x03u8, 0x5Fu8, 0xD6u8, 0x00u8, 0x00u8,
+            ],
+        );
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected an ARM64 instruction scan result.");
+            let instruction_display_value = scan_result
+                .get_current_display_value(AnonymousValueStringFormat::String)
+                .expect("Expected string display value for ARM64 instruction scan result.");
+
+            assert_eq!(scan_result.get_address(), match_address);
+            assert_eq!(instruction_display_value.get_anonymous_value_string(), "mov x0, #5; ret");
+        });
+    }
+
+    #[test]
+    fn element_scan_request_finds_powerpc_instruction_sequence_matches() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 4;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("li r3, 5; blr"),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("i_ppc32be")],
+        };
+
+        write_region_bytes(
+            &memory_bytes,
+            &[
+                0x00u8, 0x00u8, 0x00u8, 0x00u8, 0x38u8, 0x60u8, 0x00u8, 0x05u8, 0x4Eu8, 0x80u8, 0x00u8, 0x20u8, 0x00u8, 0x00u8, 0x00u8, 0x00u8,
+            ],
+        );
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected a PowerPC instruction scan result.");
+            let instruction_display_value = scan_result
+                .get_current_display_value(AnonymousValueStringFormat::String)
+                .expect("Expected string display value for PowerPC instruction scan result.");
+
+            assert_eq!(scan_result.get_address(), match_address);
+            assert_eq!(instruction_display_value.get_anonymous_value_string(), "li r3, 5; blr");
+        });
+    }
 }
