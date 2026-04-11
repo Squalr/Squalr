@@ -24,6 +24,7 @@ crate-type = ["cdylib", "rlib"]
 squalr-engine = { path = "../squalr-engine" }
 squalr-engine-api = { path = "../squalr-engine-api" }
 squalr-engine-session = { path = "../squalr-engine-session" }
+squalr-plugin-instructions-x86 = { path = "../plugins/squalr-plugin-instructions-x86" }
 anyhow = "1.0.101"
 arc-swap = "1.8.1"
 bus = "2.4.1"

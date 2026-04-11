@@ -15,12 +15,12 @@ pub use constants::{
     X86_FAMILY_DATA_TYPE_IDS, X86_FAMILY_INSTRUCTION_SET_IDS, X86_FAMILY_PLUGIN_DESCRIPTION, X86_FAMILY_PLUGIN_DISPLAY_NAME, X86_FAMILY_PLUGIN_ID,
 };
 pub use data_types::{DataTypeIX64, DataTypeIX86};
-pub use instruction_set::{X64InstructionSet, X86InstructionSet};
+pub use instruction_set::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
 pub use plugin::X86FamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeIX64, DataTypeIX86, X86FamilyInstructionsPlugin};
+    use crate::{DataTypeIX64, DataTypeIX86, X86FamilyInstructionsPlugin, X86InstructionSet};
     use squalr_engine_api::{
         plugins::{Plugin, PluginCapability},
         structures::{
@@ -231,6 +231,32 @@ mod tests {
             .expect("Expected x86 forward label branch to assemble.");
 
         assert_eq!(assembled_value.get_value_bytes()[0], 0xE9);
+    }
+
+    #[test]
+    fn x86_instruction_set_disassemble_block_reports_branch_targets() {
+        let instruction_set = X86InstructionSet::new();
+        let instruction_lines = instruction_set
+            .disassemble_block(&[0x40, 0x75, 0xFD], 0x401000)
+            .expect("Expected x86 bytes to disassemble into instruction lines.");
+
+        assert_eq!(instruction_lines.len(), 2);
+        assert_eq!(instruction_lines[1].text, "jne short 00401000h");
+        assert_eq!(instruction_lines[1].branch_target_address, Some(0x401000));
+        assert!(instruction_lines[1].is_control_flow);
+    }
+
+    #[test]
+    fn x86_instruction_set_disassemble_block_does_not_report_call_targets_as_jump_lines() {
+        let instruction_set = X86InstructionSet::new();
+        let instruction_lines = instruction_set
+            .disassemble_block(&[0xE8, 0x05, 0x00, 0x00, 0x00], 0x401000)
+            .expect("Expected x86 call bytes to disassemble into instruction lines.");
+
+        assert_eq!(instruction_lines.len(), 1);
+        assert_eq!(instruction_lines[0].text, "call 0040100Ah");
+        assert_eq!(instruction_lines[0].branch_target_address, None);
+        assert!(instruction_lines[0].is_control_flow);
     }
 
     #[test]

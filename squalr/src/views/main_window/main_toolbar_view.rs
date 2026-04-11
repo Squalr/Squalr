@@ -2,6 +2,7 @@ use crate::models::toolbar::toolbar_data::ToolbarData;
 use crate::models::toolbar::toolbar_header_item_data::ToolbarHeaderItemData;
 use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
+use crate::views::code_viewer::code_viewer_view::CodeViewerView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
@@ -33,6 +34,7 @@ impl MainToolbarView {
         let docking_manager_for_project_explorer = app_context.docking_manager.clone();
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
         let docking_manager_for_memory_viewer = app_context.docking_manager.clone();
+        let docking_manager_for_code_viewer = app_context.docking_manager.clone();
         let docking_manager_for_output = app_context.docking_manager.clone();
         let docking_manager_for_pointer_scanner = app_context.docking_manager.clone();
         let docking_manager_for_plugins = app_context.docking_manager.clone();
@@ -106,6 +108,19 @@ impl MainToolbarView {
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_memory_viewer.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(MemoryViewerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        CodeViewerView::WINDOW_ID,
+                        "Code Viewer",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_code_viewer.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(CodeViewerView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -228,6 +243,7 @@ impl Widget for MainToolbarView {
             | ProjectExplorerView::WINDOW_ID
             | StructViewerView::WINDOW_ID
             | MemoryViewerView::WINDOW_ID
+            | CodeViewerView::WINDOW_ID
             | OutputView::WINDOW_ID
             | PointerScannerView::WINDOW_ID
             | PluginsView::WINDOW_ID
