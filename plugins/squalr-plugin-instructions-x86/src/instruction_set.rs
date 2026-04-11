@@ -1,131 +1,7 @@
-use iced_x86::{Code, Decoder, DecoderOptions, Encoder, Formatter, Instruction, NasmFormatter, Register};
-use squalr_engine_api::plugins::instruction_set::InstructionSet;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum X86InstructionMode {
-    Bit32,
-    Bit64,
-}
-
-impl X86InstructionMode {
-    fn bitness(&self) -> u32 {
-        match self {
-            Self::Bit32 => 32,
-            Self::Bit64 => 64,
-        }
-    }
-
-    fn nop_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Nopd,
-            Self::Bit64 => Code::Nopq,
-        }
-    }
-
-    fn ret_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Retnd,
-            Self::Bit64 => Code::Retnq,
-        }
-    }
-
-    fn push_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Push_r32,
-            Self::Bit64 => Code::Push_r64,
-        }
-    }
-
-    fn pop_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Pop_r32,
-            Self::Bit64 => Code::Pop_r64,
-        }
-    }
-
-    fn mov_immediate_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Mov_r32_imm32,
-            Self::Bit64 => Code::Mov_r64_imm64,
-        }
-    }
-
-    fn inc_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Inc_r32,
-            Self::Bit64 => Code::Inc_rm64,
-        }
-    }
-
-    fn dec_code(&self) -> Code {
-        match self {
-            Self::Bit32 => Code::Dec_r32,
-            Self::Bit64 => Code::Dec_rm64,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum X86Register {
-    Ax,
-    Cx,
-    Dx,
-    Bx,
-    Sp,
-    Bp,
-    Si,
-    Di,
-}
-
-impl X86Register {
-    fn parse(
-        register_name: &str,
-        mode: X86InstructionMode,
-    ) -> Result<Self, String> {
-        match (mode, register_name.trim().to_ascii_lowercase().as_str()) {
-            (X86InstructionMode::Bit32, "eax") | (X86InstructionMode::Bit64, "rax") => Ok(Self::Ax),
-            (X86InstructionMode::Bit32, "ecx") | (X86InstructionMode::Bit64, "rcx") => Ok(Self::Cx),
-            (X86InstructionMode::Bit32, "edx") | (X86InstructionMode::Bit64, "rdx") => Ok(Self::Dx),
-            (X86InstructionMode::Bit32, "ebx") | (X86InstructionMode::Bit64, "rbx") => Ok(Self::Bx),
-            (X86InstructionMode::Bit32, "esp") | (X86InstructionMode::Bit64, "rsp") => Ok(Self::Sp),
-            (X86InstructionMode::Bit32, "ebp") | (X86InstructionMode::Bit64, "rbp") => Ok(Self::Bp),
-            (X86InstructionMode::Bit32, "esi") | (X86InstructionMode::Bit64, "rsi") => Ok(Self::Si),
-            (X86InstructionMode::Bit32, "edi") | (X86InstructionMode::Bit64, "rdi") => Ok(Self::Di),
-            _ => Err(format!(
-                "Unsupported {} register '{}'.",
-                match mode {
-                    X86InstructionMode::Bit32 => "x86",
-                    X86InstructionMode::Bit64 => "x64",
-                },
-                register_name.trim()
-            )),
-        }
-    }
-
-    fn to_iced_register(
-        self,
-        mode: X86InstructionMode,
-    ) -> Register {
-        match (mode, self) {
-            (X86InstructionMode::Bit32, Self::Ax) => Register::EAX,
-            (X86InstructionMode::Bit32, Self::Cx) => Register::ECX,
-            (X86InstructionMode::Bit32, Self::Dx) => Register::EDX,
-            (X86InstructionMode::Bit32, Self::Bx) => Register::EBX,
-            (X86InstructionMode::Bit32, Self::Sp) => Register::ESP,
-            (X86InstructionMode::Bit32, Self::Bp) => Register::EBP,
-            (X86InstructionMode::Bit32, Self::Si) => Register::ESI,
-            (X86InstructionMode::Bit32, Self::Di) => Register::EDI,
-            (X86InstructionMode::Bit64, Self::Ax) => Register::RAX,
-            (X86InstructionMode::Bit64, Self::Cx) => Register::RCX,
-            (X86InstructionMode::Bit64, Self::Dx) => Register::RDX,
-            (X86InstructionMode::Bit64, Self::Bx) => Register::RBX,
-            (X86InstructionMode::Bit64, Self::Sp) => Register::RSP,
-            (X86InstructionMode::Bit64, Self::Bp) => Register::RBP,
-            (X86InstructionMode::Bit64, Self::Si) => Register::RSI,
-            (X86InstructionMode::Bit64, Self::Di) => Register::RDI,
-        }
-    }
-}
+use crate::{x86_memory_operand::X86InstructionMode, x86_operand_lowering::build_candidate_instructions};
+use iced_x86::{Decoder, DecoderOptions, Encoder, Formatter, NasmFormatter};
+use squalr_engine_api::plugins::instruction_set::{InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence};
+use std::collections::HashMap;
 
 #[derive(Debug)]
 struct X86InstructionSetBase {
@@ -151,97 +27,63 @@ impl X86InstructionSetBase {
         &self,
         assembly_source: &str,
     ) -> Result<Vec<u8>, String> {
+        let parsed_instruction_sequence = parse_instruction_sequence(assembly_source).map_err(|instruction_error| instruction_error.to_string())?;
+        let parsed_instructions = parsed_instruction_sequence.instructions();
+        let label_instruction_indices = parsed_instruction_sequence.label_instruction_indices();
+        let mut instruction_lengths = vec![1usize; parsed_instructions.len()];
+        let mut selected_instructions = Vec::new();
+
+        for _pass_index in 0..16 {
+            let label_addresses = build_label_addresses(label_instruction_indices, &instruction_lengths)?;
+            let mut current_ip = 0u64;
+            let mut next_selected_instructions = Vec::with_capacity(parsed_instructions.len());
+            let mut next_instruction_lengths = Vec::with_capacity(parsed_instructions.len());
+
+            for parsed_instruction in parsed_instructions {
+                let candidate_instructions = build_candidate_instructions(parsed_instruction, self.mode, self.display_name, &label_addresses)?;
+                let (selected_instruction, selected_instruction_length) =
+                    select_encodable_instruction(&candidate_instructions, self.mode, current_ip, parsed_instruction, self.display_name)?;
+
+                current_ip = current_ip.saturating_add(selected_instruction_length as u64);
+                next_instruction_lengths.push(selected_instruction_length);
+                next_selected_instructions.push(selected_instruction);
+            }
+
+            let lengths_stabilized = next_instruction_lengths == instruction_lengths;
+            instruction_lengths = next_instruction_lengths;
+            selected_instructions = next_selected_instructions;
+
+            if lengths_stabilized {
+                break;
+            }
+        }
+
+        if selected_instructions.len() != parsed_instructions.len() {
+            return Err(format!(
+                "Failed to stabilize {} instruction layout for '{}'.",
+                self.display_name, assembly_source
+            ));
+        }
+
         let mut encoder = Encoder::new(self.mode.bitness());
         let mut current_ip = 0u64;
 
-        for instruction_text in split_instruction_sequence(assembly_source) {
-            let instruction = self.parse_instruction(instruction_text)?;
+        for (parsed_instruction, selected_instruction) in parsed_instructions.iter().zip(selected_instructions.iter()) {
             let instruction_length = encoder
-                .encode(&instruction, current_ip)
-                .map_err(|error| format!("Failed to encode {} instruction '{}': {}.", self.display_name, instruction_text.trim(), error))?;
+                .encode(selected_instruction, current_ip)
+                .map_err(|instruction_error| {
+                    format!(
+                        "Failed to encode {} instruction '{}': {}.",
+                        self.display_name,
+                        parsed_instruction.source_text(),
+                        instruction_error
+                    )
+                })?;
 
             current_ip = current_ip.saturating_add(instruction_length as u64);
         }
 
-        let encoded_bytes = encoder.take_buffer();
-
-        if encoded_bytes.is_empty() {
-            return Err(format!("{} assembly source must not be empty.", self.display_name));
-        }
-
-        Ok(encoded_bytes)
-    }
-
-    fn parse_instruction(
-        &self,
-        instruction_text: &str,
-    ) -> Result<Instruction, String> {
-        let (mnemonic, operands_text) = split_mnemonic_and_operands(instruction_text);
-
-        match mnemonic.as_str() {
-            "nop" => {
-                ensure_no_operands(mnemonic.as_str(), operands_text)?;
-
-                Ok(Instruction::with(self.mode.nop_code()))
-            }
-            "ret" => {
-                ensure_no_operands(mnemonic.as_str(), operands_text)?;
-
-                Ok(Instruction::with(self.mode.ret_code()))
-            }
-            "push" => {
-                let register = self.parse_register_operand(mnemonic.as_str(), operands_text)?;
-
-                Instruction::with1(self.mode.push_code(), register)
-                    .map_err(|error| format!("Failed to assemble {} '{}': {}.", self.display_name, instruction_text.trim(), error))
-            }
-            "pop" => {
-                let register = self.parse_register_operand(mnemonic.as_str(), operands_text)?;
-
-                Instruction::with1(self.mode.pop_code(), register)
-                    .map_err(|error| format!("Failed to assemble {} '{}': {}.", self.display_name, instruction_text.trim(), error))
-            }
-            "inc" => {
-                let register = self.parse_register_operand(mnemonic.as_str(), operands_text)?;
-
-                Instruction::with1(self.mode.inc_code(), register)
-                    .map_err(|error| format!("Failed to assemble {} '{}': {}.", self.display_name, instruction_text.trim(), error))
-            }
-            "dec" => {
-                let register = self.parse_register_operand(mnemonic.as_str(), operands_text)?;
-
-                Instruction::with1(self.mode.dec_code(), register)
-                    .map_err(|error| format!("Failed to assemble {} '{}': {}.", self.display_name, instruction_text.trim(), error))
-            }
-            "mov" => {
-                let (destination_operand, source_operand) = split_two_operands(operands_text)?;
-                let destination_register = X86Register::parse(destination_operand, self.mode)?.to_iced_register(self.mode);
-
-                match self.mode {
-                    X86InstructionMode::Bit32 => {
-                        let immediate_value = parse_signed_immediate(source_operand, 32)?;
-
-                        Instruction::with2(self.mode.mov_immediate_code(), destination_register, immediate_value as i32)
-                            .map_err(|error| format!("Failed to assemble {} '{}': {}.", self.display_name, instruction_text.trim(), error))
-                    }
-                    X86InstructionMode::Bit64 => {
-                        let immediate_value = parse_signed_immediate(source_operand, 64)?;
-
-                        Instruction::with2(self.mode.mov_immediate_code(), destination_register, immediate_value as i64)
-                            .map_err(|error| format!("Failed to assemble {} '{}': {}.", self.display_name, instruction_text.trim(), error))
-                    }
-                }
-            }
-            _ => Err(format!("Unsupported {} mnemonic '{}'.", self.display_name, mnemonic)),
-        }
-    }
-
-    fn parse_register_operand(
-        &self,
-        mnemonic: &str,
-        operands_text: &str,
-    ) -> Result<Register, String> {
-        X86Register::parse(expect_single_operand(mnemonic, operands_text)?, self.mode).map(|register| register.to_iced_register(self.mode))
+        Ok(encoder.take_buffer())
     }
 
     fn disassemble_instruction_sequence(
@@ -269,7 +111,7 @@ impl X86InstructionSetBase {
 
             let mut instruction_text = String::new();
             formatter.format(&instruction, &mut instruction_text);
-            instruction_texts.push(normalize_instruction_text(instruction_text));
+            instruction_texts.push(normalize_instruction_text(&instruction_text));
             byte_offset += instruction_length;
         }
 
@@ -333,6 +175,67 @@ impl X64InstructionSet {
     }
 }
 
+fn build_label_addresses(
+    label_instruction_indices: &HashMap<String, usize>,
+    instruction_lengths: &[usize],
+) -> Result<HashMap<String, u64>, String> {
+    let mut instruction_addresses = Vec::with_capacity(instruction_lengths.len() + 1);
+    let mut current_ip = 0u64;
+    instruction_addresses.push(current_ip);
+
+    for instruction_length in instruction_lengths {
+        current_ip = current_ip.saturating_add(*instruction_length as u64);
+        instruction_addresses.push(current_ip);
+    }
+
+    let mut label_addresses = HashMap::new();
+
+    for (label_name, instruction_index) in label_instruction_indices {
+        let Some(label_address) = instruction_addresses.get(*instruction_index).copied() else {
+            return Err(format!(
+                "Instruction label '{}' points to invalid instruction index '{}'.",
+                label_name, instruction_index
+            ));
+        };
+
+        label_addresses.insert(label_name.clone(), label_address);
+    }
+
+    Ok(label_addresses)
+}
+
+fn select_encodable_instruction(
+    candidate_instructions: &[iced_x86::Instruction],
+    instruction_mode: X86InstructionMode,
+    current_ip: u64,
+    parsed_instruction: &ParsedInstruction,
+    display_name: &str,
+) -> Result<(iced_x86::Instruction, usize), String> {
+    let mut candidate_errors = Vec::new();
+
+    for candidate_instruction in candidate_instructions {
+        let mut probe_encoder = Encoder::new(instruction_mode.bitness());
+
+        match probe_encoder.encode(candidate_instruction, current_ip) {
+            Ok(instruction_length) => return Ok((*candidate_instruction, instruction_length)),
+            Err(candidate_error) => candidate_errors.push(candidate_error.to_string()),
+        }
+    }
+
+    let candidate_error_summary = candidate_errors
+        .into_iter()
+        .take(3)
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    Err(format!(
+        "Failed to encode {} instruction '{}'. {}",
+        display_name,
+        parsed_instruction.source_text(),
+        candidate_error_summary
+    ))
+}
+
 impl Default for X64InstructionSet {
     fn default() -> Self {
         Self::new()
@@ -361,114 +264,4 @@ impl InstructionSet for X64InstructionSet {
     ) -> Result<String, String> {
         self.inner.disassemble_instruction_sequence(instruction_bytes)
     }
-}
-
-fn split_instruction_sequence(assembly_source: &str) -> Vec<&str> {
-    assembly_source
-        .split(|character| character == ';' || character == '\n' || character == '\r')
-        .map(str::trim)
-        .filter(|instruction_text| !instruction_text.is_empty())
-        .collect()
-}
-
-fn split_mnemonic_and_operands(instruction_text: &str) -> (String, &str) {
-    let trimmed_instruction_text = instruction_text.trim();
-
-    if let Some(mnemonic_end_index) = trimmed_instruction_text.find(char::is_whitespace) {
-        (
-            trimmed_instruction_text[..mnemonic_end_index]
-                .trim()
-                .to_ascii_lowercase(),
-            trimmed_instruction_text[mnemonic_end_index..].trim(),
-        )
-    } else {
-        (trimmed_instruction_text.to_ascii_lowercase(), "")
-    }
-}
-
-fn normalize_instruction_text(instruction_text: String) -> String {
-    let mut normalized_instruction_text = String::with_capacity(instruction_text.len() + 4);
-    let mut previous_character = '\0';
-
-    for current_character in instruction_text.trim().chars() {
-        normalized_instruction_text.push(current_character);
-
-        if current_character == ',' && previous_character != ' ' {
-            normalized_instruction_text.push(' ');
-        }
-
-        previous_character = current_character;
-    }
-
-    normalized_instruction_text
-}
-
-fn ensure_no_operands(
-    mnemonic: &str,
-    operands_text: &str,
-) -> Result<(), String> {
-    if operands_text.trim().is_empty() {
-        Ok(())
-    } else {
-        Err(format!("Mnemonic '{}' does not take operands.", mnemonic))
-    }
-}
-
-fn expect_single_operand<'a>(
-    mnemonic: &str,
-    operands_text: &'a str,
-) -> Result<&'a str, String> {
-    let operand = operands_text.trim();
-
-    if operand.is_empty() {
-        Err(format!("Mnemonic '{}' requires one operand.", mnemonic))
-    } else if operand.contains(',') {
-        Err(format!("Mnemonic '{}' only supports one operand.", mnemonic))
-    } else {
-        Ok(operand)
-    }
-}
-
-fn split_two_operands(operands_text: &str) -> Result<(&str, &str), String> {
-    let Some((left_operand, right_operand)) = operands_text.split_once(',') else {
-        return Err(String::from("Expected two operands separated by a comma."));
-    };
-    let left_operand = left_operand.trim();
-    let right_operand = right_operand.trim();
-
-    if left_operand.is_empty() || right_operand.is_empty() {
-        Err(String::from("Expected both operands to be present."))
-    } else {
-        Ok((left_operand, right_operand))
-    }
-}
-
-fn parse_signed_immediate(
-    immediate_text: &str,
-    bit_width: u32,
-) -> Result<i128, String> {
-    let trimmed_immediate_text = immediate_text.trim();
-
-    if trimmed_immediate_text.is_empty() {
-        return Err(String::from("Immediate operand must not be empty."));
-    }
-
-    let parsed_value = if let Some(hexadecimal_digits) = trimmed_immediate_text
-        .strip_prefix("0x")
-        .or_else(|| trimmed_immediate_text.strip_prefix("0X"))
-    {
-        i128::from_str_radix(hexadecimal_digits, 16).map_err(|error| format!("Invalid hexadecimal immediate '{}': {}.", immediate_text, error))?
-    } else {
-        trimmed_immediate_text
-            .parse::<i128>()
-            .map_err(|error| format!("Invalid immediate '{}': {}.", immediate_text, error))?
-    };
-    let minimum_value = -(1_i128 << (bit_width - 1));
-    let maximum_value = (1_i128 << bit_width) - 1;
-
-    if parsed_value < minimum_value || parsed_value > maximum_value {
-        return Err(format!("Immediate '{}' does not fit in {} bits.", immediate_text, bit_width));
-    }
-
-    Ok(parsed_value)
 }

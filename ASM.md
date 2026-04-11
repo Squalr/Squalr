@@ -12,25 +12,74 @@ The first implementation slice is now in the branch.
 - The new instruction data types are plugin-backed and now assemble/disassemble through a pure-Rust `iced-x86` built-in x86/x64 backend with a thin text frontend.
 - Equality scans for these instruction data types now work end-to-end by lowering to the existing byte-array scan path.
 
-### Current x86/x64 MVP scope
+### Current x86/x64 scope
 
-The current built-in x86/x64 backend now uses `iced-x86` for encoding/decoding/formatting, while the text frontend still intentionally supports a focused authoring subset first:
+The current built-in x86/x64 backend now uses `iced-x86` for encoding/decoding/formatting, while the text frontend has started moving onto a shared Squalr instruction parsing toolkit rather than living entirely inside the x86 plugin.
 
-- `mov reg, imm`
-- `push reg`
-- `pop reg`
-- `inc reg`
-- `dec reg`
-- `nop`
-- `ret`
+Currently, the shared toolkit in `squalr-engine-api` owns:
+
+- instruction-sequence splitting with `;` / newline support,
+- parsed instruction / operand models,
+- immediate parsing,
+- bracketed memory-operand parsing with optional size hints,
+- segment overrides and broadcast suffix parsing for memory operands,
+- AVX-512-style decorator parsing for opmasks, zeroing, SAE, and rounding controls,
+- label parsing and label-position tracking for instruction sequences,
+- normalized instruction text formatting.
+
+The x86/x64 plugin now owns the x86-specific part:
+
+- register tables / aliases,
+- x86 memory expression lowering,
+- opcode candidate selection from `iced-x86` metadata,
+- operand-kind matching and lowering into `Instruction`,
+- `iced-x86` encoding / decoding.
+
+This is no longer the original tiny handwritten subset. The x86/x64 plugin now does broad candidate matching over `iced-x86` opcode metadata, so any instruction form that can be expressed as:
+
+- registers,
+- immediates,
+- memory operands,
+- and up to 5 explicit operands,
+
+now has a real path to assembly if `iced-x86` supports the opcode form.
+
+This now covers a large amount of x86/x64 surface area, including:
+
+- general register instructions,
+- SSE / AVX register forms,
+- AVX-512 opmask / zeroing / SAE / rounding syntax,
+- control-register instructions,
+- many no-operand system instructions,
+- scaled-index memory operands,
+- segmented memory operands,
+- memory broadcast suffixes,
+- backward and forward label branches with automatic short-vs-near selection,
+- and x86 shorthand like `inc [0x100579c]`, which is now treated as `dword ptr` by default in 32-bit mode.
 
 Instruction sequences are separated with `;` or newlines, so inputs like these now work:
 
 - `mov eax, 5`
 - `mov eax, 5; push ebp`
 - `mov rax, 5; push rbp`
+- `inc dword ptr [0x100579c]`
+- `inc [0x100579c]`
+- `addps xmm0, xmm1`
+- `vaddps ymm0, ymm1, ymm2`
+- `vaddps zmm1{k1}{z}, zmm2, zmm3`
+- `vsqrtps zmm1{k2}{z}, zmm23{rd-sae}`
+- `vucomiss xmm31, xmm15{sae}`
+- `start: inc eax; jne start`
+- `mov eax, cr0`
+- `rdtsc`
 
-This is enough to prove the architecture and the scan pipeline integration while avoiding a handwritten byte encoder/decoder, but it is not yet a full free-form text assembler frontend.
+This is enough to prove the architecture, the scan pipeline integration, and the `iced-x86` candidate-driven backend direction. It is still not yet full assembler parity because the remaining hard gaps are mostly in the frontend:
+
+- data directives like `db` / `dw` / `dd` / `dq`,
+- explicit instruction / address-size override syntax and other prefix-driven variants,
+- richer expression/linking features beyond plain labels,
+- broader syntax normalization / sugar beyond plain explicit operands,
+- and other syntax sugar that lives outside plain register / immediate / memory operands.
 
 ### Practical meaning
 
@@ -460,6 +509,147 @@ For future-proofing across many ISAs, the best architecture is:
 **All ISA support uses a common instruction-plugin capability, while the major ISAs ship as built-in plugins.**
 
 The host OS should only influence defaults and ranking. It should **not** be the main selector, because the real target can just as easily be an emulator-backed or otherwise non-native instruction set.
+
+## Reference library study
+
+I checked a few Rust-native assembler projects to sanity-check boundaries before we grow Squalr's instruction stack further.
+
+### `asm` crate
+
+This was the wrong lead for Squalr.
+
+- The currently published `asm` crate is centered on `6502`, not x86/x64/ARM.
+- Even if the crates.io page exists, it is not the kind of multi-ISA assembler/disassembler foundation we need here.
+
+Conclusion:
+
+- Ignore `asm` for Squalr.
+
+### `asm-rs`
+
+This is the closest Rust-native project to what we want functionally.
+
+Good ideas worth borrowing:
+
+- Clean pipeline shape:
+  - lexer,
+  - parser,
+  - IR,
+  - linker / label resolution,
+  - per-ISA encoder.
+- Runtime text assembly from strings.
+- Architecture-aware parsing entrypoints instead of pretending one syntax is universal.
+- Source-span aware errors.
+- Labels and relocations are treated as first-class concepts rather than bolted on later.
+
+What does **not** fit Squalr well:
+
+- The x86 implementation is very flattened and monolithic.
+- It owns too much end-to-end logic inside the assembler crate instead of separating:
+  - shared parsing/tooling,
+  - ISA semantics,
+  - encoding backend.
+- If we copied its shape directly, we would likely end up with giant per-ISA files that are hard to plug into Squalr's plugin model.
+- It appears to reimplement substantial ISA encoding logic directly, which is exactly what we want to avoid for x86/x64 now that `iced-x86` is available.
+
+Conclusion:
+
+- Borrow the pipeline shape.
+- Do **not** borrow the code ownership boundaries.
+- Do **not** grow Squalr into a giant handwritten x86 encoder crate.
+
+### `dynasm-rs`
+
+This is a much more mature project in some respects, but it is solving a different product problem.
+
+Good ideas worth borrowing:
+
+- Strong separation between:
+  - frontend compilation/parsing side,
+  - runtime assembler / relocation side.
+- ISA-specific relocation behavior behind a shared relocation abstraction.
+- Per-architecture modules that plug into common infrastructure.
+- Good treatment of labels, relocations, and executable-buffer concerns.
+
+What does **not** fit Squalr well:
+
+- It is fundamentally a Rust macro / inline-assembly authoring system, not a free-form user text assembler for a scanner UI.
+- Its frontend is tightly coupled to Rust token streams and proc-macro expansion.
+- Its runtime crate is oriented around executable code generation and relocation management, not "scan this instruction sequence in memory" workflows.
+- It is excellent inspiration for relocation and backend layering, but not for the top-level UX or parser entrypoint we need.
+
+Conclusion:
+
+- Borrow the separation of shared runtime/tooling from ISA-specific behavior.
+- Do **not** borrow the proc-macro-first architecture.
+
+## Recommended Squalr boundaries
+
+The right shape for Squalr is not `asm-rs`, not `dynasm-rs`, and not a giant x86 plugin file. It should be a shared instruction toolkit plus ISA-owned plugins.
+
+### Shared engine toolkit
+
+Squalr itself should own the generic infrastructure that every ISA wants:
+
+- Assembly text splitting for instruction sequences.
+- Tokenization / lexing.
+- Source spans and diagnostics.
+- Generic expression parsing for:
+  - integers,
+  - hex,
+  - unary signs,
+  - maybe simple arithmetic later.
+- Generic operand surface concepts.
+  - Example: register token, immediate token, memory-bracket token, size hint token, label token.
+- Optional statement / directive / label model for future growth.
+- Shared normalization / pretty-print helpers for the scanner and editors.
+- Future relocation / label record types.
+
+This should be a toolkit, not a universal assembler.
+
+### ISA plugin responsibilities
+
+Each ISA plugin should own only the parts that are genuinely ISA-specific:
+
+- Register sets and aliases.
+- Mnemonic tables and aliases.
+- Operand legality rules.
+- Addressing-mode rules.
+- Size inference rules where the ISA actually allows inference.
+- Instruction matching and lowering.
+  - Example: parsed operands -> ISA-specific structured instruction request.
+- Encoding / decoding / formatting backend use.
+  - `iced-x86` for x86/x64.
+  - future Rust-native backend for ARM / AArch64 / others.
+
+This means the plugin supplies "its bit", while Squalr supplies the reusable editor / parser / diagnostic infrastructure.
+
+### x86/x64 specifically
+
+For the built-in x86/x64 plugin, the clean next boundary is:
+
+- shared Squalr toolkit parses text into a generic instruction/operand form,
+- x86/x64 plugin validates and lowers that into x86-specific structured operands,
+- `iced-x86` remains the encoder / decoder / formatter backend.
+
+That avoids both bad extremes:
+
+- not enough abstraction, where the x86 plugin hand-parses everything itself forever,
+- too much abstraction, where Squalr tries to be a universal semantic assembler for every ISA.
+
+## Practical recommendation update
+
+Near term, the best path is:
+
+1. Keep `iced-x86` as the x86/x64 backend.
+2. Move parsing infrastructure out of the current x86 plugin into a shared Squalr instruction toolkit.
+3. Let the x86/x64 plugin own:
+   - register names,
+   - x86 memory syntax rules,
+   - operand validation,
+   - lowering to `iced-x86`.
+4. Keep `;` and newline as instruction-sequence separators.
+5. Grow labels, directives, and richer memory operands only after the shared toolkit boundary exists.
 
 ## Concrete blockers and risks
 

@@ -3,6 +3,13 @@ mod constants;
 mod data_types;
 mod instruction_set;
 mod plugin;
+mod x86_memory_operand;
+mod x86_opcode_index;
+mod x86_operand_lowering;
+mod x86_register;
+
+#[cfg(test)]
+mod instruction_parser_corpus_tests;
 
 pub use constants::{
     X86_FAMILY_DATA_TYPE_IDS, X86_FAMILY_INSTRUCTION_SET_IDS, X86_FAMILY_PLUGIN_DESCRIPTION, X86_FAMILY_PLUGIN_DISPLAY_NAME, X86_FAMILY_PLUGIN_ID,
@@ -81,6 +88,149 @@ mod tests {
 
         assert_eq!(assembled_value.get_value_bytes(), &[0x40]);
         assert_eq!(disassembled_value.get_anonymous_value_string(), "inc eax");
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_sized_memory_inc_instruction() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("inc dword ptr [0x100579c]"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 sized memory inc instruction to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0xFF, 0x05, 0x9C, 0x57, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_implicit_dword_memory_inc_shorthand() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("inc [0x100579c]"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 shorthand memory inc instruction to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0xFF, 0x05, 0x9C, 0x57, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn i_x64_data_type_supports_full_width_register_immediates() {
+        let data_type = DataTypeIX64::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("mov rax, 0xFFFFFFFFFFFFFFFF"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 full-width immediate to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0x48, 0xB8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_no_operand_system_instructions() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("rdtsc"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 rdtsc instruction to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0x0F, 0x31]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_sse_register_instructions() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("addps xmm0, xmm1"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 SSE instruction to assemble.");
+        let disassembled_value = data_type
+            .anonymize_value_bytes(assembled_value.get_value_bytes(), AnonymousValueStringFormat::String)
+            .expect("Expected x86 SSE bytes to disassemble.");
+
+        assert_eq!(disassembled_value.get_anonymous_value_string(), "addps xmm0, xmm1");
+    }
+
+    #[test]
+    fn i_x64_data_type_supports_avx_register_instructions() {
+        let data_type = DataTypeIX64::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("vaddps ymm0, ymm1, ymm2"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x64 AVX instruction to assemble.");
+        let disassembled_value = data_type
+            .anonymize_value_bytes(assembled_value.get_value_bytes(), AnonymousValueStringFormat::String)
+            .expect("Expected x64 AVX bytes to disassemble.");
+
+        assert_eq!(disassembled_value.get_anonymous_value_string(), "vaddps ymm0, ymm1, ymm2");
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_control_register_instructions() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("mov eax, cr0"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 control register instruction to assemble.");
+        let disassembled_value = data_type
+            .anonymize_value_bytes(assembled_value.get_value_bytes(), AnonymousValueStringFormat::String)
+            .expect("Expected x86 control register bytes to disassemble.");
+
+        assert_eq!(disassembled_value.get_anonymous_value_string(), "mov eax, cr0");
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_backward_label_branches() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("start: inc eax; jne start"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 backward label branch to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0x40, 0x75, 0xFD]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_forward_label_branches_that_need_near_encoding() {
+        let data_type = DataTypeIX86::new();
+        let mut assembly_source = String::from("jmp far_label; ");
+
+        for _padding_instruction_index in 0..200 {
+            assembly_source.push_str("nop; ");
+        }
+
+        assembly_source.push_str("far_label: ret");
+
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                assembly_source,
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 forward label branch to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes()[0], 0xE9);
     }
 
     #[test]
