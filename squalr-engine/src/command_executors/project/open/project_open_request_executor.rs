@@ -64,13 +64,13 @@ impl UnprivilegedCommandRequestExecutor for ProjectOpenRequest {
             Ok(project) => {
                 let project_plugin_configuration = project
                     .get_project_info()
-                    .get_enabled_plugin_ids()
-                    .map(|enabled_plugin_ids| enabled_plugin_ids.to_vec());
+                    .get_plugin_enablement_overrides()
+                    .cloned();
                 let project_symbol_catalog = project.get_project_info().get_project_symbol_catalog().clone();
                 *opened_project = Some(project);
                 drop(opened_project);
 
-                if apply_project_plugin_configuration(engine_unprivileged_state, project_plugin_configuration.as_deref())
+                if apply_project_plugin_configuration(engine_unprivileged_state, project_plugin_configuration.as_ref())
                     && sync_project_symbol_catalog(engine_unprivileged_state, project_symbol_catalog)
                 {
                     ProjectOpenResponse { success: true }

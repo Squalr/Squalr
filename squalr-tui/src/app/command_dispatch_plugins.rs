@@ -5,6 +5,7 @@ use squalr_engine_api::commands::plugins::set_enabled::plugin_set_enabled_reques
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
 use squalr_engine_api::commands::{privileged_command_request::PrivilegedCommandRequest, unprivileged_command_request::UnprivilegedCommandRequest};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::PluginEnablementOverrides;
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
@@ -138,17 +139,7 @@ impl AppShell {
         engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
         plugin_states: Vec<squalr_engine_api::plugins::PluginState>,
     ) -> Option<String> {
-        let enabled_plugin_ids = {
-            let mut enabled_plugin_ids = plugin_states
-                .into_iter()
-                .filter(|plugin_state| plugin_state.get_is_enabled())
-                .map(|plugin_state| plugin_state.get_metadata().get_plugin_id().to_string())
-                .collect::<Vec<_>>();
-
-            enabled_plugin_ids.sort();
-            enabled_plugin_ids.dedup();
-            enabled_plugin_ids
-        };
+        let plugin_enablement_overrides = PluginEnablementOverrides::from_plugin_states(&plugin_states);
 
         let has_opened_project = match engine_unprivileged_state
             .get_project_manager()
@@ -158,7 +149,7 @@ impl AppShell {
             Ok(mut opened_project) => {
                 if let Some(opened_project) = opened_project.as_mut() {
                     let project_info = opened_project.get_project_info_mut();
-                    project_info.set_enabled_plugin_ids(Some(enabled_plugin_ids));
+                    project_info.set_plugin_enablement_overrides(plugin_enablement_overrides);
                     project_info.set_has_unsaved_changes(true);
                     true
                 } else {

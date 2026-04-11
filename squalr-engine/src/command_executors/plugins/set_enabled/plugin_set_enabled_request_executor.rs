@@ -21,7 +21,9 @@ impl PrivilegedCommandRequestExecutor for PluginSetEnabledRequest {
                 engine_privileged_state.invalidate_memory_view_runtime_state();
             }
 
-            if plugin_registry.has_plugin_capability(&self.plugin_id, PluginCapability::DataType) {
+            if plugin_registry.has_plugin_capability(&self.plugin_id, PluginCapability::DataType)
+                || plugin_registry.has_plugin_capability(&self.plugin_id, PluginCapability::InstructionSet)
+            {
                 engine_privileged_state.notify_registry_changed();
             }
 

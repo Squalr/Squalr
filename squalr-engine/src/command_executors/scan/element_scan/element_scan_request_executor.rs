@@ -890,4 +890,43 @@ mod tests {
         assert_eq!(snapshot_guard.get_number_of_results(), 1);
         assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
     }
+
+    #[test]
+    fn element_scan_request_finds_x86_instruction_sequence_matches() {
+        let memory_bytes = Arc::new(RwLock::new(vec![0u8; TEST_REGION_SIZE as usize]));
+        let engine_privileged_state = create_test_engine_privileged_state(memory_bytes.clone());
+        let match_address = TEST_REGION_BASE_ADDRESS + 1;
+        let element_scan_request = ElementScanRequest {
+            scan_constraints: vec![AnonymousScanConstraint::new(
+                ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
+                Some(AnonymousValueString::new(
+                    String::from("mov eax, 5; push ebp"),
+                    AnonymousValueStringFormat::String,
+                    ContainerType::None,
+                )),
+            )],
+            data_type_refs: vec![DataTypeRef::new("i_x86")],
+        };
+
+        write_region_bytes(&memory_bytes, &[0x00u8, 0xB8u8, 0x05u8, 0x00u8, 0x00u8, 0x00u8, 0x55u8, 0x00u8]);
+
+        let _ = element_scan_request.execute(&engine_privileged_state);
+
+        let snapshot = engine_privileged_state.get_snapshot();
+        let snapshot_guard = snapshot.read().expect("Expected snapshot read lock.");
+
+        assert_eq!(snapshot_guard.get_number_of_results(), 1);
+        assert_eq!(get_first_result_address(&engine_privileged_state), Some(match_address));
+        engine_privileged_state.read_symbol_registry(|symbol_registry| {
+            let scan_result = snapshot_guard
+                .get_scan_result(symbol_registry, 0)
+                .expect("Expected an x86 instruction scan result.");
+            let instruction_display_value = scan_result
+                .get_current_display_value(AnonymousValueStringFormat::String)
+                .expect("Expected string display value for instruction scan result.");
+
+            assert_eq!(scan_result.get_address(), match_address);
+            assert_eq!(instruction_display_value.get_anonymous_value_string(), "mov eax, 5; push ebp");
+        });
+    }
 }

@@ -10,25 +10,25 @@ use epaint::CornerRadius;
 use std::sync::Arc;
 
 /// A generic context menu item.
-pub struct DataTypeItemView<'lifetime> {
+pub struct DataTypeItemView {
     app_context: Arc<AppContext>,
-    label: &'lifetime str,
+    label: String,
     icon: Option<TextureHandle>,
     combo_box_width: f32,
     check_state: Option<CheckState>,
     disabled: bool,
 }
 
-impl<'lifetime> DataTypeItemView<'lifetime> {
+impl DataTypeItemView {
     pub fn new(
         app_context: Arc<AppContext>,
-        label: &'lifetime str,
+        label: impl Into<String>,
         icon: Option<TextureHandle>,
         width: f32,
     ) -> Self {
         Self {
-            app_context: app_context,
-            label,
+            app_context,
+            label: label.into(),
             icon,
             combo_box_width: width,
             check_state: None,
@@ -61,7 +61,7 @@ impl<'lifetime> DataTypeItemView<'lifetime> {
     }
 }
 
-impl<'a> Widget for DataTypeItemView<'a> {
+impl Widget for DataTypeItemView {
     fn ui(
         self,
         user_interface: &mut Ui,

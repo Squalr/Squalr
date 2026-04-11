@@ -268,7 +268,7 @@ impl Default for PluginRegistry {
 mod tests {
     use super::PluginRegistry;
     use squalr_engine_api::{
-        plugins::PluginActivationState,
+        plugins::{PluginActivationState, PluginCapability},
         structures::{memory::bitness::Bitness, processes::opened_process_info::OpenedProcessInfo},
     };
 
@@ -279,7 +279,7 @@ mod tests {
         let plugin_package = plugin_registry.find_memory_view_plugin_package(&opened_process_info);
 
         assert!(plugin_package.is_some());
-        assert_eq!(plugin_registry.get_plugin_packages().len(), 2);
+        assert_eq!(plugin_registry.get_plugin_packages().len(), 3);
         assert_eq!(
             plugin_package
                 .expect("Expected the Dolphin plugin to match the Dolphin process.")
@@ -300,7 +300,7 @@ mod tests {
             .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
             .expect("Expected the Dolphin plugin state to be present.");
 
-        assert_eq!(plugin_states.len(), 2);
+        assert_eq!(plugin_states.len(), 3);
         assert_eq!(dolphin_plugin_state.get_activation_state(), PluginActivationState::Activating);
     }
 
@@ -315,7 +315,7 @@ mod tests {
             .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
             .expect("Expected the Dolphin plugin state to be present.");
 
-        assert_eq!(plugin_states.len(), 2);
+        assert_eq!(plugin_states.len(), 3);
         assert_eq!(dolphin_plugin_state.get_activation_state(), PluginActivationState::Activated);
     }
 
@@ -338,9 +338,17 @@ mod tests {
             .find(|plugin_state| plugin_state.get_metadata().get_plugin_id() == "builtin.memory-view.dolphin")
             .expect("Expected the Dolphin plugin state to be present.");
 
-        assert_eq!(plugin_states.len(), 2);
+        assert_eq!(plugin_states.len(), 3);
         assert!(!dolphin_plugin_state.get_is_enabled());
         assert!(dolphin_plugin_state.get_can_activate_for_current_process());
         assert!(!dolphin_plugin_state.get_is_active_for_current_process());
+    }
+
+    #[test]
+    fn registry_exposes_builtin_x86_instruction_plugin_capabilities() {
+        let plugin_registry = PluginRegistry::new();
+
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.x86-family", PluginCapability::InstructionSet));
+        assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.x86-family", PluginCapability::DataType));
     }
 }

@@ -179,6 +179,42 @@ impl EngineUnprivilegedState {
             .unwrap_or_default()
     }
 
+    pub fn resolve_supported_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+        preferred_format: AnonymousValueStringFormat,
+    ) -> AnonymousValueStringFormat {
+        let supported_formats = self.get_supported_anonymous_value_string_formats(data_type_ref);
+
+        if supported_formats.is_empty() || supported_formats.contains(&preferred_format) {
+            return preferred_format;
+        }
+
+        let default_format = self.get_default_anonymous_value_string_format(data_type_ref);
+
+        if supported_formats.contains(&default_format) {
+            return default_format;
+        }
+
+        supported_formats.first().copied().unwrap_or(preferred_format)
+    }
+
+    pub fn normalize_anonymous_value_string_format(
+        &self,
+        data_type_ref: &DataTypeRef,
+        anonymous_value_string: &mut AnonymousValueString,
+    ) -> bool {
+        let resolved_format = self.resolve_supported_anonymous_value_string_format(data_type_ref, anonymous_value_string.get_anonymous_value_string_format());
+
+        if resolved_format == anonymous_value_string.get_anonymous_value_string_format() {
+            return false;
+        }
+
+        anonymous_value_string.set_anonymous_value_string_format(resolved_format);
+
+        true
+    }
+
     pub fn validate_value_string(
         &self,
         data_type_ref: &DataTypeRef,

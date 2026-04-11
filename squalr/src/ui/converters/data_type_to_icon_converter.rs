@@ -15,6 +15,8 @@ const DATA_TYPE_ID_U24: &str = "u24";
 const DATA_TYPE_ID_U24BE: &str = "u24be";
 const DATA_TYPE_ID_I24: &str = "i24";
 const DATA_TYPE_ID_I24BE: &str = "i24be";
+const DATA_TYPE_ID_I_X86: &str = "i_x86";
+const DATA_TYPE_ID_I_X64: &str = "i_x64";
 
 pub struct DataTypeToIconConverter {}
 
@@ -71,6 +73,7 @@ impl DataTypeToIconConverter {
                 .icon_handle_data_type_orange_blocks_reverse_8
                 .clone(),
             DataTypeStringUtf8::DATA_TYPE_ID => icon_library.icon_handle_data_type_string.clone(),
+            DATA_TYPE_ID_I_X86 | DATA_TYPE_ID_I_X64 => icon_library.icon_handle_project_cpu_instruction.clone(),
             _ => icon_library.icon_handle_data_type_unknown.clone(),
         }
     }

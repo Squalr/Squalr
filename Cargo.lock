@@ -2469,6 +2469,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced-x86"
+version = "1.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c447cff8c7f384a7d4f741cfcff32f75f3ad02b406432e8d6c878d56b1edf6b"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5326,6 +5335,7 @@ version = "0.3.0"
 dependencies = [
  "squalr-engine-api",
  "squalr-plugin-data-types-24bit",
+ "squalr-plugin-instructions-x86",
  "squalr-plugin-memory-view-dolphin",
 ]
 
@@ -5333,6 +5343,14 @@ dependencies = [
 name = "squalr-plugin-data-types-24bit"
 version = "0.3.0"
 dependencies = [
+ "squalr-engine-api",
+]
+
+[[package]]
+name = "squalr-plugin-instructions-x86"
+version = "0.1.0"
+dependencies = [
+ "iced-x86",
  "squalr-engine-api",
 ]
 

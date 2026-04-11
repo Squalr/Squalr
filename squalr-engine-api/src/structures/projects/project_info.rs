@@ -1,3 +1,4 @@
+use crate::plugins::PluginEnablementOverrides;
 use crate::structures::processes::process_icon::ProcessIcon;
 use crate::structures::projects::project_manifest::ProjectManifest;
 use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
@@ -23,9 +24,9 @@ pub struct ProjectInfo {
     #[serde(default)]
     project_symbol_catalog: ProjectSymbolCatalog,
 
-    /// Enabled plugin identifiers persisted with this project. Absent preserves plugin defaults.
+    /// Plugin enablement overrides persisted with this project. Absent preserves plugin defaults.
     #[serde(default)]
-    enabled_plugin_ids: Option<Vec<String>>,
+    plugin_enablement_overrides: Option<PluginEnablementOverrides>,
 
     #[serde(skip)]
     has_unsaved_changes: bool,
@@ -59,7 +60,7 @@ impl ProjectInfo {
             project_icon_rgba,
             project_manifest,
             project_symbol_catalog,
-            enabled_plugin_ids: None,
+            plugin_enablement_overrides: None,
             has_unsaved_changes: true,
         }
     }
@@ -105,19 +106,15 @@ impl ProjectInfo {
         &mut self.project_symbol_catalog
     }
 
-    pub fn get_enabled_plugin_ids(&self) -> Option<&[String]> {
-        self.enabled_plugin_ids.as_deref()
+    pub fn get_plugin_enablement_overrides(&self) -> Option<&PluginEnablementOverrides> {
+        self.plugin_enablement_overrides.as_ref()
     }
 
-    pub fn set_enabled_plugin_ids(
+    pub fn set_plugin_enablement_overrides(
         &mut self,
-        enabled_plugin_ids: Option<Vec<String>>,
+        plugin_enablement_overrides: Option<PluginEnablementOverrides>,
     ) {
-        self.enabled_plugin_ids = enabled_plugin_ids.map(|mut enabled_plugin_ids| {
-            enabled_plugin_ids.sort();
-            enabled_plugin_ids.dedup();
-            enabled_plugin_ids
-        });
+        self.plugin_enablement_overrides = plugin_enablement_overrides.filter(|plugin_enablement_overrides| !plugin_enablement_overrides.is_empty());
     }
 
     pub fn get_has_unsaved_changes(&self) -> bool {
