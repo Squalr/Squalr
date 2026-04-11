@@ -2,6 +2,7 @@ use crate::app_context::AppContext;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
 use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
+use crate::views::code_viewer::code_viewer_view::CodeViewerView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::main_window::main_footer_view::MainFooterView;
 use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
@@ -87,6 +88,15 @@ impl MainWindowView {
             Rc::new(MemoryViewerView::WINDOW_ID.to_string()),
         );
 
+        let app_context_for_code_viewer = app_context.clone();
+        let code_viewer_view = DockedWindowView::new(
+            app_context_for_code_viewer.clone(),
+            dock_view_data.clone(),
+            CodeViewerView::new(app_context_for_code_viewer.clone()),
+            Rc::new("Code Viewer".to_string()),
+            Rc::new(CodeViewerView::WINDOW_ID.to_string()),
+        );
+
         let app_context_for_project_explorer = app_context.clone();
         let project_explorer_view = DockedWindowView::new(
             app_context_for_project_explorer.clone(),
@@ -137,6 +147,7 @@ impl MainWindowView {
             Box::new(settings_view),
             Box::new(struct_viewer_view),
             Box::new(memory_viewer_view),
+            Box::new(code_viewer_view),
             Box::new(project_explorer_view),
             Box::new(process_selector_view),
             Box::new(element_scanner_view),

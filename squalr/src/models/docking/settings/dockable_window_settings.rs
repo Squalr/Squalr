@@ -1,6 +1,7 @@
 use crate::models::docking::builder::dock_builder::DockBuilder;
 use crate::models::docking::hierarchy::dock_node::DockNode;
 use crate::models::docking::hierarchy::types::dock_split_direction::DockSplitDirection;
+use crate::views::code_viewer::code_viewer_view::CodeViewerView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
 use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
@@ -50,15 +51,20 @@ impl DockSettingsConfig {
                             )
                             .push_child(0.5, DockBuilder::window(StructViewerView::WINDOW_ID)),
                     )
-                    .push_child(0.5, DockBuilder::window(OutputView::WINDOW_ID)),
+                    .push_child(
+                        0.5,
+                        DockBuilder::tab_node(OutputView::WINDOW_ID)
+                            .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
+                            .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID).visible(false))
+                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false)),
+                    ),
             )
             .push_child(
                 0.4,
                 DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false))
                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
             )
             .build();
@@ -79,20 +85,27 @@ impl DockSettingsConfig {
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false))
                             .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
                     ),
             )
             .push_child(0.25, DockBuilder::window(StructViewerView::WINDOW_ID))
-            .push_child(0.2, DockBuilder::window(OutputView::WINDOW_ID))
+            .push_child(
+                0.2,
+                DockBuilder::tab_node(OutputView::WINDOW_ID)
+                    .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
+                    .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID).visible(false))
+                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false)),
+            )
             .build();
 
         default_layout
     }
 
     fn ensure_required_windows_present(&mut self) {
-        Self::ensure_hidden_tab_window(&mut self.dock_root, SettingsView::WINDOW_ID, PluginsView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, SettingsView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
+        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
+        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
+        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
     }
 
     fn ensure_hidden_tab_window(
@@ -193,5 +206,23 @@ impl DockableWindowSettings {
         }
 
         Self::save_config();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DockSettingsConfig;
+    use crate::views::{
+        code_viewer::code_viewer_view::CodeViewerView, memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView,
+        plugins::plugins_view::PluginsView,
+    };
+
+    #[test]
+    fn default_layout_places_output_related_windows_in_same_tab_group() {
+        let dock_root = DockSettingsConfig::get_default_layout();
+
+        assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, PluginsView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID));
     }
 }

@@ -1,3 +1,4 @@
+pub mod code_viewer;
 pub mod element_scanner;
 pub mod main_window;
 pub mod memory_viewer;

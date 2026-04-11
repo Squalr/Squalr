@@ -1,7 +1,17 @@
 use crate::{x86_memory_operand::X86InstructionMode, x86_operand_lowering::build_candidate_instructions};
-use iced_x86::{Decoder, DecoderOptions, Encoder, Formatter, NasmFormatter};
+use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, NasmFormatter};
 use squalr_engine_api::plugins::instruction_set::{InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence};
 use std::collections::HashMap;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DisassembledInstruction {
+    pub address: u64,
+    pub length: usize,
+    pub bytes: Vec<u8>,
+    pub text: String,
+    pub branch_target_address: Option<u64>,
+    pub is_control_flow: bool,
+}
 
 #[derive(Debug)]
 struct X86InstructionSetBase {
@@ -94,28 +104,79 @@ impl X86InstructionSetBase {
             return Ok(String::new());
         }
 
-        let mut instruction_texts = Vec::new();
+        let instruction_lines = self.disassemble_instruction_block(instruction_bytes, 0)?;
+        let instruction_texts = instruction_lines
+            .into_iter()
+            .map(|instruction_line| instruction_line.text)
+            .collect::<Vec<_>>();
+
+        Ok(instruction_texts.join("; "))
+    }
+
+    fn disassemble_instruction_block(
+        &self,
+        instruction_bytes: &[u8],
+        base_address: u64,
+    ) -> Result<Vec<DisassembledInstruction>, String> {
+        if instruction_bytes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut instruction_lines = Vec::new();
         let mut formatter = NasmFormatter::new();
         let mut byte_offset = 0usize;
 
         while byte_offset < instruction_bytes.len() {
-            let mut decoder = Decoder::with_ip(self.mode.bitness(), &instruction_bytes[byte_offset..], byte_offset as u64, DecoderOptions::NONE);
+            let instruction_address = base_address.saturating_add(byte_offset as u64);
+            let mut decoder = Decoder::with_ip(
+                self.mode.bitness(),
+                &instruction_bytes[byte_offset..],
+                instruction_address,
+                DecoderOptions::NONE,
+            );
             let instruction = decoder.decode();
             let instruction_length = instruction.len();
 
             if instruction.is_invalid() || instruction_length == 0 {
-                instruction_texts.push(format!("db 0x{:02X}", instruction_bytes[byte_offset]));
+                instruction_lines.push(DisassembledInstruction {
+                    address: instruction_address,
+                    length: 1,
+                    bytes: vec![instruction_bytes[byte_offset]],
+                    text: format!("db 0x{:02X}", instruction_bytes[byte_offset]),
+                    branch_target_address: None,
+                    is_control_flow: false,
+                });
                 byte_offset += 1;
                 continue;
             }
 
             let mut instruction_text = String::new();
             formatter.format(&instruction, &mut instruction_text);
-            instruction_texts.push(normalize_instruction_text(&instruction_text));
+            let branch_target_address = resolve_branch_target_address(&instruction);
+            let is_control_flow = !matches!(instruction.flow_control(), FlowControl::Next);
+            let instruction_end_offset = byte_offset
+                .saturating_add(instruction_length)
+                .min(instruction_bytes.len());
+
+            instruction_lines.push(DisassembledInstruction {
+                address: instruction_address,
+                length: instruction_length,
+                bytes: instruction_bytes[byte_offset..instruction_end_offset].to_vec(),
+                text: normalize_instruction_text(&instruction_text),
+                branch_target_address,
+                is_control_flow,
+            });
             byte_offset += instruction_length;
         }
 
-        Ok(instruction_texts.join("; "))
+        Ok(instruction_lines)
+    }
+}
+
+fn resolve_branch_target_address(instruction: &iced_x86::Instruction) -> Option<u64> {
+    match instruction.flow_control() {
+        FlowControl::ConditionalBranch | FlowControl::UnconditionalBranch => Some(instruction.near_branch_target()),
+        _ => None,
     }
 }
 
@@ -129,6 +190,15 @@ impl X86InstructionSet {
         Self {
             inner: X86InstructionSetBase::new("x86", "x86", X86InstructionMode::Bit32),
         }
+    }
+
+    pub fn disassemble_block(
+        &self,
+        instruction_bytes: &[u8],
+        base_address: u64,
+    ) -> Result<Vec<DisassembledInstruction>, String> {
+        self.inner
+            .disassemble_instruction_block(instruction_bytes, base_address)
     }
 }
 
@@ -172,6 +242,15 @@ impl X64InstructionSet {
         Self {
             inner: X86InstructionSetBase::new("x64", "x64", X86InstructionMode::Bit64),
         }
+    }
+
+    pub fn disassemble_block(
+        &self,
+        instruction_bytes: &[u8],
+        base_address: u64,
+    ) -> Result<Vec<DisassembledInstruction>, String> {
+        self.inner
+            .disassemble_instruction_block(instruction_bytes, base_address)
     }
 }
 
