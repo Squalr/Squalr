@@ -406,6 +406,11 @@ impl Widget for MemoryViewerView {
                 }
 
                 if memory_viewer_has_keyboard_focus {
+                    if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+                        MemoryViewerViewData::clear_selection(self.memory_viewer_view_data.clone());
+                        MemoryViewerViewData::hide_context_menu(self.memory_viewer_view_data.clone());
+                    }
+
                     let is_select_all_shortcut_pressed =
                         user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::A));
                     let is_shift_modifier_active = user_interface.input(|input_state| input_state.modifiers.shift);

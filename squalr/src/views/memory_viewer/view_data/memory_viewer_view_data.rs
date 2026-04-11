@@ -11,7 +11,7 @@ use squalr_engine_api::{
     plugins::memory_view::PageRetrievalMode,
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
-        data_values::container_type::ContainerType,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::{
             address_display::{format_absolute_address, format_module_address},
             normalized_module::NormalizedModule,
@@ -110,6 +110,7 @@ pub struct MemoryViewerViewData {
     has_keyboard_focus: bool,
     context_menu_address: Option<u64>,
     context_menu_position: Option<Pos2>,
+    pub go_to_address_input: AnonymousValueString,
 }
 
 impl MemoryViewerViewData {
@@ -143,6 +144,7 @@ impl MemoryViewerViewData {
             has_keyboard_focus: false,
             context_menu_address: None,
             context_menu_position: None,
+            go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Address, ContainerType::None),
         }
     }
 
@@ -418,6 +420,43 @@ impl MemoryViewerViewData {
             .and_then(|memory_viewer_view_data| memory_viewer_view_data.build_selection_summary())
     }
 
+    pub fn get_go_to_address_preview_text(memory_viewer_view_data: Dependency<Self>) -> String {
+        memory_viewer_view_data
+            .read("Memory viewer go to address preview")
+            .and_then(|memory_viewer_view_data| {
+                memory_viewer_view_data
+                    .resolve_selected_address_bounds()
+                    .map(|(selection_start_address, _)| selection_start_address)
+                    .or_else(|| {
+                        memory_viewer_view_data
+                            .virtual_pages
+                            .get(Self::load_current_page_index(&memory_viewer_view_data) as usize)
+                            .map(|normalized_region| normalized_region.get_base_address())
+                    })
+                    .map(format_absolute_address)
+            })
+            .unwrap_or_else(|| String::from("Go to address"))
+    }
+
+    pub fn seek_to_input_address(memory_viewer_view_data: Dependency<Self>) {
+        let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer seek to input address") else {
+            return;
+        };
+        let Some(target_address) = parse_address_text(
+            memory_viewer_view_data
+                .go_to_address_input
+                .get_anonymous_value_string(),
+        ) else {
+            return;
+        };
+
+        if let Some(resolved_address) = memory_viewer_view_data.seek_to_address_internal(target_address, 1) {
+            memory_viewer_view_data
+                .go_to_address_input
+                .set_anonymous_value_string(format_absolute_address(resolved_address));
+        }
+    }
+
     pub fn select_all_bytes_on_current_page(memory_viewer_view_data: Dependency<Self>) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer select all bytes on current page") {
             let Some(current_page_address_range) = memory_viewer_view_data.resolve_current_page_address_range() else {
@@ -432,6 +471,14 @@ impl MemoryViewerViewData {
             });
             memory_viewer_view_data.has_keyboard_focus = true;
             memory_viewer_view_data.set_hex_edit_cursor(current_page_address_range.start);
+        }
+    }
+
+    pub fn clear_selection(memory_viewer_view_data: Dependency<Self>) {
+        if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer clear selection") {
+            memory_viewer_view_data.selected_byte_range = None;
+            memory_viewer_view_data.is_drag_selection_active = false;
+            memory_viewer_view_data.hex_edit_state = None;
         }
     }
 
@@ -976,7 +1023,7 @@ impl MemoryViewerViewData {
             return false;
         };
 
-        let Some(page_index) = Self::resolve_page_index_after_refresh(&self.virtual_pages, Some(focus_address)) else {
+        let Some((page_index, resolved_address)) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, focus_address) else {
             if !self.virtual_pages.is_empty() {
                 self.pending_focus_request = None;
             }
@@ -985,14 +1032,14 @@ impl MemoryViewerViewData {
         };
 
         self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
-        self.pending_scroll_address = Some(focus_address);
+        self.pending_scroll_address = Some(resolved_address);
         self.selected_byte_range = Some(MemoryViewerSelectionRange {
-            anchor_address: focus_address,
-            active_address: focus_address.saturating_add(pending_focus_request.selection_byte_count.saturating_sub(1)),
+            anchor_address: resolved_address,
+            active_address: resolved_address.saturating_add(pending_focus_request.selection_byte_count.saturating_sub(1)),
         });
         self.is_drag_selection_active = false;
         self.has_keyboard_focus = true;
-        self.set_hex_edit_cursor(focus_address);
+        self.set_hex_edit_cursor(resolved_address);
         self.pending_focus_request = None;
         self.last_applied_snapshot_generation = 0;
 
@@ -1000,6 +1047,28 @@ impl MemoryViewerViewData {
         self.stats_string = Self::format_stats_for_page_from_modules(&self.modules, &self.unreadable_page_base_addresses, current_page);
 
         true
+    }
+
+    fn seek_to_address_internal(
+        &mut self,
+        target_address: u64,
+        selection_byte_count: u64,
+    ) -> Option<u64> {
+        let (page_index, resolved_address) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, target_address)?;
+        self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
+        self.pending_scroll_address = Some(resolved_address);
+        self.selected_byte_range = Some(MemoryViewerSelectionRange {
+            anchor_address: resolved_address,
+            active_address: resolved_address.saturating_add(selection_byte_count.saturating_sub(1)),
+        });
+        self.is_drag_selection_active = false;
+        self.has_keyboard_focus = true;
+        self.set_hex_edit_cursor(resolved_address);
+        self.last_applied_snapshot_generation = 0;
+        let current_page = self.virtual_pages.get(self.current_page_index as usize);
+        self.stats_string = Self::format_stats_for_page_from_modules(&self.modules, &self.unreadable_page_base_addresses, current_page);
+
+        Some(resolved_address)
     }
 
     fn resolve_focus_address(
@@ -1019,6 +1088,29 @@ impl MemoryViewerViewData {
                     .eq_ignore_ascii_case(module_name)
             })
             .and_then(|normalized_module| normalized_module.get_base_address().checked_add(address))
+    }
+
+    fn resolve_nearest_page_index_and_address(
+        virtual_pages: &[NormalizedRegion],
+        target_address: u64,
+    ) -> Option<(u64, u64)> {
+        virtual_pages
+            .iter()
+            .enumerate()
+            .filter_map(|(page_index, normalized_region)| {
+                let page_base_address = normalized_region.get_base_address();
+                let page_end_address = normalized_region.get_end_address();
+
+                if page_base_address >= page_end_address {
+                    return None;
+                }
+
+                let clamped_address = target_address.clamp(page_base_address, page_end_address.saturating_sub(1));
+
+                Some((page_index as u64, clamped_address, clamped_address.abs_diff(target_address)))
+            })
+            .min_by_key(|(page_index, clamped_address, distance)| (*distance, *page_index, *clamped_address))
+            .map(|(page_index, clamped_address, _)| (page_index, clamped_address))
     }
 
     fn resolve_selected_address_bounds(&self) -> Option<(u64, u64)> {
@@ -1291,6 +1383,26 @@ impl MemoryViewerViewData {
     }
 }
 
+fn parse_address_text(address_text: &str) -> Option<u64> {
+    let trimmed_address_text = address_text.trim();
+
+    if let Some(hex_address_text) = trimmed_address_text
+        .strip_prefix("0x")
+        .or_else(|| trimmed_address_text.strip_prefix("0X"))
+    {
+        return u64::from_str_radix(hex_address_text, 16).ok();
+    }
+
+    if trimmed_address_text
+        .chars()
+        .all(|character| character.is_ascii_hexdigit())
+    {
+        return u64::from_str_radix(trimmed_address_text, 16).ok();
+    }
+
+    trimmed_address_text.parse::<u64>().ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::MemoryViewerViewData;
@@ -1400,6 +1512,48 @@ mod tests {
                 pending_high_nibble: None,
             })
         );
+    }
+
+    #[test]
+    fn seek_to_input_address_clamps_to_nearest_page_when_target_is_missing() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test memory viewer seek input") {
+            memory_viewer_view_data_guard.virtual_pages = vec![
+                NormalizedRegion::new(0x1000, 0x100),
+                NormalizedRegion::new(0x4000, 0x100),
+            ];
+            memory_viewer_view_data_guard.cached_last_page_index = 1;
+            memory_viewer_view_data_guard
+                .go_to_address_input
+                .set_anonymous_value_string(String::from("0x3800"));
+        }
+
+        MemoryViewerViewData::seek_to_input_address(memory_viewer_view_data.clone());
+
+        let memory_viewer_view_data_guard = memory_viewer_view_data
+            .read("Test memory viewer seek state")
+            .expect("Expected memory viewer state.");
+        assert_eq!(memory_viewer_view_data_guard.current_page_index, 1);
+        assert_eq!(memory_viewer_view_data_guard.resolve_selected_address_bounds(), Some((0x4000, 0x4000)));
+        assert_eq!(memory_viewer_view_data_guard.pending_scroll_address, Some(0x4000));
+    }
+
+    #[test]
+    fn clear_selection_removes_selected_byte_range() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test memory viewer clear selection setup") {
+            memory_viewer_view_data_guard.virtual_pages = vec![NormalizedRegion::new(0x5000, 0x20)];
+            memory_viewer_view_data_guard.cached_last_page_index = 0;
+            memory_viewer_view_data_guard.begin_selection_internal(0x5004, false);
+        }
+
+        MemoryViewerViewData::clear_selection(memory_viewer_view_data.clone());
+
+        assert_eq!(MemoryViewerViewData::get_selected_address_bounds(memory_viewer_view_data.clone()), None);
     }
 
     #[test]
