@@ -334,23 +334,6 @@ impl CodeViewerViewData {
             .cloned()
     }
 
-    pub fn get_current_viewport_start_string(code_viewer_view_data: Dependency<Self>) -> String {
-        code_viewer_view_data
-            .read("Code viewer current viewport start string")
-            .and_then(|code_viewer_view_data| {
-                code_viewer_view_data
-                    .viewport_start_address
-                    .or_else(|| {
-                        code_viewer_view_data
-                            .virtual_pages
-                            .get(code_viewer_view_data.current_page_index as usize)
-                            .map(|normalized_region| normalized_region.get_base_address())
-                    })
-                    .map(format_absolute_address)
-            })
-            .unwrap_or_else(|| String::from("0x0"))
-    }
-
     pub fn get_go_to_address_preview_text(code_viewer_view_data: Dependency<Self>) -> String {
         code_viewer_view_data
             .read("Code viewer go to address preview")
@@ -367,17 +350,6 @@ impl CodeViewerViewData {
                     .map(format_absolute_address)
             })
             .unwrap_or_else(|| String::from("Go to address"))
-    }
-
-    pub fn set_viewport_start_string(
-        code_viewer_view_data: Dependency<Self>,
-        viewport_start_text: &str,
-    ) {
-        let Some(viewport_start_address) = parse_address_text(viewport_start_text) else {
-            return;
-        };
-
-        Self::set_viewport_start_address(code_viewer_view_data, viewport_start_address);
     }
 
     pub fn seek_to_input_address(code_viewer_view_data: Dependency<Self>) {
