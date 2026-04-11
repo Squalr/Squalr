@@ -139,35 +139,6 @@ impl Widget for CodeViewerFooterView {
         let should_navigate_last_page = last_page_button.clicked();
 
         let mut bottom_row_user_interface = user_interface.new_child(UiBuilder::new().max_rect(bottom_row));
-        let viewport_label_rectangle = Rect::from_min_size(pos2(bottom_row.min.x + 12.0, bottom_row.center().y - 11.0), vec2(48.0, 22.0));
-        bottom_row_user_interface.put(
-            viewport_label_rectangle,
-            eframe::egui::Label::new(
-                RichText::new("View")
-                    .font(font_id.clone())
-                    .color(theme.foreground_preview),
-            ),
-        );
-        let viewport_edit_rectangle = Rect::from_min_size(pos2(viewport_label_rectangle.max.x + 6.0, bottom_row.center().y - 12.0), vec2(150.0, 24.0));
-        let mut viewport_start_text = CodeViewerViewData::get_current_viewport_start_string(self.code_viewer_view_data.clone());
-        let viewport_edit_response = bottom_row_user_interface.put(
-            viewport_edit_rectangle,
-            TextEdit::singleline(&mut viewport_start_text)
-                .horizontal_align(Align::Center)
-                .vertical_align(Align::Center)
-                .font(font_id.clone())
-                .background_color(theme.background_primary)
-                .text_color(theme.foreground)
-                .frame(true),
-        );
-
-        bottom_row_user_interface.painter().rect_stroke(
-            viewport_edit_rectangle,
-            CornerRadius::ZERO,
-            Stroke::new(1.0, theme.submenu_border),
-            StrokeKind::Inside,
-        );
-
         bottom_row_user_interface.centered_and_justified(|user_interface| {
             user_interface.label(
                 RichText::new(page_stats_text)
@@ -186,10 +157,6 @@ impl Widget for CodeViewerFooterView {
             CodeViewerViewData::navigate_last_page(self.code_viewer_view_data.clone());
         } else if page_number_edit_response.changed() {
             CodeViewerViewData::set_page_index_string(self.code_viewer_view_data.clone(), &page_index_text);
-        }
-
-        if viewport_edit_response.changed() {
-            CodeViewerViewData::set_viewport_start_string(self.code_viewer_view_data.clone(), &viewport_start_text);
         }
 
         response
