@@ -1,6 +1,9 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
+    ui::{
+        draw::icon_draw::IconDraw,
+        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView},
+    },
     views::{
         code_viewer::{code_viewer_footer_view::CodeViewerFooterView, view_data::code_viewer_view_data::CodeViewerViewData},
         process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
@@ -11,7 +14,12 @@ use eframe::egui::{
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius};
 use squalr_engine_api::{
-    dependency_injection::dependency::Dependency, events::process::changed::process_changed_event::ProcessChangedEvent, structures::memory::bitness::Bitness,
+    dependency_injection::dependency::Dependency,
+    events::process::changed::process_changed_event::ProcessChangedEvent,
+    structures::{
+        data_types::{built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef},
+        memory::bitness::Bitness,
+    },
 };
 use squalr_plugin_instructions_x86::DisassembledInstruction;
 use std::{collections::HashMap, sync::Arc};
@@ -25,8 +33,10 @@ pub struct CodeViewerView {
 }
 
 impl CodeViewerView {
+    const GO_TO_ADDRESS_INPUT_ID: &'static str = "code_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_code_viewer";
-    const TOOLBAR_HEIGHT: f32 = 28.0;
+    const TOOLBAR_HEIGHT: f32 = 58.0;
+    const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
@@ -355,13 +365,15 @@ impl Widget for CodeViewerView {
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
 
+                let toolbar_top_row = Rect::from_min_max(toolbar_rect.min, pos2(toolbar_rect.max.x, toolbar_rect.min.y + Self::TOOLBAR_ROW_HEIGHT));
+                let toolbar_bottom_row = Rect::from_min_max(pos2(toolbar_rect.min.x, toolbar_top_row.max.y), toolbar_rect.max);
                 let mut toolbar_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(toolbar_rect)
+                        .max_rect(toolbar_top_row)
                         .layout(Layout::left_to_right(Align::Center)),
                 );
                 let refresh_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_HEIGHT),
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Refresh memory pages."),
@@ -373,7 +385,7 @@ impl Widget for CodeViewerView {
                 }
 
                 let home_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_HEIGHT),
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Reset the code window to the start of the current page."),
@@ -385,7 +397,7 @@ impl Widget for CodeViewerView {
                 }
 
                 let previous_window_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_HEIGHT),
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Shift the current code window backward."),
@@ -404,7 +416,7 @@ impl Widget for CodeViewerView {
                 }
 
                 let next_window_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_HEIGHT),
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Shift the current code window forward."),
@@ -439,6 +451,53 @@ impl Widget for CodeViewerView {
                     .font(theme.font_library.font_noto_sans.font_normal.clone())
                     .color(theme.foreground_preview),
                 );
+
+                let go_to_preview_text = CodeViewerViewData::get_go_to_address_preview_text(self.code_viewer_view_data.clone());
+                let address_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
+                let mut toolbar_seek_user_interface = user_interface.new_child(
+                    UiBuilder::new()
+                        .max_rect(toolbar_bottom_row)
+                        .layout(Layout::left_to_right(Align::Center)),
+                );
+                let mut should_seek_to_address = DataValueBoxView::consume_commit_on_enter(user_interface, Self::GO_TO_ADDRESS_INPUT_ID);
+                toolbar_seek_user_interface.add_space(8.0);
+                if let Some(mut code_viewer_view_data) = self
+                    .code_viewer_view_data
+                    .write("Code viewer toolbar go to address input")
+                {
+                    toolbar_seek_user_interface.add(
+                        DataValueBoxView::new(
+                            self.app_context.clone(),
+                            &mut code_viewer_view_data.go_to_address_input,
+                            &address_data_type,
+                            false,
+                            true,
+                            &go_to_preview_text,
+                            Self::GO_TO_ADDRESS_INPUT_ID,
+                        )
+                        .width(236.0)
+                        .height(Self::TOOLBAR_ROW_HEIGHT)
+                        .use_preview_foreground(true)
+                        .use_format_text_colors(false),
+                    );
+                }
+                toolbar_seek_user_interface.add_space(6.0);
+                let apply_go_to_button = toolbar_seek_user_interface.add_sized(
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
+                    Button::new_from_theme(theme)
+                        .background_color(Color32::TRANSPARENT)
+                        .with_tooltip_text("Seek the code viewer to the requested address."),
+                );
+                IconDraw::draw(
+                    &toolbar_seek_user_interface,
+                    apply_go_to_button.rect,
+                    &theme.icon_library.icon_handle_navigation_right_arrow,
+                );
+                should_seek_to_address |= apply_go_to_button.clicked();
+
+                if should_seek_to_address {
+                    CodeViewerViewData::seek_to_input_address(self.code_viewer_view_data.clone());
+                }
 
                 let footer_height = self.code_viewer_footer_view.get_height();
                 let content_rect = user_interface

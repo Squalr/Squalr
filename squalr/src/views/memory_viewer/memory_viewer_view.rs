@@ -2,7 +2,10 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button, context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
+        widgets::controls::{
+            button::Button, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView,
+            toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+        },
     },
     views::memory_viewer::{
         memory_viewer_footer_view::MemoryViewerFooterView, memory_viewer_interpretation_panel_view::MemoryViewerInterpretationPanelView,
@@ -21,6 +24,7 @@ use squalr_engine_api::{
     },
     dependency_injection::dependency::Dependency,
     events::process::changed::process_changed_event::ProcessChangedEvent,
+    structures::data_types::{built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef},
 };
 use std::{sync::Arc, time::Duration};
 
@@ -34,8 +38,10 @@ pub struct MemoryViewerView {
 }
 
 impl MemoryViewerView {
+    const GO_TO_ADDRESS_INPUT_ID: &'static str = "memory_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_memory_viewer";
-    const TOOLBAR_HEIGHT: f32 = 28.0;
+    const TOOLBAR_HEIGHT: f32 = 58.0;
+    const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 20.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
     const HEX_CELL_WIDTH: f32 = 22.0;
@@ -342,13 +348,15 @@ impl Widget for MemoryViewerView {
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
 
+                let toolbar_top_row = Rect::from_min_max(toolbar_rect.min, pos2(toolbar_rect.max.x, toolbar_rect.min.y + Self::TOOLBAR_ROW_HEIGHT));
+                let toolbar_bottom_row = Rect::from_min_max(pos2(toolbar_rect.min.x, toolbar_top_row.max.y), toolbar_rect.max);
                 let mut toolbar_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(toolbar_rect)
+                        .max_rect(toolbar_top_row)
                         .layout(Layout::left_to_right(Align::Center)),
                 );
                 let refresh_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_HEIGHT),
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Refresh memory pages."),
@@ -369,6 +377,53 @@ impl Widget for MemoryViewerView {
                 if is_querying_memory_pages {
                     toolbar_user_interface.add_space(8.0);
                     toolbar_user_interface.add(Spinner::new().color(theme.foreground));
+                }
+
+                let go_to_preview_text = MemoryViewerViewData::get_go_to_address_preview_text(self.memory_viewer_view_data.clone());
+                let address_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
+                let mut toolbar_seek_user_interface = user_interface.new_child(
+                    UiBuilder::new()
+                        .max_rect(toolbar_bottom_row)
+                        .layout(Layout::left_to_right(Align::Center)),
+                );
+                let mut should_seek_to_address = DataValueBoxView::consume_commit_on_enter(user_interface, Self::GO_TO_ADDRESS_INPUT_ID);
+                toolbar_seek_user_interface.add_space(8.0);
+                if let Some(mut memory_viewer_view_data) = self
+                    .memory_viewer_view_data
+                    .write("Memory viewer toolbar go to address input")
+                {
+                    toolbar_seek_user_interface.add(
+                        DataValueBoxView::new(
+                            self.app_context.clone(),
+                            &mut memory_viewer_view_data.go_to_address_input,
+                            &address_data_type,
+                            false,
+                            true,
+                            &go_to_preview_text,
+                            Self::GO_TO_ADDRESS_INPUT_ID,
+                        )
+                        .width(236.0)
+                        .height(Self::TOOLBAR_ROW_HEIGHT)
+                        .use_preview_foreground(true)
+                        .use_format_text_colors(false),
+                    );
+                }
+                toolbar_seek_user_interface.add_space(6.0);
+                let apply_go_to_button = toolbar_seek_user_interface.add_sized(
+                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
+                    Button::new_from_theme(theme)
+                        .background_color(Color32::TRANSPARENT)
+                        .with_tooltip_text("Seek the memory viewer to the requested address."),
+                );
+                IconDraw::draw(
+                    &toolbar_seek_user_interface,
+                    apply_go_to_button.rect,
+                    &theme.icon_library.icon_handle_navigation_right_arrow,
+                );
+                should_seek_to_address |= apply_go_to_button.clicked();
+
+                if should_seek_to_address {
+                    MemoryViewerViewData::seek_to_input_address(self.memory_viewer_view_data.clone());
                 }
 
                 let footer_height = self.memory_viewer_footer_view.get_height();
