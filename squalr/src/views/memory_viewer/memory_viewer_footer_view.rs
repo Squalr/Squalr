@@ -1,17 +1,11 @@
 use crate::{
     app_context::AppContext,
-    ui::{
-        draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView},
-    },
+    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
     views::memory_viewer::view_data::memory_viewer_view_data::MemoryViewerViewData,
 };
 use eframe::egui::{Align, Response, RichText, Sense, TextEdit, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind, pos2, vec2};
-use squalr_engine_api::{
-    dependency_injection::dependency::Dependency,
-    structures::data_types::{built_in_types::u64::data_type_u64::DataTypeU64, data_type_ref::DataTypeRef},
-};
+use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -21,8 +15,6 @@ pub struct MemoryViewerFooterView {
 }
 
 impl MemoryViewerFooterView {
-    const GO_TO_ADDRESS_INPUT_ID: &'static str = "memory_viewer_go_to_address";
-
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self {
             memory_viewer_view_data: app_context
@@ -62,7 +54,6 @@ impl Widget for MemoryViewerFooterView {
         let button_width = 36.0;
         let button_height = 28.0;
         let spacing = 6.0;
-        let go_to_box_width = 220.0;
         let center_x = top_row.center().x;
         let center_y = top_row.center().y;
         let previous_page_button_x = center_x - page_box_width * 0.5 - spacing - button_width;
@@ -148,57 +139,10 @@ impl Widget for MemoryViewerFooterView {
         let should_navigate_last_page = last_page_button.clicked();
 
         let mut bottom_row_user_interface = user_interface.new_child(UiBuilder::new().max_rect(bottom_row));
-        let mut should_seek_to_address = false;
-        let go_to_preview_text = MemoryViewerViewData::get_go_to_address_preview_text(self.memory_viewer_view_data.clone());
-        let address_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
-        bottom_row_user_interface.with_layout(eframe::egui::Layout::left_to_right(Align::Center), |user_interface| {
-            user_interface.add_space(12.0);
+        bottom_row_user_interface.centered_and_justified(|user_interface| {
             user_interface.label(
-                RichText::new("Go")
-                    .font(font_id.clone())
-                    .color(theme.foreground_preview),
-            );
-            user_interface.add_space(6.0);
-
-            if let Some(mut memory_viewer_view_data) = self
-                .memory_viewer_view_data
-                .write("Memory viewer footer go to address input")
-            {
-                user_interface.add(
-                    DataValueBoxView::new(
-                        self.app_context.clone(),
-                        &mut memory_viewer_view_data.go_to_address_input,
-                        &address_data_type,
-                        false,
-                        true,
-                        &go_to_preview_text,
-                        Self::GO_TO_ADDRESS_INPUT_ID,
-                    )
-                    .width(go_to_box_width)
-                    .height(28.0)
-                    .use_preview_foreground(true)
-                    .use_format_text_colors(false),
-                );
-            }
-
-            if DataValueBoxView::consume_commit_on_enter(user_interface, Self::GO_TO_ADDRESS_INPUT_ID) {
-                should_seek_to_address = true;
-            }
-
-            user_interface.add_space(6.0);
-            let apply_go_to_button = user_interface.add_sized(
-                vec2(button_width, button_height),
-                Button::new_from_theme(theme)
-                    .background_color(Color32::TRANSPARENT)
-                    .with_tooltip_text("Seek the memory viewer to the requested address."),
-            );
-            IconDraw::draw(user_interface, apply_go_to_button.rect, &theme.icon_library.icon_handle_navigation_right_arrow);
-            should_seek_to_address |= apply_go_to_button.clicked();
-
-            user_interface.add_space(16.0);
-            user_interface.label(
-                RichText::new(page_stats_text.clone())
-                    .font(font_id.clone())
+                RichText::new(page_stats_text)
+                    .font(font_id)
                     .color(theme.foreground),
             );
         });
@@ -213,10 +157,6 @@ impl Widget for MemoryViewerFooterView {
             MemoryViewerViewData::navigate_last_page(self.memory_viewer_view_data.clone());
         } else if page_number_edit_response.changed() {
             MemoryViewerViewData::set_page_index_string(self.memory_viewer_view_data.clone(), &page_index_text);
-        }
-
-        if should_seek_to_address {
-            MemoryViewerViewData::seek_to_input_address(self.memory_viewer_view_data.clone());
         }
 
         response
