@@ -84,7 +84,7 @@ Install native dependencies before building:
 
 ## Android Build
 
-Android builds are currently validated on target `aarch64-linux-android` with API level 23.
+Android builds are currently validated on target `aarch64-linux-android` with API level 30.
 
 ### Quickstart: APK on Device (Privileged GUI Path)
 
