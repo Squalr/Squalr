@@ -40,7 +40,7 @@ pub struct MemoryViewerView {
 impl MemoryViewerView {
     const GO_TO_ADDRESS_INPUT_ID: &'static str = "memory_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_memory_viewer";
-    const TOOLBAR_HEIGHT: f32 = 58.0;
+    const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 20.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
@@ -348,11 +348,9 @@ impl Widget for MemoryViewerView {
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
 
-                let toolbar_top_row = Rect::from_min_max(toolbar_rect.min, pos2(toolbar_rect.max.x, toolbar_rect.min.y + Self::TOOLBAR_ROW_HEIGHT));
-                let toolbar_bottom_row = Rect::from_min_max(pos2(toolbar_rect.min.x, toolbar_top_row.max.y), toolbar_rect.max);
                 let mut toolbar_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(toolbar_top_row)
+                        .max_rect(toolbar_rect)
                         .layout(Layout::left_to_right(Align::Center)),
                 );
                 let refresh_button = toolbar_user_interface.add_sized(
@@ -381,18 +379,13 @@ impl Widget for MemoryViewerView {
 
                 let go_to_preview_text = MemoryViewerViewData::get_go_to_address_preview_text(self.memory_viewer_view_data.clone());
                 let address_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
-                let mut toolbar_seek_user_interface = user_interface.new_child(
-                    UiBuilder::new()
-                        .max_rect(toolbar_bottom_row)
-                        .layout(Layout::left_to_right(Align::Center)),
-                );
                 let mut should_seek_to_address = DataValueBoxView::consume_commit_on_enter(user_interface, Self::GO_TO_ADDRESS_INPUT_ID);
-                toolbar_seek_user_interface.add_space(8.0);
+                toolbar_user_interface.add_space(12.0);
                 if let Some(mut memory_viewer_view_data) = self
                     .memory_viewer_view_data
                     .write("Memory viewer toolbar go to address input")
                 {
-                    toolbar_seek_user_interface.add(
+                    toolbar_user_interface.add(
                         DataValueBoxView::new(
                             self.app_context.clone(),
                             &mut memory_viewer_view_data.go_to_address_input,
@@ -408,15 +401,15 @@ impl Widget for MemoryViewerView {
                         .use_format_text_colors(false),
                     );
                 }
-                toolbar_seek_user_interface.add_space(6.0);
-                let apply_go_to_button = toolbar_seek_user_interface.add_sized(
+                toolbar_user_interface.add_space(6.0);
+                let apply_go_to_button = toolbar_user_interface.add_sized(
                     vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
                     Button::new_from_theme(theme)
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text("Seek the memory viewer to the requested address."),
                 );
                 IconDraw::draw(
-                    &toolbar_seek_user_interface,
+                    &toolbar_user_interface,
                     apply_go_to_button.rect,
                     &theme.icon_library.icon_handle_navigation_right_arrow,
                 );
@@ -650,7 +643,7 @@ impl Widget for MemoryViewerView {
                                             Align2::LEFT_TOP,
                                             format!("{:016X}", row_address),
                                             theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                                            theme.foreground,
+                                            theme.hexadecimal_green,
                                         );
 
                                     let hex_columns_left = Self::get_hex_columns_left(row_rect);

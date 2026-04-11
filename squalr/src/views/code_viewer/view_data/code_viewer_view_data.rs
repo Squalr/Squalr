@@ -1,14 +1,22 @@
+use eframe::egui::Pos2;
 use squalr_engine_api::{
     commands::{
         memory::query::{memory_query_request::MemoryQueryRequest, memory_query_response::MemoryQueryResponse},
         privileged_command_request::PrivilegedCommandRequest,
+        project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     },
     dependency_injection::dependency::Dependency,
     plugins::memory_view::PageRetrievalMode,
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        memory::{address_display::format_absolute_address, bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        memory::{
+            address_display::{format_absolute_address, format_module_address},
+            bitness::Bitness,
+            normalized_module::NormalizedModule,
+            normalized_region::NormalizedRegion,
+        },
+        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -20,6 +28,7 @@ use squalr_plugin_instructions_x86::{DisassembledInstruction, X64InstructionSet,
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ops::Range,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -33,6 +42,12 @@ struct CodeViewerPageCache {
 struct CodeViewerFocusRequest {
     address: u64,
     module_name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CodeViewerInstructionSelectionRange {
+    anchor_instruction_address: u64,
+    active_instruction_address: u64,
 }
 
 #[derive(Clone)]
@@ -52,9 +67,11 @@ pub struct CodeViewerViewData {
     unreadable_page_base_addresses: HashSet<u64>,
     pending_focus_request: Option<CodeViewerFocusRequest>,
     pending_scroll_address: Option<u64>,
-    selected_instruction_address: Option<u64>,
+    selected_instruction_range: Option<CodeViewerInstructionSelectionRange>,
     viewport_start_address: Option<u64>,
     breakpoint_addresses: HashSet<u64>,
+    context_menu_address: Option<u64>,
+    context_menu_position: Option<Pos2>,
     pub go_to_address_input: AnonymousValueString,
     has_keyboard_focus: bool,
 }
@@ -124,10 +141,12 @@ impl CodeViewerViewData {
             unreadable_page_base_addresses: HashSet::new(),
             pending_focus_request: None,
             pending_scroll_address: None,
-            selected_instruction_address: None,
+            selected_instruction_range: None,
             viewport_start_address: None,
             breakpoint_addresses: HashSet::new(),
-            go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Address, ContainerType::None),
+            context_menu_address: None,
+            context_menu_position: None,
+            go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
             has_keyboard_focus: false,
         }
     }
@@ -242,8 +261,10 @@ impl CodeViewerViewData {
             code_viewer_view_data.unreadable_page_base_addresses.clear();
             code_viewer_view_data.pending_focus_request = None;
             code_viewer_view_data.pending_scroll_address = None;
-            code_viewer_view_data.selected_instruction_address = None;
+            code_viewer_view_data.selected_instruction_range = None;
             code_viewer_view_data.viewport_start_address = None;
+            code_viewer_view_data.context_menu_address = None;
+            code_viewer_view_data.context_menu_position = None;
             code_viewer_view_data.has_keyboard_focus = false;
             code_viewer_view_data.complete_memory_pages_request();
         }
@@ -335,7 +356,7 @@ impl CodeViewerViewData {
             .read("Code viewer go to address preview")
             .and_then(|code_viewer_view_data| {
                 code_viewer_view_data
-                    .selected_instruction_address
+                    .resolve_selected_instruction_address()
                     .or_else(|| code_viewer_view_data.resolve_viewport_start_address())
                     .or_else(|| {
                         code_viewer_view_data
@@ -575,14 +596,108 @@ impl CodeViewerViewData {
         address: u64,
     ) {
         if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer select instruction address") {
-            code_viewer_view_data.selected_instruction_address = Some(address);
+            code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+                anchor_instruction_address: address,
+                active_instruction_address: address,
+            });
+        }
+    }
+
+    pub fn extend_instruction_selection(
+        code_viewer_view_data: Dependency<Self>,
+        address: u64,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer extend instruction selection") {
+            let selection_anchor_address = code_viewer_view_data
+                .selected_instruction_range
+                .as_ref()
+                .map(|selected_instruction_range| selected_instruction_range.anchor_instruction_address)
+                .unwrap_or(address);
+
+            code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+                anchor_instruction_address: selection_anchor_address,
+                active_instruction_address: address,
+            });
         }
     }
 
     pub fn get_selected_instruction_address(code_viewer_view_data: Dependency<Self>) -> Option<u64> {
         code_viewer_view_data
             .read("Code viewer selected instruction address")
-            .and_then(|code_viewer_view_data| code_viewer_view_data.selected_instruction_address)
+            .and_then(|code_viewer_view_data| code_viewer_view_data.resolve_selected_instruction_address())
+    }
+
+    pub fn get_selected_instruction_addresses(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> HashSet<u64> {
+        code_viewer_view_data
+            .read("Code viewer selected instruction addresses")
+            .map(|code_viewer_view_data| code_viewer_view_data.resolve_selected_instruction_addresses(instruction_lines))
+            .unwrap_or_default()
+    }
+
+    pub fn show_context_menu(
+        code_viewer_view_data: Dependency<Self>,
+        address: u64,
+        position: Pos2,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer show context menu") {
+            code_viewer_view_data.context_menu_address = Some(address);
+            code_viewer_view_data.context_menu_position = Some(position);
+            code_viewer_view_data.has_keyboard_focus = true;
+        }
+    }
+
+    pub fn hide_context_menu(code_viewer_view_data: Dependency<Self>) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer hide context menu") {
+            code_viewer_view_data.context_menu_address = None;
+            code_viewer_view_data.context_menu_position = None;
+        }
+    }
+
+    pub fn get_context_menu_state(code_viewer_view_data: Dependency<Self>) -> Option<(u64, Pos2)> {
+        let code_viewer_view_data = code_viewer_view_data.read("Code viewer context menu state")?;
+
+        Some((code_viewer_view_data.context_menu_address?, code_viewer_view_data.context_menu_position?))
+    }
+
+    pub fn build_instruction_project_item_create_request(
+        code_viewer_view_data: Dependency<Self>,
+        absolute_address: u64,
+        target_directory_path: Option<PathBuf>,
+        process_bitness: Option<Bitness>,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<ProjectItemsCreateRequest> {
+        let code_viewer_view_data = code_viewer_view_data.read("Code viewer build instruction project item request")?;
+        let (selection_start_address, selected_byte_count) = code_viewer_view_data
+            .resolve_selected_instruction_project_item_span(absolute_address, instruction_lines)
+            .or_else(|| {
+                instruction_lines
+                    .iter()
+                    .find(|instruction_line| instruction_line.address == absolute_address)
+                    .map(|instruction_line| (instruction_line.address, (instruction_line.length as u64).max(1)))
+            })?;
+        let (project_item_address, project_item_module_name) = code_viewer_view_data.resolve_project_item_address(selection_start_address);
+        let instruction_data_type_id = match process_bitness.unwrap_or(Bitness::Bit64) {
+            Bitness::Bit32 => "i_x86",
+            Bitness::Bit64 => "i_x64",
+        };
+        let resolved_data_type_id = if selected_byte_count > 1 {
+            format!("{}[{}]", instruction_data_type_id, selected_byte_count)
+        } else {
+            instruction_data_type_id.to_string()
+        };
+
+        Some(ProjectItemsCreateRequest {
+            parent_directory_path: target_directory_path.unwrap_or_default(),
+            project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
+            project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
+            pointer: None,
+            address: Some(project_item_address),
+            module_name: Some(project_item_module_name),
+            data_type_id: Some(resolved_data_type_id),
+        })
     }
 
     pub fn toggle_breakpoint_address(
@@ -608,7 +723,7 @@ impl CodeViewerViewData {
 
     pub fn clear_selection(code_viewer_view_data: Dependency<Self>) {
         if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer clear selection") {
-            code_viewer_view_data.selected_instruction_address = None;
+            code_viewer_view_data.selected_instruction_range = None;
             code_viewer_view_data.pending_scroll_address = None;
         }
     }
@@ -643,6 +758,68 @@ impl CodeViewerViewData {
             .unwrap_or(false)
     }
 
+    fn resolve_selected_instruction_address(&self) -> Option<u64> {
+        self.selected_instruction_range
+            .as_ref()
+            .map(|selected_instruction_range| selected_instruction_range.active_instruction_address)
+    }
+
+    fn resolve_selected_instruction_index_range(
+        &self,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<(usize, usize)> {
+        let selected_instruction_range = self.selected_instruction_range.as_ref()?;
+        let anchor_instruction_index = instruction_lines
+            .iter()
+            .position(|instruction_line| instruction_line.address == selected_instruction_range.anchor_instruction_address)?;
+        let active_instruction_index = instruction_lines
+            .iter()
+            .position(|instruction_line| instruction_line.address == selected_instruction_range.active_instruction_address)?;
+
+        Some((
+            anchor_instruction_index.min(active_instruction_index),
+            anchor_instruction_index.max(active_instruction_index),
+        ))
+    }
+
+    fn resolve_selected_instruction_addresses(
+        &self,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> HashSet<u64> {
+        let Some((selection_start_index, selection_end_index)) = self.resolve_selected_instruction_index_range(instruction_lines) else {
+            return HashSet::new();
+        };
+
+        instruction_lines[selection_start_index..=selection_end_index]
+            .iter()
+            .map(|instruction_line| instruction_line.address)
+            .collect()
+    }
+
+    fn resolve_selected_instruction_project_item_span(
+        &self,
+        context_menu_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<(u64, u64)> {
+        let (selection_start_index, selection_end_index) = self.resolve_selected_instruction_index_range(instruction_lines)?;
+        let selected_instruction_addresses = self.resolve_selected_instruction_addresses(instruction_lines);
+
+        if !selected_instruction_addresses.contains(&context_menu_address) {
+            return None;
+        }
+
+        let first_selected_instruction = instruction_lines.get(selection_start_index)?;
+        let last_selected_instruction = instruction_lines.get(selection_end_index)?;
+        let selection_end_address_exclusive = last_selected_instruction
+            .address
+            .saturating_add((last_selected_instruction.length as u64).max(1));
+        let selected_byte_count = selection_end_address_exclusive
+            .saturating_sub(first_selected_instruction.address)
+            .max(1);
+
+        Some((first_selected_instruction.address, selected_byte_count))
+    }
+
     fn set_page_index(
         code_viewer_view_data: Dependency<Self>,
         new_page_index: u64,
@@ -656,7 +833,7 @@ impl CodeViewerViewData {
                 .cloned();
             if let Some(current_page) = current_page {
                 code_viewer_view_data.viewport_start_address = Some(current_page.get_base_address());
-                code_viewer_view_data.selected_instruction_address = None;
+                code_viewer_view_data.selected_instruction_range = None;
                 code_viewer_view_data.pending_scroll_address = Some(current_page.get_base_address());
                 code_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
                     &code_viewer_view_data.modules,
@@ -690,6 +867,32 @@ impl CodeViewerViewData {
                 Some(&current_page),
                 code_viewer_view_data.viewport_start_address,
             );
+        }
+    }
+
+    fn resolve_project_item_address(
+        &self,
+        absolute_address: u64,
+    ) -> (u64, String) {
+        if let Some(module) = self
+            .modules
+            .iter()
+            .find(|normalized_module| normalized_module.contains_address(absolute_address))
+        {
+            return (absolute_address.saturating_sub(module.get_base_address()), module.get_module_name().to_string());
+        }
+
+        (absolute_address, String::new())
+    }
+
+    fn format_project_item_name(
+        project_item_address: u64,
+        project_item_module_name: &str,
+    ) -> String {
+        if project_item_module_name.is_empty() {
+            format!("0x{:X}", project_item_address)
+        } else {
+            format_module_address(project_item_module_name, project_item_address)
         }
     }
 
@@ -836,7 +1039,10 @@ impl CodeViewerViewData {
                 self.viewport_start_address,
             );
         }
-        self.selected_instruction_address = Some(resolved_address);
+        self.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+            anchor_instruction_address: resolved_address,
+            active_instruction_address: resolved_address,
+        });
         self.pending_scroll_address = Some(resolved_address);
         self.pending_focus_request = None;
         self.has_keyboard_focus = true;
@@ -861,7 +1067,10 @@ impl CodeViewerViewData {
             );
         }
 
-        self.selected_instruction_address = Some(resolved_address);
+        self.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+            anchor_instruction_address: resolved_address,
+            active_instruction_address: resolved_address,
+        });
         self.pending_scroll_address = Some(resolved_address);
         self.has_keyboard_focus = true;
 
@@ -1091,6 +1300,60 @@ mod tests {
     }
 
     #[test]
+    fn go_to_address_input_defaults_to_hexadecimal_format() {
+        let code_viewer_view_data = CodeViewerViewData::new();
+
+        assert_eq!(
+            code_viewer_view_data
+                .go_to_address_input
+                .get_anonymous_value_string_format(),
+            squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Hexadecimal
+        );
+    }
+
+    #[test]
+    fn extend_instruction_selection_selects_contiguous_instruction_rows() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4010,
+                length: 2,
+                bytes: vec![0x31, 0xC0],
+                text: String::from("xor eax, eax"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4012,
+                length: 5,
+                bytes: vec![0xB8, 0x01, 0x00, 0x00, 0x00],
+                text: String::from("mov eax, 1"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4017,
+                length: 1,
+                bytes: vec![0xC3],
+                text: String::from("ret"),
+                branch_target_address: None,
+                is_control_flow: true,
+            },
+        ];
+
+        CodeViewerViewData::select_instruction_address(code_viewer_view_data.clone(), 0x4010);
+        CodeViewerViewData::extend_instruction_selection(code_viewer_view_data.clone(), 0x4017);
+
+        let selected_instruction_addresses = CodeViewerViewData::get_selected_instruction_addresses(code_viewer_view_data.clone(), &instruction_lines);
+
+        assert_eq!(
+            selected_instruction_addresses,
+            std::collections::HashSet::from([0x4010_u64, 0x4012_u64, 0x4017_u64])
+        );
+    }
+
+    #[test]
     fn resolve_scroll_target_address_chooses_nearest_instruction_address() {
         let instruction_lines = vec![
             squalr_plugin_instructions_x86::DisassembledInstruction {
@@ -1139,7 +1402,57 @@ mod tests {
             .read("Test code viewer seek state")
             .expect("Expected code viewer state.");
         assert_eq!(code_viewer_view_data_guard.current_page_index, 1);
-        assert_eq!(code_viewer_view_data_guard.selected_instruction_address, Some(0x4000));
+        assert_eq!(
+            code_viewer_view_data_guard
+                .selected_instruction_range
+                .as_ref()
+                .map(|selected_instruction_range| selected_instruction_range.active_instruction_address),
+            Some(0x4000)
+        );
         assert_eq!(code_viewer_view_data_guard.pending_scroll_address, Some(0x4000));
+    }
+
+    #[test]
+    fn build_instruction_project_item_create_request_uses_selected_instruction_byte_span() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x5004,
+                length: 5,
+                bytes: vec![0xB8, 0x01, 0x00, 0x00, 0x00],
+                text: String::from("mov eax, 1"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x5009,
+                length: 2,
+                bytes: vec![0xFF, 0xC0],
+                text: String::from("inc eax"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+        ];
+
+        if let Some(mut code_viewer_view_data_guard) = code_viewer_view_data.write("Test code viewer create request setup") {
+            code_viewer_view_data_guard.modules = vec![NormalizedModule::new("winmine.exe", 0x5000, 0x100)];
+        }
+
+        CodeViewerViewData::select_instruction_address(code_viewer_view_data.clone(), 0x5004);
+        CodeViewerViewData::extend_instruction_selection(code_viewer_view_data.clone(), 0x5009);
+
+        let create_request = CodeViewerViewData::build_instruction_project_item_create_request(
+            code_viewer_view_data.clone(),
+            0x5009,
+            None,
+            Some(squalr_engine_api::structures::memory::bitness::Bitness::Bit32),
+            &instruction_lines,
+        )
+        .expect("Expected instruction project item request.");
+
+        assert_eq!(create_request.address, Some(0x4));
+        assert_eq!(create_request.module_name.as_deref(), Some("winmine.exe"));
+        assert_eq!(create_request.data_type_id.as_deref(), Some("i_x86[7]"));
     }
 }

@@ -144,7 +144,7 @@ impl MemoryViewerViewData {
             has_keyboard_focus: false,
             context_menu_address: None,
             context_menu_position: None,
-            go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Address, ContainerType::None),
+            go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
         }
     }
 
@@ -1473,6 +1473,18 @@ mod tests {
         let resolved_page_index = MemoryViewerViewData::resolve_initial_page_index(&virtual_pages, &modules);
 
         assert_eq!(resolved_page_index, Some(1));
+    }
+
+    #[test]
+    fn go_to_address_input_defaults_to_hexadecimal_format() {
+        let memory_viewer_view_data = MemoryViewerViewData::new();
+
+        assert_eq!(
+            memory_viewer_view_data
+                .go_to_address_input
+                .get_anonymous_value_string_format(),
+            squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat::Hexadecimal
+        );
     }
 
     #[test]
