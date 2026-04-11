@@ -10,7 +10,7 @@ package = "com.squalr.android"
 resources = "android/res"
 
 [package.metadata.android.sdk]
-min_sdk_version = 23
+min_sdk_version = 30
 target_sdk_version = 30
 
 [package.metadata.android.application]
