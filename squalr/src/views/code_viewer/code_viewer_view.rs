@@ -54,7 +54,6 @@ impl CodeViewerView {
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
-    const EDITOR_ROW_HEIGHT: f32 = 34.0;
     const EDIT_WARNING_ROW_HEIGHT: f32 = 26.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
@@ -347,10 +346,14 @@ impl CodeViewerView {
         selected_instruction_addresses: &HashSet<u64>,
         scroll_target_address: Option<u64>,
         instruction_lines: &[DisassembledInstruction],
+        instruction_edit_state: Option<&CodeViewerInstructionEditState>,
     ) -> Rect {
         let theme = &self.app_context.theme;
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
         let is_selected = selected_instruction_addresses.contains(&instruction_line.address);
+        let is_instruction_edit_row = instruction_edit_state
+            .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
+            .unwrap_or(false);
         let breakpoint_gutter_rect = Rect::from_min_max(row_rect.min, pos2(row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, row_rect.max.y));
         let branch_gutter_rect = Rect::from_min_max(
             pos2(breakpoint_gutter_rect.max.x, row_rect.min.y),
@@ -445,87 +448,52 @@ impl CodeViewerView {
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                 theme.hexadecimal_green,
             );
-        user_interface
-            .painter()
-            .with_clip_rect(text_rect.intersect(user_interface.clip_rect()))
-            .text(
-                pos2(text_rect.min.x + Self::TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
-                Align2::LEFT_TOP,
-                &instruction_line.text,
-                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                if instruction_line.is_control_flow {
-                    theme.background_control_info
-                } else {
-                    theme.foreground
-                },
-            );
+        if is_instruction_edit_row {
+            if let Some(instruction_edit_state) = instruction_edit_state {
+                self.render_instruction_text_edit_contents(user_interface, text_rect, instruction_edit_state);
+            }
+        } else {
+            user_interface
+                .painter()
+                .with_clip_rect(text_rect.intersect(user_interface.clip_rect()))
+                .text(
+                    pos2(text_rect.min.x + Self::TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                    Align2::LEFT_TOP,
+                    &instruction_line.text,
+                    theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                    if instruction_line.is_control_flow {
+                        theme.background_control_info
+                    } else {
+                        theme.foreground
+                    },
+                );
+        }
 
         row_rect
     }
 
-    fn render_instruction_edit_row(
+    fn render_instruction_text_edit_contents(
         &self,
         user_interface: &mut Ui,
+        text_rect: Rect,
         instruction_edit_state: &CodeViewerInstructionEditState,
     ) {
         let theme = &self.app_context.theme;
-        let (edit_row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::EDITOR_ROW_HEIGHT), Sense::hover());
-        let breakpoint_gutter_rect = Rect::from_min_max(
-            edit_row_rect.min,
-            pos2(edit_row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, edit_row_rect.max.y),
-        );
-        let branch_gutter_rect = Rect::from_min_max(
-            pos2(breakpoint_gutter_rect.max.x, edit_row_rect.min.y),
-            pos2(breakpoint_gutter_rect.max.x + Self::BRANCH_GUTTER_WIDTH, edit_row_rect.max.y),
-        );
-        let address_rect = Rect::from_min_max(
-            pos2(branch_gutter_rect.max.x, edit_row_rect.min.y),
-            pos2(branch_gutter_rect.max.x + Self::ADDRESS_COLUMN_WIDTH, edit_row_rect.max.y),
-        );
-        let bytes_rect = Rect::from_min_max(
-            pos2(address_rect.max.x, edit_row_rect.min.y),
-            pos2(address_rect.max.x + Self::BYTES_COLUMN_WIDTH, edit_row_rect.max.y),
-        );
         let mut edit_row_user_interface = user_interface.new_child(
             UiBuilder::new()
-                .max_rect(edit_row_rect)
+                .max_rect(text_rect)
                 .layout(Layout::left_to_right(Align::Center)),
         );
-
-        Self::draw_selection_background(
-            &edit_row_user_interface,
-            edit_row_rect.shrink2(vec2(1.0, 1.0)),
-            theme.background_primary,
-            theme.selected_border,
-        );
-        edit_row_user_interface
-            .painter()
-            .with_clip_rect(address_rect.intersect(edit_row_user_interface.clip_rect()))
-            .text(
-                pos2(address_rect.min.x + Self::TEXT_LEFT_PADDING, edit_row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
-                Align2::LEFT_TOP,
-                format!("{:016X}", instruction_edit_state.start_address),
-                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                theme.hexadecimal_green,
-            );
-        edit_row_user_interface
-            .painter()
-            .with_clip_rect(bytes_rect.intersect(edit_row_user_interface.clip_rect()))
-            .text(
-                pos2(bytes_rect.min.x + Self::TEXT_LEFT_PADDING, edit_row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
-                Align2::LEFT_TOP,
-                format!("{} byte(s)", instruction_edit_state.original_byte_count()),
-                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
-                theme.foreground_preview,
-            );
-
-        edit_row_user_interface
-            .add_space(Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH + Self::ADDRESS_COLUMN_WIDTH + Self::BYTES_COLUMN_WIDTH + 6.0);
+        let inner_text_rect = text_rect.shrink2(vec2(2.0, 2.0));
+        edit_row_user_interface.set_clip_rect(inner_text_rect);
 
         let validation_data_type = self.instruction_edit_data_type_ref();
         let mut edit_value = instruction_edit_state.edit_value.clone();
         let original_edit_value = edit_value.clone();
         let did_commit_on_enter = DataValueBoxView::consume_commit_on_enter(user_interface, Self::INSTRUCTION_EDIT_INPUT_ID);
+        let button_width = 32.0;
+        let button_spacing = 4.0;
+        let total_button_width = button_width * 2.0 + button_spacing;
         edit_row_user_interface.add(
             DataValueBoxView::new(
                 self.app_context.clone(),
@@ -536,7 +504,7 @@ impl CodeViewerView {
                 "Type assembly here. Press Enter to write.",
                 Self::INSTRUCTION_EDIT_INPUT_ID,
             )
-            .width((edit_row_user_interface.available_width() - 80.0).max(120.0))
+            .width((inner_text_rect.width() - total_button_width - 8.0).max(120.0))
             .height(Self::TOOLBAR_ROW_HEIGHT)
             .use_format_text_colors(false),
         );
@@ -548,6 +516,7 @@ impl CodeViewerView {
         let should_commit_edit = did_commit_on_enter;
         let should_cancel_edit = edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Escape));
 
+        edit_row_user_interface.add_space(button_spacing);
         let cancel_button = edit_row_user_interface.add_sized(
             vec2(32.0, Self::TOOLBAR_ROW_HEIGHT),
             Button::new_from_theme(theme)
@@ -878,25 +847,25 @@ impl Widget for CodeViewerView {
                                     let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(self.code_viewer_view_data.clone());
 
                                     for instruction_line in &visible_instruction_lines {
-                                        if instruction_edit_state
-                                            .as_ref()
-                                            .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
-                                            .unwrap_or(false)
-                                        {
-                                            if let Some(instruction_edit_state) = instruction_edit_state.as_ref() {
-                                                self.render_instruction_edit_row(user_interface, instruction_edit_state);
-                                                self.render_instruction_edit_warning(user_interface, instruction_edit_state);
-                                            }
-                                        }
-
                                         let row_rect = self.render_instruction_row(
                                             user_interface,
                                             instruction_line,
                                             &selected_instruction_addresses,
                                             scroll_target_address,
                                             &visible_instruction_lines,
+                                            instruction_edit_state.as_ref(),
                                         );
                                         row_rects_by_address.insert(instruction_line.address, row_rect);
+
+                                        if instruction_edit_state
+                                            .as_ref()
+                                            .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
+                                            .unwrap_or(false)
+                                        {
+                                            if let Some(instruction_edit_state) = instruction_edit_state.as_ref() {
+                                                self.render_instruction_edit_warning(user_interface, instruction_edit_state);
+                                            }
+                                        }
                                     }
 
                                     Self::draw_jump_visuals(user_interface, &row_rects_by_address, &visible_instruction_lines, theme);
