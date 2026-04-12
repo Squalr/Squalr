@@ -62,6 +62,13 @@ impl InstructionSet for Arm32InstructionSet {
     ) -> Result<String, String> {
         disassemble_instruction_sequence(ArmMode::Arm32, instruction_bytes)
     }
+
+    fn build_no_operation_fill(
+        &self,
+        byte_count: usize,
+    ) -> Result<Vec<u8>, String> {
+        build_arm_no_operation_fill(ArmMode::Arm32, byte_count)
+    }
 }
 
 impl InstructionSet for Arm64InstructionSet {
@@ -86,6 +93,40 @@ impl InstructionSet for Arm64InstructionSet {
     ) -> Result<String, String> {
         disassemble_instruction_sequence(ArmMode::Arm64, instruction_bytes)
     }
+
+    fn build_no_operation_fill(
+        &self,
+        byte_count: usize,
+    ) -> Result<Vec<u8>, String> {
+        build_arm_no_operation_fill(ArmMode::Arm64, byte_count)
+    }
+}
+
+fn build_arm_no_operation_fill(
+    arm_mode: ArmMode,
+    byte_count: usize,
+) -> Result<Vec<u8>, String> {
+    if byte_count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let nop_bytes = assemble_instruction_sequence(arm_mode, "nop")?;
+
+    if nop_bytes.is_empty() || byte_count % nop_bytes.len() != 0 {
+        return Err(format!(
+            "{:?} no-operation fill requires a byte count aligned to {} bytes.",
+            arm_mode,
+            nop_bytes.len().max(1)
+        ));
+    }
+
+    let mut fill_bytes = Vec::with_capacity(byte_count);
+
+    while fill_bytes.len() < byte_count {
+        fill_bytes.extend_from_slice(&nop_bytes);
+    }
+
+    Ok(fill_bytes)
 }
 
 fn assemble_instruction_sequence(

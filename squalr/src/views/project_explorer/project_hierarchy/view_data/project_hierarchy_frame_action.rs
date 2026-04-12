@@ -25,6 +25,10 @@ pub enum ProjectHierarchyFrameAction {
         module_name: String,
         selection_byte_count: u64,
     },
+    OpenCodeViewerForAddress {
+        address: u64,
+        module_name: String,
+    },
     RequestRename(PathBuf),
     RequestValueEdit(PathBuf),
     RequestDeleteConfirmation(Vec<PathBuf>),

@@ -1,3 +1,4 @@
+mod instruction_data_type;
 mod instruction_data_type_comparison_stubs;
 mod instruction_decorators;
 mod instruction_sequence_parser;
@@ -7,6 +8,7 @@ mod instruction_syntax_error;
 mod instruction_value;
 mod parsed_instruction;
 
+pub use instruction_data_type::{is_instruction_data_type_id, normalize_instruction_data_type_id};
 pub use instruction_decorators::{InstructionDecorators, InstructionRoundingControl};
 pub use instruction_sequence_parser::{normalize_instruction_text, parse_instruction_sequence};
 pub use instruction_set::InstructionSet;
