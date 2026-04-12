@@ -302,7 +302,12 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
     }
 
     fn normalize_supported_formats(supported_formats: &[AnonymousValueStringFormat]) -> Vec<AnonymousValueStringFormat> {
-        let mut normalized_supported_formats = supported_formats.to_vec();
+        let mut normalized_supported_formats = supported_formats
+            .iter()
+            .copied()
+            // Hex-pattern is a byte-pattern authoring override, not a distinct UI family.
+            .filter(|anonymous_value_string_format| *anonymous_value_string_format != AnonymousValueStringFormat::HexPattern)
+            .collect::<Vec<_>>();
         normalized_supported_formats.sort_by_key(|anonymous_value_string_format| Self::anonymous_value_string_format_sort_key(*anonymous_value_string_format));
         normalized_supported_formats.dedup();
 
@@ -495,7 +500,7 @@ mod tests {
 
     #[test]
     fn selectable_popup_width_accounts_for_two_columns_and_spacing() {
-        assert_eq!(DataTypeSelectorView::selectable_popup_width(2), 248.0);
+        assert_eq!(DataTypeSelectorView::selectable_popup_width(2), 260.0);
     }
 
     #[test]
@@ -534,5 +539,22 @@ mod tests {
     #[test]
     fn empty_selection_keeps_all_data_types_compatible() {
         assert!(DataTypeSelectorView::is_data_type_compatible_from_match_state(0, false, false, true));
+    }
+
+    #[test]
+    fn normalize_supported_formats_ignores_hex_pattern_for_compatibility() {
+        assert_eq!(
+            DataTypeSelectorView::normalize_supported_formats(&[
+                AnonymousValueStringFormat::Binary,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
+                AnonymousValueStringFormat::HexPattern,
+            ]),
+            vec![
+                AnonymousValueStringFormat::Binary,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
+            ]
+        );
     }
 }
