@@ -223,6 +223,10 @@ impl CodeViewerView {
         theme: &crate::ui::theme::Theme,
     ) {
         let column_layout = Self::resolve_column_layout(header_rect, bytes_text_splitter_position_x);
+        let jumps_rect = Rect::from_min_max(
+            pos2(column_layout.breakpoint_gutter_rect.max.x, header_rect.min.y),
+            pos2(column_layout.address_rect.min.x, header_rect.max.y),
+        );
         let header_text_y = header_rect.center().y;
 
         Self::draw_column_header_text(
@@ -231,6 +235,14 @@ impl CodeViewerView {
             "BP",
             Align2::CENTER_CENTER,
             pos2(column_layout.breakpoint_gutter_rect.center().x, header_text_y),
+            theme,
+        );
+        Self::draw_column_header_text(
+            user_interface,
+            jumps_rect,
+            "Jumps",
+            Align2::CENTER_CENTER,
+            pos2(jumps_rect.center().x, header_text_y),
             theme,
         );
         Self::draw_column_header_text(
