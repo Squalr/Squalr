@@ -14,7 +14,8 @@ use crate::{
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
 use eframe::egui::{
-    Align, Align2, Color32, Direction, Event, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Color32, CursorIcon, Direction, Event, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2,
+    vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius, Stroke};
 use squalr_engine_api::{
@@ -37,9 +38,18 @@ pub struct MemoryViewerView {
     memory_viewer_interpretation_panel_view: MemoryViewerInterpretationPanelView,
 }
 
+#[derive(Clone, Copy)]
+struct MemoryViewerColumnLayout {
+    hex_columns_left: f32,
+    hex_columns_right: f32,
+    ascii_columns_left: f32,
+    ascii_columns_right: f32,
+}
+
 impl MemoryViewerView {
     const GO_TO_ADDRESS_INPUT_ID: &'static str = "memory_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_memory_viewer";
+    const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 20.0;
@@ -54,6 +64,8 @@ impl MemoryViewerView {
     const HEX_CARET_BLINK_INTERVAL: Duration = Duration::from_millis(500);
     const INTERPRETATION_PANEL_WIDTH: f32 = 320.0;
     const CONTENT_PANEL_SPACING: f32 = 10.0;
+    const MINIMUM_HEX_COLUMN_WIDTH: f32 = 132.0;
+    const MINIMUM_ASCII_COLUMN_WIDTH: f32 = 64.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let memory_viewer_view_data = app_context
@@ -111,18 +123,43 @@ impl MemoryViewerView {
         }
     }
 
-    fn get_hex_columns_left(row_rect: Rect) -> f32 {
-        row_rect.min.x + Self::ADDRESS_COLUMN_WIDTH + Self::HEX_COLUMN_LEFT_PADDING
+    fn resolve_hex_ascii_splitter_position_x(
+        content_min_x: f32,
+        content_width: f32,
+        hex_ascii_splitter_ratio: f32,
+    ) -> f32 {
+        let minimum_splitter_position_x = content_min_x + Self::ADDRESS_COLUMN_WIDTH + Self::HEX_COLUMN_LEFT_PADDING + Self::MINIMUM_HEX_COLUMN_WIDTH;
+        let maximum_splitter_position_x = content_min_x + content_width - Self::MINIMUM_ASCII_COLUMN_WIDTH - Self::ASCII_COLUMN_LEFT_PADDING;
+
+        if maximum_splitter_position_x <= minimum_splitter_position_x {
+            return minimum_splitter_position_x;
+        }
+
+        (content_min_x + content_width * hex_ascii_splitter_ratio).clamp(minimum_splitter_position_x, maximum_splitter_position_x)
     }
 
-    fn get_ascii_columns_left(row_rect: Rect) -> f32 {
-        Self::get_hex_columns_left(row_rect) + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::HEX_CELL_WIDTH) + Self::ASCII_COLUMN_LEFT_PADDING
+    fn resolve_column_layout(
+        row_rect: Rect,
+        hex_ascii_splitter_position_x: f32,
+    ) -> MemoryViewerColumnLayout {
+        let address_separator_position_x = row_rect.min.x + Self::ADDRESS_COLUMN_WIDTH;
+        let hex_columns_left = address_separator_position_x + Self::HEX_COLUMN_LEFT_PADDING;
+        let hex_columns_right = hex_ascii_splitter_position_x.clamp(hex_columns_left, row_rect.max.x);
+        let ascii_columns_left = (hex_ascii_splitter_position_x + Self::ASCII_COLUMN_LEFT_PADDING).clamp(row_rect.min.x, row_rect.max.x);
+
+        MemoryViewerColumnLayout {
+            hex_columns_left,
+            hex_columns_right,
+            ascii_columns_left,
+            ascii_columns_right: row_rect.max.x,
+        }
     }
 
     fn resolve_byte_address_for_pointer(
         normalized_region: &squalr_engine_api::structures::memory::normalized_region::NormalizedRegion,
         row_index: usize,
         row_rect: Rect,
+        hex_ascii_splitter_position_x: f32,
         pointer_position: Pos2,
     ) -> Option<u64> {
         if !row_rect.contains(pointer_position) {
@@ -130,16 +167,15 @@ impl MemoryViewerView {
         }
 
         let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
-        let hex_columns_left = Self::get_hex_columns_left(row_rect);
-        let ascii_columns_left = Self::get_ascii_columns_left(row_rect);
-        let column_index = if pointer_position.x >= hex_columns_left
-            && pointer_position.x < hex_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::HEX_CELL_WIDTH)
-        {
-            ((pointer_position.x - hex_columns_left) / Self::HEX_CELL_WIDTH).floor() as u64
-        } else if pointer_position.x >= ascii_columns_left
-            && pointer_position.x < ascii_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::ASCII_CELL_WIDTH)
-        {
-            ((pointer_position.x - ascii_columns_left) / Self::ASCII_CELL_WIDTH).floor() as u64
+        let column_layout = Self::resolve_column_layout(row_rect, hex_ascii_splitter_position_x);
+        let visible_hex_right =
+            (column_layout.hex_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::HEX_CELL_WIDTH)).min(column_layout.hex_columns_right);
+        let visible_ascii_right =
+            (column_layout.ascii_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::ASCII_CELL_WIDTH)).min(column_layout.ascii_columns_right);
+        let column_index = if pointer_position.x >= column_layout.hex_columns_left && pointer_position.x < visible_hex_right {
+            ((pointer_position.x - column_layout.hex_columns_left) / Self::HEX_CELL_WIDTH).floor() as u64
+        } else if pointer_position.x >= column_layout.ascii_columns_left && pointer_position.x < visible_ascii_right {
+            ((pointer_position.x - column_layout.ascii_columns_left) / Self::ASCII_CELL_WIDTH).floor() as u64
         } else {
             return None;
         };
@@ -543,6 +579,28 @@ impl Widget for MemoryViewerView {
                         .layout(Layout::top_down(Align::Min)),
                 );
                 right_panel_user_interface.set_clip_rect(right_panel_rect);
+                let mut new_hex_ascii_splitter_ratio = None;
+                let mut hex_ascii_splitter_ratio = self
+                    .memory_viewer_view_data
+                    .read("Memory viewer column ratios")
+                    .map(|memory_viewer_view_data| memory_viewer_view_data.hex_ascii_splitter_ratio)
+                    .unwrap_or(MemoryViewerViewData::DEFAULT_HEX_ASCII_SPLITTER_RATIO);
+                let left_content_width = left_content_rect.width();
+
+                if left_content_width > 0.0 {
+                    let resolved_hex_ascii_splitter_position_x =
+                        Self::resolve_hex_ascii_splitter_position_x(left_content_rect.min.x, left_content_width, hex_ascii_splitter_ratio);
+                    let resolved_hex_ascii_splitter_ratio = (resolved_hex_ascii_splitter_position_x - left_content_rect.min.x) / left_content_width;
+
+                    if (resolved_hex_ascii_splitter_ratio - hex_ascii_splitter_ratio).abs() > f32::EPSILON {
+                        hex_ascii_splitter_ratio = resolved_hex_ascii_splitter_ratio;
+                        new_hex_ascii_splitter_ratio = Some(resolved_hex_ascii_splitter_ratio);
+                    }
+                }
+
+                let hex_ascii_splitter_position_x =
+                    Self::resolve_hex_ascii_splitter_position_x(left_content_rect.min.x, left_content_width.max(1.0), hex_ascii_splitter_ratio);
+                let address_separator_position_x = left_content_rect.min.x + Self::ADDRESS_COLUMN_WIDTH;
 
                 match current_page {
                     Some(current_page) => {
@@ -587,13 +645,34 @@ impl Widget for MemoryViewerView {
                                     let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
                                     let row_address = Self::format_row_address(&current_page, row_index);
                                     let hovered_byte_address = row_response.hover_pos().and_then(|pointer_position| {
-                                        Self::resolve_byte_address_for_pointer(&current_page, row_index, row_rect, pointer_position)
+                                        Self::resolve_byte_address_for_pointer(
+                                            &current_page,
+                                            row_index,
+                                            row_rect,
+                                            hex_ascii_splitter_position_x,
+                                            pointer_position,
+                                        )
                                     });
                                     let pointer_byte_address = pointer_interaction_position.and_then(|pointer_position| {
-                                        Self::resolve_byte_address_for_pointer(&current_page, row_index, row_rect, pointer_position)
+                                        Self::resolve_byte_address_for_pointer(
+                                            &current_page,
+                                            row_index,
+                                            row_rect,
+                                            hex_ascii_splitter_position_x,
+                                            pointer_position,
+                                        )
                                     });
                                     let selected_address_bounds = MemoryViewerViewData::get_selected_address_bounds(self.memory_viewer_view_data.clone());
                                     let hex_edit_state = MemoryViewerViewData::get_hex_edit_state(self.memory_viewer_view_data.clone());
+                                    let column_layout = Self::resolve_column_layout(row_rect, hex_ascii_splitter_position_x);
+                                    let hex_column_clip_rect = Rect::from_min_max(
+                                        pos2(column_layout.hex_columns_left, row_rect.min.y),
+                                        pos2(column_layout.hex_columns_right, row_rect.max.y),
+                                    );
+                                    let ascii_column_clip_rect = Rect::from_min_max(
+                                        pos2(column_layout.ascii_columns_left, row_rect.min.y),
+                                        pos2(column_layout.ascii_columns_right, row_rect.max.y),
+                                    );
 
                                     if row_response.clicked() {
                                         MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
@@ -646,8 +725,6 @@ impl Widget for MemoryViewerView {
                                             theme.hexadecimal_green,
                                         );
 
-                                    let hex_columns_left = Self::get_hex_columns_left(row_rect);
-                                    let ascii_columns_left = Self::get_ascii_columns_left(row_rect);
                                     let row_byte_count = (current_page.get_region_size().saturating_sub(row_offset)).min(MemoryViewerViewData::BYTES_PER_ROW);
 
                                     if let Some((selection_start_column, selection_end_column)) =
@@ -658,7 +735,7 @@ impl Widget for MemoryViewerView {
                                             selection_start_column,
                                             selection_end_column,
                                             Self::HEX_CELL_WIDTH,
-                                            hex_columns_left,
+                                            column_layout.hex_columns_left,
                                             2.0,
                                         );
                                         let ascii_selection_rect = Self::build_selection_band_rect(
@@ -666,12 +743,22 @@ impl Widget for MemoryViewerView {
                                             selection_start_column,
                                             selection_end_column,
                                             Self::ASCII_CELL_WIDTH,
-                                            ascii_columns_left,
+                                            column_layout.ascii_columns_left,
                                             0.0,
                                         );
 
-                                        Self::draw_selection_background(user_interface, hex_selection_rect, theme.selected_background, theme.selected_border);
-                                        Self::draw_selection_background(user_interface, ascii_selection_rect, theme.selected_background, theme.selected_border);
+                                        Self::draw_selection_background(
+                                            user_interface,
+                                            hex_selection_rect.intersect(hex_column_clip_rect),
+                                            theme.selected_background,
+                                            theme.selected_border,
+                                        );
+                                        Self::draw_selection_background(
+                                            user_interface,
+                                            ascii_selection_rect.intersect(ascii_column_clip_rect),
+                                            theme.selected_background,
+                                            theme.selected_border,
+                                        );
                                     }
 
                                     for column_index in 0..MemoryViewerViewData::BYTES_PER_ROW {
@@ -690,15 +777,24 @@ impl Widget for MemoryViewerView {
                                         let hex_text = Self::build_hex_text(byte_value, byte_address, hex_edit_state.as_ref());
                                         let ascii_text = Self::format_ascii_cell(byte_value).to_string();
                                         let hex_rect = Rect::from_min_max(
-                                            pos2(hex_columns_left + (column_index as f32) * Self::HEX_CELL_WIDTH, row_rect.min.y + 1.0),
                                             pos2(
-                                                hex_columns_left + ((column_index + 1) as f32) * Self::HEX_CELL_WIDTH - 2.0,
+                                                column_layout.hex_columns_left + (column_index as f32) * Self::HEX_CELL_WIDTH,
+                                                row_rect.min.y + 1.0,
+                                            ),
+                                            pos2(
+                                                column_layout.hex_columns_left + ((column_index + 1) as f32) * Self::HEX_CELL_WIDTH - 2.0,
                                                 row_rect.max.y - 1.0,
                                             ),
                                         );
                                         let ascii_rect = Rect::from_min_max(
-                                            pos2(ascii_columns_left + (column_index as f32) * Self::ASCII_CELL_WIDTH, row_rect.min.y + 1.0),
-                                            pos2(ascii_columns_left + ((column_index + 1) as f32) * Self::ASCII_CELL_WIDTH, row_rect.max.y - 1.0),
+                                            pos2(
+                                                column_layout.ascii_columns_left + (column_index as f32) * Self::ASCII_CELL_WIDTH,
+                                                row_rect.min.y + 1.0,
+                                            ),
+                                            pos2(
+                                                column_layout.ascii_columns_left + ((column_index + 1) as f32) * Self::ASCII_CELL_WIDTH,
+                                                row_rect.max.y - 1.0,
+                                            ),
                                         );
 
                                         if caret_is_visible
@@ -706,6 +802,7 @@ impl Widget for MemoryViewerView {
                                                 .as_ref()
                                                 .map(|hex_edit_state| hex_edit_state.cursor_address == byte_address)
                                                 .unwrap_or(false)
+                                            && hex_rect.intersects(hex_column_clip_rect)
                                         {
                                             Self::draw_hex_edit_caret(
                                                 user_interface,
@@ -720,7 +817,11 @@ impl Widget for MemoryViewerView {
 
                                         user_interface
                                             .painter()
-                                            .with_clip_rect(hex_rect.intersect(user_interface.clip_rect()))
+                                            .with_clip_rect(
+                                                hex_rect
+                                                    .intersect(hex_column_clip_rect)
+                                                    .intersect(user_interface.clip_rect()),
+                                            )
                                             .text(
                                                 pos2(hex_rect.min.x + 1.0, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
                                                 Align2::LEFT_TOP,
@@ -730,7 +831,11 @@ impl Widget for MemoryViewerView {
                                             );
                                         user_interface
                                             .painter()
-                                            .with_clip_rect(ascii_rect.intersect(user_interface.clip_rect()))
+                                            .with_clip_rect(
+                                                ascii_rect
+                                                    .intersect(ascii_column_clip_rect)
+                                                    .intersect(user_interface.clip_rect()),
+                                            )
                                             .text(
                                                 pos2(ascii_rect.min.x + 1.0, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
                                                 Align2::LEFT_TOP,
@@ -769,6 +874,54 @@ impl Widget for MemoryViewerView {
                                     .color(theme.foreground_preview),
                             );
                         });
+                    }
+                }
+
+                let splitter_min_y = left_content_rect.min.y;
+                let splitter_max_y = left_content_rect.max.y;
+                let address_separator_rect = Rect::from_min_max(
+                    pos2(address_separator_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(address_separator_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+                let hex_ascii_splitter_rect = Rect::from_min_max(
+                    pos2(hex_ascii_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(hex_ascii_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+
+                user_interface
+                    .painter()
+                    .rect_filled(address_separator_rect, CornerRadius::ZERO, theme.background_control);
+
+                let hex_ascii_splitter_response = user_interface
+                    .interact(
+                        hex_ascii_splitter_rect,
+                        user_interface.id().with("memory_viewer_hex_ascii_splitter"),
+                        Sense::drag(),
+                    )
+                    .on_hover_cursor(CursorIcon::ResizeHorizontal);
+                user_interface
+                    .painter()
+                    .rect_filled(hex_ascii_splitter_rect, CornerRadius::ZERO, theme.background_control);
+
+                if hex_ascii_splitter_response.dragged() && left_content_width > 0.0 {
+                    let unclamped_hex_ascii_splitter_position_x =
+                        Self::resolve_hex_ascii_splitter_position_x(left_content_rect.min.x, left_content_width, hex_ascii_splitter_ratio)
+                            + hex_ascii_splitter_response.drag_delta().x;
+                    let bounded_hex_ascii_splitter_position_x = Self::resolve_hex_ascii_splitter_position_x(
+                        left_content_rect.min.x,
+                        left_content_width,
+                        (unclamped_hex_ascii_splitter_position_x - left_content_rect.min.x) / left_content_width,
+                    );
+
+                    new_hex_ascii_splitter_ratio = Some((bounded_hex_ascii_splitter_position_x - left_content_rect.min.x) / left_content_width);
+                }
+
+                if let Some(new_hex_ascii_splitter_ratio) = new_hex_ascii_splitter_ratio {
+                    if let Some(mut memory_viewer_view_data) = self
+                        .memory_viewer_view_data
+                        .write("Memory viewer update column ratios")
+                    {
+                        memory_viewer_view_data.hex_ascii_splitter_ratio = new_hex_ascii_splitter_ratio;
                     }
                 }
 
@@ -811,5 +964,20 @@ impl Widget for MemoryViewerView {
                 user_interface.add(self.memory_viewer_footer_view.clone());
             })
             .response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MemoryViewerView;
+
+    #[test]
+    fn resolve_hex_ascii_splitter_position_x_clamps_to_minimum_visible_columns() {
+        let resolved_splitter_position_x = MemoryViewerView::resolve_hex_ascii_splitter_position_x(0.0, 280.0, 0.1);
+
+        assert_eq!(
+            resolved_splitter_position_x,
+            MemoryViewerView::ADDRESS_COLUMN_WIDTH + MemoryViewerView::HEX_COLUMN_LEFT_PADDING + MemoryViewerView::MINIMUM_HEX_COLUMN_WIDTH
+        );
     }
 }

@@ -19,7 +19,8 @@ use crate::{
     },
 };
 use eframe::egui::{
-    Align, Align2, Color32, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Color32, CursorIcon, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, Ui, UiBuilder, Widget,
+    pos2, vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius};
 use squalr_engine_api::{
@@ -47,10 +48,19 @@ pub struct CodeViewerView {
     code_viewer_footer_view: CodeViewerFooterView,
 }
 
+#[derive(Clone, Copy)]
+struct CodeViewerColumnLayout {
+    breakpoint_gutter_rect: Rect,
+    address_rect: Rect,
+    bytes_rect: Rect,
+    text_rect: Rect,
+}
+
 impl CodeViewerView {
     const GO_TO_ADDRESS_INPUT_ID: &'static str = "code_viewer_go_to_address";
     const INSTRUCTION_EDIT_INPUT_ID: &'static str = "code_viewer_instruction_edit";
     pub const WINDOW_ID: &'static str = "window_code_viewer";
+    const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
@@ -58,7 +68,8 @@ impl CodeViewerView {
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 118.0;
-    const BYTES_COLUMN_WIDTH: f32 = 168.0;
+    const MINIMUM_BYTES_COLUMN_WIDTH: f32 = 72.0;
+    const MINIMUM_TEXT_COLUMN_WIDTH: f32 = 180.0;
     const TEXT_LEFT_PADDING: f32 = 6.0;
     const ROW_TEXT_TOP_PADDING: f32 = 4.0;
     const BREAKPOINT_RADIUS: f32 = 5.0;
@@ -112,6 +123,53 @@ impl CodeViewerView {
                     .as_ref()
                     .map(|opened_process_info| opened_process_info.get_bitness())
             })
+    }
+
+    fn fixed_columns_width() -> f32 {
+        Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH + Self::ADDRESS_COLUMN_WIDTH
+    }
+
+    fn resolve_bytes_text_splitter_position_x(
+        content_min_x: f32,
+        content_width: f32,
+        bytes_text_splitter_ratio: f32,
+    ) -> f32 {
+        let minimum_splitter_position_x = content_min_x + Self::fixed_columns_width() + Self::MINIMUM_BYTES_COLUMN_WIDTH;
+        let maximum_splitter_position_x = content_min_x + (content_width - Self::MINIMUM_TEXT_COLUMN_WIDTH).max(Self::fixed_columns_width());
+
+        if maximum_splitter_position_x <= minimum_splitter_position_x {
+            return minimum_splitter_position_x;
+        }
+
+        (content_min_x + content_width * bytes_text_splitter_ratio).clamp(minimum_splitter_position_x, maximum_splitter_position_x)
+    }
+
+    fn resolve_column_layout(
+        row_rect: Rect,
+        bytes_text_splitter_position_x: f32,
+    ) -> CodeViewerColumnLayout {
+        let breakpoint_gutter_rect = Rect::from_min_max(row_rect.min, pos2(row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, row_rect.max.y));
+        let branch_gutter_rect = Rect::from_min_max(
+            pos2(breakpoint_gutter_rect.max.x, row_rect.min.y),
+            pos2(breakpoint_gutter_rect.max.x + Self::BRANCH_GUTTER_WIDTH, row_rect.max.y),
+        );
+        let address_rect = Rect::from_min_max(
+            pos2(branch_gutter_rect.max.x, row_rect.min.y),
+            pos2(branch_gutter_rect.max.x + Self::ADDRESS_COLUMN_WIDTH, row_rect.max.y),
+        );
+        let clamped_bytes_text_splitter_position_x = bytes_text_splitter_position_x.clamp(address_rect.max.x, row_rect.max.x.max(address_rect.max.x));
+        let bytes_rect = Rect::from_min_max(
+            pos2(address_rect.max.x, row_rect.min.y),
+            pos2(clamped_bytes_text_splitter_position_x, row_rect.max.y),
+        );
+        let text_rect = Rect::from_min_max(pos2(bytes_rect.max.x, row_rect.min.y), row_rect.max);
+
+        CodeViewerColumnLayout {
+            breakpoint_gutter_rect,
+            address_rect,
+            bytes_rect,
+            text_rect,
+        }
     }
 
     fn build_bytes_text(bytes: &[u8]) -> String {
@@ -344,6 +402,7 @@ impl CodeViewerView {
         user_interface: &mut Ui,
         instruction_line: &DisassembledInstruction,
         selected_instruction_addresses: &HashSet<u64>,
+        bytes_text_splitter_position_x: f32,
         scroll_target_address: Option<u64>,
         instruction_lines: &[DisassembledInstruction],
         instruction_edit_state: Option<&CodeViewerInstructionEditState>,
@@ -354,20 +413,7 @@ impl CodeViewerView {
         let is_instruction_edit_row = instruction_edit_state
             .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
             .unwrap_or(false);
-        let breakpoint_gutter_rect = Rect::from_min_max(row_rect.min, pos2(row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, row_rect.max.y));
-        let branch_gutter_rect = Rect::from_min_max(
-            pos2(breakpoint_gutter_rect.max.x, row_rect.min.y),
-            pos2(breakpoint_gutter_rect.max.x + Self::BRANCH_GUTTER_WIDTH, row_rect.max.y),
-        );
-        let address_rect = Rect::from_min_max(
-            pos2(branch_gutter_rect.max.x, row_rect.min.y),
-            pos2(branch_gutter_rect.max.x + Self::ADDRESS_COLUMN_WIDTH, row_rect.max.y),
-        );
-        let bytes_rect = Rect::from_min_max(
-            pos2(address_rect.max.x, row_rect.min.y),
-            pos2(address_rect.max.x + Self::BYTES_COLUMN_WIDTH, row_rect.max.y),
-        );
-        let text_rect = Rect::from_min_max(pos2(bytes_rect.max.x, row_rect.min.y), row_rect.max);
+        let column_layout = Self::resolve_column_layout(row_rect, bytes_text_splitter_position_x);
 
         if is_selected {
             Self::draw_selection_background(
@@ -379,7 +425,7 @@ impl CodeViewerView {
         }
 
         let breakpoint_response = user_interface.interact(
-            breakpoint_gutter_rect,
+            column_layout.breakpoint_gutter_rect,
             user_interface.make_persistent_id(("code_viewer_breakpoint", instruction_line.address)),
             Sense::click(),
         );
@@ -430,9 +476,12 @@ impl CodeViewerView {
 
         user_interface
             .painter()
-            .with_clip_rect(address_rect.intersect(user_interface.clip_rect()))
+            .with_clip_rect(column_layout.address_rect.intersect(user_interface.clip_rect()))
             .text(
-                pos2(address_rect.min.x + Self::TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                pos2(
+                    column_layout.address_rect.min.x + Self::TEXT_LEFT_PADDING,
+                    row_rect.min.y + Self::ROW_TEXT_TOP_PADDING,
+                ),
                 Align2::LEFT_TOP,
                 format!("{:016X}", instruction_line.address),
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
@@ -440,9 +489,12 @@ impl CodeViewerView {
             );
         user_interface
             .painter()
-            .with_clip_rect(bytes_rect.intersect(user_interface.clip_rect()))
+            .with_clip_rect(column_layout.bytes_rect.intersect(user_interface.clip_rect()))
             .text(
-                pos2(bytes_rect.min.x + Self::TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                pos2(
+                    column_layout.bytes_rect.min.x + Self::TEXT_LEFT_PADDING,
+                    row_rect.min.y + Self::ROW_TEXT_TOP_PADDING,
+                ),
                 Align2::LEFT_TOP,
                 Self::build_bytes_text(&instruction_line.bytes),
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
@@ -450,14 +502,17 @@ impl CodeViewerView {
             );
         if is_instruction_edit_row {
             if let Some(instruction_edit_state) = instruction_edit_state {
-                self.render_instruction_text_edit_contents(user_interface, text_rect, instruction_edit_state);
+                self.render_instruction_text_edit_contents(user_interface, column_layout.text_rect, instruction_edit_state);
             }
         } else {
             user_interface
                 .painter()
-                .with_clip_rect(text_rect.intersect(user_interface.clip_rect()))
+                .with_clip_rect(column_layout.text_rect.intersect(user_interface.clip_rect()))
                 .text(
-                    pos2(text_rect.min.x + Self::TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                    pos2(
+                        column_layout.text_rect.min.x + Self::TEXT_LEFT_PADDING,
+                        row_rect.min.y + Self::ROW_TEXT_TOP_PADDING,
+                    ),
                     Align2::LEFT_TOP,
                     &instruction_line.text,
                     theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
@@ -551,6 +606,7 @@ impl CodeViewerView {
         &self,
         user_interface: &mut Ui,
         instruction_edit_state: &CodeViewerInstructionEditState,
+        bytes_text_splitter_position_x: f32,
     ) {
         let Some(instruction_edit_status) = instruction_edit_state.status.as_ref() else {
             return;
@@ -575,8 +631,7 @@ impl CodeViewerView {
             Stroke::new(1.0, warning_color),
             epaint::StrokeKind::Inside,
         );
-        warning_user_interface
-            .add_space(Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH + Self::ADDRESS_COLUMN_WIDTH + Self::BYTES_COLUMN_WIDTH + 6.0);
+        warning_user_interface.add_space((bytes_text_splitter_position_x - warning_rect.min.x + 6.0).max(0.0));
 
         match instruction_edit_status {
             CodeViewerInstructionEditStatus::Invalid(error) => {
@@ -791,6 +846,30 @@ impl Widget for CodeViewerView {
                 {
                     CodeViewerViewData::clear_selection(self.code_viewer_view_data.clone());
                 }
+                let mut new_bytes_text_splitter_ratio = None;
+                let mut bytes_text_splitter_ratio = self
+                    .code_viewer_view_data
+                    .read("Code viewer column ratios")
+                    .map(|code_viewer_view_data| code_viewer_view_data.bytes_text_splitter_ratio)
+                    .unwrap_or(CodeViewerViewData::DEFAULT_BYTES_TEXT_SPLITTER_RATIO);
+                let content_width = content_response.rect.width();
+                let content_min_x = content_response.rect.min.x;
+
+                if content_width > 0.0 {
+                    let resolved_bytes_text_splitter_position_x =
+                        Self::resolve_bytes_text_splitter_position_x(content_min_x, content_width, bytes_text_splitter_ratio);
+                    let resolved_bytes_text_splitter_ratio = (resolved_bytes_text_splitter_position_x - content_min_x) / content_width;
+
+                    if (resolved_bytes_text_splitter_ratio - bytes_text_splitter_ratio).abs() > f32::EPSILON {
+                        bytes_text_splitter_ratio = resolved_bytes_text_splitter_ratio;
+                        new_bytes_text_splitter_ratio = Some(resolved_bytes_text_splitter_ratio);
+                    }
+                }
+
+                let bytes_text_splitter_position_x =
+                    Self::resolve_bytes_text_splitter_position_x(content_min_x, content_width.max(1.0), bytes_text_splitter_ratio);
+                let address_separator_position_x = content_min_x + Self::fixed_columns_width();
+
                 content_user_interface
                     .painter()
                     .rect_filled(content_user_interface.max_rect(), CornerRadius::ZERO, theme.background_panel);
@@ -851,6 +930,7 @@ impl Widget for CodeViewerView {
                                             user_interface,
                                             instruction_line,
                                             &selected_instruction_addresses,
+                                            bytes_text_splitter_position_x,
                                             scroll_target_address,
                                             &visible_instruction_lines,
                                             instruction_edit_state.as_ref(),
@@ -863,7 +943,7 @@ impl Widget for CodeViewerView {
                                             .unwrap_or(false)
                                         {
                                             if let Some(instruction_edit_state) = instruction_edit_state.as_ref() {
-                                                self.render_instruction_edit_warning(user_interface, instruction_edit_state);
+                                                self.render_instruction_edit_warning(user_interface, instruction_edit_state, bytes_text_splitter_position_x);
                                             }
                                         }
                                     }
@@ -889,6 +969,54 @@ impl Widget for CodeViewerView {
                                     .color(theme.foreground_preview),
                             );
                         });
+                    }
+                }
+
+                let splitter_min_y = content_response.rect.min.y;
+                let splitter_max_y = content_response.rect.max.y;
+                let address_separator_rect = Rect::from_min_max(
+                    pos2(address_separator_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(address_separator_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+                let bytes_text_splitter_rect = Rect::from_min_max(
+                    pos2(bytes_text_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(bytes_text_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
+
+                user_interface
+                    .painter()
+                    .rect_filled(address_separator_rect, CornerRadius::ZERO, theme.background_control);
+
+                let bytes_text_splitter_response = user_interface
+                    .interact(
+                        bytes_text_splitter_rect,
+                        user_interface.id().with("code_viewer_bytes_text_splitter"),
+                        Sense::drag(),
+                    )
+                    .on_hover_cursor(CursorIcon::ResizeHorizontal);
+                user_interface
+                    .painter()
+                    .rect_filled(bytes_text_splitter_rect, CornerRadius::ZERO, theme.background_control);
+
+                if bytes_text_splitter_response.dragged() && content_width > 0.0 {
+                    let new_bytes_text_splitter_position_x =
+                        Self::resolve_bytes_text_splitter_position_x(content_min_x, content_width, bytes_text_splitter_ratio)
+                            + bytes_text_splitter_response.drag_delta().x;
+                    let bounded_bytes_text_splitter_position_x = Self::resolve_bytes_text_splitter_position_x(
+                        content_min_x,
+                        content_width,
+                        (new_bytes_text_splitter_position_x - content_min_x) / content_width,
+                    );
+
+                    new_bytes_text_splitter_ratio = Some((bounded_bytes_text_splitter_position_x - content_min_x) / content_width);
+                }
+
+                if let Some(new_bytes_text_splitter_ratio) = new_bytes_text_splitter_ratio {
+                    if let Some(mut code_viewer_view_data) = self
+                        .code_viewer_view_data
+                        .write("Code viewer update column ratios")
+                    {
+                        code_viewer_view_data.bytes_text_splitter_ratio = new_bytes_text_splitter_ratio;
                     }
                 }
 
@@ -949,5 +1077,20 @@ impl Widget for CodeViewerView {
                 user_interface.add(self.code_viewer_footer_view.clone());
             })
             .response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CodeViewerView;
+
+    #[test]
+    fn resolve_bytes_text_splitter_position_x_clamps_to_minimum_visible_columns() {
+        let resolved_splitter_position_x = CodeViewerView::resolve_bytes_text_splitter_position_x(0.0, 320.0, 0.1);
+
+        assert_eq!(
+            resolved_splitter_position_x,
+            CodeViewerView::fixed_columns_width() + CodeViewerView::MINIMUM_BYTES_COLUMN_WIDTH
+        );
     }
 }
