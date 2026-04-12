@@ -41,6 +41,7 @@ pub struct ElementScannerResultsViewData {
     // audio_player: AudioPlayer,
     pub value_splitter_ratio: f32,
     pub previous_value_splitter_ratio: f32,
+    pub active_display_format: AnonymousValueStringFormat,
     pub current_scan_results: Vec<ScanResult>,
     pub data_type_filter_selection: DataTypeSelection,
     pub available_data_types: Vec<DataTypeRef>,
@@ -78,6 +79,7 @@ impl ElementScannerResultsViewData {
         Self {
             value_splitter_ratio: Self::DEFAULT_VALUE_SPLITTER_RATIO,
             previous_value_splitter_ratio: Self::DEFAULT_PREVIOUS_VALUE_SPLITTER_RATIO,
+            active_display_format: AnonymousValueStringFormat::Decimal,
             current_scan_results: Vec::new(),
             data_type_filter_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
             available_data_types: vec![DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)],
@@ -476,6 +478,16 @@ impl ElementScannerResultsViewData {
             if element_scanner_results_view_data.data_type_filter_selection == scan_data_type_selection
                 && element_scanner_results_view_data.available_data_types == scan_selected_data_types
             {
+                if let Some(scan_active_display_format) = element_scanner_view_data
+                    .read("Sync scan results display type from scan selection")
+                    .map(|element_scanner_view_data| element_scanner_view_data.active_display_format)
+                {
+                    element_scanner_results_view_data.active_display_format = scan_active_display_format;
+                    element_scanner_results_view_data
+                        .current_display_string
+                        .set_anonymous_value_string_format(scan_active_display_format);
+                }
+
                 return;
             }
 
@@ -484,6 +496,16 @@ impl ElementScannerResultsViewData {
             element_scanner_results_view_data.current_page_index = 0;
             element_scanner_results_view_data.selection_index_start = None;
             element_scanner_results_view_data.selection_index_end = None;
+
+            if let Some(scan_active_display_format) = element_scanner_view_data
+                .read("Apply scan results display type from scan selection")
+                .map(|element_scanner_view_data| element_scanner_view_data.active_display_format)
+            {
+                element_scanner_results_view_data.active_display_format = scan_active_display_format;
+                element_scanner_results_view_data
+                    .current_display_string
+                    .set_anonymous_value_string_format(scan_active_display_format);
+            }
         }
     }
 
@@ -1065,8 +1087,10 @@ impl ElementScannerResultsViewData {
 mod tests {
     use super::ElementScannerResultsViewData;
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+    use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
     use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
     use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
     use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
@@ -1276,5 +1300,33 @@ mod tests {
 
         assert!(!element_scanner_results_view_data.should_apply_refresh_request(first_refresh_request_revision));
         assert!(element_scanner_results_view_data.should_apply_refresh_request(second_refresh_request_revision));
+    }
+
+    #[test]
+    fn sync_data_type_filters_from_scan_selection_copies_scan_display_format() {
+        let dependency_container = DependencyContainer::new();
+        let element_scanner_results_view_data = dependency_container.register(ElementScannerResultsViewData::new());
+        let element_scanner_view_data = dependency_container.register(ElementScannerViewData::new());
+
+        {
+            let mut element_scanner_view_data = element_scanner_view_data
+                .write("Set scan display format")
+                .expect("Expected element scanner view data write guard.");
+            element_scanner_view_data.active_display_format = AnonymousValueStringFormat::Hexadecimal;
+        }
+
+        ElementScannerResultsViewData::sync_data_type_filters_from_scan_selection(element_scanner_results_view_data.clone(), element_scanner_view_data.clone());
+
+        let element_scanner_results_view_data = element_scanner_results_view_data
+            .read("Verify results display format")
+            .expect("Expected element scanner results view data read guard.");
+
+        assert_eq!(element_scanner_results_view_data.active_display_format, AnonymousValueStringFormat::Hexadecimal);
+        assert_eq!(
+            element_scanner_results_view_data
+                .current_display_string
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
     }
 }
