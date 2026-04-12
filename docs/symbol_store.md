@@ -31,6 +31,8 @@ Rooted symbols are named instances such as:
 - `game.exe + 0x123456` of type `PlayerManager`,
 - `Dolphin MEM1 + 0x80400000` of type `GameState`.
 
+A rooted symbol is its own project-owned thing. It is not just an `AddressItem` or a `PointerItem` with extra decoration.
+
 ### 2. Layouts have named fields
 This is a hard prerequisite.
 
@@ -50,6 +52,10 @@ This keeps the stored model small and avoids inventing a giant persistent symbol
 `AddressItem` and `PointerItem` should stay.
 
 They are good discovery tools. The project should gradually become a symbol workspace by letting users promote useful discoveries into rooted symbols.
+
+That means the project model should distinguish between:
+- acquisition items such as address and pointer items,
+- authored symbol records created directly or via promotion.
 
 ### 5. Modules stay as strings for now
 Do not introduce a new `ModuleId` abstraction yet.
@@ -147,10 +153,12 @@ Do not build a typed metadata framework up front.
 1. Keep address and pointer items exactly as the bootstrap UX.
 2. Add `Promote to Symbol`.
 3. Promotion should:
-   - create a rooted symbol,
+   - create a real rooted symbol record in the project symbol store,
    - reuse the current type/layout reference,
    - default the new symbol name from the final tail when promoting from a pointer path,
    - avoid inventing intermediate stored symbols unless the user explicitly promotes them later.
+
+After promotion, the new symbol should be browsable through the Symbol Explorer even if the original address or pointer item is later deleted.
 
 ### Sprint 4: Add lazy symbol expansion
 1. Build symbol-tree expansion from rooted symbols plus layouts.
@@ -255,6 +263,16 @@ Qualified names and child paths are for display and export. They should not forc
 
 ### Children
 Children are derived views, not stored facts, unless the user explicitly turns one into a real symbol later.
+
+### Project items versus symbols
+Symbols and project items should not be the same concept.
+
+For now:
+- address items and pointer items are workflow and acquisition objects,
+- rooted symbols are authored symbolic objects in the project symbol store,
+- promotion is the main bridge from the former to the latter.
+
+Long term, symbols may become the more important project-facing concept, but we do not need to collapse everything into one item type in the first implementation.
 
 ### External tools
 If an import/export plugin needs extra naming hints, original-source names, namespace mappings, comments, or tags, those belong in metadata associated with that plugin or format.
