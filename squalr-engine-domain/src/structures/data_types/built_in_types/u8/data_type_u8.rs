@@ -81,7 +81,6 @@ impl DataType for DataTypeU8 {
             AnonymousValueStringFormat::Binary,
             AnonymousValueStringFormat::Decimal,
             AnonymousValueStringFormat::Hexadecimal,
-            AnonymousValueStringFormat::HexPattern,
         ]
     }
 
@@ -106,5 +105,23 @@ impl DataType for DataTypeU8 {
         data_type_ref: DataTypeRef,
     ) -> DataValue {
         DataValue::new(data_type_ref, Self::to_vec(0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataTypeU8;
+    use crate::structures::{data_types::data_type::DataType, data_values::anonymous_value_string_format::AnonymousValueStringFormat};
+
+    #[test]
+    fn supported_display_formats_do_not_include_hex_pattern() {
+        assert_eq!(
+            DataTypeU8 {}.get_supported_anonymous_value_string_formats(),
+            vec![
+                AnonymousValueStringFormat::Binary,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
+            ]
+        );
     }
 }
