@@ -185,6 +185,14 @@ impl CodeViewerView {
         )
     }
 
+    fn instruction_row_height(is_instruction_edit_row: bool) -> f32 {
+        if is_instruction_edit_row {
+            (Self::TOOLBAR_ROW_HEIGHT + 6.0).max(Self::ROW_HEIGHT)
+        } else {
+            Self::ROW_HEIGHT
+        }
+    }
+
     fn build_bytes_text(bytes: &[u8]) -> String {
         bytes
             .iter()
@@ -421,11 +429,12 @@ impl CodeViewerView {
         instruction_edit_state: Option<&CodeViewerInstructionEditState>,
     ) -> Rect {
         let theme = &self.app_context.theme;
-        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
-        let is_selected = selected_instruction_addresses.contains(&instruction_line.address);
         let is_instruction_edit_row = instruction_edit_state
             .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
             .unwrap_or(false);
+        let row_height = Self::instruction_row_height(is_instruction_edit_row);
+        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
+        let is_selected = selected_instruction_addresses.contains(&instruction_line.address);
         let column_layout = Self::resolve_column_layout(row_rect, bytes_text_splitter_position_x);
 
         if is_selected {
@@ -1121,5 +1130,11 @@ mod tests {
             resolved_splitter_position_x,
             CodeViewerView::fixed_columns_width() + CodeViewerView::MINIMUM_BYTES_COLUMN_WIDTH
         );
+    }
+
+    #[test]
+    fn instruction_row_height_is_taller_while_editing() {
+        assert!(CodeViewerView::instruction_row_height(true) > CodeViewerView::instruction_row_height(false));
+        assert!(CodeViewerView::instruction_row_height(true) >= CodeViewerView::TOOLBAR_ROW_HEIGHT);
     }
 }
