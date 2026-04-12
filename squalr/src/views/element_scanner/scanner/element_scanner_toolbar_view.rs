@@ -163,6 +163,7 @@ impl Widget for ElementScannerToolbarView {
                         &mut element_scanner_view_data.data_type_selection,
                         "element_scanner_data_type_selector",
                     )
+                    .enforce_format_compatibility()
                     .disabled(is_data_type_selection_disabled)
                     .available_data_types(available_data_types.clone()),
                 );
