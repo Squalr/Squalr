@@ -163,10 +163,7 @@ impl Widget for PointerScannerToolbarView {
             } else {
                 "Enter target address..."
             };
-            let are_session_actions_disabled = pointer_scanner_view_data.is_querying_summary
-                || pointer_scanner_view_data.is_starting_scan
-                || pointer_scanner_view_data.is_validating_scan
-                || pointer_scanner_view_data.is_resetting_scan;
+            let are_session_actions_disabled = pointer_scanner_view_data.has_mutating_session_request_in_progress();
             let start_scan_tooltip = if has_active_pointer_scan_session {
                 if has_opened_process {
                     "Validate the active pointer scan session with the validation target address."
