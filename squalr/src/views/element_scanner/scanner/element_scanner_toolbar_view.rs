@@ -24,6 +24,10 @@ pub struct ElementScannerToolbarView {
 }
 
 impl ElementScannerToolbarView {
+    const DEFAULT_TOP_ROW_HEIGHT: f32 = 34.0;
+    const DEFAULT_CONSTRAINT_ROW_HEIGHT: f32 = 34.0;
+    const INSTRUCTION_CONSTRAINT_ROW_HEIGHT: f32 = 74.0;
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let element_scanner_view_data = app_context
             .dependency_container
@@ -37,11 +41,24 @@ impl ElementScannerToolbarView {
     }
 
     pub fn get_top_row_height(&self) -> f32 {
-        34.0
+        Self::DEFAULT_TOP_ROW_HEIGHT
     }
 
     pub fn get_constraint_row_height(&self) -> f32 {
-        34.0
+        self.element_scanner_view_data
+            .read("Element scanner toolbar view get constraint row height")
+            .map(|element_scanner_view_data| {
+                if ElementScannerViewData::is_instruction_sequence_data_type(
+                    element_scanner_view_data
+                        .data_type_selection
+                        .visible_data_type(),
+                ) {
+                    Self::INSTRUCTION_CONSTRAINT_ROW_HEIGHT
+                } else {
+                    Self::DEFAULT_CONSTRAINT_ROW_HEIGHT
+                }
+            })
+            .unwrap_or(Self::DEFAULT_CONSTRAINT_ROW_HEIGHT)
     }
 
     pub fn get_height(&self) -> f32 {
@@ -209,7 +226,7 @@ impl Widget for ElementScannerToolbarView {
         let selected_data_type = visible_data_type_ref;
         let selected_container_mode = effective_container_mode;
         let scan_value_placeholder = if is_instruction_sequence_data_type {
-            "Enter instructions (; or newline separated)..."
+            "Enter instructions. Use Shift+Enter or Enter for new lines."
         } else {
             "Enter a value..."
         };
@@ -245,7 +262,14 @@ impl Widget for ElementScannerToolbarView {
                                     scan_value_placeholder,
                                     &format!("data_value_box_scan_value_index_{}", index),
                                 )
-                                .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type),
+                                .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type)
+                                .height(if is_instruction_sequence_data_type {
+                                    constraint_row_height - 6.0
+                                } else {
+                                    28.0
+                                })
+                                .multiline(is_instruction_sequence_data_type)
+                                .multiline_rows(if is_instruction_sequence_data_type { 3 } else { 1 }),
                             );
                         }
                     }
