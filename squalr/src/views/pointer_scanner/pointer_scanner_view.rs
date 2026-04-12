@@ -1,8 +1,10 @@
 use crate::app_context::AppContext;
+use crate::views::pointer_scanner::pointer_scanner_footer_view::PointerScannerFooterView;
 use crate::views::pointer_scanner::pointer_scanner_results_view::PointerScannerResultsView;
 use crate::views::pointer_scanner::pointer_scanner_toolbar_view::PointerScannerToolbarView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
-use eframe::egui::{Align, Layout, Response, Ui, Widget};
+use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use epaint::{Rect, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -12,6 +14,7 @@ pub struct PointerScannerView {
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     pointer_scanner_toolbar_view: PointerScannerToolbarView,
     pointer_scanner_results_view: PointerScannerResultsView,
+    pointer_scanner_footer_view: PointerScannerFooterView,
 }
 
 impl PointerScannerView {
@@ -29,6 +32,7 @@ impl PointerScannerView {
         }
         let pointer_scanner_toolbar_view = PointerScannerToolbarView::new(app_context.clone());
         let pointer_scanner_results_view = PointerScannerResultsView::new(app_context.clone());
+        let pointer_scanner_footer_view = PointerScannerFooterView::new(app_context.clone());
 
         PointerScannerViewData::initialize(pointer_scanner_view_data.clone(), app_context.engine_unprivileged_state.clone());
 
@@ -37,6 +41,7 @@ impl PointerScannerView {
             pointer_scanner_view_data,
             pointer_scanner_toolbar_view,
             pointer_scanner_results_view,
+            pointer_scanner_footer_view,
         }
     }
 }
@@ -55,7 +60,19 @@ impl Widget for PointerScannerView {
                             self.pointer_scanner_view_data.clone(),
                             self.app_context.engine_unprivileged_state.clone(),
                         );
-                        user_interface.add(self.pointer_scanner_results_view.clone());
+
+                        let footer_height = self.pointer_scanner_footer_view.get_height();
+                        let full_rectangle = user_interface.available_rect_before_wrap();
+                        let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
+                        let content_response = user_interface.allocate_rect(content_rectangle, Sense::empty());
+                        let mut content_user_interface = user_interface.new_child(
+                            UiBuilder::new()
+                                .max_rect(content_response.rect)
+                                .layout(Layout::left_to_right(Align::Min)),
+                        );
+
+                        content_user_interface.add(self.pointer_scanner_results_view.clone());
+                        user_interface.add(self.pointer_scanner_footer_view.clone());
                     })
                     .response
             })
