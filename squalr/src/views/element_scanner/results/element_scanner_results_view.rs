@@ -2,7 +2,10 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{check_state::CheckState, data_type_selector::data_type_selector_view::DataTypeSelectorView},
+        widgets::controls::{
+            check_state::CheckState, data_type_selector::data_type_selector_view::DataTypeSelectorView,
+            display_type_selector::display_type_selector_view::DisplayTypeSelectorView,
+        },
     },
     views::{
         element_scanner::{
@@ -21,7 +24,12 @@ use crate::{
 };
 use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, Widget};
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
-use squalr_engine_api::{dependency_injection::dependency::Dependency, structures::scan_results::scan_result::ScanResult};
+use squalr_engine_api::{
+    dependency_injection::dependency::Dependency,
+    structures::{
+        data_types::data_type_ref::DataTypeRef, data_values::anonymous_value_string_format::AnonymousValueStringFormat, scan_results::scan_result::ScanResult,
+    },
+};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -35,6 +43,7 @@ pub struct ElementScannerResultsView {
 
 impl ElementScannerResultsView {
     pub const WINDOW_ID: &'static str = "window_element_scanner_results";
+    const DISPLAY_TYPE_SELECTOR_WIDTH: f32 = 36.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let element_scanner_view_data = app_context
@@ -65,6 +74,71 @@ impl ElementScannerResultsView {
             struct_viewer_view_data,
         }
     }
+
+    fn display_format_sort_key(anonymous_value_string_format: AnonymousValueStringFormat) -> u8 {
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Bool => 0,
+            AnonymousValueStringFormat::String => 1,
+            AnonymousValueStringFormat::Binary => 2,
+            AnonymousValueStringFormat::Decimal => 3,
+            AnonymousValueStringFormat::Hexadecimal => 4,
+            AnonymousValueStringFormat::HexPattern => 5,
+            AnonymousValueStringFormat::Address => 6,
+            AnonymousValueStringFormat::DataTypeRef => 7,
+            AnonymousValueStringFormat::Enumeration => 8,
+        }
+    }
+
+    fn normalize_display_formats(supported_display_formats: &mut Vec<AnonymousValueStringFormat>) {
+        supported_display_formats.sort_by_key(|anonymous_value_string_format| Self::display_format_sort_key(*anonymous_value_string_format));
+        supported_display_formats.dedup();
+    }
+
+    fn resolve_supported_display_formats(
+        &self,
+        selected_data_types: &[DataTypeRef],
+        fallback_available_data_types: &[DataTypeRef],
+        scan_mode: crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerScanMode,
+        fallback_active_display_format: AnonymousValueStringFormat,
+    ) -> Vec<AnonymousValueStringFormat> {
+        let candidate_data_types = if selected_data_types.is_empty() {
+            fallback_available_data_types
+        } else {
+            selected_data_types
+        };
+
+        if candidate_data_types.is_empty() {
+            return vec![fallback_active_display_format];
+        }
+
+        let mut shared_supported_display_formats: Option<Vec<AnonymousValueStringFormat>> = None;
+
+        for data_type_ref in candidate_data_types {
+            let supported_display_formats = crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData::get_supported_display_formats_for_scan_mode(
+                &self
+                    .app_context
+                    .engine_unprivileged_state
+                    .get_supported_anonymous_value_string_formats(data_type_ref),
+                scan_mode,
+            );
+
+            if let Some(shared_supported_display_formats) = shared_supported_display_formats.as_mut() {
+                shared_supported_display_formats.retain(|anonymous_value_string_format| supported_display_formats.contains(anonymous_value_string_format));
+            } else {
+                shared_supported_display_formats = Some(supported_display_formats);
+            }
+        }
+
+        let mut shared_supported_display_formats = shared_supported_display_formats.unwrap_or_else(|| vec![fallback_active_display_format]);
+
+        if shared_supported_display_formats.is_empty() {
+            shared_supported_display_formats.push(fallback_active_display_format);
+        }
+
+        Self::normalize_display_formats(&mut shared_supported_display_formats);
+
+        shared_supported_display_formats
+    }
 }
 impl Widget for ElementScannerResultsView {
     fn ui(
@@ -86,6 +160,7 @@ impl Widget for ElementScannerResultsView {
         let mut new_value_splitter_ratio: Option<f32> = None;
         let mut new_previous_value_splitter_ratio: Option<f32> = None;
         let mut did_change_data_type_filters = false;
+        let mut did_change_display_format = false;
         let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
         let mut scan_results_has_keyboard_focus = false;
         let mut selection_freeze_checkstate = CheckState::False;
@@ -242,16 +317,70 @@ impl Widget for ElementScannerResultsView {
                     theme.foreground,
                 );
 
-                // Value column header.
-                let value_label_position = pos2(value_splitter_position_x + text_left_padding, header_rectangle.center().y);
-
-                user_interface.painter().text(
-                    value_label_position,
-                    Align2::LEFT_CENTER,
-                    "Value",
-                    theme.font_library.font_noto_sans.font_header.clone(),
-                    theme.foreground,
+                let mut selected_display_format: Option<AnonymousValueStringFormat> = None;
+                let display_type_selector_rectangle = Rect::from_min_max(
+                    pos2(value_splitter_position_x + data_type_filter_combo_padding, header_rectangle.center().y - 12.0),
+                    pos2(
+                        value_splitter_position_x + data_type_filter_combo_padding + Self::DISPLAY_TYPE_SELECTOR_WIDTH,
+                        header_rectangle.center().y + 12.0,
+                    ),
                 );
+
+                if let (Some(mut element_scanner_view_data), Some(element_scanner_results_view_data)) = (
+                    self.element_scanner_view_data
+                        .write("Element scanner results header display type"),
+                    self.element_scanner_results_view_data
+                        .read("Element scanner results header display type"),
+                ) {
+                    let supported_display_formats = self.resolve_supported_display_formats(
+                        element_scanner_results_view_data
+                            .data_type_filter_selection
+                            .selected_data_types(),
+                        &element_scanner_results_view_data.available_data_types,
+                        element_scanner_view_data.scan_mode,
+                        element_scanner_view_data.active_display_format,
+                    );
+                    let resolved_active_display_format = ElementScannerViewData::resolve_active_display_format(
+                        element_scanner_view_data.scan_mode,
+                        element_scanner_view_data.active_display_format,
+                        &supported_display_formats,
+                    );
+
+                    if resolved_active_display_format != element_scanner_view_data.active_display_format {
+                        element_scanner_view_data.active_display_format = resolved_active_display_format;
+                        did_change_display_format = true;
+                    }
+
+                    user_interface.put(
+                        display_type_selector_rectangle,
+                        DisplayTypeSelectorView::new(
+                            self.app_context.clone(),
+                            &mut element_scanner_view_data.active_display_format,
+                            supported_display_formats,
+                            "element_scanner_results_display_type",
+                        )
+                        .width(display_type_selector_rectangle.width())
+                        .height(display_type_selector_rectangle.height())
+                        .hide_preview_text(),
+                    );
+
+                    if element_scanner_view_data.active_display_format != resolved_active_display_format {
+                        selected_display_format = Some(element_scanner_view_data.active_display_format);
+                    }
+                }
+
+                if let Some(new_display_format) = selected_display_format {
+                    did_change_display_format = true;
+
+                    if let Some(mut element_scanner_results_view_data) = self
+                        .element_scanner_results_view_data
+                        .write("Element scanner results header display type apply")
+                    {
+                        element_scanner_results_view_data
+                            .current_display_string
+                            .set_anonymous_value_string_format(new_display_format);
+                    }
+                }
 
                 // Previous value column header.
                 let previous_value_label_position = pos2(previous_value_splitter_position_x + text_left_padding, header_rectangle.center().y);
@@ -455,6 +584,19 @@ impl Widget for ElementScannerResultsView {
                 self.element_scanner_results_view_data.clone(),
                 self.app_context.engine_unprivileged_state.clone(),
             );
+        }
+
+        if did_change_display_format {
+            if let (Some(element_scanner_view_data), Some(mut element_scanner_results_view_data)) = (
+                self.element_scanner_view_data
+                    .read("Element scanner results display format sync"),
+                self.element_scanner_results_view_data
+                    .write("Element scanner results display format sync"),
+            ) {
+                element_scanner_results_view_data
+                    .current_display_string
+                    .set_anonymous_value_string_format(element_scanner_view_data.active_display_format);
+            }
         }
 
         if scan_results_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {

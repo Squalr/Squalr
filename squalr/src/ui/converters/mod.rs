@@ -1,3 +1,4 @@
+pub mod anonymous_value_string_format_to_icon_converter;
 pub mod data_type_to_icon_converter;
 pub mod data_type_to_string_converter;
 pub mod scan_compare_type_to_icon_converter;

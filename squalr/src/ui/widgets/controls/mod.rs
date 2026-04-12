@@ -5,6 +5,7 @@ pub mod combo_box;
 pub mod context_menu;
 pub mod data_type_selector;
 pub mod data_value_box;
+pub mod display_type_selector;
 pub mod groupbox;
 pub mod scan_constraint_selector;
 pub mod slider;
