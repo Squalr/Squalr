@@ -371,31 +371,6 @@ impl CodeViewerViewData {
         }
     }
 
-    pub fn shift_viewport_window(
-        code_viewer_view_data: Dependency<Self>,
-        byte_delta: i64,
-    ) {
-        let Some(current_page) = Self::get_current_page(code_viewer_view_data.clone()) else {
-            return;
-        };
-        let current_viewport_start = Self::get_viewport_start_address(code_viewer_view_data.clone()).unwrap_or(current_page.get_base_address());
-        let next_viewport_start = if byte_delta >= 0 {
-            current_viewport_start.saturating_add(byte_delta as u64)
-        } else {
-            current_viewport_start.saturating_sub(byte_delta.unsigned_abs())
-        };
-
-        Self::set_viewport_start_address(code_viewer_view_data, next_viewport_start);
-    }
-
-    pub fn reset_viewport_to_page_start(code_viewer_view_data: Dependency<Self>) {
-        let Some(current_page) = Self::get_current_page(code_viewer_view_data.clone()) else {
-            return;
-        };
-
-        Self::set_viewport_start_address(code_viewer_view_data, current_page.get_base_address());
-    }
-
     pub fn get_viewport_start_address(code_viewer_view_data: Dependency<Self>) -> Option<u64> {
         code_viewer_view_data
             .read("Code viewer viewport start")
@@ -814,31 +789,6 @@ impl CodeViewerViewData {
                     code_viewer_view_data.viewport_start_address,
                 );
             }
-        }
-    }
-
-    fn set_viewport_start_address(
-        code_viewer_view_data: Dependency<Self>,
-        viewport_start_address: u64,
-    ) {
-        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer set viewport start address") {
-            let Some(current_page) = code_viewer_view_data
-                .virtual_pages
-                .get(code_viewer_view_data.current_page_index as usize)
-                .cloned()
-            else {
-                return;
-            };
-            let clamped_viewport_start_address = Self::clamp_viewport_start_address(&current_page, viewport_start_address);
-
-            code_viewer_view_data.viewport_start_address = Some(clamped_viewport_start_address);
-            code_viewer_view_data.pending_scroll_address = Some(clamped_viewport_start_address);
-            code_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
-                &code_viewer_view_data.modules,
-                &code_viewer_view_data.unreadable_page_base_addresses,
-                Some(&current_page),
-                code_viewer_view_data.viewport_start_address,
-            );
         }
     }
 
