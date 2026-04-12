@@ -1,3 +1,4 @@
+use crate::ui::widgets::controls::check_state::CheckState;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
@@ -257,6 +258,61 @@ impl ElementScannerResultsViewData {
 
             element_scanner_results_view_data.is_setting_properties = false;
         });
+    }
+
+    pub fn get_selection_freeze_checkstate(element_scanner_results_view_data: Dependency<Self>) -> CheckState {
+        let Some(element_scanner_results_view_data) = element_scanner_results_view_data.read("Get scan results selection freeze checkstate") else {
+            return CheckState::False;
+        };
+        let mut selection_freeze_checkstate = CheckState::False;
+
+        for scan_result_index in 0..element_scanner_results_view_data.current_scan_results.len() {
+            if !Self::is_scan_result_selected(&element_scanner_results_view_data, scan_result_index) {
+                continue;
+            }
+
+            let scan_result = &element_scanner_results_view_data.current_scan_results[scan_result_index];
+
+            match selection_freeze_checkstate {
+                CheckState::False => {
+                    if scan_result.get_is_frozen() {
+                        selection_freeze_checkstate = CheckState::True;
+                    }
+                }
+                CheckState::True => {
+                    if !scan_result.get_is_frozen() {
+                        selection_freeze_checkstate = CheckState::Mixed;
+                        break;
+                    }
+                }
+                CheckState::Mixed => break,
+            }
+        }
+
+        selection_freeze_checkstate
+    }
+
+    fn is_scan_result_selected(
+        element_scanner_results_view_data: &Guard<Arc<ElementScannerResultsViewData>>,
+        scan_result_index: usize,
+    ) -> bool {
+        match (
+            element_scanner_results_view_data.selection_index_start,
+            element_scanner_results_view_data.selection_index_end,
+        ) {
+            (Some(selection_start_index), Some(selection_end_index)) => {
+                let (minimum_selection_index, maximum_selection_index) = if selection_start_index <= selection_end_index {
+                    (selection_start_index, selection_end_index)
+                } else {
+                    (selection_end_index, selection_start_index)
+                };
+
+                scan_result_index as i32 >= minimum_selection_index && scan_result_index as i32 <= maximum_selection_index
+            }
+            (Some(selection_start_index), None) => scan_result_index as i32 == selection_start_index,
+            (None, Some(selection_end_index)) => scan_result_index as i32 == selection_end_index,
+            (None, None) => false,
+        }
     }
 
     fn load_current_page_index(element_scanner_results_view_data: &Guard<Arc<ElementScannerResultsViewData>>) -> u64 {
