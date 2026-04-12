@@ -3,7 +3,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
-            check_state::CheckState, combo_box::combo_box_view::ComboBoxView, data_type_selector::data_type_selector_view::DataTypeSelectorView,
+            combo_box::combo_box_view::ComboBoxView, data_type_selector::data_type_selector_view::DataTypeSelectorView,
             data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
         },
     },
@@ -11,7 +11,6 @@ use crate::{
         element_scanner::{
             results::{
                 element_scanner_result_entry_view::ElementScannerResultEntryView,
-                element_scanner_results_action_bar_view::ElementScannerResultsActionBarView,
                 view_data::{
                     element_scanner_result_frame_action::ElementScannerResultFrameAction, element_scanner_results_view_data::ElementScannerResultsViewData,
                 },
@@ -29,7 +28,6 @@ use squalr_engine_api::{
     structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        scan_results::scan_result::ScanResult,
     },
 };
 use std::sync::Arc;
@@ -179,7 +177,6 @@ impl Widget for ElementScannerResultsView {
         let mut did_change_data_type_filters = false;
         let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
         let mut scan_results_has_keyboard_focus = false;
-        let mut selection_freeze_checkstate = CheckState::False;
         let bounded_results_rectangle = user_interface
             .available_rect_before_wrap()
             .intersect(user_interface.clip_rect());
@@ -224,10 +221,7 @@ impl Widget for ElementScannerResultsView {
                 .painter()
                 .rect_filled(separator_rect, 0.0, theme.background_control);
 
-            let footer_height = ElementScannerResultsActionBarView::FOOTER_HEIGHT;
-            let content_clip_rectangle = user_interface
-                .available_rect_before_wrap()
-                .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
+            let content_clip_rectangle = user_interface.available_rect_before_wrap();
 
             let content_width = content_clip_rectangle.width();
             let content_height = content_clip_rectangle.height();
@@ -255,7 +249,7 @@ impl Widget for ElementScannerResultsView {
             let faux_address_splitter_position_x = faux_data_type_splitter_position_x + DATA_TYPE_COLUMN_PIXEL_WIDTH;
 
             let splitter_min_y = header_rectangle.min.y;
-            let splitter_max_y = content_clip_rectangle.max.y + footer_height;
+            let splitter_max_y = content_clip_rectangle.max.y;
 
             let faux_data_type_splitter_rectangle = Rect::from_min_max(
                 pos2(faux_data_type_splitter_position_x - FAUX_BAR_THICKNESS * 0.5, splitter_min_y),
@@ -430,9 +424,6 @@ impl Widget for ElementScannerResultsView {
                 theme.foreground,
             );
 
-            // Assume all false.
-            selection_freeze_checkstate = CheckState::False;
-
             // Result entries.
             ScrollArea::vertical()
                 .id_salt("element_scanner_result_entries")
@@ -493,23 +484,6 @@ impl Widget for ElementScannerResultsView {
 
                             let scan_result = &element_scanner_results_view_data.current_scan_results[index];
 
-                            // Update the cumulative check state based on whether this scan result is frozen.
-                            if is_selected {
-                                match selection_freeze_checkstate {
-                                    CheckState::False => {
-                                        if scan_result.get_is_frozen() {
-                                            selection_freeze_checkstate = CheckState::True;
-                                        }
-                                    }
-                                    CheckState::True => {
-                                        if !scan_result.get_is_frozen() {
-                                            selection_freeze_checkstate = CheckState::Mixed;
-                                        }
-                                    }
-                                    CheckState::Mixed => {}
-                                }
-                            }
-
                             let entry_widget = ElementScannerResultEntryView::new(
                                 self.app_context.clone(),
                                 &scan_result,
@@ -542,16 +516,6 @@ impl Widget for ElementScannerResultsView {
                         }
                     });
                 });
-
-            // Draw the footer.
-            user_interface.add(ElementScannerResultsActionBarView::new(
-                self.app_context.clone(),
-                selection_freeze_checkstate,
-                &mut element_sanner_result_frame_action,
-                faux_data_type_splitter_position_x,
-                value_splitter_position_x,
-                previous_value_splitter_position_x,
-            ));
 
             user_interface
                 .painter()
@@ -623,7 +587,9 @@ impl Widget for ElementScannerResultsView {
         }
 
         if scan_results_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
-            element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(selection_freeze_checkstate);
+            element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(
+                ElementScannerResultsViewData::get_selection_freeze_checkstate(self.element_scanner_results_view_data.clone()),
+            );
         }
 
         if element_sanner_result_frame_action != ElementScannerResultFrameAction::None {
@@ -653,21 +619,6 @@ impl Widget for ElementScannerResultsView {
                         is_frozen,
                     );
                 }
-                ElementScannerResultFrameAction::ToggleFreezeSelection(is_frozen) => {
-                    ElementScannerResultsViewData::toggle_selected_scan_results_frozen(
-                        self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_unprivileged_state.clone(),
-                        is_frozen,
-                    );
-                }
-                ElementScannerResultFrameAction::AddSelection => {
-                    let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
-                    ElementScannerResultsViewData::add_scan_results_to_project(
-                        self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_unprivileged_state.clone(),
-                        target_directory_path,
-                    );
-                }
                 ElementScannerResultFrameAction::AddScanResult(index) => {
                     let target_directory_path = ProjectHierarchyViewData::get_selected_directory_path(self.project_hierarchy_view_data.clone());
                     ElementScannerResultsViewData::add_scan_result_to_project_by_index(
@@ -677,20 +628,10 @@ impl Widget for ElementScannerResultsView {
                         target_directory_path,
                     );
                 }
-                ElementScannerResultFrameAction::DeleteSelection => {
-                    ElementScannerResultsViewData::delete_selected_scan_results(
-                        self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_unprivileged_state.clone(),
-                    );
-                }
-                ElementScannerResultFrameAction::CommitValueToSelection(edit_value) => {
-                    ElementScannerResultsViewData::set_selected_scan_results_value(
-                        self.element_scanner_results_view_data.clone(),
-                        self.app_context.engine_unprivileged_state.clone(),
-                        ScanResult::PROPERTY_NAME_VALUE,
-                        edit_value,
-                    );
-                }
+                ElementScannerResultFrameAction::ToggleFreezeSelection(_) => {}
+                ElementScannerResultFrameAction::AddSelection => {}
+                ElementScannerResultFrameAction::DeleteSelection => {}
+                ElementScannerResultFrameAction::CommitValueToSelection(_) => {}
             }
         }
 

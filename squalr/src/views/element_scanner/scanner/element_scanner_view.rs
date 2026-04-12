@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::views::element_scanner::results::element_scanner_results_action_bar_view::ElementScannerResultsActionBarView;
 use crate::views::element_scanner::results::element_scanner_results_view::ElementScannerResultsView;
 use crate::views::element_scanner::results::view_data::element_scanner_results_view_data::ElementScannerResultsViewData;
 use crate::views::element_scanner::scanner::element_scanner_footer_view::ElementScannerFooterView;
@@ -53,9 +54,10 @@ impl Widget for ElementScannerView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 user_interface.add(self.element_scanner_toolbar_view.clone());
 
+                let action_bar_height = ElementScannerResultsActionBarView::FOOTER_HEIGHT;
                 let footer_height = self.element_scanner_footer_view.get_height();
                 let full_rectangle = user_interface.available_rect_before_wrap();
-                let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
+                let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, action_bar_height + footer_height));
                 let content_response = user_interface.allocate_rect(content_rectangle, Sense::empty());
                 let mut content_user_interface = user_interface.new_child(
                     UiBuilder::new()
@@ -67,6 +69,10 @@ impl Widget for ElementScannerView {
                 content_user_interface.add(self.element_scanner_results_view.clone());
 
                 user_interface.spacing_mut().item_spacing.y = 0.0;
+                user_interface.add(ElementScannerResultsActionBarView::new(
+                    self._app_context.clone(),
+                    ElementScannerResultsViewData::get_selection_freeze_checkstate(self._element_scanner_results_view_data.clone()),
+                ));
                 user_interface.add(self.element_scanner_footer_view.clone());
             })
             .response;
