@@ -929,6 +929,11 @@ impl Widget for MemoryViewerView {
 
                 let splitter_min_y = left_content_rect.min.y;
                 let splitter_max_y = left_content_rect.max.y;
+                let panel_divider_position_x = if right_panel_rect.min.x > left_content_rect.max.x {
+                    (left_content_rect.max.x + right_panel_rect.min.x) * 0.5
+                } else {
+                    left_content_rect.max.x
+                };
                 let address_separator_rect = Rect::from_min_max(
                     pos2(address_separator_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
                     pos2(address_separator_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
@@ -937,10 +942,17 @@ impl Widget for MemoryViewerView {
                     pos2(hex_ascii_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
                     pos2(hex_ascii_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
                 );
+                let interpretation_panel_divider_rect = Rect::from_min_max(
+                    pos2(panel_divider_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
+                    pos2(panel_divider_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                );
 
                 user_interface
                     .painter()
                     .rect_filled(address_separator_rect, CornerRadius::ZERO, theme.background_control);
+                user_interface
+                    .painter()
+                    .rect_filled(interpretation_panel_divider_rect, CornerRadius::ZERO, theme.background_control);
 
                 let hex_ascii_splitter_response = user_interface
                     .interact(
