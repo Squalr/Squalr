@@ -140,7 +140,13 @@ impl ProjectHierarchyView {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyView;
+    use crate::{
+        app_context::AppContext,
+        models::docking::{docking_manager::DockingManager, hierarchy::dock_node::DockNode},
+        ui::theme::Theme,
+    };
     use crossbeam_channel::{Receiver, unbounded};
+    use eframe::egui::Context;
     use squalr_engine_api::commands::memory::memory_command::MemoryCommand;
     use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
     use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
@@ -334,6 +340,18 @@ mod tests {
         create_engine_unprivileged_state(MockMemoryReadBindings::new(|_memory_read_request| {
             create_pointer_memory_read_response(0, PointerScanPointerSize::Pointer64, false)
         }))
+    }
+
+    fn create_test_app_context() -> Arc<AppContext> {
+        let egui_context = Context::default();
+        let theme = Arc::new(Theme::new(&egui_context));
+        let docking_manager = Arc::new(RwLock::new(DockingManager::new(DockNode::Window {
+            window_identifier: "test_window".to_string(),
+            is_visible: true,
+        })));
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+
+        Arc::new(AppContext::new(egui_context, theme, docking_manager, engine_unprivileged_state))
     }
 
     #[test]
@@ -553,6 +571,45 @@ mod tests {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
         assert!(!ProjectHierarchyView::should_open_project_item_in_code_viewer(&project_item));
+    }
+
+    #[test]
+    fn resolve_tree_entry_icon_uses_address_item_symbolic_data_type_for_arrays() {
+        let app_context = create_test_app_context();
+        let project_item = ProjectItemTypeAddress::new_project_item("Ammo", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        let mut project_item = project_item;
+        ProjectItemTypeAddress::set_field_symbolic_struct_definition_reference(&mut project_item, "u8[190]");
+
+        let icon =
+            ProjectHierarchyView::resolve_tree_entry_icon(app_context.clone(), &project_item).unwrap_or_else(|| panic!("Expected address project item icon."));
+
+        assert_eq!(
+            icon.id(),
+            app_context
+                .theme
+                .icon_library
+                .icon_handle_data_type_purple_blocks_1
+                .id()
+        );
+    }
+
+    #[test]
+    fn resolve_tree_entry_icon_uses_pointer_item_symbolic_data_type_for_arrays() {
+        let app_context = create_test_app_context();
+        let pointer = Pointer::new(0x1000, vec![0x20], "game.exe".to_string());
+        let project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u8[190]");
+
+        let icon =
+            ProjectHierarchyView::resolve_tree_entry_icon(app_context.clone(), &project_item).unwrap_or_else(|| panic!("Expected pointer project item icon."));
+
+        assert_eq!(
+            icon.id(),
+            app_context
+                .theme
+                .icon_library
+                .icon_handle_data_type_purple_blocks_1
+                .id()
+        );
     }
 
     #[test]
@@ -2462,21 +2519,35 @@ impl ProjectHierarchyView {
 
         if project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
             Some(icon_library.icon_handle_file_system_open_folder.clone())
-        } else if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            Some(icon_library.icon_handle_data_type_blue_blocks_8.clone())
-        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            let data_type_id = ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item)
-                .map(|symbolic_struct_reference| {
-                    symbolic_struct_reference
-                        .get_symbolic_struct_namespace()
-                        .to_string()
-                })
-                .unwrap_or_default();
-
-            Some(DataTypeToIconConverter::convert_data_type_to_icon(&data_type_id, icon_library))
         } else {
-            Some(icon_library.icon_handle_data_type_unknown.clone())
+            let icon_data_type_id = Self::resolve_project_item_icon_data_type_id(project_item).unwrap_or_default();
+
+            Some(DataTypeToIconConverter::convert_data_type_to_icon(&icon_data_type_id, icon_library))
         }
+    }
+
+    fn resolve_project_item_icon_data_type_id(project_item: &ProjectItem) -> Option<String> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut address_project_item = project_item.clone();
+
+            return ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut address_project_item).map(|symbolic_struct_reference| {
+                symbolic_struct_reference
+                    .get_symbolic_struct_namespace()
+                    .to_string()
+            });
+        }
+
+        if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item).map(|symbolic_struct_reference| {
+                symbolic_struct_reference
+                    .get_symbolic_struct_namespace()
+                    .to_string()
+            });
+        }
+
+        None
     }
 
     fn refresh_if_project_changed(&self) {
