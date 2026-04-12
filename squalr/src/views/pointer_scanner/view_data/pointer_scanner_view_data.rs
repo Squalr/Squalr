@@ -1622,6 +1622,10 @@ impl PointerScannerViewData {
         self.pointer_scan_summary.is_some()
     }
 
+    pub fn has_mutating_session_request_in_progress(&self) -> bool {
+        self.is_starting_scan || self.is_validating_scan || self.is_resetting_scan
+    }
+
     fn build_selected_leaf_pointer(&self) -> Option<Pointer> {
         let selected_node_id = self.selected_node_id?;
         let selected_pointer_scan_node = self.nodes_by_id.get(&selected_node_id)?;
@@ -3538,5 +3542,24 @@ mod tests {
         pointer_scanner_view_data.apply_summary(Some(create_pointer_scan_summary(9, 0x4010)));
 
         assert!(pointer_scanner_view_data.has_active_session());
+    }
+
+    #[test]
+    fn has_mutating_session_request_in_progress_ignores_summary_refresh_state() {
+        let mut pointer_scanner_view_data = PointerScannerViewData::new();
+        pointer_scanner_view_data.is_querying_summary = true;
+
+        assert!(!pointer_scanner_view_data.has_mutating_session_request_in_progress());
+
+        pointer_scanner_view_data.is_starting_scan = true;
+        assert!(pointer_scanner_view_data.has_mutating_session_request_in_progress());
+
+        pointer_scanner_view_data.is_starting_scan = false;
+        pointer_scanner_view_data.is_validating_scan = true;
+        assert!(pointer_scanner_view_data.has_mutating_session_request_in_progress());
+
+        pointer_scanner_view_data.is_validating_scan = false;
+        pointer_scanner_view_data.is_resetting_scan = true;
+        assert!(pointer_scanner_view_data.has_mutating_session_request_in_progress());
     }
 }
