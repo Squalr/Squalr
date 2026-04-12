@@ -23,6 +23,8 @@ use crate::{
 };
 use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
+use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
+use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
 use squalr_engine_api::commands::memory::read::memory_read_request::MemoryReadRequest;
 use squalr_engine_api::commands::memory::read::memory_read_response::MemoryReadResponse;
 use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest;
@@ -37,6 +39,8 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
+use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
+use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project::Project;
@@ -153,7 +157,7 @@ mod tests {
     };
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::{container_type::ContainerType, data_value::DataValue};
-    use squalr_engine_api::structures::memory::pointer::Pointer;
+    use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, pointer::Pointer};
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
@@ -330,6 +334,27 @@ mod tests {
         create_engine_unprivileged_state(MockMemoryReadBindings::new(|_memory_read_request| {
             create_pointer_memory_read_response(0, PointerScanPointerSize::Pointer64, false)
         }))
+    }
+
+    #[test]
+    fn resolve_module_relative_address_adds_matching_module_base_address() {
+        let modules = vec![
+            NormalizedModule::new("Other.exe", 0x1000, 0x2000),
+            NormalizedModule::new("Torchlight2.exe", 0x400000, 0x100000),
+        ];
+
+        let resolved_absolute_address = ProjectHierarchyView::resolve_module_relative_address(&modules, 0x30, "Torchlight2.exe");
+
+        assert_eq!(resolved_absolute_address, Some(0x400030));
+    }
+
+    #[test]
+    fn resolve_module_relative_address_matches_module_name_case_insensitively() {
+        let modules = vec![NormalizedModule::new("Torchlight2.exe", 0x400000, 0x100000)];
+
+        let resolved_absolute_address = ProjectHierarchyView::resolve_module_relative_address(&modules, 0x30, "torchlight2.exe");
+
+        assert_eq!(resolved_absolute_address, Some(0x400030));
     }
 
     #[test]
@@ -2274,13 +2299,93 @@ impl ProjectHierarchyView {
         }
     }
 
+    fn dispatch_memory_query_request(engine_unprivileged_state: &Arc<EngineUnprivilegedState>) -> Option<MemoryQueryResponse> {
+        let memory_query_request = MemoryQueryRequest::default();
+        let memory_query_command = memory_query_request.to_engine_command();
+        let (memory_query_response_sender, memory_query_response_receiver) = mpsc::channel();
+
+        let dispatch_result = match engine_unprivileged_state.get_bindings().read() {
+            Ok(engine_bindings) => engine_bindings.dispatch_privileged_command(
+                memory_query_command,
+                Box::new(move |engine_response| {
+                    let conversion_result = match MemoryQueryResponse::from_engine_response(engine_response) {
+                        Ok(memory_query_response) => Ok(memory_query_response),
+                        Err(unexpected_response) => Err(format!(
+                            "Unexpected response variant for project hierarchy memory query request: {:?}",
+                            unexpected_response
+                        )),
+                    };
+                    let _ = memory_query_response_sender.send(conversion_result);
+                }),
+            ),
+            Err(error) => {
+                log::error!("Failed to acquire engine bindings lock for project hierarchy memory query request: {}", error);
+                return None;
+            }
+        };
+
+        if let Err(error) = dispatch_result {
+            log::error!("Failed to dispatch project hierarchy memory query request: {}", error);
+            return None;
+        }
+
+        match memory_query_response_receiver.recv_timeout(Duration::from_secs(2)) {
+            Ok(Ok(memory_query_response)) => Some(memory_query_response),
+            Ok(Err(error)) => {
+                log::error!("Failed to convert project hierarchy memory query response: {}", error);
+                None
+            }
+            Err(error) => {
+                log::error!("Timed out waiting for project hierarchy memory query response: {}", error);
+                None
+            }
+        }
+    }
+
+    fn resolve_module_relative_address(
+        modules: &[NormalizedModule],
+        address: u64,
+        module_name: &str,
+    ) -> Option<u64> {
+        modules
+            .iter()
+            .find(|normalized_module| {
+                normalized_module
+                    .get_module_name()
+                    .eq_ignore_ascii_case(module_name)
+            })
+            .and_then(|normalized_module| normalized_module.get_base_address().checked_add(address))
+    }
+
     fn focus_pointer_scanner_for_address(
         &self,
         address: u64,
         module_name: &str,
         data_type_id: &str,
     ) {
-        PointerScannerViewData::set_scan_target_from_project_address(self.pointer_scanner_view_data.clone(), address, module_name, data_type_id);
+        let (resolved_target_address, resolved_target_module_name) = if module_name.trim().is_empty() {
+            (address, String::new())
+        } else if try_resolve_virtual_module_address(module_name, address).is_some() {
+            (address, module_name.to_string())
+        } else if let Some(resolved_absolute_address) = Self::dispatch_memory_query_request(&self.app_context.engine_unprivileged_state)
+            .and_then(|memory_query_response| Self::resolve_module_relative_address(&memory_query_response.modules, address, module_name))
+        {
+            (resolved_absolute_address, String::new())
+        } else {
+            log::warn!(
+                "Failed to resolve pointer scanner target for module-relative address {}+0x{:X}; falling back to unresolved offset.",
+                module_name,
+                address
+            );
+            (address, module_name.to_string())
+        };
+
+        PointerScannerViewData::set_scan_target_from_project_address(
+            self.pointer_scanner_view_data.clone(),
+            resolved_target_address,
+            &resolved_target_module_name,
+            data_type_id,
+        );
 
         match self.app_context.docking_manager.write() {
             Ok(mut docking_manager) => {
