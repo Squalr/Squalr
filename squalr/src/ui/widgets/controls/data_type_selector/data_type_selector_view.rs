@@ -15,6 +15,7 @@ use squalr_engine_api::structures::data_types::{
     },
     data_type_ref::DataTypeRef,
 };
+use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
 use std::sync::Arc;
 
 #[derive(Clone, Copy)]
@@ -35,6 +36,7 @@ pub struct DataTypeSelectorView<'lifetime> {
     available_data_types: Option<Vec<DataTypeRef>>,
     selectable_data_type_column_count: usize,
     show_preview_text: bool,
+    enforce_format_compatibility: bool,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
@@ -69,6 +71,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             available_data_types: None,
             selectable_data_type_column_count: Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT,
             show_preview_text: true,
+            enforce_format_compatibility: false,
         }
     }
 
@@ -116,6 +119,11 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
     pub fn hide_preview_text(mut self) -> Self {
         self.show_preview_text = false;
+        self
+    }
+
+    pub fn enforce_format_compatibility(mut self) -> Self {
+        self.enforce_format_compatibility = true;
         self
     }
 
@@ -278,6 +286,47 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
         ordered_selectable_data_types
     }
+
+    fn anonymous_value_string_format_sort_key(anonymous_value_string_format: AnonymousValueStringFormat) -> u8 {
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Bool => 0,
+            AnonymousValueStringFormat::String => 1,
+            AnonymousValueStringFormat::Binary => 2,
+            AnonymousValueStringFormat::Decimal => 3,
+            AnonymousValueStringFormat::Hexadecimal => 4,
+            AnonymousValueStringFormat::HexPattern => 5,
+            AnonymousValueStringFormat::Address => 6,
+            AnonymousValueStringFormat::DataTypeRef => 7,
+            AnonymousValueStringFormat::Enumeration => 8,
+        }
+    }
+
+    fn normalize_supported_formats(supported_formats: &[AnonymousValueStringFormat]) -> Vec<AnonymousValueStringFormat> {
+        let mut normalized_supported_formats = supported_formats.to_vec();
+        normalized_supported_formats.sort_by_key(|anonymous_value_string_format| Self::anonymous_value_string_format_sort_key(*anonymous_value_string_format));
+        normalized_supported_formats.dedup();
+
+        normalized_supported_formats
+    }
+
+    fn has_matching_supported_formats(
+        app_context: &AppContext,
+        reference_data_type_ref: &DataTypeRef,
+        candidate_data_type_ref: &DataTypeRef,
+    ) -> bool {
+        let reference_supported_formats = Self::normalize_supported_formats(
+            &app_context
+                .engine_unprivileged_state
+                .get_supported_anonymous_value_string_formats(reference_data_type_ref),
+        );
+        let candidate_supported_formats = Self::normalize_supported_formats(
+            &app_context
+                .engine_unprivileged_state
+                .get_supported_anonymous_value_string_formats(candidate_data_type_ref),
+        );
+
+        reference_supported_formats == candidate_supported_formats
+    }
 }
 
 impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
@@ -295,6 +344,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let available_data_types = self.available_data_types;
         let selectable_data_type_column_count = self.selectable_data_type_column_count.max(1);
         let show_preview_text = self.show_preview_text;
+        let enforce_format_compatibility = self.enforce_format_compatibility;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
         let combo_icon = if Self::should_render_combo_icon(data_type_selection, label_mode) {
@@ -323,6 +373,9 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
                         .show(user_interface, |user_interface| {
                             for (data_type_index, data_type_ref) in selectable_data_types.iter().enumerate() {
+                                let is_data_type_compatible = !enforce_format_compatibility
+                                    || data_type_selection.is_data_type_selected(data_type_ref)
+                                    || Self::has_matching_supported_formats(&app_context, data_type_selection.visible_data_type(), data_type_ref);
                                 let data_type_item_response = user_interface.add(
                                     DataTypeItemView::new(
                                         app_context.clone(),
@@ -333,16 +386,19 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                                         )),
                                         Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH,
                                     )
-                                    .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(data_type_ref))),
+                                    .with_check_state(CheckState::from_bool(data_type_selection.is_data_type_selected(data_type_ref)))
+                                    .disabled(!is_data_type_compatible),
                                 );
 
-                                Self::handle_selectable_data_type_interaction(
-                                    user_interface,
-                                    menu_id,
-                                    data_type_selection,
-                                    data_type_ref.clone(),
-                                    &data_type_item_response,
-                                );
+                                if is_data_type_compatible {
+                                    Self::handle_selectable_data_type_interaction(
+                                        user_interface,
+                                        menu_id,
+                                        data_type_selection,
+                                        data_type_ref.clone(),
+                                        &data_type_item_response,
+                                    );
+                                }
 
                                 if (data_type_index + 1) % selectable_data_type_column_count == 0 {
                                     user_interface.end_row();
@@ -369,7 +425,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
 mod tests {
     use super::{DataTypeSelectorLabelMode, DataTypeSelectorView};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
-    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::{data_types::data_type_ref::DataTypeRef, data_values::anonymous_value_string_format::AnonymousValueStringFormat};
 
     #[test]
     fn combo_label_includes_extra_selection_count() {
@@ -442,6 +498,23 @@ mod tests {
                 DataTypeRef::new("i8"),
                 DataTypeRef::new("u16"),
                 DataTypeRef::new("u32"),
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_supported_formats_sorts_and_deduplicates() {
+        assert_eq!(
+            DataTypeSelectorView::normalize_supported_formats(&[
+                AnonymousValueStringFormat::Hexadecimal,
+                AnonymousValueStringFormat::String,
+                AnonymousValueStringFormat::Hexadecimal,
+                AnonymousValueStringFormat::Decimal,
+            ]),
+            vec![
+                AnonymousValueStringFormat::String,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
             ]
         );
     }
