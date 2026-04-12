@@ -16,6 +16,12 @@ pub struct PointerScannerFooterView {
 
 impl PointerScannerFooterView {
     pub const FOOTER_HEIGHT: f32 = 56.0;
+    const HORIZONTAL_PADDING: f32 = 8.0;
+    const NAVIGATION_SPACING: f32 = 4.0;
+    const MAX_PAGE_BOX_WIDTH: f32 = 112.0;
+    const MIN_PAGE_BOX_WIDTH: f32 = 24.0;
+    const MAX_BUTTON_WIDTH: f32 = 36.0;
+    const MIN_BUTTON_WIDTH: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
@@ -65,15 +71,20 @@ impl Widget for PointerScannerFooterView {
             .painter()
             .rect_filled(divider_rectangle, CornerRadius::ZERO, theme.submenu_border);
 
-        let page_box_width = 112.0;
-        let page_box_height = 24.0;
-        let button_width = 36.0;
-        let button_height = 28.0;
         let top_row_rectangle = Rect::from_min_max(
             allocated_size_rectangle.min,
             pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.min.y + top_row_height),
         );
         let bottom_row_rectangle = Rect::from_min_max(pos2(allocated_size_rectangle.min.x, top_row_rectangle.max.y), allocated_size_rectangle.max);
+        let available_navigation_width = (top_row_rectangle.width() - Self::HORIZONTAL_PADDING * 2.0).max(1.0);
+        let max_navigation_spacing_total = Self::NAVIGATION_SPACING * 4.0;
+        let tentative_button_width = ((available_navigation_width - max_navigation_spacing_total) / 6.0).clamp(Self::MIN_BUTTON_WIDTH, Self::MAX_BUTTON_WIDTH);
+        let spacing = Self::NAVIGATION_SPACING.min((available_navigation_width * 0.05).max(1.0));
+        let page_box_width =
+            (available_navigation_width - tentative_button_width * 4.0 - spacing * 4.0).clamp(Self::MIN_PAGE_BOX_WIDTH, Self::MAX_PAGE_BOX_WIDTH);
+        let page_box_height = 24.0;
+        let button_width = tentative_button_width;
+        let button_height = 28.0;
 
         let mut should_navigate_first_page = false;
         let mut should_navigate_previous_page = false;
@@ -88,6 +99,9 @@ impl Widget for PointerScannerFooterView {
         let mut top_row_user_interface = user_interface.new_child(top_row_builder);
         top_row_user_interface.set_clip_rect(top_row_rectangle);
         top_row_user_interface.horizontal_centered(|user_interface| {
+            user_interface.spacing_mut().item_spacing.x = spacing;
+            user_interface.add_space(Self::HORIZONTAL_PADDING);
+
             let first_page_button = user_interface.add_sized(
                 vec2(button_width, button_height),
                 Button::new_from_theme(theme)
@@ -150,6 +164,8 @@ impl Widget for PointerScannerFooterView {
             if last_page_button.clicked() {
                 should_navigate_last_page = true;
             }
+
+            user_interface.add_space(Self::HORIZONTAL_PADDING);
 
             if page_number_edit_response.changed() {
                 PointerScannerViewData::set_page_index_string(self.pointer_scanner_view_data.clone(), &page_label_text);
