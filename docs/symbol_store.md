@@ -172,6 +172,73 @@ Do not build a typed metadata framework up front.
 2. Move toward sending compact execution-oriented symbol data instead of the entire authored model.
 3. Keep authoring-only metadata and tree state unprivileged-side.
 
+## GUI Shape
+
+### Primary symbol UI: a dedicated Symbol Explorer
+The main symbol-authoring surface should be its own dockable window.
+
+It should feel much closer to the project explorer than to the memory viewer or code viewer:
+- tree of rooted symbols on the left,
+- lazy expansion into derived children,
+- context actions on nodes,
+- selection-driven detail/preview panel,
+- explicit refresh for pointer-derived branches.
+
+This should be the place where users:
+- browse authored roots,
+- inspect child paths,
+- rename symbols,
+- edit symbol metadata,
+- promote a child into a real rooted symbol,
+- jump to memory view or code view,
+- create address or pointer project items from symbol nodes when useful.
+
+### What the Symbol Explorer should show
+Each node should show, at minimum:
+- display name,
+- resolved address when available,
+- type name,
+- container shape,
+- current preview value if cheap to fetch.
+
+The window should support:
+- expanding inline children immediately,
+- expanding pointer children on demand,
+- caching expanded pointer branches until refresh,
+- a breadcrumb or full path display for the selected node.
+
+### Memory Viewer role
+The memory viewer should remain page-oriented.
+
+It is still the right place to walk raw memory pages, inspect bytes, and operate by address. Symbol support there should be lightweight:
+- show exact-match symbol labels beside the address when available,
+- optionally show inline child labels for visible ranges when resolution is cheap,
+- allow jump from a byte selection to the corresponding symbol if known,
+- allow promote-to-symbol from the current address selection.
+
+The memory viewer should consume symbol information, not become the primary symbol browser.
+
+### Code Viewer role
+The code viewer should remain code-oriented.
+
+Symbol integration there should mirror the memory viewer:
+- annotate exact symbol matches where useful,
+- show symbol names for known code/data references when cheap,
+- jump from an instruction/reference to the corresponding symbol,
+- allow promotion of discovered addresses into symbols.
+
+It should not be the main place to browse large symbol trees.
+
+### Project Explorer role
+The project explorer should remain focused on project items and workflow artifacts.
+
+In the short term:
+- address items and pointer items remain acquisition tools,
+- symbols get their own explorer,
+- promotion is the bridge between the two.
+
+This avoids mixing "raw discoveries to work from" with "authored symbolic model" into one overloaded tree too early.
+
 ## Practical Design Decisions
 
 ### Identity
