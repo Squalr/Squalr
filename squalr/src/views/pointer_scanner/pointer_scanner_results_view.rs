@@ -261,7 +261,11 @@ impl Widget for PointerScannerResultsView {
         let mut new_value_splitter_ratio = None;
         let mut new_resolved_splitter_ratio = None;
 
-        let (results_rectangle, response) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::click());
+        let bounded_results_rectangle = user_interface
+            .available_rect_before_wrap()
+            .intersect(user_interface.clip_rect());
+        let results_response = user_interface.allocate_rect(bounded_results_rectangle, Sense::click());
+        let results_rectangle = results_response.rect;
         let mut results_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(results_rectangle)
@@ -287,7 +291,9 @@ impl Widget for PointerScannerResultsView {
                 vec2(user_interface.available_width().max(1.0), Self::HEADER_SEPARATOR_THICKNESS),
                 Sense::empty(),
             );
-            let content_clip_rectangle = user_interface.available_rect_before_wrap();
+            let content_clip_rectangle = user_interface
+                .available_rect_before_wrap()
+                .intersect(results_rectangle);
             let content_width = content_clip_rectangle.width();
             let content_height = content_clip_rectangle.height().max(0.0);
             let content_min_x = content_clip_rectangle.min.x;
@@ -519,6 +525,6 @@ impl Widget for PointerScannerResultsView {
             }
         }
 
-        response
+        results_response
     }
 }
