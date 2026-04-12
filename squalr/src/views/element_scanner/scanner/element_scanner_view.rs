@@ -62,9 +62,11 @@ impl Widget for ElementScannerView {
                         .max_rect(content_response.rect)
                         .layout(Layout::left_to_right(Align::Min)),
                 );
+                content_user_interface.set_clip_rect(content_response.rect);
 
                 content_user_interface.add(self.element_scanner_results_view.clone());
 
+                user_interface.spacing_mut().item_spacing.y = 0.0;
                 user_interface.add(self.element_scanner_footer_view.clone());
             })
             .response;
