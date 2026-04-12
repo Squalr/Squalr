@@ -51,7 +51,8 @@ impl MemoryViewerView {
     const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
-    const CONTENT_HEADER_HEIGHT: f32 = 22.0;
+    const CONTENT_HEADER_HEIGHT: f32 = 26.0;
+    const CONTENT_HEADER_SEPARATOR_HEIGHT: f32 = 3.0;
     const ROW_HEIGHT: f32 = 20.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
     const HEX_CELL_WIDTH: f32 = 22.0;
@@ -60,7 +61,6 @@ impl MemoryViewerView {
     const ASCII_COLUMN_LEFT_PADDING: f32 = 16.0;
     const ADDRESS_TEXT_LEFT_PADDING: f32 = 8.0;
     const ADDRESS_TEXT_RIGHT_PADDING: f32 = 8.0;
-    const HEADER_TEXT_TOP_PADDING: f32 = 4.0;
     const ROW_TEXT_TOP_PADDING: f32 = 3.0;
     const CONTEXT_MENU_WIDTH: f32 = 220.0;
     const HEX_CARET_BLINK_INTERVAL: Duration = Duration::from_millis(500);
@@ -217,10 +217,10 @@ impl MemoryViewerView {
             .with_clip_rect(header_rect.intersect(user_interface.clip_rect()))
             .text(
                 text_position,
-                Align2::LEFT_TOP,
+                Align2::LEFT_CENTER,
                 text,
-                theme.font_library.font_noto_sans.font_small.clone(),
-                theme.foreground_preview,
+                theme.font_library.font_noto_sans.font_header.clone(),
+                theme.foreground,
             );
     }
 
@@ -231,7 +231,7 @@ impl MemoryViewerView {
         theme: &crate::ui::theme::Theme,
     ) {
         let column_layout = Self::resolve_column_layout(header_rect, hex_ascii_splitter_position_x);
-        let header_text_y = header_rect.min.y + Self::HEADER_TEXT_TOP_PADDING;
+        let header_text_y = header_rect.center().y;
 
         Self::draw_column_header_text(
             user_interface,
@@ -663,7 +663,14 @@ impl Widget for MemoryViewerView {
                 let (header_rect, _) = left_content_user_interface
                     .allocate_exact_size(vec2(left_content_user_interface.available_width(), Self::CONTENT_HEADER_HEIGHT), Sense::hover());
                 Self::render_content_headers(&left_content_user_interface, header_rect, hex_ascii_splitter_position_x, theme);
-                let rows_rect = Rect::from_min_max(pos2(left_content_rect.min.x, header_rect.max.y), left_content_rect.max);
+                let (header_separator_rect, _) = left_content_user_interface.allocate_exact_size(
+                    vec2(left_content_user_interface.available_width(), Self::CONTENT_HEADER_SEPARATOR_HEIGHT),
+                    Sense::hover(),
+                );
+                left_content_user_interface
+                    .painter()
+                    .rect_filled(header_separator_rect, CornerRadius::ZERO, theme.background_control);
+                let rows_rect = Rect::from_min_max(pos2(left_content_rect.min.x, header_separator_rect.max.y), left_content_rect.max);
                 let mut rows_user_interface = left_content_user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(rows_rect)

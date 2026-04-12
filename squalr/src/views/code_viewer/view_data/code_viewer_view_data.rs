@@ -580,6 +580,7 @@ impl CodeViewerViewData {
                 anchor_instruction_address: address,
                 active_instruction_address: address,
             });
+            code_viewer_view_data.instruction_edit_state = None;
         }
     }
 
@@ -598,6 +599,7 @@ impl CodeViewerViewData {
                 anchor_instruction_address: selection_anchor_address,
                 active_instruction_address: address,
             });
+            code_viewer_view_data.instruction_edit_state = None;
         }
     }
 
@@ -1732,6 +1734,35 @@ mod tests {
                 .get_anonymous_value_string_format(),
             AnonymousValueStringFormat::String
         );
+    }
+
+    #[test]
+    fn selecting_new_instruction_cancels_edit_in_progress() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4010,
+                length: 1,
+                bytes: vec![0x90],
+                text: String::from("nop"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4011,
+                length: 1,
+                bytes: vec![0xC3],
+                text: String::from("ret"),
+                branch_target_address: None,
+                is_control_flow: true,
+            },
+        ];
+
+        CodeViewerViewData::request_instruction_edit(code_viewer_view_data.clone(), 0x4010, &instruction_lines);
+        CodeViewerViewData::select_instruction_address(code_viewer_view_data.clone(), 0x4011);
+
+        assert!(CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data).is_none());
     }
 
     #[test]
