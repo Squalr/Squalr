@@ -209,6 +209,7 @@ impl ElementScannerViewData {
                 let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
                 Self::apply_scan_mode_to_constraint_value(effective_scan_mode, element_scanner_view_data.active_display_format, &mut constraint_value);
                 AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, Some(constraint_value))
+                    .with_hex_pattern_matching(effective_scan_mode == ElementScannerScanMode::Pattern)
             })
             .collect();
         let element_scan_request = ElementScanRequest {
@@ -298,7 +299,7 @@ impl ElementScannerViewData {
             }
             ElementScannerScanMode::Pattern => {
                 constraint_value.set_container_type(ContainerType::None);
-                constraint_value.set_anonymous_value_string_format(AnonymousValueStringFormat::HexPattern);
+                constraint_value.set_anonymous_value_string_format(AnonymousValueStringFormat::Hexadecimal);
             }
         }
     }
@@ -374,7 +375,6 @@ impl ElementScannerViewData {
         supported_anonymous_value_string_formats
             .iter()
             .copied()
-            .filter(|anonymous_value_string_format| *anonymous_value_string_format != AnonymousValueStringFormat::HexPattern)
             .collect()
     }
 }
@@ -418,7 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_scan_mode_to_constraint_value_sets_hex_pattern_for_pattern_mode() {
+    fn apply_scan_mode_to_constraint_value_sets_hexadecimal_for_pattern_mode() {
         let mut anonymous_value_string = AnonymousValueString::new("AA ??".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array);
 
         ElementScannerViewData::apply_scan_mode_to_constraint_value(
@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(anonymous_value_string.get_container_type(), ContainerType::None);
         assert_eq!(
             anonymous_value_string.get_anonymous_value_string_format(),
-            AnonymousValueStringFormat::HexPattern
+            AnonymousValueStringFormat::Hexadecimal
         );
     }
 
@@ -449,14 +449,13 @@ mod tests {
     }
 
     #[test]
-    fn get_supported_display_formats_for_scan_mode_strips_hex_pattern_for_non_pattern_modes() {
+    fn get_supported_display_formats_for_scan_mode_preserves_non_pattern_formats() {
         assert_eq!(
             ElementScannerViewData::get_supported_display_formats_for_scan_mode(
                 &[
                     AnonymousValueStringFormat::Binary,
                     AnonymousValueStringFormat::Decimal,
                     AnonymousValueStringFormat::Hexadecimal,
-                    AnonymousValueStringFormat::HexPattern,
                 ],
                 ElementScannerScanMode::Element,
             ),

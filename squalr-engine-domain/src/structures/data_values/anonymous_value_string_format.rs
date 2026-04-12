@@ -9,10 +9,8 @@ pub enum AnonymousValueStringFormat {
     String,
     Binary,
     Decimal,
+    #[serde(alias = "HexPattern", alias = "hex_pattern")]
     Hexadecimal,
-    /// A whitespace/comma/hyphen-separated sequence of hex byte tokens where individual nibbles
-    /// may be wildcarded with `x` or `X` (e.g. `"00 xx 7x FB A1"`).
-    HexPattern,
     Address,
     DataTypeRef,
     Enumeration,
@@ -29,7 +27,6 @@ impl fmt::Display for AnonymousValueStringFormat {
             AnonymousValueStringFormat::Binary => "binary",
             AnonymousValueStringFormat::Decimal => "decimal",
             AnonymousValueStringFormat::Hexadecimal => "hexadecimal",
-            AnonymousValueStringFormat::HexPattern => "hex_pattern",
             AnonymousValueStringFormat::Address => "address",
             AnonymousValueStringFormat::DataTypeRef => "data_type_ref",
             AnonymousValueStringFormat::Enumeration => "enumeration",
@@ -48,8 +45,7 @@ impl FromStr for AnonymousValueStringFormat {
             "string" => Ok(AnonymousValueStringFormat::String),
             "bin" | "binary" => Ok(AnonymousValueStringFormat::Binary),
             "dec" | "decimal" => Ok(AnonymousValueStringFormat::Decimal),
-            "hex" | "hexadecimal" => Ok(AnonymousValueStringFormat::Hexadecimal),
-            "hex_pattern" => Ok(AnonymousValueStringFormat::HexPattern),
+            "hex" | "hexadecimal" | "hex_pattern" => Ok(AnonymousValueStringFormat::Hexadecimal),
             "address" => Ok(AnonymousValueStringFormat::Address),
             "data_type_ref" => Ok(AnonymousValueStringFormat::DataTypeRef),
             "enumeration" => Ok(AnonymousValueStringFormat::Enumeration),

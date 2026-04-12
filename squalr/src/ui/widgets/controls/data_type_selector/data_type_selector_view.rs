@@ -294,20 +294,14 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             AnonymousValueStringFormat::Binary => 2,
             AnonymousValueStringFormat::Decimal => 3,
             AnonymousValueStringFormat::Hexadecimal => 4,
-            AnonymousValueStringFormat::HexPattern => 5,
-            AnonymousValueStringFormat::Address => 6,
-            AnonymousValueStringFormat::DataTypeRef => 7,
-            AnonymousValueStringFormat::Enumeration => 8,
+            AnonymousValueStringFormat::Address => 5,
+            AnonymousValueStringFormat::DataTypeRef => 6,
+            AnonymousValueStringFormat::Enumeration => 7,
         }
     }
 
     fn normalize_supported_formats(supported_formats: &[AnonymousValueStringFormat]) -> Vec<AnonymousValueStringFormat> {
-        let mut normalized_supported_formats = supported_formats
-            .iter()
-            .copied()
-            // Hex-pattern is a byte-pattern authoring override, not a distinct UI family.
-            .filter(|anonymous_value_string_format| *anonymous_value_string_format != AnonymousValueStringFormat::HexPattern)
-            .collect::<Vec<_>>();
+        let mut normalized_supported_formats = supported_formats.to_vec();
         normalized_supported_formats.sort_by_key(|anonymous_value_string_format| Self::anonymous_value_string_format_sort_key(*anonymous_value_string_format));
         normalized_supported_formats.dedup();
 
@@ -542,13 +536,12 @@ mod tests {
     }
 
     #[test]
-    fn normalize_supported_formats_ignores_hex_pattern_for_compatibility() {
+    fn normalize_supported_formats_preserves_hexadecimal_compatibility() {
         assert_eq!(
             DataTypeSelectorView::normalize_supported_formats(&[
                 AnonymousValueStringFormat::Binary,
                 AnonymousValueStringFormat::Decimal,
                 AnonymousValueStringFormat::Hexadecimal,
-                AnonymousValueStringFormat::HexPattern,
             ]),
             vec![
                 AnonymousValueStringFormat::Binary,

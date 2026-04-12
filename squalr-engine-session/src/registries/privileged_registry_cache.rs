@@ -149,6 +149,17 @@ impl PrivilegedRegistryCache {
             .validate_scan_constraint(data_type_ref, scan_compare_type, anonymous_value_string)
     }
 
+    pub fn validate_scan_constraint_with_hex_pattern_matching(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+        use_hex_pattern_matching: bool,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .validate_scan_constraint_with_hex_pattern_matching(data_type_ref, scan_compare_type, anonymous_value_string, use_hex_pattern_matching)
+    }
+
     pub fn deanonymize_value_string(
         &self,
         data_type_ref: &DataTypeRef,

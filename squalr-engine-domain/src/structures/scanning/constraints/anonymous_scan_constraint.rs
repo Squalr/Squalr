@@ -17,6 +17,8 @@ use std::str::FromStr;
 pub struct AnonymousScanConstraint {
     scan_compare_type: ScanCompareType,
     anonymous_value_string: Option<AnonymousValueString>,
+    #[serde(default)]
+    use_hex_pattern_matching: bool,
 }
 
 impl AnonymousScanConstraint {
@@ -27,6 +29,7 @@ impl AnonymousScanConstraint {
         Self {
             scan_compare_type,
             anonymous_value_string,
+            use_hex_pattern_matching: false,
         }
     }
 
@@ -36,6 +39,18 @@ impl AnonymousScanConstraint {
 
     pub fn get_anonymous_value_string(&self) -> &Option<AnonymousValueString> {
         &self.anonymous_value_string
+    }
+
+    pub fn with_hex_pattern_matching(
+        mut self,
+        use_hex_pattern_matching: bool,
+    ) -> Self {
+        self.use_hex_pattern_matching = use_hex_pattern_matching;
+        self
+    }
+
+    pub fn uses_hex_pattern_matching(&self) -> bool {
+        self.use_hex_pattern_matching
     }
 
     pub fn deanonymize_constraint(
@@ -108,6 +123,7 @@ impl FromStr for AnonymousScanConstraint {
                 return Ok(AnonymousScanConstraint {
                     scan_compare_type,
                     anonymous_value_string,
+                    use_hex_pattern_matching: false,
                 });
             }
         }

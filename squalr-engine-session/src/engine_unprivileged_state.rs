@@ -236,6 +236,24 @@ impl EngineUnprivilegedState {
         .unwrap_or(false)
     }
 
+    pub fn validate_scan_constraint_with_hex_pattern_matching(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+        use_hex_pattern_matching: bool,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| {
+            privileged_registry_cache.validate_scan_constraint_with_hex_pattern_matching(
+                data_type_ref,
+                scan_compare_type,
+                anonymous_value_string,
+                use_hex_pattern_matching,
+            )
+        })
+        .unwrap_or(false)
+    }
+
     pub fn deanonymize_value_string(
         &self,
         data_type_ref: &DataTypeRef,
