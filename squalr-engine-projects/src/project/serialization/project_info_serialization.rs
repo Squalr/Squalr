@@ -119,7 +119,8 @@ mod tests {
                 String::from("player.health"),
                 SymbolicStructDefinition::new(
                     String::from("player.health"),
-                    vec![SymbolicFieldDefinition::new(
+                    vec![SymbolicFieldDefinition::new_named(
+                        String::from("value"),
                         DataTypeRef::new("u32"),
                         ContainerType::None,
                     )],
@@ -146,6 +147,15 @@ mod tests {
                 .get_struct_layout_descriptors()[0]
                 .get_struct_layout_id(),
             "player.health"
+        );
+        assert_eq!(
+            loaded_project_info
+                .get_project_symbol_catalog()
+                .get_struct_layout_descriptors()[0]
+                .get_struct_layout_definition()
+                .get_fields()[0]
+                .get_field_name(),
+            "value"
         );
     }
 
