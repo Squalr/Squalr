@@ -96,6 +96,7 @@ pub struct CodeViewerViewData {
     pending_focus_request: Option<CodeViewerFocusRequest>,
     pending_scroll_address: Option<u64>,
     selected_instruction_range: Option<CodeViewerInstructionSelectionRange>,
+    is_drag_selecting_instruction_range: bool,
     viewport_start_address: Option<u64>,
     breakpoint_addresses: HashSet<u64>,
     context_menu_address: Option<u64>,
@@ -173,6 +174,7 @@ impl CodeViewerViewData {
             pending_focus_request: None,
             pending_scroll_address: None,
             selected_instruction_range: None,
+            is_drag_selecting_instruction_range: false,
             viewport_start_address: None,
             breakpoint_addresses: HashSet::new(),
             context_menu_address: None,
@@ -295,6 +297,7 @@ impl CodeViewerViewData {
             code_viewer_view_data.pending_focus_request = None;
             code_viewer_view_data.pending_scroll_address = None;
             code_viewer_view_data.selected_instruction_range = None;
+            code_viewer_view_data.is_drag_selecting_instruction_range = false;
             code_viewer_view_data.viewport_start_address = None;
             code_viewer_view_data.context_menu_address = None;
             code_viewer_view_data.context_menu_position = None;
@@ -609,6 +612,71 @@ impl CodeViewerViewData {
             .and_then(|code_viewer_view_data| code_viewer_view_data.resolve_selected_instruction_address())
     }
 
+    pub fn begin_drag_instruction_selection(
+        code_viewer_view_data: Dependency<Self>,
+        address: u64,
+        should_extend_existing_selection: bool,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer begin drag instruction selection") {
+            if should_extend_existing_selection {
+                let selection_anchor_address = code_viewer_view_data
+                    .selected_instruction_range
+                    .as_ref()
+                    .map(|selected_instruction_range| selected_instruction_range.anchor_instruction_address)
+                    .unwrap_or(address);
+
+                code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+                    anchor_instruction_address: selection_anchor_address,
+                    active_instruction_address: address,
+                });
+            } else {
+                code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+                    anchor_instruction_address: address,
+                    active_instruction_address: address,
+                });
+            }
+
+            code_viewer_view_data.is_drag_selecting_instruction_range = true;
+            code_viewer_view_data.instruction_edit_state = None;
+        }
+    }
+
+    pub fn update_drag_instruction_selection(
+        code_viewer_view_data: Dependency<Self>,
+        address: u64,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer update drag instruction selection") {
+            if !code_viewer_view_data.is_drag_selecting_instruction_range {
+                return;
+            }
+
+            let selection_anchor_address = code_viewer_view_data
+                .selected_instruction_range
+                .as_ref()
+                .map(|selected_instruction_range| selected_instruction_range.anchor_instruction_address)
+                .unwrap_or(address);
+
+            code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+                anchor_instruction_address: selection_anchor_address,
+                active_instruction_address: address,
+            });
+            code_viewer_view_data.instruction_edit_state = None;
+        }
+    }
+
+    pub fn end_drag_instruction_selection(code_viewer_view_data: Dependency<Self>) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer end drag instruction selection") {
+            code_viewer_view_data.is_drag_selecting_instruction_range = false;
+        }
+    }
+
+    pub fn is_drag_instruction_selection_active(code_viewer_view_data: Dependency<Self>) -> bool {
+        code_viewer_view_data
+            .read("Code viewer drag instruction selection state")
+            .map(|code_viewer_view_data| code_viewer_view_data.is_drag_selecting_instruction_range)
+            .unwrap_or(false)
+    }
+
     pub fn get_selected_instruction_addresses(
         code_viewer_view_data: Dependency<Self>,
         instruction_lines: &[DisassembledInstruction],
@@ -900,6 +968,7 @@ impl CodeViewerViewData {
     pub fn clear_selection(code_viewer_view_data: Dependency<Self>) {
         if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer clear selection") {
             code_viewer_view_data.selected_instruction_range = None;
+            code_viewer_view_data.is_drag_selecting_instruction_range = false;
             code_viewer_view_data.pending_scroll_address = None;
             code_viewer_view_data.instruction_edit_state = None;
         }
@@ -1592,6 +1661,61 @@ mod tests {
             selected_instruction_addresses,
             std::collections::HashSet::from([0x4010_u64, 0x4012_u64, 0x4017_u64])
         );
+    }
+
+    #[test]
+    fn drag_instruction_selection_updates_active_instruction_until_drag_ends() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4010,
+                length: 2,
+                bytes: vec![0x31, 0xC0],
+                text: String::from("xor eax, eax"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4012,
+                length: 5,
+                bytes: vec![0xB8, 0x01, 0x00, 0x00, 0x00],
+                text: String::from("mov eax, 1"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4017,
+                length: 1,
+                bytes: vec![0xC3],
+                text: String::from("ret"),
+                branch_target_address: None,
+                is_control_flow: true,
+            },
+        ];
+
+        CodeViewerViewData::begin_drag_instruction_selection(code_viewer_view_data.clone(), 0x4010, false);
+        CodeViewerViewData::update_drag_instruction_selection(code_viewer_view_data.clone(), 0x4017);
+
+        let selected_instruction_addresses = CodeViewerViewData::get_selected_instruction_addresses(code_viewer_view_data.clone(), &instruction_lines);
+
+        assert_eq!(
+            selected_instruction_addresses,
+            std::collections::HashSet::from([0x4010_u64, 0x4012_u64, 0x4017_u64])
+        );
+        assert!(CodeViewerViewData::is_drag_instruction_selection_active(code_viewer_view_data.clone()));
+
+        CodeViewerViewData::end_drag_instruction_selection(code_viewer_view_data.clone());
+        CodeViewerViewData::update_drag_instruction_selection(code_viewer_view_data.clone(), 0x4012);
+
+        let selected_instruction_addresses_after_drag_end =
+            CodeViewerViewData::get_selected_instruction_addresses(code_viewer_view_data.clone(), &instruction_lines);
+
+        assert_eq!(
+            selected_instruction_addresses_after_drag_end,
+            std::collections::HashSet::from([0x4010_u64, 0x4012_u64, 0x4017_u64])
+        );
+        assert!(!CodeViewerViewData::is_drag_instruction_selection_active(code_viewer_view_data.clone()));
     }
 
     #[test]
