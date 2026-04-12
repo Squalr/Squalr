@@ -1,6 +1,7 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
@@ -317,7 +318,8 @@ impl StructViewerViewData {
 
     fn create_field_presentations(valued_struct: &ValuedStruct) -> HashMap<String, StructViewerFieldPresentation> {
         let mut field_presentations = HashMap::new();
-        let live_value_uses_memory_viewer = Self::is_live_value_memory_viewer_editable(valued_struct);
+        let live_value_uses_external_viewer = Self::is_live_value_external_viewer_editable(valued_struct);
+        let live_value_uses_code_viewer = Self::is_live_value_code_viewer_editable(valued_struct);
 
         for valued_struct_field in valued_struct.get_fields() {
             let field_presentation = if Self::is_data_type_reference_field(valued_struct_field) {
@@ -326,7 +328,9 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("container_type"), StructViewerFieldEditorKind::ContainerTypeSelector)
             } else if Self::is_virtual_array_size_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("array_size"), StructViewerFieldEditorKind::ValueBox)
-            } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_memory_viewer {
+            } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
+                StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::CodeViewerButton)
+            } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
                 StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::MemoryViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::ValueBox)
@@ -403,11 +407,19 @@ impl StructViewerViewData {
         field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
     }
 
-    fn is_live_value_memory_viewer_editable(valued_struct: &ValuedStruct) -> bool {
+    fn is_live_value_external_viewer_editable(valued_struct: &ValuedStruct) -> bool {
         matches!(
             Self::read_symbolic_field_definition_reference(valued_struct).map(|symbolic_field_definition| symbolic_field_definition.get_container_type()),
             Some(ContainerType::Array | ContainerType::ArrayFixed(_))
         )
+    }
+
+    fn is_live_value_code_viewer_editable(valued_struct: &ValuedStruct) -> bool {
+        Self::is_live_value_external_viewer_editable(valued_struct)
+            && Self::read_symbolic_struct_definition_reference(valued_struct)
+                .and_then(|data_type_ref| normalize_instruction_data_type_id(data_type_ref.get_data_type_id()))
+                .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
+                .unwrap_or(false)
     }
 
     fn read_symbolic_struct_definition_reference(valued_struct: &ValuedStruct) -> Option<DataTypeRef> {
@@ -659,6 +671,24 @@ mod tests {
 
         assert_eq!(field_presentation.display_name(), "value");
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::MemoryViewerButton);
+    }
+
+    #[test]
+    fn create_field_presentations_maps_x86_instruction_array_live_value_field_to_code_viewer_button() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("i_x86[16]")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("90 90 C3")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
+        ]);
+
+        let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
+        let field_presentation = field_presentations
+            .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+            .expect("Expected live value field presentation.");
+
+        assert_eq!(field_presentation.display_name(), "value");
+        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::CodeViewerButton);
     }
 
     #[test]
