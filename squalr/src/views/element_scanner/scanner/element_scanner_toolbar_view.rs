@@ -289,7 +289,9 @@ impl Widget for ElementScannerToolbarView {
                                     &format!("data_value_box_scan_value_index_{}", index),
                                 )
                                 .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type)
+                                .validation_use_hex_pattern_matching(selected_scan_mode == ElementScannerScanMode::Pattern)
                                 .normalize_value_format(false)
+                                .show_format_button(selected_scan_mode != ElementScannerScanMode::Pattern)
                                 .height(if is_instruction_sequence_data_type {
                                     constraint_row_height - 6.0
                                 } else {

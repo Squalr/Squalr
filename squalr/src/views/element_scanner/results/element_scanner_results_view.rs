@@ -85,10 +85,9 @@ impl ElementScannerResultsView {
             AnonymousValueStringFormat::Binary => 2,
             AnonymousValueStringFormat::Decimal => 3,
             AnonymousValueStringFormat::Hexadecimal => 4,
-            AnonymousValueStringFormat::HexPattern => 5,
-            AnonymousValueStringFormat::Address => 6,
-            AnonymousValueStringFormat::DataTypeRef => 7,
-            AnonymousValueStringFormat::Enumeration => 8,
+            AnonymousValueStringFormat::Address => 5,
+            AnonymousValueStringFormat::DataTypeRef => 6,
+            AnonymousValueStringFormat::Enumeration => 7,
         }
     }
 
@@ -106,9 +105,7 @@ impl ElementScannerResultsView {
         match anonymous_value_string_format {
             AnonymousValueStringFormat::Binary => icon_library.icon_handle_display_type_binary.clone(),
             AnonymousValueStringFormat::Decimal => icon_library.icon_handle_display_type_decimal.clone(),
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
-                icon_library.icon_handle_display_type_hexadecimal.clone()
-            }
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => icon_library.icon_handle_display_type_hexadecimal.clone(),
             AnonymousValueStringFormat::String
             | AnonymousValueStringFormat::Bool
             | AnonymousValueStringFormat::DataTypeRef
@@ -140,7 +137,6 @@ impl ElementScannerResultsView {
                 .engine_unprivileged_state
                 .get_supported_anonymous_value_string_formats(data_type_ref)
                 .into_iter()
-                .filter(|anonymous_value_string_format| *anonymous_value_string_format != AnonymousValueStringFormat::HexPattern)
                 .collect::<Vec<_>>();
 
             if let Some(shared_supported_display_formats) = shared_supported_display_formats.as_mut() {

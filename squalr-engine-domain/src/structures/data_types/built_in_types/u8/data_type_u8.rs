@@ -114,7 +114,7 @@ mod tests {
     use crate::structures::{data_types::data_type::DataType, data_values::anonymous_value_string_format::AnonymousValueStringFormat};
 
     #[test]
-    fn supported_display_formats_do_not_include_hex_pattern() {
+    fn supported_display_formats_include_standard_numeric_formats() {
         assert_eq!(
             DataTypeU8 {}.get_supported_anonymous_value_string_formats(),
             vec![

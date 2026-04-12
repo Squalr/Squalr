@@ -38,7 +38,7 @@ impl<'a> ScanConstraintBuilder<'a> {
             return Ok(None);
         };
 
-        if anonymous_value_string.get_anonymous_value_string_format() == AnonymousValueStringFormat::HexPattern {
+        if anonymous_scan_constraint.uses_hex_pattern_matching() {
             return self.build_hex_pattern_constraint(anonymous_scan_constraint, data_type_ref);
         }
 
@@ -367,10 +367,11 @@ mod tests {
             ScanCompareType::Immediate(ScanCompareTypeImmediate::Equal),
             Some(AnonymousValueString::new(
                 "00 xx 7x".to_string(),
-                AnonymousValueStringFormat::HexPattern,
+                AnonymousValueStringFormat::Hexadecimal,
                 ContainerType::None,
             )),
-        );
+        )
+        .with_hex_pattern_matching(true);
 
         let scan_constraint = builder
             .build(&anonymous_scan_constraint, &data_type_ref)

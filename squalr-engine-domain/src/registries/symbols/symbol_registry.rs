@@ -633,6 +633,22 @@ impl SymbolRegistry {
             .is_ok_and(|scan_constraint| scan_constraint.is_some())
     }
 
+    pub fn validate_scan_constraint_with_hex_pattern_matching(
+        &self,
+        data_type_ref: &DataTypeRef,
+        scan_compare_type: ScanCompareType,
+        anonymous_value_string: &AnonymousValueString,
+        use_hex_pattern_matching: bool,
+    ) -> bool {
+        let scan_constraint_builder = ScanConstraintBuilder::new(self, FloatingPointTolerance::default());
+        let anonymous_scan_constraint =
+            AnonymousScanConstraint::new(scan_compare_type, Some(anonymous_value_string.clone())).with_hex_pattern_matching(use_hex_pattern_matching);
+
+        scan_constraint_builder
+            .build(&anonymous_scan_constraint, data_type_ref)
+            .is_ok_and(|scan_constraint| scan_constraint.is_some())
+    }
+
     pub fn deanonymize_value_string(
         &self,
         data_type_ref: &DataTypeRef,

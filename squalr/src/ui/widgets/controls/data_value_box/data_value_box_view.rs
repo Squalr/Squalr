@@ -21,6 +21,7 @@ pub struct DataValueBoxView<'lifetime> {
     preview_text: &'lifetime str,
     id: &'lifetime str,
     allow_read_only_interpretation: bool,
+    validation_use_hex_pattern_matching: bool,
     use_preview_foreground: bool,
     use_format_text_colors: bool,
     normalize_value_format: bool,
@@ -61,6 +62,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             preview_text,
             id,
             allow_read_only_interpretation: false,
+            validation_use_hex_pattern_matching: false,
             use_preview_foreground: false,
             use_format_text_colors: true,
             normalize_value_format: true,
@@ -92,6 +94,14 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         validation_scan_compare_type: ScanCompareType,
     ) -> Self {
         self.validation_scan_compare_type = Some(validation_scan_compare_type);
+        self
+    }
+
+    pub fn validation_use_hex_pattern_matching(
+        mut self,
+        validation_use_hex_pattern_matching: bool,
+    ) -> Self {
+        self.validation_use_hex_pattern_matching = validation_use_hex_pattern_matching;
         self
     }
 
@@ -212,9 +222,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         match self.anonymous_value_string.get_anonymous_value_string_format() {
             AnonymousValueStringFormat::Binary => &icon_library.icon_handle_display_type_binary,
             AnonymousValueStringFormat::Decimal => &icon_library.icon_handle_display_type_decimal,
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
-                &icon_library.icon_handle_display_type_hexadecimal
-            }
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => &icon_library.icon_handle_display_type_hexadecimal,
             AnonymousValueStringFormat::String
             | AnonymousValueStringFormat::Bool
             | AnonymousValueStringFormat::DataTypeRef
@@ -239,7 +247,12 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             Some(scan_compare_type) => self
                 .app_context
                 .engine_unprivileged_state
-                .validate_scan_constraint(&self.validation_data_type, scan_compare_type, &self.anonymous_value_string),
+                .validate_scan_constraint_with_hex_pattern_matching(
+                    &self.validation_data_type,
+                    scan_compare_type,
+                    &self.anonymous_value_string,
+                    self.validation_use_hex_pattern_matching,
+                ),
             None => self
                 .app_context
                 .engine_unprivileged_state
@@ -260,12 +273,10 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                             false => theme.binary_blue,
                         },
                         AnonymousValueStringFormat::Decimal => foreground_color,
-                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
-                            match self.use_preview_foreground {
-                                true => theme.hexadecimal_green_preview,
-                                false => theme.hexadecimal_green,
-                            }
-                        }
+                        AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => match self.use_preview_foreground {
+                            true => theme.hexadecimal_green_preview,
+                            false => theme.hexadecimal_green,
+                        },
                         AnonymousValueStringFormat::DataTypeRef => foreground_color,
                         AnonymousValueStringFormat::Enumeration => foreground_color,
                     }
