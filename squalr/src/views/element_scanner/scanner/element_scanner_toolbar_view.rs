@@ -14,10 +14,7 @@ use crate::{
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
-use squalr_engine_api::{
-    dependency_injection::dependency::Dependency,
-    structures::{data_values::anonymous_value_string_format::AnonymousValueStringFormat, scanning::comparisons::scan_compare_type::ScanCompareType},
-};
+use squalr_engine_api::{dependency_injection::dependency::Dependency, structures::scanning::comparisons::scan_compare_type::ScanCompareType};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -75,20 +72,6 @@ impl ElementScannerToolbarView {
 
         self.get_constraint_row_height() * (item_count as f32) + self.get_top_row_height()
     }
-
-    fn display_format_label(anonymous_value_string_format: AnonymousValueStringFormat) -> &'static str {
-        match anonymous_value_string_format {
-            AnonymousValueStringFormat::Bool => "Boolean",
-            AnonymousValueStringFormat::String => "String",
-            AnonymousValueStringFormat::Binary => "Binary",
-            AnonymousValueStringFormat::Decimal => "Decimal",
-            AnonymousValueStringFormat::Hexadecimal => "Hex",
-            AnonymousValueStringFormat::HexPattern => "Pattern",
-            AnonymousValueStringFormat::Address => "Address",
-            AnonymousValueStringFormat::DataTypeRef => "Data Type",
-            AnonymousValueStringFormat::Enumeration => "Enum",
-        }
-    }
 }
 
 impl Widget for ElementScannerToolbarView {
@@ -135,7 +118,6 @@ impl Widget for ElementScannerToolbarView {
         let mut should_add_new_scan_constraint = false;
         let mut remove_scan_constraint_index = 0;
         let mut selected_scan_mode: Option<ElementScannerScanMode> = None;
-        let mut selected_display_format: Option<AnonymousValueStringFormat> = None;
         let is_data_type_selection_disabled = element_scanner_view_data.view_state.has_active_scan();
 
         let visible_data_type_ref = element_scanner_view_data
@@ -201,39 +183,6 @@ impl Widget for ElementScannerToolbarView {
                     .available_data_types(available_data_types.clone()),
                 );
 
-                // Display type selector.
-                user_interface.add_space(8.0);
-                user_interface.add(
-                    ComboBoxView::new(
-                        self.app_context.clone(),
-                        Self::display_format_label(element_scanner_view_data.active_display_format),
-                        "element_scanner_display_format",
-                        None,
-                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for anonymous_value_string_format in &supported_display_formats {
-                                let item_response = popup_user_interface.add(ComboBoxItemView::new(
-                                    self.app_context.clone(),
-                                    Self::display_format_label(*anonymous_value_string_format),
-                                    None,
-                                    110.0,
-                                ));
-
-                                if item_response.clicked() {
-                                    selected_display_format = Some(*anonymous_value_string_format);
-                                    *should_close = true;
-                                }
-                            }
-                        },
-                    )
-                    .width(110.0)
-                    .height(28.0)
-                    .disabled(supported_display_formats.len() <= 1),
-                );
-
-                if let Some(new_display_format) = selected_display_format {
-                    element_scanner_view_data.active_display_format = new_display_format;
-                }
-
                 // Scan mode selector.
                 user_interface.add_space(8.0);
                 user_interface.add(
@@ -292,7 +241,7 @@ impl Widget for ElementScannerToolbarView {
 
         let selected_data_type = visible_data_type_ref;
         let selected_scan_mode = effective_scan_mode;
-        let selected_display_format = active_display_format;
+        let mut selected_display_format = active_display_format;
         let scan_value_placeholder = if is_instruction_sequence_data_type {
             "Enter instructions. Use Shift+Enter or Enter for new lines."
         } else if selected_scan_mode == ElementScannerScanMode::Pattern {
@@ -325,6 +274,9 @@ impl Widget for ElementScannerToolbarView {
                             // Nothing to display for relative scans.
                         }
                         _ => {
+                            let previous_scan_value_format = scan_values_and_constraint
+                                .current_scan_value
+                                .get_anonymous_value_string_format();
                             user_interface.add_space(8.0);
                             user_interface.add(
                                 DataValueBoxView::new(
@@ -338,7 +290,6 @@ impl Widget for ElementScannerToolbarView {
                                 )
                                 .validation_scan_compare_type(scan_values_and_constraint.selected_scan_compare_type)
                                 .normalize_value_format(false)
-                                .show_format_button(false)
                                 .height(if is_instruction_sequence_data_type {
                                     constraint_row_height - 6.0
                                 } else {
@@ -347,6 +298,17 @@ impl Widget for ElementScannerToolbarView {
                                 .multiline(is_instruction_sequence_data_type)
                                 .multiline_rows(if is_instruction_sequence_data_type { 3 } else { 1 }),
                             );
+
+                            let updated_scan_value_format = scan_values_and_constraint
+                                .current_scan_value
+                                .get_anonymous_value_string_format();
+
+                            if selected_scan_mode != ElementScannerScanMode::Pattern
+                                && supported_display_formats.contains(&updated_scan_value_format)
+                                && updated_scan_value_format != previous_scan_value_format
+                            {
+                                selected_display_format = updated_scan_value_format;
+                            }
                         }
                     }
 
@@ -381,6 +343,18 @@ impl Widget for ElementScannerToolbarView {
                     }
                 });
             });
+        }
+
+        if element_scanner_view_data.active_display_format != selected_display_format {
+            element_scanner_view_data.active_display_format = selected_display_format;
+
+            for scan_value_and_constraint in &mut element_scanner_view_data.scan_values_and_constraints {
+                ElementScannerViewData::apply_scan_mode_to_constraint_value(
+                    selected_scan_mode,
+                    selected_display_format,
+                    &mut scan_value_and_constraint.current_scan_value,
+                );
+            }
         }
 
         drop(element_scanner_view_data);
