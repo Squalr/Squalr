@@ -1,6 +1,5 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
-use crate::views::pointer_scanner::pointer_scanner_footer_view::PointerScannerFooterView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
 use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
@@ -13,7 +12,6 @@ pub struct PointerScannerResultsView {
     app_context: Arc<AppContext>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-    pointer_scanner_footer_view: PointerScannerFooterView,
 }
 
 impl PointerScannerResultsView {
@@ -33,13 +31,11 @@ impl PointerScannerResultsView {
         let project_hierarchy_view_data = app_context
             .dependency_container
             .get_dependency::<ProjectHierarchyViewData>();
-        let pointer_scanner_footer_view = PointerScannerFooterView::new(app_context.clone());
 
         Self {
             app_context,
             pointer_scanner_view_data,
             project_hierarchy_view_data,
-            pointer_scanner_footer_view,
         }
     }
 
@@ -256,7 +252,6 @@ impl Widget for PointerScannerResultsView {
     ) -> Response {
         let visible_row_count = PointerScannerViewData::get_visible_row_count(self.pointer_scanner_view_data.clone());
         let is_root_context = PointerScannerViewData::is_root_context(self.pointer_scanner_view_data.clone());
-        let footer_height = PointerScannerFooterView::FOOTER_HEIGHT;
         let theme = &self.app_context.theme;
         let mut clicked_node_id = None;
         let mut entered_node_id = None;
@@ -292,9 +287,7 @@ impl Widget for PointerScannerResultsView {
                 vec2(user_interface.available_width().max(1.0), Self::HEADER_SEPARATOR_THICKNESS),
                 Sense::empty(),
             );
-            let content_clip_rectangle = user_interface
-                .available_rect_before_wrap()
-                .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
+            let content_clip_rectangle = user_interface.available_rect_before_wrap();
             let content_width = content_clip_rectangle.width();
             let content_height = content_clip_rectangle.height().max(0.0);
             let content_min_x = content_clip_rectangle.min.x;
@@ -395,8 +388,6 @@ impl Widget for PointerScannerResultsView {
                         );
                     }
                 });
-
-            user_interface.add(self.pointer_scanner_footer_view.clone());
 
             let splitter_min_y = header_rectangle.min.y;
             let splitter_max_y = content_clip_rectangle.max.y;
