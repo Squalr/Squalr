@@ -3,8 +3,8 @@ use crate::{
     ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
     views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData,
 };
-use eframe::egui::{Align, Response, RichText, Sense, TextEdit, Ui, UiBuilder, Widget};
-use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind, pos2, vec2};
+use eframe::egui::{Align, Response, Sense, TextEdit, Ui, UiBuilder, Widget};
+use epaint::{Color32, CornerRadius, Rect, pos2, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ pub struct PointerScannerFooterView {
 }
 
 impl PointerScannerFooterView {
-    pub const FOOTER_HEIGHT: f32 = 64.0;
+    pub const FOOTER_HEIGHT: f32 = 32.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let pointer_scanner_view_data = app_context
@@ -41,7 +41,6 @@ impl Widget for PointerScannerFooterView {
         let height = self
             .get_height()
             .min(user_interface.available_height().max(0.0));
-        let row_height = height * 0.5;
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), height), Sense::empty());
 
         if height <= 0.0 {
@@ -55,27 +54,23 @@ impl Widget for PointerScannerFooterView {
         let context_text = PointerScannerViewData::build_current_context_text(self.pointer_scanner_view_data.clone());
         user_interface
             .painter()
-            .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_primary);
-        user_interface.painter().rect_stroke(
-            allocated_size_rectangle,
-            CornerRadius::ZERO,
-            Stroke::new(1.0, theme.submenu_border),
-            StrokeKind::Inside,
+            .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_panel);
+        let divider_rectangle = Rect::from_min_max(
+            allocated_size_rectangle.min,
+            pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.min.y + 1.0),
         );
+        user_interface
+            .painter()
+            .rect_filled(divider_rectangle, CornerRadius::ZERO, theme.submenu_border);
 
-        let top_row = Rect::from_min_size(allocated_size_rectangle.min, vec2(allocated_size_rectangle.width(), row_height));
-        let bottom_row = Rect::from_min_size(
-            pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.min.y + row_height),
-            vec2(allocated_size_rectangle.width(), row_height),
-        );
-
-        let page_box_width = 160.0;
+        let row_rectangle = allocated_size_rectangle;
+        let page_box_width = 112.0;
         let page_box_height = 24.0;
         let button_width = 36.0;
         let button_height = 28.0;
         let spacing = 6.0;
-        let center_x = top_row.center().x;
-        let center_y = top_row.center().y;
+        let center_x = row_rectangle.center().x;
+        let center_y = row_rectangle.center().y;
 
         let previous_page_button_x = center_x - page_box_width * 0.5 - spacing - button_width;
         let first_page_button_x = previous_page_button_x - button_width;
@@ -88,11 +83,12 @@ impl Widget for PointerScannerFooterView {
         let mut should_navigate_last_page = false;
         let mut page_label_text = page_label_text;
 
-        let top_row_builder = UiBuilder::new().max_rect(top_row).sense(Sense::click());
-        let mut top_row_user_interface = user_interface.new_child(top_row_builder);
+        let row_builder = UiBuilder::new().max_rect(row_rectangle).sense(Sense::click());
+        let mut row_user_interface = user_interface.new_child(row_builder);
+        row_user_interface.set_clip_rect(row_rectangle);
 
         let page_number_edit_rectangle = Rect::from_center_size(pos2(center_x, center_y), vec2(page_box_width, page_box_height));
-        let page_number_edit_response = top_row_user_interface.put(
+        let page_number_edit_response = row_user_interface.put(
             page_number_edit_rectangle,
             TextEdit::singleline(&mut page_label_text)
                 .horizontal_align(Align::Center)
@@ -104,14 +100,14 @@ impl Widget for PointerScannerFooterView {
         );
 
         let first_page_button_rectangle = Rect::from_min_size(pos2(first_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
-        let first_page_button = top_row_user_interface.put(
+        let first_page_button = row_user_interface.put(
             first_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
                 .with_tooltip_text("First page in the current pointer context."),
         );
         IconDraw::draw(
-            &top_row_user_interface,
+            &row_user_interface,
             first_page_button.rect,
             &theme.icon_library.icon_handle_navigation_left_arrows,
         );
@@ -121,14 +117,14 @@ impl Widget for PointerScannerFooterView {
 
         let previous_page_button_rectangle =
             Rect::from_min_size(pos2(previous_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
-        let previous_page_button = top_row_user_interface.put(
+        let previous_page_button = row_user_interface.put(
             previous_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
                 .with_tooltip_text("Previous page in the current pointer context."),
         );
         IconDraw::draw(
-            &top_row_user_interface,
+            &row_user_interface,
             previous_page_button.rect,
             &theme.icon_library.icon_handle_navigation_left_arrow_small,
         );
@@ -137,14 +133,14 @@ impl Widget for PointerScannerFooterView {
         }
 
         let next_page_button_rectangle = Rect::from_min_size(pos2(next_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
-        let next_page_button = top_row_user_interface.put(
+        let next_page_button = row_user_interface.put(
             next_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
                 .with_tooltip_text("Next page in the current pointer context."),
         );
         IconDraw::draw(
-            &top_row_user_interface,
+            &row_user_interface,
             next_page_button.rect,
             &theme.icon_library.icon_handle_navigation_right_arrow_small,
         );
@@ -153,14 +149,14 @@ impl Widget for PointerScannerFooterView {
         }
 
         let last_page_button_rectangle = Rect::from_min_size(pos2(last_page_button_x, center_y - button_height * 0.5), vec2(button_width, button_height));
-        let last_page_button = top_row_user_interface.put(
+        let last_page_button = row_user_interface.put(
             last_page_button_rectangle,
             Button::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
                 .with_tooltip_text("Last page in the current pointer context."),
         );
         IconDraw::draw(
-            &top_row_user_interface,
+            &row_user_interface,
             last_page_button.rect,
             &theme.icon_library.icon_handle_navigation_right_arrows,
         );
@@ -168,15 +164,17 @@ impl Widget for PointerScannerFooterView {
             should_navigate_last_page = true;
         }
 
-        let bottom_row_builder = UiBuilder::new().max_rect(bottom_row);
-        let mut bottom_row_user_interface = user_interface.new_child(bottom_row_builder);
-        bottom_row_user_interface.centered_and_justified(|user_interface| {
-            user_interface.label(
-                RichText::new(format!("{context_text} | {stats_text}"))
-                    .font(font_id)
-                    .color(theme.foreground),
+        let stats_text_rectangle = Rect::from_min_max(pos2(last_page_button_rectangle.max.x + 12.0, row_rectangle.min.y), row_rectangle.max);
+        row_user_interface
+            .painter()
+            .with_clip_rect(stats_text_rectangle.intersect(row_rectangle))
+            .text(
+                stats_text_rectangle.left_center(),
+                eframe::egui::Align2::LEFT_CENTER,
+                format!("{context_text} | {stats_text}"),
+                font_id,
+                theme.foreground,
             );
-        });
 
         if should_navigate_first_page {
             PointerScannerViewData::navigate_first_page(self.pointer_scanner_view_data.clone());
