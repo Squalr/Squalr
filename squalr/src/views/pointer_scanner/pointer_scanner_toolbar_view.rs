@@ -113,6 +113,7 @@ impl Widget for PointerScannerToolbarView {
                     .as_ref()
                     .map(|opened_process| opened_process.get_bitness())
             });
+        let has_opened_process = opened_process_bitness.is_some();
         let available_data_types = self
             .app_context
             .engine_unprivileged_state
@@ -161,9 +162,28 @@ impl Widget for PointerScannerToolbarView {
                 || pointer_scanner_view_data.is_validating_scan
                 || pointer_scanner_view_data.is_resetting_scan;
             let start_scan_tooltip = if has_active_pointer_scan_session {
-                "Validate the active pointer scan session with the validation target address."
+                if has_opened_process {
+                    "Validate the active pointer scan session with the validation target address."
+                } else {
+                    "Attach to a process before validating the active pointer scan session."
+                }
             } else {
-                "Start a new pointer scan session."
+                if has_opened_process {
+                    "Start a new pointer scan session."
+                } else {
+                    "Attach to a process before starting a pointer scan session."
+                }
+            };
+            let start_value_scan_tooltip = if has_active_pointer_scan_session {
+                if has_opened_process {
+                    "Validate the active value-seeded pointer scan session."
+                } else {
+                    "Attach to a process before validating the active value-seeded pointer scan session."
+                }
+            } else if has_opened_process {
+                "Start a value-seeded pointer scan session."
+            } else {
+                "Attach to a process before starting a value-seeded pointer scan session."
             };
 
             user_interface.scope_builder(builder, |user_interface| {
@@ -306,7 +326,7 @@ impl Widget for PointerScannerToolbarView {
                                 start_scan_tooltip,
                                 action_button_size,
                                 Color32::TRANSPARENT,
-                                are_session_actions_disabled,
+                                are_session_actions_disabled || !has_opened_process,
                             )
                             .clicked()
                         {
@@ -379,10 +399,10 @@ impl Widget for PointerScannerToolbarView {
                             .draw_icon_button(
                                 user_interface,
                                 &theme.icon_library.icon_handle_navigation_right_arrow,
-                                "Start or validate a value-seeded pointer scan session.",
+                                start_value_scan_tooltip,
                                 action_button_size,
                                 Color32::TRANSPARENT,
-                                are_session_actions_disabled,
+                                are_session_actions_disabled || !has_opened_process,
                             )
                             .clicked()
                         {

@@ -11,6 +11,7 @@ use crate::{
         },
     },
     views::element_scanner::scanner::view_data::element_scanner_view_data::{ElementScannerScanMode, ElementScannerViewData},
+    views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
 };
 use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
@@ -21,6 +22,7 @@ use std::sync::Arc;
 pub struct ElementScannerToolbarView {
     app_context: Arc<AppContext>,
     element_scanner_view_data: Dependency<ElementScannerViewData>,
+    process_selector_view_data: Dependency<ProcessSelectorViewData>,
 }
 
 impl ElementScannerToolbarView {
@@ -32,9 +34,13 @@ impl ElementScannerToolbarView {
         let element_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<ElementScannerViewData>();
+        let process_selector_view_data = app_context
+            .dependency_container
+            .get_dependency::<ProcessSelectorViewData>();
         let instance = Self {
             app_context,
             element_scanner_view_data,
+            process_selector_view_data,
         };
 
         instance
@@ -119,6 +125,26 @@ impl Widget for ElementScannerToolbarView {
         let mut remove_scan_constraint_index = 0;
         let mut selected_scan_mode: Option<ElementScannerScanMode> = None;
         let is_data_type_selection_disabled = element_scanner_view_data.view_state.has_active_scan();
+        let has_opened_process = self
+            .process_selector_view_data
+            .read("Element scanner toolbar view opened process")
+            .map(|process_selector_view_data| process_selector_view_data.opened_process.is_some())
+            .unwrap_or(false);
+        let new_scan_tooltip = if has_opened_process {
+            "New scan."
+        } else {
+            "Attach to a process before starting a new scan."
+        };
+        let collect_values_tooltip = if has_opened_process {
+            "Collect values."
+        } else {
+            "Attach to a process before collecting values."
+        };
+        let start_scan_tooltip = if has_opened_process {
+            "Start scan."
+        } else {
+            "Attach to a process before scanning."
+        };
 
         let visible_data_type_ref = element_scanner_view_data
             .data_type_selection
@@ -161,8 +187,9 @@ impl Widget for ElementScannerToolbarView {
                 let button_new_scan = user_interface.add_sized(
                     button_size,
                     Button::new_from_theme(theme)
+                        .disabled(!has_opened_process)
                         .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("New scan."),
+                        .with_tooltip_text(new_scan_tooltip),
                 );
                 IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
 
@@ -215,8 +242,9 @@ impl Widget for ElementScannerToolbarView {
                 let button_collect_values = user_interface.add_sized(
                     button_size,
                     Button::new_from_theme(theme)
+                        .disabled(!has_opened_process)
                         .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Collect values."),
+                        .with_tooltip_text(collect_values_tooltip),
                 );
                 IconDraw::draw(user_interface, button_collect_values.rect, &theme.icon_library.icon_handle_scan_collect_values);
 
@@ -228,8 +256,9 @@ impl Widget for ElementScannerToolbarView {
                 let button_start_scan = user_interface.add_sized(
                     button_size,
                     Button::new_from_theme(theme)
+                        .disabled(!has_opened_process)
                         .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Start scan."),
+                        .with_tooltip_text(start_scan_tooltip),
                 );
                 IconDraw::draw(user_interface, button_start_scan.rect, &theme.icon_library.icon_handle_navigation_right_arrow);
 

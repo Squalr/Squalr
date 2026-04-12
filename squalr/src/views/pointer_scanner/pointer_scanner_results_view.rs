@@ -3,7 +3,7 @@ use crate::ui::draw::icon_draw::IconDraw;
 use crate::views::pointer_scanner::pointer_scanner_footer_view::PointerScannerFooterView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind};
 use squalr_engine_api::{commands::unprivileged_command_request::UnprivilegedCommandRequest, dependency_injection::dependency::Dependency};
 use std::sync::Arc;
@@ -276,8 +276,20 @@ impl Widget for PointerScannerResultsView {
         let mut new_value_splitter_ratio = None;
         let mut new_resolved_splitter_ratio = None;
 
-        let response = user_interface
-            .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+        let (results_rectangle, response) =
+            user_interface.allocate_exact_size(user_interface.available_size(), Sense::click());
+        let mut results_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(results_rectangle)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        results_user_interface.set_clip_rect(results_rectangle);
+
+        results_user_interface
+            .painter()
+            .rect_filled(results_rectangle, CornerRadius::ZERO, theme.background_panel);
+
+        results_user_interface.allocate_ui_with_layout(results_user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let allocate_resize_bar = |user_interface: &mut Ui, resize_rectangle: Rect, id_suffix: &str| -> Response {
                     let id = user_interface.id().with(id_suffix);
                     let response = user_interface.interact(resize_rectangle, id, Sense::drag());
@@ -313,10 +325,6 @@ impl Widget for PointerScannerResultsView {
                         PointerScannerViewData::DEFAULT_RESOLVED_SPLITTER_RATIO,
                     ),
                 };
-
-                user_interface
-                    .painter()
-                    .rect_filled(user_interface.max_rect(), CornerRadius::ZERO, theme.background_panel);
 
                 if content_width <= 0.0 {
                     return;
@@ -446,8 +454,7 @@ impl Widget for PointerScannerResultsView {
 
                     new_resolved_splitter_ratio = Some((new_resolved_splitter_position_x - content_min_x) / content_width);
                 }
-            })
-            .response;
+            });
 
         if new_primary_splitter_ratio.is_some() || new_value_splitter_ratio.is_some() || new_resolved_splitter_ratio.is_some() {
             if let Some(mut pointer_scanner_view_data) = self
