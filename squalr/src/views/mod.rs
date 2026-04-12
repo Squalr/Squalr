@@ -9,3 +9,4 @@ pub mod process_selector;
 pub mod project_explorer;
 pub mod settings;
 pub mod struct_viewer;
+pub mod symbol_explorer;

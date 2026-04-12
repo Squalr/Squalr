@@ -17,6 +17,7 @@ use crate::views::process_selector::view_data::process_selector_view_data::Proce
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
+use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
@@ -106,6 +107,15 @@ impl MainWindowView {
             Rc::new("window_project_explorer".to_string()),
         );
 
+        let app_context_for_symbol_explorer = app_context.clone();
+        let symbol_explorer_view = DockedWindowView::new(
+            app_context_for_symbol_explorer.clone(),
+            dock_view_data.clone(),
+            SymbolExplorerView::new(app_context_for_symbol_explorer.clone()),
+            Rc::new("Symbol Explorer".to_string()),
+            Rc::new(SymbolExplorerView::WINDOW_ID.to_string()),
+        );
+
         let app_context_for_process_selector = app_context.clone();
         let process_selector_view = DockedWindowView::new(
             app_context_for_process_selector.clone(),
@@ -149,6 +159,7 @@ impl MainWindowView {
             Box::new(memory_viewer_view),
             Box::new(code_viewer_view),
             Box::new(project_explorer_view),
+            Box::new(symbol_explorer_view),
             Box::new(process_selector_view),
             Box::new(element_scanner_view),
             Box::new(pointer_scanner_view),

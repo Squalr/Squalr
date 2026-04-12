@@ -1,9 +1,6 @@
 use crate::structures::{
-    data_types::{
-        built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64},
-        data_type_ref::DataTypeRef,
-    },
-    data_values::container_type::ContainerType,
+    data_types::data_type_ref::DataTypeRef,
+    data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
     structs::{
         symbol_resolver::SymbolResolver,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
@@ -50,45 +47,40 @@ impl SymbolicFieldDefinition {
         symbol_registry: &impl SymbolResolver,
         is_read_only: bool,
     ) -> ValuedStructField {
-        let field_data = match self.container_type {
-            ContainerType::None => {
-                let default_value = symbol_registry
-                    .get_default_value(&self.data_type_ref)
-                    .unwrap_or_default();
+        let field_data = if let Some(pointer_size) = self.container_type.get_pointer_size() {
+            let default_value = symbol_registry
+                .get_default_value(&pointer_size.to_data_type_ref())
+                .unwrap_or_default();
 
-                ValuedStructFieldData::Value(default_value)
-            }
-            ContainerType::Pointer32 => {
-                let default_value = symbol_registry
-                    .get_default_value(&DataTypeRef::new(DataTypeU32::DATA_TYPE_ID))
-                    .unwrap_or_default();
+            ValuedStructFieldData::Value(default_value)
+        } else {
+            match self.container_type {
+                ContainerType::None => {
+                    let default_value = symbol_registry
+                        .get_default_value(&self.data_type_ref)
+                        .unwrap_or_default();
 
-                ValuedStructFieldData::Value(default_value)
-            }
-            ContainerType::Pointer64 => {
-                let default_value = symbol_registry
-                    .get_default_value(&DataTypeRef::new(DataTypeU64::DATA_TYPE_ID))
-                    .unwrap_or_default();
+                    ValuedStructFieldData::Value(default_value)
+                }
+                ContainerType::Array => {
+                    let array_value = symbol_registry
+                        .get_default_value(&self.data_type_ref)
+                        .unwrap_or_default();
 
-                ValuedStructFieldData::Value(default_value)
-            }
-            ContainerType::Array => {
-                let array_value = symbol_registry
-                    .get_default_value(&self.data_type_ref)
-                    .unwrap_or_default();
+                    ValuedStructFieldData::Value(array_value)
+                }
+                ContainerType::ArrayFixed(length) => {
+                    let mut array_value = symbol_registry
+                        .get_default_value(&self.data_type_ref)
+                        .unwrap_or_default();
+                    let default_bytes = array_value.get_value_bytes();
+                    let repeated_bytes = default_bytes.repeat(length as usize);
 
-                ValuedStructFieldData::Value(array_value)
-            }
-            ContainerType::ArrayFixed(length) => {
-                let mut array_value = symbol_registry
-                    .get_default_value(&self.data_type_ref)
-                    .unwrap_or_default();
-                let default_bytes = array_value.get_value_bytes();
-                let repeated_bytes = default_bytes.repeat(length as usize);
+                    array_value.copy_from_bytes(&repeated_bytes);
 
-                array_value.copy_from_bytes(&repeated_bytes);
-
-                ValuedStructFieldData::Value(array_value)
+                    ValuedStructFieldData::Value(array_value)
+                }
+                ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => ValuedStructFieldData::Value(Default::default()),
             }
         };
 
@@ -101,13 +93,7 @@ impl SymbolicFieldDefinition {
     ) -> u64 {
         let unit_size_in_bytes = symbol_registry.get_unit_size_in_bytes(&self.data_type_ref);
 
-        match self.container_type {
-            ContainerType::None => unit_size_in_bytes,
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            ContainerType::Array => unit_size_in_bytes,
-            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length),
-        }
+        self.container_type.get_total_size_in_bytes(unit_size_in_bytes)
     }
 
     pub fn get_data_type_ref(&self) -> &DataTypeRef {
@@ -140,7 +126,6 @@ impl FromStr for SymbolicFieldDefinition {
             (String::new(), trimmed_string)
         };
 
-        // Determine container type based on string suffix.
         let (type_str, container_type) = if let Some(open_idx) = type_and_container_string.find('[') {
             if let Some(close_idx) = type_and_container_string
                 .strip_suffix(']')
@@ -150,10 +135,8 @@ impl FromStr for SymbolicFieldDefinition {
                 let len_part = type_and_container_string[open_idx + 1..close_idx].trim();
 
                 if len_part.is_empty() {
-                    // Arbitrary array: [].
                     (type_part, ContainerType::Array)
                 } else {
-                    // Fixed array: [length].
                     let array_length = len_part
                         .parse::<u64>()
                         .map_err(|error| format!("Invalid array length '{}': {}", len_part, error))?;
@@ -163,12 +146,17 @@ impl FromStr for SymbolicFieldDefinition {
             } else {
                 return Err("Missing closing ']' in array type".into());
             }
-        } else if let Some(stripped) = type_and_container_string.strip_suffix("*(32)") {
-            (stripped, ContainerType::Pointer32)
-        } else if let Some(stripped) = type_and_container_string.strip_suffix("*(64)") {
-            (stripped, ContainerType::Pointer64)
+        } else if type_and_container_string.ends_with(')') {
+            if let Some(pointer_marker_index) = type_and_container_string.rfind("*(") {
+                let type_part = type_and_container_string[..pointer_marker_index].trim();
+                let container_type = ContainerType::from_str(&type_and_container_string[pointer_marker_index..])?;
+
+                (type_part, container_type)
+            } else {
+                (type_and_container_string, ContainerType::None)
+            }
         } else if let Some(stripped) = type_and_container_string.strip_suffix('*') {
-            (stripped, ContainerType::Pointer64)
+            (stripped, ContainerType::from_pointer_size(PointerScanPointerSize::Pointer64))
         } else {
             (type_and_container_string, ContainerType::None)
         };
@@ -200,7 +188,10 @@ impl fmt::Display for SymbolicFieldDefinition {
 mod tests {
     use super::SymbolicFieldDefinition;
     use crate::registries::symbols::symbol_registry::SymbolRegistry;
-    use crate::structures::{data_types::data_type_ref::DataTypeRef, data_values::container_type::ContainerType};
+    use crate::structures::{
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
+    };
     use serde_json::json;
     use std::str::FromStr;
 
@@ -227,6 +218,18 @@ mod tests {
         assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("u32"));
         assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::None);
         assert_eq!(symbolic_field_definition.to_string(), "health:u32");
+    }
+
+    #[test]
+    fn parse_extended_pointer_container_round_trips() {
+        let symbolic_field_definition =
+            SymbolicFieldDefinition::from_str("ptr:u8*(u24be)").expect("Expected extended pointer symbolic field definition to parse.");
+
+        assert_eq!(
+            symbolic_field_definition.get_container_type(),
+            ContainerType::Pointer(PointerScanPointerSize::Pointer24be)
+        );
+        assert_eq!(symbolic_field_definition.to_string(), "ptr:u8*(u24be)");
     }
 
     #[test]

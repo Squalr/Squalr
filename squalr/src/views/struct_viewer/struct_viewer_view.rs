@@ -224,21 +224,16 @@ impl StructViewerView {
         engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
         symbolic_field_definition: &SymbolicFieldDefinition,
     ) -> Option<u64> {
-        let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            _ => engine_unprivileged_state
-                .get_default_value(symbolic_field_definition.get_data_type_ref())?
-                .get_size_in_bytes(),
-        };
+        let unit_size_in_bytes = engine_unprivileged_state
+            .get_default_value(symbolic_field_definition.get_data_type_ref())
+            .map(|default_value| default_value.get_size_in_bytes())
+            .unwrap_or(1);
 
-        Some(match symbolic_field_definition.get_container_type() {
-            ContainerType::None => unit_size_in_bytes,
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            ContainerType::Array => unit_size_in_bytes,
-            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length.max(1)),
-        })
+        Some(
+            symbolic_field_definition
+                .get_container_type()
+                .get_total_size_in_bytes(unit_size_in_bytes),
+        )
     }
 
     fn focus_memory_viewer_for_address_range(

@@ -102,7 +102,10 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
-        projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog},
+        projects::{
+            project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_root_symbol::ProjectRootSymbol,
+            project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog,
+        },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
     use std::fs;
@@ -156,6 +159,67 @@ mod tests {
                 .get_fields()[0]
                 .get_field_name(),
             "value"
+        );
+    }
+
+    #[test]
+    fn project_info_round_trip_preserves_rooted_symbols() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_file_path = temp_directory.path().join(Project::PROJECT_FILE);
+        let mut project_info = ProjectInfo::new_with_symbol_catalog(
+            project_file_path,
+            None,
+            ProjectManifest::default(),
+            ProjectSymbolCatalog::new_with_rooted_symbols(
+                vec![StructLayoutDescriptor::new(
+                    String::from("player.stats"),
+                    SymbolicStructDefinition::new(
+                        String::from("player.stats"),
+                        vec![SymbolicFieldDefinition::new_named(
+                            String::from("health"),
+                            DataTypeRef::new("u32"),
+                            ContainerType::None,
+                        )],
+                    ),
+                )],
+                vec![
+                    ProjectRootSymbol::new_module_offset(
+                        String::from("sym.player.stats"),
+                        String::from("Player Stats"),
+                        String::from("game.exe"),
+                        0x1234,
+                        String::from("player.stats"),
+                    ),
+                    ProjectRootSymbol::new(
+                        String::from("sym.player.absolute"),
+                        String::from("Player Absolute"),
+                        ProjectRootSymbolLocator::new_absolute_address(0x8877_6655),
+                        String::from("player.stats"),
+                    ),
+                ],
+            ),
+        );
+
+        project_info
+            .save_to_path(temp_directory.path(), true)
+            .expect("Expected project info to save.");
+
+        let loaded_project_info = ProjectInfo::load_from_path(&temp_directory.path().join(Project::PROJECT_FILE)).expect("Expected project info to load.");
+        let rooted_symbols = loaded_project_info
+            .get_project_symbol_catalog()
+            .get_rooted_symbols();
+
+        assert_eq!(rooted_symbols.len(), 2);
+        assert_eq!(rooted_symbols[0].get_symbol_key(), "sym.player.stats");
+        assert_eq!(rooted_symbols[0].get_display_name(), "Player Stats");
+        assert_eq!(rooted_symbols[0].get_struct_layout_id(), "player.stats");
+        assert_eq!(
+            rooted_symbols[0].get_root_locator(),
+            &ProjectRootSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
+        );
+        assert_eq!(
+            rooted_symbols[1].get_root_locator(),
+            &ProjectRootSymbolLocator::new_absolute_address(0x8877_6655)
         );
     }
 
