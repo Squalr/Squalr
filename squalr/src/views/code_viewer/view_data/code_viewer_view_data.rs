@@ -6,6 +6,7 @@ use squalr_engine_api::{
         project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     },
     dependency_injection::dependency::Dependency,
+    plugins::instruction_set::InstructionSet,
     plugins::memory_view::PageRetrievalMode,
     structures::{
         data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
@@ -50,6 +51,33 @@ struct CodeViewerInstructionSelectionRange {
     active_instruction_address: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CodeViewerInstructionWritePlan {
+    pub start_address: u64,
+    pub written_bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum CodeViewerInstructionEditStatus {
+    Invalid(String),
+    PendingFillWithNops { assembled_bytes: Vec<u8>, remaining_byte_count: usize },
+    PendingOverwrite { assembled_bytes: Vec<u8>, overwritten_byte_count: usize },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CodeViewerInstructionEditState {
+    pub start_address: u64,
+    pub end_address_exclusive: u64,
+    pub edit_text: String,
+    pub status: Option<CodeViewerInstructionEditStatus>,
+}
+
+impl CodeViewerInstructionEditState {
+    fn original_byte_count(&self) -> usize {
+        self.end_address_exclusive.saturating_sub(self.start_address) as usize
+    }
+}
+
 #[derive(Clone)]
 pub struct CodeViewerViewData {
     pub virtual_pages: Vec<NormalizedRegion>,
@@ -72,6 +100,7 @@ pub struct CodeViewerViewData {
     breakpoint_addresses: HashSet<u64>,
     context_menu_address: Option<u64>,
     context_menu_position: Option<Pos2>,
+    instruction_edit_state: Option<CodeViewerInstructionEditState>,
     pub go_to_address_input: AnonymousValueString,
     has_keyboard_focus: bool,
 }
@@ -146,6 +175,7 @@ impl CodeViewerViewData {
             breakpoint_addresses: HashSet::new(),
             context_menu_address: None,
             context_menu_position: None,
+            instruction_edit_state: None,
             go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
             has_keyboard_focus: false,
         }
@@ -609,6 +639,198 @@ impl CodeViewerViewData {
         Some((code_viewer_view_data.context_menu_address?, code_viewer_view_data.context_menu_position?))
     }
 
+    pub fn request_instruction_edit(
+        code_viewer_view_data: Dependency<Self>,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer request instruction edit") else {
+            return;
+        };
+        let Some((selection_start_index, selection_end_index)) =
+            code_viewer_view_data.resolve_instruction_edit_index_range(instruction_address, instruction_lines)
+        else {
+            return;
+        };
+        let instruction_slice = &instruction_lines[selection_start_index..=selection_end_index];
+        let Some(first_instruction) = instruction_slice.first() else {
+            return;
+        };
+        let Some(last_instruction) = instruction_slice.last() else {
+            return;
+        };
+        let edit_text = instruction_slice
+            .iter()
+            .map(|instruction_line| instruction_line.text.clone())
+            .collect::<Vec<_>>()
+            .join("; ");
+
+        code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+            anchor_instruction_address: first_instruction.address,
+            active_instruction_address: last_instruction.address,
+        });
+        code_viewer_view_data.instruction_edit_state = Some(CodeViewerInstructionEditState {
+            start_address: first_instruction.address,
+            end_address_exclusive: last_instruction
+                .address
+                .saturating_add((last_instruction.length as u64).max(1)),
+            edit_text,
+            status: None,
+        });
+        code_viewer_view_data.context_menu_address = None;
+        code_viewer_view_data.context_menu_position = None;
+        code_viewer_view_data.has_keyboard_focus = true;
+    }
+
+    pub(crate) fn get_instruction_edit_state(code_viewer_view_data: Dependency<Self>) -> Option<CodeViewerInstructionEditState> {
+        code_viewer_view_data
+            .read("Code viewer instruction edit state")
+            .and_then(|code_viewer_view_data| code_viewer_view_data.instruction_edit_state.clone())
+    }
+
+    pub fn set_instruction_edit_text(
+        code_viewer_view_data: Dependency<Self>,
+        edit_text: String,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer set instruction edit text") {
+            if let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() {
+                instruction_edit_state.edit_text = edit_text;
+                instruction_edit_state.status = None;
+            }
+        }
+    }
+
+    pub fn cancel_instruction_edit(code_viewer_view_data: Dependency<Self>) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer cancel instruction edit") {
+            code_viewer_view_data.instruction_edit_state = None;
+        }
+    }
+
+    pub(crate) fn evaluate_instruction_edit_commit(
+        code_viewer_view_data: Dependency<Self>,
+        process_bitness: Option<Bitness>,
+    ) -> Option<CodeViewerInstructionWritePlan> {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer evaluate instruction edit commit") else {
+            return None;
+        };
+        let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
+            return None;
+        };
+        let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
+        let assembled_bytes = match instruction_set.assemble(instruction_edit_state.edit_text.trim()) {
+            Ok(assembled_bytes) => assembled_bytes,
+            Err(error) => {
+                instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(error));
+                return None;
+            }
+        };
+        let original_byte_count = instruction_edit_state.original_byte_count();
+
+        if assembled_bytes.len() == original_byte_count {
+            instruction_edit_state.status = None;
+
+            return Some(CodeViewerInstructionWritePlan {
+                start_address: instruction_edit_state.start_address,
+                written_bytes: assembled_bytes,
+            });
+        }
+
+        if assembled_bytes.len() < original_byte_count {
+            let remaining_byte_count = original_byte_count.saturating_sub(assembled_bytes.len());
+            instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::PendingFillWithNops {
+                assembled_bytes,
+                remaining_byte_count,
+            });
+
+            return None;
+        }
+
+        instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+            overwritten_byte_count: assembled_bytes.len().saturating_sub(original_byte_count),
+            assembled_bytes,
+        });
+
+        None
+    }
+
+    pub(crate) fn accept_instruction_edit_pending_fill_with_nops(
+        code_viewer_view_data: Dependency<Self>,
+        process_bitness: Option<Bitness>,
+    ) -> Option<CodeViewerInstructionWritePlan> {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer accept instruction fill with nops") else {
+            return None;
+        };
+        let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
+            return None;
+        };
+        let Some(CodeViewerInstructionEditStatus::PendingFillWithNops {
+            assembled_bytes,
+            remaining_byte_count,
+        }) = instruction_edit_state.status.clone()
+        else {
+            return None;
+        };
+        let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
+        let nop_fill_bytes = match instruction_set.build_no_operation_fill(remaining_byte_count) {
+            Ok(nop_fill_bytes) => nop_fill_bytes,
+            Err(error) => {
+                instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(error));
+                return None;
+            }
+        };
+        let mut written_bytes = assembled_bytes;
+        written_bytes.extend_from_slice(&nop_fill_bytes);
+        instruction_edit_state.status = None;
+
+        Some(CodeViewerInstructionWritePlan {
+            start_address: instruction_edit_state.start_address,
+            written_bytes,
+        })
+    }
+
+    pub(crate) fn accept_instruction_edit_pending_overwrite(code_viewer_view_data: Dependency<Self>) -> Option<CodeViewerInstructionWritePlan> {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer accept instruction overwrite") else {
+            return None;
+        };
+        let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() else {
+            return None;
+        };
+        let Some(CodeViewerInstructionEditStatus::PendingOverwrite { assembled_bytes, .. }) = instruction_edit_state.status.clone() else {
+            return None;
+        };
+        instruction_edit_state.status = None;
+
+        Some(CodeViewerInstructionWritePlan {
+            start_address: instruction_edit_state.start_address,
+            written_bytes: assembled_bytes,
+        })
+    }
+
+    pub fn finish_instruction_write(
+        code_viewer_view_data: Dependency<Self>,
+        write_start_address: u64,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer finish instruction write") {
+            code_viewer_view_data.instruction_edit_state = None;
+            code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
+                anchor_instruction_address: write_start_address,
+                active_instruction_address: write_start_address,
+            });
+            code_viewer_view_data.pending_scroll_address = Some(write_start_address);
+        }
+    }
+
+    pub fn set_instruction_edit_error(
+        code_viewer_view_data: Dependency<Self>,
+        error: String,
+    ) {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer set instruction edit error") {
+            if let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() {
+                instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(error));
+            }
+        }
+    }
+
     pub fn build_instruction_project_item_create_request(
         code_viewer_view_data: Dependency<Self>,
         absolute_address: u64,
@@ -626,10 +848,7 @@ impl CodeViewerViewData {
                     .map(|instruction_line| (instruction_line.address, (instruction_line.length as u64).max(1)))
             })?;
         let (project_item_address, project_item_module_name) = code_viewer_view_data.resolve_project_item_address(selection_start_address);
-        let instruction_data_type_id = match process_bitness.unwrap_or(Bitness::Bit64) {
-            Bitness::Bit32 => "i_x86",
-            Bitness::Bit64 => "i_x64",
-        };
+        let instruction_data_type_id = Self::instruction_data_type_id_for_process_bitness(process_bitness);
         let resolved_data_type_id = if selected_byte_count > 1 {
             format!("{}[{}]", instruction_data_type_id, selected_byte_count)
         } else {
@@ -672,6 +891,7 @@ impl CodeViewerViewData {
         if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer clear selection") {
             code_viewer_view_data.selected_instruction_range = None;
             code_viewer_view_data.pending_scroll_address = None;
+            code_viewer_view_data.instruction_edit_state = None;
         }
     }
 
@@ -767,6 +987,41 @@ impl CodeViewerViewData {
         Some((first_selected_instruction.address, selected_byte_count))
     }
 
+    fn resolve_instruction_edit_index_range(
+        &self,
+        instruction_address: u64,
+        instruction_lines: &[DisassembledInstruction],
+    ) -> Option<(usize, usize)> {
+        let target_instruction_index = instruction_lines
+            .iter()
+            .position(|instruction_line| instruction_line.address == instruction_address)?;
+
+        let Some((selection_start_index, selection_end_index)) = self.resolve_selected_instruction_index_range(instruction_lines) else {
+            return Some((target_instruction_index, target_instruction_index));
+        };
+        let selected_instruction_addresses = self.resolve_selected_instruction_addresses(instruction_lines);
+
+        if selected_instruction_addresses.contains(&instruction_address) {
+            Some((selection_start_index, selection_end_index))
+        } else {
+            Some((target_instruction_index, target_instruction_index))
+        }
+    }
+
+    fn instruction_data_type_id_for_process_bitness(process_bitness: Option<Bitness>) -> &'static str {
+        match process_bitness.unwrap_or(Bitness::Bit64) {
+            Bitness::Bit32 => "i_x86",
+            Bitness::Bit64 => "i_x64",
+        }
+    }
+
+    fn create_instruction_set_for_process_bitness(process_bitness: Option<Bitness>) -> Box<dyn InstructionSet> {
+        match process_bitness.unwrap_or(Bitness::Bit64) {
+            Bitness::Bit32 => Box::new(X86InstructionSet::new()),
+            Bitness::Bit64 => Box::new(X64InstructionSet::new()),
+        }
+    }
+
     fn set_page_index(
         code_viewer_view_data: Dependency<Self>,
         new_page_index: u64,
@@ -781,6 +1036,7 @@ impl CodeViewerViewData {
             if let Some(current_page) = current_page {
                 code_viewer_view_data.viewport_start_address = Some(current_page.get_base_address());
                 code_viewer_view_data.selected_instruction_range = None;
+                code_viewer_view_data.instruction_edit_state = None;
                 code_viewer_view_data.pending_scroll_address = Some(current_page.get_base_address());
                 code_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
                     &code_viewer_view_data.modules,
@@ -788,6 +1044,52 @@ impl CodeViewerViewData {
                     Some(&current_page),
                     code_viewer_view_data.viewport_start_address,
                 );
+            }
+        }
+    }
+
+    pub fn apply_memory_write(
+        code_viewer_view_data: Dependency<Self>,
+        write_start_address: u64,
+        written_bytes: &[u8],
+    ) {
+        let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer apply memory write") else {
+            return;
+        };
+        let Some(current_page) = code_viewer_view_data
+            .virtual_pages
+            .get(code_viewer_view_data.current_page_index as usize)
+            .cloned()
+        else {
+            return;
+        };
+        let current_page_base_address = current_page.get_base_address();
+        let current_page_end_address = current_page.get_end_address();
+
+        for (written_byte_index, written_byte) in written_bytes.iter().enumerate() {
+            let written_byte_address = write_start_address.saturating_add(written_byte_index as u64);
+
+            if written_byte_address < current_page_base_address || written_byte_address >= current_page_end_address {
+                continue;
+            }
+
+            let byte_offset = written_byte_address.saturating_sub(current_page_base_address);
+            let chunk_offset = byte_offset - (byte_offset % Self::QUERY_CHUNK_SIZE_IN_BYTES);
+            let chunk_local_index = byte_offset.saturating_sub(chunk_offset) as usize;
+            let chunk_length = current_page
+                .get_region_size()
+                .saturating_sub(chunk_offset)
+                .min(Self::QUERY_CHUNK_SIZE_IN_BYTES) as usize;
+            let chunk_bytes = code_viewer_view_data
+                .page_caches_by_base_address
+                .entry(current_page_base_address)
+                .or_default()
+                .cached_chunks
+                .entry(chunk_offset)
+                .or_insert_with(|| vec![0; chunk_length]);
+
+            if chunk_local_index < chunk_bytes.len() {
+                chunk_bytes[chunk_local_index] = *written_byte;
             }
         }
     }
@@ -965,6 +1267,7 @@ impl CodeViewerViewData {
             anchor_instruction_address: resolved_address,
             active_instruction_address: resolved_address,
         });
+        self.instruction_edit_state = None;
         self.pending_scroll_address = Some(resolved_address);
         self.pending_focus_request = None;
         self.has_keyboard_focus = true;
@@ -993,6 +1296,7 @@ impl CodeViewerViewData {
             anchor_instruction_address: resolved_address,
             active_instruction_address: resolved_address,
         });
+        self.instruction_edit_state = None;
         self.pending_scroll_address = Some(resolved_address);
         self.has_keyboard_focus = true;
 
@@ -1165,10 +1469,10 @@ fn parse_address_text(address_text: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::CodeViewerViewData;
+    use super::{CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerViewData};
     use squalr_engine_api::{
         dependency_injection::dependency_container::DependencyContainer,
-        structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        structures::memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
     };
 
     #[test]
@@ -1376,5 +1680,127 @@ mod tests {
         assert_eq!(create_request.address, Some(0x4));
         assert_eq!(create_request.module_name.as_deref(), Some("winmine.exe"));
         assert_eq!(create_request.data_type_id.as_deref(), Some("i_x86[7]"));
+    }
+
+    #[test]
+    fn request_instruction_edit_uses_selected_instruction_span() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+        let instruction_lines = vec![
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4010,
+                length: 1,
+                bytes: vec![0x90],
+                text: String::from("nop"),
+                branch_target_address: None,
+                is_control_flow: false,
+            },
+            squalr_plugin_instructions_x86::DisassembledInstruction {
+                address: 0x4011,
+                length: 1,
+                bytes: vec![0xC3],
+                text: String::from("ret"),
+                branch_target_address: None,
+                is_control_flow: true,
+            },
+        ];
+
+        CodeViewerViewData::select_instruction_address(code_viewer_view_data.clone(), 0x4010);
+        CodeViewerViewData::extend_instruction_selection(code_viewer_view_data.clone(), 0x4011);
+        CodeViewerViewData::request_instruction_edit(code_viewer_view_data.clone(), 0x4011, &instruction_lines);
+
+        let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data.clone()).expect("Expected instruction edit state.");
+        assert_eq!(instruction_edit_state.start_address, 0x4010);
+        assert_eq!(instruction_edit_state.end_address_exclusive, 0x4012);
+        assert_eq!(instruction_edit_state.edit_text, String::from("nop; ret"));
+    }
+
+    #[test]
+    fn evaluate_instruction_edit_commit_returns_exact_write_plan() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+
+        if let Some(mut code_viewer_view_data_guard) = code_viewer_view_data.write("Test code viewer exact instruction edit") {
+            code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
+                start_address: 0x5000,
+                end_address_exclusive: 0x5001,
+                edit_text: String::from("push eax"),
+                status: None,
+            });
+        }
+
+        let instruction_write_plan = CodeViewerViewData::evaluate_instruction_edit_commit(code_viewer_view_data.clone(), Some(Bitness::Bit32))
+            .expect("Expected exact instruction write plan.");
+
+        assert_eq!(instruction_write_plan.start_address, 0x5000);
+        assert_eq!(instruction_write_plan.written_bytes, vec![0x50]);
+        assert_eq!(
+            CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data.clone()).and_then(|instruction_edit_state| instruction_edit_state.status),
+            None
+        );
+    }
+
+    #[test]
+    fn evaluate_instruction_edit_commit_sets_pending_fill_with_nops() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+
+        if let Some(mut code_viewer_view_data_guard) = code_viewer_view_data.write("Test code viewer underfill instruction edit") {
+            code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
+                start_address: 0x5000,
+                end_address_exclusive: 0x5002,
+                edit_text: String::from("push eax"),
+                status: None,
+            });
+        }
+
+        assert!(CodeViewerViewData::evaluate_instruction_edit_commit(code_viewer_view_data.clone(), Some(Bitness::Bit32)).is_none());
+
+        let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data.clone()).expect("Expected instruction edit state.");
+
+        assert_eq!(
+            instruction_edit_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingFillWithNops {
+                assembled_bytes: vec![0x50],
+                remaining_byte_count: 1,
+            })
+        );
+
+        let instruction_write_plan = CodeViewerViewData::accept_instruction_edit_pending_fill_with_nops(code_viewer_view_data.clone(), Some(Bitness::Bit32))
+            .expect("Expected NOP-filled instruction write plan.");
+
+        assert_eq!(instruction_write_plan.written_bytes, vec![0x50, 0x90]);
+    }
+
+    #[test]
+    fn evaluate_instruction_edit_commit_sets_pending_overwrite() {
+        let dependency_container = DependencyContainer::new();
+        let code_viewer_view_data = dependency_container.register(CodeViewerViewData::new());
+
+        if let Some(mut code_viewer_view_data_guard) = code_viewer_view_data.write("Test code viewer overwrite instruction edit") {
+            code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
+                start_address: 0x5000,
+                end_address_exclusive: 0x5001,
+                edit_text: String::from("push eax; push eax"),
+                status: None,
+            });
+        }
+
+        assert!(CodeViewerViewData::evaluate_instruction_edit_commit(code_viewer_view_data.clone(), Some(Bitness::Bit32)).is_none());
+
+        let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data.clone()).expect("Expected instruction edit state.");
+
+        assert_eq!(
+            instruction_edit_state.status,
+            Some(CodeViewerInstructionEditStatus::PendingOverwrite {
+                assembled_bytes: vec![0x50, 0x50],
+                overwritten_byte_count: 1,
+            })
+        );
+
+        let instruction_write_plan =
+            CodeViewerViewData::accept_instruction_edit_pending_overwrite(code_viewer_view_data.clone()).expect("Expected overwrite instruction write plan.");
+
+        assert_eq!(instruction_write_plan.written_bytes, vec![0x50, 0x50]);
     }
 }

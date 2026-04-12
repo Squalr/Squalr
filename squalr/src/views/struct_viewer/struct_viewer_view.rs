@@ -4,6 +4,7 @@ use crate::views::struct_viewer::view_data::struct_viewer_frame_action::StructVi
 use crate::{
     app_context::AppContext,
     views::{
+        code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
         memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
         struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     },
@@ -30,6 +31,7 @@ use std::sync::Arc;
 pub struct StructViewerView {
     app_context: Arc<AppContext>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
+    code_viewer_view_data: Dependency<CodeViewerViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
 }
 
@@ -40,13 +42,18 @@ impl StructViewerView {
         let struct_viewer_view_data = app_context
             .dependency_container
             .register(StructViewerViewData::new());
+        let code_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<CodeViewerViewData>();
+        let memory_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<MemoryViewerViewData>();
 
         Self {
             app_context: app_context.clone(),
             struct_viewer_view_data,
-            memory_viewer_view_data: app_context
-                .dependency_container
-                .get_dependency::<MemoryViewerViewData>(),
+            code_viewer_view_data,
+            memory_viewer_view_data,
         }
     }
 
@@ -256,6 +263,32 @@ impl StructViewerView {
             Err(error) => {
                 log::error!(
                     "Failed to acquire docking manager while opening the memory viewer from the Struct Viewer: {}",
+                    error
+                );
+            }
+        }
+    }
+
+    fn focus_code_viewer_for_address(
+        &self,
+        address: u64,
+        module_name: &str,
+    ) {
+        CodeViewerViewData::request_focus_address(
+            self.code_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            address,
+            module_name.to_string(),
+        );
+
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(CodeViewerView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(CodeViewerView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!(
+                    "Failed to acquire docking manager while opening the code viewer from the Struct Viewer: {}",
                     error
                 );
             }
@@ -487,6 +520,13 @@ impl Widget for StructViewerView {
                     self.focus_memory_viewer_for_address_range(address, &module_name, selection_byte_count);
                 } else {
                     log::warn!("Failed to resolve Struct Viewer memory viewer target for field: {}.", field_name);
+                }
+            }
+            StructViewerFrameAction::OpenInCodeViewer(field_name) => {
+                if let Some((address, module_name, _selection_byte_count)) = self.resolve_memory_viewer_target_for_field(&field_name) {
+                    self.focus_code_viewer_for_address(address, &module_name);
+                } else {
+                    log::warn!("Failed to resolve Struct Viewer code viewer target for field: {}.", field_name);
                 }
             }
         }

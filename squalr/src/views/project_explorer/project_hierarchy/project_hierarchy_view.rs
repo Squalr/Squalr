@@ -4,6 +4,7 @@ use crate::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
         widgets::controls::{context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
     },
+    views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
     views::project_explorer::project_hierarchy::{
@@ -33,6 +34,7 @@ use squalr_engine_api::commands::settings::scan::list::scan_settings_list_reques
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::memory::pointer::Pointer;
@@ -62,6 +64,7 @@ pub struct ProjectHierarchyView {
     app_context: Arc<AppContext>,
     project_hierarchy_toolbar_view: ProjectHierarchyToolbarView,
     project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+    code_viewer_view_data: Dependency<CodeViewerViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     pointer_scanner_view_data: Dependency<PointerScannerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
@@ -110,6 +113,9 @@ impl ProjectHierarchyView {
         let memory_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<MemoryViewerViewData>();
+        let code_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<CodeViewerViewData>();
         let pointer_scanner_view_data = app_context
             .dependency_container
             .get_dependency::<PointerScannerViewData>();
@@ -119,6 +125,7 @@ impl ProjectHierarchyView {
             app_context,
             project_hierarchy_toolbar_view,
             project_hierarchy_view_data,
+            code_viewer_view_data,
             memory_viewer_view_data,
             pointer_scanner_view_data,
             struct_viewer_view_data,
@@ -144,7 +151,8 @@ mod tests {
     use squalr_engine_api::structures::data_types::built_in_types::{
         u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64 as DataTypeU64Pointer,
     };
-    use squalr_engine_api::structures::data_values::container_type::ContainerType;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::{container_type::ContainerType, data_value::DataValue};
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -505,6 +513,21 @@ mod tests {
         let resolved_pointer_target = ProjectHierarchyView::resolve_pointer_scanner_context_action(&engine_execution_context, &resolved_pointer_action);
 
         assert_eq!(resolved_pointer_target, Some((0x2FF0, String::new(), "u16".to_string())));
+    }
+
+    #[test]
+    fn should_open_project_item_in_code_viewer_returns_true_for_instruction_data_type() {
+        let project_item =
+            ProjectItemTypeAddress::new_project_item("Patch", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x86[2]"), vec![0x90, 0x90]));
+
+        assert!(ProjectHierarchyView::should_open_project_item_in_code_viewer(&project_item));
+    }
+
+    #[test]
+    fn should_open_project_item_in_code_viewer_returns_false_for_plain_numeric_data_type() {
+        let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+
+        assert!(!ProjectHierarchyView::should_open_project_item_in_code_viewer(&project_item));
     }
 
     #[test]
@@ -901,13 +924,19 @@ impl Widget for ProjectHierarchyView {
                                                     }
                                                 }
 
+                                                let runtime_viewer_label = if Self::should_open_project_item_in_code_viewer(&tree_entry.project_item) {
+                                                    "Open in Code Viewer"
+                                                } else {
+                                                    "Open in Memory Viewer"
+                                                };
+
                                                 if user_interface
                                                     .add_enabled(
                                                         can_open_in_memory_viewer,
                                                         ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
-                                                            "Open in Memory Viewer",
-                                                            "project_hierarchy_ctx_open_memory_viewer",
+                                                            runtime_viewer_label,
+                                                            "project_hierarchy_ctx_open_runtime_viewer",
                                                             &None,
                                                             Self::PROJECT_ITEM_MENU_WIDTH,
                                                         ),
@@ -920,7 +949,9 @@ impl Widget for ProjectHierarchyView {
                                                     if let Some((address, module_name)) =
                                                         Self::resolve_project_item_runtime_value_target(&engine_execution_context, &tree_entry.project_item)
                                                     {
-                                                        project_hierarchy_frame_action =
+                                                        project_hierarchy_frame_action = if Self::should_open_project_item_in_code_viewer(&tree_entry.project_item) {
+                                                            ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
+                                                        } else {
                                                             ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
                                                                 address,
                                                                 module_name,
@@ -929,7 +960,8 @@ impl Widget for ProjectHierarchyView {
                                                                     &tree_entry.project_item,
                                                                 )
                                                                 .unwrap_or(1),
-                                                            };
+                                                            }
+                                                        };
                                                         *should_close = true;
                                                     } else {
                                                         log::error!(
@@ -1409,6 +1441,13 @@ impl Widget for ProjectHierarchyView {
                 }
 
                 self.focus_memory_viewer_for_address(address, &module_name, selection_byte_count);
+            }
+            ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name } => {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                self.focus_code_viewer_for_address(address, &module_name);
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_value_edit_take_over_active {
@@ -2277,6 +2316,36 @@ impl ProjectHierarchyView {
                 log::error!("Failed to acquire docking manager while opening the memory viewer: {}", error);
             }
         }
+    }
+
+    fn focus_code_viewer_for_address(
+        &self,
+        address: u64,
+        module_name: &str,
+    ) {
+        CodeViewerViewData::request_focus_address(
+            self.code_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            address,
+            module_name.to_string(),
+        );
+
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(CodeViewerView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(CodeViewerView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire docking manager while opening the code viewer: {}", error);
+            }
+        }
+    }
+
+    fn should_open_project_item_in_code_viewer(project_item: &ProjectItem) -> bool {
+        Self::resolve_project_item_symbolic_struct_namespace(project_item)
+            .and_then(|symbolic_struct_namespace| normalize_instruction_data_type_id(&symbolic_struct_namespace))
+            .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
+            .unwrap_or(false)
     }
 
     fn resolve_tree_entry_icon(

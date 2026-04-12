@@ -20,6 +20,7 @@ use crate::{
 };
 use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
+use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_types::data_type_ref::DataTypeRef,
@@ -306,25 +307,41 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 }
             }
             StructViewerFieldEditorKind::MemoryViewerButton => {
+                let opens_in_code_viewer = self
+                    .validation_data_type_ref
+                    .and_then(|data_type_ref: &DataTypeRef| normalize_instruction_data_type_id(data_type_ref.get_data_type_id()))
+                    .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
+                    .unwrap_or(false);
+                let viewer_button_label = if opens_in_code_viewer {
+                    "Edit in Code Viewer"
+                } else {
+                    "Edit in Memory Viewer"
+                };
+                let viewer_button_tooltip = if opens_in_code_viewer {
+                    "Open this value in the Code Viewer."
+                } else {
+                    "Open this value in the Memory Viewer."
+                };
                 let button_rect = Rect::from_min_size(
                     pos2(value_box_position_x, available_size_rect.min.y + value_column_padding),
                     vec2(value_box_width, available_size_rect.height() - value_column_padding * 2.0),
                 );
-                let button_response = user_interface.put(
-                    button_rect,
-                    Button::new_from_theme(theme).with_tooltip_text("Open this value in the Memory Viewer."),
-                );
+                let button_response = user_interface.put(button_rect, Button::new_from_theme(theme).with_tooltip_text(viewer_button_tooltip));
 
                 user_interface.painter().text(
                     button_response.rect.center(),
                     Align2::CENTER_CENTER,
-                    "Edit in Memory Viewer",
+                    viewer_button_label,
                     theme.font_library.font_noto_sans.font_normal.clone(),
                     theme.foreground,
                 );
 
                 if button_response.clicked() {
-                    *self.struct_viewer_frame_action = StructViewerFrameAction::OpenInMemoryViewer(self.valued_struct_field.get_name().to_string());
+                    *self.struct_viewer_frame_action = if opens_in_code_viewer {
+                        StructViewerFrameAction::OpenInCodeViewer(self.valued_struct_field.get_name().to_string())
+                    } else {
+                        StructViewerFrameAction::OpenInMemoryViewer(self.valued_struct_field.get_name().to_string())
+                    };
                 }
             }
             StructViewerFieldEditorKind::DataTypeSelector => {

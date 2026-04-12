@@ -8,16 +8,23 @@ use crate::{
         },
     },
     views::{
-        code_viewer::{code_viewer_footer_view::CodeViewerFooterView, view_data::code_viewer_view_data::CodeViewerViewData},
+        code_viewer::{
+            code_viewer_footer_view::CodeViewerFooterView,
+            view_data::code_viewer_view_data::{
+                CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerInstructionWritePlan, CodeViewerViewData,
+            },
+        },
         process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
         project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
     },
 };
 use eframe::egui::{
-    Align, Align2, Color32, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Color32, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, TextEdit, Ui, UiBuilder, Widget, pos2,
+    vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius};
 use squalr_engine_api::{
+    commands::privileged_command_request::PrivilegedCommandRequest,
     commands::unprivileged_command_request::UnprivilegedCommandRequest,
     dependency_injection::dependency::Dependency,
     events::process::changed::process_changed_event::ProcessChangedEvent,
@@ -47,6 +54,8 @@ impl CodeViewerView {
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
+    const EDITOR_ROW_HEIGHT: f32 = 30.0;
+    const EDIT_WARNING_ROW_HEIGHT: f32 = 26.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 118.0;
@@ -285,12 +294,40 @@ impl CodeViewerView {
         }
     }
 
+    fn dispatch_instruction_write(
+        &self,
+        instruction_write_plan: CodeViewerInstructionWritePlan,
+    ) {
+        let code_viewer_view_data = self.code_viewer_view_data.clone();
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
+        let engine_unprivileged_state_for_callback = engine_unprivileged_state.clone();
+        let written_bytes_for_refresh = instruction_write_plan.written_bytes.clone();
+        let write_start_address = instruction_write_plan.start_address;
+        let memory_write_request = squalr_engine_api::commands::memory::write::memory_write_request::MemoryWriteRequest {
+            address: write_start_address,
+            module_name: String::new(),
+            value: instruction_write_plan.written_bytes,
+        };
+
+        memory_write_request.send(&engine_unprivileged_state, move |memory_write_response| {
+            if memory_write_response.success {
+                CodeViewerViewData::apply_memory_write(code_viewer_view_data.clone(), write_start_address, &written_bytes_for_refresh);
+                CodeViewerViewData::finish_instruction_write(code_viewer_view_data.clone(), write_start_address);
+                engine_unprivileged_state_for_callback.request_virtual_snapshot_refresh(CodeViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
+            } else {
+                CodeViewerViewData::set_instruction_edit_error(code_viewer_view_data.clone(), String::from("Instruction write failed."));
+                log::warn!("Code viewer instruction write command failed.");
+            }
+        });
+    }
+
     fn render_instruction_row(
         &self,
         user_interface: &mut Ui,
         instruction_line: &DisassembledInstruction,
         selected_instruction_addresses: &HashSet<u64>,
         scroll_target_address: Option<u64>,
+        instruction_lines: &[DisassembledInstruction],
     ) -> Rect {
         let theme = &self.app_context.theme;
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click());
@@ -338,6 +375,10 @@ impl CodeViewerView {
             } else {
                 CodeViewerViewData::select_instruction_address(self.code_viewer_view_data.clone(), instruction_line.address);
             }
+        }
+
+        if row_response.double_clicked() {
+            CodeViewerViewData::request_instruction_edit(self.code_viewer_view_data.clone(), instruction_line.address, instruction_lines);
         }
 
         if row_response.secondary_clicked() {
@@ -401,6 +442,178 @@ impl CodeViewerView {
             );
 
         row_rect
+    }
+
+    fn render_instruction_edit_row(
+        &self,
+        user_interface: &mut Ui,
+        instruction_edit_state: &CodeViewerInstructionEditState,
+    ) {
+        let theme = &self.app_context.theme;
+        let (edit_row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::EDITOR_ROW_HEIGHT), Sense::hover());
+        let mut edit_row_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(edit_row_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+
+        Self::draw_selection_background(
+            &edit_row_user_interface,
+            edit_row_rect.shrink2(vec2(1.0, 1.0)),
+            theme.background_primary,
+            theme.selected_border,
+        );
+
+        edit_row_user_interface
+            .add_space(Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH + Self::ADDRESS_COLUMN_WIDTH + Self::BYTES_COLUMN_WIDTH + 6.0);
+
+        let mut edit_text = instruction_edit_state.edit_text.clone();
+        let text_edit_response = edit_row_user_interface.add_sized(
+            vec2((edit_row_user_interface.available_width() - 80.0).max(120.0), Self::TOOLBAR_ROW_HEIGHT),
+            TextEdit::singleline(&mut edit_text)
+                .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
+                .text_color(theme.foreground),
+        );
+
+        if edit_text != instruction_edit_state.edit_text {
+            CodeViewerViewData::set_instruction_edit_text(self.code_viewer_view_data.clone(), edit_text);
+        }
+
+        let should_commit_edit = text_edit_response.lost_focus() && edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Enter));
+        let should_cancel_edit = edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Escape));
+
+        let cancel_button = edit_row_user_interface.add_sized(
+            vec2(32.0, Self::TOOLBAR_ROW_HEIGHT),
+            Button::new_from_theme(theme)
+                .background_color(Color32::TRANSPARENT)
+                .with_tooltip_text("Cancel instruction edit."),
+        );
+        IconDraw::draw(&edit_row_user_interface, cancel_button.rect, &theme.icon_library.icon_handle_navigation_cancel);
+
+        let commit_button = edit_row_user_interface.add_sized(
+            vec2(32.0, Self::TOOLBAR_ROW_HEIGHT),
+            Button::new_from_theme(theme)
+                .background_color(Color32::TRANSPARENT)
+                .with_tooltip_text("Assemble and commit this instruction edit."),
+        );
+        IconDraw::draw(&edit_row_user_interface, commit_button.rect, &theme.icon_library.icon_handle_common_check_mark);
+
+        if cancel_button.clicked() || should_cancel_edit {
+            CodeViewerViewData::cancel_instruction_edit(self.code_viewer_view_data.clone());
+            return;
+        }
+
+        if commit_button.clicked() || should_commit_edit {
+            if let Some(instruction_write_plan) =
+                CodeViewerViewData::evaluate_instruction_edit_commit(self.code_viewer_view_data.clone(), self.get_process_bitness())
+            {
+                self.dispatch_instruction_write(instruction_write_plan);
+            }
+        }
+    }
+
+    fn render_instruction_edit_warning(
+        &self,
+        user_interface: &mut Ui,
+        instruction_edit_state: &CodeViewerInstructionEditState,
+    ) {
+        let Some(instruction_edit_status) = instruction_edit_state.status.as_ref() else {
+            return;
+        };
+        let theme = &self.app_context.theme;
+        let (warning_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::EDIT_WARNING_ROW_HEIGHT), Sense::hover());
+        let mut warning_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(warning_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        let warning_color = match instruction_edit_status {
+            CodeViewerInstructionEditStatus::Invalid(_) => theme.error_red,
+            CodeViewerInstructionEditStatus::PendingFillWithNops { .. } | CodeViewerInstructionEditStatus::PendingOverwrite { .. } => {
+                theme.background_control_warning
+            }
+        };
+
+        warning_user_interface.painter().rect_stroke(
+            warning_rect.shrink2(vec2(1.0, 1.0)),
+            CornerRadius::same(3),
+            Stroke::new(1.0, warning_color),
+            epaint::StrokeKind::Inside,
+        );
+        warning_user_interface
+            .add_space(Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH + Self::ADDRESS_COLUMN_WIDTH + Self::BYTES_COLUMN_WIDTH + 6.0);
+
+        match instruction_edit_status {
+            CodeViewerInstructionEditStatus::Invalid(error) => {
+                warning_user_interface.label(
+                    RichText::new(error)
+                        .font(theme.font_library.font_noto_sans.font_normal.clone())
+                        .color(theme.error_red),
+                );
+            }
+            CodeViewerInstructionEditStatus::PendingFillWithNops { remaining_byte_count, .. } => {
+                warning_user_interface.label(
+                    RichText::new(format!(
+                        "Replacement is {} byte(s) shorter. Fill the remainder with NOPs?",
+                        remaining_byte_count
+                    ))
+                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                    .color(theme.background_control_warning),
+                );
+                warning_user_interface.add_space(8.0);
+                let fill_button = warning_user_interface.add_sized(
+                    vec2(96.0, Self::TOOLBAR_ROW_HEIGHT - 2.0),
+                    Button::new_from_theme(theme)
+                        .background_color(Color32::TRANSPARENT)
+                        .with_tooltip_text("Write the replacement and pad the remaining bytes with no-operations."),
+                );
+                warning_user_interface.painter().text(
+                    fill_button.rect.center(),
+                    Align2::CENTER_CENTER,
+                    "Fill + Write",
+                    theme.font_library.font_noto_sans.font_normal.clone(),
+                    theme.foreground,
+                );
+
+                if fill_button.clicked() {
+                    if let Some(instruction_write_plan) =
+                        CodeViewerViewData::accept_instruction_edit_pending_fill_with_nops(self.code_viewer_view_data.clone(), self.get_process_bitness())
+                    {
+                        self.dispatch_instruction_write(instruction_write_plan);
+                    }
+                }
+            }
+            CodeViewerInstructionEditStatus::PendingOverwrite { overwritten_byte_count, .. } => {
+                warning_user_interface.label(
+                    RichText::new(format!(
+                        "Replacement is {} byte(s) longer and will overwrite the next instruction(s).",
+                        overwritten_byte_count
+                    ))
+                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                    .color(theme.background_control_warning),
+                );
+                warning_user_interface.add_space(8.0);
+                let overwrite_button = warning_user_interface.add_sized(
+                    vec2(92.0, Self::TOOLBAR_ROW_HEIGHT - 2.0),
+                    Button::new_from_theme(theme)
+                        .background_color(Color32::TRANSPARENT)
+                        .with_tooltip_text("Write the longer replacement and allow it to overwrite the following bytes."),
+                );
+                warning_user_interface.painter().text(
+                    overwrite_button.rect.center(),
+                    Align2::CENTER_CENTER,
+                    "Write Anyway",
+                    theme.font_library.font_noto_sans.font_normal.clone(),
+                    theme.foreground,
+                );
+
+                if overwrite_button.clicked() {
+                    if let Some(instruction_write_plan) = CodeViewerViewData::accept_instruction_edit_pending_overwrite(self.code_viewer_view_data.clone()) {
+                        self.dispatch_instruction_write(instruction_write_plan);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -537,7 +750,10 @@ impl Widget for CodeViewerView {
                     CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), false);
                 }
 
-                if code_viewer_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+                if code_viewer_has_keyboard_focus
+                    && CodeViewerViewData::get_instruction_edit_state(self.code_viewer_view_data.clone()).is_none()
+                    && user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
+                {
                     CodeViewerViewData::clear_selection(self.code_viewer_view_data.clone());
                 }
                 content_user_interface
@@ -593,13 +809,26 @@ impl Widget for CodeViewerView {
                                     let mut row_rects_by_address = HashMap::new();
                                     let selected_instruction_addresses =
                                         CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
+                                    let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(self.code_viewer_view_data.clone());
 
                                     for instruction_line in &visible_instruction_lines {
+                                        if instruction_edit_state
+                                            .as_ref()
+                                            .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
+                                            .unwrap_or(false)
+                                        {
+                                            if let Some(instruction_edit_state) = instruction_edit_state.as_ref() {
+                                                self.render_instruction_edit_row(user_interface, instruction_edit_state);
+                                                self.render_instruction_edit_warning(user_interface, instruction_edit_state);
+                                            }
+                                        }
+
                                         let row_rect = self.render_instruction_row(
                                             user_interface,
                                             instruction_line,
                                             &selected_instruction_addresses,
                                             scroll_target_address,
+                                            &visible_instruction_lines,
                                         );
                                         row_rects_by_address.insert(instruction_line.address, row_rect);
                                     }

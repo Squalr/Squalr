@@ -230,6 +230,13 @@ impl InstructionSet for X86InstructionSet {
     ) -> Result<String, String> {
         self.inner.disassemble_instruction_sequence(instruction_bytes)
     }
+
+    fn build_no_operation_fill(
+        &self,
+        byte_count: usize,
+    ) -> Result<Vec<u8>, String> {
+        Ok(vec![0x90; byte_count])
+    }
 }
 
 #[derive(Debug)]
@@ -342,5 +349,12 @@ impl InstructionSet for X64InstructionSet {
         instruction_bytes: &[u8],
     ) -> Result<String, String> {
         self.inner.disassemble_instruction_sequence(instruction_bytes)
+    }
+
+    fn build_no_operation_fill(
+        &self,
+        byte_count: usize,
+    ) -> Result<Vec<u8>, String> {
+        Ok(vec![0x90; byte_count])
     }
 }

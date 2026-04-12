@@ -80,6 +80,32 @@ impl InstructionSet for PowerPc32BeInstructionSet {
 
         Ok(format_decoded_instruction_sequence(&decoded_instructions, instruction_bytes.len()))
     }
+
+    fn build_no_operation_fill(
+        &self,
+        byte_count: usize,
+    ) -> Result<Vec<u8>, String> {
+        if byte_count == 0 {
+            return Ok(Vec::new());
+        }
+
+        let nop_bytes = self.assemble("nop")?;
+
+        if nop_bytes.is_empty() || byte_count % nop_bytes.len() != 0 {
+            return Err(format!(
+                "PowerPC32 BE no-operation fill requires a byte count aligned to {} bytes.",
+                nop_bytes.len().max(1)
+            ));
+        }
+
+        let mut fill_bytes = Vec::with_capacity(byte_count);
+
+        while fill_bytes.len() < byte_count {
+            fill_bytes.extend_from_slice(&nop_bytes);
+        }
+
+        Ok(fill_bytes)
+    }
 }
 
 fn encode_instruction(
