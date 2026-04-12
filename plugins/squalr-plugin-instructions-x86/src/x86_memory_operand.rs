@@ -1,21 +1,6 @@
 use crate::x86_register::parse_register;
 use iced_x86::{MemoryOperand, OpCodeOperandKind, Register};
-use squalr_engine_api::plugins::instruction_set::InstructionMemoryOperand;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum X86InstructionMode {
-    Bit32,
-    Bit64,
-}
-
-impl X86InstructionMode {
-    pub fn bitness(&self) -> u32 {
-        match self {
-            Self::Bit32 => 32,
-            Self::Bit64 => 64,
-        }
-    }
-}
+use squalr_engine_api::{plugins::instruction_set::InstructionMemoryOperand, structures::memory::bitness::Bitness};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ParsedMemoryTerm {
@@ -26,7 +11,7 @@ struct ParsedMemoryTerm {
 
 pub fn parse_memory_operand(
     memory_operand: &InstructionMemoryOperand,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
 ) -> Result<MemoryOperand, String> {
     let expression_text = memory_operand.expression_text().replace(' ', "");
 
@@ -82,7 +67,7 @@ pub fn parse_memory_operand(
         .map(parse_required_segment_register)
         .transpose()?
         .unwrap_or(Register::None);
-    let displacement_size = resolve_displacement_size(base_register, index_register, displacement, instruction_mode);
+    let displacement_size = resolve_displacement_size(base_register, index_register, displacement, instruction_bitness);
 
     Ok(MemoryOperand::new(
         base_register,
@@ -273,12 +258,12 @@ fn resolve_displacement_size(
     base_register: Register,
     index_register: Register,
     displacement: i64,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
 ) -> u32 {
     if base_register == Register::None && index_register == Register::None {
-        return match instruction_mode {
-            X86InstructionMode::Bit32 => 4,
-            X86InstructionMode::Bit64 => {
+        return match instruction_bitness {
+            Bitness::Bit32 => 4,
+            Bitness::Bit64 => {
                 if i32::try_from(displacement).is_ok() || u32::try_from(displacement).is_ok() {
                     4
                 } else {
@@ -299,15 +284,18 @@ fn resolve_displacement_size(
 
 #[cfg(test)]
 mod tests {
-    use crate::x86_memory_operand::{X86InstructionMode, parse_memory_operand};
+    use crate::x86_memory_operand::parse_memory_operand;
     use iced_x86::Register;
-    use squalr_engine_api::plugins::instruction_set::{InstructionMemoryOperand, InstructionMemoryOperandSize};
+    use squalr_engine_api::{
+        plugins::instruction_set::{InstructionMemoryOperand, InstructionMemoryOperandSize},
+        structures::memory::bitness::Bitness,
+    };
 
     #[test]
     fn parse_memory_operand_supports_x86_absolute_addresses() {
         let parsed_operand = parse_memory_operand(
             &InstructionMemoryOperand::new(Some(InstructionMemoryOperandSize::Dword), "0x100579c"),
-            X86InstructionMode::Bit32,
+            Bitness::Bit32,
         )
         .expect("Expected x86 absolute memory operand to parse.");
 
@@ -320,7 +308,7 @@ mod tests {
     fn parse_memory_operand_supports_base_register_plus_scaled_index() {
         let parsed_operand = parse_memory_operand(
             &InstructionMemoryOperand::new(Some(InstructionMemoryOperandSize::Dword), "eax+ecx*4+8"),
-            X86InstructionMode::Bit32,
+            Bitness::Bit32,
         )
         .expect("Expected scaled index memory operand to parse.");
 
@@ -334,7 +322,7 @@ mod tests {
     fn parse_memory_operand_supports_segment_override_and_broadcast() {
         let parsed_operand = parse_memory_operand(
             &InstructionMemoryOperand::with_metadata(Some(InstructionMemoryOperandSize::Dword), Some("fs"), "rax", true),
-            X86InstructionMode::Bit64,
+            Bitness::Bit64,
         )
         .expect("Expected segment override memory operand to parse.");
 

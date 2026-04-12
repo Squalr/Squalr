@@ -1,6 +1,9 @@
-use crate::{x86_memory_operand::X86InstructionMode, x86_operand_lowering::build_candidate_instructions};
+use crate::x86_operand_lowering::build_candidate_instructions;
 use iced_x86::{Decoder, DecoderOptions, Encoder, FlowControl, Formatter, NasmFormatter};
-use squalr_engine_api::plugins::instruction_set::{InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence};
+use squalr_engine_api::{
+    plugins::instruction_set::{InstructionSet, ParsedInstruction, normalize_instruction_text, parse_instruction_sequence},
+    structures::memory::bitness::Bitness,
+};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -17,7 +20,7 @@ pub struct DisassembledInstruction {
 struct X86InstructionSetBase {
     instruction_set_id: &'static str,
     display_name: &'static str,
-    mode: X86InstructionMode,
+    instruction_bitness: Bitness,
 }
 
 #[derive(Clone, Debug)]
@@ -35,12 +38,12 @@ impl X86InstructionSetBase {
     fn new(
         instruction_set_id: &'static str,
         display_name: &'static str,
-        mode: X86InstructionMode,
+        instruction_bitness: Bitness,
     ) -> Self {
         Self {
             instruction_set_id,
             display_name,
-            mode,
+            instruction_bitness,
         }
     }
 
@@ -74,9 +77,14 @@ impl X86InstructionSetBase {
                     continue;
                 }
 
-                let candidate_instructions = build_candidate_instructions(parsed_instruction, self.mode, self.display_name, &label_addresses)?;
-                let (selected_instruction, selected_instruction_length) =
-                    select_encodable_instruction(&candidate_instructions, self.mode, current_ip, parsed_instruction, self.display_name)?;
+                let candidate_instructions = build_candidate_instructions(parsed_instruction, self.instruction_bitness, self.display_name, &label_addresses)?;
+                let (selected_instruction, selected_instruction_length) = select_encodable_instruction(
+                    &candidate_instructions,
+                    self.instruction_bitness,
+                    current_ip,
+                    parsed_instruction,
+                    self.display_name,
+                )?;
 
                 current_ip = current_ip.saturating_add(selected_instruction_length as u64);
                 next_item_lengths.push(selected_instruction_length);
@@ -102,7 +110,7 @@ impl X86InstructionSetBase {
             ));
         }
 
-        let mut instruction_encoder = Encoder::new(self.mode.bitness());
+        let mut instruction_encoder = Encoder::new(bitness_as_u32(self.instruction_bitness));
         let mut current_ip = 0u64;
         let mut assembled_bytes = Vec::new();
 
@@ -171,7 +179,7 @@ impl X86InstructionSetBase {
         while byte_offset < instruction_bytes.len() {
             let instruction_address = base_address.saturating_add(byte_offset as u64);
             let mut decoder = Decoder::with_ip(
-                self.mode.bitness(),
+                bitness_as_u32(self.instruction_bitness),
                 &instruction_bytes[byte_offset..],
                 instruction_address,
                 DecoderOptions::NONE,
@@ -230,7 +238,7 @@ pub struct X86InstructionSet {
 impl X86InstructionSet {
     pub fn new() -> Self {
         Self {
-            inner: X86InstructionSetBase::new("x86", "x86", X86InstructionMode::Bit32),
+            inner: X86InstructionSetBase::new("x86", "x86", Bitness::Bit32),
         }
     }
 
@@ -289,7 +297,7 @@ pub struct X64InstructionSet {
 impl X64InstructionSet {
     pub fn new() -> Self {
         Self {
-            inner: X86InstructionSetBase::new("x64", "x64", X86InstructionMode::Bit64),
+            inner: X86InstructionSetBase::new("x64", "x64", Bitness::Bit64),
         }
     }
 
@@ -334,7 +342,7 @@ fn build_label_addresses(
 
 fn select_encodable_instruction(
     candidate_instructions: &[iced_x86::Instruction],
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     current_ip: u64,
     parsed_instruction: &ParsedInstruction,
     display_name: &str,
@@ -344,7 +352,7 @@ fn select_encodable_instruction(
     let mut candidate_errors = Vec::new();
 
     for candidate_instruction in candidate_instructions {
-        let mut probe_encoder = Encoder::new(instruction_mode.bitness());
+        let mut probe_encoder = Encoder::new(bitness_as_u32(instruction_bitness));
 
         match probe_encoder.encode(candidate_instruction, current_ip) {
             Ok(instruction_length) => {
@@ -512,5 +520,12 @@ impl InstructionSet for X64InstructionSet {
         byte_count: usize,
     ) -> Result<Vec<u8>, String> {
         Ok(vec![0x90; byte_count])
+    }
+}
+
+fn bitness_as_u32(instruction_bitness: Bitness) -> u32 {
+    match instruction_bitness {
+        Bitness::Bit32 => 32,
+        Bitness::Bit64 => 64,
     }
 }

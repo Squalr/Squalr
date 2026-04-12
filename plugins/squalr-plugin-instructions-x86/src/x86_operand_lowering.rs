@@ -1,21 +1,22 @@
 use crate::{
-    x86_memory_operand::{X86InstructionMode, memory_operand_matches_operand_kind, memory_operand_specificity_score, parse_memory_operand},
+    x86_memory_operand::{memory_operand_matches_operand_kind, memory_operand_specificity_score, parse_memory_operand},
     x86_opcode_candidate_index::get_opcode_candidates_for_mnemonic,
     x86_register::{parse_register, register_matches_operand_kind, register_operand_specificity_score},
 };
 use iced_x86::{Code, Instruction, OpCodeOperandKind, OpKind, Register, RoundingControl};
-use squalr_engine_api::plugins::instruction_set::{
-    InstructionDecorators, InstructionMemoryOperandSize, InstructionOperand, InstructionRoundingControl, ParsedInstruction,
+use squalr_engine_api::{
+    plugins::instruction_set::{InstructionDecorators, InstructionMemoryOperandSize, InstructionOperand, InstructionRoundingControl, ParsedInstruction},
+    structures::memory::bitness::Bitness,
 };
 use std::collections::HashMap;
 
 pub fn build_candidate_instructions(
     parsed_instruction: &ParsedInstruction,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     display_name: &str,
     label_addresses: &HashMap<String, u64>,
 ) -> Result<Vec<Instruction>, String> {
-    let mut candidate_codes = get_ranked_candidate_codes(parsed_instruction, instruction_mode, label_addresses);
+    let mut candidate_codes = get_ranked_candidate_codes(parsed_instruction, instruction_bitness, label_addresses);
 
     if candidate_codes.is_empty() {
         return Err(format!("Unsupported {} instruction '{}'.", display_name, parsed_instruction.source_text()));
@@ -25,7 +26,7 @@ pub fn build_candidate_instructions(
     let mut candidate_errors = Vec::new();
 
     for candidate_code in candidate_codes.drain(..) {
-        match build_candidate_instruction(candidate_code, parsed_instruction, instruction_mode, label_addresses) {
+        match build_candidate_instruction(candidate_code, parsed_instruction, instruction_bitness, label_addresses) {
             Ok(instruction) => candidate_instructions.push(instruction),
             Err(candidate_error) => candidate_errors.push(candidate_error),
         }
@@ -51,7 +52,7 @@ pub fn build_candidate_instructions(
 
 fn get_ranked_candidate_codes(
     parsed_instruction: &ParsedInstruction,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     label_addresses: &HashMap<String, u64>,
 ) -> Vec<Code> {
     let mut scored_candidates = get_opcode_candidates_for_mnemonic(parsed_instruction.mnemonic())
@@ -59,10 +60,11 @@ fn get_ranked_candidate_codes(
         .filter(|candidate_code| {
             candidate_code
                 .op_code()
-                .is_available_in_mode(instruction_mode.bitness())
+                .is_available_in_mode(bitness_as_u32(instruction_bitness))
         })
         .filter_map(|candidate_code| {
-            score_candidate_code(candidate_code, parsed_instruction, instruction_mode, label_addresses).map(|candidate_score| (candidate_score, candidate_code))
+            score_candidate_code(candidate_code, parsed_instruction, instruction_bitness, label_addresses)
+                .map(|candidate_score| (candidate_score, candidate_code))
         })
         .collect::<Vec<_>>();
 
@@ -81,7 +83,7 @@ fn get_ranked_candidate_codes(
 fn score_candidate_code(
     candidate_code: Code,
     parsed_instruction: &ParsedInstruction,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     label_addresses: &HashMap<String, u64>,
 ) -> Option<u32> {
     let opcode_info = candidate_code.op_code();
@@ -103,7 +105,7 @@ fn score_candidate_code(
             parsed_operand,
             operand_kind,
             candidate_code,
-            instruction_mode,
+            instruction_bitness,
             label_addresses,
         )?)?;
     }
@@ -115,7 +117,7 @@ fn score_candidate_operand(
     parsed_operand: &InstructionOperand,
     operand_kind: OpCodeOperandKind,
     candidate_code: Code,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     label_addresses: &HashMap<String, u64>,
 ) -> Option<u32> {
     match parsed_operand {
@@ -130,7 +132,7 @@ fn score_candidate_operand(
 
             if label_addresses.contains_key(identifier_text)
                 && branch_operand_kind_accepts_label(operand_kind)
-                && branch_operand_matches_instruction_mode(operand_kind, instruction_mode)
+                && branch_operand_matches_bitness(operand_kind, instruction_bitness)
             {
                 return Some(branch_operand_specificity_score(operand_kind));
             }
@@ -138,7 +140,7 @@ fn score_candidate_operand(
             None
         }
         InstructionOperand::Immediate(immediate_value) => {
-            if branch_operand_kind_accepts_label(operand_kind) && !branch_operand_matches_instruction_mode(operand_kind, instruction_mode) {
+            if branch_operand_kind_accepts_label(operand_kind) && !branch_operand_matches_bitness(operand_kind, instruction_bitness) {
                 return None;
             }
 
@@ -149,7 +151,7 @@ fn score_candidate_operand(
             Some(immediate_operand_specificity_score(operand_kind))
         }
         InstructionOperand::Memory(memory_operand) => {
-            let lowered_memory_operand = parse_memory_operand(memory_operand, instruction_mode).ok()?;
+            let lowered_memory_operand = parse_memory_operand(memory_operand, instruction_bitness).ok()?;
             let mut operand_score = memory_operand_specificity_score(operand_kind);
 
             if !memory_operand_matches_operand_kind(&lowered_memory_operand, operand_kind) {
@@ -166,7 +168,7 @@ fn score_candidate_operand(
 
             if memory_operand.size().is_some() {
                 operand_score = operand_score.saturating_add(20);
-            } else if candidate_code.op_code().memory_size().info().size() == default_implicit_memory_operand_size(instruction_mode) {
+            } else if candidate_code.op_code().memory_size().info().size() == default_implicit_memory_operand_size(instruction_bitness) {
                 operand_score = operand_score.saturating_add(10);
             }
 
@@ -178,7 +180,7 @@ fn score_candidate_operand(
 fn build_candidate_instruction(
     candidate_code: Code,
     parsed_instruction: &ParsedInstruction,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     label_addresses: &HashMap<String, u64>,
 ) -> Result<Instruction, String> {
     let opcode_info = candidate_code.op_code();
@@ -193,7 +195,7 @@ fn build_candidate_instruction(
             operand_index as u32,
             parsed_operand,
             operand_kind,
-            instruction_mode,
+            instruction_bitness,
             label_addresses,
         )?;
     }
@@ -208,7 +210,7 @@ fn apply_candidate_operand(
     operand_index: u32,
     parsed_operand: &InstructionOperand,
     operand_kind: OpCodeOperandKind,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
     label_addresses: &HashMap<String, u64>,
 ) -> Result<(), String> {
     match parsed_operand {
@@ -236,8 +238,8 @@ fn apply_candidate_operand(
         }
         InstructionOperand::Immediate(immediate_value) => apply_immediate_operand(instruction, operand_index, *immediate_value, operand_kind),
         InstructionOperand::Memory(memory_operand) => {
-            let lowered_memory_operand = parse_memory_operand(memory_operand, instruction_mode)?;
-            let instruction_operand_kind = operand_kind_to_instruction_memory_kind(operand_kind, instruction_mode)
+            let lowered_memory_operand = parse_memory_operand(memory_operand, instruction_bitness)?;
+            let instruction_operand_kind = operand_kind_to_instruction_memory_kind(operand_kind, instruction_bitness)
                 .ok_or_else(|| format!("Operand kind {:?} does not accept a memory operand.", operand_kind))?;
 
             if !memory_operand_matches_operand_kind(&lowered_memory_operand, operand_kind) {
@@ -469,7 +471,7 @@ fn has_previous_immediate_operand(
 
 fn operand_kind_to_instruction_memory_kind(
     operand_kind: OpCodeOperandKind,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
 ) -> Option<OpKind> {
     match operand_kind {
         OpCodeOperandKind::mem
@@ -495,17 +497,17 @@ fn operand_kind_to_instruction_memory_kind(
         | OpCodeOperandKind::zmm_or_mem
         | OpCodeOperandKind::bnd_or_mem_mpx
         | OpCodeOperandKind::k_or_mem => Some(OpKind::Memory),
-        OpCodeOperandKind::seg_rSI => Some(match instruction_mode {
-            X86InstructionMode::Bit32 => OpKind::MemorySegESI,
-            X86InstructionMode::Bit64 => OpKind::MemorySegRSI,
+        OpCodeOperandKind::seg_rSI => Some(match instruction_bitness {
+            Bitness::Bit32 => OpKind::MemorySegESI,
+            Bitness::Bit64 => OpKind::MemorySegRSI,
         }),
-        OpCodeOperandKind::es_rDI => Some(match instruction_mode {
-            X86InstructionMode::Bit32 => OpKind::MemoryESEDI,
-            X86InstructionMode::Bit64 => OpKind::MemoryESRDI,
+        OpCodeOperandKind::es_rDI => Some(match instruction_bitness {
+            Bitness::Bit32 => OpKind::MemoryESEDI,
+            Bitness::Bit64 => OpKind::MemoryESRDI,
         }),
-        OpCodeOperandKind::seg_rDI => Some(match instruction_mode {
-            X86InstructionMode::Bit32 => OpKind::MemorySegEDI,
-            X86InstructionMode::Bit64 => OpKind::MemorySegRDI,
+        OpCodeOperandKind::seg_rDI => Some(match instruction_bitness {
+            Bitness::Bit32 => OpKind::MemorySegEDI,
+            Bitness::Bit64 => OpKind::MemorySegRDI,
         }),
         _ => None,
     }
@@ -570,16 +572,16 @@ fn branch_operand_kind_accepts_label(operand_kind: OpCodeOperandKind) -> bool {
     )
 }
 
-fn branch_operand_matches_instruction_mode(
+fn branch_operand_matches_bitness(
     operand_kind: OpCodeOperandKind,
-    instruction_mode: X86InstructionMode,
+    instruction_bitness: Bitness,
 ) -> bool {
-    match instruction_mode {
-        X86InstructionMode::Bit32 => matches!(
+    match instruction_bitness {
+        Bitness::Bit32 => matches!(
             operand_kind,
             OpCodeOperandKind::br32_1 | OpCodeOperandKind::br32_4 | OpCodeOperandKind::xbegin_4 | OpCodeOperandKind::brdisp_4
         ),
-        X86InstructionMode::Bit64 => matches!(
+        Bitness::Bit64 => matches!(
             operand_kind,
             OpCodeOperandKind::br64_1 | OpCodeOperandKind::br64_4 | OpCodeOperandKind::xbegin_4 | OpCodeOperandKind::brdisp_4
         ),
@@ -687,9 +689,16 @@ fn memory_size_hint_matches_candidate(
     memory_size_matches
 }
 
-fn default_implicit_memory_operand_size(instruction_mode: X86InstructionMode) -> usize {
-    match instruction_mode {
-        X86InstructionMode::Bit32 => 4,
-        X86InstructionMode::Bit64 => 8,
+fn default_implicit_memory_operand_size(instruction_bitness: Bitness) -> usize {
+    match instruction_bitness {
+        Bitness::Bit32 => 4,
+        Bitness::Bit64 => 8,
+    }
+}
+
+fn bitness_as_u32(instruction_bitness: Bitness) -> u32 {
+    match instruction_bitness {
+        Bitness::Bit32 => 32,
+        Bitness::Bit64 => 64,
     }
 }

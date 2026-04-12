@@ -81,6 +81,7 @@ mod tests {
     #[test]
     fn plugin_exposes_data_type_and_instruction_set_capabilities() {
         let plugin = ArmFamilyInstructionsPlugin::new();
+        let expected_default_enablement = cfg!(any(target_arch = "arm", target_arch = "aarch64"));
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.instruction-set.arm-family");
         assert!(
@@ -93,5 +94,6 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::InstructionSet)
         );
+        assert_eq!(plugin.metadata().get_is_enabled_by_default(), expected_default_enablement);
     }
 }
