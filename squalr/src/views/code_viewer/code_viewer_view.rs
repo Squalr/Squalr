@@ -63,6 +63,7 @@ impl CodeViewerView {
     const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
+    const CONTENT_HEADER_HEIGHT: f32 = 22.0;
     const ROW_HEIGHT: f32 = 22.0;
     const EDIT_WARNING_ROW_HEIGHT: f32 = 26.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
@@ -71,6 +72,7 @@ impl CodeViewerView {
     const MINIMUM_BYTES_COLUMN_WIDTH: f32 = 72.0;
     const MINIMUM_TEXT_COLUMN_WIDTH: f32 = 180.0;
     const TEXT_LEFT_PADDING: f32 = 6.0;
+    const HEADER_TEXT_TOP_PADDING: f32 = 4.0;
     const ADDRESS_TEXT_RIGHT_PADDING: f32 = 8.0;
     const ROW_TEXT_TOP_PADDING: f32 = 4.0;
     const INLINE_EDIT_MAX_WIDTH: f32 = 256.0;
@@ -191,6 +193,69 @@ impl CodeViewerView {
         } else {
             Self::ROW_HEIGHT
         }
+    }
+
+    fn draw_column_header_text(
+        user_interface: &Ui,
+        header_rect: Rect,
+        text: &str,
+        horizontal_alignment: Align2,
+        text_position: Pos2,
+        theme: &crate::ui::theme::Theme,
+    ) {
+        user_interface
+            .painter()
+            .with_clip_rect(header_rect.intersect(user_interface.clip_rect()))
+            .text(
+                text_position,
+                horizontal_alignment,
+                text,
+                theme.font_library.font_noto_sans.font_small.clone(),
+                theme.foreground_preview,
+            );
+    }
+
+    fn render_content_headers(
+        user_interface: &Ui,
+        header_rect: Rect,
+        bytes_text_splitter_position_x: f32,
+        theme: &crate::ui::theme::Theme,
+    ) {
+        let column_layout = Self::resolve_column_layout(header_rect, bytes_text_splitter_position_x);
+        let header_text_y = header_rect.min.y + Self::HEADER_TEXT_TOP_PADDING;
+
+        Self::draw_column_header_text(
+            user_interface,
+            column_layout.breakpoint_gutter_rect,
+            "BP",
+            Align2::CENTER_TOP,
+            pos2(column_layout.breakpoint_gutter_rect.center().x, header_text_y),
+            theme,
+        );
+        Self::draw_column_header_text(
+            user_interface,
+            column_layout.address_rect,
+            "Address",
+            Align2::LEFT_TOP,
+            pos2(column_layout.address_rect.min.x + Self::TEXT_LEFT_PADDING, header_text_y),
+            theme,
+        );
+        Self::draw_column_header_text(
+            user_interface,
+            column_layout.bytes_rect,
+            "Bytes",
+            Align2::LEFT_TOP,
+            pos2(column_layout.bytes_rect.min.x + Self::TEXT_LEFT_PADDING, header_text_y),
+            theme,
+        );
+        Self::draw_column_header_text(
+            user_interface,
+            column_layout.text_rect,
+            "Assembly",
+            Align2::LEFT_TOP,
+            pos2(column_layout.text_rect.min.x + Self::TEXT_LEFT_PADDING, header_text_y),
+            theme,
+        );
     }
 
     fn build_bytes_text(bytes: &[u8]) -> String {
@@ -909,6 +974,16 @@ impl Widget for CodeViewerView {
                 let process_bitness = self.get_process_bitness();
                 let current_page = CodeViewerViewData::get_current_page(self.code_viewer_view_data.clone());
                 let mut visible_instruction_lines = Vec::new();
+                let (header_rect, _) =
+                    content_user_interface.allocate_exact_size(vec2(content_user_interface.available_width(), Self::CONTENT_HEADER_HEIGHT), Sense::hover());
+                Self::render_content_headers(&content_user_interface, header_rect, bytes_text_splitter_position_x, theme);
+                let body_rect = Rect::from_min_max(pos2(content_response.rect.min.x, header_rect.max.y), content_response.rect.max);
+                let mut body_user_interface = content_user_interface.new_child(
+                    UiBuilder::new()
+                        .max_rect(body_rect)
+                        .layout(Layout::top_down(Align::Min)),
+                );
+                body_user_interface.set_clip_rect(body_rect);
 
                 match current_page {
                     Some(current_page) => {
@@ -932,7 +1007,7 @@ impl Widget for CodeViewerView {
                         let current_page_is_unreadable = CodeViewerViewData::is_current_page_unreadable(self.code_viewer_view_data.clone(), &current_page);
 
                         if visible_instruction_lines.is_empty() && current_page_is_unreadable {
-                            content_user_interface.centered_and_justified(|user_interface| {
+                            body_user_interface.centered_and_justified(|user_interface| {
                                 user_interface.label(
                                     RichText::new("This page is currently unreadable, so no code rows could be decoded.")
                                         .font(theme.font_library.font_noto_sans.font_normal.clone())
@@ -940,7 +1015,7 @@ impl Widget for CodeViewerView {
                                 );
                             });
                         } else if visible_instruction_lines.is_empty() {
-                            content_user_interface.centered_and_justified(|user_interface| {
+                            body_user_interface.centered_and_justified(|user_interface| {
                                 user_interface.label(
                                     RichText::new("The current code window has no decoded instructions yet. Scroll or refresh to materialize more bytes.")
                                         .font(theme.font_library.font_noto_sans.font_normal.clone())
@@ -951,7 +1026,7 @@ impl Widget for CodeViewerView {
                             ScrollArea::vertical()
                                 .id_salt("code_viewer_rows")
                                 .auto_shrink([false, false])
-                                .show(&mut content_user_interface, |user_interface| {
+                                .show(&mut body_user_interface, |user_interface| {
                                     let mut row_rects_by_address = HashMap::new();
                                     let selected_instruction_addresses =
                                         CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
@@ -985,8 +1060,8 @@ impl Widget for CodeViewerView {
                         }
                     }
                     None if is_querying_memory_pages => {
-                        content_user_interface.allocate_ui_with_layout(
-                            vec2(content_user_interface.available_width(), 32.0),
+                        body_user_interface.allocate_ui_with_layout(
+                            vec2(body_user_interface.available_width(), 32.0),
                             Layout::centered_and_justified(Direction::LeftToRight),
                             |user_interface| {
                                 user_interface.add(Spinner::new().color(theme.foreground));
@@ -994,7 +1069,7 @@ impl Widget for CodeViewerView {
                         );
                     }
                     None => {
-                        content_user_interface.centered_and_justified(|user_interface| {
+                        body_user_interface.centered_and_justified(|user_interface| {
                             user_interface.label(
                                 RichText::new("Attach to a process to browse code pages.")
                                     .font(theme.font_library.font_noto_sans.font_normal.clone())
