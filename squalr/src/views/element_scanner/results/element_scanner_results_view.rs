@@ -3,7 +3,8 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
-            check_state::CheckState, data_type_selector::data_type_selector_view::DataTypeSelectorView, data_value_box::data_value_box_view::DataValueBoxView,
+            check_state::CheckState, combo_box::combo_box_view::ComboBoxView, data_type_selector::data_type_selector_view::DataTypeSelectorView,
+            data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
         },
     },
     views::{
@@ -43,6 +44,8 @@ pub struct ElementScannerResultsView {
 }
 
 impl ElementScannerResultsView {
+    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 52.0;
+    const DISPLAY_TYPE_SELECTOR_POPUP_WIDTH: f32 = 176.0;
     pub const WINDOW_ID: &'static str = "window_element_scanner_results";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -92,6 +95,25 @@ impl ElementScannerResultsView {
     fn normalize_display_formats(supported_display_formats: &mut Vec<AnonymousValueStringFormat>) {
         supported_display_formats.sort_by_key(|anonymous_value_string_format| Self::display_format_sort_key(*anonymous_value_string_format));
         supported_display_formats.dedup();
+    }
+
+    fn display_format_icon(
+        &self,
+        anonymous_value_string_format: AnonymousValueStringFormat,
+    ) -> eframe::egui::TextureHandle {
+        let icon_library = &self.app_context.theme.icon_library;
+
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Binary => icon_library.icon_handle_display_type_binary.clone(),
+            AnonymousValueStringFormat::Decimal => icon_library.icon_handle_display_type_decimal.clone(),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::HexPattern | AnonymousValueStringFormat::Address => {
+                icon_library.icon_handle_display_type_hexadecimal.clone()
+            }
+            AnonymousValueStringFormat::String
+            | AnonymousValueStringFormat::Bool
+            | AnonymousValueStringFormat::DataTypeRef
+            | AnonymousValueStringFormat::Enumeration => icon_library.icon_handle_display_type_string.clone(),
+        }
     }
 
     fn resolve_supported_display_formats(
@@ -318,7 +340,8 @@ impl Widget for ElementScannerResultsView {
                 let display_type_selector_rectangle = Rect::from_min_max(
                     pos2(value_splitter_position_x + data_type_filter_combo_padding, header_rectangle.center().y - 12.0),
                     pos2(
-                        previous_value_splitter_position_x - data_type_filter_combo_padding,
+                        (value_splitter_position_x + data_type_filter_combo_padding + Self::DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH)
+                            .min(previous_value_splitter_position_x - data_type_filter_combo_padding),
                         header_rectangle.center().y + 12.0,
                     ),
                 );
@@ -348,30 +371,40 @@ impl Widget for ElementScannerResultsView {
                         .current_display_string
                         .set_anonymous_value_string_format(resolved_active_display_format);
 
-                    let validation_data_type_ref = element_scanner_results_view_data
-                        .data_type_filter_selection
-                        .visible_data_type()
-                        .clone();
                     let mut header_display_format_value =
                         AnonymousValueString::new(String::new(), element_scanner_results_view_data.active_display_format, ContainerType::None);
 
                     user_interface.put(
                         display_type_selector_rectangle,
-                        DataValueBoxView::new(
+                        ComboBoxView::new(
                             self.app_context.clone(),
-                            &mut header_display_format_value,
-                            &validation_data_type_ref,
-                            true,
-                            false,
                             "",
                             "element_scanner_results_display_type",
+                            Some(self.display_format_icon(element_scanner_results_view_data.active_display_format)),
+                            |popup_user_interface, should_close| {
+                                for anonymous_value_string_format in &supported_display_formats {
+                                    if popup_user_interface
+                                        .add(
+                                            DataValueBoxConvertItemView::new(
+                                                self.app_context.clone(),
+                                                &mut header_display_format_value,
+                                                anonymous_value_string_format,
+                                                None,
+                                                false,
+                                                false,
+                                                Self::DISPLAY_TYPE_SELECTOR_POPUP_WIDTH,
+                                            )
+                                            .width(Self::DISPLAY_TYPE_SELECTOR_POPUP_WIDTH),
+                                        )
+                                        .clicked()
+                                    {
+                                        *should_close = true;
+                                    }
+                                }
+                            },
                         )
-                        .allowed_anonymous_value_string_formats(supported_display_formats)
                         .width(display_type_selector_rectangle.width())
-                        .height(display_type_selector_rectangle.height())
-                        .allow_read_only_interpretation(true)
-                        .normalize_value_format(false)
-                        .use_format_text_colors(false),
+                        .height(display_type_selector_rectangle.height()),
                     );
 
                     let active_display_format = header_display_format_value.get_anonymous_value_string_format();
