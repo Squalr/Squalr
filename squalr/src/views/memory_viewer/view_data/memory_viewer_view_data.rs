@@ -111,6 +111,7 @@ pub struct MemoryViewerViewData {
     context_menu_address: Option<u64>,
     context_menu_position: Option<Pos2>,
     pub go_to_address_input: AnonymousValueString,
+    pub hex_ascii_splitter_ratio: f32,
 }
 
 impl MemoryViewerViewData {
@@ -118,6 +119,7 @@ impl MemoryViewerViewData {
     pub const BYTES_PER_ROW: u64 = 16;
     pub const QUERY_CHUNK_SIZE_IN_BYTES: u64 = 256;
     pub const QUERY_PREFETCH_CHUNK_COUNT: u64 = 1;
+    pub const DEFAULT_HEX_ASCII_SPLITTER_RATIO: f32 = 0.68;
     pub const SNAPSHOT_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
     pub const REQUEST_STALE_TIMEOUT_MS: u64 = 10_000;
 
@@ -145,6 +147,7 @@ impl MemoryViewerViewData {
             context_menu_address: None,
             context_menu_position: None,
             go_to_address_input: AnonymousValueString::new(String::new(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
+            hex_ascii_splitter_ratio: Self::DEFAULT_HEX_ASCII_SPLITTER_RATIO,
         }
     }
 
