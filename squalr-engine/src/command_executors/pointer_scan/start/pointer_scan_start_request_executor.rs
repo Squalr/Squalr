@@ -70,6 +70,15 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 .memory_query_raw
                 .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode),
         };
+        if pointer_scan_memory_regions.is_empty() {
+            log::error!(
+                "Pointer scan start aborted because no readable memory regions were returned for process {} (PID {}).",
+                process_info.get_name(),
+                process_info.get_process_id_raw()
+            );
+
+            return PointerScanStartResponse::default();
+        }
         let mut pointer_scan_snapshot = Snapshot::new();
         pointer_scan_snapshot.set_snapshot_regions(merge_memory_regions_into_snapshot_regions(pointer_scan_memory_regions));
         let pointer_scan_snapshot = Arc::new(RwLock::new(pointer_scan_snapshot));
@@ -608,6 +617,56 @@ mod tests {
                 .get_data_type_ref()
                 .map(DataTypeRef::get_data_type_id),
             Some("u64")
+        );
+    }
+
+    #[test]
+    fn execute_returns_default_when_pointer_scan_memory_regions_are_unavailable() {
+        let engine_bindings: Arc<RwLock<dyn EngineApiPrivilegedBindings>> = Arc::new(RwLock::new(TestEngineBindings));
+        let os_providers = EngineOsProviders::new(
+            Arc::new(TestProcessQueryProvider),
+            Arc::new(TestMemoryQueryProvider {
+                module_descriptors: vec![(String::from("game.exe"), 0x1000, 0x100)],
+                usermode_memory_regions: Vec::new(),
+            }),
+            Arc::new(TestMemoryReadProvider {
+                memory_bytes_by_address: build_pointer_scan_memory_map(),
+            }),
+            Arc::new(TestMemoryWriteProvider),
+        );
+        let engine_privileged_state = EnginePrivilegedState::new(engine_bindings, os_providers).expect("Expected the test engine state to initialize.");
+
+        engine_privileged_state
+            .get_process_manager()
+            .set_opened_process(OpenedProcessInfo::new(
+                std::process::id(),
+                String::from("pointer-test-dead"),
+                1,
+                Bitness::Bit64,
+                None,
+            ));
+
+        let pointer_scan_start_response = PointerScanStartRequest {
+            target: PointerScanTargetRequest::address(AnonymousValueString::new(
+                String::from("0x3010"),
+                AnonymousValueStringFormat::Hexadecimal,
+                ContainerType::None,
+            )),
+            pointer_size: PointerScanPointerSize::Pointer64,
+            max_depth: 3,
+            offset_radius: 0x20,
+            address_space: PointerScanAddressSpace::EmulatorMemory,
+        }
+        .execute(&engine_privileged_state);
+
+        assert!(!pointer_scan_start_response.success);
+        assert!(pointer_scan_start_response.pointer_scan_summary.is_none());
+        assert!(
+            engine_privileged_state
+                .get_pointer_scan_session()
+                .read()
+                .expect("Expected the pointer scan session lock.")
+                .is_none()
         );
     }
 
