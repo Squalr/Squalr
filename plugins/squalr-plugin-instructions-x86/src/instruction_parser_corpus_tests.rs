@@ -1,4 +1,4 @@
-use crate::{DataTypeIX64, DataTypeIX86};
+use crate::{DataTypeInstructionX64, DataTypeInstructionX86};
 use squalr_engine_api::structures::{
     data_types::data_type::DataType,
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
@@ -214,21 +214,21 @@ const X64_PARSE_CASES: &[InstructionParseCase] = &[
 
 #[test]
 fn i_x86_data_type_parses_instruction_form_corpus() {
-    let data_type = DataTypeIX86::new();
+    let data_type = DataTypeInstructionX86::new();
 
     assert_instruction_parse_corpus(&data_type, X86_PARSE_CASES);
 }
 
 #[test]
 fn i_x64_data_type_parses_instruction_form_corpus() {
-    let data_type = DataTypeIX64::new();
+    let data_type = DataTypeInstructionX64::new();
 
     assert_instruction_parse_corpus(&data_type, X64_PARSE_CASES);
 }
 
 #[test]
 fn i_x86_data_type_round_trips_representative_instruction_form_corpus() {
-    let data_type = DataTypeIX86::new();
+    let data_type = DataTypeInstructionX86::new();
     let round_trip_cases = [
         InstructionParseCase {
             category: "gpr-register-register",
@@ -261,7 +261,7 @@ fn i_x86_data_type_round_trips_representative_instruction_form_corpus() {
 
 #[test]
 fn i_x64_data_type_round_trips_representative_instruction_form_corpus() {
-    let data_type = DataTypeIX64::new();
+    let data_type = DataTypeInstructionX64::new();
     let round_trip_cases = [
         InstructionParseCase {
             category: "gpr-register-register",

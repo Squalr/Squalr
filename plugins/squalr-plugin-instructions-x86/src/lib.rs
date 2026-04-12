@@ -4,7 +4,7 @@ mod data_types;
 mod instruction_set;
 mod plugin;
 mod x86_memory_operand;
-mod x86_opcode_index;
+mod x86_opcode_candidate_index;
 mod x86_operand_lowering;
 mod x86_register;
 
@@ -14,13 +14,13 @@ mod instruction_parser_corpus_tests;
 pub use constants::{
     X86_FAMILY_DATA_TYPE_IDS, X86_FAMILY_INSTRUCTION_SET_IDS, X86_FAMILY_PLUGIN_DESCRIPTION, X86_FAMILY_PLUGIN_DISPLAY_NAME, X86_FAMILY_PLUGIN_ID,
 };
-pub use data_types::{DataTypeIX64, DataTypeIX86};
+pub use data_types::{DataTypeInstructionX64, DataTypeInstructionX86};
 pub use instruction_set::{DisassembledInstruction, X64InstructionSet, X86InstructionSet};
 pub use plugin::X86FamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeIX64, DataTypeIX86, X86FamilyInstructionsPlugin, X86InstructionSet};
+    use crate::{DataTypeInstructionX64, DataTypeInstructionX86, X86FamilyInstructionsPlugin, X86InstructionSet};
     use squalr_engine_api::{
         plugins::{Plugin, PluginCapability},
         structures::{
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_assembles_mov_and_push_sequence() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("mov eax, 5; push ebp"),
@@ -47,7 +47,7 @@ mod tests {
 
     #[test]
     fn i_x64_data_type_assembles_mov_and_push_sequence() {
-        let data_type = DataTypeIX64::new();
+        let data_type = DataTypeInstructionX64::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("mov rax, 5; push rbp"),
@@ -64,7 +64,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_disassembles_known_instruction_sequence() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let anonymous_value_string = data_type
             .anonymize_value_bytes(&[0xB8, 0x05, 0x00, 0x00, 0x00, 0x55], AnonymousValueStringFormat::String)
             .expect("Expected x86 bytes to disassemble.");
@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_inc_instruction() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("inc eax"),
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_sized_memory_inc_instruction() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("inc dword ptr [0x100579c]"),
@@ -106,7 +106,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_implicit_dword_memory_inc_shorthand() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("inc [0x100579c]"),
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn i_x64_data_type_supports_full_width_register_immediates() {
-        let data_type = DataTypeIX64::new();
+        let data_type = DataTypeInstructionX64::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("mov rax, 0xFFFFFFFFFFFFFFFF"),
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_no_operand_system_instructions() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("rdtsc"),
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_sse_register_instructions() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("addps xmm0, xmm1"),
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn i_x64_data_type_supports_avx_register_instructions() {
-        let data_type = DataTypeIX64::new();
+        let data_type = DataTypeInstructionX64::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("vaddps ymm0, ymm1, ymm2"),
@@ -182,7 +182,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_control_register_instructions() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("mov eax, cr0"),
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_backward_label_branches() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("start: inc eax; jne start"),
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_forward_label_branches_that_need_near_encoding() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let mut assembly_source = String::from("jmp far_label; ");
 
         for _padding_instruction_index in 0..200 {
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_db_directive() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("db 0x75"),
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_mixed_data_directives_and_instructions() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("db 0x75, 0xFD; ret"),
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_supports_larger_data_directives() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let assembled_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("dw 0x1234; dd 0x12345678; dq 0x1122334455667788"),
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn i_x86_data_type_formats_hexadecimal_bytes() {
-        let data_type = DataTypeIX86::new();
+        let data_type = DataTypeInstructionX86::new();
         let anonymous_value_string = data_type
             .anonymize_value_bytes(&[0x90, 0xC3], AnonymousValueStringFormat::Hexadecimal)
             .expect("Expected instruction bytes to format as hex.");

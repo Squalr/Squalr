@@ -1,5 +1,5 @@
 use crate::{
-    Arm32InstructionSet, Arm64InstructionSet, DataTypeIArm, DataTypeIArm64,
+    Arm32InstructionSet, Arm64InstructionSet, DataTypeInstructionArm, DataTypeInstructionArm64,
     constants::{
         ARM_FAMILY_DATA_TYPE_IDS, ARM_FAMILY_INSTRUCTION_SET_IDS, ARM_FAMILY_PLUGIN_DESCRIPTION, ARM_FAMILY_PLUGIN_DISPLAY_NAME, ARM_FAMILY_PLUGIN_ID,
     },
@@ -31,7 +31,10 @@ impl ArmFamilyInstructionsPlugin {
                 true,
                 true,
             ),
-            contributed_data_types: vec![Arc::new(DataTypeIArm::new()), Arc::new(DataTypeIArm64::new())],
+            contributed_data_types: vec![
+                Arc::new(DataTypeInstructionArm::new()),
+                Arc::new(DataTypeInstructionArm64::new()),
+            ],
             contributed_instruction_sets: vec![
                 Arc::new(Arm32InstructionSet::new()),
                 Arc::new(Arm64InstructionSet::new()),

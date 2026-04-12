@@ -1,3 +1,3 @@
-mod data_type_i_ppc32be;
+mod data_type_instruction_power_pc32_be;
 
-pub use data_type_i_ppc32be::DataTypeIPpc32be;
+pub use data_type_instruction_power_pc32_be::DataTypeInstructionPowerPc32Be;

@@ -1,5 +1,5 @@
 use crate::{
-    DataTypeIX64, DataTypeIX86, X64InstructionSet, X86InstructionSet,
+    DataTypeInstructionX64, DataTypeInstructionX86, X64InstructionSet, X86InstructionSet,
     constants::{
         X86_FAMILY_DATA_TYPE_IDS, X86_FAMILY_INSTRUCTION_SET_IDS, X86_FAMILY_PLUGIN_DESCRIPTION, X86_FAMILY_PLUGIN_DISPLAY_NAME, X86_FAMILY_PLUGIN_ID,
     },
@@ -31,7 +31,10 @@ impl X86FamilyInstructionsPlugin {
                 true,
                 true,
             ),
-            contributed_data_types: vec![Arc::new(DataTypeIX86::new()), Arc::new(DataTypeIX64::new())],
+            contributed_data_types: vec![
+                Arc::new(DataTypeInstructionX86::new()),
+                Arc::new(DataTypeInstructionX64::new()),
+            ],
             contributed_instruction_sets: vec![
                 Arc::new(X86InstructionSet::new()),
                 Arc::new(X64InstructionSet::new()),
