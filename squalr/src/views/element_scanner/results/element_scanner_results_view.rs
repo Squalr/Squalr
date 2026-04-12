@@ -3,8 +3,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
-            check_state::CheckState, data_type_selector::data_type_selector_view::DataTypeSelectorView,
-            display_type_selector::display_type_selector_view::DisplayTypeSelectorView,
+            check_state::CheckState, data_type_selector::data_type_selector_view::DataTypeSelectorView, data_value_box::data_value_box_view::DataValueBoxView,
         },
     },
     views::{
@@ -27,7 +26,9 @@ use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
     structures::{
-        data_types::data_type_ref::DataTypeRef, data_values::anonymous_value_string_format::AnonymousValueStringFormat, scan_results::scan_result::ScanResult,
+        data_types::data_type_ref::DataTypeRef,
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        scan_results::scan_result::ScanResult,
     },
 };
 use std::sync::Arc;
@@ -347,19 +348,34 @@ impl Widget for ElementScannerResultsView {
                         .current_display_string
                         .set_anonymous_value_string_format(resolved_active_display_format);
 
+                    let validation_data_type_ref = element_scanner_results_view_data
+                        .data_type_filter_selection
+                        .visible_data_type()
+                        .clone();
+                    let mut header_display_format_value =
+                        AnonymousValueString::new(String::new(), element_scanner_results_view_data.active_display_format, ContainerType::None);
+
                     user_interface.put(
                         display_type_selector_rectangle,
-                        DisplayTypeSelectorView::new(
+                        DataValueBoxView::new(
                             self.app_context.clone(),
-                            &mut element_scanner_results_view_data.active_display_format,
-                            supported_display_formats,
+                            &mut header_display_format_value,
+                            &validation_data_type_ref,
+                            true,
+                            false,
+                            "",
                             "element_scanner_results_display_type",
                         )
+                        .allowed_anonymous_value_string_formats(supported_display_formats)
                         .width(display_type_selector_rectangle.width())
                         .height(display_type_selector_rectangle.height())
-                        .hide_preview_text(),
+                        .allow_read_only_interpretation(true)
+                        .normalize_value_format(false)
+                        .use_format_text_colors(false),
                     );
-                    let active_display_format = element_scanner_results_view_data.active_display_format;
+
+                    let active_display_format = header_display_format_value.get_anonymous_value_string_format();
+                    element_scanner_results_view_data.active_display_format = active_display_format;
                     element_scanner_results_view_data
                         .current_display_string
                         .set_anonymous_value_string_format(active_display_format);
