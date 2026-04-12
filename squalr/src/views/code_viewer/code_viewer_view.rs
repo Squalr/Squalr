@@ -54,7 +54,7 @@ impl CodeViewerView {
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
-    const EDITOR_ROW_MIN_HEIGHT: f32 = 34.0;
+    const EDITOR_ROW_HEIGHT: f32 = 34.0;
     const EDIT_WARNING_ROW_HEIGHT: f32 = 26.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
@@ -340,28 +340,6 @@ impl CodeViewerView {
         }
     }
 
-    fn get_instruction_editor_row_height(instruction_edit_state: &CodeViewerInstructionEditState) -> f32 {
-        let visible_line_count = instruction_edit_state
-            .edit_value
-            .get_anonymous_value_string()
-            .lines()
-            .count()
-            .max(1)
-            .min(6) as f32;
-
-        Self::EDITOR_ROW_MIN_HEIGHT.max(visible_line_count * 22.0 + 14.0)
-    }
-
-    fn get_instruction_editor_multiline_rows(instruction_edit_state: &CodeViewerInstructionEditState) -> usize {
-        instruction_edit_state
-            .edit_value
-            .get_anonymous_value_string()
-            .lines()
-            .count()
-            .max(1)
-            .min(6)
-    }
-
     fn render_instruction_row(
         &self,
         user_interface: &mut Ui,
@@ -491,8 +469,7 @@ impl CodeViewerView {
         instruction_edit_state: &CodeViewerInstructionEditState,
     ) {
         let theme = &self.app_context.theme;
-        let editor_row_height = Self::get_instruction_editor_row_height(instruction_edit_state);
-        let (edit_row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), editor_row_height), Sense::hover());
+        let (edit_row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::EDITOR_ROW_HEIGHT), Sense::hover());
         let breakpoint_gutter_rect = Rect::from_min_max(
             edit_row_rect.min,
             pos2(edit_row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, edit_row_rect.max.y),
@@ -556,13 +533,11 @@ impl CodeViewerView {
                 &validation_data_type,
                 false,
                 true,
-                "Type assembly here. Press Ctrl+Enter to write.",
+                "Type assembly here. Press Enter to write.",
                 Self::INSTRUCTION_EDIT_INPUT_ID,
             )
             .width((edit_row_user_interface.available_width() - 80.0).max(120.0))
-            .height((editor_row_height - 8.0).max(Self::TOOLBAR_ROW_HEIGHT))
-            .multiline(true)
-            .multiline_rows(Self::get_instruction_editor_multiline_rows(instruction_edit_state))
+            .height(Self::TOOLBAR_ROW_HEIGHT)
             .use_format_text_colors(false),
         );
 
