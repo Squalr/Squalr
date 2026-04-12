@@ -511,7 +511,7 @@ impl CodeViewerView {
             .map(|instruction_edit_state| instruction_edit_state.start_address == instruction_line.address)
             .unwrap_or(false);
         let row_height = Self::instruction_row_height(is_instruction_edit_row);
-        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click());
+        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), row_height), Sense::click_and_drag());
         let is_selected = selected_instruction_addresses.contains(&instruction_line.address);
         let column_layout = Self::resolve_column_layout(row_rect, bytes_text_splitter_position_x);
 
@@ -543,6 +543,20 @@ impl CodeViewerView {
             } else {
                 CodeViewerViewData::select_instruction_address(self.code_viewer_view_data.clone(), instruction_line.address);
             }
+        }
+
+        if row_response.drag_started() {
+            let should_extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+
+            CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), true);
+            CodeViewerViewData::begin_drag_instruction_selection(self.code_viewer_view_data.clone(), instruction_line.address, should_extend_selection);
+        }
+
+        if CodeViewerViewData::is_drag_instruction_selection_active(self.code_viewer_view_data.clone())
+            && user_interface.input(|input_state| input_state.pointer.primary_down())
+            && row_response.hovered()
+        {
+            CodeViewerViewData::update_drag_instruction_selection(self.code_viewer_view_data.clone(), instruction_line.address);
         }
 
         if row_response.double_clicked() {
@@ -954,6 +968,10 @@ impl Widget for CodeViewerView {
                     CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), true);
                 }
 
+                if user_interface.input(|input_state| input_state.pointer.primary_released()) {
+                    CodeViewerViewData::end_drag_instruction_selection(self.code_viewer_view_data.clone());
+                }
+
                 if user_interface.input(|input_state| input_state.pointer.any_pressed())
                     && user_interface
                         .input(|input_state| input_state.pointer.interact_pos())
@@ -961,6 +979,7 @@ impl Widget for CodeViewerView {
                         .unwrap_or(false)
                 {
                     CodeViewerViewData::set_keyboard_focus(self.code_viewer_view_data.clone(), false);
+                    CodeViewerViewData::end_drag_instruction_selection(self.code_viewer_view_data.clone());
                 }
 
                 if code_viewer_has_keyboard_focus
