@@ -144,7 +144,7 @@ impl Widget for ElementScannerFooterView {
         IconDraw::draw(
             &top_row_user_interface,
             previous_page_button.rect,
-            &theme.icon_library.icon_handle_navigation_left_arrow,
+            &theme.icon_library.icon_handle_navigation_left_arrow_small,
         );
 
         if previous_page_button.clicked() {
@@ -164,7 +164,7 @@ impl Widget for ElementScannerFooterView {
         IconDraw::draw(
             &top_row_user_interface,
             next_page_button.rect,
-            &theme.icon_library.icon_handle_navigation_right_arrow,
+            &theme.icon_library.icon_handle_navigation_right_arrow_small,
         );
 
         if next_page_button.clicked() {

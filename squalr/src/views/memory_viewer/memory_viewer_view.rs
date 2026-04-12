@@ -506,7 +506,7 @@ impl Widget for MemoryViewerView {
                 IconDraw::draw(
                     &toolbar_user_interface,
                     apply_go_to_button.rect,
-                    &theme.icon_library.icon_handle_navigation_right_arrow,
+                    &theme.icon_library.icon_handle_navigation_right_arrow_small,
                 );
                 should_seek_to_address |= apply_go_to_button.clicked();
 

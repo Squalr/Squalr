@@ -23,6 +23,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerS
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
+use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -1151,6 +1152,12 @@ impl PointerScannerViewData {
         data_type_id: &str,
     ) {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner set scan target from project address") {
+            let normalized_target_data_type_ref = Self::normalize_project_target_data_type_ref(data_type_id).unwrap_or_else(|| {
+                pointer_scanner_view_data_guard
+                    .target_data_type_selection
+                    .active_data_type()
+                    .clone()
+            });
             let resolved_virtual_address = try_resolve_virtual_module_address(module_name, address);
             let formatted_address = Self::format_address(resolved_virtual_address.unwrap_or(address));
             pointer_scanner_view_data_guard.target_address_input = Self::create_hex_input(formatted_address.clone());
@@ -1166,7 +1173,7 @@ impl PointerScannerViewData {
             }
             pointer_scanner_view_data_guard
                 .target_data_type_selection
-                .replace_selected_data_types(vec![Self::target_data_type_ref(data_type_id)]);
+                .replace_selected_data_types(vec![normalized_target_data_type_ref]);
             pointer_scanner_view_data_guard.status_message = if let Some(virtual_address) = resolved_virtual_address {
                 format!(
                     "Pointer scanner target autofilled from {}+0x{:X} as guest address {}.",
@@ -1183,6 +1190,19 @@ impl PointerScannerViewData {
                 )
             };
         }
+    }
+
+    fn normalize_project_target_data_type_ref(data_type_id: &str) -> Option<DataTypeRef> {
+        let trimmed_data_type_id = data_type_id.trim();
+
+        if trimmed_data_type_id.is_empty() {
+            return None;
+        }
+
+        SymbolicFieldDefinition::from_str(data_type_id)
+            .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
+            .ok()
+            .or_else(|| Some(Self::target_data_type_ref(trimmed_data_type_id)))
     }
 
     fn clear_session_state_preserving_inputs(&mut self) {
@@ -2344,6 +2364,26 @@ mod tests {
                 .active_data_type()
                 .get_data_type_id(),
             "u32"
+        );
+    }
+
+    #[test]
+    fn set_scan_target_from_project_address_normalizes_fixed_array_target_data_type() {
+        let dependency_container = DependencyContainer::new();
+        let pointer_scanner_view_data = dependency_container.register(PointerScannerViewData::new());
+
+        PointerScannerViewData::set_scan_target_from_project_address(pointer_scanner_view_data.clone(), 0x1234, "game.exe", "u8[190]");
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner normalized fixed-array target data type test")
+            .expect("Expected pointer scanner view data after normalizing a fixed-array target data type.");
+
+        assert_eq!(
+            pointer_scanner_view_data_guard
+                .target_data_type_selection
+                .active_data_type()
+                .get_data_type_id(),
+            "u8"
         );
     }
 
