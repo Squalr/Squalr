@@ -23,7 +23,6 @@ impl PointerScannerResultsView {
     const ROW_HEIGHT: f32 = 32.0;
     const COLUMN_PADDING: f32 = 8.0;
     const MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 96.0;
-    const ABSOLUTE_MINIMUM_COLUMN_PIXEL_WIDTH: f32 = 40.0;
     const DISCLOSURE_ICON_SIZE: f32 = 10.0;
     const DISCLOSURE_TEXT_SPACING: f32 = 6.0;
 
@@ -59,9 +58,9 @@ impl PointerScannerResultsView {
     }
 
     fn resolve_minimum_column_width(content_width: f32) -> f32 {
-        let width_per_column = (content_width / 4.0).floor();
-
-        width_per_column.clamp(Self::ABSOLUTE_MINIMUM_COLUMN_PIXEL_WIDTH, Self::MINIMUM_COLUMN_PIXEL_WIDTH)
+        (content_width / 4.0)
+            .min(Self::MINIMUM_COLUMN_PIXEL_WIDTH)
+            .max(1.0)
     }
 
     fn column_text_rectangle(
