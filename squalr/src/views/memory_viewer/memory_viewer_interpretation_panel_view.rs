@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
-use epaint::{CornerRadius, Stroke, StrokeKind};
+use epaint::CornerRadius;
 use squalr_engine_api::{commands::unprivileged_command_request::UnprivilegedCommandRequest, dependency_injection::dependency::Dependency};
 use std::sync::Arc;
 
@@ -434,10 +434,7 @@ impl Widget for MemoryViewerInterpretationPanelView {
 
         user_interface
             .painter()
-            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_primary);
-        user_interface
-            .painter()
-            .rect_stroke(panel_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.submenu_border), StrokeKind::Inside);
+            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_panel);
 
         let mut panel_user_interface = user_interface.new_child(
             UiBuilder::new()
