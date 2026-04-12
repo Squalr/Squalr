@@ -15,6 +15,7 @@ pub struct DataValueBoxView<'lifetime> {
     validation_data_type: &'lifetime DataTypeRef,
     validation_scan_compare_type: Option<ScanCompareType>,
     display_values: Option<&'lifetime [AnonymousValueString]>,
+    allowed_anonymous_value_string_formats: Option<Vec<AnonymousValueStringFormat>>,
     is_read_only: bool,
     is_value_owned: bool,
     preview_text: &'lifetime str,
@@ -54,6 +55,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             validation_data_type,
             validation_scan_compare_type: None,
             display_values: None,
+            allowed_anonymous_value_string_formats: None,
             is_read_only,
             is_value_owned,
             preview_text,
@@ -114,6 +116,14 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         display_values: &'lifetime [AnonymousValueString],
     ) -> Self {
         self.display_values = Some(display_values);
+        self
+    }
+
+    pub fn allowed_anonymous_value_string_formats(
+        mut self,
+        allowed_anonymous_value_string_formats: Vec<AnonymousValueStringFormat>,
+    ) -> Self {
+        self.allowed_anonymous_value_string_formats = Some(allowed_anonymous_value_string_formats);
         self
     }
 
@@ -451,9 +461,13 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                         popup_user_interface.set_min_width(Self::MIN_POPUP_WIDTH);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             let anonymous_value_string_formats = self
-                                .app_context
-                                .engine_unprivileged_state
-                                .get_supported_anonymous_value_string_formats(&self.validation_data_type);
+                                .allowed_anonymous_value_string_formats
+                                .clone()
+                                .unwrap_or_else(|| {
+                                    self.app_context
+                                        .engine_unprivileged_state
+                                        .get_supported_anonymous_value_string_formats(&self.validation_data_type)
+                                });
 
                             for anonymous_value_string_format in &anonymous_value_string_formats {
                                 let target_display_value = self.display_values.and_then(|display_values| {
