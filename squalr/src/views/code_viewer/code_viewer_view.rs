@@ -63,7 +63,8 @@ impl CodeViewerView {
     const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
-    const CONTENT_HEADER_HEIGHT: f32 = 22.0;
+    const CONTENT_HEADER_HEIGHT: f32 = 26.0;
+    const CONTENT_HEADER_SEPARATOR_HEIGHT: f32 = 3.0;
     const ROW_HEIGHT: f32 = 22.0;
     const EDIT_WARNING_ROW_HEIGHT: f32 = 34.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
@@ -72,7 +73,6 @@ impl CodeViewerView {
     const MINIMUM_BYTES_COLUMN_WIDTH: f32 = 72.0;
     const MINIMUM_TEXT_COLUMN_WIDTH: f32 = 220.0;
     const TEXT_LEFT_PADDING: f32 = 6.0;
-    const HEADER_TEXT_TOP_PADDING: f32 = 4.0;
     const ADDRESS_TEXT_RIGHT_PADDING: f32 = 8.0;
     const ROW_TEXT_TOP_PADDING: f32 = 4.0;
     const INLINE_EDIT_MAX_WIDTH: f32 = 256.0;
@@ -211,8 +211,8 @@ impl CodeViewerView {
                 text_position,
                 horizontal_alignment,
                 text,
-                theme.font_library.font_noto_sans.font_small.clone(),
-                theme.foreground_preview,
+                theme.font_library.font_noto_sans.font_header.clone(),
+                theme.foreground,
             );
     }
 
@@ -223,13 +223,13 @@ impl CodeViewerView {
         theme: &crate::ui::theme::Theme,
     ) {
         let column_layout = Self::resolve_column_layout(header_rect, bytes_text_splitter_position_x);
-        let header_text_y = header_rect.min.y + Self::HEADER_TEXT_TOP_PADDING;
+        let header_text_y = header_rect.center().y;
 
         Self::draw_column_header_text(
             user_interface,
             column_layout.breakpoint_gutter_rect,
             "BP",
-            Align2::CENTER_TOP,
+            Align2::CENTER_CENTER,
             pos2(column_layout.breakpoint_gutter_rect.center().x, header_text_y),
             theme,
         );
@@ -237,7 +237,7 @@ impl CodeViewerView {
             user_interface,
             column_layout.address_rect,
             "Address",
-            Align2::LEFT_TOP,
+            Align2::LEFT_CENTER,
             pos2(column_layout.address_rect.min.x + Self::TEXT_LEFT_PADDING, header_text_y),
             theme,
         );
@@ -245,7 +245,7 @@ impl CodeViewerView {
             user_interface,
             column_layout.bytes_rect,
             "Bytes",
-            Align2::LEFT_TOP,
+            Align2::LEFT_CENTER,
             pos2(column_layout.bytes_rect.min.x + Self::TEXT_LEFT_PADDING, header_text_y),
             theme,
         );
@@ -253,7 +253,7 @@ impl CodeViewerView {
             user_interface,
             column_layout.text_rect,
             "Assembly",
-            Align2::LEFT_TOP,
+            Align2::LEFT_CENTER,
             pos2(column_layout.text_rect.min.x + Self::TEXT_LEFT_PADDING, header_text_y),
             theme,
         );
@@ -761,7 +761,7 @@ impl CodeViewerView {
             CodeViewerInstructionEditStatus::PendingFillWithNops { remaining_byte_count, .. } => {
                 warning_user_interface.label(
                     RichText::new(format!(
-                        "Replacement is {} byte(s) shorter. Fill the remainder with NOPs?",
+                        "Replacement is {} byte(s) shorter. Fill the remainder with code that does nothing?",
                         remaining_byte_count
                     ))
                     .font(theme.font_library.font_noto_sans.font_normal.clone())
@@ -991,7 +991,14 @@ impl Widget for CodeViewerView {
                 let (header_rect, _) =
                     content_user_interface.allocate_exact_size(vec2(content_user_interface.available_width(), Self::CONTENT_HEADER_HEIGHT), Sense::hover());
                 Self::render_content_headers(&content_user_interface, header_rect, bytes_text_splitter_position_x, theme);
-                let body_rect = Rect::from_min_max(pos2(content_response.rect.min.x, header_rect.max.y), content_response.rect.max);
+                let (header_separator_rect, _) = content_user_interface.allocate_exact_size(
+                    vec2(content_user_interface.available_width(), Self::CONTENT_HEADER_SEPARATOR_HEIGHT),
+                    Sense::hover(),
+                );
+                content_user_interface
+                    .painter()
+                    .rect_filled(header_separator_rect, CornerRadius::ZERO, theme.background_control);
+                let body_rect = Rect::from_min_max(pos2(content_response.rect.min.x, header_separator_rect.max.y), content_response.rect.max);
                 let mut body_user_interface = content_user_interface.new_child(
                     UiBuilder::new()
                         .max_rect(body_rect)
