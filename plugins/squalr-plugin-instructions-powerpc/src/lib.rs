@@ -9,13 +9,13 @@ pub use constants::{
     POWERPC_FAMILY_DATA_TYPE_IDS, POWERPC_FAMILY_INSTRUCTION_SET_IDS, POWERPC_FAMILY_PLUGIN_DESCRIPTION, POWERPC_FAMILY_PLUGIN_DISPLAY_NAME,
     POWERPC_FAMILY_PLUGIN_ID,
 };
-pub use data_types::DataTypeIPpc32be;
+pub use data_types::DataTypeInstructionPowerPc32Be;
 pub use instruction_set::PowerPc32BeInstructionSet;
 pub use plugin::PowerPcFamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{DataTypeIPpc32be, PowerPcFamilyInstructionsPlugin};
+    use crate::{DataTypeInstructionPowerPc32Be, PowerPcFamilyInstructionsPlugin};
     use squalr_engine_api::{
         plugins::{Plugin, PluginCapability},
         structures::{
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn i_ppc32be_data_type_assembles_li_and_return_sequence() {
-        let data_type = DataTypeIPpc32be::new();
+        let data_type = DataTypeInstructionPowerPc32Be::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("li r3, 5; blr"),
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn i_ppc32be_data_type_supports_label_branches() {
-        let data_type = DataTypeIPpc32be::new();
+        let data_type = DataTypeInstructionPowerPc32Be::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("start: nop; b start"),
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn i_ppc32be_data_type_disassembles_common_forms() {
-        let data_type = DataTypeIPpc32be::new();
+        let data_type = DataTypeInstructionPowerPc32Be::new();
         let anonymous_value_string = data_type
             .anonymize_value_bytes(
                 &[

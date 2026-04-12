@@ -13,11 +13,11 @@ use squalr_engine_api::{
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
-pub struct DataTypeIX64 {
+pub struct DataTypeInstructionX64 {
     instruction_set: Arc<dyn InstructionSet>,
 }
 
-impl DataTypeIX64 {
+impl DataTypeInstructionX64 {
     pub const DATA_TYPE_ID: &str = "i_x64";
 
     pub fn new() -> Self {
@@ -27,13 +27,13 @@ impl DataTypeIX64 {
     }
 }
 
-impl Default for DataTypeIX64 {
+impl Default for DataTypeInstructionX64 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl DataType for DataTypeIX64 {
+impl DataType for DataTypeInstructionX64 {
     fn get_data_type_id(&self) -> &str {
         Self::DATA_TYPE_ID
     }
@@ -99,4 +99,4 @@ impl DataType for DataTypeIX64 {
     }
 }
 
-impl_data_type_comparison_stubs!(DataTypeIX64);
+impl_data_type_comparison_stubs!(DataTypeInstructionX64);

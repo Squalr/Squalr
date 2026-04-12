@@ -1,5 +1,5 @@
-mod data_type_i_arm;
-mod data_type_i_arm64;
+mod data_type_instruction_arm;
+mod data_type_instruction_arm64;
 
-pub use data_type_i_arm::DataTypeIArm;
-pub use data_type_i_arm64::DataTypeIArm64;
+pub use data_type_instruction_arm::DataTypeInstructionArm;
+pub use data_type_instruction_arm64::DataTypeInstructionArm64;

@@ -1,6 +1,6 @@
 use crate::{
     x86_memory_operand::{X86InstructionMode, memory_operand_matches_operand_kind, memory_operand_specificity_score, parse_memory_operand},
-    x86_opcode_index::get_opcode_candidates,
+    x86_opcode_candidate_index::get_opcode_candidates_for_mnemonic,
     x86_register::{parse_register, register_matches_operand_kind, register_operand_specificity_score},
 };
 use iced_x86::{Code, Instruction, OpCodeOperandKind, OpKind, Register, RoundingControl};
@@ -54,7 +54,7 @@ fn get_ranked_candidate_codes(
     instruction_mode: X86InstructionMode,
     label_addresses: &HashMap<String, u64>,
 ) -> Vec<Code> {
-    let mut scored_candidates = get_opcode_candidates(parsed_instruction.mnemonic())
+    let mut scored_candidates = get_opcode_candidates_for_mnemonic(parsed_instruction.mnemonic())
         .into_iter()
         .filter(|candidate_code| {
             candidate_code

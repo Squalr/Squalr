@@ -1,4 +1,4 @@
-use crate::Arm64InstructionSet;
+use crate::PowerPc32BeInstructionSet;
 use squalr_engine_api::{
     impl_instruction_data_type_comparison_stubs,
     plugins::instruction_set::{InstructionSet, anonymize_instruction_bytes, deanonymize_instruction_value},
@@ -11,27 +11,27 @@ use squalr_engine_api::{
 use std::sync::Arc;
 
 #[derive(Clone, Debug)]
-pub struct DataTypeIArm64 {
+pub struct DataTypeInstructionPowerPc32Be {
     instruction_set: Arc<dyn InstructionSet>,
 }
 
-impl DataTypeIArm64 {
-    pub const DATA_TYPE_ID: &str = "i_arm64";
+impl DataTypeInstructionPowerPc32Be {
+    pub const DATA_TYPE_ID: &str = "i_ppc32be";
 
     pub fn new() -> Self {
         Self {
-            instruction_set: Arc::new(Arm64InstructionSet::new()),
+            instruction_set: Arc::new(PowerPc32BeInstructionSet::new()),
         }
     }
 }
 
-impl Default for DataTypeIArm64 {
+impl Default for DataTypeInstructionPowerPc32Be {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl DataType for DataTypeIArm64 {
+impl DataType for DataTypeInstructionPowerPc32Be {
     fn get_data_type_id(&self) -> &str {
         Self::DATA_TYPE_ID
     }
@@ -78,7 +78,7 @@ impl DataType for DataTypeIArm64 {
     }
 
     fn get_endian(&self) -> Endian {
-        Endian::Little
+        Endian::Big
     }
 
     fn is_floating_point(&self) -> bool {
@@ -97,4 +97,4 @@ impl DataType for DataTypeIArm64 {
     }
 }
 
-impl_instruction_data_type_comparison_stubs!(DataTypeIArm64);
+impl_instruction_data_type_comparison_stubs!(DataTypeInstructionPowerPc32Be);

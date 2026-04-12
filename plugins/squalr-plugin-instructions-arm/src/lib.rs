@@ -9,13 +9,13 @@ mod plugin;
 pub use constants::{
     ARM_FAMILY_DATA_TYPE_IDS, ARM_FAMILY_INSTRUCTION_SET_IDS, ARM_FAMILY_PLUGIN_DESCRIPTION, ARM_FAMILY_PLUGIN_DISPLAY_NAME, ARM_FAMILY_PLUGIN_ID,
 };
-pub use data_types::{DataTypeIArm, DataTypeIArm64};
+pub use data_types::{DataTypeInstructionArm, DataTypeInstructionArm64};
 pub use instruction_set::{Arm32InstructionSet, Arm64InstructionSet};
 pub use plugin::ArmFamilyInstructionsPlugin;
 
 #[cfg(test)]
 mod tests {
-    use crate::{ArmFamilyInstructionsPlugin, DataTypeIArm, DataTypeIArm64};
+    use crate::{ArmFamilyInstructionsPlugin, DataTypeInstructionArm, DataTypeInstructionArm64};
     use squalr_engine_api::{
         plugins::{Plugin, PluginCapability},
         structures::{
@@ -28,7 +28,7 @@ mod tests {
 
     #[test]
     fn i_arm_data_type_assembles_mov_and_return_sequence() {
-        let data_type = DataTypeIArm::new();
+        let data_type = DataTypeInstructionArm::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("mov r0, #5; bx lr"),
@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn i_arm64_data_type_assembles_mov_and_return_sequence() {
-        let data_type = DataTypeIArm64::new();
+        let data_type = DataTypeInstructionArm64::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("mov x0, #5; ret"),
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn i_arm_data_type_supports_label_branches() {
-        let data_type = DataTypeIArm::new();
+        let data_type = DataTypeInstructionArm::new();
         let data_value = data_type
             .deanonymize_value_string(&AnonymousValueString::new(
                 String::from("start: nop; b start"),
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn i_arm64_data_type_disassembles_load_store_sequence() {
-        let data_type = DataTypeIArm64::new();
+        let data_type = DataTypeInstructionArm64::new();
         let anonymous_value_string = data_type
             .anonymize_value_bytes(&[0x20, 0x08, 0x40, 0xF9, 0x20, 0x08, 0x00, 0xF9], AnonymousValueStringFormat::String)
             .expect("Expected ARM64 bytes to disassemble.");

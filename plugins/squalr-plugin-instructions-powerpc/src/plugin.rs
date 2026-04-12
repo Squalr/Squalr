@@ -1,5 +1,5 @@
 use crate::{
-    DataTypeIPpc32be, PowerPc32BeInstructionSet,
+    DataTypeInstructionPowerPc32Be, PowerPc32BeInstructionSet,
     constants::{
         POWERPC_FAMILY_DATA_TYPE_IDS, POWERPC_FAMILY_INSTRUCTION_SET_IDS, POWERPC_FAMILY_PLUGIN_DESCRIPTION, POWERPC_FAMILY_PLUGIN_DISPLAY_NAME,
         POWERPC_FAMILY_PLUGIN_ID,
@@ -32,7 +32,7 @@ impl PowerPcFamilyInstructionsPlugin {
                 true,
                 true,
             ),
-            contributed_data_types: vec![Arc::new(DataTypeIPpc32be::new())],
+            contributed_data_types: vec![Arc::new(DataTypeInstructionPowerPc32Be::new())],
             contributed_instruction_sets: vec![Arc::new(PowerPc32BeInstructionSet::new())],
         }
     }

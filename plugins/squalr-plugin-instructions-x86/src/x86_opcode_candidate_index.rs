@@ -12,7 +12,8 @@ static X86_OPCODE_INDEX: LazyLock<HashMap<String, Vec<Code>>> = LazyLock::new(||
     opcode_index
 });
 
-pub fn get_opcode_candidates(mnemonic_name: &str) -> Vec<Code> {
+/// Returns all `iced_x86::Code` variants that share the provided mnemonic.
+pub fn get_opcode_candidates_for_mnemonic(mnemonic_name: &str) -> Vec<Code> {
     X86_OPCODE_INDEX
         .get(&mnemonic_name.trim().to_ascii_lowercase())
         .cloned()
