@@ -275,6 +275,26 @@ So for TUI implementation order:
 3. Exact-match labels in memory-oriented flows.
 4. Deeper viewer integration only after the neglected memory/code paths are brought up to a healthy baseline.
 
+### CLI shape
+CLI coverage should be planned explicitly, not assumed.
+
+Some symbol features will naturally fall out of existing command work, because the CLI already rides the same request/command surface as the rest of the app. But symbol authoring and browsing will also introduce unprivileged project-side behaviors that do not automatically appear unless we add commands for them on purpose.
+
+So the CLI plan should be:
+- add explicit unprivileged commands for symbol-store operations that are not just privileged memory actions,
+- make symbol creation, listing, inspection, promotion, rename, and delete available from CLI command paths,
+- keep export/import and metadata edits scriptable where practical,
+- avoid requiring the GUI/TUI layer to perform essential symbol-store authoring work.
+
+In practice, that means symbol support should not be considered complete until there is a command surface for at least:
+- listing symbol types and rooted symbols,
+- creating rooted symbols,
+- promoting existing project discoveries into symbols,
+- renaming and deleting symbols,
+- inspecting resolved addresses and basic derived child information.
+
+If a symbol workflow stays entirely unprivileged-side, that is a sign we may need a dedicated unprivileged command rather than assuming the existing privileged command boundary will cover it for CLI use.
+
 ## Practical Design Decisions
 
 ### Identity
