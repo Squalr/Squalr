@@ -108,7 +108,7 @@ impl Widget for CodeViewerFooterView {
         IconDraw::draw(
             &top_row_user_interface,
             previous_page_button.rect,
-            &theme.icon_library.icon_handle_navigation_left_arrow,
+            &theme.icon_library.icon_handle_navigation_left_arrow_small,
         );
         let should_navigate_previous_page = previous_page_button.clicked();
 
@@ -121,7 +121,7 @@ impl Widget for CodeViewerFooterView {
         IconDraw::draw(
             &top_row_user_interface,
             next_page_button.rect,
-            &theme.icon_library.icon_handle_navigation_right_arrow,
+            &theme.icon_library.icon_handle_navigation_right_arrow_small,
         );
         let should_navigate_next_page = next_page_button.clicked();
 

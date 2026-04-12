@@ -17,6 +17,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     icon_padding_left: f32,
     icon_size: f32,
     label_spacing: f32,
+    show_dropdown_arrow: bool,
     divider_width: f32,
     border_width: f32,
     corner_radius: u8,
@@ -42,6 +43,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             icon_padding_left: 8.0,
             icon_size: 16.0,
             label_spacing: 8.0,
+            show_dropdown_arrow: true,
             divider_width: 1.0,
             border_width: 1.0,
             corner_radius: 0,
@@ -82,6 +84,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         self.height = height;
         self
     }
+
+    pub fn show_dropdown_arrow(
+        mut self,
+        show_dropdown_arrow: bool,
+    ) -> Self {
+        self.show_dropdown_arrow = show_dropdown_arrow;
+        self
+    }
 }
 
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime, F> {
@@ -101,9 +111,20 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         // Precompute positions.
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
         let icon_y = allocated_size_rectangle.center().y - icon_size_vec.y * 0.5;
+        let right_side_width = if self.show_dropdown_arrow {
+            self.icon_size + self.icon_padding_left * 2.0 + self.divider_width
+        } else {
+            0.0
+        };
 
         // Left-side icon.
-        let left_icon_pos = pos2(allocated_size_rectangle.min.x + self.icon_padding_left, icon_y);
+        let has_label = !self.label.is_empty();
+        let should_center_icon_only = self.icon.is_some() && !has_label && !self.show_dropdown_arrow;
+        let left_icon_pos = if should_center_icon_only {
+            pos2(allocated_size_rectangle.center().x - icon_size_vec.x * 0.5, icon_y)
+        } else {
+            pos2(allocated_size_rectangle.min.x + self.icon_padding_left, icon_y)
+        };
 
         // Text label.
         let galley = user_interface
@@ -118,7 +139,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             },
             allocated_size_rectangle.center().y - galley.size().y * 0.5,
         );
-        let divider_x = allocated_size_rectangle.max.x - (self.icon_size + self.icon_padding_left * 2.0 + self.divider_width);
+        let divider_x = allocated_size_rectangle.max.x - right_side_width;
         let label_clip_rectangle = Rect::from_min_max(
             pos2(text_pos.x, allocated_size_rectangle.min.y + self.border_width),
             pos2((divider_x - self.label_spacing).max(text_pos.x), allocated_size_rectangle.max.y),
@@ -156,30 +177,34 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             );
         }
         // Draw text next to icon.
-        user_interface
-            .painter()
-            .with_clip_rect(label_clip_rectangle)
-            .galley(text_pos, galley, text_color);
+        if has_label {
+            user_interface
+                .painter()
+                .with_clip_rect(label_clip_rectangle)
+                .galley(text_pos, galley, text_color);
+        }
 
-        // Divider bar before right arrow.
-        let divider_rectangle = Rect::from_min_max(
-            pos2(divider_x, allocated_size_rectangle.min.y + self.border_width),
-            pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
-        );
+        if self.show_dropdown_arrow {
+            // Divider bar before right arrow.
+            let divider_rectangle = Rect::from_min_max(
+                pos2(divider_x, allocated_size_rectangle.min.y + self.border_width),
+                pos2(divider_x + self.divider_width, allocated_size_rectangle.max.y),
+            );
 
-        user_interface
-            .painter()
-            .rect_filled(divider_rectangle, 0.0, theme.submenu_border);
+            user_interface
+                .painter()
+                .rect_filled(divider_rectangle, 0.0, theme.submenu_border);
 
-        // Draw right arrow.
-        let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
+            // Draw right arrow.
+            let right_arrow_pos = pos2(allocated_size_rectangle.max.x - self.icon_size - self.icon_padding_left, icon_y);
 
-        user_interface.painter().image(
-            down_arrow.id(),
-            Rect::from_min_size(right_arrow_pos, icon_size_vec),
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            icon_tint,
-        );
+            user_interface.painter().image(
+                down_arrow.id(),
+                Rect::from_min_size(right_arrow_pos, icon_size_vec),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                icon_tint,
+            );
+        }
 
         // Popup logic.
         let popup_id = Id::new(("combo_popup", self.menu_id, user_interface.id().value()));

@@ -44,7 +44,7 @@ pub struct ElementScannerResultsView {
 }
 
 impl ElementScannerResultsView {
-    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 52.0;
+    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 96.0;
     const DISPLAY_TYPE_SELECTOR_POPUP_WIDTH: f32 = 176.0;
     pub const WINDOW_ID: &'static str = "window_element_scanner_results";
 
@@ -374,7 +374,7 @@ impl Widget for ElementScannerResultsView {
                         display_type_selector_rectangle,
                         ComboBoxView::new(
                             self.app_context.clone(),
-                            "",
+                            "Value",
                             "element_scanner_results_display_type",
                             Some(self.display_format_icon(element_scanner_results_view_data.active_display_format)),
                             |popup_user_interface, should_close| {
@@ -400,7 +400,8 @@ impl Widget for ElementScannerResultsView {
                             },
                         )
                         .width(display_type_selector_rectangle.width())
-                        .height(display_type_selector_rectangle.height()),
+                        .height(display_type_selector_rectangle.height())
+                        .show_dropdown_arrow(false),
                     );
 
                     let active_display_format = header_display_format_value.get_anonymous_value_string_format();
@@ -559,16 +560,16 @@ impl Widget for ElementScannerResultsView {
 
                 if value_splitter_response.dragged() {
                     let drag_delta = value_splitter_response.drag_delta();
-                    let mut new_value_splitter_position_x = value_splitter_position_x + drag_delta.x;
-
                     let minimum_value_splitter_position_x = faux_address_splitter_position_x + MINIMUM_COLUMN_PIXEL_WIDTH;
-                    let maximum_value_splitter_position_x = previous_value_splitter_position_x - MINIMUM_SPLITTER_PIXEL_GAP;
+                    let maximum_previous_value_splitter_position_x = content_min_x + content_width - MINIMUM_COLUMN_PIXEL_WIDTH;
+                    let minimum_drag_delta_x = minimum_value_splitter_position_x - value_splitter_position_x;
+                    let maximum_drag_delta_x = maximum_previous_value_splitter_position_x - previous_value_splitter_position_x;
+                    let bounded_drag_delta_x = drag_delta.x.clamp(minimum_drag_delta_x, maximum_drag_delta_x);
+                    let new_value_splitter_position_x = value_splitter_position_x + bounded_drag_delta_x;
+                    let new_previous_value_splitter_position_x = previous_value_splitter_position_x + bounded_drag_delta_x;
 
-                    new_value_splitter_position_x = new_value_splitter_position_x.clamp(minimum_value_splitter_position_x, maximum_value_splitter_position_x);
-
-                    let bounded_value_splitter_ratio = (new_value_splitter_position_x - content_min_x) / content_width;
-
-                    new_value_splitter_ratio = Some(bounded_value_splitter_ratio);
+                    new_value_splitter_ratio = Some((new_value_splitter_position_x - content_min_x) / content_width);
+                    new_previous_value_splitter_ratio = Some((new_previous_value_splitter_position_x - content_min_x) / content_width);
                 }
 
                 // Previous value splitter.
