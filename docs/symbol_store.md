@@ -192,6 +192,22 @@ Children are derived views, not stored facts, unless the user explicitly turns o
 ### External tools
 If an import/export plugin needs extra naming hints, original-source names, namespace mappings, comments, or tags, those belong in metadata associated with that plugin or format.
 
+### Managed runtimes
+If we later want strong support for CLR-heavy, JVM-heavy, or other managed-runtime targets, the current plan should extend by adding a runtime-aware symbol provider layer rather than reshaping the whole core model.
+
+The intended shape is:
+- virtual modules still describe the visible memory space,
+- data-type plugins still describe value encodings,
+- a future runtime/symbol-provider plugin can contribute runtime-specific roots and resolution logic.
+
+That future plugin would be the place for things like:
+- managed statics,
+- GC handles or pinned-object style roots,
+- metadata-token based lookup,
+- runtime-specific symbol metadata.
+
+The core symbol store should stay runtime-agnostic and let those quirks live in plugin-provided locators and metadata when the time is right.
+
 ## Bottom Line
 The symbol-store plan should stay practical:
 - named layouts,
