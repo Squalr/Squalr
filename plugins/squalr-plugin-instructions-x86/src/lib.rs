@@ -234,6 +234,53 @@ mod tests {
     }
 
     #[test]
+    fn i_x86_data_type_supports_db_directive() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("db 0x75"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected x86 db directive to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0x75]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_mixed_data_directives_and_instructions() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("db 0x75, 0xFD; ret"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected mixed x86 directives and instructions to assemble.");
+
+        assert_eq!(assembled_value.get_value_bytes(), &[0x75, 0xFD, 0xC3]);
+    }
+
+    #[test]
+    fn i_x86_data_type_supports_larger_data_directives() {
+        let data_type = DataTypeIX86::new();
+        let assembled_value = data_type
+            .deanonymize_value_string(&AnonymousValueString::new(
+                String::from("dw 0x1234; dd 0x12345678; dq 0x1122334455667788"),
+                AnonymousValueStringFormat::String,
+                ContainerType::None,
+            ))
+            .expect("Expected larger x86 data directives to assemble.");
+
+        assert_eq!(
+            assembled_value.get_value_bytes(),
+            &[
+                0x34, 0x12, 0x78, 0x56, 0x34, 0x12, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11
+            ]
+        );
+    }
+
+    #[test]
     fn x86_instruction_set_disassemble_block_reports_branch_targets() {
         let instruction_set = X86InstructionSet::new();
         let instruction_lines = instruction_set
