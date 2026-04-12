@@ -30,12 +30,16 @@ impl PowerPcFamilyInstructionsPlugin {
                 POWERPC_FAMILY_PLUGIN_DESCRIPTION,
                 vec![PluginCapability::DataType, PluginCapability::InstructionSet],
                 true,
-                true,
+                is_enabled_by_default_for_current_target(),
             ),
             contributed_data_types: vec![Arc::new(DataTypeInstructionPowerPc32Be::new())],
             contributed_instruction_sets: vec![Arc::new(PowerPc32BeInstructionSet::new())],
         }
     }
+}
+
+fn is_enabled_by_default_for_current_target() -> bool {
+    cfg!(any(target_arch = "powerpc", target_arch = "powerpc64"))
 }
 
 impl Default for PowerPcFamilyInstructionsPlugin {

@@ -72,6 +72,7 @@ mod tests {
     #[test]
     fn plugin_exposes_data_type_and_instruction_set_capabilities() {
         let plugin = PowerPcFamilyInstructionsPlugin::new();
+        let expected_default_enablement = cfg!(any(target_arch = "powerpc", target_arch = "powerpc64"));
 
         assert_eq!(plugin.metadata().get_plugin_id(), "builtin.instruction-set.powerpc-family");
         assert!(
@@ -84,5 +85,6 @@ mod tests {
                 .metadata()
                 .has_plugin_capability(PluginCapability::InstructionSet)
         );
+        assert_eq!(plugin.metadata().get_is_enabled_by_default(), expected_default_enablement);
     }
 }
