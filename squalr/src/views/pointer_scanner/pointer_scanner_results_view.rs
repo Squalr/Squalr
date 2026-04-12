@@ -4,7 +4,7 @@ use crate::views::pointer_scanner::pointer_scanner_footer_view::PointerScannerFo
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
 use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
-use epaint::{Color32, CornerRadius, Rect, Stroke, StrokeKind};
+use epaint::{Color32, CornerRadius, Rect};
 use squalr_engine_api::{commands::unprivileged_command_request::UnprivilegedCommandRequest, dependency_injection::dependency::Dependency};
 use std::sync::Arc;
 
@@ -18,6 +18,7 @@ pub struct PointerScannerResultsView {
 
 impl PointerScannerResultsView {
     const COLUMN_SEPARATOR_THICKNESS: f32 = 3.0;
+    const HEADER_SEPARATOR_THICKNESS: f32 = 3.0;
     const HEADER_HEIGHT: f32 = 32.0;
     const ROW_HEIGHT: f32 = 32.0;
     const COLUMN_PADDING: f32 = 8.0;
@@ -81,16 +82,6 @@ impl PointerScannerResultsView {
         let header_font = theme.font_library.font_noto_sans.font_header.clone();
         let primary_label = if is_root_context { "Module" } else { "Offset" };
 
-        user_interface
-            .painter()
-            .rect_filled(header_rectangle, CornerRadius::ZERO, theme.background_primary);
-        user_interface.painter().rect_stroke(
-            header_rectangle,
-            CornerRadius::ZERO,
-            Stroke::new(1.0, theme.background_control),
-            StrokeKind::Inside,
-        );
-
         self.draw_clipped_text(
             user_interface,
             Self::column_text_rectangle(header_rectangle.min.x, primary_splitter_position_x, header_rectangle),
@@ -147,12 +138,6 @@ impl PointerScannerResultsView {
         user_interface
             .painter()
             .rect_filled(row_rectangle, CornerRadius::ZERO, row_background);
-        user_interface.painter().rect_stroke(
-            row_rectangle,
-            CornerRadius::ZERO,
-            Stroke::new(1.0, theme.background_control),
-            StrokeKind::Inside,
-        );
 
         let disclosure_icon_rectangle = Rect::from_center_size(
             pos2(
@@ -284,10 +269,6 @@ impl Widget for PointerScannerResultsView {
         );
         results_user_interface.set_clip_rect(results_rectangle);
 
-        results_user_interface
-            .painter()
-            .rect_filled(results_rectangle, CornerRadius::ZERO, theme.background_panel);
-
         results_user_interface.allocate_ui_with_layout(results_user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
             let allocate_resize_bar = |user_interface: &mut Ui, resize_rectangle: Rect, id_suffix: &str| -> Response {
                 let id = user_interface.id().with(id_suffix);
@@ -302,6 +283,10 @@ impl Widget for PointerScannerResultsView {
 
             let (header_rectangle, _) =
                 user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::HEADER_HEIGHT), Sense::empty());
+            let (header_separator_rectangle, _) = user_interface.allocate_exact_size(
+                vec2(user_interface.available_width().max(1.0), Self::HEADER_SEPARATOR_THICKNESS),
+                Sense::empty(),
+            );
             let content_clip_rectangle = user_interface
                 .available_rect_before_wrap()
                 .with_max_y(user_interface.available_rect_before_wrap().max.y - footer_height);
@@ -350,6 +335,10 @@ impl Widget for PointerScannerResultsView {
                 value_splitter_position_x,
                 resolved_splitter_position_x,
             );
+
+            user_interface
+                .painter()
+                .rect_filled(header_separator_rectangle, CornerRadius::ZERO, theme.background_control);
 
             ScrollArea::vertical()
                 .id_salt("pointer_scanner_rows")
