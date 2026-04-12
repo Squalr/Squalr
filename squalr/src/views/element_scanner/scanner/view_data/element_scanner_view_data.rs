@@ -24,18 +24,20 @@ use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ElementScannerContainerMode {
+pub enum ElementScannerScanMode {
     Element,
     Array,
+    Pattern,
 }
 
-impl ElementScannerContainerMode {
-    pub const ALL: &'static [Self] = &[Self::Element, Self::Array];
+impl ElementScannerScanMode {
+    pub const ALL: &'static [Self] = &[Self::Element, Self::Array, Self::Pattern];
 
     pub fn label(&self) -> &'static str {
         match self {
             Self::Element => "Element",
             Self::Array => "Array",
+            Self::Pattern => "Pattern",
         }
     }
 }
@@ -45,7 +47,7 @@ pub struct ElementScannerViewData {
     pub data_type_selection: DataTypeSelection,
     pub active_display_format: AnonymousValueStringFormat,
     pub view_state: ElementScannerViewState,
-    pub container_mode: ElementScannerContainerMode,
+    pub scan_mode: ElementScannerScanMode,
     pub scan_values_and_constraints: Vec<ElementScannerValueViewData>,
 }
 
@@ -58,7 +60,7 @@ impl ElementScannerViewData {
             data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::get_data_type_id())),
             active_display_format: AnonymousValueStringFormat::Decimal,
             view_state: ElementScannerViewState::NoResults,
-            container_mode: ElementScannerContainerMode::Element,
+            scan_mode: ElementScannerScanMode::Element,
             scan_values_and_constraints: vec![ElementScannerValueViewData::new(Self::create_menu_id(0))],
         }
     }
@@ -188,11 +190,11 @@ impl ElementScannerViewData {
         let data_type_refs = element_scanner_view_data
             .data_type_selection
             .scan_data_type_refs();
-        let effective_container_mode = Self::resolve_container_mode_for_data_type(
+        let effective_scan_mode = Self::resolve_scan_mode_for_data_type(
             element_scanner_view_data
                 .data_type_selection
                 .visible_data_type(),
-            element_scanner_view_data.container_mode,
+            element_scanner_view_data.scan_mode,
         );
 
         if data_type_refs.is_empty() {
@@ -205,7 +207,7 @@ impl ElementScannerViewData {
             .iter()
             .map(|scan_value_and_constraint| {
                 let mut constraint_value = scan_value_and_constraint.current_scan_value.clone();
-                Self::apply_container_mode_to_constraint_value(effective_container_mode, &mut constraint_value);
+                Self::apply_scan_mode_to_constraint_value(effective_scan_mode, element_scanner_view_data.active_display_format, &mut constraint_value);
                 AnonymousScanConstraint::new(scan_value_and_constraint.selected_scan_compare_type, Some(constraint_value))
             })
             .collect();
@@ -280,13 +282,24 @@ impl ElementScannerViewData {
         format!("element_scanner_data_type_selector_{}", index)
     }
 
-    pub fn apply_container_mode_to_constraint_value(
-        container_mode: ElementScannerContainerMode,
+    pub fn apply_scan_mode_to_constraint_value(
+        scan_mode: ElementScannerScanMode,
+        active_display_format: AnonymousValueStringFormat,
         constraint_value: &mut AnonymousValueString,
     ) {
-        match container_mode {
-            ElementScannerContainerMode::Element => constraint_value.set_container_type(ContainerType::None),
-            ElementScannerContainerMode::Array => constraint_value.set_container_type(ContainerType::Array),
+        match scan_mode {
+            ElementScannerScanMode::Element => {
+                constraint_value.set_container_type(ContainerType::None);
+                constraint_value.set_anonymous_value_string_format(active_display_format);
+            }
+            ElementScannerScanMode::Array => {
+                constraint_value.set_container_type(ContainerType::Array);
+                constraint_value.set_anonymous_value_string_format(active_display_format);
+            }
+            ElementScannerScanMode::Pattern => {
+                constraint_value.set_container_type(ContainerType::None);
+                constraint_value.set_anonymous_value_string_format(AnonymousValueStringFormat::HexPattern);
+            }
         }
     }
 
@@ -296,67 +309,196 @@ impl ElementScannerViewData {
             .starts_with(Self::INSTRUCTION_SEQUENCE_DATA_TYPE_PREFIX)
     }
 
-    pub fn resolve_container_mode_for_data_type(
+    pub fn resolve_scan_mode_for_data_type(
         data_type_ref: &DataTypeRef,
-        requested_container_mode: ElementScannerContainerMode,
-    ) -> ElementScannerContainerMode {
+        requested_scan_mode: ElementScannerScanMode,
+    ) -> ElementScannerScanMode {
         if Self::is_instruction_sequence_data_type(data_type_ref) {
-            ElementScannerContainerMode::Element
+            ElementScannerScanMode::Element
         } else {
-            requested_container_mode
+            requested_scan_mode
         }
     }
 
-    pub fn get_container_mode_label(
+    pub fn get_scan_mode_label(
         data_type_ref: &DataTypeRef,
-        container_mode: ElementScannerContainerMode,
+        scan_mode: ElementScannerScanMode,
     ) -> &'static str {
         if Self::is_instruction_sequence_data_type(data_type_ref) {
             "Sequence"
         } else {
-            container_mode.label()
+            scan_mode.label()
         }
+    }
+
+    pub fn get_scan_mode_options_for_data_type(
+        data_type_ref: &DataTypeRef,
+        supported_display_formats: &[AnonymousValueStringFormat],
+    ) -> Vec<ElementScannerScanMode> {
+        if Self::is_instruction_sequence_data_type(data_type_ref) {
+            vec![ElementScannerScanMode::Element]
+        } else if supported_display_formats.contains(&AnonymousValueStringFormat::Hexadecimal) {
+            ElementScannerScanMode::ALL.to_vec()
+        } else {
+            vec![ElementScannerScanMode::Element, ElementScannerScanMode::Array]
+        }
+    }
+
+    pub fn resolve_active_display_format(
+        resolved_scan_mode: ElementScannerScanMode,
+        requested_display_format: AnonymousValueStringFormat,
+        supported_display_formats: &[AnonymousValueStringFormat],
+    ) -> AnonymousValueStringFormat {
+        if resolved_scan_mode == ElementScannerScanMode::Pattern {
+            return AnonymousValueStringFormat::Hexadecimal;
+        }
+
+        if supported_display_formats.contains(&requested_display_format) {
+            requested_display_format
+        } else {
+            supported_display_formats
+                .first()
+                .copied()
+                .unwrap_or(AnonymousValueStringFormat::Decimal)
+        }
+    }
+
+    pub fn get_supported_display_formats_for_scan_mode(
+        supported_anonymous_value_string_formats: &[AnonymousValueStringFormat],
+        scan_mode: ElementScannerScanMode,
+    ) -> Vec<AnonymousValueStringFormat> {
+        if scan_mode == ElementScannerScanMode::Pattern {
+            return vec![AnonymousValueStringFormat::Hexadecimal];
+        }
+
+        supported_anonymous_value_string_formats
+            .iter()
+            .copied()
+            .filter(|anonymous_value_string_format| *anonymous_value_string_format != AnonymousValueStringFormat::HexPattern)
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ElementScannerContainerMode, ElementScannerViewData};
+    use super::{ElementScannerScanMode, ElementScannerViewData};
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
     use squalr_engine_api::structures::data_values::{
         anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
     };
 
     #[test]
-    fn apply_container_mode_to_constraint_value_sets_none_for_element_mode() {
+    fn apply_scan_mode_to_constraint_value_sets_none_for_element_mode() {
         let mut anonymous_value_string = AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array);
 
-        ElementScannerViewData::apply_container_mode_to_constraint_value(ElementScannerContainerMode::Element, &mut anonymous_value_string);
+        ElementScannerViewData::apply_scan_mode_to_constraint_value(
+            ElementScannerScanMode::Element,
+            AnonymousValueStringFormat::Hexadecimal,
+            &mut anonymous_value_string,
+        );
 
         assert_eq!(anonymous_value_string.get_container_type(), ContainerType::None);
+        assert_eq!(
+            anonymous_value_string.get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
     }
 
     #[test]
-    fn apply_container_mode_to_constraint_value_sets_array_for_array_mode() {
+    fn apply_scan_mode_to_constraint_value_sets_array_for_array_mode() {
         let mut anonymous_value_string = AnonymousValueString::new("1, 2".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::None);
 
-        ElementScannerViewData::apply_container_mode_to_constraint_value(ElementScannerContainerMode::Array, &mut anonymous_value_string);
+        ElementScannerViewData::apply_scan_mode_to_constraint_value(
+            ElementScannerScanMode::Array,
+            AnonymousValueStringFormat::Decimal,
+            &mut anonymous_value_string,
+        );
 
         assert_eq!(anonymous_value_string.get_container_type(), ContainerType::Array);
     }
 
     #[test]
-    fn resolve_container_mode_for_instruction_data_type_forces_element_mode() {
-        let resolved_container_mode =
-            ElementScannerViewData::resolve_container_mode_for_data_type(&DataTypeRef::new("i_x86"), ElementScannerContainerMode::Array);
+    fn apply_scan_mode_to_constraint_value_sets_hex_pattern_for_pattern_mode() {
+        let mut anonymous_value_string = AnonymousValueString::new("AA ??".to_string(), AnonymousValueStringFormat::Decimal, ContainerType::Array);
 
-        assert_eq!(resolved_container_mode, ElementScannerContainerMode::Element);
+        ElementScannerViewData::apply_scan_mode_to_constraint_value(
+            ElementScannerScanMode::Pattern,
+            AnonymousValueStringFormat::Decimal,
+            &mut anonymous_value_string,
+        );
+
+        assert_eq!(anonymous_value_string.get_container_type(), ContainerType::None);
+        assert_eq!(
+            anonymous_value_string.get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::HexPattern
+        );
     }
 
     #[test]
-    fn get_container_mode_label_returns_sequence_for_instruction_data_type() {
-        let container_mode_label = ElementScannerViewData::get_container_mode_label(&DataTypeRef::new("i_x64"), ElementScannerContainerMode::Element);
+    fn resolve_scan_mode_for_instruction_data_type_forces_element_mode() {
+        let resolved_scan_mode = ElementScannerViewData::resolve_scan_mode_for_data_type(&DataTypeRef::new("i_x86"), ElementScannerScanMode::Array);
 
-        assert_eq!(container_mode_label, "Sequence");
+        assert_eq!(resolved_scan_mode, ElementScannerScanMode::Element);
+    }
+
+    #[test]
+    fn get_scan_mode_label_returns_sequence_for_instruction_data_type() {
+        let scan_mode_label = ElementScannerViewData::get_scan_mode_label(&DataTypeRef::new("i_x64"), ElementScannerScanMode::Element);
+
+        assert_eq!(scan_mode_label, "Sequence");
+    }
+
+    #[test]
+    fn get_supported_display_formats_for_scan_mode_strips_hex_pattern_for_non_pattern_modes() {
+        assert_eq!(
+            ElementScannerViewData::get_supported_display_formats_for_scan_mode(
+                &[
+                    AnonymousValueStringFormat::Binary,
+                    AnonymousValueStringFormat::Decimal,
+                    AnonymousValueStringFormat::Hexadecimal,
+                    AnonymousValueStringFormat::HexPattern,
+                ],
+                ElementScannerScanMode::Element,
+            ),
+            vec![
+                AnonymousValueStringFormat::Binary,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
+            ]
+        );
+    }
+
+    #[test]
+    fn get_supported_display_formats_for_pattern_mode_only_returns_hexadecimal() {
+        assert_eq!(
+            ElementScannerViewData::get_supported_display_formats_for_scan_mode(
+                &[
+                    AnonymousValueStringFormat::Decimal,
+                    AnonymousValueStringFormat::Hexadecimal
+                ],
+                ElementScannerScanMode::Pattern,
+            ),
+            vec![AnonymousValueStringFormat::Hexadecimal]
+        );
+    }
+
+    #[test]
+    fn resolve_active_display_format_uses_hexadecimal_for_pattern_mode() {
+        assert_eq!(
+            ElementScannerViewData::resolve_active_display_format(
+                ElementScannerScanMode::Pattern,
+                AnonymousValueStringFormat::Decimal,
+                &[AnonymousValueStringFormat::Hexadecimal],
+            ),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+    }
+
+    #[test]
+    fn get_scan_mode_options_for_non_hex_display_formats_omits_pattern_mode() {
+        assert_eq!(
+            ElementScannerViewData::get_scan_mode_options_for_data_type(&DataTypeRef::new("string_utf8"), &[AnonymousValueStringFormat::String],),
+            vec![ElementScannerScanMode::Element, ElementScannerScanMode::Array]
+        );
     }
 }

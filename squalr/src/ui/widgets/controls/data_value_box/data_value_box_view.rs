@@ -22,6 +22,8 @@ pub struct DataValueBoxView<'lifetime> {
     allow_read_only_interpretation: bool,
     use_preview_foreground: bool,
     use_format_text_colors: bool,
+    normalize_value_format: bool,
+    show_format_button: bool,
     is_multiline: bool,
     multiline_rows: usize,
     width: f32,
@@ -59,6 +61,8 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             allow_read_only_interpretation: false,
             use_preview_foreground: false,
             use_format_text_colors: true,
+            normalize_value_format: true,
+            show_format_button: true,
             is_multiline: false,
             multiline_rows: 3,
             width: 212.0,
@@ -126,6 +130,22 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         use_format_text_colors: bool,
     ) -> Self {
         self.use_format_text_colors = use_format_text_colors;
+        self
+    }
+
+    pub fn normalize_value_format(
+        mut self,
+        normalize_value_format: bool,
+    ) -> Self {
+        self.normalize_value_format = normalize_value_format;
+        self
+    }
+
+    pub fn show_format_button(
+        mut self,
+        show_format_button: bool,
+    ) -> Self {
+        self.show_format_button = show_format_button;
         self
     }
 
@@ -198,9 +218,11 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        self.app_context
-            .engine_unprivileged_state
-            .normalize_anonymous_value_string_format(self.validation_data_type, self.anonymous_value_string);
+        if self.normalize_value_format {
+            self.app_context
+                .engine_unprivileged_state
+                .normalize_anonymous_value_string_format(self.validation_data_type, self.anonymous_value_string);
+        }
 
         let theme = &self.app_context.theme;
         let is_valid = match self.validation_scan_compare_type {
@@ -249,52 +271,62 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, Sense::hover());
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
 
-        // Divider bar before right arrow.
         let button_width = self.icon_size + self.icon_padding * 2.0;
-        let divider_x = allocated_size_rectangle.max.x - (button_width + self.divider_width);
+        let format_button_total_width = if self.show_format_button { button_width + self.divider_width } else { 0.0 };
+        let divider_x = allocated_size_rectangle.max.x - format_button_total_width;
 
-        // The button rectangle (full clickable dropdown-area background).
-        let dropdown_background_rectangle = Rect::from_min_max(
-            pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y),
-            pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
-        );
+        let button_response = if self.show_format_button {
+            let dropdown_background_rectangle = Rect::from_min_max(
+                pos2(divider_x + self.divider_width, allocated_size_rectangle.min.y),
+                pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
+            );
 
-        let button_response = user_interface.interact(
-            dropdown_background_rectangle,
-            user_interface.make_persistent_id(format!("{}_button", self.id)),
-            if self.is_read_only && !self.allow_read_only_interpretation {
-                Sense::hover()
-            } else {
-                Sense::click()
-            },
-        );
+            let button_response = user_interface.interact(
+                dropdown_background_rectangle,
+                user_interface.make_persistent_id(format!("{}_button", self.id)),
+                if self.is_read_only && !self.allow_read_only_interpretation {
+                    Sense::hover()
+                } else {
+                    Sense::click()
+                },
+            );
 
-        // Active display-format icon position.
-        let display_format_icon_position = pos2(
-            allocated_size_rectangle.max.x - self.icon_padding - self.icon_size,
-            allocated_size_rectangle.center().y - self.icon_size * 0.5,
-        );
+            let display_format_icon_position = pos2(
+                allocated_size_rectangle.max.x - self.icon_padding - self.icon_size,
+                allocated_size_rectangle.center().y - self.icon_size * 0.5,
+            );
 
-        user_interface
-            .painter()
-            .rect_filled(dropdown_background_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
+            user_interface
+                .painter()
+                .rect_filled(dropdown_background_rectangle, CornerRadius::same(self.corner_radius), theme.background_control);
 
-        // State overlay (hover/press).
-        StateLayer {
-            bounds_min: dropdown_background_rectangle.min,
-            bounds_max: dropdown_background_rectangle.max,
-            enabled: true,
-            pressed: button_response.is_pointer_button_down_on(),
-            has_hover: button_response.hovered(),
-            has_focus: button_response.has_focus(),
-            corner_radius: CornerRadius::same(self.corner_radius),
-            border_width: self.border_width,
-            hover_color: theme.hover_tint,
-            pressed_color: theme.pressed_tint,
-            border_color: theme.submenu_border,
-            border_color_focused: theme.focused_border,
-        }
-        .ui(user_interface);
+            StateLayer {
+                bounds_min: dropdown_background_rectangle.min,
+                bounds_max: dropdown_background_rectangle.max,
+                enabled: true,
+                pressed: button_response.is_pointer_button_down_on(),
+                has_hover: button_response.hovered(),
+                has_focus: button_response.has_focus(),
+                corner_radius: CornerRadius::same(self.corner_radius),
+                border_width: self.border_width,
+                hover_color: theme.hover_tint,
+                pressed_color: theme.pressed_tint,
+                border_color: theme.submenu_border,
+                border_color_focused: theme.focused_border,
+            }
+            .ui(user_interface);
+
+            user_interface.painter().image(
+                display_format_icon.id(),
+                Rect::from_min_size(display_format_icon_position, icon_size_vec),
+                Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+
+            Some(button_response)
+        } else {
+            None
+        };
 
         // Define editable region (between left label and dropdown divider).
         let text_edit_rectangle = Rect::from_min_max(
@@ -354,14 +386,6 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             );
         }
 
-        // Draw the active display-format icon instead of a generic combo arrow.
-        user_interface.painter().image(
-            display_format_icon.id(),
-            Rect::from_min_size(display_format_icon_position, icon_size_vec),
-            Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-            Color32::WHITE,
-        );
-
         // If the user changed text, update the display value
         if text_edit_response.changed() {
             self.anonymous_value_string
@@ -382,11 +406,16 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         let popup_id = Id::new(("data_value_box_popup", self.id, user_interface.id().value()));
         let mut open = user_interface.memory(|memory| memory.data.get_temp::<bool>(popup_id).unwrap_or(false));
 
-        if button_response.clicked() && (!self.is_read_only || self.allow_read_only_interpretation) {
+        if button_response
+            .as_ref()
+            .map(|button_response| button_response.clicked())
+            .unwrap_or(false)
+            && (!self.is_read_only || self.allow_read_only_interpretation)
+        {
             open = !open;
         }
 
-        if self.is_read_only && !self.allow_read_only_interpretation {
+        if !self.show_format_button || (self.is_read_only && !self.allow_read_only_interpretation) {
             open = false;
         }
 
