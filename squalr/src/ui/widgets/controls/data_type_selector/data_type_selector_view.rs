@@ -327,6 +327,15 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
         reference_supported_formats == candidate_supported_formats
     }
+
+    fn is_data_type_compatible_from_match_state(
+        selected_data_type_count: usize,
+        is_candidate_selected: bool,
+        has_matching_supported_formats: bool,
+        enforce_format_compatibility: bool,
+    ) -> bool {
+        !enforce_format_compatibility || selected_data_type_count == 0 || is_candidate_selected || has_matching_supported_formats
+    }
 }
 
 impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
@@ -373,9 +382,12 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         .min_col_width(Self::SELECTABLE_DATA_TYPE_ITEM_WIDTH)
                         .show(user_interface, |user_interface| {
                             for (data_type_index, data_type_ref) in selectable_data_types.iter().enumerate() {
-                                let is_data_type_compatible = !enforce_format_compatibility
-                                    || data_type_selection.is_data_type_selected(data_type_ref)
-                                    || Self::has_matching_supported_formats(&app_context, data_type_selection.visible_data_type(), data_type_ref);
+                                let is_data_type_compatible = Self::is_data_type_compatible_from_match_state(
+                                    data_type_selection.selected_data_type_count(),
+                                    data_type_selection.is_data_type_selected(data_type_ref),
+                                    Self::has_matching_supported_formats(&app_context, data_type_selection.visible_data_type(), data_type_ref),
+                                    enforce_format_compatibility,
+                                );
                                 let data_type_item_response = user_interface.add(
                                     DataTypeItemView::new(
                                         app_context.clone(),
@@ -517,5 +529,10 @@ mod tests {
                 AnonymousValueStringFormat::Hexadecimal,
             ]
         );
+    }
+
+    #[test]
+    fn empty_selection_keeps_all_data_types_compatible() {
+        assert!(DataTypeSelectorView::is_data_type_compatible_from_match_state(0, false, false, true));
     }
 }

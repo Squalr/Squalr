@@ -14,8 +14,7 @@ use crate::{
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
 use eframe::egui::{
-    Align, Align2, Color32, CursorIcon, Direction, Event, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2,
-    vec2,
+    Align, Align2, Color32, CursorIcon, Direction, Event, Key, Layout, Pos2, Rect, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget, pos2, vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius, Stroke};
 use squalr_engine_api::{
@@ -907,14 +906,7 @@ impl Widget for MemoryViewerView {
                             }
                         });
 
-                        if current_page_is_unreadable {
-                            rows_user_interface.add_space(8.0);
-                            rows_user_interface.label(
-                                RichText::new("This page is currently unreadable, so visible bytes remain as ??.")
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.background_control_warning),
-                            );
-                        }
+                        let _ = current_page_is_unreadable;
                     }
                     None if is_querying_memory_pages => {
                         rows_user_interface.allocate_ui_with_layout(
@@ -925,15 +917,7 @@ impl Widget for MemoryViewerView {
                             },
                         );
                     }
-                    None => {
-                        rows_user_interface.centered_and_justified(|user_interface| {
-                            user_interface.label(
-                                RichText::new("Attach to a process to browse memory pages.")
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.foreground_preview),
-                            );
-                        });
-                    }
+                    None => {}
                 }
 
                 let splitter_min_y = left_content_rect.min.y;
