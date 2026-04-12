@@ -247,6 +247,34 @@ In the short term:
 
 This avoids mixing "raw discoveries to work from" with "authored symbolic model" into one overloaded tree too early.
 
+### TUI shape
+The TUI should be covered by this plan from the start, not treated as a GUI-only follow-up.
+
+The TUI already has a strong project-explorer style hierarchy flow, so the first TUI symbol experience should follow that shape:
+- add a symbol-oriented tree/browser in the project workspace,
+- make rooted symbols and their derived children navigable by keyboard,
+- show compact symbol details and preview values in the existing text-first style,
+- support jump-to-memory and promote-to-symbol actions from the TUI hierarchy flow.
+
+The TUI does not need a full page-oriented symbol browser first. It needs a strong tree and details workflow first.
+
+Short-term TUI goal:
+- make symbols browseable and actionable from a dedicated symbol tree or symbol mode within the project workspace.
+
+Medium-term TUI goal:
+- let the memory workspace consume symbol labels and jump targets cleanly.
+
+Current TUI limitation to account for:
+- the TUI memory viewer path is still narrower than the GUI flow and currently centers mostly on address-oriented navigation,
+- code-view style navigation is not a strong TUI workflow today,
+- some memory/code viewer cleanup may be needed before symbol-driven navigation feels complete there.
+
+So for TUI implementation order:
+1. Symbol tree browsing.
+2. Promotion and jump actions.
+3. Exact-match labels in memory-oriented flows.
+4. Deeper viewer integration only after the neglected memory/code paths are brought up to a healthy baseline.
+
 ## Practical Design Decisions
 
 ### Identity
