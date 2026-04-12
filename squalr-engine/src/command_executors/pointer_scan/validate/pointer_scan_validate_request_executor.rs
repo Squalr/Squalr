@@ -129,6 +129,15 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 .memory_query_raw
                 .get_memory_page_bounds(&process_info, PageRetrievalMode::FromUserMode),
         };
+        if memory_regions.is_empty() {
+            return PointerScanValidateResponse {
+                validation_performed: false,
+                validation_target_address: None,
+                pruned_node_count: 0,
+                status_message: "No readable memory regions were available for pointer validation.".to_string(),
+                pointer_scan_summary: Some(pointer_scan_session.summarize()),
+            };
+        }
         let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
         let scan_execution_context = ScanExecutionContext::new(
             None,
