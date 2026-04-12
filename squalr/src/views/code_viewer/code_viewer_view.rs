@@ -450,53 +450,6 @@ impl Widget for CodeViewerView {
                     CodeViewerViewData::refresh_memory_pages(self.code_viewer_view_data.clone(), self.app_context.engine_unprivileged_state.clone());
                 }
 
-                let home_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Reset the code window to the start of the current page."),
-                );
-                IconDraw::draw(&toolbar_user_interface, home_button.rect, &theme.icon_library.icon_handle_navigation_home);
-
-                if home_button.clicked() {
-                    CodeViewerViewData::reset_viewport_to_page_start(self.code_viewer_view_data.clone());
-                }
-
-                let previous_window_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Shift the current code window backward."),
-                );
-                IconDraw::draw(
-                    &toolbar_user_interface,
-                    previous_window_button.rect,
-                    &theme.icon_library.icon_handle_navigation_left_arrow_small,
-                );
-
-                if previous_window_button.clicked() {
-                    CodeViewerViewData::shift_viewport_window(
-                        self.code_viewer_view_data.clone(),
-                        -((CodeViewerViewData::CODE_WINDOW_SIZE_IN_BYTES / 2) as i64),
-                    );
-                }
-
-                let next_window_button = toolbar_user_interface.add_sized(
-                    vec2(36.0, Self::TOOLBAR_ROW_HEIGHT),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Shift the current code window forward."),
-                );
-                IconDraw::draw(
-                    &toolbar_user_interface,
-                    next_window_button.rect,
-                    &theme.icon_library.icon_handle_navigation_right_arrow_small,
-                );
-
-                if next_window_button.clicked() {
-                    CodeViewerViewData::shift_viewport_window(self.code_viewer_view_data.clone(), (CodeViewerViewData::CODE_WINDOW_SIZE_IN_BYTES / 2) as i64);
-                }
-
                 let is_querying_memory_pages = self
                     .code_viewer_view_data
                     .read("Code viewer toolbar state")
