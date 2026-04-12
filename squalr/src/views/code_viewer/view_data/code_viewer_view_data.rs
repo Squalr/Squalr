@@ -151,7 +151,7 @@ impl CodeViewerViewData {
     pub const QUERY_PREFETCH_CHUNK_COUNT: u64 = 1;
     pub const CODE_WINDOW_SIZE_IN_BYTES: u64 = 0x1000;
     pub const DECODE_BACKTRACK_BYTES: u64 = 0x80;
-    pub const DEFAULT_BYTES_TEXT_SPLITTER_RATIO: f32 = 0.42;
+    pub const DEFAULT_BYTES_TEXT_SPLITTER_RATIO: f32 = 0.32;
     pub const SNAPSHOT_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
     pub const REQUEST_STALE_TIMEOUT_MS: u64 = 10_000;
 

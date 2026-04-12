@@ -59,6 +59,7 @@ impl MemoryViewerView {
     const HEX_COLUMN_LEFT_PADDING: f32 = 8.0;
     const ASCII_COLUMN_LEFT_PADDING: f32 = 16.0;
     const ADDRESS_TEXT_LEFT_PADDING: f32 = 8.0;
+    const ADDRESS_TEXT_RIGHT_PADDING: f32 = 8.0;
     const ROW_TEXT_TOP_PADDING: f32 = 3.0;
     const CONTEXT_MENU_WIDTH: f32 = 220.0;
     const HEX_CARET_BLINK_INTERVAL: Duration = Duration::from_millis(500);
@@ -716,7 +717,16 @@ impl Widget for MemoryViewerView {
 
                                     user_interface
                                         .painter()
-                                        .with_clip_rect(row_rect.intersect(user_interface.clip_rect()))
+                                        .with_clip_rect(
+                                            Rect::from_min_max(
+                                                row_rect.min,
+                                                pos2(
+                                                    (row_rect.min.x + Self::ADDRESS_COLUMN_WIDTH - Self::ADDRESS_TEXT_RIGHT_PADDING).max(row_rect.min.x),
+                                                    row_rect.max.y,
+                                                ),
+                                            )
+                                            .intersect(user_interface.clip_rect()),
+                                        )
                                         .text(
                                             pos2(row_rect.min.x + Self::ADDRESS_TEXT_LEFT_PADDING, row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
                                             Align2::LEFT_TOP,

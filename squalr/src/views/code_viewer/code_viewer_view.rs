@@ -71,7 +71,9 @@ impl CodeViewerView {
     const MINIMUM_BYTES_COLUMN_WIDTH: f32 = 72.0;
     const MINIMUM_TEXT_COLUMN_WIDTH: f32 = 180.0;
     const TEXT_LEFT_PADDING: f32 = 6.0;
+    const ADDRESS_TEXT_RIGHT_PADDING: f32 = 8.0;
     const ROW_TEXT_TOP_PADDING: f32 = 4.0;
+    const INLINE_EDIT_MAX_WIDTH: f32 = 256.0;
     const BREAKPOINT_RADIUS: f32 = 5.0;
     const BRANCH_LANE_SPACING: f32 = 8.0;
     const BRANCH_LANE_RIGHT_PADDING: f32 = 8.0;
@@ -170,6 +172,17 @@ impl CodeViewerView {
             bytes_rect,
             text_rect,
         }
+    }
+
+    fn build_separator_rect(
+        separator_position_x: f32,
+        min_y: f32,
+        max_y: f32,
+    ) -> Rect {
+        Rect::from_min_max(
+            pos2(separator_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, min_y),
+            pos2(separator_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, max_y),
+        )
     }
 
     fn build_bytes_text(bytes: &[u8]) -> String {
@@ -476,7 +489,16 @@ impl CodeViewerView {
 
         user_interface
             .painter()
-            .with_clip_rect(column_layout.address_rect.intersect(user_interface.clip_rect()))
+            .with_clip_rect(
+                Rect::from_min_max(
+                    column_layout.address_rect.min,
+                    pos2(
+                        (column_layout.address_rect.max.x - Self::ADDRESS_TEXT_RIGHT_PADDING).max(column_layout.address_rect.min.x),
+                        column_layout.address_rect.max.y,
+                    ),
+                )
+                .intersect(user_interface.clip_rect()),
+            )
             .text(
                 pos2(
                     column_layout.address_rect.min.x + Self::TEXT_LEFT_PADDING,
@@ -549,6 +571,7 @@ impl CodeViewerView {
         let button_width = 32.0;
         let button_spacing = 4.0;
         let total_button_width = button_width * 2.0 + button_spacing;
+        let edit_box_width = (inner_text_rect.width() - total_button_width - 8.0).clamp(120.0, Self::INLINE_EDIT_MAX_WIDTH);
         edit_row_user_interface.add(
             DataValueBoxView::new(
                 self.app_context.clone(),
@@ -559,7 +582,7 @@ impl CodeViewerView {
                 "Type assembly here. Press Enter to write.",
                 Self::INSTRUCTION_EDIT_INPUT_ID,
             )
-            .width((inner_text_rect.width() - total_button_width - 8.0).max(120.0))
+            .width(edit_box_width)
             .height(Self::TOOLBAR_ROW_HEIGHT)
             .use_format_text_colors(false),
         );
@@ -974,18 +997,24 @@ impl Widget for CodeViewerView {
 
                 let splitter_min_y = content_response.rect.min.y;
                 let splitter_max_y = content_response.rect.max.y;
-                let address_separator_rect = Rect::from_min_max(
-                    pos2(address_separator_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
-                    pos2(address_separator_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
+                let breakpoint_separator_rect = Self::build_separator_rect(content_min_x + Self::BREAKPOINT_GUTTER_WIDTH, splitter_min_y, splitter_max_y);
+                let branch_separator_rect = Self::build_separator_rect(
+                    content_min_x + Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH,
+                    splitter_min_y,
+                    splitter_max_y,
                 );
-                let bytes_text_splitter_rect = Rect::from_min_max(
-                    pos2(bytes_text_splitter_position_x - Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_min_y),
-                    pos2(bytes_text_splitter_position_x + Self::COLUMN_SEPARATOR_THICKNESS * 0.5, splitter_max_y),
-                );
+                let address_separator_rect = Self::build_separator_rect(address_separator_position_x, splitter_min_y, splitter_max_y);
+                let bytes_text_splitter_rect = Self::build_separator_rect(bytes_text_splitter_position_x, splitter_min_y, splitter_max_y);
 
-                user_interface
-                    .painter()
-                    .rect_filled(address_separator_rect, CornerRadius::ZERO, theme.background_control);
+                for separator_rect in [
+                    breakpoint_separator_rect,
+                    branch_separator_rect,
+                    address_separator_rect,
+                ] {
+                    user_interface
+                        .painter()
+                        .rect_filled(separator_rect, CornerRadius::ZERO, theme.background_control);
+                }
 
                 let bytes_text_splitter_response = user_interface
                     .interact(
