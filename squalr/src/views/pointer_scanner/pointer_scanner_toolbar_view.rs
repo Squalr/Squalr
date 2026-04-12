@@ -6,7 +6,7 @@ use crate::ui::widgets::controls::{
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Color32, ComboBox, Response, Sense, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Align, Color32, ComboBox, Layout, Response, Sense, Ui, UiBuilder, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind, TextureHandle};
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -154,7 +154,9 @@ impl Widget for PointerScannerToolbarView {
                 }
             }
 
-            let builder = UiBuilder::new().max_rect(toolbar_rectangle);
+            let builder = UiBuilder::new()
+                .max_rect(toolbar_rectangle)
+                .layout(Layout::top_down(Align::Min));
             let unsigned_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
             let action_button_size = [36.0, 28.0];
             let has_active_pointer_scan_session = pointer_scanner_view_data.has_active_session();
@@ -190,6 +192,7 @@ impl Widget for PointerScannerToolbarView {
             };
 
             user_interface.scope_builder(builder, |user_interface| {
+                user_interface.set_clip_rect(toolbar_rectangle);
                 user_interface.add_space(Self::ROW_SPACING);
 
                 user_interface.allocate_ui(vec2(user_interface.available_width(), Self::CONTROL_HEIGHT), |user_interface| {

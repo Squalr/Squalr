@@ -62,7 +62,9 @@ impl Widget for PointerScannerView {
                         );
 
                         let footer_height = self.pointer_scanner_footer_view.get_height();
-                        let full_rectangle = user_interface.available_rect_before_wrap();
+                        let full_rectangle = user_interface
+                            .available_rect_before_wrap()
+                            .intersect(user_interface.clip_rect());
                         let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, footer_height));
                         let content_response = user_interface.allocate_rect(content_rectangle, Sense::empty());
                         let mut content_user_interface = user_interface.new_child(
@@ -70,6 +72,7 @@ impl Widget for PointerScannerView {
                                 .max_rect(content_response.rect)
                                 .layout(Layout::left_to_right(Align::Min)),
                         );
+                        content_user_interface.set_clip_rect(content_response.rect);
 
                         content_user_interface.add(self.pointer_scanner_results_view.clone());
                         user_interface.add(self.pointer_scanner_footer_view.clone());

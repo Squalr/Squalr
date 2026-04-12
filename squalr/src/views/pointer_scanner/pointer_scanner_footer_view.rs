@@ -85,12 +85,17 @@ impl Widget for PointerScannerFooterView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let available_footer_rectangle = user_interface
+            .available_rect_before_wrap()
+            .intersect(user_interface.clip_rect());
         let height = self
             .get_height()
-            .min(user_interface.available_height().max(0.0));
+            .min(available_footer_rectangle.height().max(0.0));
         let top_row_height = 28.0_f32.min(height);
         let bottom_row_height = (height - top_row_height).max(0.0);
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), height), Sense::empty());
+        let allocated_footer_rectangle = Rect::from_min_size(available_footer_rectangle.min, vec2(available_footer_rectangle.width().max(1.0), height));
+        let response = user_interface.allocate_rect(allocated_footer_rectangle, Sense::empty());
+        let allocated_size_rectangle = response.rect;
 
         if height <= 0.0 {
             return response;
