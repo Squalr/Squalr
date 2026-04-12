@@ -2,6 +2,7 @@
 pub enum StructViewerFieldEditorKind {
     ValueBox,
     MemoryViewerButton,
+    CodeViewerButton,
     DataTypeSelector,
     ContainerTypeSelector,
 }

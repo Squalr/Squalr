@@ -387,7 +387,7 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::MemoryViewerButton => {
+                                    StructViewerFieldEditorKind::MemoryViewerButton | StructViewerFieldEditorKind::CodeViewerButton => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,
