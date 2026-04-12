@@ -64,16 +64,16 @@ pub(crate) enum CodeViewerInstructionEditStatus {
     PendingOverwrite { assembled_bytes: Vec<u8>, overwritten_byte_count: usize },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct CodeViewerInstructionEditState {
     pub start_address: u64,
     pub end_address_exclusive: u64,
-    pub edit_text: String,
+    pub edit_value: AnonymousValueString,
     pub status: Option<CodeViewerInstructionEditStatus>,
 }
 
 impl CodeViewerInstructionEditState {
-    fn original_byte_count(&self) -> usize {
+    pub(crate) fn original_byte_count(&self) -> usize {
         self.end_address_exclusive.saturating_sub(self.start_address) as usize
     }
 }
@@ -663,7 +663,7 @@ impl CodeViewerViewData {
             .iter()
             .map(|instruction_line| instruction_line.text.clone())
             .collect::<Vec<_>>()
-            .join("; ");
+            .join("\n");
 
         code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
             anchor_instruction_address: first_instruction.address,
@@ -674,7 +674,7 @@ impl CodeViewerViewData {
             end_address_exclusive: last_instruction
                 .address
                 .saturating_add((last_instruction.length as u64).max(1)),
-            edit_text,
+            edit_value: AnonymousValueString::new(edit_text, AnonymousValueStringFormat::String, ContainerType::None),
             status: None,
         });
         code_viewer_view_data.context_menu_address = None;
@@ -688,13 +688,13 @@ impl CodeViewerViewData {
             .and_then(|code_viewer_view_data| code_viewer_view_data.instruction_edit_state.clone())
     }
 
-    pub fn set_instruction_edit_text(
+    pub fn set_instruction_edit_value(
         code_viewer_view_data: Dependency<Self>,
-        edit_text: String,
+        edit_value: AnonymousValueString,
     ) {
-        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer set instruction edit text") {
+        if let Some(mut code_viewer_view_data) = code_viewer_view_data.write("Code viewer set instruction edit value") {
             if let Some(instruction_edit_state) = code_viewer_view_data.instruction_edit_state.as_mut() {
-                instruction_edit_state.edit_text = edit_text;
+                instruction_edit_state.edit_value = edit_value;
                 instruction_edit_state.status = None;
             }
         }
@@ -717,7 +717,12 @@ impl CodeViewerViewData {
             return None;
         };
         let instruction_set = Self::create_instruction_set_for_process_bitness(process_bitness);
-        let assembled_bytes = match instruction_set.assemble(instruction_edit_state.edit_text.trim()) {
+        let assembled_bytes = match instruction_set.assemble(
+            instruction_edit_state
+                .edit_value
+                .get_anonymous_value_string()
+                .trim(),
+        ) {
             Ok(assembled_bytes) => assembled_bytes,
             Err(error) => {
                 instruction_edit_state.status = Some(CodeViewerInstructionEditStatus::Invalid(error));
@@ -1472,7 +1477,12 @@ mod tests {
     use super::{CodeViewerInstructionEditState, CodeViewerInstructionEditStatus, CodeViewerViewData};
     use squalr_engine_api::{
         dependency_injection::dependency_container::DependencyContainer,
-        structures::memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        structures::{
+            data_values::{
+                anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+            },
+            memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        },
     };
 
     #[test]
@@ -1712,7 +1722,13 @@ mod tests {
         let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data.clone()).expect("Expected instruction edit state.");
         assert_eq!(instruction_edit_state.start_address, 0x4010);
         assert_eq!(instruction_edit_state.end_address_exclusive, 0x4012);
-        assert_eq!(instruction_edit_state.edit_text, String::from("nop; ret"));
+        assert_eq!(instruction_edit_state.edit_value.get_anonymous_value_string(), "nop\nret");
+        assert_eq!(
+            instruction_edit_state
+                .edit_value
+                .get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::String
+        );
     }
 
     #[test]
@@ -1724,7 +1740,7 @@ mod tests {
             code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
                 start_address: 0x5000,
                 end_address_exclusive: 0x5001,
-                edit_text: String::from("push eax"),
+                edit_value: AnonymousValueString::new(String::from("push eax"), AnonymousValueStringFormat::String, ContainerType::None),
                 status: None,
             });
         }
@@ -1749,7 +1765,7 @@ mod tests {
             code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
                 start_address: 0x5000,
                 end_address_exclusive: 0x5002,
-                edit_text: String::from("push eax"),
+                edit_value: AnonymousValueString::new(String::from("push eax"), AnonymousValueStringFormat::String, ContainerType::None),
                 status: None,
             });
         }
@@ -1781,7 +1797,7 @@ mod tests {
             code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
                 start_address: 0x5000,
                 end_address_exclusive: 0x5001,
-                edit_text: String::from("push eax; push eax"),
+                edit_value: AnonymousValueString::new(String::from("push eax\npush eax"), AnonymousValueStringFormat::String, ContainerType::None),
                 status: None,
             });
         }

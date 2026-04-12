@@ -22,6 +22,8 @@ pub struct DataValueBoxView<'lifetime> {
     allow_read_only_interpretation: bool,
     use_preview_foreground: bool,
     use_format_text_colors: bool,
+    is_multiline: bool,
+    multiline_rows: usize,
     width: f32,
     height: f32,
     icon_padding: f32,
@@ -57,6 +59,8 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             allow_read_only_interpretation: false,
             use_preview_foreground: false,
             use_format_text_colors: true,
+            is_multiline: false,
+            multiline_rows: 3,
             width: 212.0,
             height: 28.0,
 
@@ -130,6 +134,22 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         height: f32,
     ) -> Self {
         self.height = height;
+        self
+    }
+
+    pub fn multiline(
+        mut self,
+        is_multiline: bool,
+    ) -> Self {
+        self.is_multiline = is_multiline;
+        self
+    }
+
+    pub fn multiline_rows(
+        mut self,
+        multiline_rows: usize,
+    ) -> Self {
+        self.multiline_rows = multiline_rows.max(1);
         self
     }
 
@@ -300,16 +320,30 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
             theme.font_library.font_noto_sans.font_normal.clone()
         };
         let text_edit_id = Id::new(format!("{}_text_edit", self.id));
-        let text_edit_response = text_edit_user_interface.add(
-            TextEdit::singleline(&mut text_value)
-                .id(text_edit_id)
-                .vertical_align(eframe::egui::Align::Center)
-                .font(font_id.clone())
-                .text_color(text_color)
-                .hint_text(self.preview_text)
-                .interactive(!self.is_read_only)
-                .frame(false),
-        );
+        let text_edit_response = if self.is_multiline {
+            text_edit_user_interface.add(
+                TextEdit::multiline(&mut text_value)
+                    .id(text_edit_id)
+                    .font(font_id.clone())
+                    .text_color(text_color)
+                    .hint_text(self.preview_text)
+                    .interactive(!self.is_read_only)
+                    .desired_rows(self.multiline_rows)
+                    .desired_width(text_edit_rectangle_inner.width())
+                    .frame(false),
+            )
+        } else {
+            text_edit_user_interface.add(
+                TextEdit::singleline(&mut text_value)
+                    .id(text_edit_id)
+                    .vertical_align(eframe::egui::Align::Center)
+                    .font(font_id.clone())
+                    .text_color(text_color)
+                    .hint_text(self.preview_text)
+                    .interactive(!self.is_read_only)
+                    .frame(false),
+            )
+        };
 
         if self.border_width > 0.0 {
             user_interface.painter().rect_stroke(
@@ -334,7 +368,11 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .set_anonymous_value_string(text_value);
         }
 
-        let commit_on_enter_pressed = text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter));
+        let commit_on_enter_pressed = if self.is_multiline {
+            text_edit_response.has_focus() && user_interface.input(|input_state| input_state.modifiers.ctrl && input_state.key_pressed(Key::Enter))
+        } else {
+            text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+        };
 
         if commit_on_enter_pressed {
             user_interface.memory_mut(|memory| memory.data.insert_temp(Self::commit_on_enter_id(self.id), true));
