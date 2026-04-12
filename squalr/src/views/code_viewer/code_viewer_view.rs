@@ -65,12 +65,12 @@ impl CodeViewerView {
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const CONTENT_HEADER_HEIGHT: f32 = 22.0;
     const ROW_HEIGHT: f32 = 22.0;
-    const EDIT_WARNING_ROW_HEIGHT: f32 = 26.0;
+    const EDIT_WARNING_ROW_HEIGHT: f32 = 34.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
     const ADDRESS_COLUMN_WIDTH: f32 = 118.0;
     const MINIMUM_BYTES_COLUMN_WIDTH: f32 = 72.0;
-    const MINIMUM_TEXT_COLUMN_WIDTH: f32 = 180.0;
+    const MINIMUM_TEXT_COLUMN_WIDTH: f32 = 220.0;
     const TEXT_LEFT_PADDING: f32 = 6.0;
     const HEADER_TEXT_TOP_PADDING: f32 = 4.0;
     const ADDRESS_TEXT_RIGHT_PADDING: f32 = 8.0;
@@ -81,6 +81,7 @@ impl CodeViewerView {
     const BRANCH_LANE_RIGHT_PADDING: f32 = 8.0;
     const MAX_BRANCH_LANES: usize = 5;
     const CONTEXT_MENU_WIDTH: f32 = 220.0;
+    const EDIT_WARNING_BUTTON_WIDTH: f32 = 128.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let code_viewer_view_data = app_context
@@ -717,18 +718,37 @@ impl CodeViewerView {
         );
         let warning_color = match instruction_edit_status {
             CodeViewerInstructionEditStatus::Invalid(_) => theme.error_red,
-            CodeViewerInstructionEditStatus::PendingFillWithNops { .. } | CodeViewerInstructionEditStatus::PendingOverwrite { .. } => {
-                theme.background_control_warning
-            }
+            CodeViewerInstructionEditStatus::PendingFillWithNops { .. } => theme.background_control_primary,
+            CodeViewerInstructionEditStatus::PendingOverwrite { .. } => theme.background_control_warning,
         };
-
+        let warning_text_color = match instruction_edit_status {
+            CodeViewerInstructionEditStatus::Invalid(_) => theme.error_red,
+            CodeViewerInstructionEditStatus::PendingFillWithNops { .. } => theme.foreground_preview,
+            CodeViewerInstructionEditStatus::PendingOverwrite { .. } => theme.background_control_warning,
+        };
+        let warning_button = |theme: &crate::ui::theme::Theme, fill_color: Color32, border_color: Color32, tooltip_text: &'static str| {
+            Button::new_from_theme(theme)
+                .background_color(fill_color)
+                .border_width(1.0)
+                .border_color(border_color)
+                .with_tooltip_text(tooltip_text)
+        };
+        let draw_button_label = |user_interface: &Ui, button_rect: Rect, label: &str, theme: &crate::ui::theme::Theme| {
+            user_interface.painter().text(
+                button_rect.center(),
+                Align2::CENTER_CENTER,
+                label,
+                theme.font_library.font_noto_sans.font_normal.clone(),
+                theme.foreground,
+            );
+        };
         warning_user_interface.painter().rect_stroke(
             warning_rect.shrink2(vec2(1.0, 1.0)),
             CornerRadius::same(3),
             Stroke::new(1.0, warning_color),
             epaint::StrokeKind::Inside,
         );
-        warning_user_interface.add_space((bytes_text_splitter_position_x - warning_rect.min.x + 6.0).max(0.0));
+        warning_user_interface.add_space((bytes_text_splitter_position_x - warning_rect.min.x + 8.0).max(0.0));
 
         match instruction_edit_status {
             CodeViewerInstructionEditStatus::Invalid(error) => {
@@ -745,22 +765,19 @@ impl CodeViewerView {
                         remaining_byte_count
                     ))
                     .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(theme.background_control_warning),
+                    .color(warning_text_color),
                 );
                 warning_user_interface.add_space(8.0);
                 let fill_button = warning_user_interface.add_sized(
-                    vec2(96.0, Self::TOOLBAR_ROW_HEIGHT - 2.0),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Write the replacement and pad the remaining bytes with no-operations."),
+                    vec2(Self::EDIT_WARNING_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
+                    warning_button(
+                        theme,
+                        theme.background_control_primary,
+                        theme.background_control_primary_dark,
+                        "Write the replacement and pad the remaining bytes with no-operations.",
+                    ),
                 );
-                warning_user_interface.painter().text(
-                    fill_button.rect.center(),
-                    Align2::CENTER_CENTER,
-                    "Fill + Write",
-                    theme.font_library.font_noto_sans.font_normal.clone(),
-                    theme.foreground,
-                );
+                draw_button_label(&warning_user_interface, fill_button.rect, "Fill + Write", theme);
 
                 if fill_button.clicked() {
                     if let Some(instruction_write_plan) =
@@ -777,22 +794,19 @@ impl CodeViewerView {
                         overwritten_byte_count
                     ))
                     .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(theme.background_control_warning),
+                    .color(warning_text_color),
                 );
                 warning_user_interface.add_space(8.0);
                 let overwrite_button = warning_user_interface.add_sized(
-                    vec2(92.0, Self::TOOLBAR_ROW_HEIGHT - 2.0),
-                    Button::new_from_theme(theme)
-                        .background_color(Color32::TRANSPARENT)
-                        .with_tooltip_text("Write the longer replacement and allow it to overwrite the following bytes."),
+                    vec2(Self::EDIT_WARNING_BUTTON_WIDTH, Self::TOOLBAR_ROW_HEIGHT),
+                    warning_button(
+                        theme,
+                        theme.background_control_warning,
+                        theme.background_control_warning_dark,
+                        "Write the longer replacement and allow it to overwrite the following bytes.",
+                    ),
                 );
-                warning_user_interface.painter().text(
-                    overwrite_button.rect.center(),
-                    Align2::CENTER_CENTER,
-                    "Write Anyway",
-                    theme.font_library.font_noto_sans.font_normal.clone(),
-                    theme.foreground,
-                );
+                draw_button_label(&warning_user_interface, overwrite_button.rect, "Write Anyway", theme);
 
                 if overwrite_button.clicked() {
                     if let Some(instruction_write_plan) = CodeViewerViewData::accept_instruction_edit_pending_overwrite(self.code_viewer_view_data.clone()) {
@@ -1004,25 +1018,7 @@ impl Widget for CodeViewerView {
                         visible_instruction_lines = CodeViewerViewData::build_instruction_lines(self.code_viewer_view_data.clone(), process_bitness);
                         let pending_scroll_address = CodeViewerViewData::take_pending_scroll_address(self.code_viewer_view_data.clone());
                         let scroll_target_address = CodeViewerViewData::resolve_scroll_target_address(pending_scroll_address, &visible_instruction_lines);
-                        let current_page_is_unreadable = CodeViewerViewData::is_current_page_unreadable(self.code_viewer_view_data.clone(), &current_page);
-
-                        if visible_instruction_lines.is_empty() && current_page_is_unreadable {
-                            body_user_interface.centered_and_justified(|user_interface| {
-                                user_interface.label(
-                                    RichText::new("This page is currently unreadable, so no code rows could be decoded.")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.background_control_warning),
-                                );
-                            });
-                        } else if visible_instruction_lines.is_empty() {
-                            body_user_interface.centered_and_justified(|user_interface| {
-                                user_interface.label(
-                                    RichText::new("The current code window has no decoded instructions yet. Scroll or refresh to materialize more bytes.")
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground_preview),
-                                );
-                            });
-                        } else {
+                        if !visible_instruction_lines.is_empty() {
                             ScrollArea::vertical()
                                 .id_salt("code_viewer_rows")
                                 .auto_shrink([false, false])
@@ -1068,15 +1064,7 @@ impl Widget for CodeViewerView {
                             },
                         );
                     }
-                    None => {
-                        body_user_interface.centered_and_justified(|user_interface| {
-                            user_interface.label(
-                                RichText::new("Attach to a process to browse code pages.")
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.foreground_preview),
-                            );
-                        });
-                    }
+                    None => {}
                 }
 
                 let splitter_min_y = content_response.rect.min.y;
