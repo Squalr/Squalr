@@ -74,7 +74,13 @@ impl PointerScannerToolbarView {
                 .background_color(fill_color)
                 .with_tooltip_text(tooltip_text),
         );
-        IconDraw::draw_sized(user_interface, button_response.rect.center(), vec2(16.0, 16.0), icon_handle);
+        IconDraw::draw_sized_tinted(
+            user_interface,
+            button_response.rect.center(),
+            vec2(16.0, 16.0),
+            icon_handle,
+            if disabled { theme.foreground_preview } else { Color32::WHITE },
+        );
 
         button_response
     }

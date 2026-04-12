@@ -114,6 +114,10 @@ impl ElementScannerViewData {
         let collect_values_request = ScanCollectValuesRequest { data_type_refs };
 
         collect_values_request.send(&engine_unprivileged_state, move |scan_collect_values_response| {
+            if !scan_collect_values_response.success {
+                return;
+            }
+
             if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data collect values response") {
                 let did_collect_snapshot_values = scan_collect_values_response
                     .scan_results_metadata
@@ -171,7 +175,11 @@ impl ElementScannerViewData {
         let scan_new_request = ScanNewRequest {};
 
         // Start a new scan, and recurse to start the scan once the new scan is made.
-        scan_new_request.send(&engine_unprivileged_state, move |_scan_new_response| {
+        scan_new_request.send(&engine_unprivileged_state, move |scan_new_response| {
+            if !scan_new_response.success {
+                return;
+            }
+
             Self::start_next_scan(element_scanner_view_data, engine_unprivileged_state_clone);
         });
     }
@@ -187,6 +195,7 @@ impl ElementScannerViewData {
                 None => return,
             }
         };
+        let previous_view_state = element_scanner_view_data.view_state;
         let data_type_refs = element_scanner_view_data
             .data_type_selection
             .scan_data_type_refs();
@@ -221,7 +230,16 @@ impl ElementScannerViewData {
 
         drop(element_scanner_view_data);
 
-        element_scan_request.send(&engine_unprivileged_state, move |_scan_execute_response| {
+        element_scan_request.send(&engine_unprivileged_state, move |scan_execute_response| {
+            if !scan_execute_response.success {
+                if let Some(mut element_scanner_view_data) = element_scanner_view_data_clone.write("Element scanner view data start next scan failure response")
+                {
+                    element_scanner_view_data.view_state = previous_view_state;
+                }
+
+                return;
+            }
+
             // JIRA: We actually need to wait for the task to complete, which can be tricky with our request/response architecture.
             // For now we just set it immediately to avoid being stuck in in progress state.
             // JIRA: Use scan_execute_response.scan_results_metadata.

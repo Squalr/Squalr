@@ -171,6 +171,8 @@ impl Widget for ElementScannerToolbarView {
             &supported_display_formats,
         );
         let active_display_format = element_scanner_view_data.active_display_format;
+        let disabled_icon_tint = theme.foreground_preview;
+        let enabled_icon_tint = Color32::WHITE;
 
         for scan_value_and_constraint in &mut element_scanner_view_data.scan_values_and_constraints {
             ElementScannerViewData::apply_scan_mode_to_constraint_value(
@@ -191,7 +193,12 @@ impl Widget for ElementScannerToolbarView {
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text(new_scan_tooltip),
                 );
-                IconDraw::draw(user_interface, button_new_scan.rect, &theme.icon_library.icon_handle_scan_new);
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_new_scan.rect,
+                    &theme.icon_library.icon_handle_scan_new,
+                    if has_opened_process { enabled_icon_tint } else { disabled_icon_tint },
+                );
 
                 if button_new_scan.clicked() {
                     should_perform_new_scan = true;
@@ -246,7 +253,12 @@ impl Widget for ElementScannerToolbarView {
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text(collect_values_tooltip),
                 );
-                IconDraw::draw(user_interface, button_collect_values.rect, &theme.icon_library.icon_handle_scan_collect_values);
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_collect_values.rect,
+                    &theme.icon_library.icon_handle_scan_collect_values,
+                    if has_opened_process { enabled_icon_tint } else { disabled_icon_tint },
+                );
 
                 if button_collect_values.clicked() {
                     should_collect_values = true;
@@ -260,7 +272,12 @@ impl Widget for ElementScannerToolbarView {
                         .background_color(Color32::TRANSPARENT)
                         .with_tooltip_text(start_scan_tooltip),
                 );
-                IconDraw::draw(user_interface, button_start_scan.rect, &theme.icon_library.icon_handle_navigation_right_arrow);
+                IconDraw::draw_tinted(
+                    user_interface,
+                    button_start_scan.rect,
+                    &theme.icon_library.icon_handle_navigation_right_arrow,
+                    if has_opened_process { enabled_icon_tint } else { disabled_icon_tint },
+                );
 
                 if button_start_scan.clicked() {
                     should_start_scan = true;

@@ -117,6 +117,7 @@ impl PrivilegedCommandRequestExecutor for ElementScanRequest {
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
 
             ElementScanResponse {
+                success: true,
                 scan_results_metadata: collect_scan_results_metadata(engine_privileged_state),
             }
         } else {

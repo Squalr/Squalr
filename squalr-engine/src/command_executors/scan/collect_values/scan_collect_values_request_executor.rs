@@ -68,6 +68,7 @@ impl PrivilegedCommandRequestExecutor for ScanCollectValuesRequest {
             });
 
             ScanCollectValuesResponse {
+                success: true,
                 scan_results_metadata: collect_scan_results_metadata(engine_privileged_state),
             }
         } else {

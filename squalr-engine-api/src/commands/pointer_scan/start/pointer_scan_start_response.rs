@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct PointerScanStartResponse {
+    pub success: bool,
     pub pointer_scan_summary: Option<PointerScanSummary>,
 }
 
