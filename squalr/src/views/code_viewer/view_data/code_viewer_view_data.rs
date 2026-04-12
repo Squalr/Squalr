@@ -663,7 +663,7 @@ impl CodeViewerViewData {
             .iter()
             .map(|instruction_line| instruction_line.text.clone())
             .collect::<Vec<_>>()
-            .join("\n");
+            .join("; ");
 
         code_viewer_view_data.selected_instruction_range = Some(CodeViewerInstructionSelectionRange {
             anchor_instruction_address: first_instruction.address,
@@ -1722,7 +1722,7 @@ mod tests {
         let instruction_edit_state = CodeViewerViewData::get_instruction_edit_state(code_viewer_view_data.clone()).expect("Expected instruction edit state.");
         assert_eq!(instruction_edit_state.start_address, 0x4010);
         assert_eq!(instruction_edit_state.end_address_exclusive, 0x4012);
-        assert_eq!(instruction_edit_state.edit_value.get_anonymous_value_string(), "nop\nret");
+        assert_eq!(instruction_edit_state.edit_value.get_anonymous_value_string(), "nop; ret");
         assert_eq!(
             instruction_edit_state
                 .edit_value
@@ -1797,7 +1797,7 @@ mod tests {
             code_viewer_view_data_guard.instruction_edit_state = Some(CodeViewerInstructionEditState {
                 start_address: 0x5000,
                 end_address_exclusive: 0x5001,
-                edit_value: AnonymousValueString::new(String::from("push eax\npush eax"), AnonymousValueStringFormat::String, ContainerType::None),
+                edit_value: AnonymousValueString::new(String::from("push eax; push eax"), AnonymousValueStringFormat::String, ContainerType::None),
                 status: None,
             });
         }
