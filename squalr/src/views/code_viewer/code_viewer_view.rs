@@ -19,8 +19,7 @@ use crate::{
     },
 };
 use eframe::egui::{
-    Align, Align2, Color32, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, TextEdit, Ui, UiBuilder, Widget, pos2,
-    vec2,
+    Align, Align2, Color32, Direction, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, Sense, Spinner, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
 use epaint::{Color32 as EpaintColor32, CornerRadius};
 use squalr_engine_api::{
@@ -50,11 +49,12 @@ pub struct CodeViewerView {
 
 impl CodeViewerView {
     const GO_TO_ADDRESS_INPUT_ID: &'static str = "code_viewer_go_to_address";
+    const INSTRUCTION_EDIT_INPUT_ID: &'static str = "code_viewer_instruction_edit";
     pub const WINDOW_ID: &'static str = "window_code_viewer";
     const TOOLBAR_HEIGHT: f32 = 32.0;
     const TOOLBAR_ROW_HEIGHT: f32 = 28.0;
     const ROW_HEIGHT: f32 = 22.0;
-    const EDITOR_ROW_HEIGHT: f32 = 30.0;
+    const EDITOR_ROW_MIN_HEIGHT: f32 = 34.0;
     const EDIT_WARNING_ROW_HEIGHT: f32 = 26.0;
     const BREAKPOINT_GUTTER_WIDTH: f32 = 28.0;
     const BRANCH_GUTTER_WIDTH: f32 = 56.0;
@@ -321,6 +321,47 @@ impl CodeViewerView {
         });
     }
 
+    fn instruction_edit_data_type_ref(&self) -> DataTypeRef {
+        DataTypeRef::new(match self.get_process_bitness().unwrap_or(Bitness::Bit64) {
+            Bitness::Bit32 => "i_x86",
+            Bitness::Bit64 => "i_x64",
+        })
+    }
+
+    fn build_context_menu_edit_label(
+        &self,
+        context_menu_address: u64,
+        selected_instruction_addresses: &HashSet<u64>,
+    ) -> String {
+        if selected_instruction_addresses.contains(&context_menu_address) && selected_instruction_addresses.len() > 1 {
+            String::from("Edit Instructions")
+        } else {
+            String::from("Edit Instruction")
+        }
+    }
+
+    fn get_instruction_editor_row_height(instruction_edit_state: &CodeViewerInstructionEditState) -> f32 {
+        let visible_line_count = instruction_edit_state
+            .edit_value
+            .get_anonymous_value_string()
+            .lines()
+            .count()
+            .max(1)
+            .min(6) as f32;
+
+        Self::EDITOR_ROW_MIN_HEIGHT.max(visible_line_count * 22.0 + 14.0)
+    }
+
+    fn get_instruction_editor_multiline_rows(instruction_edit_state: &CodeViewerInstructionEditState) -> usize {
+        instruction_edit_state
+            .edit_value
+            .get_anonymous_value_string()
+            .lines()
+            .count()
+            .max(1)
+            .min(6)
+    }
+
     fn render_instruction_row(
         &self,
         user_interface: &mut Ui,
@@ -450,7 +491,24 @@ impl CodeViewerView {
         instruction_edit_state: &CodeViewerInstructionEditState,
     ) {
         let theme = &self.app_context.theme;
-        let (edit_row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::EDITOR_ROW_HEIGHT), Sense::hover());
+        let editor_row_height = Self::get_instruction_editor_row_height(instruction_edit_state);
+        let (edit_row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), editor_row_height), Sense::hover());
+        let breakpoint_gutter_rect = Rect::from_min_max(
+            edit_row_rect.min,
+            pos2(edit_row_rect.min.x + Self::BREAKPOINT_GUTTER_WIDTH, edit_row_rect.max.y),
+        );
+        let branch_gutter_rect = Rect::from_min_max(
+            pos2(breakpoint_gutter_rect.max.x, edit_row_rect.min.y),
+            pos2(breakpoint_gutter_rect.max.x + Self::BRANCH_GUTTER_WIDTH, edit_row_rect.max.y),
+        );
+        let address_rect = Rect::from_min_max(
+            pos2(branch_gutter_rect.max.x, edit_row_rect.min.y),
+            pos2(branch_gutter_rect.max.x + Self::ADDRESS_COLUMN_WIDTH, edit_row_rect.max.y),
+        );
+        let bytes_rect = Rect::from_min_max(
+            pos2(address_rect.max.x, edit_row_rect.min.y),
+            pos2(address_rect.max.x + Self::BYTES_COLUMN_WIDTH, edit_row_rect.max.y),
+        );
         let mut edit_row_user_interface = user_interface.new_child(
             UiBuilder::new()
                 .max_rect(edit_row_rect)
@@ -463,23 +521,56 @@ impl CodeViewerView {
             theme.background_primary,
             theme.selected_border,
         );
+        edit_row_user_interface
+            .painter()
+            .with_clip_rect(address_rect.intersect(edit_row_user_interface.clip_rect()))
+            .text(
+                pos2(address_rect.min.x + Self::TEXT_LEFT_PADDING, edit_row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                Align2::LEFT_TOP,
+                format!("{:016X}", instruction_edit_state.start_address),
+                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                theme.hexadecimal_green,
+            );
+        edit_row_user_interface
+            .painter()
+            .with_clip_rect(bytes_rect.intersect(edit_row_user_interface.clip_rect()))
+            .text(
+                pos2(bytes_rect.min.x + Self::TEXT_LEFT_PADDING, edit_row_rect.min.y + Self::ROW_TEXT_TOP_PADDING),
+                Align2::LEFT_TOP,
+                format!("{} byte(s)", instruction_edit_state.original_byte_count()),
+                theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
+                theme.foreground_preview,
+            );
 
         edit_row_user_interface
             .add_space(Self::BREAKPOINT_GUTTER_WIDTH + Self::BRANCH_GUTTER_WIDTH + Self::ADDRESS_COLUMN_WIDTH + Self::BYTES_COLUMN_WIDTH + 6.0);
 
-        let mut edit_text = instruction_edit_state.edit_text.clone();
-        let text_edit_response = edit_row_user_interface.add_sized(
-            vec2((edit_row_user_interface.available_width() - 80.0).max(120.0), Self::TOOLBAR_ROW_HEIGHT),
-            TextEdit::singleline(&mut edit_text)
-                .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
-                .text_color(theme.foreground),
+        let validation_data_type = self.instruction_edit_data_type_ref();
+        let mut edit_value = instruction_edit_state.edit_value.clone();
+        let original_edit_value = edit_value.clone();
+        let did_commit_on_enter = DataValueBoxView::consume_commit_on_enter(user_interface, Self::INSTRUCTION_EDIT_INPUT_ID);
+        edit_row_user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut edit_value,
+                &validation_data_type,
+                false,
+                true,
+                "Type assembly here. Press Ctrl+Enter to write.",
+                Self::INSTRUCTION_EDIT_INPUT_ID,
+            )
+            .width((edit_row_user_interface.available_width() - 80.0).max(120.0))
+            .height((editor_row_height - 8.0).max(Self::TOOLBAR_ROW_HEIGHT))
+            .multiline(true)
+            .multiline_rows(Self::get_instruction_editor_multiline_rows(instruction_edit_state))
+            .use_format_text_colors(false),
         );
 
-        if edit_text != instruction_edit_state.edit_text {
-            CodeViewerViewData::set_instruction_edit_text(self.code_viewer_view_data.clone(), edit_text);
+        if edit_value != original_edit_value {
+            CodeViewerViewData::set_instruction_edit_value(self.code_viewer_view_data.clone(), edit_value);
         }
 
-        let should_commit_edit = text_edit_response.lost_focus() && edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Enter));
+        let should_commit_edit = did_commit_on_enter;
         let should_cancel_edit = edit_row_user_interface.input(|input_state| input_state.key_pressed(Key::Escape));
 
         let cancel_button = edit_row_user_interface.add_sized(
@@ -862,12 +953,31 @@ impl Widget for CodeViewerView {
                     let selected_instruction_addresses =
                         CodeViewerViewData::get_selected_instruction_addresses(self.code_viewer_view_data.clone(), &visible_instruction_lines);
                     let add_action_label = self.build_context_menu_add_label(context_menu_address, &selected_instruction_addresses);
+                    let edit_action_label = self.build_context_menu_edit_label(context_menu_address, &selected_instruction_addresses);
 
                     ContextMenu::new(
                         self.app_context.clone(),
                         "code_viewer_context_menu",
                         context_menu_position,
                         |user_interface, should_close| {
+                            if user_interface
+                                .add(ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    &edit_action_label,
+                                    "code_viewer_ctx_edit_instruction",
+                                    &None,
+                                    Self::CONTEXT_MENU_WIDTH,
+                                ))
+                                .clicked()
+                            {
+                                CodeViewerViewData::request_instruction_edit(
+                                    self.code_viewer_view_data.clone(),
+                                    context_menu_address,
+                                    &visible_instruction_lines,
+                                );
+                                *should_close = true;
+                            }
+
                             if user_interface
                                 .add(ToolbarMenuItemView::new(
                                     self.app_context.clone(),
