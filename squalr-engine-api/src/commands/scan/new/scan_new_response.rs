@@ -4,7 +4,9 @@ use crate::commands::scan::scan_response::ScanResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ScanNewResponse {}
+pub struct ScanNewResponse {
+    pub success: bool,
+}
 
 impl TypedPrivilegedCommandResponse for ScanNewResponse {
     fn to_engine_response(&self) -> PrivilegedCommandResponse {

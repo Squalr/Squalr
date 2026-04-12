@@ -51,7 +51,7 @@ fn scan_new_request_maps_to_scan_new_privileged_command() {
 
 #[test]
 fn typed_response_round_trip_for_scan_new_response() {
-    let scan_new_response = ScanNewResponse {};
+    let scan_new_response = ScanNewResponse { success: true };
 
     let engine_response = scan_new_response.to_engine_response();
     let typed_response_result = ScanNewResponse::from_engine_response(engine_response);
@@ -61,7 +61,10 @@ fn typed_response_round_trip_for_scan_new_response() {
 
 #[test]
 fn scan_new_request_dispatches_new_command_and_invokes_typed_callback() {
-    let bindings = MockEngineBindings::new(ScanNewResponse {}.to_engine_response(), ProjectListResponse::default().to_engine_response());
+    let bindings = MockEngineBindings::new(
+        ScanNewResponse { success: true }.to_engine_response(),
+        ProjectListResponse::default().to_engine_response(),
+    );
     let dispatched_commands = bindings.get_dispatched_commands();
     let scan_new_request = ScanNewRequest {};
     let callback_invoked = Arc::new(AtomicBool::new(false));

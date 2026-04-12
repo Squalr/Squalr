@@ -357,7 +357,7 @@ impl PointerScannerViewData {
                 if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner start scan response") {
                     pointer_scanner_view_data_guard.is_starting_scan = false;
 
-                    if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                    if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) && pointer_scan_start_response.success {
                         pointer_scanner_view_data_guard.apply_summary(pointer_scan_summary.clone());
                         if pointer_scan_summary.is_some() {
                             pointer_scanner_view_data_guard.queue_expand_request(PointerScannerPageRequest {
@@ -365,6 +365,8 @@ impl PointerScannerViewData {
                                 page_index: 0,
                             });
                         }
+                    } else if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                        pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
                     }
 
                     pointer_scanner_view_data_guard.request_repaint();
@@ -451,7 +453,7 @@ impl PointerScannerViewData {
                 if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data_clone.write("Pointer scanner start value scan response") {
                     pointer_scanner_view_data_guard.is_starting_scan = false;
 
-                    if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                    if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) && pointer_scan_start_response.success {
                         pointer_scanner_view_data_guard.apply_summary(pointer_scan_summary.clone());
                         if pointer_scan_summary.is_some() {
                             pointer_scanner_view_data_guard.queue_expand_request(PointerScannerPageRequest {
@@ -459,6 +461,8 @@ impl PointerScannerViewData {
                                 page_index: 0,
                             });
                         }
+                    } else if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
+                        pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
                     }
 
                     pointer_scanner_view_data_guard.request_repaint();
@@ -3196,6 +3200,7 @@ mod tests {
             &queued_commands,
             |privileged_command| matches!(privileged_command, PrivilegedCommand::PointerScan(PointerScanCommand::Start { .. })),
             PointerScanStartResponse {
+                success: true,
                 pointer_scan_summary: Some(create_pointer_scan_summary(11, 0x3010)),
             }
             .to_engine_response(),

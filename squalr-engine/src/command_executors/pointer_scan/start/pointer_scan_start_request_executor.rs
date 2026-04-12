@@ -139,6 +139,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
         }
 
         PointerScanStartResponse {
+            success: true,
             pointer_scan_summary: Some(pointer_scan_summary),
         }
     }
