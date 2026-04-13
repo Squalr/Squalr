@@ -11,6 +11,11 @@ pub enum SymbolExplorerSelection {
     CreateRootedSymbol,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SymbolExplorerTakeOverState {
+    DeleteConfirmation { symbol_key: String, display_name: String },
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum RootedSymbolDraftLocatorMode {
     #[default]
@@ -31,6 +36,7 @@ pub struct RootedSymbolCreateDraft {
 #[derive(Clone, Default)]
 pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
+    take_over_state: Option<SymbolExplorerTakeOverState>,
     rooted_symbol_display_name_draft: String,
     rooted_symbol_create_draft: RootedSymbolCreateDraft,
     expanded_tree_node_keys: HashSet<String>,
@@ -40,6 +46,7 @@ impl SymbolExplorerViewData {
     pub fn new() -> Self {
         Self {
             selected_entry: None,
+            take_over_state: None,
             rooted_symbol_display_name_draft: String::new(),
             rooted_symbol_create_draft: RootedSymbolCreateDraft::default(),
             expanded_tree_node_keys: HashSet::new(),
@@ -48,6 +55,10 @@ impl SymbolExplorerViewData {
 
     pub fn get_selected_entry(&self) -> Option<&SymbolExplorerSelection> {
         self.selected_entry.as_ref()
+    }
+
+    pub fn get_take_over_state(&self) -> Option<&SymbolExplorerTakeOverState> {
+        self.take_over_state.as_ref()
     }
 
     pub fn get_rooted_symbol_display_name_draft(&self) -> &str {
@@ -68,6 +79,7 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set selected entry") {
             symbol_explorer_view_data.selected_entry = selected_entry;
+            symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data
                 .rooted_symbol_display_name_draft
                 .clear();
@@ -81,6 +93,7 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin create rooted symbol") {
             symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::CreateRootedSymbol);
+            symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data
                 .rooted_symbol_display_name_draft
                 .clear();
@@ -103,6 +116,22 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set rooted symbol create draft") {
             symbol_explorer_view_data.rooted_symbol_create_draft = rooted_symbol_create_draft;
+        }
+    }
+
+    pub fn request_delete_confirmation(
+        symbol_explorer_view_data: Dependency<Self>,
+        symbol_key: String,
+        display_name: String,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete confirmation") {
+            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_key, display_name });
+        }
+    }
+
+    pub fn cancel_take_over_state(symbol_explorer_view_data: Dependency<Self>) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer cancel take over state") {
+            symbol_explorer_view_data.take_over_state = None;
         }
     }
 
@@ -151,6 +180,7 @@ impl SymbolExplorerViewData {
                         .map(|struct_layout_descriptor| SymbolExplorerSelection::StructLayout(struct_layout_descriptor.get_struct_layout_id().to_string()))
                 });
 
+            symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data
                 .rooted_symbol_display_name_draft
                 .clear();
@@ -214,6 +244,27 @@ impl SymbolExplorerViewData {
                 .first()
                 .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
                 .unwrap_or_default();
+        }
+    }
+
+    pub fn synchronize_take_over_state(
+        symbol_explorer_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) {
+        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize take over state") else {
+            return;
+        };
+
+        let should_clear_take_over_state = match symbol_explorer_view_data.take_over_state.as_ref() {
+            Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_key, .. }) => !project_symbol_catalog
+                .get_rooted_symbols()
+                .iter()
+                .any(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key),
+            None => false,
+        };
+
+        if should_clear_take_over_state {
+            symbol_explorer_view_data.take_over_state = None;
         }
     }
 

@@ -80,7 +80,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -106,7 +106,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -132,7 +132,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -165,7 +165,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -191,7 +191,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -217,7 +217,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -252,7 +252,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -278,7 +278,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -304,7 +304,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -330,7 +330,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -363,7 +363,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);
@@ -389,7 +389,7 @@ impl Widget for SettingsTabMemoryView {
                                             };
 
                                             memory_settings_set_request
-                                                .send(&self.app_context.engine_unprivileged_state, move |memory_settings_set_response| {});
+                                                .send(&self.app_context.engine_unprivileged_state, move |_memory_settings_set_response| {});
                                         }
 
                                         user_interface.add_space(8.0);

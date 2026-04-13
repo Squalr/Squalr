@@ -78,7 +78,7 @@ impl Widget for SettingsTabGeneralView {
                                     ..GeneralSettingsSetRequest::default()
                                 };
 
-                                general_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |general_settings_set_response| {});
+                                general_settings_set_request.send(&self.app_context.engine_unprivileged_state, move |_general_settings_set_response| {});
                             }
 
                             user_interface.add_space(8.0);

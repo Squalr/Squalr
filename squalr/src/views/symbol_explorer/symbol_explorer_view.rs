@@ -1,15 +1,18 @@
 use crate::app_context::AppContext;
-use crate::ui::widgets::controls::{button::Button as ThemeButton, groupbox::GroupBox};
+use crate::ui::{
+    draw::icon_draw::IconDraw,
+    widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
+};
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     symbol_explorer::view_data::{
-        symbol_explorer_view_data::{RootedSymbolDraftLocatorMode, SymbolExplorerSelection, SymbolExplorerViewData},
+        symbol_explorer_view_data::{RootedSymbolDraftLocatorMode, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData},
         symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries},
     },
 };
 use eframe::egui::{Align, Color32, Direction, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget, vec2};
-use epaint::{CornerRadius, Rect, Stroke, pos2};
+use epaint::{CornerRadius, Rect, Stroke, TextureHandle, pos2};
 use squalr_engine_api::commands::{
     project_symbols::{
         create::project_symbols_create_request::ProjectSymbolsCreateRequest, delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest,
@@ -20,6 +23,9 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::data_values::{
+    anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+};
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::{
     project_root_symbol::ProjectRootSymbol, project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog,
@@ -44,6 +50,11 @@ impl SymbolExplorerView {
     const DETAILS_PANEL_WIDTH_RATIO: f32 = 0.42;
     const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_pointer_children";
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
+    const TOOLBAR_HEIGHT: f32 = 28.0;
+    const TOOLBAR_ICON_BUTTON_SIZE: f32 = 36.0;
+    const DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_display_name";
+    const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
+    const STRING_DATA_TYPE_ID: &'static str = "string_utf8";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_explorer_view_data = app_context
@@ -141,6 +152,7 @@ impl SymbolExplorerView {
         &self,
         symbol_key: &str,
     ) {
+        SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
             symbol_keys: vec![symbol_key.to_string()],
         };
@@ -374,6 +386,106 @@ impl SymbolExplorerView {
         )
     }
 
+    fn draw_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &TextureHandle,
+        tooltip_text: &str,
+        enabled: bool,
+        background_color: Color32,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::TOOLBAR_ICON_BUTTON_SIZE, Self::TOOLBAR_HEIGHT),
+            ThemeButton::new_from_theme(theme)
+                .disabled(!enabled)
+                .background_color(background_color)
+                .with_tooltip_text(tooltip_text),
+        );
+
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if enabled { theme.foreground } else { theme.foreground_preview },
+        );
+
+        button_response
+    }
+
+    fn render_string_data_value_box(
+        &self,
+        user_interface: &mut Ui,
+        value_text: &mut String,
+        preview_text: &str,
+        id: &str,
+    ) {
+        let mut anonymous_value_string = AnonymousValueString::new(value_text.clone(), AnonymousValueStringFormat::String, ContainerType::None);
+        let string_data_type = DataTypeRef::new(Self::STRING_DATA_TYPE_ID);
+
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut anonymous_value_string,
+                &string_data_type,
+                false,
+                true,
+                preview_text,
+                id,
+            )
+            .width(user_interface.available_width().max(1.0))
+            .height(Self::TOOLBAR_HEIGHT)
+            .show_format_button(false)
+            .use_format_text_colors(false),
+        );
+
+        let next_value_text = anonymous_value_string.get_anonymous_value_string().to_string();
+        if *value_text != next_value_text {
+            *value_text = next_value_text;
+        }
+    }
+
+    fn render_delete_confirmation_details(
+        &self,
+        user_interface: &mut Ui,
+        display_name: &str,
+    ) {
+        let details_width = user_interface.available_width().max(1.0);
+
+        user_interface.add(
+            GroupBox::new_from_theme(&self.app_context.theme, "Delete Rooted Symbol", |user_interface| {
+                user_interface.label(
+                    RichText::new("Confirm deletion of this rooted symbol.")
+                        .font(
+                            self.app_context
+                                .theme
+                                .font_library
+                                .font_noto_sans
+                                .font_header
+                                .clone(),
+                        )
+                        .color(self.app_context.theme.foreground),
+                );
+                user_interface.add_space(8.0);
+                user_interface.label(
+                    RichText::new(display_name)
+                        .font(
+                            self.app_context
+                                .theme
+                                .font_library
+                                .font_ubuntu_mono_bold
+                                .font_normal
+                                .clone(),
+                        )
+                        .color(self.app_context.theme.foreground),
+                );
+                user_interface.add_space(6.0);
+                user_interface.label(RichText::new("Use the toolbar actions above to confirm or cancel.").color(self.app_context.theme.foreground_preview));
+            })
+            .desired_width(details_width),
+        );
+    }
+
     fn render_symbol_tree_list(
         &self,
         user_interface: &mut Ui,
@@ -540,82 +652,50 @@ impl SymbolExplorerView {
             })
             .unwrap_or_else(|| rooted_symbol.get_display_name().to_string());
         let mut edited_display_name_draft = current_display_name_draft.clone();
+        let details_width = user_interface.available_width().max(1.0);
 
-        user_interface.add(GroupBox::new_from_theme(&self.app_context.theme, "Rooted Symbol", |user_interface| {
-            user_interface.label(RichText::new("Display Name").color(self.app_context.theme.foreground));
-            let rename_response = user_interface.add(TextEdit::singleline(&mut edited_display_name_draft));
-
-            if rename_response.changed() {
-                SymbolExplorerViewData::set_rooted_symbol_display_name_draft(self.symbol_explorer_view_data.clone(), edited_display_name_draft.clone());
-            }
-
-            user_interface.add_space(6.0);
-            user_interface.label(
-                RichText::new(format!("key: {}", rooted_symbol.get_symbol_key()))
-                    .monospace()
-                    .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.label(
-                RichText::new(format!("type: {}", rooted_symbol.get_struct_layout_id()))
-                    .monospace()
-                    .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.label(
-                RichText::new(format!("locator: {}", rooted_symbol.get_root_locator()))
-                    .monospace()
-                    .color(self.app_context.theme.foreground_preview),
-            );
-        }));
-        user_interface.add_space(10.0);
-
-        user_interface.horizontal_wrapped(|user_interface| {
-            let trimmed_display_name_draft = edited_display_name_draft.trim().to_string();
-            let can_apply_rename = !trimmed_display_name_draft.is_empty() && trimmed_display_name_draft != rooted_symbol.get_display_name();
-
-            if self
-                .draw_text_button(
+        user_interface.add(
+            GroupBox::new_from_theme(&self.app_context.theme, "Rooted Symbol", |user_interface| {
+                user_interface.label(RichText::new("Display Name").color(self.app_context.theme.foreground));
+                self.render_string_data_value_box(
                     user_interface,
-                    "Apply Name",
-                    self.app_context.theme.background_control_primary,
-                    can_apply_rename,
-                    104.0,
-                )
-                .clicked()
-            {
-                self.rename_rooted_symbol(rooted_symbol.get_symbol_key(), trimmed_display_name_draft);
-            }
+                    &mut edited_display_name_draft,
+                    "Symbol name",
+                    Self::DISPLAY_NAME_DATA_VALUE_BOX_ID,
+                );
 
-            if self
-                .draw_text_button(
-                    user_interface,
-                    "Open In Memory",
-                    self.app_context.theme.background_control_secondary,
-                    true,
-                    124.0,
-                )
-                .clicked()
-            {
-                self.focus_memory_viewer_for_locator(rooted_symbol.get_root_locator());
-            }
+                if edited_display_name_draft != current_display_name_draft {
+                    SymbolExplorerViewData::set_rooted_symbol_display_name_draft(self.symbol_explorer_view_data.clone(), edited_display_name_draft.clone());
+                }
 
-            if self
-                .draw_text_button(user_interface, "Open In Code", self.app_context.theme.background_control_secondary, true, 116.0)
-                .clicked()
-            {
-                self.focus_code_viewer_for_locator(rooted_symbol.get_root_locator());
-            }
+                user_interface.add_space(8.0);
+                user_interface.label(
+                    RichText::new(format!("key: {}", rooted_symbol.get_symbol_key()))
+                        .monospace()
+                        .color(self.app_context.theme.foreground_preview),
+                );
+                user_interface.label(
+                    RichText::new(format!("type: {}", rooted_symbol.get_struct_layout_id()))
+                        .monospace()
+                        .color(self.app_context.theme.foreground_preview),
+                );
+                user_interface.label(
+                    RichText::new(format!("locator: {}", rooted_symbol.get_root_locator()))
+                        .monospace()
+                        .color(self.app_context.theme.foreground_preview),
+                );
+            })
+            .desired_width(details_width),
+        );
 
-            if self
-                .draw_text_button(user_interface, "Delete Symbol", self.app_context.theme.background_control_danger, true, 116.0)
-                .clicked()
-            {
-                self.delete_rooted_symbol(rooted_symbol.get_symbol_key());
-            }
-        });
+        user_interface.add_space(12.0);
+        user_interface.add(
+            GroupBox::new_from_theme(&self.app_context.theme, "Metadata", |user_interface| {
+                if rooted_symbol.get_metadata().is_empty() {
+                    user_interface.label(RichText::new("No metadata.").color(self.app_context.theme.foreground_preview));
+                    return;
+                }
 
-        if !rooted_symbol.get_metadata().is_empty() {
-            user_interface.add_space(12.0);
-            user_interface.add(GroupBox::new_from_theme(&self.app_context.theme, "Metadata", |user_interface| {
                 for (metadata_key, metadata_value) in rooted_symbol.get_metadata() {
                     user_interface.label(
                         RichText::new(format!("{} = {}", metadata_key, metadata_value))
@@ -623,8 +703,9 @@ impl SymbolExplorerView {
                             .color(self.app_context.theme.foreground_preview),
                     );
                 }
-            }));
-        }
+            })
+            .desired_width(details_width),
+        );
     }
 
     fn render_derived_symbol_details(
@@ -633,97 +714,61 @@ impl SymbolExplorerView {
         symbol_tree_entry: &SymbolTreeEntry,
         resolved_pointer_target: Option<ResolvedPointerTarget>,
     ) {
-        user_interface.add(GroupBox::new_from_theme(&self.app_context.theme, "Derived Symbol", |user_interface| {
-            user_interface.label(
-                RichText::new(symbol_tree_entry.get_display_name())
-                    .font(
-                        self.app_context
-                            .theme
-                            .font_library
-                            .font_noto_sans
-                            .font_header
-                            .clone(),
-                    )
-                    .color(self.app_context.theme.foreground),
-            );
-            user_interface.add_space(6.0);
-            user_interface.label(
-                RichText::new(format!("path: {}", symbol_tree_entry.get_full_path()))
-                    .monospace()
-                    .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.label(
-                RichText::new(format!(
-                    "type: {}{}",
-                    symbol_tree_entry.get_symbol_type_id(),
-                    symbol_tree_entry.get_container_type()
-                ))
-                .monospace()
-                .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.label(
-                RichText::new(format!("locator: {}", symbol_tree_entry.get_locator()))
-                    .monospace()
-                    .color(self.app_context.theme.foreground_preview),
-            );
+        let details_width = user_interface.available_width().max(1.0);
 
-            if let Some(resolved_pointer_target) = resolved_pointer_target {
+        user_interface.add(
+            GroupBox::new_from_theme(&self.app_context.theme, "Derived Symbol", |user_interface| {
                 user_interface.label(
-                    RichText::new(format!("resolved target: {}", resolved_pointer_target.get_target_locator()))
+                    RichText::new(symbol_tree_entry.get_display_name())
+                        .font(
+                            self.app_context
+                                .theme
+                                .font_library
+                                .font_noto_sans
+                                .font_header
+                                .clone(),
+                        )
+                        .color(self.app_context.theme.foreground),
+                );
+                user_interface.add_space(6.0);
+                user_interface.label(
+                    RichText::new(format!("path: {}", symbol_tree_entry.get_full_path()))
+                        .monospace()
+                        .color(self.app_context.theme.foreground_preview),
+                );
+                user_interface.label(
+                    RichText::new(format!(
+                        "type: {}{}",
+                        symbol_tree_entry.get_symbol_type_id(),
+                        symbol_tree_entry.get_container_type()
+                    ))
+                    .monospace()
+                    .color(self.app_context.theme.foreground_preview),
+                );
+                user_interface.label(
+                    RichText::new(format!("locator: {}", symbol_tree_entry.get_locator()))
                         .monospace()
                         .color(self.app_context.theme.foreground_preview),
                 );
 
-                if !resolved_pointer_target.get_evaluated_pointer_path().is_empty() {
+                if let Some(resolved_pointer_target) = resolved_pointer_target {
                     user_interface.label(
-                        RichText::new(format!("pointer path: {}", resolved_pointer_target.get_evaluated_pointer_path()))
+                        RichText::new(format!("resolved target: {}", resolved_pointer_target.get_target_locator()))
                             .monospace()
                             .color(self.app_context.theme.foreground_preview),
                     );
+
+                    if !resolved_pointer_target.get_evaluated_pointer_path().is_empty() {
+                        user_interface.label(
+                            RichText::new(format!("pointer path: {}", resolved_pointer_target.get_evaluated_pointer_path()))
+                                .monospace()
+                                .color(self.app_context.theme.foreground_preview),
+                        );
+                    }
                 }
-            }
-        }));
-
-        user_interface.add_space(10.0);
-
-        user_interface.horizontal_wrapped(|user_interface| {
-            if self
-                .draw_text_button(
-                    user_interface,
-                    "Promote to Rooted Symbol",
-                    self.app_context.theme.background_control_primary,
-                    true,
-                    184.0,
-                )
-                .clicked()
-            {
-                self.create_rooted_symbol_from_locator(
-                    symbol_tree_entry.get_promotion_display_name().to_string(),
-                    symbol_tree_entry.get_promoted_symbol_type_id(),
-                    symbol_tree_entry.get_locator().clone(),
-                );
-            }
-
-            if self
-                .draw_text_button(
-                    user_interface,
-                    "Open In Memory",
-                    self.app_context.theme.background_control_secondary,
-                    true,
-                    124.0,
-                )
-                .clicked()
-            {
-                self.focus_memory_viewer_for_locator(symbol_tree_entry.get_locator());
-            }
-
-            if self
-                .draw_text_button(user_interface, "Open In Code", self.app_context.theme.background_control_secondary, true, 116.0)
-                .clicked()
-            {
-                self.focus_code_viewer_for_locator(symbol_tree_entry.get_locator());
-            }
-        });
+            })
+            .desired_width(details_width),
+        );
     }
 
     fn render_struct_layout_details(
@@ -740,87 +785,91 @@ impl SymbolExplorerView {
             user_interface.label("Selected symbol type no longer exists.");
             return;
         };
+        let details_width = user_interface.available_width().max(1.0);
 
-        user_interface.add(GroupBox::new_from_theme(&self.app_context.theme, "Symbol Type", |user_interface| {
-            user_interface.label(
-                RichText::new(struct_layout_descriptor.get_struct_layout_id())
-                    .font(
-                        self.app_context
-                            .theme
-                            .font_library
-                            .font_noto_sans
-                            .font_header
-                            .clone(),
-                    )
-                    .color(self.app_context.theme.foreground),
-            );
-            user_interface.add_space(6.0);
-            user_interface.label(
-                RichText::new(format!(
-                    "{} field(s)",
-                    struct_layout_descriptor
-                        .get_struct_layout_definition()
-                        .get_fields()
-                        .len()
-                ))
-                .monospace()
-                .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.add_space(10.0);
-
-            for field_definition in struct_layout_descriptor
-                .get_struct_layout_definition()
-                .get_fields()
-            {
-                let unit_size_in_bytes = self
-                    .app_context
-                    .engine_unprivileged_state
-                    .get_default_value(field_definition.get_data_type_ref())
-                    .map(|default_value| default_value.get_size_in_bytes())
-                    .unwrap_or(1);
-                let field_name = if field_definition.get_field_name().is_empty() {
-                    "(anonymous)"
-                } else {
-                    field_definition.get_field_name()
-                };
-
+        user_interface.add(
+            GroupBox::new_from_theme(&self.app_context.theme, "Symbol Type", |user_interface| {
                 user_interface.label(
-                    RichText::new(format!(
-                        "{}: {}{}",
-                        field_name,
-                        field_definition.get_data_type_ref(),
-                        field_definition.get_container_type()
-                    ))
-                    .font(
-                        self.app_context
-                            .theme
-                            .font_library
-                            .font_noto_sans
-                            .font_normal
-                            .clone(),
-                    )
-                    .color(self.app_context.theme.foreground),
+                    RichText::new(struct_layout_descriptor.get_struct_layout_id())
+                        .font(
+                            self.app_context
+                                .theme
+                                .font_library
+                                .font_noto_sans
+                                .font_header
+                                .clone(),
+                        )
+                        .color(self.app_context.theme.foreground),
                 );
+                user_interface.add_space(6.0);
                 user_interface.label(
                     RichText::new(format!(
-                        "{} byte(s)",
-                        field_definition
-                            .get_container_type()
-                            .get_total_size_in_bytes(unit_size_in_bytes)
+                        "{} field(s)",
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_fields()
+                            .len()
                     ))
-                    .font(
-                        self.app_context
-                            .theme
-                            .font_library
-                            .font_noto_sans
-                            .font_small
-                            .clone(),
-                    )
+                    .monospace()
                     .color(self.app_context.theme.foreground_preview),
                 );
-                user_interface.add_space(4.0);
-            }
-        }));
+                user_interface.add_space(10.0);
+
+                for field_definition in struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_fields()
+                {
+                    let unit_size_in_bytes = self
+                        .app_context
+                        .engine_unprivileged_state
+                        .get_default_value(field_definition.get_data_type_ref())
+                        .map(|default_value| default_value.get_size_in_bytes())
+                        .unwrap_or(1);
+                    let field_name = if field_definition.get_field_name().is_empty() {
+                        "(anonymous)"
+                    } else {
+                        field_definition.get_field_name()
+                    };
+
+                    user_interface.label(
+                        RichText::new(format!(
+                            "{}: {}{}",
+                            field_name,
+                            field_definition.get_data_type_ref(),
+                            field_definition.get_container_type()
+                        ))
+                        .font(
+                            self.app_context
+                                .theme
+                                .font_library
+                                .font_noto_sans
+                                .font_normal
+                                .clone(),
+                        )
+                        .color(self.app_context.theme.foreground),
+                    );
+                    user_interface.label(
+                        RichText::new(format!(
+                            "{} byte(s)",
+                            field_definition
+                                .get_container_type()
+                                .get_total_size_in_bytes(unit_size_in_bytes)
+                        ))
+                        .font(
+                            self.app_context
+                                .theme
+                                .font_library
+                                .font_noto_sans
+                                .font_small
+                                .clone(),
+                        )
+                        .color(self.app_context.theme.foreground_preview),
+                    );
+                    user_interface.add_space(4.0);
+                }
+            })
+            .desired_width(details_width),
+        );
     }
 
     fn render_create_rooted_symbol_details(
@@ -838,96 +887,62 @@ impl SymbolExplorerView {
             })
             .unwrap_or_default();
         let mut edited_draft = original_draft.clone();
+        let details_width = user_interface.available_width().max(1.0);
 
-        user_interface.add(GroupBox::new_from_theme(&self.app_context.theme, "New Rooted Symbol", |user_interface| {
-            user_interface.label(RichText::new("Display Name").color(self.app_context.theme.foreground));
-            user_interface.add(TextEdit::singleline(&mut edited_draft.display_name));
-            user_interface.add_space(6.0);
+        user_interface.add(
+            GroupBox::new_from_theme(&self.app_context.theme, "New Rooted Symbol", |user_interface| {
+                user_interface.label(RichText::new("Display Name").color(self.app_context.theme.foreground));
+                self.render_string_data_value_box(
+                    user_interface,
+                    &mut edited_draft.display_name,
+                    "Symbol name",
+                    Self::CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID,
+                );
+                user_interface.add_space(6.0);
 
-            user_interface.label(RichText::new("Type Id").color(self.app_context.theme.foreground));
-            user_interface.add(TextEdit::singleline(&mut edited_draft.struct_layout_id));
-            user_interface.add_space(6.0);
+                user_interface.label(RichText::new("Type Id").color(self.app_context.theme.foreground));
+                user_interface.add(TextEdit::singleline(&mut edited_draft.struct_layout_id));
+                user_interface.add_space(6.0);
 
-            user_interface.label(RichText::new("Locator").color(self.app_context.theme.foreground));
-            user_interface.horizontal_wrapped(|user_interface| {
-                let is_absolute_address = matches!(edited_draft.locator_mode, RootedSymbolDraftLocatorMode::AbsoluteAddress);
+                user_interface.label(RichText::new("Locator").color(self.app_context.theme.foreground));
+                user_interface.horizontal_wrapped(|user_interface| {
+                    let is_absolute_address = matches!(edited_draft.locator_mode, RootedSymbolDraftLocatorMode::AbsoluteAddress);
 
-                if self
-                    .draw_toggle_button(user_interface, "Absolute Address", is_absolute_address)
-                    .clicked()
-                {
-                    edited_draft.locator_mode = RootedSymbolDraftLocatorMode::AbsoluteAddress;
+                    if self
+                        .draw_toggle_button(user_interface, "Absolute Address", is_absolute_address)
+                        .clicked()
+                    {
+                        edited_draft.locator_mode = RootedSymbolDraftLocatorMode::AbsoluteAddress;
+                    }
+
+                    if self
+                        .draw_toggle_button(user_interface, "Module + Offset", !is_absolute_address)
+                        .clicked()
+                    {
+                        edited_draft.locator_mode = RootedSymbolDraftLocatorMode::ModuleOffset;
+                    }
+                });
+                user_interface.add_space(6.0);
+
+                match edited_draft.locator_mode {
+                    RootedSymbolDraftLocatorMode::AbsoluteAddress => {
+                        user_interface.label(RichText::new("Address").color(self.app_context.theme.foreground));
+                        user_interface.add(TextEdit::singleline(&mut edited_draft.address_text).hint_text("0x12345678 or 305419896"));
+                    }
+                    RootedSymbolDraftLocatorMode::ModuleOffset => {
+                        user_interface.label(RichText::new("Module").color(self.app_context.theme.foreground));
+                        user_interface.add(TextEdit::singleline(&mut edited_draft.module_name));
+                        user_interface.add_space(6.0);
+                        user_interface.label(RichText::new("Offset").color(self.app_context.theme.foreground));
+                        user_interface.add(TextEdit::singleline(&mut edited_draft.offset_text).hint_text("0x1234 or 4660"));
+                    }
                 }
-
-                if self
-                    .draw_toggle_button(user_interface, "Module + Offset", !is_absolute_address)
-                    .clicked()
-                {
-                    edited_draft.locator_mode = RootedSymbolDraftLocatorMode::ModuleOffset;
-                }
-            });
-            user_interface.add_space(6.0);
-
-            match edited_draft.locator_mode {
-                RootedSymbolDraftLocatorMode::AbsoluteAddress => {
-                    user_interface.label(RichText::new("Address").color(self.app_context.theme.foreground));
-                    user_interface.add(TextEdit::singleline(&mut edited_draft.address_text).hint_text("0x12345678 or 305419896"));
-                }
-                RootedSymbolDraftLocatorMode::ModuleOffset => {
-                    user_interface.label(RichText::new("Module").color(self.app_context.theme.foreground));
-                    user_interface.add(TextEdit::singleline(&mut edited_draft.module_name));
-                    user_interface.add_space(6.0);
-                    user_interface.label(RichText::new("Offset").color(self.app_context.theme.foreground));
-                    user_interface.add(TextEdit::singleline(&mut edited_draft.offset_text).hint_text("0x1234 or 4660"));
-                }
-            }
-        }));
+            })
+            .desired_width(details_width),
+        );
 
         if edited_draft != original_draft {
             SymbolExplorerViewData::set_rooted_symbol_create_draft(self.symbol_explorer_view_data.clone(), edited_draft.clone());
-        }
-
-        let parsed_address = Self::parse_u64_draft(&edited_draft.address_text);
-        let parsed_offset = Self::parse_u64_draft(&edited_draft.offset_text);
-        let can_create_rooted_symbol = !edited_draft.display_name.trim().is_empty()
-            && !edited_draft.struct_layout_id.trim().is_empty()
-            && project_symbol_catalog
-                .get_struct_layout_descriptors()
-                .iter()
-                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == edited_draft.struct_layout_id.trim())
-            && match edited_draft.locator_mode {
-                RootedSymbolDraftLocatorMode::AbsoluteAddress => parsed_address.is_some(),
-                RootedSymbolDraftLocatorMode::ModuleOffset => !edited_draft.module_name.trim().is_empty() && parsed_offset.is_some(),
-            };
-
-        user_interface.add_space(10.0);
-        if self
-            .draw_text_button(
-                user_interface,
-                "Create Rooted Symbol",
-                self.app_context.theme.background_control_primary,
-                can_create_rooted_symbol,
-                168.0,
-            )
-            .clicked()
-        {
-            self.create_rooted_symbol(ProjectSymbolsCreateRequest {
-                display_name: edited_draft.display_name.trim().to_string(),
-                struct_layout_id: edited_draft.struct_layout_id.trim().to_string(),
-                address: match edited_draft.locator_mode {
-                    RootedSymbolDraftLocatorMode::AbsoluteAddress => parsed_address,
-                    RootedSymbolDraftLocatorMode::ModuleOffset => None,
-                },
-                module_name: match edited_draft.locator_mode {
-                    RootedSymbolDraftLocatorMode::AbsoluteAddress => None,
-                    RootedSymbolDraftLocatorMode::ModuleOffset => Some(edited_draft.module_name.trim().to_string()),
-                },
-                offset: match edited_draft.locator_mode {
-                    RootedSymbolDraftLocatorMode::AbsoluteAddress => None,
-                    RootedSymbolDraftLocatorMode::ModuleOffset => parsed_offset,
-                },
-                metadata: Default::default(),
-            });
         }
 
         if !project_symbol_catalog
@@ -935,15 +950,18 @@ impl SymbolExplorerView {
             .is_empty()
         {
             user_interface.add_space(12.0);
-            user_interface.add(GroupBox::new_from_theme(&self.app_context.theme, "Available Types", |user_interface| {
-                for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
-                    user_interface.label(
-                        RichText::new(struct_layout_descriptor.get_struct_layout_id())
-                            .monospace()
-                            .color(self.app_context.theme.foreground_preview),
-                    );
-                }
-            }));
+            user_interface.add(
+                GroupBox::new_from_theme(&self.app_context.theme, "Available Types", |user_interface| {
+                    for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+                        user_interface.label(
+                            RichText::new(struct_layout_descriptor.get_struct_layout_id())
+                                .monospace()
+                                .color(self.app_context.theme.foreground_preview),
+                        );
+                    }
+                })
+                .desired_width(details_width),
+            );
         }
     }
 
@@ -962,6 +980,45 @@ impl SymbolExplorerView {
         } else {
             trimmed_numeric_draft.parse::<u64>().ok()
         }
+    }
+
+    fn build_rooted_symbol_create_request_from_draft(
+        edited_draft: &crate::views::symbol_explorer::view_data::symbol_explorer_view_data::RootedSymbolCreateDraft,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) -> Option<ProjectSymbolsCreateRequest> {
+        let parsed_address = Self::parse_u64_draft(&edited_draft.address_text);
+        let parsed_offset = Self::parse_u64_draft(&edited_draft.offset_text);
+        let has_valid_type_id = !edited_draft.struct_layout_id.trim().is_empty()
+            && project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == edited_draft.struct_layout_id.trim());
+        let has_valid_locator = match edited_draft.locator_mode {
+            RootedSymbolDraftLocatorMode::AbsoluteAddress => parsed_address.is_some(),
+            RootedSymbolDraftLocatorMode::ModuleOffset => !edited_draft.module_name.trim().is_empty() && parsed_offset.is_some(),
+        };
+
+        if edited_draft.display_name.trim().is_empty() || !has_valid_type_id || !has_valid_locator {
+            return None;
+        }
+
+        Some(ProjectSymbolsCreateRequest {
+            display_name: edited_draft.display_name.trim().to_string(),
+            struct_layout_id: edited_draft.struct_layout_id.trim().to_string(),
+            address: match edited_draft.locator_mode {
+                RootedSymbolDraftLocatorMode::AbsoluteAddress => parsed_address,
+                RootedSymbolDraftLocatorMode::ModuleOffset => None,
+            },
+            module_name: match edited_draft.locator_mode {
+                RootedSymbolDraftLocatorMode::AbsoluteAddress => None,
+                RootedSymbolDraftLocatorMode::ModuleOffset => Some(edited_draft.module_name.trim().to_string()),
+            },
+            offset: match edited_draft.locator_mode {
+                RootedSymbolDraftLocatorMode::AbsoluteAddress => None,
+                RootedSymbolDraftLocatorMode::ModuleOffset => parsed_offset,
+            },
+            metadata: Default::default(),
+        })
     }
 }
 
@@ -990,6 +1047,7 @@ impl Widget for SymbolExplorerView {
         SymbolExplorerViewData::synchronize_selection(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_rooted_symbol_display_name_draft(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_rooted_symbol_create_draft(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
+        SymbolExplorerViewData::synchronize_take_over_state(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         let expanded_tree_node_keys = self
             .symbol_explorer_view_data
             .read("Symbol explorer expanded tree nodes")
@@ -1015,17 +1073,48 @@ impl Widget for SymbolExplorerView {
             },
         );
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
-        let selected_entry = self
+        let (selected_entry, take_over_state, current_display_name_draft, current_create_rooted_symbol_draft) = self
             .symbol_explorer_view_data
             .read("Symbol explorer view")
-            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
+            .map(|symbol_explorer_view_data| {
+                (
+                    symbol_explorer_view_data.get_selected_entry().cloned(),
+                    symbol_explorer_view_data.get_take_over_state().cloned(),
+                    symbol_explorer_view_data
+                        .get_rooted_symbol_display_name_draft()
+                        .to_string(),
+                    symbol_explorer_view_data
+                        .get_rooted_symbol_create_draft()
+                        .clone(),
+                )
+            })
+            .unwrap_or_default();
+        let selected_rooted_symbol = match selected_entry.as_ref() {
+            Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key)) => project_symbol_catalog
+                .get_rooted_symbols()
+                .iter()
+                .find(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key),
+            _ => None,
+        };
+        let can_apply_rename = selected_rooted_symbol
+            .map(|rooted_symbol| {
+                let trimmed_display_name_draft = current_display_name_draft.trim();
+
+                !trimmed_display_name_draft.is_empty() && trimmed_display_name_draft != rooted_symbol.get_display_name()
+            })
+            .unwrap_or(false);
+        let create_rooted_symbol_request = match selected_entry.as_ref() {
+            Some(SymbolExplorerSelection::CreateRootedSymbol) => {
+                Self::build_rooted_symbol_create_request_from_draft(&current_create_rooted_symbol_draft, &project_symbol_catalog)
+            }
+            _ => None,
+        };
         let theme = self.app_context.theme.clone();
 
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                let toolbar_height = 28.0;
                 let (toolbar_rect, _toolbar_response) =
-                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), toolbar_height), Sense::empty());
+                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::TOOLBAR_HEIGHT), Sense::empty());
                 user_interface
                     .painter()
                     .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
@@ -1044,13 +1133,197 @@ impl Widget for SymbolExplorerView {
                     .font(theme.font_library.font_noto_sans.font_normal.clone())
                     .color(theme.foreground),
                 );
-                toolbar_user_interface.add_space(10.0);
-                if self
-                    .draw_text_button(&mut toolbar_user_interface, "New Rooted Symbol", theme.background_control_primary, true, 152.0)
-                    .clicked()
-                {
-                    SymbolExplorerViewData::begin_create_rooted_symbol(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
-                }
+                toolbar_user_interface.with_layout(Layout::right_to_left(Align::Center), |toolbar_user_interface| {
+                    if let Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_key, .. }) = take_over_state.as_ref() {
+                        if self
+                            .draw_icon_button(
+                                toolbar_user_interface,
+                                &theme.icon_library.icon_handle_common_delete,
+                                "Delete rooted symbol.",
+                                true,
+                                theme.background_control_danger,
+                            )
+                            .clicked()
+                        {
+                            self.delete_rooted_symbol(symbol_key);
+                        }
+
+                        if self
+                            .draw_icon_button(
+                                toolbar_user_interface,
+                                &theme.icon_library.icon_handle_navigation_cancel,
+                                "Cancel deletion.",
+                                true,
+                                theme.background_control_secondary,
+                            )
+                            .clicked()
+                        {
+                            SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+                        }
+
+                        return;
+                    }
+
+                    if self
+                        .draw_icon_button(
+                            toolbar_user_interface,
+                            &theme.icon_library.icon_handle_common_add,
+                            "Create a new rooted symbol.",
+                            true,
+                            theme.background_control_primary,
+                        )
+                        .clicked()
+                    {
+                        SymbolExplorerViewData::begin_create_rooted_symbol(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
+                    }
+
+                    match selected_entry.as_ref() {
+                        Some(SymbolExplorerSelection::RootedSymbol(_)) => {
+                            if self
+                                .draw_icon_button(
+                                    toolbar_user_interface,
+                                    &theme.icon_library.icon_handle_common_delete,
+                                    "Delete selected rooted symbol.",
+                                    selected_rooted_symbol.is_some(),
+                                    theme.background_control_danger,
+                                )
+                                .clicked()
+                            {
+                                if let Some(rooted_symbol) = selected_rooted_symbol {
+                                    SymbolExplorerViewData::request_delete_confirmation(
+                                        self.symbol_explorer_view_data.clone(),
+                                        rooted_symbol.get_symbol_key().to_string(),
+                                        rooted_symbol.get_display_name().to_string(),
+                                    );
+                                }
+                            }
+
+                            if self
+                                .draw_icon_button(
+                                    toolbar_user_interface,
+                                    &theme.icon_library.icon_handle_project_cpu_instruction,
+                                    "Open selected rooted symbol in Code Viewer.",
+                                    selected_rooted_symbol.is_some(),
+                                    theme.background_control_secondary,
+                                )
+                                .clicked()
+                            {
+                                if let Some(rooted_symbol) = selected_rooted_symbol {
+                                    self.focus_code_viewer_for_locator(rooted_symbol.get_root_locator());
+                                }
+                            }
+
+                            if self
+                                .draw_icon_button(
+                                    toolbar_user_interface,
+                                    &theme.icon_library.icon_handle_scan_collect_values,
+                                    "Open selected rooted symbol in Memory Viewer.",
+                                    selected_rooted_symbol.is_some(),
+                                    theme.background_control_secondary,
+                                )
+                                .clicked()
+                            {
+                                if let Some(rooted_symbol) = selected_rooted_symbol {
+                                    self.focus_memory_viewer_for_locator(rooted_symbol.get_root_locator());
+                                }
+                            }
+
+                            if self
+                                .draw_icon_button(
+                                    toolbar_user_interface,
+                                    &theme.icon_library.icon_handle_common_check_mark,
+                                    "Apply rooted-symbol display name.",
+                                    can_apply_rename,
+                                    theme.background_control_primary,
+                                )
+                                .clicked()
+                            {
+                                if let Some(rooted_symbol) = selected_rooted_symbol {
+                                    self.rename_rooted_symbol(rooted_symbol.get_symbol_key(), current_display_name_draft.trim().to_string());
+                                }
+                            }
+                        }
+                        Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) => {
+                            if let Some(symbol_tree_entry) = symbol_tree_entries
+                                .iter()
+                                .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key)
+                            {
+                                if self
+                                    .draw_icon_button(
+                                        toolbar_user_interface,
+                                        &theme.icon_library.icon_handle_project_cpu_instruction,
+                                        "Open selected derived symbol in Code Viewer.",
+                                        true,
+                                        theme.background_control_secondary,
+                                    )
+                                    .clicked()
+                                {
+                                    self.focus_code_viewer_for_locator(symbol_tree_entry.get_locator());
+                                }
+
+                                if self
+                                    .draw_icon_button(
+                                        toolbar_user_interface,
+                                        &theme.icon_library.icon_handle_scan_collect_values,
+                                        "Open selected derived symbol in Memory Viewer.",
+                                        true,
+                                        theme.background_control_secondary,
+                                    )
+                                    .clicked()
+                                {
+                                    self.focus_memory_viewer_for_locator(symbol_tree_entry.get_locator());
+                                }
+
+                                if self
+                                    .draw_icon_button(
+                                        toolbar_user_interface,
+                                        &theme.icon_library.icon_handle_common_add,
+                                        "Promote selected derived symbol to a rooted symbol.",
+                                        true,
+                                        theme.background_control_primary,
+                                    )
+                                    .clicked()
+                                {
+                                    self.create_rooted_symbol_from_locator(
+                                        symbol_tree_entry.get_promotion_display_name().to_string(),
+                                        symbol_tree_entry.get_promoted_symbol_type_id(),
+                                        symbol_tree_entry.get_locator().clone(),
+                                    );
+                                }
+                            }
+                        }
+                        Some(SymbolExplorerSelection::CreateRootedSymbol) => {
+                            if self
+                                .draw_icon_button(
+                                    toolbar_user_interface,
+                                    &theme.icon_library.icon_handle_navigation_cancel,
+                                    "Cancel rooted-symbol creation.",
+                                    true,
+                                    theme.background_control_secondary,
+                                )
+                                .clicked()
+                            {
+                                SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
+                            }
+
+                            if self
+                                .draw_icon_button(
+                                    toolbar_user_interface,
+                                    &theme.icon_library.icon_handle_common_check_mark,
+                                    "Create rooted symbol.",
+                                    create_rooted_symbol_request.is_some(),
+                                    theme.background_control_primary,
+                                )
+                                .clicked()
+                            {
+                                if let Some(project_symbols_create_request) = create_rooted_symbol_request.clone() {
+                                    self.create_rooted_symbol(project_symbols_create_request);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                });
 
                 let content_rect = user_interface.available_rect_before_wrap();
                 let details_panel_width = (content_rect.width() * Self::DETAILS_PANEL_WIDTH_RATIO).clamp(220.0, content_rect.width() - 140.0);
@@ -1096,40 +1369,48 @@ impl Widget for SymbolExplorerView {
                 ScrollArea::vertical()
                     .id_salt("symbol_explorer_details")
                     .auto_shrink([false, false])
-                    .show(&mut details_user_interface, |details_user_interface| match selected_entry.as_ref() {
-                        Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key)) => {
-                            if let Some(rooted_symbol) = project_symbol_catalog
-                                .get_rooted_symbols()
-                                .iter()
-                                .find(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key)
-                            {
-                                self.render_rooted_symbol_details(details_user_interface, rooted_symbol);
-                            } else {
-                                details_user_interface.label(RichText::new("Selected rooted symbol no longer exists.").color(theme.foreground_preview));
+                    .show(&mut details_user_interface, |details_user_interface| {
+                        if let Some(SymbolExplorerTakeOverState::DeleteConfirmation { display_name, .. }) = take_over_state.as_ref() {
+                            self.render_delete_confirmation_details(details_user_interface, display_name);
+                            return;
+                        }
+
+                        match selected_entry.as_ref() {
+                            Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key)) => {
+                                if let Some(rooted_symbol) = project_symbol_catalog
+                                    .get_rooted_symbols()
+                                    .iter()
+                                    .find(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key)
+                                {
+                                    self.render_rooted_symbol_details(details_user_interface, rooted_symbol);
+                                } else {
+                                    details_user_interface.label(RichText::new("Selected rooted symbol no longer exists.").color(theme.foreground_preview));
+                                }
                             }
-                        }
-                        Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) => {
-                            if let Some(symbol_tree_entry) = symbol_tree_entries
-                                .iter()
-                                .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key)
-                            {
-                                self.render_derived_symbol_details(
-                                    details_user_interface,
-                                    symbol_tree_entry,
-                                    Self::get_resolved_pointer_target_for_node_key(&resolved_pointer_targets_by_node_key, symbol_tree_entry.get_node_key()),
-                                );
-                            } else {
-                                details_user_interface.label(RichText::new("Selected derived symbol node no longer exists.").color(theme.foreground_preview));
+                            Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) => {
+                                if let Some(symbol_tree_entry) = symbol_tree_entries
+                                    .iter()
+                                    .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key)
+                                {
+                                    self.render_derived_symbol_details(
+                                        details_user_interface,
+                                        symbol_tree_entry,
+                                        Self::get_resolved_pointer_target_for_node_key(&resolved_pointer_targets_by_node_key, symbol_tree_entry.get_node_key()),
+                                    );
+                                } else {
+                                    details_user_interface
+                                        .label(RichText::new("Selected derived symbol node no longer exists.").color(theme.foreground_preview));
+                                }
                             }
-                        }
-                        Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
-                            self.render_struct_layout_details(details_user_interface, &project_symbol_catalog, struct_layout_id);
-                        }
-                        Some(SymbolExplorerSelection::CreateRootedSymbol) => {
-                            self.render_create_rooted_symbol_details(details_user_interface, &project_symbol_catalog);
-                        }
-                        None => {
-                            details_user_interface.label(RichText::new("Select a rooted symbol or symbol type.").color(theme.foreground_preview));
+                            Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
+                                self.render_struct_layout_details(details_user_interface, &project_symbol_catalog, struct_layout_id);
+                            }
+                            Some(SymbolExplorerSelection::CreateRootedSymbol) => {
+                                self.render_create_rooted_symbol_details(details_user_interface, &project_symbol_catalog);
+                            }
+                            None => {
+                                details_user_interface.label(RichText::new("Select a rooted symbol or symbol type.").color(theme.foreground_preview));
+                            }
                         }
                     });
             })

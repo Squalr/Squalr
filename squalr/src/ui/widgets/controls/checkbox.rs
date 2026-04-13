@@ -17,6 +17,7 @@ pub struct Checkbox<'lifetime> {
     pub border_color_focused: Option<Color32>,
     pub icon_checked: TextureHandle,
     pub icon_mixed: TextureHandle,
+    pub icon_tint: Color32,
 
     pub click_sound: Option<&'lifetime str>,
 
@@ -43,6 +44,7 @@ impl<'lifetime> Checkbox<'lifetime> {
             border_color_focused: Some(theme.focused_border),
             icon_checked: theme.icon_library.icon_handle_common_check_mark.clone(),
             icon_mixed: theme.icon_library.icon_handle_minimize.clone(),
+            icon_tint: theme.foreground,
 
             click_sound: None,
 
@@ -136,7 +138,7 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
                     self.icon_checked.id(),
                     Rect::from_min_size(icon_position, texture_size),
                     Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                    Color32::WHITE,
+                    self.icon_tint,
                 );
             }
             CheckState::Mixed => {
@@ -147,7 +149,7 @@ impl<'lifetime> Widget for Checkbox<'lifetime> {
                     self.icon_mixed.id(),
                     Rect::from_min_size(icon_position, texture_size),
                     Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                    Color32::WHITE,
+                    self.icon_tint,
                 );
             }
         }
