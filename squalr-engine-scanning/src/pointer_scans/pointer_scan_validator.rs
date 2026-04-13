@@ -21,8 +21,6 @@ use squalr_engine_api::structures::snapshots::snapshot_region::SnapshotRegion;
 use std::time::Instant;
 
 const POINTER_VALIDATION_ROOT_CHUNK_SIZE: usize = 64;
-const POINTER_VALIDATION_MIN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
-const POINTER_VALIDATION_TARGET_TASKS_PER_WORKER: usize = 4;
 
 #[derive(Clone, Copy, Debug)]
 struct PointerValidationProgress {
@@ -359,12 +357,6 @@ impl PointerScanValidator {
         let mut sorted_modules = modules.iter().collect::<Vec<_>>();
         sorted_modules.sort_unstable_by_key(|module| module.get_base_address());
         let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
-        let total_snapshot_byte_count = validation_snapshot_regions
-            .iter()
-            .map(|snapshot_region| snapshot_region.get_current_values().len())
-            .sum::<usize>();
-        let task_byte_size =
-            Self::calculate_validation_snapshot_task_byte_size(total_snapshot_byte_count, validation_snapshot_regions.len(), pointer_size_in_bytes);
         let mut validation_heap_scan_tasks = Vec::new();
 
         for validation_snapshot_region in validation_snapshot_regions {
@@ -390,11 +382,10 @@ impl PointerScanValidator {
                 }
 
                 if uncovered_range_base_address < module_base_address {
-                    Self::append_validation_heap_scan_tasks_for_range(
+                    Self::append_validation_heap_scan_task_for_range(
                         validation_snapshot_region,
                         uncovered_range_base_address,
                         module_base_address.min(validation_snapshot_region_end_address),
-                        task_byte_size,
                         pointer_size_in_bytes,
                         &mut validation_heap_scan_tasks,
                     );
@@ -408,11 +399,10 @@ impl PointerScanValidator {
             }
 
             if uncovered_range_base_address < validation_snapshot_region_end_address {
-                Self::append_validation_heap_scan_tasks_for_range(
+                Self::append_validation_heap_scan_task_for_range(
                     validation_snapshot_region,
                     uncovered_range_base_address,
                     validation_snapshot_region_end_address,
-                    task_byte_size,
                     pointer_size_in_bytes,
                     &mut validation_heap_scan_tasks,
                 );
@@ -422,11 +412,10 @@ impl PointerScanValidator {
         validation_heap_scan_tasks
     }
 
-    fn append_validation_heap_scan_tasks_for_range<'a>(
+    fn append_validation_heap_scan_task_for_range<'a>(
         validation_snapshot_region: &'a SnapshotRegion,
         range_base_address: u64,
         range_end_address: u64,
-        task_byte_size: usize,
         pointer_size_in_bytes: usize,
         validation_heap_scan_tasks: &mut Vec<SnapshotRegionScanTask<'a>>,
     ) {
@@ -437,54 +426,16 @@ impl PointerScanValidator {
         let range_start_offset = range_base_address.saturating_sub(validation_snapshot_region.get_base_address()) as usize;
         let range_end_offset = range_end_address.saturating_sub(validation_snapshot_region.get_base_address()) as usize;
         let current_values = validation_snapshot_region.get_current_values().as_slice();
-        let mut task_start_offset = range_start_offset;
+        let task_read_end_offset = range_end_offset
+            .saturating_add(pointer_size_in_bytes.saturating_sub(1))
+            .min(current_values.len());
 
-        while task_start_offset < range_end_offset {
-            let remaining_byte_count = range_end_offset.saturating_sub(task_start_offset);
-            let task_byte_count = remaining_byte_count.min(task_byte_size);
-            let task_end_offset = task_start_offset.saturating_add(task_byte_count);
-            let task_read_end_offset = task_end_offset
-                .saturating_add(pointer_size_in_bytes.saturating_sub(1))
-                .min(current_values.len());
-
-            validation_heap_scan_tasks.push(SnapshotRegionScanTask {
-                scan_base_address: validation_snapshot_region
-                    .get_base_address()
-                    .saturating_add(task_start_offset as u64),
-                scan_end_address: validation_snapshot_region
-                    .get_base_address()
-                    .saturating_add(task_end_offset as u64),
-                current_values: &current_values[task_start_offset..task_read_end_offset],
-                task_kind: SnapshotRegionScanTaskKind::Heap,
-            });
-
-            task_start_offset = task_end_offset;
-        }
-    }
-
-    fn calculate_validation_snapshot_task_byte_size(
-        total_snapshot_byte_count: usize,
-        total_snapshot_region_count: usize,
-        pointer_size_in_bytes: usize,
-    ) -> usize {
-        let pointer_alignment = pointer_size_in_bytes.max(1);
-        let minimum_task_byte_size = POINTER_VALIDATION_MIN_SNAPSHOT_TASK_BYTE_SIZE.max(pointer_alignment);
-        let target_task_count = total_snapshot_region_count
-            .max(
-                rayon::current_num_threads()
-                    .max(1)
-                    .saturating_mul(POINTER_VALIDATION_TARGET_TASKS_PER_WORKER),
-            )
-            .max(1);
-        let target_task_byte_size = total_snapshot_byte_count
-            .saturating_add(target_task_count.saturating_sub(1))
-            .checked_div(target_task_count)
-            .unwrap_or(0)
-            .max(minimum_task_byte_size);
-
-        target_task_byte_size
-            .max(pointer_alignment)
-            .saturating_sub(target_task_byte_size.max(pointer_alignment) % pointer_alignment)
+        validation_heap_scan_tasks.push(SnapshotRegionScanTask {
+            scan_base_address: range_base_address,
+            scan_end_address: range_end_address,
+            current_values: &current_values[range_start_offset..task_read_end_offset],
+            task_kind: SnapshotRegionScanTaskKind::Heap,
+        });
     }
 
     fn read_pointer_value_at_address(
