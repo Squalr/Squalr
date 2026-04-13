@@ -47,7 +47,6 @@ impl DockSettingsConfig {
                                 0.5,
                                 DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
-                                    .visible(false)
                                     .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
                             )
                             .push_child(
@@ -61,9 +60,9 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::tab_node(OutputView::WINDOW_ID)
                             .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false)),
+                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID)),
                     ),
             )
             .push_child(
@@ -83,14 +82,14 @@ impl DockSettingsConfig {
                     .push_child(
                         0.5,
                         DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
-                            .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID).visible(false))
+                            .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
                             .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
                     )
                     .push_child(
                         0.5,
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
+                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
                     ),
             )
@@ -104,9 +103,9 @@ impl DockSettingsConfig {
                 0.2,
                 DockBuilder::tab_node(OutputView::WINDOW_ID)
                     .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                    .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID).visible(false))
-                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false)),
+                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID)),
             )
             .build();
 
@@ -114,14 +113,14 @@ impl DockSettingsConfig {
     }
 
     fn ensure_required_windows_present(&mut self) {
-        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
-    fn ensure_hidden_tab_window(
+    fn ensure_tab_window(
         dock_root: &mut DockNode,
         anchor_window_id: &str,
         missing_window_id: &str,
@@ -140,7 +139,7 @@ impl DockSettingsConfig {
         if let DockNode::Tab { tabs, .. } = anchor_container_node {
             tabs.push(DockNode::Window {
                 window_identifier: missing_window_id.to_string(),
-                is_visible: false,
+                is_visible: true,
             });
         }
     }
