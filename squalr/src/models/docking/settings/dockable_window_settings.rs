@@ -48,10 +48,14 @@ impl DockSettingsConfig {
                                 DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
                                     .visible(false)
-                                    .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID))
-                                    .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
+                                    .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
                             )
-                            .push_child(0.5, DockBuilder::window(StructViewerView::WINDOW_ID)),
+                            .push_child(
+                                0.5,
+                                DockBuilder::tab_node(StructViewerView::WINDOW_ID)
+                                    .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
+                                    .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+                            ),
                     )
                     .push_child(
                         0.5,
@@ -67,7 +71,7 @@ impl DockSettingsConfig {
                 DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+                    .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
             )
             .build();
 
@@ -80,18 +84,22 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
+                            .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
                     )
                     .push_child(
                         0.5,
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+                            .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
                     ),
             )
-            .push_child(0.25, DockBuilder::window(StructViewerView::WINDOW_ID))
+            .push_child(
+                0.25,
+                DockBuilder::tab_node(StructViewerView::WINDOW_ID)
+                    .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+            )
             .push_child(
                 0.2,
                 DockBuilder::tab_node(OutputView::WINDOW_ID)
@@ -109,7 +117,8 @@ impl DockSettingsConfig {
         Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
         Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
         Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, ProjectExplorerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
+        Self::ensure_hidden_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
+        Self::ensure_hidden_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
     fn ensure_hidden_tab_window(
@@ -217,8 +226,9 @@ impl DockableWindowSettings {
 mod tests {
     use super::DockSettingsConfig;
     use crate::views::{
-        code_viewer::code_viewer_view::CodeViewerView, memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView,
-        plugins::plugins_view::PluginsView, project_explorer::project_explorer_view::ProjectExplorerView,
+        code_viewer::code_viewer_view::CodeViewerView, element_scanner::scanner::element_scanner_view::ElementScannerView,
+        memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView, plugins::plugins_view::PluginsView,
+        pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
         symbol_explorer::symbol_explorer_view::SymbolExplorerView,
     };
 
@@ -232,9 +242,17 @@ mod tests {
     }
 
     #[test]
-    fn default_layout_places_symbol_explorer_with_project_explorer() {
+    fn default_layout_places_symbol_explorer_with_scan_windows() {
         let dock_root = DockSettingsConfig::get_default_layout();
 
-        assert!(dock_root.are_windows_in_same_tab_group(ProjectExplorerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(PointerScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+    }
+
+    #[test]
+    fn default_layout_places_settings_with_struct_viewer() {
+        let dock_root = DockSettingsConfig::get_default_layout();
+
+        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID));
     }
 }
