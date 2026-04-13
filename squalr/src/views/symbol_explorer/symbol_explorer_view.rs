@@ -6,6 +6,7 @@ use crate::ui::{
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
+    symbol_explorer::symbol_tree_entry_view::SymbolTreeEntryView,
     symbol_explorer::view_data::{
         symbol_explorer_view_data::{RootedSymbolDraftLocatorMode, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData},
         symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries},
@@ -419,6 +420,7 @@ impl SymbolExplorerView {
         value_text: &mut String,
         preview_text: &str,
         id: &str,
+        width: f32,
     ) {
         let mut anonymous_value_string = AnonymousValueString::new(value_text.clone(), AnonymousValueStringFormat::String, ContainerType::None);
         let string_data_type = DataTypeRef::new(Self::STRING_DATA_TYPE_ID);
@@ -433,7 +435,7 @@ impl SymbolExplorerView {
                 preview_text,
                 id,
             )
-            .width(user_interface.available_width().max(1.0))
+            .width(width.max(1.0))
             .height(Self::TOOLBAR_HEIGHT)
             .show_format_button(false)
             .use_format_text_colors(false),
@@ -486,7 +488,8 @@ impl SymbolExplorerView {
         );
     }
 
-    fn render_symbol_tree_list(
+    #[allow(dead_code)]
+    fn render_symbol_tree_list_legacy(
         &self,
         user_interface: &mut Ui,
         symbol_tree_entries: &[SymbolTreeEntry],
@@ -574,6 +577,60 @@ impl SymbolExplorerView {
         }
     }
 
+    fn render_symbol_tree_list(
+        &self,
+        user_interface: &mut Ui,
+        symbol_tree_entries: &[SymbolTreeEntry],
+        selected_entry: Option<&SymbolExplorerSelection>,
+    ) {
+        user_interface.label(
+            RichText::new(format!(
+                "Rooted Symbols ({})",
+                symbol_tree_entries
+                    .iter()
+                    .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { .. }))
+                    .count()
+            ))
+            .font(
+                self.app_context
+                    .theme
+                    .font_library
+                    .font_noto_sans
+                    .font_header
+                    .clone(),
+            )
+            .color(self.app_context.theme.foreground),
+        );
+        user_interface.add_space(6.0);
+
+        for symbol_tree_entry in symbol_tree_entries {
+            let is_selected = matches!(
+                selected_entry,
+                Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key))
+                    if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { symbol_key } if selected_symbol_key == symbol_key)
+            ) || matches!(
+                selected_entry,
+                Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
+            );
+            let symbol_tree_entry_view_response = SymbolTreeEntryView::new(self.app_context.clone(), symbol_tree_entry, is_selected).show(user_interface);
+
+            if symbol_tree_entry_view_response.did_click_expand_arrow {
+                SymbolExplorerViewData::toggle_tree_node_expansion(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key());
+            }
+
+            if symbol_tree_entry_view_response.did_click_row {
+                let selection = match symbol_tree_entry.get_kind() {
+                    SymbolTreeEntryKind::RootedSymbol { symbol_key } => SymbolExplorerSelection::RootedSymbol(symbol_key.to_string()),
+                    SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement | SymbolTreeEntryKind::PointerTarget => {
+                        SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
+                    }
+                };
+
+                SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+            }
+        }
+    }
+
     fn render_struct_layout_list(
         &self,
         user_interface: &mut Ui,
@@ -657,12 +714,37 @@ impl SymbolExplorerView {
         user_interface.add(
             GroupBox::new_from_theme(&self.app_context.theme, "Rooted Symbol", |user_interface| {
                 user_interface.label(RichText::new("Display Name").color(self.app_context.theme.foreground));
-                self.render_string_data_value_box(
-                    user_interface,
-                    &mut edited_display_name_draft,
-                    "Symbol name",
-                    Self::DISPLAY_NAME_DATA_VALUE_BOX_ID,
-                );
+                user_interface.horizontal(|user_interface| {
+                    let check_button_width = Self::TOOLBAR_ICON_BUTTON_SIZE;
+                    let value_box_width = (user_interface.available_width() - check_button_width - 6.0).max(1.0);
+
+                    self.render_string_data_value_box(
+                        user_interface,
+                        &mut edited_display_name_draft,
+                        "Symbol name",
+                        Self::DISPLAY_NAME_DATA_VALUE_BOX_ID,
+                        value_box_width,
+                    );
+                    let trimmed_display_name_draft = edited_display_name_draft.trim().to_string();
+                    let can_apply_rename = !trimmed_display_name_draft.is_empty() && trimmed_display_name_draft != rooted_symbol.get_display_name();
+
+                    if self
+                        .draw_icon_button(
+                            user_interface,
+                            &self
+                                .app_context
+                                .theme
+                                .icon_library
+                                .icon_handle_common_check_mark,
+                            "Apply rooted-symbol display name.",
+                            can_apply_rename,
+                            self.app_context.theme.background_control_secondary,
+                        )
+                        .clicked()
+                    {
+                        self.rename_rooted_symbol(rooted_symbol.get_symbol_key(), trimmed_display_name_draft.clone());
+                    }
+                });
 
                 if edited_display_name_draft != current_display_name_draft {
                     SymbolExplorerViewData::set_rooted_symbol_display_name_draft(self.symbol_explorer_view_data.clone(), edited_display_name_draft.clone());
@@ -897,6 +979,7 @@ impl SymbolExplorerView {
                     &mut edited_draft.display_name,
                     "Symbol name",
                     Self::CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID,
+                    user_interface.available_width(),
                 );
                 user_interface.add_space(6.0);
 
@@ -1073,16 +1156,13 @@ impl Widget for SymbolExplorerView {
             },
         );
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
-        let (selected_entry, take_over_state, current_display_name_draft, current_create_rooted_symbol_draft) = self
+        let (selected_entry, take_over_state, current_create_rooted_symbol_draft) = self
             .symbol_explorer_view_data
             .read("Symbol explorer view")
             .map(|symbol_explorer_view_data| {
                 (
                     symbol_explorer_view_data.get_selected_entry().cloned(),
                     symbol_explorer_view_data.get_take_over_state().cloned(),
-                    symbol_explorer_view_data
-                        .get_rooted_symbol_display_name_draft()
-                        .to_string(),
                     symbol_explorer_view_data
                         .get_rooted_symbol_create_draft()
                         .clone(),
@@ -1096,13 +1176,6 @@ impl Widget for SymbolExplorerView {
                 .find(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key),
             _ => None,
         };
-        let can_apply_rename = selected_rooted_symbol
-            .map(|rooted_symbol| {
-                let trimmed_display_name_draft = current_display_name_draft.trim();
-
-                !trimmed_display_name_draft.is_empty() && trimmed_display_name_draft != rooted_symbol.get_display_name()
-            })
-            .unwrap_or(false);
         let create_rooted_symbol_request = match selected_entry.as_ref() {
             Some(SymbolExplorerSelection::CreateRootedSymbol) => {
                 Self::build_rooted_symbol_create_request_from_draft(&current_create_rooted_symbol_draft, &project_symbol_catalog)
@@ -1113,15 +1186,33 @@ impl Widget for SymbolExplorerView {
 
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                let (toolbar_rect, _toolbar_response) =
-                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::TOOLBAR_HEIGHT), Sense::empty());
-                user_interface
-                    .painter()
-                    .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
+                let content_rect = user_interface.available_rect_before_wrap();
+                let details_panel_width = (content_rect.width() * Self::DETAILS_PANEL_WIDTH_RATIO).clamp(220.0, content_rect.width() - 140.0);
+                let list_rect = Rect::from_min_max(content_rect.min, pos2(content_rect.max.x - details_panel_width, content_rect.max.y));
+                let details_rect = Rect::from_min_max(pos2(list_rect.max.x, content_rect.min.y), content_rect.max);
 
-                let mut toolbar_user_interface = user_interface.new_child(
+                user_interface.painter().line_segment(
+                    [
+                        pos2(list_rect.max.x, list_rect.min.y),
+                        pos2(list_rect.max.x, list_rect.max.y),
+                    ],
+                    Stroke::new(1.0, theme.submenu_border),
+                );
+
+                let mut list_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(toolbar_rect)
+                        .max_rect(list_rect.shrink2(vec2(10.0, 8.0)))
+                        .layout(Layout::top_down(Align::Min)),
+                );
+                let (list_toolbar_rect, _list_toolbar_response) =
+                    list_user_interface.allocate_exact_size(vec2(list_user_interface.available_width().max(1.0), Self::TOOLBAR_HEIGHT), Sense::empty());
+                list_user_interface
+                    .painter()
+                    .rect_filled(list_toolbar_rect, CornerRadius::ZERO, theme.background_primary);
+
+                let mut toolbar_user_interface = list_user_interface.new_child(
+                    UiBuilder::new()
+                        .max_rect(list_toolbar_rect)
                         .layout(Layout::left_to_right(Align::Center)),
                 );
                 toolbar_user_interface.label(
@@ -1141,7 +1232,7 @@ impl Widget for SymbolExplorerView {
                                 &theme.icon_library.icon_handle_common_delete,
                                 "Delete rooted symbol.",
                                 true,
-                                theme.background_control_danger,
+                                theme.background_control_secondary,
                             )
                             .clicked()
                         {
@@ -1170,7 +1261,7 @@ impl Widget for SymbolExplorerView {
                             &theme.icon_library.icon_handle_common_add,
                             "Create a new rooted symbol.",
                             true,
-                            theme.background_control_primary,
+                            theme.background_control_secondary,
                         )
                         .clicked()
                     {
@@ -1185,7 +1276,7 @@ impl Widget for SymbolExplorerView {
                                     &theme.icon_library.icon_handle_common_delete,
                                     "Delete selected rooted symbol.",
                                     selected_rooted_symbol.is_some(),
-                                    theme.background_control_danger,
+                                    theme.background_control_secondary,
                                 )
                                 .clicked()
                             {
@@ -1227,21 +1318,6 @@ impl Widget for SymbolExplorerView {
                                     self.focus_memory_viewer_for_locator(rooted_symbol.get_root_locator());
                                 }
                             }
-
-                            if self
-                                .draw_icon_button(
-                                    toolbar_user_interface,
-                                    &theme.icon_library.icon_handle_common_check_mark,
-                                    "Apply rooted-symbol display name.",
-                                    can_apply_rename,
-                                    theme.background_control_primary,
-                                )
-                                .clicked()
-                            {
-                                if let Some(rooted_symbol) = selected_rooted_symbol {
-                                    self.rename_rooted_symbol(rooted_symbol.get_symbol_key(), current_display_name_draft.trim().to_string());
-                                }
-                            }
                         }
                         Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) => {
                             if let Some(symbol_tree_entry) = symbol_tree_entries
@@ -1280,7 +1356,7 @@ impl Widget for SymbolExplorerView {
                                         &theme.icon_library.icon_handle_common_add,
                                         "Promote selected derived symbol to a rooted symbol.",
                                         true,
-                                        theme.background_control_primary,
+                                        theme.background_control_secondary,
                                     )
                                     .clicked()
                                 {
@@ -1312,7 +1388,7 @@ impl Widget for SymbolExplorerView {
                                     &theme.icon_library.icon_handle_common_check_mark,
                                     "Create rooted symbol.",
                                     create_rooted_symbol_request.is_some(),
-                                    theme.background_control_primary,
+                                    theme.background_control_secondary,
                                 )
                                 .clicked()
                             {
@@ -1325,24 +1401,7 @@ impl Widget for SymbolExplorerView {
                     }
                 });
 
-                let content_rect = user_interface.available_rect_before_wrap();
-                let details_panel_width = (content_rect.width() * Self::DETAILS_PANEL_WIDTH_RATIO).clamp(220.0, content_rect.width() - 140.0);
-                let list_rect = Rect::from_min_max(content_rect.min, pos2(content_rect.max.x - details_panel_width, content_rect.max.y));
-                let details_rect = Rect::from_min_max(pos2(list_rect.max.x, content_rect.min.y), content_rect.max);
-
-                user_interface.painter().line_segment(
-                    [
-                        pos2(list_rect.max.x, list_rect.min.y),
-                        pos2(list_rect.max.x, list_rect.max.y),
-                    ],
-                    Stroke::new(1.0, theme.submenu_border),
-                );
-
-                let mut list_user_interface = user_interface.new_child(
-                    UiBuilder::new()
-                        .max_rect(list_rect.shrink2(vec2(10.0, 8.0)))
-                        .layout(Layout::top_down(Align::Min)),
-                );
+                list_user_interface.add_space(8.0);
                 ScrollArea::vertical()
                     .id_salt("symbol_explorer_list")
                     .auto_shrink([false, false])
