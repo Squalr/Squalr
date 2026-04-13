@@ -11,7 +11,7 @@ pub(super) fn scan_region_scalar_with_predicate<MatchesPointerValue, VisitMatch>
     visit_match: &mut VisitMatch,
 ) where
     MatchesPointerValue: FnMut(u64) -> bool,
-    VisitMatch: FnMut(PointerScanRegionMatch),
+    VisitMatch: FnMut(PointerScanRegionMatch) + ?Sized,
 {
     let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
     let current_values_ptr = current_values.as_ptr();

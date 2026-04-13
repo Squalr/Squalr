@@ -1,5 +1,5 @@
 use crate::pointer_scans::pointer_scan_dispatcher::PointerScanDispatcher;
-use crate::pointer_scans::search_kernels::pointer_scan_range_search_kernel::PointerScanRangeSearchKernel;
+use crate::pointer_scans::search_kernels::pointer_scan_search_kernel::PointerScanSearchKernel;
 use crate::pointer_scans::structures::pointer_scan_collected_candidate::PointerScanCollectedCandidate;
 use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanCollectedLevel;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
@@ -37,7 +37,7 @@ impl PointerScanRangePass {
 
         Self::collect_candidates_with_kernel(
             snapshot_region_scan_tasks,
-            &range_search_kernel,
+            range_search_kernel.as_ref(),
             retain_static_candidates,
             retain_heap_candidates,
         )
@@ -45,7 +45,7 @@ impl PointerScanRangePass {
 
     fn collect_candidates_with_kernel(
         snapshot_region_scan_tasks: &[SnapshotRegionScanTask<'_>],
-        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
+        range_search_kernel: &dyn PointerScanSearchKernel,
         retain_static_candidates: bool,
         retain_heap_candidates: bool,
     ) -> PointerScanCollectedLevel {
@@ -96,7 +96,7 @@ impl PointerScanRangePass {
 
     fn collect_task_matches(
         snapshot_region_scan_task: &SnapshotRegionScanTask<'_>,
-        range_search_kernel: &PointerScanRangeSearchKernel<'_>,
+        range_search_kernel: &dyn PointerScanSearchKernel,
         retain_static_candidates: bool,
         retain_heap_candidates: bool,
         collected_level: &mut PointerScanCollectedLevel,
@@ -104,7 +104,7 @@ impl PointerScanRangePass {
         range_search_kernel.scan_region_with_visitor(
             snapshot_region_scan_task.scan_base_address,
             snapshot_region_scan_task.current_values,
-            |pointer_match| {
+            &mut |pointer_match| {
                 let pointer_address = pointer_match.get_pointer_address();
 
                 if pointer_address >= snapshot_region_scan_task.scan_end_address {
