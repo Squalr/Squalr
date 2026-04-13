@@ -65,6 +65,13 @@ impl ProjectRootSymbol {
         &self.display_name
     }
 
+    pub fn set_display_name(
+        &mut self,
+        display_name: String,
+    ) {
+        self.display_name = display_name;
+    }
+
     pub fn get_root_locator(&self) -> &ProjectRootSymbolLocator {
         &self.root_locator
     }

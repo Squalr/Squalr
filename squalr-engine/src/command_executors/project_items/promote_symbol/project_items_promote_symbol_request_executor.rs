@@ -2,6 +2,7 @@ use crate::command_executors::project::project_symbol_sync::sync_project_symbol_
 use crate::command_executors::project_items::project_item_symbol_resolution::{
     is_promotable_project_item, resolve_project_item_root_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
 };
+use crate::command_executors::project_symbols::project_symbol_store_mutation::build_unique_symbol_key;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::ProjectItemsPromoteSymbolResponse;
@@ -197,59 +198,6 @@ fn build_display_name(
         .to_string()
 }
 
-fn build_unique_symbol_key(
-    display_name: &str,
-    existing_rooted_symbols: &[ProjectRootSymbol],
-) -> String {
-    let sanitized_component = sanitize_symbol_key_component(display_name);
-    let base_symbol_key = format!("sym.{}", sanitized_component);
-    let mut duplicate_sequence_number = 1_u64;
-    let mut candidate_symbol_key = base_symbol_key.clone();
-
-    while existing_rooted_symbols
-        .iter()
-        .any(|existing_rooted_symbol| existing_rooted_symbol.get_symbol_key() == candidate_symbol_key)
-    {
-        duplicate_sequence_number = duplicate_sequence_number.saturating_add(1);
-        candidate_symbol_key = format!("{}.{}", base_symbol_key, duplicate_sequence_number);
-    }
-
-    candidate_symbol_key
-}
-
-fn sanitize_symbol_key_component(display_name: &str) -> String {
-    let mut sanitized_component = String::with_capacity(display_name.len());
-    let mut previous_character_was_separator = false;
-
-    for display_name_character in display_name.chars() {
-        let mapped_character = if display_name_character.is_ascii_alphanumeric() {
-            display_name_character.to_ascii_lowercase()
-        } else {
-            '.'
-        };
-
-        if mapped_character == '.' {
-            if previous_character_was_separator {
-                continue;
-            }
-
-            previous_character_was_separator = true;
-        } else {
-            previous_character_was_separator = false;
-        }
-
-        sanitized_component.push(mapped_character);
-    }
-
-    let trimmed_component = sanitized_component.trim_matches('.');
-
-    if trimmed_component.is_empty() {
-        String::from("symbol")
-    } else {
-        trimmed_component.to_string()
-    }
-}
-
 fn append_pointer_metadata(
     metadata: &mut std::collections::BTreeMap<String, String>,
     pointer: &Pointer,
@@ -282,7 +230,8 @@ fn resolve_project_item_path(
 
 #[cfg(test)]
 mod tests {
-    use super::{build_unique_symbol_key, sanitize_symbol_key_component};
+    use super::build_unique_symbol_key;
+    use crate::command_executors::project_symbols::project_symbol_store_mutation::sanitize_symbol_key_component;
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::{

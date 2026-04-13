@@ -1,0 +1,129 @@
+use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
+use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use std::collections::HashSet;
+use std::sync::Arc;
+
+impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
+    type ResponseType = ProjectSymbolsDeleteResponse;
+
+    fn execute(
+        &self,
+        engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
+        if self.symbol_keys.is_empty() {
+            return ProjectSymbolsDeleteResponse {
+                success: true,
+                deleted_symbol_count: 0,
+            };
+        }
+
+        let project_manager = engine_unprivileged_state.get_project_manager();
+        let opened_project = project_manager.get_opened_project();
+        let mut opened_project_guard = match opened_project.write() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock for project-symbols delete command: {}", error);
+                return ProjectSymbolsDeleteResponse::default();
+            }
+        };
+        let Some(opened_project) = opened_project_guard.as_mut() else {
+            log::warn!("Cannot delete rooted symbols without an opened project.");
+            return ProjectSymbolsDeleteResponse::default();
+        };
+        let Some(project_directory_path) = opened_project.get_project_info().get_project_directory() else {
+            log::error!("Failed to resolve opened project directory for project-symbols delete command.");
+            return ProjectSymbolsDeleteResponse::default();
+        };
+        let symbol_key_set = self.symbol_keys.iter().cloned().collect::<HashSet<String>>();
+        let rooted_symbols = opened_project
+            .get_project_info_mut()
+            .get_project_symbol_catalog_mut()
+            .get_rooted_symbols_mut();
+        let rooted_symbol_count_before_delete = rooted_symbols.len();
+
+        rooted_symbols.retain(|rooted_symbol| !symbol_key_set.contains(rooted_symbol.get_symbol_key()));
+
+        let deleted_symbol_count = rooted_symbol_count_before_delete.saturating_sub(rooted_symbols.len()) as u64;
+
+        if deleted_symbol_count == 0 {
+            return ProjectSymbolsDeleteResponse {
+                success: true,
+                deleted_symbol_count: 0,
+            };
+        }
+
+        if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
+            return ProjectSymbolsDeleteResponse {
+                success: false,
+                deleted_symbol_count,
+            };
+        }
+
+        ProjectSymbolsDeleteResponse {
+            success: true,
+            deleted_symbol_count,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectSymbolsDeleteRequest;
+    use crate::command_executors::project_symbols::test_support::{
+        MockProjectSymbolsBindings, create_engine_unprivileged_state, create_project_with_symbol_catalog,
+    };
+    use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+    use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::structures::projects::{project::Project, project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
+    use std::sync::Arc;
+
+    #[test]
+    fn delete_project_symbols_request_removes_matching_rooted_symbols() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+            Vec::new(),
+            vec![
+                ProjectRootSymbol::new_absolute_address(String::from("sym.player"), String::from("Player"), 0x1234, String::from("player")),
+                ProjectRootSymbol::new_absolute_address(String::from("sym.enemy"), String::from("Enemy"), 0x5678, String::from("enemy")),
+            ],
+        );
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let mock_project_symbols_bindings = MockProjectSymbolsBindings::new();
+        let captured_project_symbol_catalogs = mock_project_symbols_bindings.captured_project_symbol_catalogs();
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_project_symbols_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
+            symbol_keys: vec![String::from("sym.player")],
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_delete_response.success);
+        assert_eq!(project_symbols_delete_response.deleted_symbol_count, 1);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected deleted-symbol project to load from disk.");
+        let rooted_symbols = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_rooted_symbols();
+
+        assert_eq!(rooted_symbols.len(), 1);
+        assert_eq!(rooted_symbols[0].get_symbol_key(), "sym.enemy");
+
+        let captured_project_symbol_catalogs = captured_project_symbol_catalogs
+            .lock()
+            .expect("Expected captured symbol catalog lock in test.");
+        assert_eq!(captured_project_symbol_catalogs.len(), 1);
+        assert_eq!(captured_project_symbol_catalogs[0].get_rooted_symbols(), rooted_symbols);
+    }
+}

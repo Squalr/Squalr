@@ -5,20 +5,52 @@ use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymb
 pub enum SymbolExplorerSelection {
     RootedSymbol(String),
     StructLayout(String),
+    CreateRootedSymbol,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RootedSymbolDraftLocatorMode {
+    #[default]
+    AbsoluteAddress,
+    ModuleOffset,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RootedSymbolCreateDraft {
+    pub display_name: String,
+    pub struct_layout_id: String,
+    pub locator_mode: RootedSymbolDraftLocatorMode,
+    pub address_text: String,
+    pub module_name: String,
+    pub offset_text: String,
 }
 
 #[derive(Clone, Default)]
 pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
+    rooted_symbol_display_name_draft: String,
+    rooted_symbol_create_draft: RootedSymbolCreateDraft,
 }
 
 impl SymbolExplorerViewData {
     pub fn new() -> Self {
-        Self { selected_entry: None }
+        Self {
+            selected_entry: None,
+            rooted_symbol_display_name_draft: String::new(),
+            rooted_symbol_create_draft: RootedSymbolCreateDraft::default(),
+        }
     }
 
     pub fn get_selected_entry(&self) -> Option<&SymbolExplorerSelection> {
         self.selected_entry.as_ref()
+    }
+
+    pub fn get_rooted_symbol_display_name_draft(&self) -> &str {
+        &self.rooted_symbol_display_name_draft
+    }
+
+    pub fn get_rooted_symbol_create_draft(&self) -> &RootedSymbolCreateDraft {
+        &self.rooted_symbol_create_draft
     }
 
     pub fn set_selected_entry(
@@ -27,6 +59,41 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set selected entry") {
             symbol_explorer_view_data.selected_entry = selected_entry;
+            symbol_explorer_view_data
+                .rooted_symbol_display_name_draft
+                .clear();
+            symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+        }
+    }
+
+    pub fn begin_create_rooted_symbol(
+        symbol_explorer_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin create rooted symbol") {
+            symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::CreateRootedSymbol);
+            symbol_explorer_view_data
+                .rooted_symbol_display_name_draft
+                .clear();
+            symbol_explorer_view_data.rooted_symbol_create_draft = Self::create_default_rooted_symbol_create_draft(project_symbol_catalog);
+        }
+    }
+
+    pub fn set_rooted_symbol_display_name_draft(
+        symbol_explorer_view_data: Dependency<Self>,
+        rooted_symbol_display_name_draft: String,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set rooted symbol display name draft") {
+            symbol_explorer_view_data.rooted_symbol_display_name_draft = rooted_symbol_display_name_draft;
+        }
+    }
+
+    pub fn set_rooted_symbol_create_draft(
+        symbol_explorer_view_data: Dependency<Self>,
+        rooted_symbol_create_draft: RootedSymbolCreateDraft,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set rooted symbol create draft") {
+            symbol_explorer_view_data.rooted_symbol_create_draft = rooted_symbol_create_draft;
         }
     }
 
@@ -54,6 +121,70 @@ impl SymbolExplorerViewData {
                         .first()
                         .map(|struct_layout_descriptor| SymbolExplorerSelection::StructLayout(struct_layout_descriptor.get_struct_layout_id().to_string()))
                 });
+
+            symbol_explorer_view_data
+                .rooted_symbol_display_name_draft
+                .clear();
+            symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+        }
+    }
+
+    pub fn synchronize_rooted_symbol_display_name_draft(
+        symbol_explorer_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) {
+        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize rooted symbol display name draft") else {
+            return;
+        };
+        let Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key)) = symbol_explorer_view_data.selected_entry.as_ref() else {
+            symbol_explorer_view_data
+                .rooted_symbol_display_name_draft
+                .clear();
+            return;
+        };
+        let Some(rooted_symbol) = project_symbol_catalog
+            .get_rooted_symbols()
+            .iter()
+            .find(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key)
+        else {
+            symbol_explorer_view_data
+                .rooted_symbol_display_name_draft
+                .clear();
+            return;
+        };
+
+        if symbol_explorer_view_data
+            .rooted_symbol_display_name_draft
+            .is_empty()
+        {
+            symbol_explorer_view_data.rooted_symbol_display_name_draft = rooted_symbol.get_display_name().to_string();
+        }
+    }
+
+    pub fn synchronize_rooted_symbol_create_draft(
+        symbol_explorer_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) {
+        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize rooted symbol create draft") else {
+            return;
+        };
+
+        if !matches!(symbol_explorer_view_data.selected_entry, Some(SymbolExplorerSelection::CreateRootedSymbol)) {
+            return;
+        }
+
+        if symbol_explorer_view_data
+            .rooted_symbol_create_draft
+            .struct_layout_id
+            .is_empty()
+        {
+            symbol_explorer_view_data
+                .rooted_symbol_create_draft
+                .struct_layout_id = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .first()
+                .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
+                .unwrap_or_default();
         }
     }
 
@@ -70,6 +201,18 @@ impl SymbolExplorerViewData {
                 .get_struct_layout_descriptors()
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id),
+            SymbolExplorerSelection::CreateRootedSymbol => true,
+        }
+    }
+
+    fn create_default_rooted_symbol_create_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> RootedSymbolCreateDraft {
+        RootedSymbolCreateDraft {
+            struct_layout_id: project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .first()
+                .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
+                .unwrap_or_default(),
+            ..RootedSymbolCreateDraft::default()
         }
     }
 }
@@ -122,5 +265,37 @@ mod tests {
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
         assert_eq!(selected_entry, Some(SymbolExplorerSelection::RootedSymbol(String::from("sym.player"))));
+    }
+
+    #[test]
+    fn begin_create_rooted_symbol_prefills_first_struct_layout_id() {
+        let symbol_explorer_view_data = create_dependency();
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("player.stats"),
+            SymbolicStructDefinition::new(
+                String::from("player.stats"),
+                vec![SymbolicFieldDefinition::new(
+                    DataTypeRef::new("u32"),
+                    ContainerType::None,
+                )],
+            ),
+        )]);
+
+        SymbolExplorerViewData::begin_create_rooted_symbol(symbol_explorer_view_data.clone(), &project_symbol_catalog);
+
+        let symbol_explorer_view_data = symbol_explorer_view_data
+            .read("Symbol explorer begin create rooted symbol test")
+            .expect("Expected symbol explorer dependency read access in test.");
+
+        assert_eq!(
+            symbol_explorer_view_data.get_selected_entry(),
+            Some(&SymbolExplorerSelection::CreateRootedSymbol)
+        );
+        assert_eq!(
+            symbol_explorer_view_data
+                .get_rooted_symbol_create_draft()
+                .struct_layout_id,
+            "player.stats"
+        );
     }
 }

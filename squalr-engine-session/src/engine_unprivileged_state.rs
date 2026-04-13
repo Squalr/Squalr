@@ -6,6 +6,8 @@ use crate::virtual_snapshots::{
 use crossbeam_channel::bounded;
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::registry::get_metadata::registry_get_metadata_request::RegistryGetMetadataRequest;
+use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
+use squalr_engine_api::commands::unprivileged_command_response::UnprivilegedCommandResponse;
 use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
 use squalr_engine_api::engine::engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings;
 use squalr_engine_api::engine::engine_event_envelope::EngineEventEnvelope;
@@ -403,6 +405,28 @@ impl EngineUnprivilegedState {
             }
             Err(error) => {
                 log::error!("Failed to acquire unprivileged engine bindings read lock for commands: {}", error);
+            }
+        }
+    }
+
+    /// Dispatches an unprivileged command to the local execution layer.
+    pub fn dispatch_unprivileged_command<F>(
+        self: &Arc<Self>,
+        unprivileged_command: UnprivilegedCommand,
+        callback: F,
+    ) where
+        F: FnOnce(UnprivilegedCommandResponse) + Send + Sync + 'static,
+    {
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.clone();
+
+        match self.engine_api_unprivileged_bindings.read() {
+            Ok(engine_bindings) => {
+                if let Err(error) = engine_bindings.dispatch_unprivileged_command(unprivileged_command, &engine_execution_context, Box::new(callback)) {
+                    log::error!("Error dispatching unprivileged engine command: {}", error);
+                }
+            }
+            Err(error) => {
+                log::error!("Failed to acquire unprivileged engine bindings read lock for unprivileged commands: {}", error);
             }
         }
     }
