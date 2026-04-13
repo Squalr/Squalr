@@ -1,4 +1,4 @@
-use crate::pointer_scans::pointer_scan_range_pass::PointerScanRangePass;
+use crate::pointer_scans::pointer_scan_candidate_collector::PointerScanCandidateCollector;
 use crate::pointer_scans::pointer_scan_session_builder::PointerScanSessionBuilder;
 use crate::pointer_scans::pointer_scan_task_builder::PointerScanTaskBuilder;
 use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::read_pointer_value_unchecked;
@@ -217,9 +217,10 @@ impl PointerScanValidator {
             return Vec::new();
         }
 
-        let pointer_scan_execution_plan = PointerScanRangePass::build_execution_plan(frontier_target_ranges, pointer_size, validation_heap_scan_tasks);
+        let pointer_scan_execution_plan = PointerScanCandidateCollector::build_execution_plan(frontier_target_ranges, pointer_size, validation_heap_scan_tasks);
 
-        PointerScanRangePass::collect_candidates(validation_heap_scan_tasks, frontier_target_ranges, &pointer_scan_execution_plan, false, true).heap_candidates
+        PointerScanCandidateCollector::collect_candidates(validation_heap_scan_tasks, frontier_target_ranges, &pointer_scan_execution_plan, false, true)
+            .heap_candidates
     }
 
     fn collect_validated_static_candidates(

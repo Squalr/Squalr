@@ -1,4 +1,4 @@
-use crate::pointer_scans::pointer_scan_range_pass::PointerScanRangePass;
+use crate::pointer_scans::pointer_scan_candidate_collector::PointerScanCandidateCollector;
 use crate::pointer_scans::pointer_scan_task_builder::PointerScanTaskBuilder;
 use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanCollectedLevel;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
@@ -45,8 +45,11 @@ impl PointerScanLevelCollector {
                 break;
             }
 
-            let pointer_scan_execution_plan =
-                PointerScanRangePass::build_execution_plan(&frontier_target_ranges, pointer_scan_parameters.get_pointer_size(), &snapshot_region_scan_tasks);
+            let pointer_scan_execution_plan = PointerScanCandidateCollector::build_execution_plan(
+                &frontier_target_ranges,
+                pointer_scan_parameters.get_pointer_size(),
+                &snapshot_region_scan_tasks,
+            );
             let level_start_time = Instant::now();
 
             if with_logging {
@@ -64,7 +67,7 @@ impl PointerScanLevelCollector {
                 );
             }
 
-            let discovered_pointer_level = PointerScanRangePass::collect_candidates(
+            let discovered_pointer_level = PointerScanCandidateCollector::collect_candidates(
                 &snapshot_region_scan_tasks,
                 &frontier_target_ranges,
                 &pointer_scan_execution_plan,

@@ -9,9 +9,9 @@ use rayon::prelude::*;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_execution_plan::PointerScanExecutionPlan;
 
-pub(crate) struct PointerScanRangePass;
+pub(crate) struct PointerScanCandidateCollector;
 
-impl PointerScanRangePass {
+impl PointerScanCandidateCollector {
     pub(crate) fn build_execution_plan(
         frontier_target_ranges: &PointerScanTargetRangeSet,
         pointer_size: PointerScanPointerSize,
