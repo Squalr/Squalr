@@ -1,7 +1,6 @@
 use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
 use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::read_pointer_value_unchecked;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
-use crate::pointer_scans::structures::pointer_validation_level_log_context::PointerValidationLevelLogContext;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
 use crate::pointer_scans::structures::snapshot_region_scan_task_kind::SnapshotRegionScanTaskKind;
 use crate::pointer_scans::structures::validated_pointer_candidate::ValidatedPointerCandidate;
@@ -24,6 +23,12 @@ use std::time::Instant;
 const POINTER_VALIDATION_ROOT_CHUNK_SIZE: usize = 64;
 const POINTER_VALIDATION_MIN_SNAPSHOT_TASK_BYTE_SIZE: usize = 1024 * 1024;
 const POINTER_VALIDATION_TARGET_TASKS_PER_WORKER: usize = 4;
+
+#[derive(Clone, Copy, Debug)]
+struct PointerValidationProgress {
+    current_level_number: usize,
+    total_level_count: usize,
+}
 
 struct PointerValidationContext<'a> {
     validation_snapshot_regions: &'a [SnapshotRegion],
@@ -148,9 +153,9 @@ impl PointerScanValidator {
                 break;
             }
 
-            let validation_level_log_context = PointerValidationLevelLogContext {
-                level_number: level_index + 1,
-                level_count,
+            let validation_progress = PointerValidationProgress {
+                current_level_number: level_index + 1,
+                total_level_count: level_count,
             };
             let level_start_time = Instant::now();
             let retain_heap_candidates = level_index.saturating_add(1) < level_count;
@@ -158,8 +163,8 @@ impl PointerScanValidator {
             if with_logging {
                 log::info!(
                     "Pointer scan validation level {}/{}: rebuilding heaps from {} frontier targets and pruning {} stored static roots.",
-                    validation_level_log_context.level_number,
-                    validation_level_log_context.level_count,
+                    validation_progress.current_level_number,
+                    validation_progress.total_level_count,
                     frontier_target_ranges.get_source_target_count(),
                     pointer_scan_level_candidates.get_static_node_count(),
                 );
@@ -180,8 +185,8 @@ impl PointerScanValidator {
             if with_logging {
                 log::info!(
                     "Pointer scan validation level {}/{} complete in {:?}: retained {} static roots and rebuilt {} heap nodes.",
-                    validation_level_log_context.level_number,
-                    validation_level_log_context.level_count,
+                    validation_progress.current_level_number,
+                    validation_progress.total_level_count,
                     level_start_time.elapsed(),
                     validated_static_candidates.len(),
                     validated_heap_candidates.len(),
