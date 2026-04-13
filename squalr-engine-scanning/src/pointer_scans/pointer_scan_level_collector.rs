@@ -1,3 +1,4 @@
+use crate::pointer_scans::pointer_scan_dispatcher::PointerScanDispatcher;
 use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
 use crate::pointer_scans::structures::discovered_pointer_candidate::DiscoveredPointerCandidate;
 use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
@@ -53,7 +54,9 @@ impl PointerScanLevelCollector {
                 break;
             }
 
-            let range_search_kernel = PointerScanRangeSearchKernel::new(&frontier_target_ranges, pointer_scan_parameters.get_pointer_size());
+            let pointer_scan_execution_plan =
+                PointerScanDispatcher::build_execution_plan(&frontier_target_ranges, pointer_scan_parameters.get_pointer_size(), snapshot_task_byte_size);
+            let range_search_kernel = PointerScanDispatcher::acquire_range_search_kernel(&frontier_target_ranges, &pointer_scan_execution_plan);
             let level_start_time = Instant::now();
 
             if with_logging {
@@ -66,7 +69,9 @@ impl PointerScanLevelCollector {
                     snapshot_task_byte_size,
                     frontier_target_ranges.get_source_target_count(),
                     frontier_target_ranges.get_range_count(),
-                    range_search_kernel.get_name(),
+                    pointer_scan_execution_plan
+                        .get_planned_kernel_kind()
+                        .get_display_name(),
                 );
             }
 

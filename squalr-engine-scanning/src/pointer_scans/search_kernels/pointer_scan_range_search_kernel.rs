@@ -1,30 +1,28 @@
-use crate::pointer_scans::search_kernels::pointer_scan_range_search_kernel_kind::PointerScanRangeSearchKernelKind;
 use crate::pointer_scans::search_kernels::pointer_scan_scalar_search_kernel::scan_region_scalar;
 use crate::pointer_scans::search_kernels::pointer_scan_simd_linear_search_kernel::scan_region_simd_linear;
 pub use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use squalr_engine_api::structures::{
+    pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+    scanning::plans::pointer_scan::{planned_pointer_scan_kernel_kind::PlannedPointerScanKernelKind, pointer_scan_execution_plan::PointerScanExecutionPlan},
+};
 
 pub struct PointerScanRangeSearchKernel<'a> {
     target_range_set: &'a PointerScanTargetRangeSet,
     pointer_size: PointerScanPointerSize,
-    kernel_kind: PointerScanRangeSearchKernelKind,
+    kernel_kind: PlannedPointerScanKernelKind,
 }
 
 impl<'a> PointerScanRangeSearchKernel<'a> {
-    pub fn new(
+    pub fn from_execution_plan(
         target_range_set: &'a PointerScanTargetRangeSet,
-        pointer_size: PointerScanPointerSize,
+        pointer_scan_execution_plan: &PointerScanExecutionPlan,
     ) -> Self {
         Self {
             target_range_set,
-            pointer_size,
-            kernel_kind: PointerScanRangeSearchKernelKind::from_target_range_count(target_range_set.get_range_count()),
+            pointer_size: pointer_scan_execution_plan.get_pointer_size(),
+            kernel_kind: pointer_scan_execution_plan.get_planned_kernel_kind(),
         }
-    }
-
-    pub fn get_name(&self) -> &'static str {
-        self.kernel_kind.get_name()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -56,7 +54,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         };
 
         match self.kernel_kind {
-            PointerScanRangeSearchKernelKind::ScalarLinear => scan_region_scalar(
+            PlannedPointerScanKernelKind::ScalarLinear => scan_region_scalar(
                 base_address,
                 current_values,
                 start_offset,
@@ -64,7 +62,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
                 |pointer_value| self.target_range_set.contains_value_linear(pointer_value),
                 &mut visit_match,
             ),
-            PointerScanRangeSearchKernelKind::ScalarBinary => scan_region_scalar(
+            PlannedPointerScanKernelKind::ScalarBinary => scan_region_scalar(
                 base_address,
                 current_values,
                 start_offset,
@@ -72,7 +70,7 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
                 |pointer_value| self.target_range_set.contains_value_binary(pointer_value),
                 &mut visit_match,
             ),
-            PointerScanRangeSearchKernelKind::SimdLinear => scan_region_simd_linear(
+            PlannedPointerScanKernelKind::SimdLinear => scan_region_simd_linear(
                 base_address,
                 current_values,
                 start_offset,
@@ -110,12 +108,15 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
 mod tests {
     use super::PointerScanRangeSearchKernel;
     use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
-    use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use squalr_engine_api::structures::{
+        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize, scanning::plans::pointer_scan::pointer_scan_execution_plan::PointerScanExecutionPlan,
+    };
 
     #[test]
     fn range_search_kernel_scans_region_against_merged_ranges() {
         let target_range_set = PointerScanTargetRangeSet::from_target_addresses(&[0x3000, 0x3010, 0x4000], 0x20);
-        let search_kernel = PointerScanRangeSearchKernel::new(&target_range_set, PointerScanPointerSize::Pointer64);
+        let pointer_scan_execution_plan = PointerScanExecutionPlan::new(PointerScanPointerSize::Pointer64, target_range_set.get_range_count(), 0x1000);
+        let search_kernel = PointerScanRangeSearchKernel::from_execution_plan(&target_range_set, &pointer_scan_execution_plan);
         let mut current_values = Vec::new();
 
         current_values.extend_from_slice(&0x2FF0_u64.to_le_bytes());

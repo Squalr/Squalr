@@ -1,4 +1,4 @@
-use crate::pointer_scans::search_kernels::PointerScanRangeSearchKernel;
+use crate::pointer_scans::pointer_scan_dispatcher::PointerScanDispatcher;
 use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::read_pointer_value_unchecked;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
@@ -221,7 +221,13 @@ impl PointerScanValidator {
             return Vec::new();
         }
 
-        let range_search_kernel = PointerScanRangeSearchKernel::new(frontier_target_ranges, pointer_size);
+        let scan_region_byte_count = validation_heap_scan_tasks
+            .iter()
+            .map(|validation_heap_scan_task| validation_heap_scan_task.current_values.len())
+            .max()
+            .unwrap_or(0);
+        let pointer_scan_execution_plan = PointerScanDispatcher::build_execution_plan(frontier_target_ranges, pointer_size, scan_region_byte_count);
+        let range_search_kernel = PointerScanDispatcher::acquire_range_search_kernel(frontier_target_ranges, &pointer_scan_execution_plan);
         let validated_heap_candidates_by_task = validation_heap_scan_tasks
             .par_iter()
             .map(|validation_heap_scan_task| {
