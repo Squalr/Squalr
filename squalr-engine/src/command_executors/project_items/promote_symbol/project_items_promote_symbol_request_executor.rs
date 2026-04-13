@@ -8,7 +8,10 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::ProjectItemsPromoteSymbolResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::memory::pointer::Pointer;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer;
+use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef;
+use squalr_engine_api::structures::projects::project_items::built_in_types::{
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+};
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
@@ -58,6 +61,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             .get_rooted_symbols()
             .to_vec();
         let mut promoted_symbols = Vec::new();
+        let mut project_item_replacements = Vec::new();
 
         for requested_project_item_path in &self.project_item_paths {
             let project_item_path = resolve_project_item_path(&project_directory_path, requested_project_item_path);
@@ -71,7 +75,13 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 continue;
             };
 
-            let Some(promoted_symbol) = build_promoted_symbol(engine_unprivileged_state, &project_item_path, &project_item, &existing_rooted_symbols) else {
+            let Some(promoted_symbol) = build_promoted_symbol(
+                engine_unprivileged_state,
+                opened_project.get_project_info().get_project_symbol_catalog(),
+                &project_item_path,
+                &project_item,
+                &existing_rooted_symbols,
+            ) else {
                 log::warn!("Skipping non-promotable project item during promote-symbol request: {:?}", project_item_path);
                 continue;
             };
@@ -85,6 +95,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             }
 
             existing_rooted_symbols.push(promoted_symbol.clone());
+            project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &promoted_symbol)));
             promoted_symbols.push(promoted_symbol);
         }
 
@@ -94,6 +105,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 promoted_symbol_count: 0,
                 promoted_symbol_keys: Vec::new(),
             };
+        }
+
+        for (project_item_ref, replacement_project_item) in &project_item_replacements {
+            if let Some(project_item) = opened_project.get_project_items_mut().get_mut(project_item_ref) {
+                *project_item = replacement_project_item.clone();
+            }
         }
 
         let updated_project_symbol_catalog = {
@@ -146,6 +163,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
 
 fn build_promoted_symbol(
     engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog,
     project_item_path: &Path,
     project_item: &ProjectItem,
     existing_rooted_symbols: &[ProjectRootSymbol],
@@ -155,8 +173,8 @@ fn build_promoted_symbol(
     }
 
     let display_name = build_display_name(project_item, project_item_path);
-    let struct_layout_id = resolve_project_item_struct_layout_id(project_item)?;
-    let root_locator = resolve_project_item_root_locator(engine_execution_context, project_item)?;
+    let struct_layout_id = resolve_project_item_struct_layout_id(project_symbol_catalog, project_item)?;
+    let root_locator = resolve_project_item_root_locator(engine_execution_context, project_symbol_catalog, project_item)?;
     let symbol_key = build_unique_symbol_key(&display_name, existing_rooted_symbols);
     let mut promoted_symbol = ProjectRootSymbol::new(symbol_key, display_name, root_locator, struct_layout_id);
 
@@ -176,6 +194,34 @@ fn build_promoted_symbol(
     }
 
     Some(promoted_symbol)
+}
+
+fn build_symbol_ref_project_item(
+    source_project_item: &ProjectItem,
+    promoted_symbol: &ProjectRootSymbol,
+) -> ProjectItem {
+    let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item(
+        source_project_item.get_field_name().as_str(),
+        promoted_symbol.get_symbol_key(),
+        &source_project_item.get_field_description(),
+    );
+
+    if source_project_item.get_is_activated() {
+        symbol_ref_project_item.toggle_activated();
+    }
+
+    let freeze_display_value = if source_project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+        ProjectItemTypePointer::get_field_freeze_data_value_interpreter(source_project_item)
+    } else {
+        let mut address_project_item = source_project_item.clone();
+
+        ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item)
+    };
+
+    ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(&mut symbol_ref_project_item, &freeze_display_value);
+    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(&mut symbol_ref_project_item, &promoted_symbol.get_root_locator().to_string());
+
+    symbol_ref_project_item
 }
 
 fn build_display_name(
@@ -254,7 +300,8 @@ mod tests {
         projects::{
             project::Project, project_info::ProjectInfo, project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
             project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory,
-            project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer, project_items::project_item::ProjectItem,
+            project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer,
+            project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef, project_items::project_item::ProjectItem,
             project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_root_symbol::ProjectRootSymbol,
             project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog,
         },
@@ -264,6 +311,7 @@ mod tests {
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::{
         collections::HashMap,
+        fs::File,
         path::{Path, PathBuf},
         sync::{Arc, Mutex, RwLock},
     };
@@ -360,6 +408,8 @@ mod tests {
 
         project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
         project_items.insert(project_item_ref, project_item);
+        std::fs::create_dir_all(&root_directory_path).expect("Expected test project root directory to be created.");
+        File::create(&project_item_path).expect("Expected test project item placeholder file to be created.");
 
         let mut project = Project::new(project_info, project_items, project_root_ref);
         project
@@ -443,6 +493,16 @@ mod tests {
             rooted_symbols[0].get_metadata().get("source.project_item_path"),
             Some(&project_item_path.to_string_lossy().into_owned())
         );
+        let promoted_project_item = loaded_project
+            .get_project_items()
+            .get(&ProjectItemRef::new(project_item_path.clone()))
+            .expect("Expected promoted project item to remain in the project.");
+
+        assert_eq!(
+            promoted_project_item.get_item_type().get_project_item_type_id(),
+            ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
+        );
+        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(promoted_project_item), "sym.health");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()
@@ -507,5 +567,12 @@ mod tests {
                 .get("source.evaluated_pointer_path"),
             Some(&String::from("game.exe+0x1000 -> 0x2020"))
         );
+        let promoted_project_item = loaded_project
+            .get_project_items()
+            .values()
+            .find(|project_item| project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID)
+            .expect("Expected pointer promotion to replace the project item with a symbol ref.");
+
+        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(promoted_project_item), "sym.player.gold");
     }
 }

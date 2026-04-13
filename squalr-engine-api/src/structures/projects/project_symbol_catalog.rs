@@ -40,6 +40,24 @@ impl ProjectSymbolCatalog {
         &self.rooted_symbols
     }
 
+    pub fn find_rooted_symbol(
+        &self,
+        symbol_key: &str,
+    ) -> Option<&ProjectRootSymbol> {
+        self.rooted_symbols
+            .iter()
+            .find(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key)
+    }
+
+    pub fn find_rooted_symbol_mut(
+        &mut self,
+        symbol_key: &str,
+    ) -> Option<&mut ProjectRootSymbol> {
+        self.rooted_symbols
+            .iter_mut()
+            .find(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key)
+    }
+
     pub fn get_rooted_symbols_mut(&mut self) -> &mut Vec<ProjectRootSymbol> {
         &mut self.rooted_symbols
     }

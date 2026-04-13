@@ -8,17 +8,47 @@ use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
+use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
 use squalr_engine_api::structures::projects::project_root_symbol_locator::ProjectRootSymbolLocator;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
 use std::sync::{Arc, mpsc};
 
 pub fn is_promotable_project_item(project_item: &ProjectItem) -> bool {
-    resolve_project_item_struct_layout_id(project_item).is_some() && resolve_project_item_type_id(project_item).is_some()
+    let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+    (project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID)
+        && resolve_project_item_type_id(project_item).is_some()
 }
 
-pub fn resolve_project_item_struct_layout_id(project_item: &ProjectItem) -> Option<String> {
+pub fn resolve_project_item_symbol_ref_key(project_item: &ProjectItem) -> Option<String> {
+    let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+    if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+        return None;
+    }
+
+    let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+
+    if symbol_key.trim().is_empty() { None } else { Some(symbol_key) }
+}
+
+pub fn resolve_project_item_rooted_symbol<'a>(
+    project_symbol_catalog: &'a ProjectSymbolCatalog,
+    project_item: &ProjectItem,
+) -> Option<&'a ProjectRootSymbol> {
+    let symbol_key = resolve_project_item_symbol_ref_key(project_item)?;
+
+    project_symbol_catalog.find_rooted_symbol(&symbol_key)
+}
+
+pub fn resolve_project_item_struct_layout_id(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    project_item: &ProjectItem,
+) -> Option<String> {
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
     if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
@@ -31,6 +61,10 @@ pub fn resolve_project_item_struct_layout_id(project_item: &ProjectItem) -> Opti
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
         return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item)
             .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string());
+    }
+
+    if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+        return resolve_project_item_rooted_symbol(project_symbol_catalog, project_item).map(|rooted_symbol| rooted_symbol.get_struct_layout_id().to_string());
     }
 
     None
@@ -47,11 +81,16 @@ pub fn resolve_project_item_type_id(project_item: &ProjectItem) -> Option<&'stat
         return Some(ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID);
     }
 
+    if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+        return Some(ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
+    }
+
     None
 }
 
 pub fn resolve_project_item_root_locator(
     engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &ProjectItem,
 ) -> Option<ProjectRootSymbolLocator> {
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -69,6 +108,10 @@ pub fn resolve_project_item_root_locator(
         let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, &pointer)?;
 
         return Some(build_root_locator(address, &module_name));
+    }
+
+    if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+        return resolve_project_item_rooted_symbol(project_symbol_catalog, project_item).map(|rooted_symbol| rooted_symbol.get_root_locator().clone());
     }
 
     None
