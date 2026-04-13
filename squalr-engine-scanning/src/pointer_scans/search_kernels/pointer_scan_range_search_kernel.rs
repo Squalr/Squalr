@@ -1,4 +1,5 @@
-use crate::pointer_scans::search_kernels::pointer_scan_scalar_search_kernel::scan_region_scalar;
+use crate::pointer_scans::search_kernels::pointer_scan_scalar_binary_search_kernel::scan_region_scalar_binary;
+use crate::pointer_scans::search_kernels::pointer_scan_scalar_linear_search_kernel::scan_region_scalar_linear;
 use crate::pointer_scans::search_kernels::pointer_scan_simd_linear_search_kernel::scan_region_simd_linear;
 pub use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
@@ -54,20 +55,20 @@ impl<'a> PointerScanRangeSearchKernel<'a> {
         };
 
         match self.kernel_kind {
-            PlannedPointerScanKernelKind::ScalarLinear => scan_region_scalar(
+            PlannedPointerScanKernelKind::ScalarLinear => scan_region_scalar_linear(
                 base_address,
                 current_values,
                 start_offset,
                 self.pointer_size,
-                |pointer_value| self.target_range_set.contains_value_linear(pointer_value),
+                self.target_range_set,
                 &mut visit_match,
             ),
-            PlannedPointerScanKernelKind::ScalarBinary => scan_region_scalar(
+            PlannedPointerScanKernelKind::ScalarBinary => scan_region_scalar_binary(
                 base_address,
                 current_values,
                 start_offset,
                 self.pointer_size,
-                |pointer_value| self.target_range_set.contains_value_binary(pointer_value),
+                self.target_range_set,
                 &mut visit_match,
             ),
             PlannedPointerScanKernelKind::SimdLinear => scan_region_simd_linear(
@@ -109,7 +110,10 @@ mod tests {
     use super::PointerScanRangeSearchKernel;
     use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
     use squalr_engine_api::structures::{
-        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize, scanning::plans::pointer_scan::pointer_scan_execution_plan::PointerScanExecutionPlan,
+        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+        scanning::plans::pointer_scan::{
+            planned_pointer_scan_kernel_kind::PlannedPointerScanKernelKind, pointer_scan_execution_plan::PointerScanExecutionPlan,
+        },
     };
 
     #[test]
@@ -130,5 +134,31 @@ mod tests {
         assert_eq!(pointer_matches[0].get_pointer_address(), 0x1000);
         assert_eq!(pointer_matches[1].get_pointer_address(), 0x1008);
         assert_eq!(pointer_matches[2].get_pointer_address(), 0x1018);
+    }
+
+    #[test]
+    fn range_search_kernel_scalar_variants_scan_region_against_merged_ranges() {
+        let target_range_set = PointerScanTargetRangeSet::from_target_addresses(&[0x3000, 0x3010, 0x4000], 0x20);
+        let mut current_values = Vec::new();
+
+        current_values.extend_from_slice(&0x2FF0_u64.to_le_bytes());
+        current_values.extend_from_slice(&0x3018_u64.to_le_bytes());
+        current_values.extend_from_slice(&0x3500_u64.to_le_bytes());
+        current_values.extend_from_slice(&0x4010_u64.to_le_bytes());
+
+        for planned_kernel_kind in [
+            PlannedPointerScanKernelKind::ScalarLinear,
+            PlannedPointerScanKernelKind::ScalarBinary,
+        ] {
+            let mut pointer_scan_execution_plan = PointerScanExecutionPlan::new(PointerScanPointerSize::Pointer64, target_range_set.get_range_count(), 0x1000);
+            pointer_scan_execution_plan.set_planned_kernel_kind(planned_kernel_kind);
+            let search_kernel = PointerScanRangeSearchKernel::from_execution_plan(&target_range_set, &pointer_scan_execution_plan);
+            let pointer_matches = search_kernel.scan_region(0x1000, &current_values);
+
+            assert_eq!(pointer_matches.len(), 3, "Kernel {:?} returned an unexpected match count.", planned_kernel_kind);
+            assert_eq!(pointer_matches[0].get_pointer_address(), 0x1000);
+            assert_eq!(pointer_matches[1].get_pointer_address(), 0x1008);
+            assert_eq!(pointer_matches[2].get_pointer_address(), 0x1018);
+        }
     }
 }

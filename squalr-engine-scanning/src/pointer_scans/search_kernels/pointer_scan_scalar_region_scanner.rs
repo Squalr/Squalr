@@ -2,7 +2,7 @@ use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::rea
 use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
-pub(crate) fn scan_region_scalar<MatchesPointerValue, VisitMatch>(
+pub(super) fn scan_region_scalar_with_predicate<MatchesPointerValue, VisitMatch>(
     base_address: u64,
     current_values: &[u8],
     start_offset: usize,
