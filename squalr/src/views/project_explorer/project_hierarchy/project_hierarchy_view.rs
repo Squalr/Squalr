@@ -1108,25 +1108,25 @@ impl Widget for ProjectHierarchyView {
                                                     *should_close = true;
                                                 }
 
-                                                let can_convert_project_item_paths_to_address =
+                                                let can_convert_project_item_paths =
                                                     ProjectHierarchyViewData::has_convertible_symbol_ref_project_item_paths(
                                                         self.project_hierarchy_view_data.clone(),
                                                         &project_item_paths_for_delete,
-                                                        ProjectItemSymbolRefConversionTarget::Address,
                                                     );
-                                                let can_convert_project_item_paths_to_pointer =
-                                                    ProjectHierarchyViewData::has_convertible_symbol_ref_project_item_paths(
+                                                let convert_project_item_paths_label =
+                                                    ProjectHierarchyViewData::get_convertible_symbol_ref_action_label(
                                                         self.project_hierarchy_view_data.clone(),
                                                         &project_item_paths_for_delete,
-                                                        ProjectItemSymbolRefConversionTarget::Pointer,
                                                     );
 
                                                 if user_interface
                                                     .add_enabled(
-                                                        can_convert_project_item_paths_to_address,
+                                                        can_convert_project_item_paths,
                                                         ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
-                                                            "Convert to Address Item",
+                                                            convert_project_item_paths_label
+                                                                .as_deref()
+                                                                .unwrap_or("Convert to Source Item Type"),
                                                             "project_hierarchy_ctx_convert_to_address_item",
                                                             &None,
                                                             Self::PROJECT_ITEM_MENU_WIDTH,
@@ -1136,27 +1136,7 @@ impl Widget for ProjectHierarchyView {
                                                 {
                                                     project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
                                                         project_item_paths: project_item_paths_for_delete.clone(),
-                                                        conversion_target: ProjectItemSymbolRefConversionTarget::Address,
-                                                    };
-                                                    *should_close = true;
-                                                }
-
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_convert_project_item_paths_to_pointer,
-                                                        ToolbarMenuItemView::new(
-                                                            self.app_context.clone(),
-                                                            "Convert to Pointer Item",
-                                                            "project_hierarchy_ctx_convert_to_pointer_item",
-                                                            &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
-                                                        project_item_paths: project_item_paths_for_delete.clone(),
-                                                        conversion_target: ProjectItemSymbolRefConversionTarget::Pointer,
+                                                        conversion_target: ProjectItemSymbolRefConversionTarget::Inferred,
                                                     };
                                                     *should_close = true;
                                                 }
@@ -1751,7 +1731,7 @@ impl Widget for ProjectHierarchyView {
             }
             ProjectHierarchyFrameAction::ConvertSymbolRef {
                 project_item_paths,
-                conversion_target,
+                conversion_target: _conversion_target,
             } => {
                 if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
@@ -1761,7 +1741,6 @@ impl Widget for ProjectHierarchyView {
                     self.project_hierarchy_view_data.clone(),
                     self.app_context.clone(),
                     project_item_paths,
-                    conversion_target,
                 );
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {

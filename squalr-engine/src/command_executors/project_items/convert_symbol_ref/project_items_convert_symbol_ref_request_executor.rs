@@ -122,9 +122,26 @@ fn build_replacement_project_item(
     rooted_symbol: &ProjectRootSymbol,
     conversion_target: ProjectItemSymbolRefConversionTarget,
 ) -> Option<ProjectItem> {
-    match conversion_target {
+    match resolve_conversion_target(rooted_symbol, conversion_target) {
         ProjectItemSymbolRefConversionTarget::Address => Some(build_address_project_item(source_project_item, rooted_symbol)),
         ProjectItemSymbolRefConversionTarget::Pointer => build_pointer_project_item(source_project_item, rooted_symbol),
+        ProjectItemSymbolRefConversionTarget::Inferred => None,
+    }
+}
+
+fn resolve_conversion_target(
+    rooted_symbol: &ProjectRootSymbol,
+    conversion_target: ProjectItemSymbolRefConversionTarget,
+) -> ProjectItemSymbolRefConversionTarget {
+    match conversion_target {
+        ProjectItemSymbolRefConversionTarget::Inferred => {
+            if has_pointer_origin_metadata(rooted_symbol) {
+                ProjectItemSymbolRefConversionTarget::Pointer
+            } else {
+                ProjectItemSymbolRefConversionTarget::Address
+            }
+        }
+        explicit_conversion_target => explicit_conversion_target,
     }
 }
 
@@ -201,6 +218,14 @@ fn build_source_pointer(rooted_symbol: &ProjectRootSymbol) -> Option<Pointer> {
     let (root_address, root_module_name) = resolve_source_pointer_root(rooted_symbol)?;
 
     Some(Pointer::new_with_size(root_address, pointer_offsets, root_module_name, root_pointer_size))
+}
+
+fn has_pointer_origin_metadata(rooted_symbol: &ProjectRootSymbol) -> bool {
+    let rooted_symbol_metadata = rooted_symbol.get_metadata();
+
+    rooted_symbol_metadata.contains_key("source.pointer_offsets")
+        && (rooted_symbol_metadata.contains_key("source.pointer_root")
+            || (rooted_symbol_metadata.contains_key("source.pointer_root_module") && rooted_symbol_metadata.contains_key("source.pointer_root_offset")))
 }
 
 fn resolve_source_pointer_root(rooted_symbol: &ProjectRootSymbol) -> Option<(u64, String)> {

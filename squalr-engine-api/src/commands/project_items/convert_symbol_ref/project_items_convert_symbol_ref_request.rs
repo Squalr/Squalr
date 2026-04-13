@@ -9,6 +9,7 @@ use structopt::StructOpt;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ProjectItemSymbolRefConversionTarget {
+    Inferred,
     Address,
     Pointer,
 }
@@ -24,7 +25,7 @@ pub struct ProjectItemsConvertSymbolRefRequest {
 
 impl Default for ProjectItemSymbolRefConversionTarget {
     fn default() -> Self {
-        Self::Address
+        Self::Inferred
     }
 }
 
@@ -33,6 +34,7 @@ impl std::str::FromStr for ProjectItemSymbolRefConversionTarget {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         match source.trim().to_ascii_lowercase().as_str() {
+            "inferred" | "source" | "original" => Ok(Self::Inferred),
             "address" => Ok(Self::Address),
             "pointer" => Ok(Self::Pointer),
             _ => Err(format!("Unsupported symbol-ref conversion target: {}", source)),

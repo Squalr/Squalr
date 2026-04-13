@@ -472,29 +472,26 @@ impl ProjectHierarchyViewData {
     fn contains_convertible_symbol_ref_project_item_paths(
         &self,
         project_item_paths: &[PathBuf],
-        conversion_target: ProjectItemSymbolRefConversionTarget,
     ) -> bool {
         !project_item_paths.is_empty()
             && project_item_paths
                 .iter()
-                .all(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path, conversion_target))
+                .all(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path))
     }
 
     fn filter_convertible_symbol_ref_project_item_paths(
         &self,
         project_item_paths: Vec<PathBuf>,
-        conversion_target: ProjectItemSymbolRefConversionTarget,
     ) -> Vec<PathBuf> {
         project_item_paths
             .into_iter()
-            .filter(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path, conversion_target))
+            .filter(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path))
             .collect()
     }
 
     fn is_convertible_symbol_ref_project_item_path(
         &self,
         project_item_path: &Path,
-        conversion_target: ProjectItemSymbolRefConversionTarget,
     ) -> bool {
         let Some((_, project_item)) = self
             .project_items
@@ -508,12 +505,7 @@ impl ProjectHierarchyViewData {
             return false;
         }
 
-        match conversion_target {
-            ProjectItemSymbolRefConversionTarget::Address => Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item).is_some(),
-            ProjectItemSymbolRefConversionTarget::Pointer => Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item)
-                .map(Self::has_pointer_origin_metadata)
-                .unwrap_or(false),
-        }
+        Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item).is_some()
     }
 
     fn has_pointer_origin_metadata(rooted_symbol: &squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol) -> bool {
@@ -537,6 +529,48 @@ impl ProjectHierarchyViewData {
         opened_project_info?
             .get_project_symbol_catalog()
             .find_rooted_symbol(&symbol_key)
+    }
+
+    fn resolve_convertible_symbol_ref_action_label(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> Option<String> {
+        let mut resolved_conversion_target: Option<ProjectItemSymbolRefConversionTarget> = None;
+
+        for project_item_path in project_item_paths {
+            let preferred_conversion_target = self.resolve_preferred_symbol_ref_conversion_target(project_item_path)?;
+
+            if let Some(existing_conversion_target) = resolved_conversion_target {
+                if existing_conversion_target != preferred_conversion_target {
+                    return Some(String::from("Convert to Source Item Type"));
+                }
+            } else {
+                resolved_conversion_target = Some(preferred_conversion_target);
+            }
+        }
+
+        match resolved_conversion_target? {
+            ProjectItemSymbolRefConversionTarget::Address => Some(String::from("Convert to Address Item")),
+            ProjectItemSymbolRefConversionTarget::Pointer => Some(String::from("Convert to Pointer Item")),
+            ProjectItemSymbolRefConversionTarget::Inferred => Some(String::from("Convert to Source Item Type")),
+        }
+    }
+
+    fn resolve_preferred_symbol_ref_conversion_target(
+        &self,
+        project_item_path: &Path,
+    ) -> Option<ProjectItemSymbolRefConversionTarget> {
+        let (_, project_item) = self
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)?;
+        let rooted_symbol = Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item)?;
+
+        if Self::has_pointer_origin_metadata(rooted_symbol) {
+            Some(ProjectItemSymbolRefConversionTarget::Pointer)
+        } else {
+            Some(ProjectItemSymbolRefConversionTarget::Address)
+        }
     }
 
     pub fn get_selected_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
@@ -1083,14 +1117,20 @@ impl ProjectHierarchyViewData {
     pub fn has_convertible_symbol_ref_project_item_paths(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         project_item_paths: &[PathBuf],
-        conversion_target: ProjectItemSymbolRefConversionTarget,
     ) -> bool {
         project_hierarchy_view_data
             .read("Project hierarchy has convertible symbol-ref project item paths")
-            .map(|project_hierarchy_view_data| {
-                project_hierarchy_view_data.contains_convertible_symbol_ref_project_item_paths(project_item_paths, conversion_target)
-            })
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_convertible_symbol_ref_project_item_paths(project_item_paths))
             .unwrap_or(false)
+    }
+
+    pub fn get_convertible_symbol_ref_action_label(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> Option<String> {
+        project_hierarchy_view_data
+            .read("Project hierarchy get symbol-ref conversion action label")
+            .and_then(|project_hierarchy_view_data| project_hierarchy_view_data.resolve_convertible_symbol_ref_action_label(project_item_paths))
     }
 
     pub fn promote_project_items_to_symbols(
@@ -1150,12 +1190,10 @@ impl ProjectHierarchyViewData {
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
         project_item_paths: Vec<PathBuf>,
-        conversion_target: ProjectItemSymbolRefConversionTarget,
     ) {
         let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter symbol-ref conversion paths") {
             Some(mut project_hierarchy_view_data) => {
-                let filtered_project_item_paths =
-                    project_hierarchy_view_data.filter_convertible_symbol_ref_project_item_paths(project_item_paths, conversion_target);
+                let filtered_project_item_paths = project_hierarchy_view_data.filter_convertible_symbol_ref_project_item_paths(project_item_paths);
 
                 if filtered_project_item_paths.is_empty() {
                     return;
@@ -1170,7 +1208,7 @@ impl ProjectHierarchyViewData {
         };
         let project_items_convert_symbol_ref_request = ProjectItemsConvertSymbolRefRequest {
             project_item_paths: filtered_project_item_paths,
-            target: conversion_target,
+            target: ProjectItemSymbolRefConversionTarget::Inferred,
         };
         let app_context_clone = app_context.clone();
         let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
