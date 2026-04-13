@@ -2,7 +2,8 @@ use crate::commands::project_items::{
     activate::project_items_activate_request::ProjectItemsActivateRequest, add::project_items_add_request::ProjectItemsAddRequest,
     create::project_items_create_request::ProjectItemsCreateRequest, delete::project_items_delete_request::ProjectItemsDeleteRequest,
     list::project_items_list_request::ProjectItemsListRequest, move_item::project_items_move_request::ProjectItemsMoveRequest,
-    rename::project_items_rename_request::ProjectItemsRenameRequest, reorder::project_items_reorder_request::ProjectItemsReorderRequest,
+    promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest, rename::project_items_rename_request::ProjectItemsRenameRequest,
+    reorder::project_items_reorder_request::ProjectItemsReorderRequest,
 };
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -38,6 +39,11 @@ pub enum ProjectItemsCommand {
     Move {
         #[structopt(flatten)]
         project_items_move_request: ProjectItemsMoveRequest,
+    },
+    /// Promotes project items into rooted symbols.
+    PromoteSymbol {
+        #[structopt(flatten)]
+        project_items_promote_symbol_request: ProjectItemsPromoteSymbolRequest,
     },
     /// Renames a project item.
     Rename {

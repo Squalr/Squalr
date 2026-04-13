@@ -40,6 +40,10 @@ impl ProjectSymbolCatalog {
         &self.rooted_symbols
     }
 
+    pub fn get_rooted_symbols_mut(&mut self) -> &mut Vec<ProjectRootSymbol> {
+        &mut self.rooted_symbols
+    }
+
     pub fn set_rooted_symbols(
         &mut self,
         rooted_symbols: Vec<ProjectRootSymbol>,

@@ -965,6 +965,10 @@ impl Widget for ProjectHierarchyView {
                                             self.project_hierarchy_view_data.clone(),
                                             &project_item_paths_for_delete,
                                         );
+                                        let can_promote_project_item_paths = ProjectHierarchyViewData::has_promotable_project_item_paths(
+                                            self.project_hierarchy_view_data.clone(),
+                                            &project_item_paths_for_delete,
+                                        );
 
                                         ContextMenu::new(
                                             self.app_context.clone(),
@@ -1051,6 +1055,24 @@ impl Widget for ProjectHierarchyView {
                                                             tree_entry_project_item_path
                                                         );
                                                     }
+                                                }
+
+                                                if user_interface
+                                                    .add_enabled(
+                                                        can_promote_project_item_paths,
+                                                        ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Promote to Symbol",
+                                                            "project_hierarchy_ctx_promote_to_symbol",
+                                                            &None,
+                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                        ),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action =
+                                                        ProjectHierarchyFrameAction::PromoteToSymbol(project_item_paths_for_delete.clone());
+                                                    *should_close = true;
                                                 }
 
                                                 Self::show_create_project_item_menu_items(
@@ -1530,6 +1552,17 @@ impl Widget for ProjectHierarchyView {
                 }
 
                 self.focus_code_viewer_for_address(address, &module_name);
+            }
+            ProjectHierarchyFrameAction::PromoteToSymbol(project_item_paths) => {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::promote_project_items_to_symbols(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    project_item_paths,
+                );
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_value_edit_take_over_active {

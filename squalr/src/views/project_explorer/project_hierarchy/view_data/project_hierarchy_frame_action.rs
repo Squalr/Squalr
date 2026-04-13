@@ -29,6 +29,7 @@ pub enum ProjectHierarchyFrameAction {
         address: u64,
         module_name: String,
     },
+    PromoteToSymbol(Vec<PathBuf>),
     RequestRename(PathBuf),
     RequestValueEdit(PathBuf),
     RequestDeleteConfirmation(Vec<PathBuf>),

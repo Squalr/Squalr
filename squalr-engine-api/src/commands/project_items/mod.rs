@@ -6,5 +6,6 @@ pub mod list;
 pub mod move_item;
 pub mod project_items_command;
 pub mod project_items_response;
+pub mod promote_symbol;
 pub mod rename;
 pub mod reorder;

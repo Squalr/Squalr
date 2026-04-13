@@ -10,6 +10,7 @@ use squalr_engine_api::commands::project_items::create::project_items_create_req
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
+use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -401,6 +402,40 @@ impl ProjectHierarchyViewData {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
             ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
         }
+    }
+
+    fn contains_promotable_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_item_paths
+            .iter()
+            .any(|project_item_path| self.is_promotable_project_item_path(project_item_path))
+    }
+
+    fn filter_promotable_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .filter(|project_item_path| self.is_promotable_project_item_path(project_item_path))
+            .collect()
+    }
+
+    fn is_promotable_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        self.project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+            .map(|(_, project_item)| {
+                let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+            })
+            .unwrap_or(false)
     }
 
     pub fn get_selected_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
@@ -930,6 +965,57 @@ impl ProjectHierarchyViewData {
             .read("Project hierarchy has deletable project item paths")
             .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_deletable_project_item_paths(project_item_paths))
             .unwrap_or(false)
+    }
+
+    pub fn has_promotable_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has promotable project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_promotable_project_item_paths(project_item_paths))
+            .unwrap_or(false)
+    }
+
+    pub fn promote_project_items_to_symbols(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        app_context: Arc<AppContext>,
+        project_item_paths: Vec<PathBuf>,
+    ) {
+        let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter promote project items") {
+            Some(mut project_hierarchy_view_data) => {
+                let filtered_project_item_paths = project_hierarchy_view_data.filter_promotable_project_item_paths(project_item_paths);
+
+                if filtered_project_item_paths.is_empty() {
+                    return;
+                }
+
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Promoting;
+
+                filtered_project_item_paths
+            }
+            None => return,
+        };
+        let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: filtered_project_item_paths,
+        };
+        let app_context_clone = app_context.clone();
+        let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
+
+        project_items_promote_symbol_request.send(&app_context.engine_unprivileged_state, move |project_items_promote_symbol_response| {
+            if !project_items_promote_symbol_response.success {
+                log::error!(
+                    "Failed to promote one or more project items to symbols. Promoted count before failure: {}.",
+                    project_items_promote_symbol_response.promoted_symbol_count
+                );
+            }
+
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy promote project items response") {
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+            }
+
+            Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+        });
     }
 
     pub fn create_project_item(
@@ -2215,5 +2301,34 @@ mod tests {
         let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
 
         assert!(!ProjectHierarchyViewData::has_deletable_selected_project_item(project_hierarchy_view_data));
+    }
+
+    #[test]
+    fn has_promotable_project_item_paths_returns_true_for_address_items_and_false_for_directories() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_directory_path = hidden_project_root_path.join("Folder");
+        let child_project_item_path = hidden_project_root_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&hidden_project_root_path),
+            create_directory_project_item(&child_directory_path),
+            (
+                ProjectItemRef::new(child_project_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        assert!(ProjectHierarchyViewData::has_promotable_project_item_paths(
+            project_hierarchy_view_data.clone(),
+            std::slice::from_ref(&child_project_item_path)
+        ));
+        assert!(!ProjectHierarchyViewData::has_promotable_project_item_paths(
+            project_hierarchy_view_data,
+            std::slice::from_ref(&child_directory_path)
+        ));
     }
 }

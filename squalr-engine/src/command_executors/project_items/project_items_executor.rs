@@ -33,6 +33,11 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
             ProjectItemsCommand::Move { project_items_move_request } => project_items_move_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::PromoteSymbol {
+                project_items_promote_symbol_request,
+            } => project_items_promote_symbol_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectItemsCommand::Rename { project_items_rename_request } => project_items_rename_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
