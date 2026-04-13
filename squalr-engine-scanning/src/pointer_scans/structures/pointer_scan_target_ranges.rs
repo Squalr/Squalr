@@ -3,6 +3,36 @@ use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 
 const TARGET_RANGE_BUCKET_SHIFT: u32 = 16;
 const TARGET_RANGE_BUCKET_LINEAR_SEARCH_THRESHOLD: usize = 8;
+const TARGET_RANGE_BUCKET_DIRECT_LOOKUP_MAX_SPAN: u64 = 65_536;
+const TARGET_RANGE_BUCKET_DIRECT_LOOKUP_DENSITY_MULTIPLIER: u64 = 4;
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct PointerScanTargetRangeBucketDirectLookup {
+    base_bucket_key: u64,
+    bucket_indices: Vec<u32>,
+}
+
+impl PointerScanTargetRangeBucketDirectLookup {
+    fn new(
+        base_bucket_key: u64,
+        bucket_indices: Vec<u32>,
+    ) -> Self {
+        Self {
+            base_bucket_key,
+            bucket_indices,
+        }
+    }
+
+    fn get_bucket_index(
+        &self,
+        bucket_key: u64,
+    ) -> Option<usize> {
+        let bucket_offset = bucket_key.checked_sub(self.base_bucket_key)? as usize;
+        let bucket_index = *self.bucket_indices.get(bucket_offset)?;
+
+        (bucket_index != u32::MAX).then_some(bucket_index as usize)
+    }
+}
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct PointerScanTargetRangeSet {
@@ -11,6 +41,7 @@ pub struct PointerScanTargetRangeSet {
     lower_bounds: Vec<u64>,
     upper_bounds: Vec<u64>,
     target_range_buckets: Vec<PointerScanTargetRangeBucket>,
+    bucket_direct_lookup: Option<PointerScanTargetRangeBucketDirectLookup>,
 }
 
 impl PointerScanTargetRangeSet {
@@ -96,6 +127,7 @@ impl PointerScanTargetRangeSet {
         }
 
         let target_range_buckets = Self::build_target_range_buckets(&lower_bounds, &upper_bounds);
+        let bucket_direct_lookup = Self::build_bucket_direct_lookup(&target_range_buckets);
 
         Self {
             source_target_count: if source_target_count == 0 { unique_target_count } else { source_target_count },
@@ -103,6 +135,7 @@ impl PointerScanTargetRangeSet {
             lower_bounds,
             upper_bounds,
             target_range_buckets,
+            bucket_direct_lookup,
         }
     }
 
@@ -202,12 +235,43 @@ impl PointerScanTargetRangeSet {
         pointer_value: u64,
     ) -> Option<usize> {
         let bucket_key = pointer_value >> TARGET_RANGE_BUCKET_SHIFT;
+        if let Some(bucket_direct_lookup) = &self.bucket_direct_lookup {
+            if let Some(matching_bucket_index) = bucket_direct_lookup.get_bucket_index(bucket_key) {
+                return Some(matching_bucket_index);
+            }
+        }
         let matching_bucket_index = self
             .target_range_buckets
             .partition_point(|target_range_bucket| target_range_bucket.get_bucket_key() < bucket_key);
         let target_range_bucket = self.target_range_buckets.get(matching_bucket_index)?;
 
         (target_range_bucket.get_bucket_key() == bucket_key).then_some(matching_bucket_index)
+    }
+
+    fn build_bucket_direct_lookup(target_range_buckets: &[PointerScanTargetRangeBucket]) -> Option<PointerScanTargetRangeBucketDirectLookup> {
+        let first_bucket_key = target_range_buckets.first()?.get_bucket_key();
+        let last_bucket_key = target_range_buckets.last()?.get_bucket_key();
+        let bucket_key_span = last_bucket_key
+            .saturating_sub(first_bucket_key)
+            .saturating_add(1);
+        let bucket_count = target_range_buckets.len() as u64;
+
+        if bucket_key_span > TARGET_RANGE_BUCKET_DIRECT_LOOKUP_MAX_SPAN
+            || bucket_key_span > bucket_count.saturating_mul(TARGET_RANGE_BUCKET_DIRECT_LOOKUP_DENSITY_MULTIPLIER)
+        {
+            return None;
+        }
+
+        let mut bucket_indices = vec![u32::MAX; bucket_key_span as usize];
+
+        for (bucket_index, target_range_bucket) in target_range_buckets.iter().enumerate() {
+            let bucket_offset = target_range_bucket
+                .get_bucket_key()
+                .saturating_sub(first_bucket_key) as usize;
+            *bucket_indices.get_mut(bucket_offset)? = bucket_index as u32;
+        }
+
+        Some(PointerScanTargetRangeBucketDirectLookup::new(first_bucket_key, bucket_indices))
     }
 
     fn find_matching_range_index_linear_in_bounds(
@@ -313,5 +377,20 @@ mod tests {
                 target_range_set.contains_value_linear(probe_value)
             );
         }
+    }
+
+    #[test]
+    fn target_range_set_builds_direct_bucket_lookup_only_for_dense_bucket_spans() {
+        let dense_target_addresses = [0x2000_0000_u64, 0x2001_0000, 0x2002_0000, 0x2003_0000];
+        let dense_target_range_set = PointerScanTargetRangeSet::from_target_addresses(&dense_target_addresses, 0x40);
+        let sparse_target_addresses = [0x2000_0000_u64, 0x2400_0000, 0x2800_0000, 0x2C00_0000];
+        let sparse_target_range_set = PointerScanTargetRangeSet::from_target_addresses(&sparse_target_addresses, 0x40);
+
+        assert!(dense_target_range_set.bucket_direct_lookup.is_some());
+        assert!(sparse_target_range_set.bucket_direct_lookup.is_none());
+        assert!(dense_target_range_set.contains_value_binary(0x2002_0010));
+        assert!(!dense_target_range_set.contains_value_binary(0x2004_0000));
+        assert!(sparse_target_range_set.contains_value_binary(0x2800_0010));
+        assert!(!sparse_target_range_set.contains_value_binary(0x2200_0000));
     }
 }

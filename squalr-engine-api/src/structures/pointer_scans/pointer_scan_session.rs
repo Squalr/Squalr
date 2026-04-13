@@ -250,59 +250,11 @@ impl PointerScanSession {
 
         let page_start_index = bounded_page_index.saturating_mul(page_size);
         let page_node_count = total_node_count.saturating_sub(page_start_index).min(page_size);
-        let root_page_candidates = self
-            .pointer_scan_level_candidates
-            .iter()
-            .flat_map(|pointer_scan_level_candidates| pointer_scan_level_candidates.get_static_candidates().iter())
-            .map(|static_candidate| {
-                (
-                    static_candidate.get_candidate_id(),
-                    static_candidate.get_discovery_depth(),
-                    static_candidate.get_pointer_scan_node_type(),
-                    static_candidate.get_pointer_address(),
-                    static_candidate.get_pointer_value(),
-                    static_candidate.get_module_index(),
-                    static_candidate.get_module_offset(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut remaining_nodes_to_skip = page_start_index;
-        let mut remaining_page_capacity = page_node_count;
-        let mut materialized_node_ids = Vec::with_capacity(page_node_count as usize);
-
-        for (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) in root_page_candidates {
-            if remaining_page_capacity == 0 {
-                break;
-            }
-
-            let root_display_node_count = self.count_root_display_nodes(discovery_depth, pointer_value);
-
-            if remaining_nodes_to_skip >= root_display_node_count {
-                remaining_nodes_to_skip = remaining_nodes_to_skip.saturating_sub(root_display_node_count);
-                continue;
-            }
-
-            let candidate_page_start_index = remaining_nodes_to_skip;
-            let candidate_page_node_count = root_display_node_count
-                .saturating_sub(candidate_page_start_index)
-                .min(remaining_page_capacity);
-
-            materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(
-                candidate_id,
-                discovery_depth,
-                pointer_scan_node_type,
-                pointer_address,
-                pointer_value,
-                module_index,
-                module_offset,
-                candidate_page_start_index,
-                candidate_page_node_count,
-            ));
-
-            remaining_nodes_to_skip = 0;
-            remaining_page_capacity = remaining_page_capacity.saturating_sub(candidate_page_node_count);
-        }
-
+        let materialized_node_ids = if self.uses_single_display_root_materialization() {
+            self.materialize_root_node_page_single_display(page_start_index, page_node_count)
+        } else {
+            self.materialize_root_node_page_multi_display(page_start_index, page_node_count)
+        };
         self.materialized_node_ids_by_page_key
             .insert(page_key, materialized_node_ids.clone());
 
@@ -312,6 +264,132 @@ impl PointerScanSession {
             total_node_count,
             node_ids: materialized_node_ids,
         }
+    }
+
+    fn materialize_root_node_page_single_display(
+        &mut self,
+        page_start_index: u64,
+        page_node_count: u64,
+    ) -> Vec<u64> {
+        let mut remaining_nodes_to_skip = page_start_index;
+        let mut remaining_page_capacity = page_node_count;
+        let mut materialized_node_ids = Vec::with_capacity(page_node_count as usize);
+
+        for pointer_scan_level_index in 0..self.pointer_scan_level_candidates.len() {
+            if remaining_page_capacity == 0 {
+                break;
+            }
+
+            let static_candidate_count = self.pointer_scan_level_candidates[pointer_scan_level_index]
+                .get_static_candidates()
+                .len() as u64;
+
+            if remaining_nodes_to_skip >= static_candidate_count {
+                remaining_nodes_to_skip = remaining_nodes_to_skip.saturating_sub(static_candidate_count);
+                continue;
+            }
+
+            let static_candidate_start_index = remaining_nodes_to_skip as usize;
+            let static_candidate_page_count = static_candidate_count
+                .saturating_sub(remaining_nodes_to_skip)
+                .min(remaining_page_capacity) as usize;
+
+            for static_candidate_index in static_candidate_start_index..static_candidate_start_index.saturating_add(static_candidate_page_count) {
+                let (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) = {
+                    let static_candidate = &self.pointer_scan_level_candidates[pointer_scan_level_index].get_static_candidates()[static_candidate_index];
+
+                    (
+                        static_candidate.get_candidate_id(),
+                        static_candidate.get_discovery_depth(),
+                        static_candidate.get_pointer_scan_node_type(),
+                        static_candidate.get_pointer_address(),
+                        static_candidate.get_pointer_value(),
+                        static_candidate.get_module_index(),
+                        static_candidate.get_module_offset(),
+                    )
+                };
+                materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(
+                    candidate_id,
+                    discovery_depth,
+                    pointer_scan_node_type,
+                    pointer_address,
+                    pointer_value,
+                    module_index,
+                    module_offset,
+                    0,
+                    1,
+                ));
+            }
+
+            remaining_nodes_to_skip = 0;
+            remaining_page_capacity = remaining_page_capacity.saturating_sub(static_candidate_page_count as u64);
+        }
+
+        materialized_node_ids
+    }
+
+    fn materialize_root_node_page_multi_display(
+        &mut self,
+        page_start_index: u64,
+        page_node_count: u64,
+    ) -> Vec<u64> {
+        let mut remaining_nodes_to_skip = page_start_index;
+        let mut remaining_page_capacity = page_node_count;
+        let mut materialized_node_ids = Vec::with_capacity(page_node_count as usize);
+
+        for pointer_scan_level_index in 0..self.pointer_scan_level_candidates.len() {
+            let static_candidate_count = self.pointer_scan_level_candidates[pointer_scan_level_index]
+                .get_static_candidates()
+                .len();
+
+            for static_candidate_index in 0..static_candidate_count {
+                if remaining_page_capacity == 0 {
+                    return materialized_node_ids;
+                }
+
+                let (candidate_id, discovery_depth, pointer_scan_node_type, pointer_address, pointer_value, module_index, module_offset) = {
+                    let static_candidate = &self.pointer_scan_level_candidates[pointer_scan_level_index].get_static_candidates()[static_candidate_index];
+
+                    (
+                        static_candidate.get_candidate_id(),
+                        static_candidate.get_discovery_depth(),
+                        static_candidate.get_pointer_scan_node_type(),
+                        static_candidate.get_pointer_address(),
+                        static_candidate.get_pointer_value(),
+                        static_candidate.get_module_index(),
+                        static_candidate.get_module_offset(),
+                    )
+                };
+                let root_display_node_count = self.count_root_display_nodes(discovery_depth, pointer_value);
+
+                if remaining_nodes_to_skip >= root_display_node_count {
+                    remaining_nodes_to_skip = remaining_nodes_to_skip.saturating_sub(root_display_node_count);
+                    continue;
+                }
+
+                let candidate_page_start_index = remaining_nodes_to_skip;
+                let candidate_page_node_count = root_display_node_count
+                    .saturating_sub(candidate_page_start_index)
+                    .min(remaining_page_capacity);
+
+                materialized_node_ids.extend(self.materialize_root_pointer_scan_nodes(
+                    candidate_id,
+                    discovery_depth,
+                    pointer_scan_node_type,
+                    pointer_address,
+                    pointer_value,
+                    module_index,
+                    module_offset,
+                    candidate_page_start_index,
+                    candidate_page_node_count,
+                ));
+
+                remaining_nodes_to_skip = 0;
+                remaining_page_capacity = remaining_page_capacity.saturating_sub(candidate_page_node_count);
+            }
+        }
+
+        materialized_node_ids
     }
 
     fn materialize_child_node_page(
@@ -813,6 +891,10 @@ impl PointerScanSession {
         matches!(self.target_descriptor, PointerScanTargetDescriptor::Value { .. })
     }
 
+    fn uses_single_display_root_materialization(&self) -> bool {
+        !self.uses_multi_target_terminal_materialization()
+    }
+
     fn count_matching_target_addresses(
         &self,
         pointer_value: u64,
@@ -1112,6 +1194,40 @@ mod tests {
         assert_eq!(root_nodes.len(), 2);
         assert_eq!(resolved_target_addresses, vec![0x3010, 0x3020]);
         assert!(root_nodes.iter().all(|root_node| !root_node.has_children()));
+    }
+
+    #[test]
+    fn pointer_scan_session_paginates_single_display_root_nodes_without_reordering() {
+        let mut pointer_scan_session = create_pointer_scan_session();
+
+        let (first_page_nodes, first_page_index, last_page_index, total_node_count) = pointer_scan_session.get_expanded_node_page(None, 0, 1);
+        let (second_page_nodes, second_page_index, _, _) = pointer_scan_session.get_expanded_node_page(None, 1, 1);
+
+        assert_eq!(first_page_index, 0);
+        assert_eq!(second_page_index, 1);
+        assert_eq!(last_page_index, 1);
+        assert_eq!(total_node_count, 2);
+        assert_eq!(first_page_nodes.len(), 1);
+        assert_eq!(second_page_nodes.len(), 1);
+        assert_eq!(first_page_nodes[0].get_graph_node_id(), 1);
+        assert_eq!(second_page_nodes[0].get_graph_node_id(), 3);
+    }
+
+    #[test]
+    fn pointer_scan_session_paginates_multi_display_root_nodes_without_materializing_full_root_set() {
+        let mut pointer_scan_session = create_multi_target_leaf_pointer_scan_session();
+
+        let (first_page_nodes, first_page_index, last_page_index, total_node_count) = pointer_scan_session.get_expanded_node_page(None, 0, 1);
+        let (second_page_nodes, second_page_index, _, _) = pointer_scan_session.get_expanded_node_page(None, 1, 1);
+
+        assert_eq!(first_page_index, 0);
+        assert_eq!(second_page_index, 1);
+        assert_eq!(last_page_index, 1);
+        assert_eq!(total_node_count, 2);
+        assert_eq!(first_page_nodes.len(), 1);
+        assert_eq!(second_page_nodes.len(), 1);
+        assert_eq!(first_page_nodes[0].get_resolved_target_address(), 0x3010);
+        assert_eq!(second_page_nodes[0].get_resolved_target_address(), 0x3020);
     }
 
     #[test]
