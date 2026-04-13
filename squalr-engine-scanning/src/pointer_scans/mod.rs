@@ -1,7 +1,9 @@
 pub(crate) mod pointer_scan_dispatcher;
 pub mod pointer_scan_executor_task;
 pub(crate) mod pointer_scan_level_collector;
+pub(crate) mod pointer_scan_range_pass;
 pub(crate) mod pointer_scan_session_builder;
+pub(crate) mod pointer_scan_task_builder;
 pub mod pointer_scan_validator;
 pub(crate) mod search_kernels;
 pub(crate) mod structures;

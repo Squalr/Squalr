@@ -1,17 +1,15 @@
-use crate::pointer_scans::pointer_scan_dispatcher::PointerScanDispatcher;
+use crate::pointer_scans::pointer_scan_range_pass::PointerScanRangePass;
+use crate::pointer_scans::pointer_scan_session_builder::PointerScanSessionBuilder;
+use crate::pointer_scans::pointer_scan_task_builder::PointerScanTaskBuilder;
 use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::read_pointer_value_unchecked;
+use crate::pointer_scans::structures::pointer_scan_collected_candidate::PointerScanCollectedCandidate;
+use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanCollectedLevel;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use crate::pointer_scans::structures::snapshot_region_scan_task::SnapshotRegionScanTask;
-use crate::pointer_scans::structures::snapshot_region_scan_task_kind::SnapshotRegionScanTaskKind;
-use crate::pointer_scans::structures::validated_pointer_candidate::ValidatedPointerCandidate;
-use crate::pointer_scans::structures::validated_pointer_level::ValidatedPointerLevel;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use rayon::prelude::*;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
@@ -97,7 +95,7 @@ impl PointerScanValidator {
             scan_execution_context,
         );
         let validation_heap_scan_tasks =
-            Self::build_validation_heap_scan_tasks(validation_context.validation_snapshot_regions, modules, validation_context.pointer_size);
+            PointerScanTaskBuilder::build_heap_scan_tasks(validation_context.validation_snapshot_regions, modules, validation_context.pointer_size);
         let mut validated_pointer_levels = Self::validate_pointer_levels(pointer_scan_session, &validation_context, &validation_heap_scan_tasks, with_logging);
 
         Self::truncate_empty_trailing_levels(&mut validated_pointer_levels);
@@ -134,7 +132,7 @@ impl PointerScanValidator {
         validation_context: &PointerValidationContext<'_>,
         validation_heap_scan_tasks: &[SnapshotRegionScanTask<'_>],
         with_logging: bool,
-    ) -> Vec<ValidatedPointerLevel> {
+    ) -> Vec<PointerScanCollectedLevel> {
         let level_count = pointer_scan_session.get_pointer_scan_level_candidates().len();
         let mut validated_pointer_levels = Vec::with_capacity(level_count);
 
@@ -191,7 +189,7 @@ impl PointerScanValidator {
                 );
             }
 
-            validated_pointer_levels.push(ValidatedPointerLevel {
+            validated_pointer_levels.push(PointerScanCollectedLevel {
                 static_candidates: validated_static_candidates,
                 heap_candidates: validated_heap_candidates,
             });
@@ -214,51 +212,14 @@ impl PointerScanValidator {
         validation_heap_scan_tasks: &[SnapshotRegionScanTask<'_>],
         frontier_target_ranges: &PointerScanTargetRangeSet,
         pointer_size: PointerScanPointerSize,
-    ) -> Vec<ValidatedPointerCandidate> {
+    ) -> Vec<PointerScanCollectedCandidate> {
         if frontier_target_ranges.is_empty() {
             return Vec::new();
         }
 
-        let scan_region_byte_count = validation_heap_scan_tasks
-            .iter()
-            .map(|validation_heap_scan_task| validation_heap_scan_task.current_values.len())
-            .max()
-            .unwrap_or(0);
-        let pointer_scan_execution_plan = PointerScanDispatcher::build_execution_plan(frontier_target_ranges, pointer_size, scan_region_byte_count);
-        let range_search_kernel = PointerScanDispatcher::acquire_range_search_kernel(frontier_target_ranges, &pointer_scan_execution_plan);
-        let validated_heap_candidates_by_task = validation_heap_scan_tasks
-            .par_iter()
-            .map(|validation_heap_scan_task| {
-                let mut validated_heap_candidates = Vec::new();
+        let pointer_scan_execution_plan = PointerScanRangePass::build_execution_plan(frontier_target_ranges, pointer_size, validation_heap_scan_tasks);
 
-                range_search_kernel.scan_region_with_visitor(
-                    validation_heap_scan_task.scan_base_address,
-                    validation_heap_scan_task.current_values,
-                    |pointer_match| {
-                        if pointer_match.get_pointer_address() >= validation_heap_scan_task.scan_end_address {
-                            return;
-                        }
-
-                        validated_heap_candidates.push(ValidatedPointerCandidate {
-                            pointer_address: pointer_match.get_pointer_address(),
-                            pointer_value: pointer_match.get_pointer_value(),
-                            module_index: 0,
-                            module_offset: 0,
-                        });
-                    },
-                );
-
-                validated_heap_candidates
-            })
-            .collect::<Vec<_>>();
-        let total_heap_candidate_count = validated_heap_candidates_by_task.iter().map(Vec::len).sum();
-        let mut validated_heap_candidates = Vec::with_capacity(total_heap_candidate_count);
-
-        for mut worker_validated_heap_candidates in validated_heap_candidates_by_task {
-            validated_heap_candidates.append(&mut worker_validated_heap_candidates);
-        }
-
-        validated_heap_candidates
+        PointerScanRangePass::collect_candidates(validation_heap_scan_tasks, frontier_target_ranges, &pointer_scan_execution_plan, false, true).heap_candidates
     }
 
     fn collect_validated_static_candidates(
@@ -266,7 +227,7 @@ impl PointerScanValidator {
         static_pointer_scan_candidates: &[PointerScanCandidate],
         validation_context: &PointerValidationContext<'_>,
         frontier_target_ranges: &PointerScanTargetRangeSet,
-    ) -> Vec<ValidatedPointerCandidate> {
+    ) -> Vec<PointerScanCollectedCandidate> {
         let validated_static_candidates_by_chunk = static_pointer_scan_candidates
             .par_chunks(POINTER_VALIDATION_ROOT_CHUNK_SIZE)
             .map(|static_pointer_scan_candidate_chunk| {
@@ -294,7 +255,7 @@ impl PointerScanValidator {
                         continue;
                     }
 
-                    validated_static_candidates.push(ValidatedPointerCandidate {
+                    validated_static_candidates.push(PointerScanCollectedCandidate {
                         pointer_address: current_pointer_address,
                         pointer_value: current_pointer_value,
                         module_index: static_pointer_scan_candidate.get_module_index(),
@@ -346,96 +307,6 @@ impl PointerScanValidator {
             .ok()
             .and_then(|module_index| current_modules_by_name.get(module_index))
             .map(|(_module_name, module_base_address)| *module_base_address)
-    }
-
-    fn build_validation_heap_scan_tasks<'a>(
-        validation_snapshot_regions: &'a [SnapshotRegion],
-        modules: &[NormalizedModule],
-        pointer_size: PointerScanPointerSize,
-    ) -> Vec<SnapshotRegionScanTask<'a>> {
-        // Validation only rebuilds heap levels from live heap memory. Static bases are reread separately from the stored module offsets.
-        let mut sorted_modules = modules.iter().collect::<Vec<_>>();
-        sorted_modules.sort_unstable_by_key(|module| module.get_base_address());
-        let pointer_size_in_bytes = pointer_size.get_size_in_bytes() as usize;
-        let mut validation_heap_scan_tasks = Vec::new();
-
-        for validation_snapshot_region in validation_snapshot_regions {
-            if validation_snapshot_region.get_current_values().is_empty() {
-                continue;
-            }
-
-            let mut uncovered_range_base_address = validation_snapshot_region.get_base_address();
-            let validation_snapshot_region_end_address = validation_snapshot_region.get_end_address();
-
-            for module in &sorted_modules {
-                let module_base_address = module.get_base_address();
-                let module_end_address = module
-                    .get_base_address()
-                    .saturating_add(module.get_region_size());
-
-                if module_end_address <= uncovered_range_base_address {
-                    continue;
-                }
-
-                if module_base_address >= validation_snapshot_region_end_address {
-                    break;
-                }
-
-                if uncovered_range_base_address < module_base_address {
-                    Self::append_validation_heap_scan_task_for_range(
-                        validation_snapshot_region,
-                        uncovered_range_base_address,
-                        module_base_address.min(validation_snapshot_region_end_address),
-                        pointer_size_in_bytes,
-                        &mut validation_heap_scan_tasks,
-                    );
-                }
-
-                uncovered_range_base_address = uncovered_range_base_address.max(module_end_address);
-
-                if uncovered_range_base_address >= validation_snapshot_region_end_address {
-                    break;
-                }
-            }
-
-            if uncovered_range_base_address < validation_snapshot_region_end_address {
-                Self::append_validation_heap_scan_task_for_range(
-                    validation_snapshot_region,
-                    uncovered_range_base_address,
-                    validation_snapshot_region_end_address,
-                    pointer_size_in_bytes,
-                    &mut validation_heap_scan_tasks,
-                );
-            }
-        }
-
-        validation_heap_scan_tasks
-    }
-
-    fn append_validation_heap_scan_task_for_range<'a>(
-        validation_snapshot_region: &'a SnapshotRegion,
-        range_base_address: u64,
-        range_end_address: u64,
-        pointer_size_in_bytes: usize,
-        validation_heap_scan_tasks: &mut Vec<SnapshotRegionScanTask<'a>>,
-    ) {
-        if range_end_address <= range_base_address {
-            return;
-        }
-
-        let range_start_offset = range_base_address.saturating_sub(validation_snapshot_region.get_base_address()) as usize;
-        let range_end_offset = range_end_address.saturating_sub(validation_snapshot_region.get_base_address()) as usize;
-        let current_values = validation_snapshot_region.get_current_values().as_slice();
-        let task_read_end_offset = range_end_offset
-            .saturating_add(pointer_size_in_bytes.saturating_sub(1))
-            .min(current_values.len());
-
-        validation_heap_scan_tasks.push(SnapshotRegionScanTask {
-            scan_base_address: range_base_address,
-            scan_end_address: range_end_address,
-            current_values: &current_values[range_start_offset..task_read_end_offset],
-            task_kind: SnapshotRegionScanTaskKind::Heap,
-        });
     }
 
     fn read_pointer_value_at_address(
@@ -506,7 +377,7 @@ impl PointerScanValidator {
             .then_some(lower_snapshot_region_index)
     }
 
-    fn truncate_empty_trailing_levels(validated_pointer_levels: &mut Vec<ValidatedPointerLevel>) {
+    fn truncate_empty_trailing_levels(validated_pointer_levels: &mut Vec<PointerScanCollectedLevel>) {
         while validated_pointer_levels
             .last()
             .is_some_and(|validated_pointer_level| validated_pointer_level.static_candidates.is_empty() && validated_pointer_level.heap_candidates.is_empty())
@@ -519,72 +390,23 @@ impl PointerScanValidator {
         original_pointer_scan_session: &PointerScanSession,
         validation_target_descriptor: PointerScanTargetDescriptor,
         validation_target_addresses: Vec<u64>,
-        validated_pointer_levels: Vec<ValidatedPointerLevel>,
+        validated_pointer_levels: Vec<PointerScanCollectedLevel>,
     ) -> PointerScanSession {
-        let mut pointer_scan_levels = Vec::new();
-        let mut pointer_scan_level_candidates = Vec::new();
-        let mut next_candidate_id = 1_u64;
-        let mut total_static_node_count = 0_u64;
-        let mut total_heap_node_count = 0_u64;
-
-        for (level_index, validated_pointer_level) in validated_pointer_levels.iter().enumerate() {
-            let discovery_depth = level_index as u64 + 1;
-            let mut static_candidates = Vec::with_capacity(validated_pointer_level.static_candidates.len());
-
-            for validated_pointer_candidate in &validated_pointer_level.static_candidates {
-                static_candidates.push(PointerScanCandidate::new(
-                    next_candidate_id,
-                    discovery_depth,
-                    PointerScanNodeType::Static,
-                    validated_pointer_candidate.pointer_address,
-                    validated_pointer_candidate.pointer_value,
-                    validated_pointer_candidate.module_index,
-                    validated_pointer_candidate.module_offset,
-                ));
-                next_candidate_id = next_candidate_id.saturating_add(1);
-            }
-
-            let mut heap_candidates = Vec::with_capacity(validated_pointer_level.heap_candidates.len());
-
-            for validated_pointer_candidate in &validated_pointer_level.heap_candidates {
-                heap_candidates.push(PointerScanCandidate::new(
-                    next_candidate_id,
-                    discovery_depth,
-                    PointerScanNodeType::Heap,
-                    validated_pointer_candidate.pointer_address,
-                    validated_pointer_candidate.pointer_value,
-                    0,
-                    0,
-                ));
-                next_candidate_id = next_candidate_id.saturating_add(1);
-            }
-
-            let level_candidates = PointerScanLevelCandidates::new_presorted(discovery_depth, static_candidates, heap_candidates);
-
-            total_static_node_count = total_static_node_count.saturating_add(level_candidates.get_static_node_count());
-            total_heap_node_count = total_heap_node_count.saturating_add(level_candidates.get_heap_node_count());
-            pointer_scan_levels.push(PointerScanLevel::new(
-                discovery_depth,
-                level_candidates.get_node_count(),
-                level_candidates.get_static_node_count(),
-                level_candidates.get_heap_node_count(),
-            ));
-            pointer_scan_level_candidates.push(level_candidates);
-        }
-
-        PointerScanSession::new(
+        PointerScanSessionBuilder::build_session_with_module_names(
             original_pointer_scan_session.get_session_id(),
+            &squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters::new(
+                original_pointer_scan_session.get_pointer_size(),
+                original_pointer_scan_session.get_offset_radius(),
+                original_pointer_scan_session.get_max_depth(),
+                false,
+                false,
+            ),
             validation_target_descriptor,
             validation_target_addresses,
             original_pointer_scan_session.get_address_space(),
-            original_pointer_scan_session.get_pointer_size(),
-            original_pointer_scan_session.get_max_depth(),
-            original_pointer_scan_session.get_offset_radius(),
             original_pointer_scan_session.get_module_names().clone(),
-            pointer_scan_levels,
-            pointer_scan_level_candidates,
-            total_static_node_count,
-            total_heap_node_count,
+            &validated_pointer_levels,
+            false,
         )
     }
 
@@ -619,6 +441,7 @@ mod tests {
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
@@ -669,21 +492,22 @@ mod tests {
         assert_eq!(validated_pointer_scan_session.get_total_static_node_count(), 1);
         assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
 
-        let root_nodes = validated_pointer_scan_session.get_expanded_nodes(None);
+        let mut pointer_scan_browser = PointerScanBrowser::new();
+        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(root_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(root_nodes[0].get_resolved_target_address(), 0x2FF0);
         assert_eq!(root_nodes[0].get_pointer_offset(), 0);
 
-        let child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
+        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(child_nodes[0].get_resolved_target_address(), 0x3000);
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
 
-        let grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -718,18 +542,19 @@ mod tests {
         assert_eq!(validated_pointer_scan_session.get_root_node_count(), 1);
         assert_eq!(validated_pointer_scan_session.get_total_node_count(), 2);
 
-        let root_nodes = validated_pointer_scan_session.get_expanded_nodes(None);
+        let mut pointer_scan_browser = PointerScanBrowser::new();
+        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x5010);
         assert_eq!(root_nodes[0].get_module_name(), "game.exe");
         assert_eq!(root_nodes[0].get_module_offset(), 0x10);
 
-        let child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
+        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x5010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
 
-        let grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x7000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -761,9 +586,10 @@ mod tests {
 
         assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 2);
 
-        let root_nodes = validated_pointer_scan_session.get_expanded_nodes(None);
-        let child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
-        let grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        let mut pointer_scan_browser = PointerScanBrowser::new();
+        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
 
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
@@ -796,17 +622,18 @@ mod tests {
         assert_eq!(validated_pointer_scan_session.get_root_node_count(), 2);
         assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
 
-        let root_nodes = validated_pointer_scan_session.get_expanded_nodes(None);
+        let mut pointer_scan_browser = PointerScanBrowser::new();
+        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 2);
 
-        let first_child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
-        let second_child_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(root_nodes[1].get_node_id()));
+        let first_child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let second_child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[1].get_node_id()));
 
         assert_eq!(first_child_nodes.len(), 1);
         assert_eq!(second_child_nodes.len(), 1);
 
-        let first_grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(first_child_nodes[0].get_node_id()));
-        let second_grandchild_nodes = validated_pointer_scan_session.get_expanded_nodes(Some(second_child_nodes[0].get_node_id()));
+        let first_grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(first_child_nodes[0].get_node_id()));
+        let second_grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(second_child_nodes[0].get_node_id()));
 
         assert_eq!(first_grandchild_nodes.len(), 1);
         assert_eq!(second_grandchild_nodes.len(), 1);

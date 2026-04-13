@@ -281,6 +281,7 @@ mod tests {
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
@@ -336,7 +337,8 @@ mod tests {
         assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
         assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
 
-        let root_nodes = pointer_scan_session.get_expanded_nodes(None);
+        let mut pointer_scan_browser = PointerScanBrowser::new();
+        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 2);
 
         let static_chain_root = root_nodes
@@ -356,7 +358,7 @@ mod tests {
         assert_eq!(static_chain_root.get_pointer_offset(), 0);
         assert!(static_chain_root.has_children());
 
-        let child_nodes = pointer_scan_session.get_expanded_nodes(Some(static_chain_root.get_node_id()));
+        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut pointer_scan_session, Some(static_chain_root.get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
@@ -365,7 +367,7 @@ mod tests {
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
         assert!(child_nodes[0].has_children());
 
-        let grandchild_nodes = pointer_scan_session.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut pointer_scan_session, Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x2000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);

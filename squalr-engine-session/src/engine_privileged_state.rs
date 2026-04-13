@@ -20,6 +20,7 @@ use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::Eleme
 use squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struct_layout_descriptor::StructLayoutDescriptor};
+use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
@@ -40,6 +41,9 @@ pub struct EnginePrivilegedState {
 
     /// The active pointer scan session and tree state.
     pointer_scan_session: Arc<RwLock<Option<PointerScanSession>>>,
+
+    /// The transient browser/materialization state for the active pointer scan session.
+    pointer_scan_browser: Arc<RwLock<Option<PointerScanBrowser>>>,
 
     /// Monotonically increasing identifier for new pointer scan sessions.
     next_pointer_scan_session_id: AtomicU64,
@@ -94,6 +98,7 @@ impl EnginePrivilegedState {
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let pointer_scan_session = Arc::new(RwLock::new(None));
+        let pointer_scan_browser = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
         let plugin_registry = Arc::new(PluginRegistry::new());
         Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_plugin_packages());
@@ -110,6 +115,7 @@ impl EnginePrivilegedState {
             task_manager,
             snapshot,
             pointer_scan_session,
+            pointer_scan_browser,
             next_pointer_scan_session_id: AtomicU64::new(0),
             symbol_registry_generation: AtomicU64::new(1),
             symbol_registry_mutation_guard: Mutex::new(()),
@@ -146,6 +152,10 @@ impl EnginePrivilegedState {
     /// Gets the active pointer scan session, if any.
     pub fn get_pointer_scan_session(&self) -> Arc<RwLock<Option<PointerScanSession>>> {
         self.pointer_scan_session.clone()
+    }
+
+    pub fn get_pointer_scan_browser(&self) -> Arc<RwLock<Option<PointerScanBrowser>>> {
+        self.pointer_scan_browser.clone()
     }
 
     /// Allocates a stable identifier for a new pointer scan session.

@@ -11,9 +11,20 @@ impl PrivilegedCommandRequestExecutor for PointerScanResetRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state.get_pointer_scan_session().write() {
+        let pointer_scan_session_store = engine_privileged_state.get_pointer_scan_session();
+        let pointer_scan_browser_store = engine_privileged_state.get_pointer_scan_browser();
+
+        match pointer_scan_session_store.write() {
             Ok(mut pointer_scan_session_guard) => {
                 *pointer_scan_session_guard = None;
+                match pointer_scan_browser_store.write() {
+                    Ok(mut pointer_scan_browser_guard) => {
+                        *pointer_scan_browser_guard = None;
+                    }
+                    Err(error) => {
+                        log::error!("Failed to acquire write lock on pointer scan browser store: {}", error);
+                    }
+                }
                 log::info!("Cleared the active pointer scan session.");
 
                 PointerScanResetResponse { success: true }

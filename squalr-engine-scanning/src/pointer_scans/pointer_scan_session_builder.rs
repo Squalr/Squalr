@@ -1,4 +1,4 @@
-use crate::pointer_scans::structures::discovered_pointer_level::DiscoveredPointerLevel;
+use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanCollectedLevel;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
@@ -19,10 +19,37 @@ impl PointerScanSessionBuilder {
         target_addresses: Vec<u64>,
         address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
-        discovered_pointer_levels: &[DiscoveredPointerLevel],
+        collected_pointer_levels: &[PointerScanCollectedLevel],
         with_logging: bool,
     ) -> PointerScanSession {
-        if discovered_pointer_levels.is_empty() {
+        let module_names = modules
+            .iter()
+            .map(|module| module.get_module_name().to_string())
+            .collect::<Vec<_>>();
+
+        Self::build_session_with_module_names(
+            pointer_scan_session_id,
+            pointer_scan_parameters,
+            target_descriptor,
+            target_addresses,
+            address_space,
+            module_names,
+            collected_pointer_levels,
+            with_logging,
+        )
+    }
+
+    pub(crate) fn build_session_with_module_names(
+        pointer_scan_session_id: u64,
+        pointer_scan_parameters: &PointerScanParameters,
+        target_descriptor: PointerScanTargetDescriptor,
+        target_addresses: Vec<u64>,
+        address_space: PointerScanAddressSpace,
+        module_names: Vec<String>,
+        collected_pointer_levels: &[PointerScanCollectedLevel],
+        with_logging: bool,
+    ) -> PointerScanSession {
+        if collected_pointer_levels.is_empty() {
             if with_logging {
                 log::info!("Pointer scan found no reachable pointer nodes.");
             }
@@ -41,14 +68,10 @@ impl PointerScanSessionBuilder {
         let mut next_candidate_id = 1_u64;
         let mut total_static_node_count = 0_u64;
         let mut total_heap_node_count = 0_u64;
-        let module_names = modules
-            .iter()
-            .map(|module| module.get_module_name().to_string())
-            .collect::<Vec<_>>();
 
-        for (pointer_level_index, discovered_pointer_level) in discovered_pointer_levels.iter().enumerate() {
+        for (pointer_level_index, collected_pointer_level) in collected_pointer_levels.iter().enumerate() {
             let discovery_depth = pointer_level_index as u64 + 1;
-            let level_candidates = Self::build_level_candidates(discovery_depth, discovered_pointer_level, &mut next_candidate_id);
+            let level_candidates = Self::build_level_candidates(discovery_depth, collected_pointer_level, &mut next_candidate_id);
 
             total_static_node_count = total_static_node_count.saturating_add(level_candidates.get_static_node_count());
             total_heap_node_count = total_heap_node_count.saturating_add(level_candidates.get_heap_node_count());
@@ -113,33 +136,33 @@ impl PointerScanSessionBuilder {
 
     fn build_level_candidates(
         discovery_depth: u64,
-        discovered_pointer_level: &DiscoveredPointerLevel,
+        collected_pointer_level: &PointerScanCollectedLevel,
         next_candidate_id: &mut u64,
     ) -> PointerScanLevelCandidates {
-        let mut static_candidates = Vec::with_capacity(discovered_pointer_level.static_candidates.len());
+        let mut static_candidates = Vec::with_capacity(collected_pointer_level.static_candidates.len());
 
-        for discovered_pointer_candidate in &discovered_pointer_level.static_candidates {
+        for collected_pointer_candidate in &collected_pointer_level.static_candidates {
             static_candidates.push(PointerScanCandidate::new(
                 *next_candidate_id,
                 discovery_depth,
                 PointerScanNodeType::Static,
-                discovered_pointer_candidate.pointer_address,
-                discovered_pointer_candidate.pointer_value,
-                discovered_pointer_candidate.module_index,
-                discovered_pointer_candidate.module_offset,
+                collected_pointer_candidate.pointer_address,
+                collected_pointer_candidate.pointer_value,
+                collected_pointer_candidate.module_index,
+                collected_pointer_candidate.module_offset,
             ));
             *next_candidate_id = next_candidate_id.saturating_add(1);
         }
 
-        let mut heap_candidates = Vec::with_capacity(discovered_pointer_level.heap_candidates.len());
+        let mut heap_candidates = Vec::with_capacity(collected_pointer_level.heap_candidates.len());
 
-        for discovered_pointer_candidate in &discovered_pointer_level.heap_candidates {
+        for collected_pointer_candidate in &collected_pointer_level.heap_candidates {
             heap_candidates.push(PointerScanCandidate::new(
                 *next_candidate_id,
                 discovery_depth,
                 PointerScanNodeType::Heap,
-                discovered_pointer_candidate.pointer_address,
-                discovered_pointer_candidate.pointer_value,
+                collected_pointer_candidate.pointer_address,
+                collected_pointer_candidate.pointer_value,
                 0,
                 0,
             ));

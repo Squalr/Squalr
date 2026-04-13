@@ -9,6 +9,7 @@ use squalr_engine_api::structures::data_values::anonymous_value_string_format::A
 use squalr_engine_api::structures::memory::address_display::is_virtual_module_address;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
@@ -144,6 +145,14 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             }
             Err(error) => {
                 log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
+            }
+        }
+        match engine_privileged_state.get_pointer_scan_browser().write() {
+            Ok(mut pointer_scan_browser_guard) => {
+                *pointer_scan_browser_guard = Some(PointerScanBrowser::new());
+            }
+            Err(error) => {
+                log::error!("Failed to acquire write lock on pointer scan browser store: {}", error);
             }
         }
 
