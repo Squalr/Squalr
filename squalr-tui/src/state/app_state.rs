@@ -4,6 +4,7 @@ use crate::state::pane_layout_state::PaneLayoutState;
 use crate::state::workspace_page::TuiWorkspacePage;
 use crate::views::code_viewer::pane_state::CodeViewerPaneState;
 use crate::views::element_scanner::pane_state::ElementScannerPaneState;
+use crate::views::memory_interpretation::pane_state::MemoryInterpretationPaneState;
 use crate::views::memory_viewer::pane_state::MemoryViewerPaneState;
 use crate::views::output::pane_state::OutputPaneState;
 use crate::views::output::summary::OUTPUT_FIXED_SUMMARY_LINE_COUNT;
@@ -25,6 +26,7 @@ pub struct TuiAppState {
     pub project_explorer_pane_state: ProjectExplorerPaneState,
     pub struct_viewer_pane_state: StructViewerPaneState,
     pub memory_viewer_pane_state: MemoryViewerPaneState,
+    pub memory_interpretation_pane_state: MemoryInterpretationPaneState,
     pub code_viewer_pane_state: CodeViewerPaneState,
     pub output_pane_state: OutputPaneState,
     pub settings_pane_state: SettingsPaneState,
@@ -107,6 +109,11 @@ impl TuiAppState {
                 .struct_viewer_pane_state
                 .summary_lines(pane_content_height.saturating_sub(STRUCT_VIEWER_FIXED_SUMMARY_LINE_COUNT)),
             TuiPane::MemoryViewer => self.memory_viewer_pane_state.summary_lines(),
+            TuiPane::MemoryInterpretation => self.memory_interpretation_pane_state.summary_lines(
+                self.project_explorer_pane_state
+                    .active_project_directory_path
+                    .is_some(),
+            ),
             TuiPane::CodeViewer => self
                 .code_viewer_pane_state
                 .summary_lines(self.process_selector_pane_state.opened_process_bitness),
@@ -153,6 +160,12 @@ impl TuiAppState {
                 entry_rows
             }
             TuiPane::MemoryViewer => self.memory_viewer_pane_state.visible_row_entries(),
+            TuiPane::MemoryInterpretation => self.memory_interpretation_pane_state.visible_entry_rows(
+                pane_entry_row_capacity,
+                self.project_explorer_pane_state
+                    .active_project_directory_path
+                    .is_some(),
+            ),
             TuiPane::CodeViewer => self
                 .code_viewer_pane_state
                 .visible_row_entries(self.process_selector_pane_state.opened_process_bitness),
@@ -178,6 +191,7 @@ impl TuiAppState {
                 ))
             }
             TuiPane::MemoryViewer => Some(format!("[ROWS] visible={}.", pane_entry_row_capacity)),
+            TuiPane::MemoryInterpretation => Some(format!("[ROWS] visible={}.", pane_entry_row_capacity)),
             TuiPane::CodeViewer => Some(format!("[ROWS] visible={}.", pane_entry_row_capacity)),
             TuiPane::Plugins => Some(format!("[ROWS] visible={}", pane_entry_row_capacity)),
             _ => None,

@@ -1,6 +1,7 @@
 pub mod code_viewer;
 pub mod element_scanner;
 pub mod entry_row_viewport;
+pub mod memory_interpretation;
 pub mod memory_viewer;
 pub mod output;
 pub mod plugins;

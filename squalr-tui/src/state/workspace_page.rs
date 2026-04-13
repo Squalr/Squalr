@@ -41,7 +41,7 @@ impl TuiWorkspacePage {
             Self::ScannerWorkspace => "Element Scanner -> Scan Results -> Output",
             Self::SettingsWorkspace => "Settings -> Output",
             Self::PluginsWorkspace => "Plugins -> Output",
-            Self::MemoryWorkspace => "Memory Viewer -> Output",
+            Self::MemoryWorkspace => "Memory Viewer -> Interpretation -> Output",
             Self::CodeWorkspace => "Code Viewer -> Output",
         }
     }
@@ -57,7 +57,11 @@ impl TuiWorkspacePage {
             Self::ScannerWorkspace => &[TuiPane::ElementScanner, TuiPane::ScanResults, TuiPane::Output],
             Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Output],
             Self::PluginsWorkspace => &[TuiPane::Plugins, TuiPane::Output],
-            Self::MemoryWorkspace => &[TuiPane::MemoryViewer, TuiPane::Output],
+            Self::MemoryWorkspace => &[
+                TuiPane::MemoryViewer,
+                TuiPane::MemoryInterpretation,
+                TuiPane::Output,
+            ],
             Self::CodeWorkspace => &[TuiPane::CodeViewer, TuiPane::Output],
         }
     }
@@ -102,7 +106,14 @@ mod tests {
         );
         assert_eq!(TuiWorkspacePage::SettingsWorkspace.visible_panes(), &[TuiPane::Settings, TuiPane::Output]);
         assert_eq!(TuiWorkspacePage::PluginsWorkspace.visible_panes(), &[TuiPane::Plugins, TuiPane::Output]);
-        assert_eq!(TuiWorkspacePage::MemoryWorkspace.visible_panes(), &[TuiPane::MemoryViewer, TuiPane::Output]);
+        assert_eq!(
+            TuiWorkspacePage::MemoryWorkspace.visible_panes(),
+            &[
+                TuiPane::MemoryViewer,
+                TuiPane::MemoryInterpretation,
+                TuiPane::Output
+            ]
+        );
         assert_eq!(TuiWorkspacePage::CodeWorkspace.visible_panes(), &[TuiPane::CodeViewer, TuiPane::Output]);
     }
 }

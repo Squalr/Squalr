@@ -110,11 +110,16 @@ impl AppShell {
     ) {
         let rows = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .constraints([
+                Constraint::Percentage(62),
+                Constraint::Percentage(18),
+                Constraint::Percentage(20),
+            ])
             .split(body_area);
 
         self.draw_single_pane(frame, rows[0], TuiPane::MemoryViewer);
-        self.draw_single_pane(frame, rows[1], TuiPane::Output);
+        self.draw_single_pane(frame, rows[1], TuiPane::MemoryInterpretation);
+        self.draw_single_pane(frame, rows[2], TuiPane::Output);
     }
 
     fn draw_code_workspace_layout(
@@ -166,6 +171,8 @@ impl AppShell {
             self.app_state
                 .memory_viewer_pane_state
                 .set_viewport_row_capacity(entry_row_capacity);
+        } else if pane == TuiPane::MemoryInterpretation {
+            // Interpretation pane uses the generic entry-row capacity directly.
         } else if pane == TuiPane::CodeViewer {
             self.app_state
                 .code_viewer_pane_state
@@ -365,7 +372,13 @@ impl AppShell {
     fn is_entry_heavy_pane(pane: TuiPane) -> bool {
         matches!(
             pane,
-            TuiPane::ProcessSelector | TuiPane::ScanResults | TuiPane::ProjectExplorer | TuiPane::MemoryViewer | TuiPane::CodeViewer | TuiPane::Plugins
+            TuiPane::ProcessSelector
+                | TuiPane::ScanResults
+                | TuiPane::ProjectExplorer
+                | TuiPane::MemoryViewer
+                | TuiPane::MemoryInterpretation
+                | TuiPane::CodeViewer
+                | TuiPane::Plugins
         )
     }
 
