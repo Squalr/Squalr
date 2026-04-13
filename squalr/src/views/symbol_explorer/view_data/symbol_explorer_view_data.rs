@@ -1,9 +1,12 @@
+use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerSelection {
     RootedSymbol(String),
+    DerivedNode(String),
     StructLayout(String),
     CreateRootedSymbol,
 }
@@ -30,6 +33,7 @@ pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
     rooted_symbol_display_name_draft: String,
     rooted_symbol_create_draft: RootedSymbolCreateDraft,
+    expanded_tree_node_keys: HashSet<String>,
 }
 
 impl SymbolExplorerViewData {
@@ -38,6 +42,7 @@ impl SymbolExplorerViewData {
             selected_entry: None,
             rooted_symbol_display_name_draft: String::new(),
             rooted_symbol_create_draft: RootedSymbolCreateDraft::default(),
+            expanded_tree_node_keys: HashSet::new(),
         }
     }
 
@@ -51,6 +56,10 @@ impl SymbolExplorerViewData {
 
     pub fn get_rooted_symbol_create_draft(&self) -> &RootedSymbolCreateDraft {
         &self.rooted_symbol_create_draft
+    }
+
+    pub fn get_expanded_tree_node_keys(&self) -> &HashSet<String> {
+        &self.expanded_tree_node_keys
     }
 
     pub fn set_selected_entry(
@@ -94,6 +103,26 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set rooted symbol create draft") {
             symbol_explorer_view_data.rooted_symbol_create_draft = rooted_symbol_create_draft;
+        }
+    }
+
+    pub fn toggle_tree_node_expansion(
+        symbol_explorer_view_data: Dependency<Self>,
+        tree_node_key: &str,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer toggle tree node expansion") {
+            if symbol_explorer_view_data
+                .expanded_tree_node_keys
+                .contains(tree_node_key)
+            {
+                symbol_explorer_view_data
+                    .expanded_tree_node_keys
+                    .remove(tree_node_key);
+            } else {
+                symbol_explorer_view_data
+                    .expanded_tree_node_keys
+                    .insert(tree_node_key.to_string());
+            }
         }
     }
 
@@ -201,8 +230,37 @@ impl SymbolExplorerViewData {
                 .get_struct_layout_descriptors()
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id),
+            SymbolExplorerSelection::DerivedNode(_) => true,
             SymbolExplorerSelection::CreateRootedSymbol => true,
         }
+    }
+
+    pub fn synchronize_selection_to_tree_entries(
+        symbol_explorer_view_data: Dependency<Self>,
+        symbol_tree_entries: &[SymbolTreeEntry],
+    ) {
+        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize selection to tree entries") else {
+            return;
+        };
+        let Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) = symbol_explorer_view_data.selected_entry.as_ref() else {
+            return;
+        };
+
+        if symbol_tree_entries
+            .iter()
+            .any(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key)
+        {
+            return;
+        }
+
+        symbol_explorer_view_data.selected_entry = symbol_tree_entries
+            .first()
+            .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
+                SymbolTreeEntryKind::RootedSymbol { symbol_key } => SymbolExplorerSelection::RootedSymbol(symbol_key.to_string()),
+                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement => {
+                    SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
+                }
+            });
     }
 
     fn create_default_rooted_symbol_create_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> RootedSymbolCreateDraft {

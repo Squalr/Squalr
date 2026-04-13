@@ -2,7 +2,10 @@ use crate::app_context::AppContext;
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
-    symbol_explorer::view_data::symbol_explorer_view_data::{RootedSymbolDraftLocatorMode, SymbolExplorerSelection, SymbolExplorerViewData},
+    symbol_explorer::view_data::{
+        symbol_explorer_view_data::{RootedSymbolDraftLocatorMode, SymbolExplorerSelection, SymbolExplorerViewData},
+        symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries},
+    },
 };
 use eframe::egui::{Align, Button, Direction, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, pos2};
@@ -151,45 +154,98 @@ impl SymbolExplorerView {
         });
     }
 
-    fn render_rooted_symbol_list(
+    fn create_rooted_symbol_from_locator(
+        &self,
+        display_name: String,
+        symbol_type_id: String,
+        project_root_symbol_locator: ProjectRootSymbolLocator,
+    ) {
+        let (address, module_name, offset) = match project_root_symbol_locator {
+            ProjectRootSymbolLocator::AbsoluteAddress { address } => (Some(address), None, None),
+            ProjectRootSymbolLocator::ModuleOffset { module_name, offset } => (None, Some(module_name), Some(offset)),
+        };
+
+        self.create_rooted_symbol(ProjectSymbolsCreateRequest {
+            display_name,
+            struct_layout_id: symbol_type_id,
+            address,
+            module_name,
+            offset,
+            metadata: Default::default(),
+        });
+    }
+
+    fn render_symbol_tree_list(
         &self,
         user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entries: &[SymbolTreeEntry],
         selected_entry: Option<&SymbolExplorerSelection>,
     ) {
         user_interface.label(
-            RichText::new(format!("Rooted Symbols ({})", project_symbol_catalog.get_rooted_symbols().len()))
-                .font(
-                    self.app_context
-                        .theme
-                        .font_library
-                        .font_noto_sans
-                        .font_header
-                        .clone(),
-                )
-                .color(self.app_context.theme.foreground),
+            RichText::new(format!(
+                "Rooted Symbols ({})",
+                symbol_tree_entries
+                    .iter()
+                    .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { .. }))
+                    .count()
+            ))
+            .font(
+                self.app_context
+                    .theme
+                    .font_library
+                    .font_noto_sans
+                    .font_header
+                    .clone(),
+            )
+            .color(self.app_context.theme.foreground),
         );
         user_interface.add_space(6.0);
 
-        for rooted_symbol in project_symbol_catalog.get_rooted_symbols() {
+        for symbol_tree_entry in symbol_tree_entries {
             let is_selected = matches!(
                 selected_entry,
-                Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key)) if selected_symbol_key == rooted_symbol.get_symbol_key()
-            );
-            let response = user_interface.selectable_label(
-                is_selected,
-                format!("{}  [{}]", rooted_symbol.get_display_name(), rooted_symbol.get_struct_layout_id()),
+                Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key))
+                    if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { symbol_key } if selected_symbol_key == symbol_key)
+            ) || matches!(
+                selected_entry,
+                Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
             );
 
-            if response.clicked() {
-                SymbolExplorerViewData::set_selected_entry(
-                    self.symbol_explorer_view_data.clone(),
-                    Some(SymbolExplorerSelection::RootedSymbol(rooted_symbol.get_symbol_key().to_string())),
+            user_interface.horizontal(|user_interface| {
+                user_interface.add_space(symbol_tree_entry.get_depth() as f32 * 16.0);
+
+                if symbol_tree_entry.can_expand() {
+                    let expansion_label = if symbol_tree_entry.is_expanded() { "▾" } else { "▸" };
+
+                    if user_interface.button(expansion_label).clicked() {
+                        SymbolExplorerViewData::toggle_tree_node_expansion(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key());
+                    }
+                } else {
+                    user_interface.add_space(24.0);
+                }
+
+                let row_label = format!(
+                    "{}  [{}{}]",
+                    symbol_tree_entry.get_display_name(),
+                    symbol_tree_entry.get_symbol_type_id(),
+                    symbol_tree_entry.get_container_type()
                 );
-            }
+                let response = user_interface.selectable_label(is_selected, row_label);
+
+                if response.clicked() {
+                    let selection = match symbol_tree_entry.get_kind() {
+                        SymbolTreeEntryKind::RootedSymbol { symbol_key } => SymbolExplorerSelection::RootedSymbol(symbol_key.to_string()),
+                        SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement => {
+                            SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
+                        }
+                    };
+
+                    SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+                }
+            });
 
             user_interface.label(
-                RichText::new(rooted_symbol.get_root_locator().to_string())
+                RichText::new(symbol_tree_entry.get_locator().to_string())
                     .font(
                         self.app_context
                             .theme
@@ -347,6 +403,52 @@ impl SymbolExplorerView {
                 user_interface.monospace(format!("{} = {}", metadata_key, metadata_value));
             }
         }
+    }
+
+    fn render_derived_symbol_details(
+        &self,
+        user_interface: &mut Ui,
+        symbol_tree_entry: &SymbolTreeEntry,
+    ) {
+        user_interface.label(
+            RichText::new(symbol_tree_entry.get_display_name())
+                .font(
+                    self.app_context
+                        .theme
+                        .font_library
+                        .font_noto_sans
+                        .font_header
+                        .clone(),
+                )
+                .color(self.app_context.theme.foreground),
+        );
+        user_interface.add_space(6.0);
+        user_interface.monospace(format!("path: {}", symbol_tree_entry.get_full_path()));
+        user_interface.monospace(format!(
+            "type: {}{}",
+            symbol_tree_entry.get_symbol_type_id(),
+            symbol_tree_entry.get_container_type()
+        ));
+        user_interface.monospace(format!("locator: {}", symbol_tree_entry.get_locator()));
+        user_interface.add_space(10.0);
+
+        user_interface.horizontal(|user_interface| {
+            if user_interface.button("Promote to Rooted Symbol").clicked() {
+                self.create_rooted_symbol_from_locator(
+                    symbol_tree_entry.get_promotion_display_name().to_string(),
+                    symbol_tree_entry.get_symbol_type_id().to_string(),
+                    symbol_tree_entry.get_locator().clone(),
+                );
+            }
+
+            if user_interface.button("Open In Memory").clicked() {
+                self.focus_memory_viewer_for_locator(symbol_tree_entry.get_locator());
+            }
+
+            if user_interface.button("Open In Code").clicked() {
+                self.focus_code_viewer_for_locator(symbol_tree_entry.get_locator());
+            }
+        });
     }
 
     fn render_struct_layout_details(
@@ -615,6 +717,18 @@ impl Widget for SymbolExplorerView {
         SymbolExplorerViewData::synchronize_selection(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_rooted_symbol_display_name_draft(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_rooted_symbol_create_draft(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
+        let expanded_tree_node_keys = self
+            .symbol_explorer_view_data
+            .read("Symbol explorer expanded tree nodes")
+            .map(|symbol_explorer_view_data| symbol_explorer_view_data.get_expanded_tree_node_keys().clone())
+            .unwrap_or_default();
+        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, |data_type_ref| {
+            self.app_context
+                .engine_unprivileged_state
+                .get_default_value(data_type_ref)
+                .map(|default_value| default_value.get_size_in_bytes())
+        });
+        SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
         let selected_entry = self
             .symbol_explorer_view_data
             .read("Symbol explorer view")
@@ -671,7 +785,7 @@ impl Widget for SymbolExplorerView {
                     .id_salt("symbol_explorer_list")
                     .auto_shrink([false, false])
                     .show(&mut list_user_interface, |user_interface| {
-                        self.render_rooted_symbol_list(user_interface, &project_symbol_catalog, selected_entry.as_ref());
+                        self.render_symbol_tree_list(user_interface, &symbol_tree_entries, selected_entry.as_ref());
                         self.render_struct_layout_list(user_interface, &project_symbol_catalog, selected_entry.as_ref());
 
                         if project_symbol_catalog.is_empty() {
@@ -700,6 +814,16 @@ impl Widget for SymbolExplorerView {
                             self.render_rooted_symbol_details(&mut details_user_interface, rooted_symbol);
                         } else {
                             details_user_interface.label("Selected rooted symbol no longer exists.");
+                        }
+                    }
+                    Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) => {
+                        if let Some(symbol_tree_entry) = symbol_tree_entries
+                            .iter()
+                            .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key)
+                        {
+                            self.render_derived_symbol_details(&mut details_user_interface, symbol_tree_entry);
+                        } else {
+                            details_user_interface.label("Selected derived symbol node no longer exists.");
                         }
                     }
                     Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
