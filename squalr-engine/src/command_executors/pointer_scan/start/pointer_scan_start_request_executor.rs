@@ -15,7 +15,6 @@ use squalr_engine_api::structures::processes::opened_process_info::OpenedProcess
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
-use squalr_engine_scanning::pointer_scans::pointer_scan_results_materializer::PointerScanResultsMaterializer;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
 use squalr_engine_session::os::PageRetrievalMode;
@@ -147,18 +146,6 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
             }
         }
-        match engine_privileged_state
-            .get_pointer_scan_results_materializer()
-            .write()
-        {
-            Ok(mut pointer_scan_results_materializer_guard) => {
-                *pointer_scan_results_materializer_guard = Some(PointerScanResultsMaterializer::new());
-            }
-            Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan results materializer store: {}", error);
-            }
-        }
-
         PointerScanStartResponse {
             success: true,
             pointer_scan_summary: Some(pointer_scan_summary),

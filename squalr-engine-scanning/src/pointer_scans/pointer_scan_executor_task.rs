@@ -14,7 +14,7 @@ use std::time::Instant;
 
 pub struct PointerScanExecutor;
 
-/// Performs an initial pointer scan by collecting values, discovering levels, and materializing the retained session.
+/// Performs an initial pointer scan by collecting values, discovering levels, and materializing the retained results.
 impl PointerScanExecutor {
     pub fn execute_scan(
         process_info: OpenedProcessInfo,
@@ -104,9 +104,9 @@ impl PointerScanExecutor {
         );
         let value_collection_duration = value_collection_start_time.elapsed();
 
-        // Step 2) Discover retained pointer levels from the collected snapshots and materialize the session.
+        // Step 2) Discover retained pointer levels from the collected snapshots and materialize the results.
         let discovery_start_time = Instant::now();
-        let pointer_scan_session = Self::build_session_from_collected_values(
+        let pointer_scan_results = Self::build_session_from_collected_values(
             statics_snapshot,
             heaps_snapshot,
             pointer_scan_session_id,
@@ -120,7 +120,7 @@ impl PointerScanExecutor {
         let discovery_duration = discovery_start_time.elapsed();
 
         if with_logging {
-            let pointer_scan_summary = pointer_scan_session.summarize();
+            let pointer_scan_summary = pointer_scan_results.summarize();
 
             log::info!(
                 "Pointer scan complete: roots={}, total_nodes={}, static_nodes={}, heap_nodes={}",
@@ -134,7 +134,7 @@ impl PointerScanExecutor {
             log::info!("Total pointer scan time: {:?}", total_start_time.elapsed());
         }
 
-        pointer_scan_session
+        pointer_scan_results
     }
 
     pub fn collect_pointer_scan_values(
@@ -276,7 +276,6 @@ impl PointerScanExecutor {
 #[cfg(test)]
 mod tests {
     use super::PointerScanExecutor;
-    use crate::pointer_scans::pointer_scan_results_materializer::PointerScanResultsMaterializer;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
@@ -306,7 +305,7 @@ mod tests {
         );
         let snapshot = Arc::new(RwLock::new(build_pointer_scan_snapshot()));
         let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 3, true, false);
-        let mut pointer_scan_session = PointerScanExecutor::execute_scan(
+        let mut pointer_scan_results = PointerScanExecutor::execute_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
             snapshot.clone(),
             snapshot,
@@ -320,13 +319,13 @@ mod tests {
             &scan_execution_context,
         );
 
-        assert_eq!(pointer_scan_session.get_session_id(), 41);
-        assert_eq!(pointer_scan_session.get_root_node_count(), 2);
-        assert_eq!(pointer_scan_session.get_total_node_count(), 3);
-        assert_eq!(pointer_scan_session.get_total_static_node_count(), 2);
-        assert_eq!(pointer_scan_session.get_total_heap_node_count(), 1);
+        assert_eq!(pointer_scan_results.get_session_id(), 41);
+        assert_eq!(pointer_scan_results.get_root_node_count(), 2);
+        assert_eq!(pointer_scan_results.get_total_node_count(), 3);
+        assert_eq!(pointer_scan_results.get_total_static_node_count(), 2);
+        assert_eq!(pointer_scan_results.get_total_heap_node_count(), 1);
 
-        let pointer_scan_levels = pointer_scan_session.get_pointer_scan_levels();
+        let pointer_scan_levels = pointer_scan_results.get_pointer_scan_levels();
         assert_eq!(pointer_scan_levels.len(), 2);
         assert_eq!(pointer_scan_levels[0].get_depth(), 1);
         assert_eq!(pointer_scan_levels[0].get_node_count(), 2);
@@ -337,8 +336,7 @@ mod tests {
         assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
         assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
 
-        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
-        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut pointer_scan_session, None);
+        let root_nodes = pointer_scan_results.get_expanded_nodes(None);
         assert_eq!(root_nodes.len(), 2);
 
         let static_chain_root = root_nodes
@@ -358,7 +356,7 @@ mod tests {
         assert_eq!(static_chain_root.get_pointer_offset(), 0);
         assert!(static_chain_root.has_children());
 
-        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut pointer_scan_session, Some(static_chain_root.get_node_id()));
+        let child_nodes = pointer_scan_results.get_expanded_nodes(Some(static_chain_root.get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
@@ -367,7 +365,7 @@ mod tests {
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
         assert!(child_nodes[0].has_children());
 
-        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_results.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x2000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -399,7 +397,7 @@ mod tests {
         );
         let snapshot = Arc::new(RwLock::new(build_terminal_heap_pointer_scan_snapshot()));
         let pointer_scan_parameters = PointerScanParameters::new(PointerScanPointerSize::Pointer64, 0x20, 2, true, false);
-        let pointer_scan_session = PointerScanExecutor::execute_scan(
+        let pointer_scan_results = PointerScanExecutor::execute_scan(
             OpenedProcessInfo::new(8, "pointer-terminal-heap-test".to_string(), 0, Bitness::Bit64, None),
             snapshot.clone(),
             snapshot,
@@ -413,13 +411,13 @@ mod tests {
             &scan_execution_context,
         );
 
-        let pointer_scan_levels = pointer_scan_session.get_pointer_scan_levels();
+        let pointer_scan_levels = pointer_scan_results.get_pointer_scan_levels();
 
         assert_eq!(pointer_scan_levels.len(), 2);
         assert_eq!(pointer_scan_levels[0].get_heap_node_count(), 1);
         assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
         assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
-        assert_eq!(pointer_scan_session.get_total_heap_node_count(), 1);
+        assert_eq!(pointer_scan_results.get_total_heap_node_count(), 1);
     }
 
     fn build_pointer_scan_snapshot() -> Snapshot {

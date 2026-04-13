@@ -24,7 +24,6 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerS
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
-use squalr_engine_scanning::pointer_scans::pointer_scan_results_materializer::PointerScanResultsMaterializer;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -41,9 +40,6 @@ pub struct EnginePrivilegedState {
 
     /// The active pointer scan results and tree state.
     pointer_scan_results: Arc<RwLock<Option<PointerScanResults>>>,
-
-    /// The transient browse/materialization state for the active pointer scan results.
-    pointer_scan_results_materializer: Arc<RwLock<Option<PointerScanResultsMaterializer>>>,
 
     /// Monotonically increasing identifier for new pointer scan results.
     next_pointer_scan_results_id: AtomicU64,
@@ -98,7 +94,6 @@ impl EnginePrivilegedState {
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
         let pointer_scan_results = Arc::new(RwLock::new(None));
-        let pointer_scan_results_materializer = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
         let plugin_registry = Arc::new(PluginRegistry::new());
         Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_plugin_packages());
@@ -115,7 +110,6 @@ impl EnginePrivilegedState {
             task_manager,
             snapshot,
             pointer_scan_results,
-            pointer_scan_results_materializer,
             next_pointer_scan_results_id: AtomicU64::new(0),
             symbol_registry_generation: AtomicU64::new(1),
             symbol_registry_mutation_guard: Mutex::new(()),
@@ -152,11 +146,6 @@ impl EnginePrivilegedState {
     /// Gets the active pointer scan results, if any.
     pub fn get_pointer_scan_results(&self) -> Arc<RwLock<Option<PointerScanResults>>> {
         self.pointer_scan_results.clone()
-    }
-
-    /// Gets the transient pointer scan materializer, if any.
-    pub fn get_pointer_scan_results_materializer(&self) -> Arc<RwLock<Option<PointerScanResultsMaterializer>>> {
-        self.pointer_scan_results_materializer.clone()
     }
 
     /// Allocates a stable identifier for new pointer scan results.

@@ -3,7 +3,6 @@ pub(crate) mod pointer_scan_dispatcher;
 pub mod pointer_scan_executor_task;
 pub(crate) mod pointer_scan_level_collector;
 pub(crate) mod pointer_scan_results_builder;
-pub mod pointer_scan_results_materializer;
 pub(crate) mod pointer_scan_task_builder;
 pub mod pointer_scan_validator;
 pub(crate) mod search_kernels;

@@ -437,7 +437,6 @@ impl PointerScanValidator {
 mod tests {
     use super::PointerScanValidator;
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
-    use crate::pointer_scans::pointer_scan_results_materializer::PointerScanResultsMaterializer;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
@@ -459,7 +458,7 @@ mod tests {
 
     #[test]
     fn validate_scan_rebuilds_live_heap_nodes_and_prunes_invalid_static_roots() {
-        let original_pointer_scan_session = build_original_pointer_scan_session();
+        let original_pointer_scan_results = build_original_pointer_scan_results();
         let validation_memory_map = Arc::new(build_validation_memory_map());
         let scan_execution_context = ScanExecutionContext::new(
             None,
@@ -470,9 +469,9 @@ mod tests {
                 move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
             })),
         );
-        let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
+        let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
-            &original_pointer_scan_session,
+            &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
             &build_snapshot_from_memory_map(&build_validation_memory_regions(), &validation_memory_map),
@@ -481,34 +480,33 @@ mod tests {
             false,
         );
 
-        assert_eq!(validated_pointer_scan_session.get_session_id(), original_pointer_scan_session.get_session_id());
+        assert_eq!(validated_pointer_scan_results.get_session_id(), original_pointer_scan_results.get_session_id());
         assert_eq!(
-            validated_pointer_scan_session
+            validated_pointer_scan_results
                 .get_target_descriptor()
                 .get_target_address(),
             Some(0x4010)
         );
-        assert_eq!(validated_pointer_scan_session.get_root_node_count(), 1);
-        assert_eq!(validated_pointer_scan_session.get_total_node_count(), 2);
-        assert_eq!(validated_pointer_scan_session.get_total_static_node_count(), 1);
-        assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
+        assert_eq!(validated_pointer_scan_results.get_root_node_count(), 1);
+        assert_eq!(validated_pointer_scan_results.get_total_node_count(), 2);
+        assert_eq!(validated_pointer_scan_results.get_total_static_node_count(), 1);
+        assert_eq!(validated_pointer_scan_results.get_total_heap_node_count(), 1);
 
-        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
-        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let root_nodes = validated_pointer_scan_results.get_expanded_nodes(None);
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(root_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(root_nodes[0].get_resolved_target_address(), 0x2FF0);
         assert_eq!(root_nodes[0].get_pointer_offset(), 0);
 
-        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let child_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(child_nodes[0].get_resolved_target_address(), 0x3000);
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
 
-        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -518,7 +516,7 @@ mod tests {
 
     #[test]
     fn validate_scan_rebases_static_module_addresses_before_pruning() {
-        let original_pointer_scan_session = build_original_pointer_scan_session();
+        let original_pointer_scan_results = build_original_pointer_scan_results();
         let rebased_validation_memory_map = Arc::new(build_rebased_validation_memory_map());
         let scan_execution_context = ScanExecutionContext::new(
             None,
@@ -529,9 +527,9 @@ mod tests {
                 move |_opened_process_info, address, values| read_memory_from_map(&rebased_validation_memory_map, address, values)
             })),
         );
-        let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
+        let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
-            &original_pointer_scan_session,
+            &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x8010),
             vec![0x8010],
             &build_snapshot_from_memory_map(&build_rebased_validation_memory_regions(), &rebased_validation_memory_map),
@@ -540,22 +538,21 @@ mod tests {
             false,
         );
 
-        assert_eq!(validated_pointer_scan_session.get_root_node_count(), 1);
-        assert_eq!(validated_pointer_scan_session.get_total_node_count(), 2);
+        assert_eq!(validated_pointer_scan_results.get_root_node_count(), 1);
+        assert_eq!(validated_pointer_scan_results.get_total_node_count(), 2);
 
-        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
-        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let root_nodes = validated_pointer_scan_results.get_expanded_nodes(None);
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x5010);
         assert_eq!(root_nodes[0].get_module_name(), "game.exe");
         assert_eq!(root_nodes[0].get_module_offset(), 0x10);
 
-        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let child_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x5010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
 
-        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x7000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -563,7 +560,7 @@ mod tests {
 
     #[test]
     fn validate_scan_rebuilds_live_heap_candidates_from_validation_snapshot() {
-        let original_pointer_scan_session = build_original_pointer_scan_session();
+        let original_pointer_scan_results = build_original_pointer_scan_results();
         let validation_memory_map = Arc::new(build_validation_memory_map_with_extra_heap_match());
         let scan_execution_context = ScanExecutionContext::new(
             None,
@@ -574,9 +571,9 @@ mod tests {
                 move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
             })),
         );
-        let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
+        let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(7, "pointer-test".to_string(), 0, Bitness::Bit64, None),
-            &original_pointer_scan_session,
+            &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
             &build_snapshot_from_memory_map(&build_validation_memory_regions_with_extra_heap_match(), &validation_memory_map),
@@ -585,12 +582,11 @@ mod tests {
             false,
         );
 
-        assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 2);
+        assert_eq!(validated_pointer_scan_results.get_total_heap_node_count(), 2);
 
-        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
-        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
-        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
-        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let root_nodes = validated_pointer_scan_results.get_expanded_nodes(None);
+        let child_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
+        let grandchild_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(child_nodes[0].get_node_id()));
 
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
@@ -598,7 +594,7 @@ mod tests {
 
     #[test]
     fn validate_scan_deduplicates_shared_live_heap_children() {
-        let original_pointer_scan_session = build_shared_child_original_pointer_scan_session();
+        let original_pointer_scan_results = build_shared_child_original_pointer_scan_results();
         let validation_memory_map = Arc::new(build_shared_child_validation_memory_map());
         let scan_execution_context = ScanExecutionContext::new(
             None,
@@ -609,9 +605,9 @@ mod tests {
                 move |_opened_process_info, address, values| read_memory_from_map(&validation_memory_map, address, values)
             })),
         );
-        let mut validated_pointer_scan_session = PointerScanValidator::validate_scan(
+        let mut validated_pointer_scan_results = PointerScanValidator::validate_scan(
             OpenedProcessInfo::new(9, "pointer-shared-child-test".to_string(), 0, Bitness::Bit64, None),
-            &original_pointer_scan_session,
+            &original_pointer_scan_results,
             PointerScanTargetDescriptor::address(0x4010),
             vec![0x4010],
             &build_snapshot_from_memory_map(&build_shared_child_validation_memory_regions(), &validation_memory_map),
@@ -620,23 +616,20 @@ mod tests {
             false,
         );
 
-        assert_eq!(validated_pointer_scan_session.get_root_node_count(), 2);
-        assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
+        assert_eq!(validated_pointer_scan_results.get_root_node_count(), 2);
+        assert_eq!(validated_pointer_scan_results.get_total_heap_node_count(), 1);
 
-        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
-        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let root_nodes = validated_pointer_scan_results.get_expanded_nodes(None);
         assert_eq!(root_nodes.len(), 2);
 
-        let first_child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
-        let second_child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[1].get_node_id()));
+        let first_child_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(root_nodes[0].get_node_id()));
+        let second_child_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(root_nodes[1].get_node_id()));
 
         assert_eq!(first_child_nodes.len(), 1);
         assert_eq!(second_child_nodes.len(), 1);
 
-        let first_grandchild_nodes =
-            pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(first_child_nodes[0].get_node_id()));
-        let second_grandchild_nodes =
-            pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(second_child_nodes[0].get_node_id()));
+        let first_grandchild_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(first_child_nodes[0].get_node_id()));
+        let second_grandchild_nodes = validated_pointer_scan_results.get_expanded_nodes(Some(second_child_nodes[0].get_node_id()));
 
         assert_eq!(first_grandchild_nodes.len(), 1);
         assert_eq!(second_grandchild_nodes.len(), 1);
@@ -644,7 +637,7 @@ mod tests {
         assert_eq!(second_grandchild_nodes[0].get_pointer_address(), 0x3000);
     }
 
-    fn build_original_pointer_scan_session() -> PointerScanResults {
+    fn build_original_pointer_scan_results() -> PointerScanResults {
         let original_memory_map = Arc::new(build_original_pointer_scan_memory_map());
         let scan_execution_context = ScanExecutionContext::new(
             None,
@@ -673,7 +666,7 @@ mod tests {
         )
     }
 
-    fn build_shared_child_original_pointer_scan_session() -> PointerScanResults {
+    fn build_shared_child_original_pointer_scan_results() -> PointerScanResults {
         PointerScanResults::new(
             43,
             PointerScanTargetDescriptor::address(0x4010),
