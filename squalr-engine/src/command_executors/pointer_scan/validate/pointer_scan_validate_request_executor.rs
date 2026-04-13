@@ -7,7 +7,7 @@ use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_r
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
-use squalr_engine_scanning::pointer_scans::pointer_scan_materializer::PointerScanMaterializer;
+use squalr_engine_scanning::pointer_scans::pointer_scan_results_materializer::PointerScanResultsMaterializer;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
@@ -217,12 +217,15 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
             }
         }
-        match engine_privileged_state.get_pointer_scan_materializer().write() {
-            Ok(mut pointer_scan_materializer_guard) => {
-                *pointer_scan_materializer_guard = Some(PointerScanMaterializer::new());
+        match engine_privileged_state
+            .get_pointer_scan_results_materializer()
+            .write()
+        {
+            Ok(mut pointer_scan_results_materializer_guard) => {
+                *pointer_scan_results_materializer_guard = Some(PointerScanResultsMaterializer::new());
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan materializer store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan results materializer store: {}", error);
             }
         }
 

@@ -437,7 +437,7 @@ impl PointerScanValidator {
 mod tests {
     use super::PointerScanValidator;
     use crate::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
-    use crate::pointer_scans::pointer_scan_materializer::PointerScanMaterializer;
+    use crate::pointer_scans::pointer_scan_results_materializer::PointerScanResultsMaterializer;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
@@ -493,22 +493,22 @@ mod tests {
         assert_eq!(validated_pointer_scan_session.get_total_static_node_count(), 1);
         assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
 
-        let mut pointer_scan_browser = PointerScanMaterializer::new();
-        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
+        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(root_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(root_nodes[0].get_resolved_target_address(), 0x2FF0);
         assert_eq!(root_nodes[0].get_pointer_offset(), 0);
 
-        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x1010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
         assert_eq!(child_nodes[0].get_resolved_target_address(), 0x3000);
         assert_eq!(child_nodes[0].get_pointer_offset(), 0x10);
 
-        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -543,19 +543,19 @@ mod tests {
         assert_eq!(validated_pointer_scan_session.get_root_node_count(), 1);
         assert_eq!(validated_pointer_scan_session.get_total_node_count(), 2);
 
-        let mut pointer_scan_browser = PointerScanMaterializer::new();
-        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
+        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 1);
         assert_eq!(root_nodes[0].get_pointer_address(), 0x5010);
         assert_eq!(root_nodes[0].get_module_name(), "game.exe");
         assert_eq!(root_nodes[0].get_module_offset(), 0x10);
 
-        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
         assert_eq!(child_nodes.len(), 1);
         assert_eq!(child_nodes[0].get_pointer_address(), 0x5010);
         assert_eq!(child_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Static);
 
-        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x7000);
         assert_eq!(grandchild_nodes[0].get_pointer_scan_node_type(), PointerScanNodeType::Heap);
@@ -587,10 +587,10 @@ mod tests {
 
         assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 2);
 
-        let mut pointer_scan_browser = PointerScanMaterializer::new();
-        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
-        let child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
-        let grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
+        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
+        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let grandchild_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(child_nodes[0].get_node_id()));
 
         assert_eq!(grandchild_nodes.len(), 1);
         assert_eq!(grandchild_nodes[0].get_pointer_address(), 0x3000);
@@ -623,18 +623,20 @@ mod tests {
         assert_eq!(validated_pointer_scan_session.get_root_node_count(), 2);
         assert_eq!(validated_pointer_scan_session.get_total_heap_node_count(), 1);
 
-        let mut pointer_scan_browser = PointerScanMaterializer::new();
-        let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, None);
+        let mut pointer_scan_results_materializer = PointerScanResultsMaterializer::new();
+        let root_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 2);
 
-        let first_child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
-        let second_child_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[1].get_node_id()));
+        let first_child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[0].get_node_id()));
+        let second_child_nodes = pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(root_nodes[1].get_node_id()));
 
         assert_eq!(first_child_nodes.len(), 1);
         assert_eq!(second_child_nodes.len(), 1);
 
-        let first_grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(first_child_nodes[0].get_node_id()));
-        let second_grandchild_nodes = pointer_scan_browser.get_expanded_nodes(&mut validated_pointer_scan_session, Some(second_child_nodes[0].get_node_id()));
+        let first_grandchild_nodes =
+            pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(first_child_nodes[0].get_node_id()));
+        let second_grandchild_nodes =
+            pointer_scan_results_materializer.get_expanded_nodes(&mut validated_pointer_scan_session, Some(second_child_nodes[0].get_node_id()));
 
         assert_eq!(first_grandchild_nodes.len(), 1);
         assert_eq!(second_grandchild_nodes.len(), 1);

@@ -12,7 +12,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let pointer_scan_results_store = engine_privileged_state.get_pointer_scan_results();
-        let pointer_scan_materializer_store = engine_privileged_state.get_pointer_scan_materializer();
+        let pointer_scan_results_materializer_store = engine_privileged_state.get_pointer_scan_results_materializer();
 
         let mut pointer_scan_results_guard = match pointer_scan_results_store.write() {
             Ok(pointer_scan_results_guard) => pointer_scan_results_guard,
@@ -28,10 +28,10 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
                 };
             }
         };
-        let mut pointer_scan_materializer_guard = match pointer_scan_materializer_store.write() {
-            Ok(pointer_scan_materializer_guard) => pointer_scan_materializer_guard,
+        let mut pointer_scan_results_materializer_guard = match pointer_scan_results_materializer_store.write() {
+            Ok(pointer_scan_results_materializer_guard) => pointer_scan_results_materializer_guard,
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan materializer store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan results materializer store: {}", error);
                 return PointerScanExpandResponse {
                     session_id: self.session_id,
                     parent_node_id: self.parent_node_id,
@@ -43,10 +43,12 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
             }
         };
 
-        if let (Some(pointer_scan_results), Some(pointer_scan_materializer)) = (pointer_scan_results_guard.as_mut(), pointer_scan_materializer_guard.as_mut()) {
+        if let (Some(pointer_scan_results), Some(pointer_scan_results_materializer)) =
+            (pointer_scan_results_guard.as_mut(), pointer_scan_results_materializer_guard.as_mut())
+        {
             if pointer_scan_results.get_session_id() == self.session_id {
                 let (pointer_scan_nodes, page_index, last_page_index, total_node_count) =
-                    pointer_scan_materializer.get_expanded_node_page(pointer_scan_results, self.parent_node_id, self.page_index, self.page_size);
+                    pointer_scan_results_materializer.get_expanded_node_page(pointer_scan_results, self.parent_node_id, self.page_index, self.page_size);
 
                 return PointerScanExpandResponse {
                     session_id: self.session_id,

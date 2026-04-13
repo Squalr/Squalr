@@ -23,13 +23,13 @@ struct MaterializedPointerScanNodePage {
 
 /// Owns transient pointer-scan browse state such as paged materialization caches.
 #[derive(Clone, Debug, Default)]
-pub struct PointerScanMaterializer {
+pub struct PointerScanResultsMaterializer {
     materialized_node_ids_by_page_key: HashMap<MaterializedPointerScanPageKey, Vec<u64>>,
     materialized_pointer_scan_nodes: HashMap<u64, PointerScanNode>,
     next_materialized_node_id: u64,
 }
 
-impl PointerScanMaterializer {
+impl PointerScanResultsMaterializer {
     pub fn new() -> Self {
         Self {
             materialized_node_ids_by_page_key: HashMap::new(),

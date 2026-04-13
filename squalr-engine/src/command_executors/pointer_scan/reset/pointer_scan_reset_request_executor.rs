@@ -12,17 +12,17 @@ impl PrivilegedCommandRequestExecutor for PointerScanResetRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let pointer_scan_results_store = engine_privileged_state.get_pointer_scan_results();
-        let pointer_scan_materializer_store = engine_privileged_state.get_pointer_scan_materializer();
+        let pointer_scan_results_materializer_store = engine_privileged_state.get_pointer_scan_results_materializer();
 
         match pointer_scan_results_store.write() {
             Ok(mut pointer_scan_results_guard) => {
                 *pointer_scan_results_guard = None;
-                match pointer_scan_materializer_store.write() {
-                    Ok(mut pointer_scan_materializer_guard) => {
-                        *pointer_scan_materializer_guard = None;
+                match pointer_scan_results_materializer_store.write() {
+                    Ok(mut pointer_scan_results_materializer_guard) => {
+                        *pointer_scan_results_materializer_guard = None;
                     }
                     Err(error) => {
-                        log::error!("Failed to acquire write lock on pointer scan materializer store: {}", error);
+                        log::error!("Failed to acquire write lock on pointer scan results materializer store: {}", error);
                     }
                 }
                 log::info!("Cleared the active pointer scan results.");
