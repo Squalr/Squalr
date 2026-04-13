@@ -17,6 +17,10 @@ use squalr_engine_api::{
 
 pub(crate) struct PointerScanDispatcher;
 
+static SCALAR_LINEAR_POINTER_SCAN_KERNEL: ScalarLinearPointerScanKernel = ScalarLinearPointerScanKernel;
+static SCALAR_BINARY_POINTER_SCAN_KERNEL: ScalarBinaryPointerScanKernel = ScalarBinaryPointerScanKernel;
+static SIMD_LINEAR_POINTER_SCAN_KERNEL: SimdLinearPointerScanKernel = SimdLinearPointerScanKernel;
+
 impl PointerScanDispatcher {
     pub(crate) fn build_execution_plan(
         target_range_set: &PointerScanTargetRangeSet,
@@ -35,23 +39,14 @@ impl PointerScanDispatcher {
         pointer_scan_execution_plan
     }
 
-    pub(crate) fn acquire_range_search_kernel<'a>(
-        target_range_set: &'a PointerScanTargetRangeSet,
+    pub(crate) fn acquire_range_search_kernel(
+        _target_range_set: &PointerScanTargetRangeSet,
         pointer_scan_execution_plan: &PointerScanExecutionPlan,
-    ) -> Box<dyn PointerScanSearchKernel + 'a> {
+    ) -> &'static dyn PointerScanSearchKernel {
         match pointer_scan_execution_plan.get_planned_kernel_kind() {
-            PlannedPointerScanKernelKind::ScalarLinear => Box::new(ScalarLinearPointerScanKernel::new(
-                target_range_set,
-                pointer_scan_execution_plan.get_pointer_size(),
-            )),
-            PlannedPointerScanKernelKind::ScalarBinary => Box::new(ScalarBinaryPointerScanKernel::new(
-                target_range_set,
-                pointer_scan_execution_plan.get_pointer_size(),
-            )),
-            PlannedPointerScanKernelKind::SimdLinear => Box::new(SimdLinearPointerScanKernel::new(
-                target_range_set,
-                pointer_scan_execution_plan.get_pointer_size(),
-            )),
+            PlannedPointerScanKernelKind::ScalarLinear => &SCALAR_LINEAR_POINTER_SCAN_KERNEL,
+            PlannedPointerScanKernelKind::ScalarBinary => &SCALAR_BINARY_POINTER_SCAN_KERNEL,
+            PlannedPointerScanKernelKind::SimdLinear => &SIMD_LINEAR_POINTER_SCAN_KERNEL,
         }
     }
 }
@@ -59,7 +54,9 @@ impl PointerScanDispatcher {
 #[cfg(test)]
 mod tests {
     use super::PointerScanDispatcher;
-    use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
+    use crate::pointer_scans::{
+        search_kernels::pointer_scan_search_kernel_context::PointerScanSearchKernelContext, structures::pointer_scan_target_ranges::PointerScanTargetRangeSet,
+    };
     use squalr_engine_api::structures::{
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         scanning::plans::pointer_scan::{
@@ -106,7 +103,8 @@ mod tests {
             let mut pointer_scan_execution_plan = PointerScanExecutionPlan::new(PointerScanPointerSize::Pointer64, target_range_set.get_range_count(), 0x1000);
             pointer_scan_execution_plan.set_planned_kernel_kind(planned_kernel_kind);
             let range_search_kernel = PointerScanDispatcher::acquire_range_search_kernel(&target_range_set, &pointer_scan_execution_plan);
-            let pointer_matches = range_search_kernel.scan_region(0x1000, &current_values);
+            let pointer_scan_search_kernel_context = PointerScanSearchKernelContext::new(&target_range_set, pointer_scan_execution_plan.get_pointer_size());
+            let pointer_matches = range_search_kernel.scan_region(&pointer_scan_search_kernel_context, 0x1000, &current_values);
 
             assert_eq!(pointer_matches.len(), 3, "Kernel {:?} returned an unexpected match count.", planned_kernel_kind);
             assert_eq!(pointer_matches[0].get_pointer_address(), 0x1000);

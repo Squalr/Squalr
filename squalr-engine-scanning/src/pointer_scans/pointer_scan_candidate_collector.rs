@@ -1,5 +1,6 @@
 use crate::pointer_scans::pointer_scan_dispatcher::PointerScanDispatcher;
 use crate::pointer_scans::search_kernels::pointer_scan_search_kernel::PointerScanSearchKernel;
+use crate::pointer_scans::search_kernels::pointer_scan_search_kernel_context::PointerScanSearchKernelContext;
 use crate::pointer_scans::structures::pointer_scan_collected_candidate::PointerScanCollectedCandidate;
 use crate::pointer_scans::structures::pointer_scan_collected_level::PointerScanCollectedLevel;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
@@ -34,10 +35,12 @@ impl PointerScanCandidateCollector {
         retain_heap_candidates: bool,
     ) -> PointerScanCollectedLevel {
         let range_search_kernel = PointerScanDispatcher::acquire_range_search_kernel(frontier_target_ranges, pointer_scan_execution_plan);
+        let pointer_scan_search_kernel_context = PointerScanSearchKernelContext::new(frontier_target_ranges, pointer_scan_execution_plan.get_pointer_size());
 
         Self::collect_candidates_with_kernel(
             snapshot_region_scan_tasks,
-            range_search_kernel.as_ref(),
+            range_search_kernel,
+            &pointer_scan_search_kernel_context,
             retain_static_candidates,
             retain_heap_candidates,
         )
@@ -46,10 +49,11 @@ impl PointerScanCandidateCollector {
     fn collect_candidates_with_kernel(
         snapshot_region_scan_tasks: &[SnapshotRegionScanTask<'_>],
         range_search_kernel: &dyn PointerScanSearchKernel,
+        pointer_scan_search_kernel_context: &PointerScanSearchKernelContext<'_>,
         retain_static_candidates: bool,
         retain_heap_candidates: bool,
     ) -> PointerScanCollectedLevel {
-        if range_search_kernel.is_empty() {
+        if range_search_kernel.is_empty(pointer_scan_search_kernel_context) {
             return PointerScanCollectedLevel::default();
         }
 
@@ -61,6 +65,7 @@ impl PointerScanCandidateCollector {
                 Self::collect_task_matches(
                     snapshot_region_scan_task,
                     range_search_kernel,
+                    pointer_scan_search_kernel_context,
                     retain_static_candidates,
                     retain_heap_candidates,
                     &mut collected_level,
@@ -97,11 +102,13 @@ impl PointerScanCandidateCollector {
     fn collect_task_matches(
         snapshot_region_scan_task: &SnapshotRegionScanTask<'_>,
         range_search_kernel: &dyn PointerScanSearchKernel,
+        pointer_scan_search_kernel_context: &PointerScanSearchKernelContext<'_>,
         retain_static_candidates: bool,
         retain_heap_candidates: bool,
         collected_level: &mut PointerScanCollectedLevel,
     ) {
         range_search_kernel.scan_region_with_visitor(
+            pointer_scan_search_kernel_context,
             snapshot_region_scan_task.scan_base_address,
             snapshot_region_scan_task.current_values,
             &mut |pointer_match| {

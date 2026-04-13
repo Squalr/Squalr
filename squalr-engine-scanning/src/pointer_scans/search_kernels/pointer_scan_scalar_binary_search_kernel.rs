@@ -1,38 +1,21 @@
 use crate::pointer_scans::search_kernels::pointer_scan_scalar_region_scanner::scan_region_scalar_with_predicate;
 use crate::pointer_scans::search_kernels::pointer_scan_search_kernel::{PointerScanRegionMatch, PointerScanSearchKernel};
+use crate::pointer_scans::search_kernels::pointer_scan_search_kernel_context::PointerScanSearchKernelContext;
 use crate::pointer_scans::search_kernels::pointer_scan_search_kernel_utils::find_scan_start_offset;
-use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
-pub(crate) struct ScalarBinaryPointerScanKernel<'a> {
-    target_range_set: &'a PointerScanTargetRangeSet,
-    pointer_size: PointerScanPointerSize,
-}
+pub(crate) struct ScalarBinaryPointerScanKernel;
 
-impl<'a> ScalarBinaryPointerScanKernel<'a> {
-    pub(crate) fn new(
-        target_range_set: &'a PointerScanTargetRangeSet,
-        pointer_size: PointerScanPointerSize,
-    ) -> Self {
-        Self {
-            target_range_set,
-            pointer_size,
-        }
-    }
-}
-
-impl PointerScanSearchKernel for ScalarBinaryPointerScanKernel<'_> {
-    fn is_empty(&self) -> bool {
-        self.target_range_set.is_empty()
-    }
-
+impl PointerScanSearchKernel for ScalarBinaryPointerScanKernel {
     fn scan_region_with_visitor(
         &self,
+        pointer_scan_search_kernel_context: &PointerScanSearchKernelContext<'_>,
         base_address: u64,
         current_values: &[u8],
         visit_match: &mut dyn FnMut(PointerScanRegionMatch),
     ) {
-        let Some(start_offset) = find_scan_start_offset(base_address, current_values, self.pointer_size) else {
+        let pointer_size = pointer_scan_search_kernel_context.get_pointer_size();
+        let target_range_set = pointer_scan_search_kernel_context.get_target_range_set();
+        let Some(start_offset) = find_scan_start_offset(base_address, current_values, pointer_size) else {
             return;
         };
 
@@ -40,8 +23,8 @@ impl PointerScanSearchKernel for ScalarBinaryPointerScanKernel<'_> {
             base_address,
             current_values,
             start_offset,
-            self.pointer_size,
-            |pointer_value| self.target_range_set.contains_value_binary(pointer_value),
+            pointer_size,
+            |pointer_value| target_range_set.contains_value_binary(pointer_value),
             visit_match,
         );
     }
