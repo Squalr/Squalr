@@ -134,10 +134,17 @@ impl TuiAppState {
                 let mut entry_rows = self
                     .project_explorer_pane_state
                     .visible_project_entry_rows(project_entry_row_capacity);
-                entry_rows.extend(
-                    self.project_explorer_pane_state
-                        .visible_project_item_entry_rows(project_item_entry_row_capacity),
-                );
+                if self.project_explorer_pane_state.focus_target == ProjectExplorerFocusTarget::ProjectSymbols {
+                    entry_rows.extend(
+                        self.project_explorer_pane_state
+                            .visible_project_symbol_entry_rows(project_item_entry_row_capacity),
+                    );
+                } else {
+                    entry_rows.extend(
+                        self.project_explorer_pane_state
+                            .visible_project_item_entry_rows(project_item_entry_row_capacity),
+                    );
+                }
                 entry_rows
             }
             TuiPane::MemoryViewer => self.memory_viewer_pane_state.visible_row_entries(),
@@ -188,7 +195,10 @@ impl TuiAppState {
             .project_explorer_pane_state
             .project_item_visible_entries
             .len();
-        if self.project_explorer_pane_state.focus_target == ProjectExplorerFocusTarget::ProjectHierarchy {
+        if matches!(
+            self.project_explorer_pane_state.focus_target,
+            ProjectExplorerFocusTarget::ProjectHierarchy | ProjectExplorerFocusTarget::ProjectSymbols
+        ) {
             return (0, total_entry_row_capacity);
         }
 

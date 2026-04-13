@@ -12,6 +12,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -32,6 +34,7 @@ pub enum ProjectExplorerFocusTarget {
     #[default]
     ProjectList,
     ProjectHierarchy,
+    ProjectSymbols,
 }
 
 /// Stores a visible hierarchy entry for a project item.
@@ -76,8 +79,11 @@ pub struct ProjectExplorerPaneState {
     pub is_moving_project_item: bool,
     pub is_reordering_project_item: bool,
     pub is_toggling_project_item_activation: bool,
+    pub is_awaiting_project_symbol_list_response: bool,
+    pub rooted_symbols: Vec<ProjectRootSymbol>,
     pub project_item_visible_entries: Vec<ProjectHierarchyEntry>,
     pub selected_project_item_visible_index: Option<usize>,
+    pub selected_rooted_symbol_index: Option<usize>,
     pub pending_move_source_paths: Vec<PathBuf>,
     pub pending_delete_confirmation_paths: Vec<PathBuf>,
     pub project_item_viewport_capacity: usize,
@@ -174,6 +180,26 @@ impl ProjectExplorerPaneState {
         self.has_loaded_project_item_list_once = true;
     }
 
+    pub fn apply_project_symbols_list(
+        &mut self,
+        project_symbol_catalog: Option<ProjectSymbolCatalog>,
+    ) {
+        let selected_symbol_key_before_refresh = self
+            .selected_rooted_symbol()
+            .map(|rooted_symbol| rooted_symbol.get_symbol_key().to_string());
+        self.rooted_symbols = project_symbol_catalog
+            .map(|project_symbol_catalog| project_symbol_catalog.get_rooted_symbols().to_vec())
+            .unwrap_or_default();
+        self.selected_rooted_symbol_index = selected_symbol_key_before_refresh
+            .as_ref()
+            .and_then(|selected_symbol_key| {
+                self.rooted_symbols
+                    .iter()
+                    .position(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key)
+            })
+            .or_else(|| (!self.rooted_symbols.is_empty()).then_some(0));
+    }
+
     pub fn clear_project_items(&mut self) {
         self.opened_project_item_map.clear();
         self.child_paths_by_parent_path.clear();
@@ -184,6 +210,11 @@ impl ProjectExplorerPaneState {
         self.pending_delete_confirmation_paths.clear();
         self.selected_item_path = None;
         self.has_loaded_project_item_list_once = false;
+    }
+
+    pub fn clear_project_symbols(&mut self) {
+        self.rooted_symbols.clear();
+        self.selected_rooted_symbol_index = None;
     }
 
     pub fn select_next_project_item(&mut self) {
@@ -222,6 +253,11 @@ impl ProjectExplorerPaneState {
         self.project_item_visible_entries
             .get(selected_project_item_visible_index)
             .map(|project_item_entry| project_item_entry.project_item_path.clone())
+    }
+
+    pub fn selected_rooted_symbol(&self) -> Option<&ProjectRootSymbol> {
+        let selected_rooted_symbol_index = self.selected_rooted_symbol_index?;
+        self.rooted_symbols.get(selected_rooted_symbol_index)
     }
 
     pub fn selected_project_items_for_struct_viewer(&self) -> Vec<(PathBuf, ProjectItem)> {
@@ -629,6 +665,13 @@ impl ProjectExplorerPaneState {
         build_visible_project_item_entry_rows(self, viewport_capacity)
     }
 
+    pub fn visible_project_symbol_entry_rows(
+        &self,
+        viewport_capacity: usize,
+    ) -> Vec<PaneEntryRow> {
+        crate::views::project_explorer::entry_rows::build_visible_project_symbol_entry_rows(self, viewport_capacity)
+    }
+
     pub fn selected_project_item_preview_value(&self) -> Option<&str> {
         self.selected_project_item_visible_index
             .and_then(|selected_project_item_visible_index| {
@@ -730,6 +773,60 @@ impl ProjectExplorerPaneState {
         let last_visible_project_item_position = self.project_item_visible_entries.len() - 1;
         self.selected_project_item_visible_index = Some(last_visible_project_item_position);
         self.update_selected_item_path();
+    }
+
+    pub fn select_next_rooted_symbol(&mut self) {
+        if self.rooted_symbols.is_empty() {
+            self.selected_rooted_symbol_index = None;
+            return;
+        }
+
+        let selected_rooted_symbol_index = self.selected_rooted_symbol_index.unwrap_or(0);
+        self.selected_rooted_symbol_index = Some((selected_rooted_symbol_index + 1) % self.rooted_symbols.len());
+    }
+
+    pub fn select_previous_rooted_symbol(&mut self) {
+        if self.rooted_symbols.is_empty() {
+            self.selected_rooted_symbol_index = None;
+            return;
+        }
+
+        let selected_rooted_symbol_index = self.selected_rooted_symbol_index.unwrap_or(0);
+        self.selected_rooted_symbol_index = Some(if selected_rooted_symbol_index == 0 {
+            self.rooted_symbols.len() - 1
+        } else {
+            selected_rooted_symbol_index - 1
+        });
+    }
+
+    pub fn select_first_rooted_symbol(&mut self) {
+        self.selected_rooted_symbol_index = (!self.rooted_symbols.is_empty()).then_some(0);
+    }
+
+    pub fn select_last_rooted_symbol(&mut self) {
+        self.selected_rooted_symbol_index = (!self.rooted_symbols.is_empty()).then_some(self.rooted_symbols.len().saturating_sub(1));
+    }
+
+    pub fn switch_to_project_symbols(&mut self) -> bool {
+        if self.active_project_directory_path.is_none() {
+            return false;
+        }
+
+        self.focus_target = ProjectExplorerFocusTarget::ProjectSymbols;
+        if self.selected_rooted_symbol_index.is_none() && !self.rooted_symbols.is_empty() {
+            self.selected_rooted_symbol_index = Some(0);
+        }
+
+        true
+    }
+
+    pub fn switch_to_project_hierarchy(&mut self) -> bool {
+        if self.active_project_directory_path.is_none() {
+            return false;
+        }
+
+        self.focus_target = ProjectExplorerFocusTarget::ProjectHierarchy;
+        true
     }
 
     fn update_selected_project_fields(&mut self) {
@@ -901,8 +998,11 @@ impl Default for ProjectExplorerPaneState {
             is_moving_project_item: false,
             is_reordering_project_item: false,
             is_toggling_project_item_activation: false,
+            is_awaiting_project_symbol_list_response: false,
+            rooted_symbols: Vec::new(),
             project_item_visible_entries: Vec::new(),
             selected_project_item_visible_index: None,
+            selected_rooted_symbol_index: None,
             pending_move_source_paths: Vec::new(),
             pending_delete_confirmation_paths: Vec::new(),
             project_item_viewport_capacity: 0,
@@ -980,6 +1080,8 @@ mod tests {
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
+    use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
+    use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
     use std::path::PathBuf;
 
     #[test]
@@ -1100,5 +1202,38 @@ mod tests {
         project_explorer_pane_state.select_first_project_item();
 
         assert_eq!(project_explorer_pane_state.selected_item_path.as_deref(), Some("Addresses/Health.json"));
+    }
+
+    #[test]
+    fn apply_project_symbols_list_selects_first_rooted_symbol_when_present() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        project_explorer_pane_state.apply_project_symbols_list(Some(ProjectSymbolCatalog::new_with_rooted_symbols(
+            Vec::new(),
+            vec![ProjectRootSymbol::new_absolute_address(
+                String::from("sym.player"),
+                String::from("Player"),
+                0x100,
+                String::from("player"),
+            )],
+        )));
+
+        assert_eq!(project_explorer_pane_state.rooted_symbols.len(), 1);
+        assert_eq!(project_explorer_pane_state.selected_rooted_symbol_index, Some(0));
+        assert_eq!(
+            project_explorer_pane_state
+                .selected_rooted_symbol()
+                .map(|rooted_symbol| rooted_symbol.get_symbol_key()),
+            Some("sym.player")
+        );
+    }
+
+    #[test]
+    fn switch_to_project_symbols_requires_active_project() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        assert!(!project_explorer_pane_state.switch_to_project_symbols());
+
+        project_explorer_pane_state.set_active_project(Some(String::from("TestProject")), Some(PathBuf::from("C:/tmp/test_project")));
+        assert!(project_explorer_pane_state.switch_to_project_symbols());
+        assert_eq!(project_explorer_pane_state.focus_target, ProjectExplorerFocusTarget::ProjectSymbols);
     }
 }

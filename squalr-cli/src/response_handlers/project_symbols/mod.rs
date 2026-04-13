@@ -28,6 +28,21 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                     rooted_symbol.get_struct_layout_id(),
                     rooted_symbol.get_root_locator()
                 );
+
+                for (metadata_key, metadata_value) in rooted_symbol.get_metadata() {
+                    log::info!("  metadata: {}={}", metadata_key, metadata_value);
+                }
+            }
+
+            for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+                log::info!(
+                    "type: {}, fields={}",
+                    struct_layout_descriptor.get_struct_layout_id(),
+                    struct_layout_descriptor
+                        .get_struct_layout_definition()
+                        .get_fields()
+                        .len()
+                );
             }
         }
         ProjectSymbolsResponse::Create {

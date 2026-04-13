@@ -191,4 +191,40 @@ impl AppShell {
                 .focus_address(address, &module_name);
         }
     }
+
+    pub(super) fn open_memory_viewer_for_selected_rooted_symbol(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(selected_rooted_symbol) = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_rooted_symbol()
+            .cloned()
+        else {
+            self.app_state.project_explorer_pane_state.status_message = String::from("No rooted symbol is selected for memory viewer focus.");
+            return;
+        };
+        let address = selected_rooted_symbol.get_root_locator().get_focus_address();
+        let module_name = selected_rooted_symbol
+            .get_root_locator()
+            .get_focus_module_name()
+            .to_string();
+
+        self.app_state
+            .set_active_workspace_page(crate::state::workspace_page::TuiWorkspacePage::MemoryWorkspace);
+        self.app_state
+            .set_focused_pane(crate::state::pane::TuiPane::MemoryViewer);
+        if !self
+            .app_state
+            .memory_viewer_pane_state
+            .focus_address(address, &module_name)
+        {
+            self.refresh_memory_viewer_pages_with_feedback(squalr_engine, false);
+            let _ = self
+                .app_state
+                .memory_viewer_pane_state
+                .focus_address(address, &module_name);
+        }
+    }
 }

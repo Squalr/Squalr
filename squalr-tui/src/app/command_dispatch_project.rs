@@ -14,8 +14,11 @@ use squalr_engine_api::commands::project_items::create::project_items_create_req
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
+use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest;
+use squalr_engine_api::commands::project_symbols::list::project_symbols_list_request::ProjectSymbolsListRequest;
 use squalr_engine_api::commands::scan_results::set_property::scan_results_set_property_request::ScanResultsSetPropertyRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
@@ -199,6 +202,80 @@ impl AppShell {
         self.app_state
             .project_explorer_pane_state
             .is_awaiting_project_item_list_response = false;
+    }
+
+    pub(super) fn refresh_project_symbols_list(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        self.refresh_project_symbols_list_with_feedback(squalr_engine, true);
+    }
+
+    pub(super) fn refresh_project_symbols_list_with_feedback(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+        should_update_status_message: bool,
+    ) {
+        if self
+            .app_state
+            .project_explorer_pane_state
+            .is_awaiting_project_symbol_list_response
+        {
+            if should_update_status_message {
+                self.app_state.project_explorer_pane_state.status_message = "Project symbol list request already in progress.".to_string();
+            }
+            return;
+        }
+
+        let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
+            Some(engine_unprivileged_state) => engine_unprivileged_state,
+            None => {
+                if should_update_status_message {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        "No unprivileged engine state is available for project symbol listing.".to_string();
+                }
+                return;
+            }
+        };
+
+        self.app_state
+            .project_explorer_pane_state
+            .is_awaiting_project_symbol_list_response = true;
+        if should_update_status_message {
+            self.app_state.project_explorer_pane_state.status_message = "Refreshing rooted symbols.".to_string();
+        }
+
+        let project_symbols_list_request = ProjectSymbolsListRequest::default();
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_symbols_list_request.send(engine_unprivileged_state, move |project_symbols_list_response| {
+            let _ = response_sender.send(project_symbols_list_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_symbols_list_response) => {
+                let rooted_symbol_count = project_symbols_list_response
+                    .project_symbol_catalog
+                    .as_ref()
+                    .map(|project_symbol_catalog| project_symbol_catalog.get_rooted_symbols().len())
+                    .unwrap_or(0);
+                self.app_state
+                    .project_explorer_pane_state
+                    .apply_project_symbols_list(project_symbols_list_response.project_symbol_catalog);
+                if should_update_status_message {
+                    self.app_state.project_explorer_pane_state.status_message = format!("Loaded {} rooted symbols.", rooted_symbol_count);
+                }
+            }
+            Err(receive_error) => {
+                if should_update_status_message {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        format!("Timed out waiting for project symbol list response: {}", receive_error);
+                }
+            }
+        }
+
+        self.app_state
+            .project_explorer_pane_state
+            .is_awaiting_project_symbol_list_response = false;
     }
 
     pub(super) fn sync_project_item_virtual_snapshot(
@@ -708,6 +785,102 @@ impl AppShell {
             .is_deleting_project_item = false;
     }
 
+    pub(super) fn promote_selected_project_item_to_symbol(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(selected_project_item_path) = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_project_item_path()
+        else {
+            self.app_state.project_explorer_pane_state.status_message = "No project item is selected for symbol promotion.".to_string();
+            return;
+        };
+
+        let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
+            Some(engine_unprivileged_state) => engine_unprivileged_state,
+            None => {
+                self.app_state.project_explorer_pane_state.status_message = "No unprivileged engine state is available for symbol promotion.".to_string();
+                return;
+            }
+        };
+
+        self.app_state.project_explorer_pane_state.status_message = format!("Promoting {} to rooted symbol.", selected_project_item_path.display());
+
+        let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![selected_project_item_path.clone()],
+        };
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_items_promote_symbol_request.send(engine_unprivileged_state, move |project_items_promote_symbol_response| {
+            let _ = response_sender.send(project_items_promote_symbol_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_items_promote_symbol_response) => {
+                if project_items_promote_symbol_response.success {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        format!("Promoted {} rooted symbol(s).", project_items_promote_symbol_response.promoted_symbol_count);
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                } else {
+                    self.app_state.project_explorer_pane_state.status_message = "Project item symbol promotion failed.".to_string();
+                }
+            }
+            Err(receive_error) => {
+                self.app_state.project_explorer_pane_state.status_message =
+                    format!("Timed out waiting for project item symbol promotion response: {}", receive_error);
+            }
+        }
+    }
+
+    pub(super) fn delete_selected_rooted_symbol(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(selected_rooted_symbol) = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_rooted_symbol()
+            .cloned()
+        else {
+            self.app_state.project_explorer_pane_state.status_message = "No rooted symbol is selected for delete.".to_string();
+            return;
+        };
+
+        let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
+            Some(engine_unprivileged_state) => engine_unprivileged_state,
+            None => {
+                self.app_state.project_explorer_pane_state.status_message = "No unprivileged engine state is available for rooted symbol delete.".to_string();
+                return;
+            }
+        };
+
+        self.app_state.project_explorer_pane_state.status_message = format!("Deleting rooted symbol '{}'.", selected_rooted_symbol.get_display_name());
+
+        let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
+            symbol_keys: vec![selected_rooted_symbol.get_symbol_key().to_string()],
+        };
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_symbols_delete_request.send(engine_unprivileged_state, move |project_symbols_delete_response| {
+            let _ = response_sender.send(project_symbols_delete_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_symbols_delete_response) => {
+                if project_symbols_delete_response.success {
+                    self.app_state.project_explorer_pane_state.status_message =
+                        format!("Deleted {} rooted symbol(s).", project_symbols_delete_response.deleted_symbol_count);
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                } else {
+                    self.app_state.project_explorer_pane_state.status_message = "Rooted symbol delete request failed.".to_string();
+                }
+            }
+            Err(receive_error) => {
+                self.app_state.project_explorer_pane_state.status_message = format!("Timed out waiting for rooted symbol delete response: {}", receive_error);
+            }
+        }
+    }
+
     pub(super) fn open_selected_project(
         &mut self,
         squalr_engine: &mut SqualrEngine,
@@ -763,8 +936,12 @@ impl AppShell {
                         .project_explorer_pane_state
                         .set_active_project(Some(selected_project_name.clone()), Some(selected_project_directory_path.clone()));
                     self.app_state.project_explorer_pane_state.clear_project_items();
+                    self.app_state
+                        .project_explorer_pane_state
+                        .clear_project_symbols();
                     self.app_state.project_explorer_pane_state.status_message = format!("Opened project '{}'.", selected_project_name);
                     self.refresh_project_items_list(squalr_engine);
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
                     self.refresh_plugins_with_feedback(squalr_engine, false);
                 } else {
                     self.app_state.project_explorer_pane_state.status_message = "Project open request failed.".to_string();
@@ -928,6 +1105,9 @@ impl AppShell {
                             .project_explorer_pane_state
                             .set_active_project(None, None);
                         self.app_state.project_explorer_pane_state.clear_project_items();
+                        self.app_state
+                            .project_explorer_pane_state
+                            .clear_project_symbols();
                     }
                     self.app_state.project_explorer_pane_state.status_message = format!("Deleted project '{}'.", selected_project_name);
                     self.refresh_project_list(squalr_engine);
@@ -976,6 +1156,9 @@ impl AppShell {
                         .project_explorer_pane_state
                         .set_active_project(None, None);
                     self.app_state.project_explorer_pane_state.clear_project_items();
+                    self.app_state
+                        .project_explorer_pane_state
+                        .clear_project_symbols();
                     self.app_state.project_explorer_pane_state.status_message = "Closed active project.".to_string();
                 } else {
                     self.app_state.project_explorer_pane_state.status_message = "Project close request failed.".to_string();

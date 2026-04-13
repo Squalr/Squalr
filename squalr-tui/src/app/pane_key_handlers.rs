@@ -468,6 +468,7 @@ impl AppShell {
         match self.app_state.project_explorer_pane_state.focus_target {
             ProjectExplorerFocusTarget::ProjectList => self.handle_project_list_key_event(key_event.code, squalr_engine),
             ProjectExplorerFocusTarget::ProjectHierarchy => self.handle_project_hierarchy_key_event(key_event.code, squalr_engine),
+            ProjectExplorerFocusTarget::ProjectSymbols => self.handle_project_symbols_key_event(key_event.code, squalr_engine),
         }
     }
 
@@ -565,6 +566,7 @@ impl AppShell {
                 self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Char('o') => self.open_memory_viewer_for_selected_project_item(squalr_engine),
+            KeyCode::Char('p') => self.promote_selected_project_item_to_symbol(squalr_engine),
             KeyCode::Char('n') => {
                 if !self
                     .app_state
@@ -587,6 +589,17 @@ impl AppShell {
                 }
             }
             KeyCode::Char('b') => self.move_staged_project_items_to_selected_directory(squalr_engine),
+            KeyCode::Char('s') => {
+                if self
+                    .app_state
+                    .project_explorer_pane_state
+                    .switch_to_project_symbols()
+                {
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                } else {
+                    self.app_state.project_explorer_pane_state.status_message = "No active project is available for rooted symbol browsing.".to_string();
+                }
+            }
             KeyCode::Char('u') => {
                 self.app_state
                     .project_explorer_pane_state
@@ -596,6 +609,42 @@ impl AppShell {
             KeyCode::Char('[') => self.reorder_selected_project_item(squalr_engine, true),
             KeyCode::Char(']') => self.reorder_selected_project_item(squalr_engine, false),
             KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_project_item_with_confirmation(squalr_engine),
+            KeyCode::Char('c') => self.close_active_project(squalr_engine),
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_project_symbols_key_event(
+        &mut self,
+        key_code: KeyCode,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        match key_code {
+            KeyCode::Char('r') => self.refresh_project_symbols_list(squalr_engine),
+            KeyCode::Down => self
+                .app_state
+                .project_explorer_pane_state
+                .select_next_rooted_symbol(),
+            KeyCode::Up => self
+                .app_state
+                .project_explorer_pane_state
+                .select_previous_rooted_symbol(),
+            KeyCode::Home => self
+                .app_state
+                .project_explorer_pane_state
+                .select_first_rooted_symbol(),
+            KeyCode::End => self
+                .app_state
+                .project_explorer_pane_state
+                .select_last_rooted_symbol(),
+            KeyCode::Char('o') => self.open_memory_viewer_for_selected_rooted_symbol(squalr_engine),
+            KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_rooted_symbol(squalr_engine),
+            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('s') => {
+                let _ = self
+                    .app_state
+                    .project_explorer_pane_state
+                    .switch_to_project_hierarchy();
+            }
             KeyCode::Char('c') => self.close_active_project(squalr_engine),
             _ => {}
         }
