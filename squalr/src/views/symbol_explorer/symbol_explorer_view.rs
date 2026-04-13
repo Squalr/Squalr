@@ -4,7 +4,7 @@ use crate::views::{
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     symbol_explorer::view_data::{
         symbol_explorer_view_data::{RootedSymbolDraftLocatorMode, SymbolExplorerSelection, SymbolExplorerViewData},
-        symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries},
+        symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries},
     },
 };
 use eframe::egui::{Align, Button, Direction, Layout, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget, vec2};
@@ -18,10 +18,17 @@ use squalr_engine_api::commands::{
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::{
     project_root_symbol::ProjectRootSymbol, project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog,
 };
+use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
+use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
+use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct SymbolExplorerView {
@@ -34,6 +41,8 @@ pub struct SymbolExplorerView {
 impl SymbolExplorerView {
     pub const WINDOW_ID: &'static str = "window_symbol_explorer";
     const DETAILS_PANEL_WIDTH_RATIO: f32 = 0.42;
+    const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_pointer_children";
+    const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_explorer_view_data = app_context
@@ -175,6 +184,142 @@ impl SymbolExplorerView {
         });
     }
 
+    fn sync_pointer_child_virtual_snapshot(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entries: &[SymbolTreeEntry],
+    ) {
+        let pointer_snapshot_queries = self.build_pointer_snapshot_queries(project_symbol_catalog, symbol_tree_entries);
+
+        self.app_context
+            .engine_unprivileged_state
+            .set_virtual_snapshot_queries(
+                Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID,
+                Self::POINTER_CHILDREN_REFRESH_INTERVAL,
+                pointer_snapshot_queries,
+            );
+        self.app_context
+            .engine_unprivileged_state
+            .request_virtual_snapshot_refresh(Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID);
+    }
+
+    fn build_pointer_snapshot_queries(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entries: &[SymbolTreeEntry],
+    ) -> Vec<VirtualSnapshotQuery> {
+        symbol_tree_entries
+            .iter()
+            .filter(|symbol_tree_entry| {
+                symbol_tree_entry.is_expanded()
+                    && !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::PointerTarget)
+                    && symbol_tree_entry
+                        .get_container_type()
+                        .get_pointer_size()
+                        .is_some()
+            })
+            .filter_map(|symbol_tree_entry| self.build_pointer_virtual_snapshot_query(project_symbol_catalog, symbol_tree_entry))
+            .collect()
+    }
+
+    fn build_pointer_virtual_snapshot_query(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entry: &SymbolTreeEntry,
+    ) -> Option<VirtualSnapshotQuery> {
+        let pointer_size = symbol_tree_entry.get_container_type().get_pointer_size()?;
+        let symbolic_struct_definition =
+            self.build_symbolic_struct_definition_for_symbol_type(project_symbol_catalog, symbol_tree_entry.get_symbol_type_id())?;
+
+        Some(VirtualSnapshotQuery::Pointer {
+            query_id: symbol_tree_entry.get_node_key().to_string(),
+            pointer: Pointer::new_with_size(
+                symbol_tree_entry.get_locator().get_focus_address(),
+                vec![0],
+                symbol_tree_entry
+                    .get_locator()
+                    .get_focus_module_name()
+                    .to_string(),
+                pointer_size,
+            ),
+            symbolic_struct_definition,
+        })
+    }
+
+    fn build_symbolic_struct_definition_for_symbol_type(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_type_id: &str,
+    ) -> Option<SymbolicStructDefinition> {
+        if let Some(project_struct_layout_descriptor) = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbol_type_id)
+        {
+            return Some(
+                project_struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .clone(),
+            );
+        }
+
+        if let Ok(symbolic_struct_definition) = SymbolicStructDefinition::from_str(symbol_type_id) {
+            return Some(symbolic_struct_definition);
+        }
+
+        if let Some(symbolic_struct_definition) = self
+            .app_context
+            .engine_unprivileged_state
+            .resolve_struct_layout_definition(symbol_type_id)
+        {
+            return Some(symbolic_struct_definition);
+        }
+
+        if let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(symbol_type_id) {
+            return Some(SymbolicStructDefinition::new_anonymous(vec![symbolic_field_definition]));
+        }
+
+        Some(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
+            DataTypeRef::new(symbol_type_id),
+            Default::default(),
+        )]))
+    }
+
+    fn collect_resolved_pointer_targets_by_node_key(&self) -> HashMap<String, ResolvedPointerTarget> {
+        let Some(virtual_snapshot) = self
+            .app_context
+            .engine_unprivileged_state
+            .get_virtual_snapshot(Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID)
+        else {
+            return HashMap::new();
+        };
+
+        virtual_snapshot
+            .get_query_results()
+            .iter()
+            .filter_map(|(query_id, virtual_snapshot_query_result)| {
+                let resolved_address = virtual_snapshot_query_result.resolved_address?;
+                let target_locator = if virtual_snapshot_query_result.resolved_module_name.is_empty() {
+                    ProjectRootSymbolLocator::new_absolute_address(resolved_address)
+                } else {
+                    ProjectRootSymbolLocator::new_module_offset(virtual_snapshot_query_result.resolved_module_name.clone(), resolved_address)
+                };
+
+                Some((
+                    query_id.clone(),
+                    ResolvedPointerTarget::new(target_locator, virtual_snapshot_query_result.evaluated_pointer_path.clone()),
+                ))
+            })
+            .collect()
+    }
+
+    fn get_resolved_pointer_target_for_node_key(
+        resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
+        node_key: &str,
+    ) -> Option<ResolvedPointerTarget> {
+        resolved_pointer_targets_by_node_key.get(node_key).cloned()
+    }
+
     fn render_symbol_tree_list(
         &self,
         user_interface: &mut Ui,
@@ -235,7 +380,7 @@ impl SymbolExplorerView {
                 if response.clicked() {
                     let selection = match symbol_tree_entry.get_kind() {
                         SymbolTreeEntryKind::RootedSymbol { symbol_key } => SymbolExplorerSelection::RootedSymbol(symbol_key.to_string()),
-                        SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement => {
+                        SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement | SymbolTreeEntryKind::PointerTarget => {
                             SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                         }
                     };
@@ -409,6 +554,7 @@ impl SymbolExplorerView {
         &self,
         user_interface: &mut Ui,
         symbol_tree_entry: &SymbolTreeEntry,
+        resolved_pointer_target: Option<ResolvedPointerTarget>,
     ) {
         user_interface.label(
             RichText::new(symbol_tree_entry.get_display_name())
@@ -430,13 +576,22 @@ impl SymbolExplorerView {
             symbol_tree_entry.get_container_type()
         ));
         user_interface.monospace(format!("locator: {}", symbol_tree_entry.get_locator()));
+
+        if let Some(resolved_pointer_target) = resolved_pointer_target {
+            user_interface.monospace(format!("resolved target: {}", resolved_pointer_target.get_target_locator()));
+
+            if !resolved_pointer_target.get_evaluated_pointer_path().is_empty() {
+                user_interface.monospace(format!("pointer path: {}", resolved_pointer_target.get_evaluated_pointer_path()));
+            }
+        }
+
         user_interface.add_space(10.0);
 
         user_interface.horizontal(|user_interface| {
             if user_interface.button("Promote to Rooted Symbol").clicked() {
                 self.create_rooted_symbol_from_locator(
                     symbol_tree_entry.get_promotion_display_name().to_string(),
-                    symbol_tree_entry.get_symbol_type_id().to_string(),
+                    symbol_tree_entry.get_promoted_symbol_type_id(),
                     symbol_tree_entry.get_locator().clone(),
                 );
             }
@@ -703,6 +858,10 @@ impl Widget for SymbolExplorerView {
         user_interface: &mut Ui,
     ) -> Response {
         let Some(project_symbol_catalog) = self.get_opened_project_symbol_catalog() else {
+            self.app_context
+                .engine_unprivileged_state
+                .set_virtual_snapshot_queries(Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID, Self::POINTER_CHILDREN_REFRESH_INTERVAL, Vec::new());
+
             return user_interface
                 .allocate_ui_with_layout(
                     user_interface.available_size(),
@@ -722,12 +881,25 @@ impl Widget for SymbolExplorerView {
             .read("Symbol explorer expanded tree nodes")
             .map(|symbol_explorer_view_data| symbol_explorer_view_data.get_expanded_tree_node_keys().clone())
             .unwrap_or_default();
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, |data_type_ref| {
+        let structural_symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             self.app_context
                 .engine_unprivileged_state
                 .get_default_value(data_type_ref)
                 .map(|default_value| default_value.get_size_in_bytes())
         });
+        self.sync_pointer_child_virtual_snapshot(&project_symbol_catalog, &structural_symbol_tree_entries);
+        let resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &resolved_pointer_targets_by_node_key,
+            |data_type_ref| {
+                self.app_context
+                    .engine_unprivileged_state
+                    .get_default_value(data_type_ref)
+                    .map(|default_value| default_value.get_size_in_bytes())
+            },
+        );
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
         let selected_entry = self
             .symbol_explorer_view_data
@@ -821,7 +993,11 @@ impl Widget for SymbolExplorerView {
                             .iter()
                             .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key)
                         {
-                            self.render_derived_symbol_details(&mut details_user_interface, symbol_tree_entry);
+                            self.render_derived_symbol_details(
+                                &mut details_user_interface,
+                                symbol_tree_entry,
+                                Self::get_resolved_pointer_target_for_node_key(&resolved_pointer_targets_by_node_key, symbol_tree_entry.get_node_key()),
+                            );
                         } else {
                             details_user_interface.label("Selected derived symbol node no longer exists.");
                         }

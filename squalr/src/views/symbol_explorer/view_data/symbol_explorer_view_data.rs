@@ -257,7 +257,7 @@ impl SymbolExplorerViewData {
             .first()
             .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
                 SymbolTreeEntryKind::RootedSymbol { symbol_key } => SymbolExplorerSelection::RootedSymbol(symbol_key.to_string()),
-                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement => {
+                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement | SymbolTreeEntryKind::PointerTarget => {
                     SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                 }
             });

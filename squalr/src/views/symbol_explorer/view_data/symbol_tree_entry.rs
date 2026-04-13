@@ -5,7 +5,7 @@ use squalr_engine_api::structures::{
     projects::{project_root_symbol::ProjectRootSymbol, project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog},
     structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,6 +13,33 @@ pub enum SymbolTreeEntryKind {
     RootedSymbol { symbol_key: String },
     StructField,
     ArrayElement,
+    PointerTarget,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ResolvedPointerTarget {
+    target_locator: ProjectRootSymbolLocator,
+    evaluated_pointer_path: String,
+}
+
+impl ResolvedPointerTarget {
+    pub fn new(
+        target_locator: ProjectRootSymbolLocator,
+        evaluated_pointer_path: String,
+    ) -> Self {
+        Self {
+            target_locator,
+            evaluated_pointer_path,
+        }
+    }
+
+    pub fn get_target_locator(&self) -> &ProjectRootSymbolLocator {
+        &self.target_locator
+    }
+
+    pub fn get_evaluated_pointer_path(&self) -> &str {
+        &self.evaluated_pointer_path
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -98,6 +125,10 @@ impl SymbolTreeEntry {
         &self.symbol_type_id
     }
 
+    pub fn get_promoted_symbol_type_id(&self) -> String {
+        format!("{}{}", self.symbol_type_id, self.container_type)
+    }
+
     pub fn get_container_type(&self) -> ContainerType {
         self.container_type
     }
@@ -114,6 +145,7 @@ impl SymbolTreeEntry {
 pub fn build_symbol_tree_entries<ResolvePrimitiveSize>(
     project_symbol_catalog: &ProjectSymbolCatalog,
     expanded_tree_node_keys: &HashSet<String>,
+    resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
 ) -> Vec<SymbolTreeEntry>
 where
@@ -127,6 +159,7 @@ where
             project_symbol_catalog,
             rooted_symbol,
             expanded_tree_node_keys,
+            resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
         );
     }
@@ -139,6 +172,7 @@ fn append_rooted_symbol_entry<ResolvePrimitiveSize>(
     project_symbol_catalog: &ProjectSymbolCatalog,
     rooted_symbol: &ProjectRootSymbol,
     expanded_tree_node_keys: &HashSet<String>,
+    resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
@@ -181,6 +215,7 @@ fn append_rooted_symbol_entry<ResolvePrimitiveSize>(
             &struct_layout_definition,
             1,
             expanded_tree_node_keys,
+            resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             &mut HashSet::new(),
         ),
@@ -198,6 +233,7 @@ fn append_rooted_symbol_entry<ResolvePrimitiveSize>(
             container_type,
             1,
             expanded_tree_node_keys,
+            resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             &mut HashSet::new(),
         ),
@@ -215,6 +251,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
     struct_layout_definition: &SymbolicStructDefinition,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
+    resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) where
@@ -268,6 +305,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
                 field_definition.get_container_type(),
                 depth + 1,
                 expanded_tree_node_keys,
+                resolved_pointer_targets_by_node_key,
                 resolve_primitive_size_in_bytes,
                 visited_struct_layout_ids,
             );
@@ -294,6 +332,7 @@ fn append_field_children<ResolvePrimitiveSize>(
     container_type: ContainerType,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
+    resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) where
@@ -345,6 +384,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                             &nested_struct_layout_definition,
                             depth + 1,
                             expanded_tree_node_keys,
+                            resolved_pointer_targets_by_node_key,
                             resolve_primitive_size_in_bytes,
                             visited_struct_layout_ids,
                         );
@@ -371,6 +411,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                     &nested_struct_layout_definition,
                     depth,
                     expanded_tree_node_keys,
+                    resolved_pointer_targets_by_node_key,
                     resolve_primitive_size_in_bytes,
                     visited_struct_layout_ids,
                 );
@@ -378,7 +419,51 @@ fn append_field_children<ResolvePrimitiveSize>(
                 visited_struct_layout_ids.remove(&type_identifier);
             }
         }
-        ContainerType::Array | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => {}
+        ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => {
+            let Some(resolved_pointer_target) = resolved_pointer_targets_by_node_key.get(parent_node_key) else {
+                return;
+            };
+            let pointer_target_node_key = format!("{}::target", parent_node_key);
+            let pointer_target_full_path = format!("{}.*", parent_full_path);
+            let pointer_target_locator = resolved_pointer_target.get_target_locator().clone();
+            let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
+            let is_expanded = can_expand && expanded_tree_node_keys.contains(&pointer_target_node_key);
+
+            symbol_tree_entries.push(SymbolTreeEntry::new(
+                pointer_target_node_key.clone(),
+                SymbolTreeEntryKind::PointerTarget,
+                depth,
+                String::from("*"),
+                pointer_target_full_path.clone(),
+                parent_promotion_display_name.to_string(),
+                root_symbol_key.to_string(),
+                pointer_target_locator.clone(),
+                data_type_ref.to_string(),
+                ContainerType::None,
+                can_expand,
+                is_expanded,
+            ));
+
+            if is_expanded {
+                append_field_children(
+                    symbol_tree_entries,
+                    project_symbol_catalog,
+                    root_symbol_key,
+                    &pointer_target_node_key,
+                    &pointer_target_full_path,
+                    parent_promotion_display_name,
+                    &pointer_target_locator,
+                    data_type_ref,
+                    ContainerType::None,
+                    depth + 1,
+                    expanded_tree_node_keys,
+                    resolved_pointer_targets_by_node_key,
+                    resolve_primitive_size_in_bytes,
+                    visited_struct_layout_ids,
+                );
+            }
+        }
+        ContainerType::Array => {}
     }
 }
 
@@ -402,6 +487,7 @@ fn data_type_ref_can_expand(
 ) -> bool {
     match container_type {
         ContainerType::ArrayFixed(length) => length > 0,
+        ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => true,
         ContainerType::None => {
             let data_type_id = data_type_ref.get_data_type_id();
 
@@ -417,7 +503,7 @@ fn data_type_ref_can_expand(
 
             can_expand
         }
-        ContainerType::Array | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => false,
+        ContainerType::Array => false,
     }
 }
 
@@ -584,7 +670,7 @@ fn resolve_root_symbol_type(
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolTreeEntryKind, build_symbol_tree_entries};
+    use super::{ResolvedPointerTarget, SymbolTreeEntryKind, build_symbol_tree_entries};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
@@ -595,7 +681,7 @@ mod tests {
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn build_symbol_tree_entries_derives_nested_struct_and_array_children() {
@@ -641,13 +727,17 @@ mod tests {
             String::from("root:sym.player::items"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, |data_type_ref| {
-            match data_type_ref.get_data_type_id() {
-                "u16" => Some(2),
-                "u32" => Some(4),
-                _ => None,
-            }
-        });
+        let symbol_tree_entries =
+            build_symbol_tree_entries(
+                &project_symbol_catalog,
+                &expanded_tree_node_keys,
+                &HashMap::new(),
+                |data_type_ref| match data_type_ref.get_data_type_id() {
+                    "u16" => Some(2),
+                    "u32" => Some(4),
+                    _ => None,
+                },
+            );
 
         assert_eq!(symbol_tree_entries.len(), 9);
         assert_eq!(symbol_tree_entries[0].get_display_name(), "Player");
@@ -672,7 +762,7 @@ mod tests {
         assert_eq!(symbol_tree_entries[7].get_full_path(), "Player.items[1]");
         assert_eq!(symbol_tree_entries[7].get_locator(), &ProjectRootSymbolLocator::new_absolute_address(0x10E));
         assert_eq!(symbol_tree_entries[8].get_full_path(), "Player.next");
-        assert_eq!(symbol_tree_entries[8].can_expand(), false);
+        assert_eq!(symbol_tree_entries[8].can_expand(), true);
     }
 
     #[test]
@@ -689,7 +779,7 @@ mod tests {
         );
         let expanded_tree_node_keys = HashSet::from([String::from("root:sym.health")]);
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, |data_type_ref| {
+        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u32").then_some(4)
         });
 
@@ -697,5 +787,60 @@ mod tests {
         assert_eq!(symbol_tree_entries[0].get_symbol_type_id(), "u32");
         assert_eq!(symbol_tree_entries[0].get_container_type(), ContainerType::None);
         assert_eq!(symbol_tree_entries[0].can_expand(), false);
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_derives_pointer_target_children_from_resolved_targets() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+            vec![StructLayoutDescriptor::new(
+                String::from("player"),
+                SymbolicStructDefinition::new(
+                    String::from("player"),
+                    vec![
+                        SymbolicFieldDefinition::new_named(String::from("health"), DataTypeRef::new("u32"), ContainerType::None),
+                        SymbolicFieldDefinition::new_named(
+                            String::from("next"),
+                            DataTypeRef::new("player"),
+                            ContainerType::Pointer(PointerScanPointerSize::Pointer64),
+                        ),
+                    ],
+                ),
+            )],
+            vec![ProjectRootSymbol::new_absolute_address(
+                String::from("sym.player"),
+                String::from("Player"),
+                0x100,
+                String::from("player"),
+            )],
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("root:sym.player"),
+            String::from("root:sym.player::next"),
+            String::from("root:sym.player::next::target"),
+        ]);
+        let resolved_pointer_targets_by_node_key = HashMap::from([(
+            String::from("root:sym.player::next"),
+            ResolvedPointerTarget::new(ProjectRootSymbolLocator::new_absolute_address(0x200), String::from("0x100 -> 0x200")),
+        )]);
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &resolved_pointer_targets_by_node_key,
+            |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
+        );
+
+        assert_eq!(symbol_tree_entries.len(), 6);
+        assert_eq!(symbol_tree_entries[2].get_full_path(), "Player.next");
+        assert_eq!(
+            symbol_tree_entries[2].get_container_type(),
+            ContainerType::Pointer(PointerScanPointerSize::Pointer64)
+        );
+        assert_eq!(symbol_tree_entries[3].get_kind(), &SymbolTreeEntryKind::PointerTarget);
+        assert_eq!(symbol_tree_entries[3].get_full_path(), "Player.next.*");
+        assert_eq!(symbol_tree_entries[3].get_locator(), &ProjectRootSymbolLocator::new_absolute_address(0x200));
+        assert_eq!(symbol_tree_entries[4].get_full_path(), "Player.next.*.health");
+        assert_eq!(symbol_tree_entries[4].get_locator(), &ProjectRootSymbolLocator::new_absolute_address(0x200));
+        assert_eq!(symbol_tree_entries[5].get_full_path(), "Player.next.*.next");
     }
 }
