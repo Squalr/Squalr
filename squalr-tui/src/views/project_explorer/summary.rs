@@ -20,7 +20,7 @@ pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &Projec
             project_explorer_pane_state.pending_project_name_input
         ));
     } else if project_explorer_pane_state.focus_target == ProjectExplorerFocusTarget::ProjectHierarchy {
-        summary_lines.push("[TREE] Up/Down move | Home/End jump | l/Right expand | h/Left collapse | Space activate | o memory.".to_string());
+        summary_lines.push("[TREE] Up/Down move | Home/End jump | l/Right expand | h/Left collapse | Space activate | o memory | v code.".to_string());
         summary_lines.push("[MOVE] m stage | b move | [/] reorder | u clear-stage | p promote | s symbols.".to_string());
         summary_lines.push(format!(
             "[PROJ] selected={} | active={} | dir={}.",
@@ -45,7 +45,7 @@ pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &Projec
             project_explorer_pane_state.pending_project_name_input
         ));
     } else {
-        summary_lines.push("[SYM] Up/Down move | Home/End jump | o memory | x delete | s tree | r refresh.".to_string());
+        summary_lines.push("[SYM] Up/Down move | Home/End jump | o memory | v code | x delete | s tree | r refresh.".to_string());
         summary_lines.push(format!(
             "[PROJ] selected={} | active={} | dir={}.",
             option_to_compact_text(project_explorer_pane_state.selected_project_name.as_deref()),

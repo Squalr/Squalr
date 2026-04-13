@@ -24,6 +24,7 @@ impl AppShell {
             self.invalidate_plugins_for_process_change();
             if let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() {
                 self.clear_memory_viewer_for_process_change(engine_unprivileged_state);
+                self.clear_code_viewer_for_process_change(engine_unprivileged_state);
             }
         }
         self.refresh_plugins_if_engine_event_pending(squalr_engine);
@@ -53,6 +54,7 @@ impl AppShell {
         }
 
         let _ = self.sync_memory_viewer_on_tick(squalr_engine);
+        let _ = self.sync_code_viewer_on_tick(squalr_engine);
         self.refresh_settings_on_tick_if_eligible(squalr_engine);
         self.refresh_plugins_on_tick_if_eligible(squalr_engine);
     }

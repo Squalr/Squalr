@@ -1,3 +1,4 @@
+pub mod code_viewer;
 pub mod element_scanner;
 pub mod entry_row_viewport;
 pub mod memory_viewer;

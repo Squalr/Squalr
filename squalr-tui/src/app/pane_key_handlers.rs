@@ -19,6 +19,7 @@ impl AppShell {
             TuiPane::ProjectExplorer => self.handle_project_explorer_key_event(key_event, squalr_engine),
             TuiPane::StructViewer => self.handle_struct_viewer_key_event(key_event, squalr_engine),
             TuiPane::MemoryViewer => self.handle_memory_viewer_key_event(key_event, squalr_engine),
+            TuiPane::CodeViewer => self.handle_code_viewer_key_event(key_event, squalr_engine),
             TuiPane::Output => self.handle_output_key_event(key_event.code, squalr_engine),
             TuiPane::Settings => self.handle_settings_key_event(key_event, squalr_engine),
             TuiPane::Plugins => self.handle_plugins_key_event(key_event, squalr_engine),
@@ -566,6 +567,7 @@ impl AppShell {
                 self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Char('o') => self.open_memory_viewer_for_selected_project_item(squalr_engine),
+            KeyCode::Char('v') => self.open_code_viewer_for_selected_project_item(squalr_engine),
             KeyCode::Char('p') => self.promote_selected_project_item_to_symbol(squalr_engine),
             KeyCode::Char('n') => {
                 if !self
@@ -638,6 +640,7 @@ impl AppShell {
                 .project_explorer_pane_state
                 .select_last_rooted_symbol(),
             KeyCode::Char('o') => self.open_memory_viewer_for_selected_rooted_symbol(squalr_engine),
+            KeyCode::Char('v') => self.open_code_viewer_for_selected_rooted_symbol(squalr_engine),
             KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_rooted_symbol(squalr_engine),
             KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('s') => {
                 let _ = self
@@ -774,6 +777,42 @@ impl AppShell {
             KeyCode::Down => self.app_state.memory_viewer_pane_state.select_next_row(),
             KeyCode::PageUp => self.app_state.memory_viewer_pane_state.page_up_rows(),
             KeyCode::PageDown => self.app_state.memory_viewer_pane_state.page_down_rows(),
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_code_viewer_key_event(
+        &mut self,
+        key_event: KeyEvent,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let process_bitness = self
+            .app_state
+            .process_selector_pane_state
+            .opened_process_bitness;
+
+        match key_event.code {
+            KeyCode::Char('r') => self.refresh_code_viewer_pages(squalr_engine),
+            KeyCode::Char('[') => self.app_state.code_viewer_pane_state.navigate_previous_page(),
+            KeyCode::Char(']') => self.app_state.code_viewer_pane_state.navigate_next_page(),
+            KeyCode::Home => self.app_state.code_viewer_pane_state.navigate_first_page(),
+            KeyCode::End => self.app_state.code_viewer_pane_state.navigate_last_page(),
+            KeyCode::Up => self
+                .app_state
+                .code_viewer_pane_state
+                .select_previous_instruction(process_bitness),
+            KeyCode::Down => self
+                .app_state
+                .code_viewer_pane_state
+                .select_next_instruction(process_bitness),
+            KeyCode::PageUp => self
+                .app_state
+                .code_viewer_pane_state
+                .page_up_instructions(process_bitness),
+            KeyCode::PageDown => self
+                .app_state
+                .code_viewer_pane_state
+                .page_down_instructions(process_bitness),
             _ => {}
         }
     }

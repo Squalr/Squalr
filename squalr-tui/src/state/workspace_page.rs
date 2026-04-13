@@ -1,6 +1,6 @@
 use crate::state::pane::TuiPane;
 
-/// Represents the three full-screen workflow pages in the TUI.
+/// Represents the full-screen workflow pages in the TUI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TuiWorkspacePage {
     ProjectWorkspace,
@@ -8,6 +8,7 @@ pub enum TuiWorkspacePage {
     SettingsWorkspace,
     PluginsWorkspace,
     MemoryWorkspace,
+    CodeWorkspace,
 }
 
 impl TuiWorkspacePage {
@@ -18,6 +19,7 @@ impl TuiWorkspacePage {
             5 => Some(Self::PluginsWorkspace),
             4 => Some(Self::ProjectWorkspace),
             6 => Some(Self::MemoryWorkspace),
+            7 => Some(Self::CodeWorkspace),
             _ => None,
         }
     }
@@ -29,6 +31,7 @@ impl TuiWorkspacePage {
             Self::SettingsWorkspace => "Settings Workspace",
             Self::PluginsWorkspace => "Plugins Workspace",
             Self::MemoryWorkspace => "Memory Workspace",
+            Self::CodeWorkspace => "Code Workspace",
         }
     }
 
@@ -39,6 +42,7 @@ impl TuiWorkspacePage {
             Self::SettingsWorkspace => "Settings -> Output",
             Self::PluginsWorkspace => "Plugins -> Output",
             Self::MemoryWorkspace => "Memory Viewer -> Output",
+            Self::CodeWorkspace => "Code Viewer -> Output",
         }
     }
 
@@ -54,6 +58,7 @@ impl TuiWorkspacePage {
             Self::SettingsWorkspace => &[TuiPane::Settings, TuiPane::Output],
             Self::PluginsWorkspace => &[TuiPane::Plugins, TuiPane::Output],
             Self::MemoryWorkspace => &[TuiPane::MemoryViewer, TuiPane::Output],
+            Self::CodeWorkspace => &[TuiPane::CodeViewer, TuiPane::Output],
         }
     }
 }
@@ -77,6 +82,7 @@ mod tests {
         assert_eq!(TuiWorkspacePage::from_function_key(5), Some(TuiWorkspacePage::PluginsWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(4), Some(TuiWorkspacePage::ProjectWorkspace));
         assert_eq!(TuiWorkspacePage::from_function_key(6), Some(TuiWorkspacePage::MemoryWorkspace));
+        assert_eq!(TuiWorkspacePage::from_function_key(7), Some(TuiWorkspacePage::CodeWorkspace));
     }
 
     #[test]
@@ -97,5 +103,6 @@ mod tests {
         assert_eq!(TuiWorkspacePage::SettingsWorkspace.visible_panes(), &[TuiPane::Settings, TuiPane::Output]);
         assert_eq!(TuiWorkspacePage::PluginsWorkspace.visible_panes(), &[TuiPane::Plugins, TuiPane::Output]);
         assert_eq!(TuiWorkspacePage::MemoryWorkspace.visible_panes(), &[TuiPane::MemoryViewer, TuiPane::Output]);
+        assert_eq!(TuiWorkspacePage::CodeWorkspace.visible_panes(), &[TuiPane::CodeViewer, TuiPane::Output]);
     }
 }

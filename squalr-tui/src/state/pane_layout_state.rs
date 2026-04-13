@@ -6,7 +6,7 @@ use crate::state::workspace_page::TuiWorkspacePage;
 pub struct PaneLayoutState {
     pub active_workspace_page: TuiWorkspacePage,
     pub focused_pane: TuiPane,
-    pub pane_visibility: [bool; 9],
+    pub pane_visibility: [bool; 10],
 }
 
 impl PaneLayoutState {
@@ -48,8 +48,8 @@ impl Default for PaneLayoutState {
 }
 
 impl PaneLayoutState {
-    fn pane_visibility_for_workspace_page(active_workspace_page: TuiWorkspacePage) -> [bool; 9] {
-        let mut pane_visibility = [false; 9];
+    fn pane_visibility_for_workspace_page(active_workspace_page: TuiWorkspacePage) -> [bool; 10] {
+        let mut pane_visibility = [false; 10];
         for pane in active_workspace_page.visible_panes() {
             pane_visibility[pane.to_index()] = true;
         }
