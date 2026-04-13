@@ -2,10 +2,12 @@ use crate::command_executors::project::project_symbol_sync::sync_project_symbol_
 use crate::command_executors::project_items::project_item_symbol_resolution::{
     is_promotable_project_item, resolve_project_item_root_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
 };
-use crate::command_executors::project_symbols::project_symbol_store_mutation::build_unique_symbol_key;
+use crate::command_executors::project_symbols::project_symbol_store_mutation::sanitize_symbol_key_component;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
-use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::ProjectItemsPromoteSymbolResponse;
+use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::{
+    ProjectItemsPromoteSymbolConflict, ProjectItemsPromoteSymbolResponse,
+};
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef;
@@ -30,7 +32,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             return ProjectItemsPromoteSymbolResponse {
                 success: true,
                 promoted_symbol_count: 0,
+                reused_symbol_count: 0,
                 promoted_symbol_keys: Vec::new(),
+                conflicts: Vec::new(),
             };
         }
 
@@ -60,8 +64,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             .get_project_symbol_catalog()
             .get_rooted_symbols()
             .to_vec();
-        let mut promoted_symbols = Vec::new();
         let mut project_item_replacements = Vec::new();
+        let mut promoted_symbol_keys = Vec::new();
+        let mut promoted_symbol_count = 0_u64;
+        let mut reused_symbol_count = 0_u64;
+        let mut conflicts = Vec::new();
+        let mut did_mutate_symbol_catalog = false;
 
         for requested_project_item_path in &self.project_item_paths {
             let project_item_path = resolve_project_item_path(&project_directory_path, requested_project_item_path);
@@ -75,35 +83,56 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 continue;
             };
 
-            let Some(promoted_symbol) = build_promoted_symbol(
+            let Some(promoted_symbol_candidate) = build_promoted_symbol(
                 engine_unprivileged_state,
                 opened_project.get_project_info().get_project_symbol_catalog(),
                 &project_item_path,
                 &project_item,
-                &existing_rooted_symbols,
             ) else {
                 log::warn!("Skipping non-promotable project item during promote-symbol request: {:?}", project_item_path);
                 continue;
             };
 
-            if existing_rooted_symbols.iter().any(|existing_rooted_symbol| {
-                existing_rooted_symbol.get_display_name() == promoted_symbol.get_display_name()
-                    && existing_rooted_symbol.get_struct_layout_id() == promoted_symbol.get_struct_layout_id()
-                    && existing_rooted_symbol.get_root_locator() == promoted_symbol.get_root_locator()
-            }) {
+            if let Some(existing_exact_symbol) = find_exact_rooted_symbol(&existing_rooted_symbols, &promoted_symbol_candidate).cloned() {
+                project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &existing_exact_symbol)));
+                reused_symbol_count = reused_symbol_count.saturating_add(1);
                 continue;
             }
 
-            existing_rooted_symbols.push(promoted_symbol.clone());
-            project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &promoted_symbol)));
-            promoted_symbols.push(promoted_symbol);
+            if let Some(conflicting_symbol_index) = find_rooted_symbol_index_by_key(&existing_rooted_symbols, promoted_symbol_candidate.get_symbol_key()) {
+                if !self.overwrite_conflicting_symbols {
+                    conflicts.push(ProjectItemsPromoteSymbolConflict {
+                        project_item_path: project_item_path.clone(),
+                        symbol_key: promoted_symbol_candidate.get_symbol_key().to_string(),
+                        existing_display_name: existing_rooted_symbols[conflicting_symbol_index]
+                            .get_display_name()
+                            .to_string(),
+                        existing_locator_display: existing_rooted_symbols[conflicting_symbol_index]
+                            .get_root_locator()
+                            .to_string(),
+                        requested_display_name: promoted_symbol_candidate.get_display_name().to_string(),
+                    });
+                    continue;
+                }
+
+                existing_rooted_symbols[conflicting_symbol_index] = promoted_symbol_candidate.clone();
+            } else {
+                existing_rooted_symbols.push(promoted_symbol_candidate.clone());
+            }
+
+            did_mutate_symbol_catalog = true;
+            promoted_symbol_count = promoted_symbol_count.saturating_add(1);
+            promoted_symbol_keys.push(promoted_symbol_candidate.get_symbol_key().to_string());
+            project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &promoted_symbol_candidate)));
         }
 
-        if promoted_symbols.is_empty() {
+        if project_item_replacements.is_empty() && !did_mutate_symbol_catalog {
             return ProjectItemsPromoteSymbolResponse {
                 success: true,
-                promoted_symbol_count: 0,
-                promoted_symbol_keys: Vec::new(),
+                promoted_symbol_count,
+                reused_symbol_count,
+                promoted_symbol_keys,
+                conflicts,
             };
         }
 
@@ -113,20 +142,21 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             }
         }
 
-        let updated_project_symbol_catalog = {
+        let updated_project_symbol_catalog = if did_mutate_symbol_catalog {
             let project_info = opened_project.get_project_info_mut();
             let updated_project_symbol_catalog = {
                 let project_symbol_catalog = project_info.get_project_symbol_catalog_mut();
-
-                project_symbol_catalog
-                    .get_rooted_symbols_mut()
-                    .extend(promoted_symbols.iter().cloned());
-
+                project_symbol_catalog.set_rooted_symbols(existing_rooted_symbols.clone());
                 project_symbol_catalog.clone()
             };
             project_info.set_has_unsaved_changes(true);
 
-            updated_project_symbol_catalog
+            Some(updated_project_symbol_catalog)
+        } else {
+            opened_project
+                .get_project_info_mut()
+                .set_has_unsaved_changes(true);
+            None
         };
 
         if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
@@ -137,26 +167,26 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
 
         drop(opened_project_guard);
 
-        if !sync_project_symbol_catalog(engine_unprivileged_state, updated_project_symbol_catalog) {
-            log::error!("Failed to sync project symbol catalog after promote-symbol operation.");
+        if let Some(updated_project_symbol_catalog) = updated_project_symbol_catalog {
+            if !sync_project_symbol_catalog(engine_unprivileged_state, updated_project_symbol_catalog) {
+                log::error!("Failed to sync project symbol catalog after promote-symbol operation.");
 
-            return ProjectItemsPromoteSymbolResponse {
-                success: false,
-                promoted_symbol_count: promoted_symbols.len() as u64,
-                promoted_symbol_keys: promoted_symbols
-                    .iter()
-                    .map(|promoted_symbol| promoted_symbol.get_symbol_key().to_string())
-                    .collect(),
-            };
+                return ProjectItemsPromoteSymbolResponse {
+                    success: false,
+                    promoted_symbol_count,
+                    reused_symbol_count,
+                    promoted_symbol_keys,
+                    conflicts,
+                };
+            }
         }
 
         ProjectItemsPromoteSymbolResponse {
             success: true,
-            promoted_symbol_count: promoted_symbols.len() as u64,
-            promoted_symbol_keys: promoted_symbols
-                .iter()
-                .map(|promoted_symbol| promoted_symbol.get_symbol_key().to_string())
-                .collect(),
+            promoted_symbol_count,
+            reused_symbol_count,
+            promoted_symbol_keys,
+            conflicts,
         }
     }
 }
@@ -166,7 +196,6 @@ fn build_promoted_symbol(
     project_symbol_catalog: &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog,
     project_item_path: &Path,
     project_item: &ProjectItem,
-    existing_rooted_symbols: &[ProjectRootSymbol],
 ) -> Option<ProjectRootSymbol> {
     if !is_promotable_project_item(project_item) {
         return None;
@@ -175,7 +204,7 @@ fn build_promoted_symbol(
     let display_name = build_display_name(project_item, project_item_path);
     let struct_layout_id = resolve_project_item_struct_layout_id(project_symbol_catalog, project_item)?;
     let root_locator = resolve_project_item_root_locator(engine_execution_context, project_symbol_catalog, project_item)?;
-    let symbol_key = build_unique_symbol_key(&display_name, existing_rooted_symbols);
+    let symbol_key = build_symbol_key(&display_name);
     let mut promoted_symbol = ProjectRootSymbol::new(symbol_key, display_name, root_locator, struct_layout_id);
 
     promoted_symbol
@@ -250,6 +279,8 @@ fn append_pointer_metadata(
     project_item: &ProjectItem,
 ) {
     metadata.insert(String::from("source.pointer_root"), pointer.get_root_display_text());
+    metadata.insert(String::from("source.pointer_root_module"), pointer.get_module_name().to_string());
+    metadata.insert(String::from("source.pointer_root_offset"), format!("0x{:X}", pointer.get_address()));
     metadata.insert(
         String::from("source.pointer_offsets"),
         serde_json::to_string(pointer.get_offsets()).unwrap_or_else(|_| String::from("[]")),
@@ -261,6 +292,30 @@ fn append_pointer_metadata(
     if !evaluated_pointer_path.trim().is_empty() {
         metadata.insert(String::from("source.evaluated_pointer_path"), evaluated_pointer_path);
     }
+}
+
+fn build_symbol_key(display_name: &str) -> String {
+    format!("sym.{}", sanitize_symbol_key_component(display_name))
+}
+
+fn find_exact_rooted_symbol<'a>(
+    existing_rooted_symbols: &'a [ProjectRootSymbol],
+    promoted_symbol: &ProjectRootSymbol,
+) -> Option<&'a ProjectRootSymbol> {
+    existing_rooted_symbols.iter().find(|existing_rooted_symbol| {
+        existing_rooted_symbol.get_display_name() == promoted_symbol.get_display_name()
+            && existing_rooted_symbol.get_struct_layout_id() == promoted_symbol.get_struct_layout_id()
+            && existing_rooted_symbol.get_root_locator() == promoted_symbol.get_root_locator()
+    })
+}
+
+fn find_rooted_symbol_index_by_key(
+    existing_rooted_symbols: &[ProjectRootSymbol],
+    symbol_key: &str,
+) -> Option<usize> {
+    existing_rooted_symbols
+        .iter()
+        .position(|existing_rooted_symbol| existing_rooted_symbol.get_symbol_key() == symbol_key)
 }
 
 fn resolve_project_item_path(
@@ -276,7 +331,6 @@ fn resolve_project_item_path(
 
 #[cfg(test)]
 mod tests {
-    use super::build_unique_symbol_key;
     use crate::command_executors::project_symbols::project_symbol_store_mutation::sanitize_symbol_key_component;
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use crossbeam_channel::{Receiver, unbounded};
@@ -435,18 +489,8 @@ mod tests {
     }
 
     #[test]
-    fn build_unique_symbol_key_appends_suffix_for_duplicate_symbol_keys() {
-        let existing_rooted_symbols = vec![ProjectRootSymbol::new_absolute_address(
-            String::from("sym.player.stats"),
-            String::from("Player Stats"),
-            0x1234,
-            String::from("player.stats"),
-        )];
-
-        assert_eq!(
-            build_unique_symbol_key("Player Stats", &existing_rooted_symbols),
-            String::from("sym.player.stats.2")
-        );
+    fn build_symbol_key_uses_sanitized_display_name() {
+        assert_eq!(super::build_symbol_key("Player Stats"), String::from("sym.player.stats"));
     }
 
     #[test]
@@ -467,12 +511,15 @@ mod tests {
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
             project_item_paths: vec![project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
         }
         .execute(&engine_execution_context);
 
         assert!(promote_symbol_response.success);
         assert_eq!(promote_symbol_response.promoted_symbol_count, 1);
+        assert_eq!(promote_symbol_response.reused_symbol_count, 0);
         assert_eq!(promote_symbol_response.promoted_symbol_keys, vec![String::from("sym.health")]);
+        assert!(promote_symbol_response.conflicts.is_empty());
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
         let rooted_symbols = loaded_project
@@ -535,12 +582,15 @@ mod tests {
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
             project_item_paths: vec![project_item_path],
+            overwrite_conflicting_symbols: false,
         }
         .execute(&engine_execution_context);
 
         assert!(promote_symbol_response.success);
         assert_eq!(promote_symbol_response.promoted_symbol_count, 1);
+        assert_eq!(promote_symbol_response.reused_symbol_count, 0);
         assert_eq!(promote_symbol_response.promoted_symbol_keys, vec![String::from("sym.player.gold")]);
+        assert!(promote_symbol_response.conflicts.is_empty());
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
         let rooted_symbols = loaded_project
@@ -574,5 +624,189 @@ mod tests {
             .expect("Expected pointer promotion to replace the project item with a symbol ref.");
 
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(promoted_project_item), "sym.player.gold");
+        assert_eq!(
+            rooted_symbols[0]
+                .get_metadata()
+                .get("source.pointer_root_module"),
+            Some(&String::from("game.exe"))
+        );
+        assert_eq!(
+            rooted_symbols[0]
+                .get_metadata()
+                .get("source.pointer_root_offset"),
+            Some(&String::from("0x1000"))
+        );
+    }
+
+    #[test]
+    fn promote_symbol_request_reuses_exact_existing_symbol_and_replaces_project_item() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (mut project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        project
+            .get_project_info_mut()
+            .get_project_symbol_catalog_mut()
+            .set_rooted_symbols(vec![ProjectRootSymbol::new_module_offset(
+                String::from("sym.health"),
+                String::from("Health"),
+                String::from("game.exe"),
+                0x1234,
+                String::from("u8"),
+            )]);
+        project
+            .save_to_path(temp_directory.path(), true)
+            .expect("Expected test project to save after seeding symbol catalog.");
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default());
+        let captured_project_symbol_catalogs = mock_promote_bindings.captured_project_symbol_catalogs();
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 0);
+        assert_eq!(promote_symbol_response.reused_symbol_count, 1);
+        assert!(promote_symbol_response.promoted_symbol_keys.is_empty());
+        assert!(promote_symbol_response.conflicts.is_empty());
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
+        let rooted_symbols = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_rooted_symbols();
+        let promoted_project_item = loaded_project
+            .get_project_items()
+            .get(&ProjectItemRef::new(project_item_path))
+            .expect("Expected project item to remain in project after reuse.");
+
+        assert_eq!(rooted_symbols.len(), 1);
+        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(promoted_project_item), "sym.health");
+        assert!(
+            captured_project_symbol_catalogs
+                .lock()
+                .expect("Expected captured symbol catalog lock in test.")
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn promote_symbol_request_reports_conflicts_without_overwriting_existing_symbol() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (mut project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        project
+            .get_project_info_mut()
+            .get_project_symbol_catalog_mut()
+            .set_rooted_symbols(vec![ProjectRootSymbol::new_module_offset(
+                String::from("sym.health"),
+                String::from("Health"),
+                String::from("game.exe"),
+                0x9999,
+                String::from("u8"),
+            )]);
+        project
+            .save_to_path(temp_directory.path(), true)
+            .expect("Expected test project to save after seeding conflicting symbol.");
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default());
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 0);
+        assert_eq!(promote_symbol_response.reused_symbol_count, 0);
+        assert!(promote_symbol_response.promoted_symbol_keys.is_empty());
+        assert_eq!(promote_symbol_response.conflicts.len(), 1);
+        assert_eq!(promote_symbol_response.conflicts[0].project_item_path, project_item_path);
+        assert_eq!(promote_symbol_response.conflicts[0].symbol_key, "sym.health");
+    }
+
+    #[test]
+    fn promote_symbol_request_overwrites_conflicting_symbol_when_requested() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (mut project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        project
+            .get_project_info_mut()
+            .get_project_symbol_catalog_mut()
+            .set_rooted_symbols(vec![ProjectRootSymbol::new_module_offset(
+                String::from("sym.health"),
+                String::from("Health"),
+                String::from("game.exe"),
+                0x9999,
+                String::from("u8"),
+            )]);
+        project
+            .save_to_path(temp_directory.path(), true)
+            .expect("Expected test project to save after seeding conflicting symbol.");
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default());
+        let captured_project_symbol_catalogs = mock_promote_bindings.captured_project_symbol_catalogs();
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path.clone()],
+            overwrite_conflicting_symbols: true,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 1);
+        assert_eq!(promote_symbol_response.reused_symbol_count, 0);
+        assert_eq!(promote_symbol_response.promoted_symbol_keys, vec![String::from("sym.health")]);
+        assert!(promote_symbol_response.conflicts.is_empty());
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
+        let rooted_symbols = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_rooted_symbols();
+
+        assert_eq!(rooted_symbols.len(), 1);
+        assert_eq!(
+            rooted_symbols[0].get_root_locator(),
+            &ProjectRootSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
+        );
+        assert_eq!(
+            loaded_project
+                .get_project_items()
+                .get(&ProjectItemRef::new(project_item_path))
+                .map(ProjectItemTypeSymbolRef::get_field_symbol_key),
+            Some(String::from("sym.health"))
+        );
+        assert_eq!(
+            captured_project_symbol_catalogs
+                .lock()
+                .expect("Expected captured symbol catalog lock in test.")
+                .len(),
+            1
+        );
     }
 }

@@ -31,6 +31,7 @@ use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWrit
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
+use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::ProjectItemSymbolRefConversionTarget;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
@@ -776,10 +777,12 @@ impl Widget for ProjectHierarchyView {
         let mut hovered_drop_target_project_item_path: Option<ProjectHierarchyDropTarget> = None;
         let mut should_cancel_take_over = false;
         let mut delete_confirmation_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
+        let mut promote_symbol_overwrite_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
         let mut rename_project_item_submission: Option<(PathBuf, String, String)> = None;
         let mut value_edit_project_item_submission: Option<(PathBuf, String, DataTypeRef, AnonymousValueString)> = None;
         let mut keyboard_activation_toggle_target: Option<(Vec<PathBuf>, bool)> = None;
         let mut is_delete_confirmation_active = false;
+        let mut is_promote_symbol_conflict_active = false;
         let mut is_rename_take_over_active = false;
         let mut is_value_edit_take_over_active = false;
         let mut visible_preview_project_item_paths = Vec::new();
@@ -807,8 +810,14 @@ impl Widget for ProjectHierarchyView {
                 );
 
                 match pending_operation {
+                    ProjectHierarchyPendingOperation::ConvertingSymbolRefs => {
+                        user_interface.label("Converting symbol refs...");
+                    }
                     ProjectHierarchyPendingOperation::Deleting => {
                         user_interface.label("Deleting project item(s)...");
+                    }
+                    ProjectHierarchyPendingOperation::Promoting => {
+                        user_interface.label("Promoting project item(s) to symbols...");
                     }
                     ProjectHierarchyPendingOperation::Reordering => {
                         user_interface.label("Reordering project item(s)...");
@@ -1092,8 +1101,63 @@ impl Widget for ProjectHierarchyView {
                                                     )
                                                     .clicked()
                                                 {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::PromoteToSymbol(project_item_paths_for_delete.clone());
+                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::PromoteToSymbol {
+                                                        project_item_paths: project_item_paths_for_delete.clone(),
+                                                        overwrite_conflicting_symbols: false,
+                                                    };
+                                                    *should_close = true;
+                                                }
+
+                                                let can_convert_project_item_paths_to_address =
+                                                    ProjectHierarchyViewData::has_convertible_symbol_ref_project_item_paths(
+                                                        self.project_hierarchy_view_data.clone(),
+                                                        &project_item_paths_for_delete,
+                                                        ProjectItemSymbolRefConversionTarget::Address,
+                                                    );
+                                                let can_convert_project_item_paths_to_pointer =
+                                                    ProjectHierarchyViewData::has_convertible_symbol_ref_project_item_paths(
+                                                        self.project_hierarchy_view_data.clone(),
+                                                        &project_item_paths_for_delete,
+                                                        ProjectItemSymbolRefConversionTarget::Pointer,
+                                                    );
+
+                                                if user_interface
+                                                    .add_enabled(
+                                                        can_convert_project_item_paths_to_address,
+                                                        ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Convert to Address Item",
+                                                            "project_hierarchy_ctx_convert_to_address_item",
+                                                            &None,
+                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                        ),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
+                                                        project_item_paths: project_item_paths_for_delete.clone(),
+                                                        conversion_target: ProjectItemSymbolRefConversionTarget::Address,
+                                                    };
+                                                    *should_close = true;
+                                                }
+
+                                                if user_interface
+                                                    .add_enabled(
+                                                        can_convert_project_item_paths_to_pointer,
+                                                        ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Convert to Pointer Item",
+                                                            "project_hierarchy_ctx_convert_to_pointer_item",
+                                                            &None,
+                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                        ),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
+                                                        project_item_paths: project_item_paths_for_delete.clone(),
+                                                        conversion_target: ProjectItemSymbolRefConversionTarget::Pointer,
+                                                    };
                                                     *should_close = true;
                                                 }
 
@@ -1292,17 +1356,87 @@ impl Widget for ProjectHierarchyView {
                             });
                         });
                     }
+                    ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, conflicts } => {
+                        is_promote_symbol_conflict_active = true;
+                        let theme = &self.app_context.theme;
+
+                        user_interface.add_space(12.0);
+                        user_interface.vertical_centered(|user_interface| {
+                            user_interface.label(
+                                RichText::new("Overwrite conflicting rooted symbol(s)?")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.add_space(8.0);
+
+                        ScrollArea::vertical()
+                            .id_salt("project_hierarchy_promote_symbol_conflicts")
+                            .max_height(180.0)
+                            .auto_shrink([false, false])
+                            .show(user_interface, |user_interface| {
+                                user_interface.vertical(|user_interface| {
+                                    for conflict in &conflicts {
+                                        user_interface.label(
+                                            RichText::new(format!(
+                                                "{} -> {} ({})",
+                                                conflict.requested_display_name, conflict.symbol_key, conflict.existing_locator_display
+                                            ))
+                                            .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
+                                            .color(theme.foreground),
+                                        );
+                                    }
+                                });
+                            });
+
+                        user_interface.add_space(8.0);
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(120.0, 28.0);
+                            let button_spacing = 12.0;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                let button_cancel = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if button_cancel.clicked() {
+                                    should_cancel_take_over = true;
+                                }
+
+                                let button_confirm_overwrite = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Overwrite").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if button_confirm_overwrite.clicked() {
+                                    promote_symbol_overwrite_project_item_paths = Some(project_item_paths);
+                                }
+                            });
+                        });
+                    }
                 }
             })
             .response;
 
-        if is_delete_confirmation_active {
+        if is_delete_confirmation_active || is_promote_symbol_conflict_active {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
                 || user_interface.input(|input_state| input_state.key_pressed(Key::Backspace))
             {
                 should_cancel_take_over = true;
             }
+        }
 
+        if is_delete_confirmation_active {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
                 delete_confirmation_project_item_paths = self
                     .project_hierarchy_view_data
@@ -1314,7 +1448,18 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
+        if is_promote_symbol_conflict_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+            promote_symbol_overwrite_project_item_paths = self
+                .project_hierarchy_view_data
+                .read("Project hierarchy confirm promote overwrite by keyboard")
+                .and_then(|project_hierarchy_view_data| match project_hierarchy_view_data.take_over_state.clone() {
+                    ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, .. } => Some(project_item_paths),
+                    _ => None,
+                });
+        }
+
         if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
@@ -1323,6 +1468,7 @@ impl Widget for ProjectHierarchyView {
         }
 
         if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::F2))
@@ -1331,6 +1477,7 @@ impl Widget for ProjectHierarchyView {
         }
 
         if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::Space))
@@ -1391,6 +1538,15 @@ impl Widget for ProjectHierarchyView {
 
         if let Some(project_item_paths) = delete_confirmation_project_item_paths {
             ProjectHierarchyViewData::delete_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone(), project_item_paths);
+        }
+
+        if let Some(project_item_paths) = promote_symbol_overwrite_project_item_paths {
+            ProjectHierarchyViewData::promote_project_items_to_symbols(
+                self.project_hierarchy_view_data.clone(),
+                self.app_context.clone(),
+                project_item_paths,
+                true,
+            );
         }
 
         if let Some((project_item_path, project_item_type_id, edited_name)) = rename_project_item_submission {
@@ -1509,7 +1665,7 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::toggle_directory_expansion(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::SetProjectItemActivation(project_item_path, is_activated) => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1538,7 +1694,7 @@ impl Widget for ProjectHierarchyView {
                 target_project_item_path,
                 create_item_kind,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1554,7 +1710,7 @@ impl Widget for ProjectHierarchyView {
                 module_name,
                 data_type_id,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1565,20 +1721,23 @@ impl Widget for ProjectHierarchyView {
                 module_name,
                 selection_byte_count,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
                 self.focus_memory_viewer_for_address(address, &module_name, selection_byte_count);
             }
             ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
                 self.focus_code_viewer_for_address(address, &module_name);
             }
-            ProjectHierarchyFrameAction::PromoteToSymbol(project_item_paths) => {
+            ProjectHierarchyFrameAction::PromoteToSymbol {
+                project_item_paths,
+                overwrite_conflicting_symbols,
+            } => {
                 if is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
@@ -1587,10 +1746,26 @@ impl Widget for ProjectHierarchyView {
                     self.project_hierarchy_view_data.clone(),
                     self.app_context.clone(),
                     project_item_paths,
+                    overwrite_conflicting_symbols,
+                );
+            }
+            ProjectHierarchyFrameAction::ConvertSymbolRef {
+                project_item_paths,
+                conversion_target,
+            } => {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::convert_symbol_refs_to_project_items(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    project_item_paths,
+                    conversion_target,
                 );
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
-                if is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1601,6 +1776,10 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::request_rename_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::RequestValueEdit(project_item_path) => {
+                if is_promote_symbol_conflict_active {
+                    return response;
+                }
+
                 if is_rename_take_over_active {
                     Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
@@ -1609,7 +1788,7 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::request_value_edit_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 

@@ -810,6 +810,7 @@ impl AppShell {
 
         let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
             project_item_paths: vec![selected_project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_promote_symbol_request.send(engine_unprivileged_state, move |project_items_promote_symbol_response| {
@@ -819,8 +820,12 @@ impl AppShell {
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(project_items_promote_symbol_response) => {
                 if project_items_promote_symbol_response.success {
-                    self.app_state.project_explorer_pane_state.status_message =
-                        format!("Promoted {} rooted symbol(s).", project_items_promote_symbol_response.promoted_symbol_count);
+                    self.app_state.project_explorer_pane_state.status_message = format!(
+                        "Promoted {} rooted symbol(s), reused {}, conflicts {}.",
+                        project_items_promote_symbol_response.promoted_symbol_count,
+                        project_items_promote_symbol_response.reused_symbol_count,
+                        project_items_promote_symbol_response.conflicts.len()
+                    );
                     self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
                 } else {
                     self.app_state.project_explorer_pane_state.status_message = "Project item symbol promotion failed.".to_string();

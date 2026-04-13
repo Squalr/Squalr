@@ -11,6 +11,10 @@ use structopt::StructOpt;
 pub struct ProjectItemsPromoteSymbolRequest {
     #[structopt(short = "p", long = "project-item-path", parse(from_os_str))]
     pub project_item_paths: Vec<PathBuf>,
+
+    #[serde(default)]
+    #[structopt(long = "overwrite-conflicting-symbols")]
+    pub overwrite_conflicting_symbols: bool,
 }
 
 impl UnprivilegedCommandRequest for ProjectItemsPromoteSymbolRequest {

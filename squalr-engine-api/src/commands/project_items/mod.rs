@@ -1,5 +1,6 @@
 pub mod activate;
 pub mod add;
+pub mod convert_symbol_ref;
 pub mod create;
 pub mod delete;
 pub mod list;

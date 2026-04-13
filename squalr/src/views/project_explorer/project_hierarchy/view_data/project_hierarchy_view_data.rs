@@ -6,6 +6,9 @@ use crate::views::project_explorer::project_hierarchy::view_data::{
 };
 use eframe::egui::Pos2;
 use squalr_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
+use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::{
+    ProjectItemSymbolRefConversionTarget, ProjectItemsConvertSymbolRefRequest,
+};
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
@@ -284,6 +287,14 @@ impl ProjectHierarchyViewData {
                     self.take_over_state = ProjectHierarchyTakeOverState::None;
                 }
             }
+            ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, conflicts } => {
+                project_item_paths.retain(|project_item_path| visible_project_item_paths.contains(project_item_path));
+                conflicts.retain(|conflict| visible_project_item_paths.contains(&conflict.project_item_path));
+
+                if project_item_paths.is_empty() || conflicts.is_empty() {
+                    self.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
         }
     }
 
@@ -456,6 +467,76 @@ impl ProjectHierarchyViewData {
                 project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
             })
             .unwrap_or(false)
+    }
+
+    fn contains_convertible_symbol_ref_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+        conversion_target: ProjectItemSymbolRefConversionTarget,
+    ) -> bool {
+        !project_item_paths.is_empty()
+            && project_item_paths
+                .iter()
+                .all(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path, conversion_target))
+    }
+
+    fn filter_convertible_symbol_ref_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+        conversion_target: ProjectItemSymbolRefConversionTarget,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .filter(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path, conversion_target))
+            .collect()
+    }
+
+    fn is_convertible_symbol_ref_project_item_path(
+        &self,
+        project_item_path: &Path,
+        conversion_target: ProjectItemSymbolRefConversionTarget,
+    ) -> bool {
+        let Some((_, project_item)) = self
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+        else {
+            return false;
+        };
+
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return false;
+        }
+
+        match conversion_target {
+            ProjectItemSymbolRefConversionTarget::Address => Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item).is_some(),
+            ProjectItemSymbolRefConversionTarget::Pointer => Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item)
+                .map(Self::has_pointer_origin_metadata)
+                .unwrap_or(false),
+        }
+    }
+
+    fn has_pointer_origin_metadata(rooted_symbol: &squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol) -> bool {
+        let rooted_symbol_metadata = rooted_symbol.get_metadata();
+
+        rooted_symbol_metadata.contains_key("source.pointer_offsets")
+            && (rooted_symbol_metadata.contains_key("source.pointer_root")
+                || (rooted_symbol_metadata.contains_key("source.pointer_root_module") && rooted_symbol_metadata.contains_key("source.pointer_root_offset")))
+    }
+
+    fn resolve_project_rooted_symbol<'a>(
+        opened_project_info: Option<&'a ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> Option<&'a squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol> {
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return None;
+        }
+
+        let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+
+        opened_project_info?
+            .get_project_symbol_catalog()
+            .find_rooted_symbol(&symbol_key)
     }
 
     pub fn get_selected_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
@@ -999,10 +1080,24 @@ impl ProjectHierarchyViewData {
             .unwrap_or(false)
     }
 
+    pub fn has_convertible_symbol_ref_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+        conversion_target: ProjectItemSymbolRefConversionTarget,
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has convertible symbol-ref project item paths")
+            .map(|project_hierarchy_view_data| {
+                project_hierarchy_view_data.contains_convertible_symbol_ref_project_item_paths(project_item_paths, conversion_target)
+            })
+            .unwrap_or(false)
+    }
+
     pub fn promote_project_items_to_symbols(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
         project_item_paths: Vec<PathBuf>,
+        overwrite_conflicting_symbols: bool,
     ) {
         let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter promote project items") {
             Some(mut project_hierarchy_view_data) => {
@@ -1018,8 +1113,10 @@ impl ProjectHierarchyViewData {
             }
             None => return,
         };
+        let promote_conflict_project_item_paths = filtered_project_item_paths.clone();
         let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
             project_item_paths: filtered_project_item_paths,
+            overwrite_conflicting_symbols,
         };
         let app_context_clone = app_context.clone();
         let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
@@ -1034,6 +1131,61 @@ impl ProjectHierarchyViewData {
 
             if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy promote project items response") {
                 project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+
+                if !project_items_promote_symbol_response.conflicts.is_empty() {
+                    project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::PromoteSymbolConflict {
+                        project_item_paths: promote_conflict_project_item_paths.clone(),
+                        conflicts: project_items_promote_symbol_response.conflicts.clone(),
+                    };
+                } else {
+                    project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
+
+            Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+        });
+    }
+
+    pub fn convert_symbol_refs_to_project_items(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        app_context: Arc<AppContext>,
+        project_item_paths: Vec<PathBuf>,
+        conversion_target: ProjectItemSymbolRefConversionTarget,
+    ) {
+        let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter symbol-ref conversion paths") {
+            Some(mut project_hierarchy_view_data) => {
+                let filtered_project_item_paths =
+                    project_hierarchy_view_data.filter_convertible_symbol_ref_project_item_paths(project_item_paths, conversion_target);
+
+                if filtered_project_item_paths.is_empty() {
+                    return;
+                }
+
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::ConvertingSymbolRefs;
+                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+
+                filtered_project_item_paths
+            }
+            None => return,
+        };
+        let project_items_convert_symbol_ref_request = ProjectItemsConvertSymbolRefRequest {
+            project_item_paths: filtered_project_item_paths,
+            target: conversion_target,
+        };
+        let app_context_clone = app_context.clone();
+        let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
+
+        project_items_convert_symbol_ref_request.send(&app_context.engine_unprivileged_state, move |project_items_convert_symbol_ref_response| {
+            if !project_items_convert_symbol_ref_response.success {
+                log::error!(
+                    "Failed to convert one or more symbol-ref project items. Converted count before failure: {}.",
+                    project_items_convert_symbol_ref_response.converted_project_item_count
+                );
+            }
+
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy convert symbol refs response") {
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
             }
 
             Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);

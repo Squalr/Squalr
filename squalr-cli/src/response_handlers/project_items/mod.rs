@@ -27,11 +27,21 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
             project_items_promote_symbol_response,
         } => {
             log::info!(
-                "promoted {} symbol(s): {}",
+                "promoted {} symbol(s), reused {} existing symbol(s), conflicts {}: {}",
                 project_items_promote_symbol_response.promoted_symbol_count,
+                project_items_promote_symbol_response.reused_symbol_count,
+                project_items_promote_symbol_response.conflicts.len(),
                 project_items_promote_symbol_response
                     .promoted_symbol_keys
                     .join(", ")
+            );
+        }
+        ProjectItemsResponse::ConvertSymbolRef {
+            project_items_convert_symbol_ref_response,
+        } => {
+            log::info!(
+                "converted {} symbol-ref project item(s)",
+                project_items_convert_symbol_ref_response.converted_project_item_count
             );
         }
         ProjectItemsResponse::Add { project_items_add_response } => {
