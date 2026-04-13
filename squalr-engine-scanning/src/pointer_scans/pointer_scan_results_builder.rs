@@ -5,15 +5,15 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_candidate::Pointe
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_level_candidates::PointerScanLevelCandidates;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 
-pub(crate) struct PointerScanSessionBuilder;
+pub(crate) struct PointerScanResultsBuilder;
 
-impl PointerScanSessionBuilder {
-    pub(crate) fn build_session(
-        pointer_scan_session_id: u64,
+impl PointerScanResultsBuilder {
+    pub(crate) fn build_results(
+        pointer_scan_results_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
@@ -21,14 +21,14 @@ impl PointerScanSessionBuilder {
         modules: &[NormalizedModule],
         collected_pointer_levels: &[PointerScanCollectedLevel],
         with_logging: bool,
-    ) -> PointerScanSession {
+    ) -> PointerScanResults {
         let module_names = modules
             .iter()
             .map(|module| module.get_module_name().to_string())
             .collect::<Vec<_>>();
 
-        Self::build_session_with_module_names(
-            pointer_scan_session_id,
+        Self::build_results_with_module_names(
+            pointer_scan_results_id,
             pointer_scan_parameters,
             target_descriptor,
             target_addresses,
@@ -39,8 +39,8 @@ impl PointerScanSessionBuilder {
         )
     }
 
-    pub(crate) fn build_session_with_module_names(
-        pointer_scan_session_id: u64,
+    pub(crate) fn build_results_with_module_names(
+        pointer_scan_results_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
@@ -48,14 +48,14 @@ impl PointerScanSessionBuilder {
         module_names: Vec<String>,
         collected_pointer_levels: &[PointerScanCollectedLevel],
         with_logging: bool,
-    ) -> PointerScanSession {
+    ) -> PointerScanResults {
         if collected_pointer_levels.is_empty() {
             if with_logging {
                 log::info!("Pointer scan found no reachable pointer nodes.");
             }
 
-            return Self::create_empty_session(
-                pointer_scan_session_id,
+            return Self::create_empty_results(
+                pointer_scan_results_id,
                 pointer_scan_parameters,
                 target_descriptor,
                 target_addresses,
@@ -95,8 +95,8 @@ impl PointerScanSessionBuilder {
             }
         }
 
-        PointerScanSession::new(
-            pointer_scan_session_id,
+        PointerScanResults::new(
+            pointer_scan_results_id,
             target_descriptor,
             target_addresses,
             address_space,
@@ -111,15 +111,15 @@ impl PointerScanSessionBuilder {
         )
     }
 
-    pub(crate) fn create_empty_session(
-        pointer_scan_session_id: u64,
+    pub(crate) fn create_empty_results(
+        pointer_scan_results_id: u64,
         pointer_scan_parameters: &PointerScanParameters,
         target_descriptor: PointerScanTargetDescriptor,
         target_addresses: Vec<u64>,
         address_space: PointerScanAddressSpace,
-    ) -> PointerScanSession {
-        PointerScanSession::new(
-            pointer_scan_session_id,
+    ) -> PointerScanResults {
+        PointerScanResults::new(
+            pointer_scan_results_id,
             target_descriptor,
             target_addresses,
             address_space,

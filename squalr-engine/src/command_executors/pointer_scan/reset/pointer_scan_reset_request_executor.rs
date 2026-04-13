@@ -11,26 +11,26 @@ impl PrivilegedCommandRequestExecutor for PointerScanResetRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        let pointer_scan_session_store = engine_privileged_state.get_pointer_scan_session();
-        let pointer_scan_browser_store = engine_privileged_state.get_pointer_scan_browser();
+        let pointer_scan_results_store = engine_privileged_state.get_pointer_scan_results();
+        let pointer_scan_materializer_store = engine_privileged_state.get_pointer_scan_materializer();
 
-        match pointer_scan_session_store.write() {
-            Ok(mut pointer_scan_session_guard) => {
-                *pointer_scan_session_guard = None;
-                match pointer_scan_browser_store.write() {
-                    Ok(mut pointer_scan_browser_guard) => {
-                        *pointer_scan_browser_guard = None;
+        match pointer_scan_results_store.write() {
+            Ok(mut pointer_scan_results_guard) => {
+                *pointer_scan_results_guard = None;
+                match pointer_scan_materializer_store.write() {
+                    Ok(mut pointer_scan_materializer_guard) => {
+                        *pointer_scan_materializer_guard = None;
                     }
                     Err(error) => {
-                        log::error!("Failed to acquire write lock on pointer scan browser store: {}", error);
+                        log::error!("Failed to acquire write lock on pointer scan materializer store: {}", error);
                     }
                 }
-                log::info!("Cleared the active pointer scan session.");
+                log::info!("Cleared the active pointer scan results.");
 
                 PointerScanResetResponse { success: true }
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
 
                 PointerScanResetResponse { success: false }
             }

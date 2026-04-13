@@ -1,10 +1,10 @@
 use crate::pointer_scans::pointer_scan_level_collector::PointerScanLevelCollector;
-use crate::pointer_scans::pointer_scan_session_builder::PointerScanSessionBuilder;
+use crate::pointer_scans::pointer_scan_results_builder::PointerScanResultsBuilder;
 use crate::scanners::scan_execution_context::ScanExecutionContext;
 use crate::scanners::value_collector_task::ValueCollector;
 use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
@@ -28,7 +28,7 @@ impl PointerScanExecutor {
         modules: &[NormalizedModule],
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
-    ) -> PointerScanSession {
+    ) -> PointerScanResults {
         Self::scan_task(
             process_info,
             statics_snapshot,
@@ -54,7 +54,7 @@ impl PointerScanExecutor {
         address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
-    ) -> PointerScanSession {
+    ) -> PointerScanResults {
         Self::build_session_from_collected_values(
             statics_snapshot,
             heaps_snapshot,
@@ -80,7 +80,7 @@ impl PointerScanExecutor {
         modules: &[NormalizedModule],
         with_logging: bool,
         scan_execution_context: &ScanExecutionContext,
-    ) -> PointerScanSession {
+    ) -> PointerScanResults {
         let total_start_time = Instant::now();
 
         if with_logging {
@@ -162,7 +162,7 @@ impl PointerScanExecutor {
         address_space: PointerScanAddressSpace,
         modules: &[NormalizedModule],
         with_logging: bool,
-    ) -> PointerScanSession {
+    ) -> PointerScanResults {
         let empty_target_descriptor = target_descriptor.clone();
         let empty_target_addresses = target_addresses.clone();
 
@@ -180,7 +180,7 @@ impl PointerScanExecutor {
                 let discovered_pointer_levels =
                     PointerScanLevelCollector::discover_pointer_levels(snapshots, &target_addresses, &pointer_scan_parameters, modules, with_logging);
 
-                PointerScanSessionBuilder::build_session(
+                PointerScanResultsBuilder::build_results(
                     pointer_scan_session_id,
                     &pointer_scan_parameters,
                     target_descriptor,
@@ -205,9 +205,9 @@ impl PointerScanExecutor {
         modules: &[NormalizedModule],
         with_logging: bool,
         build_session: BuildSession,
-    ) -> PointerScanSession
+    ) -> PointerScanResults
     where
-        BuildSession: FnOnce(&[&Snapshot]) -> PointerScanSession,
+        BuildSession: FnOnce(&[&Snapshot]) -> PointerScanResults,
     {
         if Arc::ptr_eq(&statics_snapshot, &heaps_snapshot) {
             let snapshot_guard = match statics_snapshot.read() {
@@ -217,7 +217,7 @@ impl PointerScanExecutor {
                         log::error!("Failed to acquire read lock on pointer scan snapshot: {}", error);
                     }
 
-                    return PointerScanSessionBuilder::create_empty_session(
+                    return PointerScanResultsBuilder::create_empty_results(
                         pointer_scan_session_id,
                         pointer_scan_parameters,
                         target_descriptor.clone(),
@@ -238,7 +238,7 @@ impl PointerScanExecutor {
                     log::error!("Failed to acquire read lock on static pointer scan snapshot: {}", error);
                 }
 
-                return PointerScanSessionBuilder::create_empty_session(
+                return PointerScanResultsBuilder::create_empty_results(
                     pointer_scan_session_id,
                     pointer_scan_parameters,
                     target_descriptor.clone(),
@@ -254,7 +254,7 @@ impl PointerScanExecutor {
                     log::error!("Failed to acquire read lock on heap pointer scan snapshot: {}", error);
                 }
 
-                return PointerScanSessionBuilder::create_empty_session(
+                return PointerScanResultsBuilder::create_empty_results(
                     pointer_scan_session_id,
                     pointer_scan_parameters,
                     target_descriptor.clone(),
@@ -276,12 +276,12 @@ impl PointerScanExecutor {
 #[cfg(test)]
 mod tests {
     use super::PointerScanExecutor;
+    use crate::pointer_scans::pointer_scan_materializer::PointerScanMaterializer;
     use crate::scanners::scan_execution_context::ScanExecutionContext;
     use squalr_engine_api::structures::memory::bitness::Bitness;
     use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
     use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
-    use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
@@ -337,7 +337,7 @@ mod tests {
         assert_eq!(pointer_scan_levels[1].get_static_node_count(), 1);
         assert_eq!(pointer_scan_levels[1].get_heap_node_count(), 0);
 
-        let mut pointer_scan_browser = PointerScanBrowser::new();
+        let mut pointer_scan_browser = PointerScanMaterializer::new();
         let root_nodes = pointer_scan_browser.get_expanded_nodes(&mut pointer_scan_session, None);
         assert_eq!(root_nodes.len(), 2);
 

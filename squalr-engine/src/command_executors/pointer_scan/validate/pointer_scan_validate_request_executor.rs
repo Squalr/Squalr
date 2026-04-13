@@ -6,8 +6,8 @@ use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_r
 use squalr_engine_api::commands::pointer_scan::validate::pointer_scan_validate_response::PointerScanValidateResponse;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
+use squalr_engine_scanning::pointer_scans::pointer_scan_materializer::PointerScanMaterializer;
 use squalr_engine_scanning::pointer_scans::pointer_scan_validator::PointerScanValidator;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
@@ -35,43 +35,43 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             };
         };
 
-        let pointer_scan_session = match engine_privileged_state.get_pointer_scan_session().read() {
-            Ok(pointer_scan_session_guard) => match pointer_scan_session_guard.as_ref() {
-                Some(pointer_scan_session) => pointer_scan_session.clone(),
+        let pointer_scan_results = match engine_privileged_state.get_pointer_scan_results().read() {
+            Ok(pointer_scan_results_guard) => match pointer_scan_results_guard.as_ref() {
+                Some(pointer_scan_results) => pointer_scan_results.clone(),
                 None => {
                     return PointerScanValidateResponse {
                         validation_performed: false,
                         validation_target_address: None,
                         pruned_node_count: 0,
-                        status_message: "No active pointer scan session is available.".to_string(),
+                        status_message: "No active pointer scan results are available.".to_string(),
                         pointer_scan_summary: None,
                     };
                 }
             },
             Err(error) => {
-                log::error!("Failed to acquire read lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire read lock on pointer scan results store: {}", error);
 
                 return PointerScanValidateResponse {
                     validation_performed: false,
                     validation_target_address: None,
                     pruned_node_count: 0,
-                    status_message: "Failed to access the active pointer scan session.".to_string(),
+                    status_message: "Failed to access the active pointer scan results.".to_string(),
                     pointer_scan_summary: None,
                 };
             }
         };
 
-        if pointer_scan_session.get_session_id() != self.session_id {
+        if pointer_scan_results.get_session_id() != self.session_id {
             return PointerScanValidateResponse {
                 validation_performed: false,
                 validation_target_address: None,
                 pruned_node_count: 0,
-                status_message: format!("Pointer scan session {} was not found.", self.session_id),
+                status_message: format!("Pointer scan results {} were not found.", self.session_id),
                 pointer_scan_summary: None,
             };
         }
 
-        let modules = match pointer_scan_session.get_address_space() {
+        let modules = match pointer_scan_results.get_address_space() {
             PointerScanAddressSpace::Auto => engine_privileged_state
                 .get_os_providers()
                 .memory_query_raw
@@ -116,7 +116,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 _ => trimmed_target_address.parse::<u64>().ok(),
             }
         });
-        let memory_regions = match pointer_scan_session.get_address_space() {
+        let memory_regions = match pointer_scan_results.get_address_space() {
             PointerScanAddressSpace::Auto => engine_privileged_state
                 .get_os_providers()
                 .memory_query_raw
@@ -136,7 +136,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                 validation_target_address: None,
                 pruned_node_count: 0,
                 status_message: "No readable memory regions were available for pointer validation.".to_string(),
-                pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                pointer_scan_summary: Some(pointer_scan_results.summarize()),
             };
         }
         let memory_read_provider = engine_privileged_state.get_os_providers().memory_read.clone();
@@ -156,7 +156,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             PointerScanTargetResolver::resolve_targets(
                 &self.target,
                 symbol_registry,
-                pointer_scan_session.get_pointer_size(),
+                pointer_scan_results.get_pointer_size(),
                 validation_snapshot.clone(),
                 process_info.clone(),
                 ScanSettingsConfig::get_memory_alignment().unwrap_or(MemoryAlignment::Alignment1),
@@ -174,7 +174,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                     validation_target_address: None,
                     pruned_node_count: 0,
                     status_message: error,
-                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                    pointer_scan_summary: Some(pointer_scan_results.summarize()),
                 };
             }
         };
@@ -190,13 +190,13 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
                     validation_target_address: None,
                     pruned_node_count: 0,
                     status_message: "Failed to access the validation snapshot.".to_string(),
-                    pointer_scan_summary: Some(pointer_scan_session.summarize()),
+                    pointer_scan_summary: Some(pointer_scan_results.summarize()),
                 };
             }
         };
-        let validated_pointer_scan_session = PointerScanValidator::validate_scan(
+        let validated_pointer_scan_results = PointerScanValidator::validate_scan(
             process_info,
-            &pointer_scan_session,
+            &pointer_scan_results,
             resolved_targets.target_descriptor,
             resolved_targets.target_addresses,
             &validation_snapshot_guard,
@@ -204,25 +204,25 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             &scan_execution_context,
             true,
         );
-        let validated_pointer_scan_summary = validated_pointer_scan_session.summarize();
-        let pruned_node_count = pointer_scan_session
+        let validated_pointer_scan_summary = validated_pointer_scan_results.summarize();
+        let pruned_node_count = pointer_scan_results
             .get_total_node_count()
-            .saturating_sub(validated_pointer_scan_session.get_total_node_count());
+            .saturating_sub(validated_pointer_scan_results.get_total_node_count());
 
-        match engine_privileged_state.get_pointer_scan_session().write() {
-            Ok(mut pointer_scan_session_guard) => {
-                *pointer_scan_session_guard = Some(validated_pointer_scan_session);
+        match engine_privileged_state.get_pointer_scan_results().write() {
+            Ok(mut pointer_scan_results_guard) => {
+                *pointer_scan_results_guard = Some(validated_pointer_scan_results);
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
             }
         }
-        match engine_privileged_state.get_pointer_scan_browser().write() {
-            Ok(mut pointer_scan_browser_guard) => {
-                *pointer_scan_browser_guard = Some(PointerScanBrowser::new());
+        match engine_privileged_state.get_pointer_scan_materializer().write() {
+            Ok(mut pointer_scan_materializer_guard) => {
+                *pointer_scan_materializer_guard = Some(PointerScanMaterializer::new());
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan browser store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan materializer store: {}", error);
             }
         }
 
@@ -231,7 +231,7 @@ impl PrivilegedCommandRequestExecutor for PointerScanValidateRequest {
             validation_target_address,
             pruned_node_count,
             status_message: format!(
-                "Validated pointer scan session {} against {}. Pruned {} nodes.",
+                "Validated pointer scan results {} against {}. Pruned {} nodes.",
                 self.session_id,
                 validated_pointer_scan_summary.get_target_descriptor(),
                 pruned_node_count

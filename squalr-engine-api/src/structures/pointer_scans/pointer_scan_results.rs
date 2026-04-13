@@ -8,7 +8,7 @@ use crate::structures::pointer_scans::pointer_scan_target_descriptor::PointerSca
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct PointerScanSession {
+pub struct PointerScanResults {
     session_id: u64,
     target_descriptor: PointerScanTargetDescriptor,
     target_addresses: Vec<u64>,
@@ -26,7 +26,7 @@ pub struct PointerScanSession {
     total_heap_node_count: u64,
 }
 
-impl PointerScanSession {
+impl PointerScanResults {
     pub fn new(
         session_id: u64,
         target_descriptor: PointerScanTargetDescriptor,
@@ -127,7 +127,8 @@ impl PointerScanSession {
         &self.pointer_scan_level_candidates
     }
 
-    pub(crate) fn get_pointer_scan_level_candidates_mut(&mut self) -> &mut Vec<PointerScanLevelCandidates> {
+    /// Gets mutable level candidates for privileged-side materialization.
+    pub fn get_pointer_scan_level_candidates_mut(&mut self) -> &mut Vec<PointerScanLevelCandidates> {
         &mut self.pointer_scan_level_candidates
     }
 
@@ -220,7 +221,7 @@ impl PointerScanSession {
 
 #[cfg(test)]
 mod tests {
-    use super::PointerScanSession;
+    use super::PointerScanResults;
     use crate::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
     use crate::structures::pointer_scans::pointer_scan_candidate::PointerScanCandidate;
     use crate::structures::pointer_scans::pointer_scan_level::PointerScanLevel;
@@ -229,8 +230,8 @@ mod tests {
     use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use crate::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 
-    fn create_pointer_scan_session() -> PointerScanSession {
-        PointerScanSession::new(
+    fn create_pointer_scan_results() -> PointerScanResults {
+        PointerScanResults::new(
             7,
             PointerScanTargetDescriptor::address(0x3010),
             vec![0x3010],
@@ -284,8 +285,8 @@ mod tests {
         )
     }
 
-    fn create_multi_target_leaf_pointer_scan_session() -> PointerScanSession {
-        PointerScanSession::new(
+    fn create_multi_target_leaf_pointer_scan_results() -> PointerScanResults {
+        PointerScanResults::new(
             9,
             PointerScanTargetDescriptor::value(
                 crate::structures::data_values::anonymous_value_string::AnonymousValueString::new(
@@ -322,9 +323,9 @@ mod tests {
     }
 
     #[test]
-    fn pointer_scan_session_summary_tracks_level_and_node_counts() {
-        let pointer_scan_session = create_pointer_scan_session();
-        let pointer_scan_summary = pointer_scan_session.summarize();
+    fn pointer_scan_results_summary_tracks_level_and_node_counts() {
+        let pointer_scan_results = create_pointer_scan_results();
+        let pointer_scan_summary = pointer_scan_results.summarize();
 
         assert_eq!(pointer_scan_summary.get_session_id(), 7);
         assert_eq!(pointer_scan_summary.get_root_node_count(), 2);
@@ -335,19 +336,19 @@ mod tests {
     }
 
     #[test]
-    fn pointer_scan_session_round_trips_through_json() {
-        let pointer_scan_session = create_pointer_scan_session();
-        let serialized_session = serde_json::to_string(&pointer_scan_session).expect("Pointer scan session should serialize.");
-        let deserialized_session: PointerScanSession = serde_json::from_str(&serialized_session).expect("Pointer scan session should deserialize.");
+    fn pointer_scan_results_round_trip_through_json() {
+        let pointer_scan_results = create_pointer_scan_results();
+        let serialized_results = serde_json::to_string(&pointer_scan_results).expect("Pointer scan results should serialize.");
+        let deserialized_results: PointerScanResults = serde_json::from_str(&serialized_results).expect("Pointer scan results should deserialize.");
 
-        assert_eq!(deserialized_session, pointer_scan_session);
+        assert_eq!(deserialized_results, pointer_scan_results);
     }
 
     #[test]
-    fn pointer_scan_session_counts_multi_target_roots_without_browser_state() {
-        let pointer_scan_session = create_multi_target_leaf_pointer_scan_session();
+    fn pointer_scan_results_count_multi_target_roots_without_materializer_state() {
+        let pointer_scan_results = create_multi_target_leaf_pointer_scan_results();
 
-        assert_eq!(pointer_scan_session.get_root_node_count(), 2);
-        assert_eq!(pointer_scan_session.get_total_node_count(), 1);
+        assert_eq!(pointer_scan_results.get_root_node_count(), 2);
+        assert_eq!(pointer_scan_results.get_total_node_count(), 1);
     }
 }

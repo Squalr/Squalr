@@ -9,13 +9,13 @@ use squalr_engine_api::structures::data_values::anonymous_value_string_format::A
 use squalr_engine_api::structures::memory::address_display::is_virtual_module_address;
 use squalr_engine_api::structures::memory::memory_alignment::MemoryAlignment;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
-use squalr_engine_api::structures::pointer_scans::pointer_scan_browser::PointerScanBrowser;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
 use squalr_engine_api::structures::processes::opened_process_info::OpenedProcessInfo;
 use squalr_engine_api::structures::scanning::plans::pointer_scan::pointer_scan_parameters::PointerScanParameters;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_scanning::pointer_scans::pointer_scan_executor_task::PointerScanExecutor;
+use squalr_engine_scanning::pointer_scans::pointer_scan_materializer::PointerScanMaterializer;
 use squalr_engine_scanning::scan_settings_config::ScanSettingsConfig;
 use squalr_engine_scanning::scanners::scan_execution_context::ScanExecutionContext;
 use squalr_engine_session::os::PageRetrievalMode;
@@ -125,11 +125,11 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 return PointerScanStartResponse::default();
             }
         };
-        let pointer_scan_session_id = engine_privileged_state.allocate_pointer_scan_session_id();
-        let pointer_scan_session = PointerScanExecutor::execute_scan_with_precollected_values(
+        let pointer_scan_results_id = engine_privileged_state.allocate_pointer_scan_results_id();
+        let pointer_scan_results = PointerScanExecutor::execute_scan_with_precollected_values(
             pointer_scan_snapshot.clone(),
             pointer_scan_snapshot,
-            pointer_scan_session_id,
+            pointer_scan_results_id,
             pointer_scan_parameters,
             resolved_targets.target_descriptor,
             resolved_targets.target_addresses,
@@ -137,22 +137,22 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             &modules,
             true,
         );
-        let pointer_scan_summary = pointer_scan_session.summarize();
+        let pointer_scan_summary = pointer_scan_results.summarize();
 
-        match engine_privileged_state.get_pointer_scan_session().write() {
-            Ok(mut pointer_scan_session_guard) => {
-                *pointer_scan_session_guard = Some(pointer_scan_session);
+        match engine_privileged_state.get_pointer_scan_results().write() {
+            Ok(mut pointer_scan_results_guard) => {
+                *pointer_scan_results_guard = Some(pointer_scan_results);
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
             }
         }
-        match engine_privileged_state.get_pointer_scan_browser().write() {
-            Ok(mut pointer_scan_browser_guard) => {
-                *pointer_scan_browser_guard = Some(PointerScanBrowser::new());
+        match engine_privileged_state.get_pointer_scan_materializer().write() {
+            Ok(mut pointer_scan_materializer_guard) => {
+                *pointer_scan_materializer_guard = Some(PointerScanMaterializer::new());
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan browser store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan materializer store: {}", error);
             }
         }
 
@@ -672,9 +672,9 @@ mod tests {
         assert!(pointer_scan_start_response.pointer_scan_summary.is_none());
         assert!(
             engine_privileged_state
-                .get_pointer_scan_session()
+                .get_pointer_scan_results()
                 .read()
-                .expect("Expected the pointer scan session lock.")
+                .expect("Expected the pointer scan results lock.")
                 .is_none()
         );
     }
