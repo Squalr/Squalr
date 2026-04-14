@@ -11,6 +11,7 @@ pub struct ToolbarMenuItemView<'lifetime> {
     check_state: &'lifetime Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
     icon: Option<TextureHandle>,
     width: f32,
+    disabled: bool,
 }
 
 impl<'lifetime> ToolbarMenuItemView<'lifetime> {
@@ -28,6 +29,7 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
             check_state,
             icon: None,
             width,
+            disabled: false,
         }
     }
 
@@ -44,6 +46,14 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         width: f32,
     ) -> Self {
         self.width = width;
+        self
+    }
+
+    pub fn disabled(
+        mut self,
+        disabled: bool,
+    ) -> Self {
+        self.disabled = disabled;
         self
     }
 
@@ -64,15 +74,18 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
         let text_right_padding = Self::TEXT_RIGHT_PADDING;
         let row_height = 32.0;
         let row_width = self.width;
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(row_width, row_height), Sense::click());
+        let sense = if self.disabled { Sense::hover() } else { Sense::click() };
+        let text_color = if self.disabled { theme.foreground_preview } else { theme.foreground };
+        let icon_tint = if self.disabled { theme.foreground_preview } else { Color32::WHITE };
+        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(row_width, row_height), sense);
 
         // Background + overlay.
         StateLayer {
             bounds_min: allocated_size_rectangle.min,
             bounds_max: allocated_size_rectangle.max,
-            enabled: true,
-            pressed: response.is_pointer_button_down_on(),
-            has_hover: response.hovered(),
+            enabled: !self.disabled,
+            pressed: !self.disabled && response.is_pointer_button_down_on(),
+            has_hover: !self.disabled && response.hovered(),
             has_focus: response.has_focus(),
             corner_radius: CornerRadius::ZERO,
             border_width: 0.0,
@@ -96,17 +109,20 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
                 user_interface
                     .painter()
                     .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.background_control);
-                user_interface
-                    .painter()
-                    .rect_stroke(checkbox_rect, CornerRadius::ZERO, (1.0, theme.submenu_border), StrokeKind::Inside);
+                user_interface.painter().rect_stroke(
+                    checkbox_rect,
+                    CornerRadius::ZERO,
+                    (1.0, if self.disabled { theme.foreground_preview } else { theme.submenu_border }),
+                    StrokeKind::Inside,
+                );
 
                 // Draw hover/pressed state.
-                if response.hovered() {
+                if !self.disabled && response.hovered() {
                     user_interface
                         .painter()
                         .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.hover_tint);
                 }
-                if response.is_pointer_button_down_on() {
+                if !self.disabled && response.is_pointer_button_down_on() {
                     user_interface
                         .painter()
                         .rect_filled(checkbox_rect, CornerRadius::ZERO, theme.pressed_tint);
@@ -121,7 +137,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
                         icon.id(),
                         Rect::from_min_size(icon_position, texture_size),
                         Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
-                        Color32::WHITE,
+                        icon_tint,
                     );
                 }
             }
@@ -134,7 +150,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
 
             user_interface
                 .painter()
-                .image(icon.id(), icon_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+                .image(icon.id(), icon_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), icon_tint);
         }
 
         let text_left = allocated_size_rectangle.min.x + icon_size.x + icon_left_padding * 2.0 + text_left_padding;
@@ -146,7 +162,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
             user_interface,
             self.label,
             &theme.font_library.font_noto_sans.font_normal,
-            theme.foreground,
+            text_color,
             text_rectangle.width().max(0.0),
         );
         let text_pos = pos2(text_rectangle.min.x, allocated_size_rectangle.center().y);
@@ -156,7 +172,7 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
             Align2::LEFT_CENTER,
             text_to_render,
             theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
+            text_color,
         );
 
         response

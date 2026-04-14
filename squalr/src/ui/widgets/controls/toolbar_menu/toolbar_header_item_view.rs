@@ -146,15 +146,16 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                                     popup_popup_user_interface.separator();
                                 }
 
-                                let item_response = popup_popup_user_interface.add(ToolbarMenuItemView::new(
-                                    self.app_context.clone(),
-                                    &item.text,
-                                    &item.id,
-                                    &item.check_state,
-                                    widest,
-                                ));
+                                let is_enabled = item
+                                    .enabled_state
+                                    .as_ref()
+                                    .map(|enabled_state| enabled_state())
+                                    .unwrap_or(true);
+                                let item_response = popup_popup_user_interface.add(
+                                    ToolbarMenuItemView::new(self.app_context.clone(), &item.text, &item.id, &item.check_state, widest).disabled(!is_enabled),
+                                );
 
-                                if item_response.clicked() {
+                                if is_enabled && item_response.clicked() {
                                     user_interface.memory_mut(|memory| memory.data.remove::<String>(open_menu_id));
                                     (self.on_select)(&item.id);
                                 }

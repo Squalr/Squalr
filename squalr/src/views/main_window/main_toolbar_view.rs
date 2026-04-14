@@ -16,6 +16,10 @@ use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Response, Ui, Widget};
+use squalr_engine_api::commands::project::export::project_export_request::ProjectExportRequest;
+use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::projects::project_manager::ProjectManager;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
@@ -31,6 +35,7 @@ impl MainToolbarView {
     pub const ACTION_ID_RESET_LAYOUT: &'static str = "layout_reset";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
+        let app_context_for_project_export = app_context.clone();
         let docking_manager_for_process_selector = app_context.docking_manager.clone();
         let docking_manager_for_project_explorer = app_context.docking_manager.clone();
         let docking_manager_for_symbol_explorer = app_context.docking_manager.clone();
@@ -48,7 +53,8 @@ impl MainToolbarView {
                 header: "File".into(),
                 items: vec![
                     ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_SELECT_PROJECT, "Select Project", None),
-                    ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_EXPORT_PROJECT, "Export Project as Table...", None),
+                    ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_EXPORT_PROJECT, "Export Project as Table...", None)
+                        .with_enabled_state(Box::new(move || MainToolbarView::has_opened_project(app_context_for_project_export.as_ref()))),
                     ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_EXIT, "Exit Squalr", None).with_separator(),
                 ]
                 .into(),
@@ -248,6 +254,21 @@ impl Widget for MainToolbarView {
             MainToolbarView::ACTION_ID_EXIT => {
                 app_context.context.send_viewport_cmd(ViewportCommand::Close);
             }
+            MainToolbarView::ACTION_ID_EXPORT_PROJECT => {
+                let project_export_request = ProjectExportRequest {
+                    project_directory_path: None,
+                    project_name: None,
+                    open_export_folder: true,
+                };
+
+                project_export_request.send(&app_context.engine_unprivileged_state, |project_export_response| {
+                    if project_export_response.success {
+                        log::info!("Exported opened project as a JSON table.");
+                    } else {
+                        log::error!("Failed to export opened project as a JSON table.");
+                    }
+                });
+            }
             ProcessSelectorView::WINDOW_ID
             | ProjectExplorerView::WINDOW_ID
             | SymbolExplorerView::WINDOW_ID
@@ -291,5 +312,71 @@ impl Widget for MainToolbarView {
                 user_interface.response()
             }
         }
+    }
+}
+
+impl MainToolbarView {
+    fn has_opened_project(app_context: &AppContext) -> bool {
+        Self::project_manager_has_opened_project(
+            app_context
+                .engine_unprivileged_state
+                .get_project_manager()
+                .as_ref(),
+        )
+    }
+
+    fn project_manager_has_opened_project(project_manager: &ProjectManager) -> bool {
+        let opened_project = project_manager.get_opened_project();
+
+        match opened_project.read() {
+            Ok(opened_project) => opened_project.is_some(),
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while checking toolbar project availability: {}", error);
+                false
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MainToolbarView;
+    use squalr_engine_api::structures::projects::project::Project;
+    use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
+    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_api::structures::projects::project_manager::ProjectManager;
+    use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    fn create_opened_project() -> Project {
+        let project_file_path = PathBuf::from("C:/Projects/TestProject/project.json");
+        let project_info = ProjectInfo::new(project_file_path, None, ProjectManifest::default());
+        let project_root_ref = ProjectItemRef::new(PathBuf::from("C:/Projects/TestProject/project_items"));
+        let mut project_items = HashMap::new();
+
+        project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
+
+        Project::new(project_info, project_items, project_root_ref)
+    }
+
+    #[test]
+    fn project_manager_has_opened_project_returns_false_without_open_project() {
+        let project_manager = ProjectManager::new();
+
+        assert!(!MainToolbarView::project_manager_has_opened_project(&project_manager));
+    }
+
+    #[test]
+    fn project_manager_has_opened_project_returns_true_with_open_project() {
+        let project_manager = ProjectManager::new();
+        let opened_project = project_manager.get_opened_project();
+
+        *opened_project
+            .write()
+            .expect("Expected to acquire opened project write lock for test.") = Some(create_opened_project());
+
+        assert!(MainToolbarView::project_manager_has_opened_project(&project_manager));
     }
 }
