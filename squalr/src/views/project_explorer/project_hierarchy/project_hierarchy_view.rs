@@ -1110,7 +1110,7 @@ impl Widget for ProjectHierarchyView {
                                                             ) {
                                                                 self.app_context.theme.icon_library.icon_handle_project_cpu_instruction.clone()
                                                             } else {
-                                                                self.app_context.theme.icon_library.icon_handle_data_type_purple_blocks_4.clone()
+                                                                self.app_context.theme.icon_library.icon_handle_scan_collect_values.clone()
                                                             },
                                                         ),
                                                     )
@@ -1191,6 +1191,8 @@ impl Widget for ProjectHierarchyView {
                                                     };
                                                     *should_close = true;
                                                 }
+
+                                                user_interface.separator();
 
                                                 Self::show_create_project_item_menu_items(
                                                     self.app_context.clone(),
