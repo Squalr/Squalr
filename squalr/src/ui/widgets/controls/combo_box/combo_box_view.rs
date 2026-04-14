@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
-use epaint::{Color32, CornerRadius, Margin, Rect, TextureHandle, Vec2, pos2, vec2};
+use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, TextureHandle, Vec2, pos2, vec2};
 use std::{borrow::Cow, sync::Arc};
 
 /// A combo box that allows arbitrary custom content (ie not a normalized dropdown entry list).
@@ -237,9 +237,11 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .order(Order::Foreground)
             .fixed_pos(popup_pos)
             .show(user_interface.ctx(), |popup_user_interface| {
-                Frame::popup(user_interface.style())
+                Frame::new()
                     .fill(theme.background_primary)
-                    .inner_margin(self.border_width.ceil() as i8)
+                    .stroke(Stroke::new(self.border_width, theme.submenu_border))
+                    .inner_margin(0)
+                    .outer_margin(0)
                     .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.spacing_mut().menu_margin = Margin::ZERO;
