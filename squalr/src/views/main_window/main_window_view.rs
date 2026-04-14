@@ -8,6 +8,7 @@ use crate::views::main_window::main_footer_view::MainFooterView;
 use crate::views::main_window::main_shortcut_bar_view::MainShortcutBarView;
 use crate::views::main_window::main_title_bar_view::MainTitleBarView;
 use crate::views::main_window::main_toolbar_view::MainToolbarView;
+use crate::views::main_window::{about_take_over_view::AboutTakeOverView, main_window_take_over_state::MainWindowTakeOverState};
 use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
 use crate::views::plugins::{plugins_view::PluginsView, view_data::plugin_list_view_data::PluginListViewData};
@@ -18,11 +19,11 @@ use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
-use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget};
+use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct MainWindowView {
@@ -32,6 +33,7 @@ pub struct MainWindowView {
     main_shortcut_bar_view: MainShortcutBarView,
     dock_root_view: DockRootView,
     main_footer_view: MainFooterView,
+    main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
     resize_thickness: f32,
 }
 
@@ -47,9 +49,10 @@ impl MainWindowView {
         app_context
             .dependency_container
             .register(PluginListViewData::new());
+        let main_window_take_over_state = Arc::new(RwLock::new(MainWindowTakeOverState::None));
 
         let main_title_bar_view = MainTitleBarView::new(app_context.clone(), corner_radius, 32.0, title);
-        let main_toolbar_view = MainToolbarView::new(app_context.clone());
+        let main_toolbar_view = MainToolbarView::new(app_context.clone(), main_window_take_over_state.clone());
         let main_shortcut_bar_view = MainShortcutBarView::new(app_context.clone());
         let dock_view_data = Arc::new(DockRootViewData::new());
 
@@ -177,7 +180,29 @@ impl MainWindowView {
             main_shortcut_bar_view,
             dock_root_view,
             main_footer_view,
+            main_window_take_over_state,
             resize_thickness,
+        }
+    }
+
+    fn get_take_over_state(&self) -> MainWindowTakeOverState {
+        match self.main_window_take_over_state.read() {
+            Ok(main_window_take_over_state) => main_window_take_over_state.clone(),
+            Err(error) => {
+                log::error!("Failed to acquire main window take over state for read: {}", error);
+                MainWindowTakeOverState::None
+            }
+        }
+    }
+
+    fn clear_take_over_state_shared(main_window_take_over_state: &Arc<RwLock<MainWindowTakeOverState>>) {
+        match main_window_take_over_state.write() {
+            Ok(mut take_over_state) => {
+                *take_over_state = MainWindowTakeOverState::None;
+            }
+            Err(error) => {
+                log::error!("Failed to acquire main window take over state for write: {}", error);
+            }
         }
     }
 
@@ -312,27 +337,48 @@ impl Widget for MainWindowView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        let take_over_state = self.get_take_over_state();
+        let app_context = self.app_context.clone();
+        let resize_thickness = self.resize_thickness;
+        let main_window_take_over_state = self.main_window_take_over_state.clone();
+        let main_title_bar_view = self.main_title_bar_view;
+        let main_toolbar_view = self.main_toolbar_view;
+        let main_shortcut_bar_view = self.main_shortcut_bar_view;
+        let dock_root_view = self.dock_root_view;
+        let main_footer_view = self.main_footer_view;
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                user_interface.add(self.main_title_bar_view);
-                user_interface.add(self.main_toolbar_view);
-                user_interface.add(self.main_shortcut_bar_view);
+                user_interface.add(main_title_bar_view);
+                user_interface.add(main_toolbar_view);
+                user_interface.add(main_shortcut_bar_view);
 
                 if user_interface.available_rect_before_wrap().is_positive() {
-                    user_interface.add_sized(
-                        [
-                            user_interface.available_width(),
-                            user_interface.available_height() - self.main_footer_view.get_height(),
-                        ],
-                        self.dock_root_view,
-                    );
+                    let content_size = [
+                        user_interface.available_width(),
+                        user_interface.available_height() - main_footer_view.get_height(),
+                    ];
+
+                    match take_over_state {
+                        MainWindowTakeOverState::None => {
+                            user_interface.add_sized(content_size, dock_root_view);
+                        }
+                        MainWindowTakeOverState::About => {
+                            user_interface.allocate_ui_with_layout(vec2(content_size[0], content_size[1]), Layout::top_down(Align::Min), |user_interface| {
+                                let about_take_over_response = AboutTakeOverView::new(app_context.clone()).show(user_interface);
+
+                                if about_take_over_response.should_close {
+                                    Self::clear_take_over_state_shared(&main_window_take_over_state);
+                                }
+                            });
+                        }
+                    }
                 }
 
-                user_interface.add(self.main_footer_view);
+                user_interface.add(main_footer_view);
             })
             .response;
 
-        Self::add_resize_handles(&self.app_context.context, user_interface, self.resize_thickness);
+        Self::add_resize_handles(&app_context.context, user_interface, resize_thickness);
 
         response
     }

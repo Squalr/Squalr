@@ -4,6 +4,7 @@ use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
 use crate::views::code_viewer::code_viewer_view::CodeViewerView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
+use crate::views::main_window::main_window_take_over_state::MainWindowTakeOverState;
 use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
 use crate::views::plugins::plugins_view::PluginsView;
@@ -26,6 +27,7 @@ use std::sync::{Arc, RwLock};
 pub struct MainToolbarView {
     app_context: Arc<AppContext>,
     menu_toolbar_data: Arc<RwLock<ToolbarData>>,
+    main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
 }
 
 impl MainToolbarView {
@@ -33,8 +35,12 @@ impl MainToolbarView {
     pub const ACTION_ID_SELECT_PROJECT: &'static str = "select_project";
     pub const ACTION_ID_EXPORT_PROJECT: &'static str = "export_project";
     pub const ACTION_ID_RESET_LAYOUT: &'static str = "layout_reset";
+    pub const ACTION_ID_SHOW_ABOUT: &'static str = "show_about";
 
-    pub fn new(app_context: Arc<AppContext>) -> Self {
+    pub fn new(
+        app_context: Arc<AppContext>,
+        main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
+    ) -> Self {
         let app_context_for_project_export = app_context.clone();
         let docking_manager_for_process_selector = app_context.docking_manager.clone();
         let docking_manager_for_project_explorer = app_context.docking_manager.clone();
@@ -220,6 +226,15 @@ impl MainToolbarView {
                 ]
                 .into(),
             },
+            ToolbarHeaderItemData {
+                header: "Help".into(),
+                items: vec![ToolbarMenuItemData::new(
+                    MainToolbarView::ACTION_ID_SHOW_ABOUT,
+                    "About",
+                    None,
+                )]
+                .into(),
+            },
             /*
             ToolbarHeaderItemData {
                 header: "Debugger".into(),
@@ -240,6 +255,7 @@ impl MainToolbarView {
         Self {
             app_context,
             menu_toolbar_data,
+            main_window_take_over_state,
         }
     }
 }
@@ -269,6 +285,14 @@ impl Widget for MainToolbarView {
                     }
                 });
             }
+            MainToolbarView::ACTION_ID_SHOW_ABOUT => match self.main_window_take_over_state.write() {
+                Ok(mut main_window_take_over_state) => {
+                    *main_window_take_over_state = MainWindowTakeOverState::About;
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire main window take over state while opening About: {}", error);
+                }
+            },
             ProcessSelectorView::WINDOW_ID
             | ProjectExplorerView::WINDOW_ID
             | SymbolExplorerView::WINDOW_ID
