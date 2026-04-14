@@ -32,6 +32,11 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
             ProjectItemsCommand::Delete { project_items_delete_request } => project_items_delete_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectItemsCommand::Duplicate {
+                project_items_duplicate_request,
+            } => project_items_duplicate_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectItemsCommand::List { project_items_list_request } => project_items_list_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),

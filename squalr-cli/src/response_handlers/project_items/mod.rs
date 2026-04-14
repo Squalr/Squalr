@@ -58,6 +58,11 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
         ProjectItemsResponse::Delete { project_items_delete_response } => {
             log::debug!("Unhandled project items delete response: {:?}", project_items_delete_response);
         }
+        ProjectItemsResponse::Duplicate {
+            project_items_duplicate_response,
+        } => {
+            log::debug!("Unhandled project items duplicate response: {:?}", project_items_duplicate_response);
+        }
         ProjectItemsResponse::Move { project_items_move_response } => {
             log::debug!("Unhandled project items move response: {:?}", project_items_move_response);
         }

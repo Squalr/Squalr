@@ -4,6 +4,7 @@ pub enum ProjectHierarchyPendingOperation {
     ConvertingSymbolRefs,
     Refreshing,
     Deleting,
+    Pasting,
     Promoting,
     Reordering,
 }

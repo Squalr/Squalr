@@ -3,6 +3,7 @@ pub mod add;
 pub mod convert_symbol_ref;
 pub mod create;
 pub mod delete;
+pub mod duplicate;
 pub mod list;
 pub mod move_item;
 pub mod project_item_sort_order;
