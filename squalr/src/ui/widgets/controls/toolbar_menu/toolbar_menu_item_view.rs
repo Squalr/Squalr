@@ -53,7 +53,14 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
         let text_left_padding = 2.0;
         let text_right_padding = 8.0;
         let row_height = 32.0;
-        let row_width = self.width.max(user_interface.available_width());
+        let row_width = Self::resolve_row_width(
+            user_interface,
+            self.label,
+            &theme.font_library.font_noto_sans.font_normal,
+            theme.foreground,
+            self.width.max(user_interface.available_width()),
+            icon_size.x + icon_left_padding * 2.0 + text_left_padding + text_right_padding,
+        );
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(row_width, row_height), Sense::click());
 
         // Background + overlay.
@@ -144,6 +151,26 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
 }
 
 impl<'lifetime> ToolbarMenuItemView<'lifetime> {
+    fn resolve_row_width(
+        user_interface: &mut Ui,
+        label: &str,
+        font_id: &FontId,
+        text_color: Color32,
+        minimum_row_width: f32,
+        content_padding_width: f32,
+    ) -> f32 {
+        let content_width = Self::measure_text_width(user_interface, label, font_id, text_color) + content_padding_width;
+
+        Self::resolve_row_width_from_content_width(minimum_row_width, content_width)
+    }
+
+    fn resolve_row_width_from_content_width(
+        minimum_row_width: f32,
+        content_width: f32,
+    ) -> f32 {
+        minimum_row_width.max(content_width.ceil())
+    }
+
     fn measure_text_width(
         user_interface: &mut Ui,
         text: &str,
@@ -190,5 +217,24 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         }
 
         ellipsis.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ToolbarMenuItemView;
+
+    #[test]
+    fn resolve_row_width_from_content_width_keeps_minimum_width_for_short_content() {
+        let resolved_row_width = ToolbarMenuItemView::resolve_row_width_from_content_width(160.0, 124.2);
+
+        assert_eq!(resolved_row_width, 160.0);
+    }
+
+    #[test]
+    fn resolve_row_width_from_content_width_expands_for_long_content() {
+        let resolved_row_width = ToolbarMenuItemView::resolve_row_width_from_content_width(160.0, 190.2);
+
+        assert_eq!(resolved_row_width, 191.0);
     }
 }

@@ -1905,7 +1905,7 @@ impl ProjectHierarchyView {
     const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
     const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
     const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
-    const PROJECT_ITEM_MENU_WIDTH: f32 = 220.0;
+    const PROJECT_ITEM_MENU_WIDTH: f32 = 160.0;
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
