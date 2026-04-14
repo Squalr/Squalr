@@ -1094,55 +1094,6 @@ impl Widget for ProjectHierarchyView {
                                                 }
 
                                                 if user_interface
-                                                    .add(ToolbarMenuItemView::new(
-                                                        self.app_context.clone(),
-                                                        "Cut",
-                                                        "project_hierarchy_ctx_cut",
-                                                        &None,
-                                                        project_item_menu_width,
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::CutProjectItems(project_item_paths_for_delete.clone());
-                                                    *should_close = true;
-                                                }
-
-                                                if user_interface
-                                                    .add(ToolbarMenuItemView::new(
-                                                        self.app_context.clone(),
-                                                        "Copy",
-                                                        "project_hierarchy_ctx_copy",
-                                                        &None,
-                                                        project_item_menu_width,
-                                                    ))
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths_for_delete.clone());
-                                                    *should_close = true;
-                                                }
-
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_paste_project_items,
-                                                        ToolbarMenuItemView::new(
-                                                            self.app_context.clone(),
-                                                            "Paste",
-                                                            "project_hierarchy_ctx_paste",
-                                                            &None,
-                                                            project_item_menu_width,
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems {
-                                                        target_project_item_path: tree_entry_project_item_path.clone(),
-                                                    };
-                                                    *should_close = true;
-                                                }
-
-                                                if user_interface
                                                     .add_enabled(
                                                         can_open_in_memory_viewer,
                                                         ToolbarMenuItemView::new(
@@ -1239,6 +1190,59 @@ impl Widget for ProjectHierarchyView {
                                                     project_item_menu_width,
                                                     should_close,
                                                 );
+
+                                                user_interface.separator();
+
+                                                if user_interface
+                                                    .add(ToolbarMenuItemView::new(
+                                                        self.app_context.clone(),
+                                                        "Cut",
+                                                        "project_hierarchy_ctx_cut",
+                                                        &None,
+                                                        project_item_menu_width,
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action =
+                                                        ProjectHierarchyFrameAction::CutProjectItems(project_item_paths_for_delete.clone());
+                                                    *should_close = true;
+                                                }
+
+                                                if user_interface
+                                                    .add(ToolbarMenuItemView::new(
+                                                        self.app_context.clone(),
+                                                        "Copy",
+                                                        "project_hierarchy_ctx_copy",
+                                                        &None,
+                                                        project_item_menu_width,
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action =
+                                                        ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths_for_delete.clone());
+                                                    *should_close = true;
+                                                }
+
+                                                if user_interface
+                                                    .add_enabled(
+                                                        can_paste_project_items,
+                                                        ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Paste",
+                                                            "project_hierarchy_ctx_paste",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        ),
+                                                    )
+                                                    .clicked()
+                                                {
+                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems {
+                                                        target_project_item_path: tree_entry_project_item_path.clone(),
+                                                    };
+                                                    *should_close = true;
+                                                }
+
+                                                user_interface.separator();
 
                                                 if user_interface
                                                     .add_enabled(
