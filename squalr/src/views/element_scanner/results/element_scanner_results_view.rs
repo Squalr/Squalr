@@ -42,7 +42,7 @@ pub struct ElementScannerResultsView {
 }
 
 impl ElementScannerResultsView {
-    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 24.0;
+    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 32.0;
     const DISPLAY_TYPE_SELECTOR_POPUP_WIDTH: f32 = 176.0;
     pub const WINDOW_ID: &'static str = "window_element_scanner_results";
 
@@ -687,7 +687,7 @@ mod tests {
     fn display_type_selector_stays_right_aligned_in_value_header() {
         let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
 
-        assert_eq!(display_type_selector_rectangle.min.x, 292.0);
+        assert_eq!(display_type_selector_rectangle.min.x, 284.0);
         assert_eq!(display_type_selector_rectangle.max.x, 316.0);
         assert_eq!(display_type_selector_rectangle.height(), 24.0);
     }
@@ -700,7 +700,7 @@ mod tests {
             ElementScannerResultsView::resolve_value_header_clip_rectangle(120.0, header_rectangle, display_type_selector_rectangle, 8.0);
 
         assert_eq!(value_header_clip_rectangle.min.x, 128.0);
-        assert_eq!(value_header_clip_rectangle.max.x, 284.0);
+        assert_eq!(value_header_clip_rectangle.max.x, 276.0);
         assert_eq!(value_header_clip_rectangle.min.y, 24.0);
         assert_eq!(value_header_clip_rectangle.max.y, 56.0);
     }
