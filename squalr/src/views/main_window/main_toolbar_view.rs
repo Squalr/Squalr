@@ -129,13 +129,41 @@ impl MainToolbarView {
 
                             None
                         })),
-                    ),
+                    )
+                    .with_separator(),
                     ToolbarMenuItemData::new(
                         CodeViewerView::WINDOW_ID,
                         "Code Viewer",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_code_viewer.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(CodeViewerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        ElementScannerView::WINDOW_ID,
+                        "Element Scanner",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_element_scanner.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(ElementScannerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    )
+                    .with_separator(),
+                    ToolbarMenuItemData::new(
+                        PointerScannerView::WINDOW_ID,
+                        "Pointer Scanner",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_pointer_scanner.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(PointerScannerView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -155,39 +183,14 @@ impl MainToolbarView {
 
                             None
                         })),
-                    ),
-                    ToolbarMenuItemData::new(
-                        PointerScannerView::WINDOW_ID,
-                        "Pointer Scanner",
-                        Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_pointer_scanner.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(PointerScannerView::WINDOW_ID) {
-                                    return Some(docked_node.is_visible());
-                                }
-                            }
-
-                            None
-                        })),
-                    ),
+                    )
+                    .with_separator(),
                     ToolbarMenuItemData::new(
                         PluginsView::WINDOW_ID,
                         "Plugins",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_plugins.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(PluginsView::WINDOW_ID) {
-                                    return Some(docked_node.is_visible());
-                                }
-                            }
-
-                            None
-                        })),
-                    ),
-                    ToolbarMenuItemData::new(
-                        ElementScannerView::WINDOW_ID,
-                        "Element Scanner",
-                        Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_element_scanner.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(ElementScannerView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -209,15 +212,6 @@ impl MainToolbarView {
                         })),
                     ),
                 ]
-                .into(),
-            },
-            ToolbarHeaderItemData {
-                header: "Scans".into(),
-                items: vec![ToolbarMenuItemData::new(
-                    PointerScannerView::WINDOW_ID,
-                    "Pointer Scan",
-                    None,
-                )]
                 .into(),
             },
             /*
