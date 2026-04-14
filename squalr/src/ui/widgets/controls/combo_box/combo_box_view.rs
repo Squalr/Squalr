@@ -247,6 +247,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                         popup_user_interface.spacing_mut().menu_spacing = 0.0;
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
                         popup_user_interface.set_min_width(self.width);
+                        popup_user_interface.set_max_width(self.width);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             (self.add_contents)(inner_user_interface, &mut should_close);
                         });
