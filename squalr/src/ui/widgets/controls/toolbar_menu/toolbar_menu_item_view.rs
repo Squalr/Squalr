@@ -58,10 +58,10 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
         user_interface: &mut Ui,
     ) -> Response {
         let theme = &self.app_context.theme;
-        let icon_size = vec2(18.0, 18.0);
-        let icon_left_padding = 4.0;
-        let text_left_padding = 2.0;
-        let text_right_padding = 8.0;
+        let icon_size = vec2(Self::ICON_WIDTH, 18.0);
+        let icon_left_padding = Self::ICON_LEFT_PADDING;
+        let text_left_padding = Self::TEXT_LEFT_PADDING;
+        let text_right_padding = Self::TEXT_RIGHT_PADDING;
         let row_height = 32.0;
         let row_width = self.width;
         let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(vec2(row_width, row_height), Sense::click());
@@ -164,6 +164,16 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
 }
 
 impl<'lifetime> ToolbarMenuItemView<'lifetime> {
+    pub const MIN_MENU_WIDTH: f32 = 160.0;
+    const ICON_WIDTH: f32 = 18.0;
+    const ICON_LEFT_PADDING: f32 = 4.0;
+    const TEXT_LEFT_PADDING: f32 = 2.0;
+    const TEXT_RIGHT_PADDING: f32 = 8.0;
+
+    pub fn row_width_from_text_width(text_width: f32) -> f32 {
+        (text_width + Self::ICON_WIDTH + Self::ICON_LEFT_PADDING * 2.0 + Self::TEXT_LEFT_PADDING + Self::TEXT_RIGHT_PADDING).max(Self::MIN_MENU_WIDTH)
+    }
+
     fn measure_text_width(
         user_interface: &mut Ui,
         text: &str,
@@ -210,5 +220,20 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         }
 
         ellipsis.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ToolbarMenuItemView;
+
+    #[test]
+    fn row_width_from_text_width_respects_minimum_width() {
+        assert_eq!(ToolbarMenuItemView::row_width_from_text_width(0.0), ToolbarMenuItemView::MIN_MENU_WIDTH);
+    }
+
+    #[test]
+    fn row_width_from_text_width_includes_row_gutters() {
+        assert_eq!(ToolbarMenuItemView::row_width_from_text_width(200.0), 236.0);
     }
 }

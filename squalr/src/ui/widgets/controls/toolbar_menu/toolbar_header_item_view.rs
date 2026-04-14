@@ -110,7 +110,9 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
         }
 
         // Compute popup width.
-        let mut widest = allocated_size_rectangle.width();
+        let mut widest = allocated_size_rectangle
+            .width()
+            .max(ToolbarMenuItemView::MIN_MENU_WIDTH);
 
         user_interface.ctx().fonts_mut(|fonts| {
             for item in self.items.iter() {
@@ -119,15 +121,9 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                     theme.font_library.font_noto_sans.font_normal.clone(),
                     style.visuals.text_color(),
                 );
-                widest = widest.max(galley.size().x + 2.0 * style.spacing.button_padding.x);
+                widest = widest.max(ToolbarMenuItemView::row_width_from_text_width(galley.size().x));
             }
         });
-
-        let widest = widest
-            + style
-                .spacing
-                .icon_width_inner
-                .max(style.spacing.interact_size.y * 0.6);
 
         // Popup drawing.
         let popup_id = Id::new(("toolbar_menu_popup", &self.header, user_interface.id().value()));
