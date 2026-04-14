@@ -2317,6 +2317,15 @@ impl ProjectHierarchyViewData {
                 module_name: None,
                 data_type_id: Some(String::from("u8")),
             },
+            ProjectHierarchyCreateItemKind::SymbolRef => ProjectItemsCreateRequest {
+                parent_directory_path,
+                project_item_name: ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME.to_string(),
+                project_item_type: ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID.to_string(),
+                pointer: None,
+                address: None,
+                module_name: None,
+                data_type_id: None,
+            },
         }
     }
 
@@ -2616,7 +2625,7 @@ mod tests {
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer,
+        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
     use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
@@ -2868,6 +2877,21 @@ mod tests {
         assert_eq!(create_request.project_item_type, ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID);
         assert_eq!(create_request.data_type_id.as_deref(), Some("u8"));
         assert_eq!(create_request.pointer, Some(Pointer::new(0, Vec::new(), String::new())));
+    }
+
+    #[test]
+    fn build_project_item_create_request_for_symbol_ref_uses_symbol_ref_defaults() {
+        let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
+        let project_items = vec![create_directory_project_item(&parent_directory_path)];
+
+        let create_request =
+            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::SymbolRef);
+
+        assert_eq!(create_request.parent_directory_path, parent_directory_path);
+        assert_eq!(create_request.project_item_name, ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME);
+        assert_eq!(create_request.project_item_type, ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
+        assert!(create_request.pointer.is_none());
+        assert!(create_request.data_type_id.is_none());
     }
 
     #[test]

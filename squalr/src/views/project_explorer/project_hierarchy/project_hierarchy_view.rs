@@ -1056,7 +1056,7 @@ impl Widget for ProjectHierarchyView {
                                             project_item_menu_labels.push(convert_project_item_menu_label.as_str());
                                         }
                                         if has_create_actions {
-                                            project_item_menu_labels.extend(["New Folder", "New Address", "New Pointer"]);
+                                            project_item_menu_labels.extend(["New Folder", "New Address", "New Pointer", "New Symbol Ref"]);
                                         }
                                         if can_cut_project_item_paths {
                                             project_item_menu_labels.push("Cut");
@@ -2016,7 +2016,7 @@ impl ProjectHierarchyView {
         let Some(menu_position) = menu_position else {
             return;
         };
-        let create_project_item_menu_labels = ["New Folder", "New Address", "New Pointer"];
+        let create_project_item_menu_labels = ["New Folder", "New Address", "New Pointer", "New Symbol Ref"];
         let project_item_menu_width = Self::calculate_project_item_menu_width(self.app_context.as_ref(), user_interface, &create_project_item_menu_labels);
         let mut open = true;
         ContextMenu::new(
@@ -2055,6 +2055,11 @@ impl ProjectHierarchyView {
             ("New Folder", "project_hierarchy_ctx_new_folder", ProjectHierarchyCreateItemKind::Directory),
             ("New Address", "project_hierarchy_ctx_new_address", ProjectHierarchyCreateItemKind::Address),
             ("New Pointer", "project_hierarchy_ctx_new_pointer", ProjectHierarchyCreateItemKind::Pointer),
+            (
+                "New Symbol Ref",
+                "project_hierarchy_ctx_new_symbol_ref",
+                ProjectHierarchyCreateItemKind::SymbolRef,
+            ),
         ] {
             if user_interface
                 .add(
@@ -2073,6 +2078,11 @@ impl ProjectHierarchyView {
                             .theme
                             .icon_library
                             .icon_handle_project_pointer_type
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::SymbolRef => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_data_type_unknown
                             .clone(),
                     }),
                 )
