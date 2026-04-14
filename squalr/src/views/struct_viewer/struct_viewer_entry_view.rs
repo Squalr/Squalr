@@ -45,6 +45,13 @@ pub struct StructViewerEntryView<'lifetime> {
 }
 
 impl<'lifetime> StructViewerEntryView<'lifetime> {
+    fn trailing_commit_slot_width(
+        commit_button_width: f32,
+        value_column_padding: f32,
+    ) -> f32 {
+        commit_button_width + value_column_padding
+    }
+
     pub fn new(
         app_context: Arc<AppContext>,
         valued_struct_field: &'lifetime ValuedStructField,
@@ -195,11 +202,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         let name_position_x = row_min_x + self.name_splitter_x;
         let value_position_x = self.value_splitter_x.min(row_max_x);
         let value_box_position_x = value_position_x + value_column_padding;
-        let commit_button_space = if show_commit_button {
-            commit_button_width + value_column_padding
-        } else {
-            0.0
-        };
+        let commit_button_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
         let value_box_width = (row_max_x - value_box_position_x - commit_button_space).max(0.0);
         let available_data_type_refs = self
             .app_context
@@ -355,7 +358,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
 
                     // Reserve space for checkbox (fixed 28px), data type selector takes natural width
-                    let trailing_checkbox_space = commit_button_width + value_column_padding;
+                    let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
                     let available_for_selectors = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                     user_interface.put(
@@ -386,7 +389,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 let mut selected_container_mode = None;
 
                 // Reserve space for checkbox, container selector takes natural width
-                let trailing_checkbox_space = commit_button_width + value_column_padding;
+                let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
                 let container_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                 user_interface.put(
