@@ -1,5 +1,5 @@
 use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
-use eframe::egui::{Align2, FontId, Rect, Response, Sense, Ui, Widget, pos2, vec2};
+use eframe::egui::{Align2, FontId, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use std::sync::Arc;
 
@@ -9,6 +9,7 @@ pub struct ToolbarMenuItemView<'lifetime> {
     label: &'lifetime str,
     item_id: &'lifetime str,
     check_state: &'lifetime Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
+    icon: Option<TextureHandle>,
     width: f32,
 }
 
@@ -25,8 +26,17 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
             label,
             item_id,
             check_state,
+            icon: None,
             width,
         }
+    }
+
+    pub fn icon(
+        mut self,
+        icon: TextureHandle,
+    ) -> Self {
+        self.icon = Some(icon);
+        self
     }
 
     pub fn width(
@@ -115,6 +125,16 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
                     );
                 }
             }
+        } else if let Some(icon) = &self.icon {
+            let icon_position = pos2(
+                allocated_size_rectangle.min.x + icon_left_padding,
+                allocated_size_rectangle.center().y - icon_size.y * 0.5,
+            );
+            let icon_rect = Rect::from_min_size(icon_position, icon_size);
+
+            user_interface
+                .painter()
+                .image(icon.id(), icon_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
 
         let text_left = allocated_size_rectangle.min.x + icon_size.x + icon_left_padding * 2.0 + text_left_padding;

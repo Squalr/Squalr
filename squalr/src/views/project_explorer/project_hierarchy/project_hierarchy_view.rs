@@ -1200,7 +1200,8 @@ impl Widget for ProjectHierarchyView {
                                                         "project_hierarchy_ctx_cut",
                                                         &None,
                                                         project_item_menu_width,
-                                                    ))
+                                                    )
+                                                    .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
                                                     .clicked()
                                                 {
                                                     project_hierarchy_frame_action =
@@ -1215,7 +1216,8 @@ impl Widget for ProjectHierarchyView {
                                                         "project_hierarchy_ctx_copy",
                                                         &None,
                                                         project_item_menu_width,
-                                                    ))
+                                                    )
+                                                    .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
                                                     .clicked()
                                                 {
                                                     project_hierarchy_frame_action =
@@ -1232,7 +1234,8 @@ impl Widget for ProjectHierarchyView {
                                                             "project_hierarchy_ctx_paste",
                                                             &None,
                                                             project_item_menu_width,
-                                                        ),
+                                                        )
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()),
                                                     )
                                                     .clicked()
                                                 {
@@ -1253,7 +1256,8 @@ impl Widget for ProjectHierarchyView {
                                                             "project_hierarchy_ctx_delete",
                                                             &None,
                                                             project_item_menu_width,
-                                                        ),
+                                                        )
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_common_delete.clone()),
                                                     )
                                                     .clicked()
                                                 {
