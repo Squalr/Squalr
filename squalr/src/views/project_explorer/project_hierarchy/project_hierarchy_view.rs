@@ -491,6 +491,24 @@ mod tests {
     }
 
     #[test]
+    fn project_item_menu_width_respects_minimum_width_for_short_labels() {
+        assert_eq!(
+            ProjectHierarchyView::project_item_menu_width_from_longest_label_width(0.0),
+            ProjectHierarchyView::MIN_PROJECT_ITEM_MENU_WIDTH,
+        );
+    }
+
+    #[test]
+    fn project_item_menu_width_grows_for_wider_labels() {
+        let longest_label_width = 200.0;
+
+        assert_eq!(
+            ProjectHierarchyView::project_item_menu_width_from_longest_label_width(longest_label_width),
+            236.0,
+        );
+    }
+
+    #[test]
     fn build_pointer_scanner_context_actions_returns_address_item_values() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
@@ -1002,11 +1020,12 @@ impl Widget for ProjectHierarchyView {
                                                 self.project_hierarchy_view_data.clone(),
                                                 &project_item_paths_for_delete,
                                             );
-                                        let convert_project_item_paths_label =
+                                        let convert_project_item_menu_label =
                                             ProjectHierarchyViewData::get_convertible_symbol_ref_action_label(
                                                 self.project_hierarchy_view_data.clone(),
                                                 &project_item_paths_for_delete,
-                                            );
+                                            )
+                                            .unwrap_or_else(|| "Convert to Source Item Type".to_string());
                                         let runtime_viewer_label = if Self::should_open_project_item_in_code_viewer(
                                             project_hierarchy_view_data.opened_project_info.as_ref(),
                                             &tree_entry.project_item,
@@ -1015,6 +1034,25 @@ impl Widget for ProjectHierarchyView {
                                         } else {
                                             "Open in Memory Viewer"
                                         };
+                                        let mut project_item_menu_labels =
+                                            pointer_scanner_context_actions.iter().map(PointerScannerContextAction::label).collect::<Vec<_>>();
+                                        project_item_menu_labels.extend([
+                                            "Cut",
+                                            "Copy",
+                                            "Paste",
+                                            runtime_viewer_label,
+                                            "Promote to Symbol",
+                                            convert_project_item_menu_label.as_str(),
+                                            "New Folder",
+                                            "New Address",
+                                            "New Pointer",
+                                            "Delete",
+                                        ]);
+                                        let project_item_menu_width = Self::calculate_project_item_menu_width(
+                                            self.app_context.as_ref(),
+                                            user_interface,
+                                            &project_item_menu_labels,
+                                        );
                                         ContextMenu::new(
                                             self.app_context.clone(),
                                             "project_hierarchy_context_menu",
@@ -1031,7 +1069,7 @@ impl Widget for ProjectHierarchyView {
                                                                 pointer_scanner_context_action.label(),
                                                                 pointer_scanner_context_action.label(),
                                                                 &None,
-                                                                Self::PROJECT_ITEM_MENU_WIDTH,
+                                                                project_item_menu_width,
                                                             ))
                                                             .clicked()
                                                         {
@@ -1061,7 +1099,7 @@ impl Widget for ProjectHierarchyView {
                                                         "Cut",
                                                         "project_hierarchy_ctx_cut",
                                                         &None,
-                                                        Self::PROJECT_ITEM_MENU_WIDTH,
+                                                        project_item_menu_width,
                                                     ))
                                                     .clicked()
                                                 {
@@ -1076,7 +1114,7 @@ impl Widget for ProjectHierarchyView {
                                                         "Copy",
                                                         "project_hierarchy_ctx_copy",
                                                         &None,
-                                                        Self::PROJECT_ITEM_MENU_WIDTH,
+                                                        project_item_menu_width,
                                                     ))
                                                     .clicked()
                                                 {
@@ -1093,7 +1131,7 @@ impl Widget for ProjectHierarchyView {
                                                             "Paste",
                                                             "project_hierarchy_ctx_paste",
                                                             &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                            project_item_menu_width,
                                                         ),
                                                     )
                                                     .clicked()
@@ -1112,7 +1150,7 @@ impl Widget for ProjectHierarchyView {
                                                             runtime_viewer_label,
                                                             "project_hierarchy_ctx_open_runtime_viewer",
                                                             &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                            project_item_menu_width,
                                                         ),
                                                     )
                                                     .clicked()
@@ -1161,7 +1199,7 @@ impl Widget for ProjectHierarchyView {
                                                             "Promote to Symbol",
                                                             "project_hierarchy_ctx_promote_to_symbol",
                                                             &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                            project_item_menu_width,
                                                         ),
                                                     )
                                                     .clicked()
@@ -1178,12 +1216,10 @@ impl Widget for ProjectHierarchyView {
                                                         can_convert_project_item_paths,
                                                         ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
-                                                            convert_project_item_paths_label
-                                                                .as_deref()
-                                                                .unwrap_or("Convert to Source Item Type"),
+                                                            convert_project_item_menu_label.as_str(),
                                                             "project_hierarchy_ctx_convert_to_address_item",
                                                             &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                            project_item_menu_width,
                                                         ),
                                                     )
                                                     .clicked()
@@ -1200,6 +1236,7 @@ impl Widget for ProjectHierarchyView {
                                                     user_interface,
                                                     &tree_entry_project_item_path,
                                                     &mut project_hierarchy_frame_action,
+                                                    project_item_menu_width,
                                                     should_close,
                                                 );
 
@@ -1211,7 +1248,7 @@ impl Widget for ProjectHierarchyView {
                                                             "Delete",
                                                             "project_hierarchy_ctx_delete",
                                                             &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
+                                                            project_item_menu_width,
                                                         ),
                                                     )
                                                     .clicked()
@@ -1222,7 +1259,7 @@ impl Widget for ProjectHierarchyView {
                                                 }
                                             },
                                         )
-                                        .width(Self::PROJECT_ITEM_MENU_WIDTH)
+                                        .width(project_item_menu_width)
                                         .corner_radius(8)
                                         .show(user_interface, &mut open);
 
@@ -1905,7 +1942,8 @@ impl ProjectHierarchyView {
     const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
     const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
     const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
-    const PROJECT_ITEM_MENU_WIDTH: f32 = 160.0;
+    const MIN_PROJECT_ITEM_MENU_WIDTH: f32 = 160.0;
+    const PROJECT_ITEM_MENU_ITEM_HORIZONTAL_PADDING: f32 = 36.0;
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
@@ -1927,6 +1965,8 @@ impl ProjectHierarchyView {
         let Some(menu_position) = menu_position else {
             return;
         };
+        let create_project_item_menu_labels = ["New Folder", "New Address", "New Pointer"];
+        let project_item_menu_width = Self::calculate_project_item_menu_width(self.app_context.as_ref(), user_interface, &create_project_item_menu_labels);
         let mut open = true;
         ContextMenu::new(
             self.app_context.clone(),
@@ -1938,11 +1978,12 @@ impl ProjectHierarchyView {
                     user_interface,
                     target_project_item_path,
                     project_hierarchy_frame_action,
+                    project_item_menu_width,
                     should_close,
                 );
             },
         )
-        .width(Self::PROJECT_ITEM_MENU_WIDTH)
+        .width(project_item_menu_width)
         .corner_radius(8)
         .show(user_interface, &mut open);
 
@@ -1956,6 +1997,7 @@ impl ProjectHierarchyView {
         user_interface: &mut Ui,
         target_project_item_path: &Path,
         project_hierarchy_frame_action: &mut ProjectHierarchyFrameAction,
+        project_item_menu_width: f32,
         should_close: &mut bool,
     ) {
         for (label, item_id, create_item_kind) in [
@@ -1964,13 +2006,7 @@ impl ProjectHierarchyView {
             ("New Pointer", "project_hierarchy_ctx_new_pointer", ProjectHierarchyCreateItemKind::Pointer),
         ] {
             if user_interface
-                .add(ToolbarMenuItemView::new(
-                    app_context.clone(),
-                    label,
-                    item_id,
-                    &None,
-                    Self::PROJECT_ITEM_MENU_WIDTH,
-                ))
+                .add(ToolbarMenuItemView::new(app_context.clone(), label, item_id, &None, project_item_menu_width))
                 .clicked()
             {
                 *project_hierarchy_frame_action = ProjectHierarchyFrameAction::CreateProjectItem {
@@ -1980,6 +2016,38 @@ impl ProjectHierarchyView {
                 *should_close = true;
             }
         }
+    }
+
+    fn calculate_project_item_menu_width(
+        app_context: &AppContext,
+        user_interface: &mut Ui,
+        item_labels: &[&str],
+    ) -> f32 {
+        let mut longest_label_width: f32 = 0.0;
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            for item_label in item_labels {
+                let galley = fonts.layout_no_wrap(
+                    (*item_label).to_string(),
+                    app_context
+                        .theme
+                        .font_library
+                        .font_noto_sans
+                        .font_normal
+                        .clone(),
+                    app_context.theme.foreground,
+                );
+                longest_label_width = longest_label_width.max(galley.size().x);
+            }
+        });
+
+        Self::project_item_menu_width_from_longest_label_width(longest_label_width)
+    }
+
+    fn project_item_menu_width_from_longest_label_width(longest_label_width: f32) -> f32 {
+        (longest_label_width + Self::PROJECT_ITEM_MENU_ITEM_HORIZONTAL_PADDING)
+            .ceil()
+            .max(Self::MIN_PROJECT_ITEM_MENU_WIDTH)
     }
 
     fn resolve_drop_target(
