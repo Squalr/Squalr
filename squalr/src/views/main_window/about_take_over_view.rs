@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::button::Button as ThemeButton;
-use eframe::egui::{Align, Button, Frame, Hyperlink, Layout, Margin, RichText, Stroke, Ui, vec2};
+use eframe::egui::{Align, Button, Frame, Hyperlink, Layout, Margin, RichText, Sense, Stroke, Ui, UiBuilder, vec2};
 use epaint::{Color32, CornerRadius, Rect, pos2};
 use std::sync::Arc;
 
@@ -26,11 +26,33 @@ impl AboutTakeOverView {
 
     fn build_rows() -> [(&'static str, String); 4] {
         [
+            ("Application", Self::application_label().to_string()),
             ("Version", env!("CARGO_PKG_VERSION").to_string()),
-            ("Build Profile", option_env!("PROFILE").unwrap_or("unknown").to_string()),
-            ("Target", format!("{} / {}", std::env::consts::OS, std::env::consts::ARCH)),
-            ("Package", env!("CARGO_PKG_NAME").to_string()),
+            ("Platform", Self::platform_label().to_string()),
+            ("Architecture", std::env::consts::ARCH.to_string()),
         ]
+    }
+
+    fn application_label() -> &'static str {
+        #[cfg(target_os = "android")]
+        {
+            "Android GUI"
+        }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            "Desktop GUI"
+        }
+    }
+
+    fn platform_label() -> &'static str {
+        match std::env::consts::OS {
+            "windows" => "Windows",
+            "macos" => "macOS",
+            "linux" => "Linux",
+            "android" => "Android",
+            other_platform => other_platform,
+        }
     }
 
     pub fn show(
@@ -38,14 +60,21 @@ impl AboutTakeOverView {
         user_interface: &mut Ui,
     ) -> AboutTakeOverViewResponse {
         let theme = &self.app_context.theme;
-        let available_rectangle = user_interface.available_rect_before_wrap();
+        let available_size = user_interface.available_size();
+        let (take_over_rectangle, _) = user_interface.allocate_exact_size(available_size, Sense::hover());
+        let mut take_over_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(take_over_rectangle)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        let available_rectangle = take_over_user_interface.max_rect();
         let mut should_close = false;
 
-        user_interface
+        take_over_user_interface
             .painter()
             .rect_filled(available_rectangle, CornerRadius::ZERO, theme.background_panel);
 
-        if user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Escape)) {
+        if take_over_user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Escape)) {
             should_close = true;
         }
 
@@ -54,8 +83,8 @@ impl AboutTakeOverView {
             .min(available_rectangle.width().max(0.0));
         let horizontal_padding = ((available_rectangle.width() - card_width) * 0.5).max(0.0);
 
-        user_interface.add_space(((available_rectangle.height() - 420.0) * 0.5).max(24.0));
-        user_interface.horizontal(|user_interface| {
+        take_over_user_interface.add_space(((available_rectangle.height() - 420.0) * 0.5).max(24.0));
+        take_over_user_interface.horizontal(|user_interface| {
             user_interface.add_space(horizontal_padding);
             user_interface.allocate_ui(vec2(card_width, 0.0), |user_interface| {
                 Frame::new()
@@ -173,5 +202,20 @@ impl AboutTakeOverView {
         });
 
         AboutTakeOverViewResponse { should_close }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AboutTakeOverView;
+
+    #[test]
+    fn build_rows_use_user_facing_labels() {
+        let rows = AboutTakeOverView::build_rows();
+
+        assert_eq!(rows[0].0, "Application");
+        assert_eq!(rows[1].0, "Version");
+        assert_eq!(rows[2].0, "Platform");
+        assert_eq!(rows[3].0, "Architecture");
     }
 }
