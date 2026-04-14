@@ -10,7 +10,6 @@ pub struct ToolbarHeaderItemView<'lifetime> {
     app_context: Arc<AppContext>,
     header: &'lifetime String,
     items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
-    width: f32,
     height: f32,
     horizontal_padding: f32,
     on_select: &'lifetime dyn Fn(&'lifetime str),
@@ -21,7 +20,6 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
         app_context: Arc<AppContext>,
         header: &'lifetime String,
         items: &'lifetime SmallVec<[ToolbarMenuItemData; 24]>,
-        width: f32,
         height: f32,
         horizontal_padding: f32,
         on_select: &'lifetime dyn Fn(&'lifetime str),
@@ -30,7 +28,6 @@ impl<'lifetime> ToolbarHeaderItemView<'lifetime> {
             app_context,
             header,
             items,
-            width,
             height,
             horizontal_padding,
             on_select,
@@ -146,6 +143,7 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                     .inner_margin(0)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.set_min_width(widest);
+                        popup_user_interface.set_max_width(widest);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |popup_popup_user_interface| {
                             for (index, item) in self.items.iter().enumerate() {
                                 if item.has_separator && index != 0 {
@@ -157,7 +155,7 @@ impl<'lifetime> Widget for ToolbarHeaderItemView<'lifetime> {
                                     &item.text,
                                     &item.id,
                                     &item.check_state,
-                                    self.width,
+                                    widest,
                                 ));
 
                                 if item_response.clicked() {
