@@ -239,7 +239,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
             .show(user_interface.ctx(), |popup_user_interface| {
                 Frame::popup(user_interface.style())
                     .fill(theme.background_primary)
-                    .inner_margin(Margin::ZERO)
+                    .inner_margin(self.border_width.ceil() as i8)
                     .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.spacing_mut().menu_margin = Margin::ZERO;
