@@ -1102,6 +1102,16 @@ impl Widget for ProjectHierarchyView {
                                                             "project_hierarchy_ctx_open_runtime_viewer",
                                                             &None,
                                                             project_item_menu_width,
+                                                        )
+                                                        .icon(
+                                                            if Self::should_open_project_item_in_code_viewer(
+                                                                project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                &tree_entry.project_item,
+                                                            ) {
+                                                                self.app_context.theme.icon_library.icon_handle_project_cpu_instruction.clone()
+                                                            } else {
+                                                                self.app_context.theme.icon_library.icon_handle_data_type_purple_blocks_4.clone()
+                                                            },
                                                         ),
                                                     )
                                                     .clicked()
@@ -2014,7 +2024,25 @@ impl ProjectHierarchyView {
             ("New Pointer", "project_hierarchy_ctx_new_pointer", ProjectHierarchyCreateItemKind::Pointer),
         ] {
             if user_interface
-                .add(ToolbarMenuItemView::new(app_context.clone(), label, item_id, &None, project_item_menu_width))
+                .add(
+                    ToolbarMenuItemView::new(app_context.clone(), label, item_id, &None, project_item_menu_width).icon(match create_item_kind {
+                        ProjectHierarchyCreateItemKind::Directory => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_file_system_open_folder
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::Address => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_data_type_blue_blocks_4
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::Pointer => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_project_pointer_type
+                            .clone(),
+                    }),
+                )
                 .clicked()
             {
                 *project_hierarchy_frame_action = ProjectHierarchyFrameAction::CreateProjectItem {
