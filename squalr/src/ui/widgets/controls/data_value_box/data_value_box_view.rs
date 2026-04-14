@@ -229,6 +229,13 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             | AnonymousValueStringFormat::Enumeration => &icon_library.icon_handle_display_type_string,
         }
     }
+
+    fn resolve_text_edit_clip_rect(
+        parent_clip_rect: Rect,
+        text_edit_rectangle_inner: Rect,
+    ) -> Rect {
+        text_edit_rectangle_inner.intersect(parent_clip_rect)
+    }
 }
 
 impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
@@ -366,6 +373,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .max_rect(text_edit_rectangle_inner)
                 .layout(Layout::right_to_left(Align::Center)),
         );
+        text_edit_user_interface.set_clip_rect(Self::resolve_text_edit_clip_rect(user_interface.clip_rect(), text_edit_rectangle_inner));
 
         let font_id = if text_value.len() > 0 {
             theme.font_library.font_ubuntu_mono_bold.font_normal.clone()
@@ -549,5 +557,20 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataValueBoxView;
+    use epaint::{Rect, pos2};
+
+    #[test]
+    fn resolve_text_edit_clip_rect_clamps_to_parent_clip() {
+        let parent_clip_rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(80.0, 40.0));
+        let text_edit_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(60.0, 30.0));
+        let clipped_rect = DataValueBoxView::resolve_text_edit_clip_rect(parent_clip_rect, text_edit_rect);
+
+        assert_eq!(clipped_rect, Rect::from_min_max(pos2(10.0, 10.0), pos2(60.0, 30.0)));
     }
 }
