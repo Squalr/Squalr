@@ -1007,6 +1007,8 @@ impl Widget for ProjectHierarchyView {
                                             self.project_hierarchy_view_data.clone(),
                                             &project_item_paths_for_delete,
                                         );
+                                        let can_copy_project_item_paths = can_delete_project_item_paths;
+                                        let can_cut_project_item_paths = can_delete_project_item_paths;
                                         let can_promote_project_item_paths = ProjectHierarchyViewData::has_promotable_project_item_paths(
                                             self.project_hierarchy_view_data.clone(),
                                             &project_item_paths_for_delete,
@@ -1036,18 +1038,38 @@ impl Widget for ProjectHierarchyView {
                                         };
                                         let mut project_item_menu_labels =
                                             pointer_scanner_context_actions.iter().map(PointerScannerContextAction::label).collect::<Vec<_>>();
-                                        project_item_menu_labels.extend([
-                                            "Cut",
-                                            "Copy",
-                                            "Paste",
-                                            runtime_viewer_label,
-                                            "Promote to Symbol",
-                                            convert_project_item_menu_label.as_str(),
-                                            "New Folder",
-                                            "New Address",
-                                            "New Pointer",
-                                            "Delete",
-                                        ]);
+                                        let has_runtime_actions = !pointer_scanner_context_actions.is_empty()
+                                            || can_open_in_memory_viewer
+                                            || can_promote_project_item_paths
+                                            || can_convert_project_item_paths;
+                                        let has_create_actions = true;
+                                        let has_clipboard_actions =
+                                            can_cut_project_item_paths || can_copy_project_item_paths || can_paste_project_items;
+                                        let has_delete_actions = can_delete_project_item_paths;
+                                        if can_open_in_memory_viewer {
+                                            project_item_menu_labels.push(runtime_viewer_label);
+                                        }
+                                        if can_promote_project_item_paths {
+                                            project_item_menu_labels.push("Promote to Symbol");
+                                        }
+                                        if can_convert_project_item_paths {
+                                            project_item_menu_labels.push(convert_project_item_menu_label.as_str());
+                                        }
+                                        if has_create_actions {
+                                            project_item_menu_labels.extend(["New Folder", "New Address", "New Pointer"]);
+                                        }
+                                        if can_cut_project_item_paths {
+                                            project_item_menu_labels.push("Cut");
+                                        }
+                                        if can_copy_project_item_paths {
+                                            project_item_menu_labels.push("Copy");
+                                        }
+                                        if can_paste_project_items {
+                                            project_item_menu_labels.push("Paste");
+                                        }
+                                        if has_delete_actions {
+                                            project_item_menu_labels.push("Delete");
+                                        }
                                         let project_item_menu_width = Self::calculate_project_item_menu_width(
                                             self.app_context.as_ref(),
                                             user_interface,
@@ -1093,106 +1115,107 @@ impl Widget for ProjectHierarchyView {
                                                     }
                                                 }
 
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_open_in_memory_viewer,
-                                                        ToolbarMenuItemView::new(
-                                                            self.app_context.clone(),
-                                                            runtime_viewer_label,
-                                                            "project_hierarchy_ctx_open_runtime_viewer",
-                                                            &None,
-                                                            project_item_menu_width,
+                                                if can_open_in_memory_viewer {
+                                                    if user_interface
+                                                        .add(
+                                                            ToolbarMenuItemView::new(
+                                                                self.app_context.clone(),
+                                                                runtime_viewer_label,
+                                                                "project_hierarchy_ctx_open_runtime_viewer",
+                                                                &None,
+                                                                project_item_menu_width,
+                                                            )
+                                                            .icon(
+                                                                if Self::should_open_project_item_in_code_viewer(
+                                                                    project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                    &tree_entry.project_item,
+                                                                ) {
+                                                                    self.app_context.theme.icon_library.icon_handle_project_cpu_instruction.clone()
+                                                                } else {
+                                                                    self.app_context.theme.icon_library.icon_handle_scan_collect_values.clone()
+                                                                },
+                                                            ),
                                                         )
-                                                        .icon(
-                                                            if Self::should_open_project_item_in_code_viewer(
+                                                        .clicked()
+                                                    {
+                                                        let engine_execution_context: Arc<dyn EngineExecutionContext> =
+                                                            self.app_context.engine_unprivileged_state.clone();
+
+                                                        if let Some((address, module_name)) =
+                                                            Self::resolve_project_item_runtime_value_target(
+                                                                &engine_execution_context,
+                                                                project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                &tree_entry.project_item,
+                                                            )
+                                                        {
+                                                            project_hierarchy_frame_action = if Self::should_open_project_item_in_code_viewer(
                                                                 project_hierarchy_view_data.opened_project_info.as_ref(),
                                                                 &tree_entry.project_item,
                                                             ) {
-                                                                self.app_context.theme.icon_library.icon_handle_project_cpu_instruction.clone()
+                                                                ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
                                                             } else {
-                                                                self.app_context.theme.icon_library.icon_handle_scan_collect_values.clone()
-                                                            },
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    let engine_execution_context: Arc<dyn EngineExecutionContext> =
-                                                        self.app_context.engine_unprivileged_state.clone();
-
-                                                    if let Some((address, module_name)) =
-                                                        Self::resolve_project_item_runtime_value_target(
-                                                            &engine_execution_context,
-                                                            project_hierarchy_view_data.opened_project_info.as_ref(),
-                                                            &tree_entry.project_item,
-                                                        )
-                                                    {
-                                                        project_hierarchy_frame_action = if Self::should_open_project_item_in_code_viewer(
-                                                            project_hierarchy_view_data.opened_project_info.as_ref(),
-                                                            &tree_entry.project_item,
-                                                        ) {
-                                                            ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
+                                                                ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
+                                                                    address,
+                                                                    module_name,
+                                                                    selection_byte_count: Self::resolve_project_item_runtime_value_byte_count(
+                                                                        &self.app_context.engine_unprivileged_state,
+                                                                        project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                        &tree_entry.project_item,
+                                                                    )
+                                                                    .unwrap_or(1),
+                                                                }
+                                                            };
+                                                            *should_close = true;
                                                         } else {
-                                                            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
-                                                                address,
-                                                                module_name,
-                                                                selection_byte_count: Self::resolve_project_item_runtime_value_byte_count(
-                                                                    &self.app_context.engine_unprivileged_state,
-                                                                    project_hierarchy_view_data.opened_project_info.as_ref(),
-                                                                    &tree_entry.project_item,
-                                                                )
-                                                                .unwrap_or(1),
-                                                            }
-                                                        };
-                                                        *should_close = true;
-                                                    } else {
-                                                        log::error!(
-                                                            "Failed to resolve memory viewer target for project item: {:?}.",
-                                                            tree_entry_project_item_path
-                                                        );
+                                                            log::error!(
+                                                                "Failed to resolve memory viewer target for project item: {:?}.",
+                                                                tree_entry_project_item_path
+                                                            );
+                                                        }
                                                     }
                                                 }
 
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_promote_project_item_paths,
-                                                        ToolbarMenuItemView::new(
+                                                if can_promote_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
                                                             "Promote to Symbol",
                                                             "project_hierarchy_ctx_promote_to_symbol",
                                                             &None,
                                                             project_item_menu_width,
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::PromoteToSymbol {
-                                                        project_item_paths: project_item_paths_for_delete.clone(),
-                                                        overwrite_conflicting_symbols: false,
-                                                    };
-                                                    *should_close = true;
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::PromoteToSymbol {
+                                                            project_item_paths: project_item_paths_for_delete.clone(),
+                                                            overwrite_conflicting_symbols: false,
+                                                        };
+                                                        *should_close = true;
+                                                    }
                                                 }
 
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_convert_project_item_paths,
-                                                        ToolbarMenuItemView::new(
+                                                if can_convert_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
                                                             convert_project_item_menu_label.as_str(),
                                                             "project_hierarchy_ctx_convert_to_address_item",
                                                             &None,
                                                             project_item_menu_width,
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
-                                                        project_item_paths: project_item_paths_for_delete.clone(),
-                                                        conversion_target: ProjectItemSymbolRefConversionTarget::Inferred,
-                                                    };
-                                                    *should_close = true;
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
+                                                            project_item_paths: project_item_paths_for_delete.clone(),
+                                                            conversion_target: ProjectItemSymbolRefConversionTarget::Inferred,
+                                                        };
+                                                        *should_close = true;
+                                                    }
                                                 }
 
-                                                user_interface.separator();
+                                                if has_runtime_actions && has_create_actions {
+                                                    user_interface.separator();
+                                                }
 
                                                 Self::show_create_project_item_menu_items(
                                                     self.app_context.clone(),
@@ -1203,79 +1226,87 @@ impl Widget for ProjectHierarchyView {
                                                     should_close,
                                                 );
 
-                                                user_interface.separator();
-
-                                                if user_interface
-                                                    .add(ToolbarMenuItemView::new(
-                                                        self.app_context.clone(),
-                                                        "Cut",
-                                                        "project_hierarchy_ctx_cut",
-                                                        &None,
-                                                        project_item_menu_width,
-                                                    )
-                                                    .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::CutProjectItems(project_item_paths_for_delete.clone());
-                                                    *should_close = true;
+                                                if (has_runtime_actions || has_create_actions) && has_clipboard_actions {
+                                                    user_interface.separator();
                                                 }
 
-                                                if user_interface
-                                                    .add(ToolbarMenuItemView::new(
-                                                        self.app_context.clone(),
-                                                        "Copy",
-                                                        "project_hierarchy_ctx_copy",
-                                                        &None,
-                                                        project_item_menu_width,
-                                                    )
-                                                    .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths_for_delete.clone());
-                                                    *should_close = true;
-                                                }
-
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_paste_project_items,
-                                                        ToolbarMenuItemView::new(
+                                                if can_cut_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
-                                                            "Paste",
-                                                            "project_hierarchy_ctx_paste",
+                                                            "Cut",
+                                                            "project_hierarchy_ctx_cut",
                                                             &None,
                                                             project_item_menu_width,
                                                         )
-                                                        .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems {
-                                                        target_project_item_path: tree_entry_project_item_path.clone(),
-                                                    };
-                                                    *should_close = true;
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::CutProjectItems(project_item_paths_for_delete.clone());
+                                                        *should_close = true;
+                                                    }
                                                 }
 
-                                                user_interface.separator();
+                                                if can_copy_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Copy",
+                                                            "project_hierarchy_ctx_copy",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        )
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths_for_delete.clone());
+                                                        *should_close = true;
+                                                    }
+                                                }
 
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_delete_project_item_paths,
-                                                        ToolbarMenuItemView::new(
+                                                if can_paste_project_items {
+                                                    if user_interface
+                                                        .add(
+                                                            ToolbarMenuItemView::new(
+                                                                self.app_context.clone(),
+                                                                "Paste",
+                                                                "project_hierarchy_ctx_paste",
+                                                                &None,
+                                                                project_item_menu_width,
+                                                            )
+                                                            .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems {
+                                                            target_project_item_path: tree_entry_project_item_path.clone(),
+                                                        };
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if (has_runtime_actions || has_create_actions || has_clipboard_actions) && has_delete_actions {
+                                                    user_interface.separator();
+                                                }
+
+                                                if has_delete_actions {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
                                                             "Delete",
                                                             "project_hierarchy_ctx_delete",
                                                             &None,
                                                             project_item_menu_width,
                                                         )
-                                                        .icon(self.app_context.theme.icon_library.icon_handle_common_delete.clone()),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete.clone());
-                                                    *should_close = true;
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_common_delete.clone()))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete.clone());
+                                                        *should_close = true;
+                                                    }
                                                 }
                                             },
                                         )
