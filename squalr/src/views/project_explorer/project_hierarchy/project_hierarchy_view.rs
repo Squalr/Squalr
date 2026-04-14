@@ -517,7 +517,7 @@ mod tests {
         assert_eq!(
             pointer_scanner_context_actions,
             vec![super::PointerScannerContextAction::Address {
-                label: "Pointer Scan",
+                label: "Open in Pointer Scan",
                 address: 0x1234,
                 module_name: "game.exe".to_string(),
                 data_type_id: "u64".to_string(),
@@ -536,13 +536,13 @@ mod tests {
             pointer_scanner_context_actions,
             vec![
                 super::PointerScannerContextAction::Address {
-                    label: "Pointer Scan for Base Address",
+                    label: "Open Base Address in Pointer Scan",
                     address: 0x1000,
                     module_name: "game.exe".to_string(),
                     data_type_id: "u16".to_string(),
                 },
                 super::PointerScannerContextAction::ResolvedPointer {
-                    label: "Pointer Scan for Resolved Address",
+                    label: "Open Resolved Address in Pointer Scan",
                     pointer,
                     data_type_id: "u16".to_string(),
                 }
@@ -572,7 +572,7 @@ mod tests {
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
 
         let resolved_pointer_action = super::PointerScannerContextAction::ResolvedPointer {
-            label: "Pointer Scan for Resolved Address",
+            label: "Open Resolved Address in Pointer Scan",
             pointer,
             data_type_id: "u16".to_string(),
         };
@@ -2610,7 +2610,7 @@ impl ProjectHierarchyView {
             let mut project_item = project_item.clone();
 
             return vec![PointerScannerContextAction::Address {
-                label: "Pointer Scan",
+                label: "Open in Pointer Scan",
                 address: ProjectItemTypeAddress::get_field_address(&mut project_item),
                 module_name: ProjectItemTypeAddress::get_field_module(&mut project_item),
                 data_type_id: ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item)
@@ -2635,13 +2635,13 @@ impl ProjectHierarchyView {
 
             return vec![
                 PointerScannerContextAction::Address {
-                    label: "Pointer Scan for Base Address",
+                    label: "Open Base Address in Pointer Scan",
                     address: pointer.get_address(),
                     module_name: pointer.get_module_name().to_string(),
                     data_type_id: data_type_id.clone(),
                 },
                 PointerScannerContextAction::ResolvedPointer {
-                    label: "Pointer Scan for Resolved Address",
+                    label: "Open Resolved Address in Pointer Scan",
                     pointer,
                     data_type_id,
                 },
@@ -2654,7 +2654,7 @@ impl ProjectHierarchyView {
             };
 
             return vec![PointerScannerContextAction::Address {
-                label: "Pointer Scan",
+                label: "Open in Pointer Scan",
                 address: rooted_symbol.get_root_locator().get_focus_address(),
                 module_name: rooted_symbol
                     .get_root_locator()
