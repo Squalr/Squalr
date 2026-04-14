@@ -1,7 +1,4 @@
-use crate::{
-    app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-};
+use crate::{app_context::AppContext, ui::widgets::controls::state_layer::StateLayer};
 use eframe::egui::{Align2, Rect, Response, Sense, TextureHandle, Ui, Widget, pos2, vec2};
 use epaint::CornerRadius;
 use std::sync::Arc;
@@ -76,9 +73,13 @@ impl<'a> Widget for ComboBoxItemView<'a> {
         let text_start_position = pos2(icon_rect.max.x + icon_left_padding + text_left_padding, allocated_size_rectangle.min.y);
         let text_width = (allocated_size_rectangle.max.x - text_start_position.x - icon_left_padding).max(0.0);
         let text_rectangle = Rect::from_min_size(text_start_position, vec2(text_width, row_height));
+        let content_clip_rectangle = allocated_size_rectangle.intersect(user_interface.clip_rect());
 
         if let Some(icon) = &self.icon {
-            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
+            user_interface
+                .painter()
+                .with_clip_rect(content_clip_rectangle)
+                .image(icon.id(), icon_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), epaint::Color32::WHITE);
         }
 
         let text_to_render = Self::truncate_text_to_width(
@@ -88,7 +89,9 @@ impl<'a> Widget for ComboBoxItemView<'a> {
             &theme.font_library.font_noto_sans.font_normal,
             theme.foreground,
         );
-        let text_painter = user_interface.painter().with_clip_rect(text_rectangle);
+        let text_painter = user_interface
+            .painter()
+            .with_clip_rect(text_rectangle.intersect(content_clip_rectangle));
         text_painter.text(
             pos2(text_rectangle.min.x, allocated_size_rectangle.center().y),
             Align2::LEFT_CENTER,
