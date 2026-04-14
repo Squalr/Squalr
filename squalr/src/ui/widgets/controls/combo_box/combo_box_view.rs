@@ -1,6 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
+use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, TextureHandle, Vec2, pos2, vec2};
 use std::{borrow::Cow, sync::Arc};
 
@@ -24,6 +24,8 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
 }
 
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
+    const POPUP_BOTTOM_CONTENT_INSET: f32 = 3.0;
+
     pub fn new(
         app_context: Arc<AppContext>,
         label: impl Into<Cow<'lifetime, str>>,
@@ -236,28 +238,37 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let area_response = Area::new(popup_id_area)
             .order(Order::Foreground)
             .fixed_pos(popup_pos)
+            .constrain_to(user_interface.ctx().content_rect())
             .show(user_interface.ctx(), |popup_user_interface| {
                 Frame::new()
                     .fill(theme.background_primary)
                     .stroke(Stroke::new(self.border_width, theme.submenu_border))
-                    .inner_margin(Margin {
-                        left: 0,
-                        right: 0,
-                        top: 0,
-                        bottom: (self.border_width.ceil() as i8) * 2,
-                    })
+                    .inner_margin(Margin::ZERO)
                     .outer_margin(0)
                     .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
-                        popup_user_interface.spacing_mut().menu_margin = Margin::ZERO;
-                        popup_user_interface.spacing_mut().window_margin = Margin::ZERO;
-                        popup_user_interface.spacing_mut().menu_spacing = 0.0;
-                        popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
-                        popup_user_interface.set_min_width(self.width);
-                        popup_user_interface.set_max_width(self.width);
-                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
-                            (self.add_contents)(inner_user_interface, &mut should_close);
-                        });
+                        let popup_content_rect = popup_user_interface.max_rect();
+                        let popup_body_rect = Rect::from_min_max(
+                            popup_content_rect.min,
+                            pos2(
+                                popup_content_rect.max.x,
+                                (popup_content_rect.max.y - Self::POPUP_BOTTOM_CONTENT_INSET).max(popup_content_rect.min.y),
+                            ),
+                        );
+                        let mut popup_body_user_interface = popup_user_interface.new_child(
+                            UiBuilder::new()
+                                .max_rect(popup_body_rect)
+                                .layout(Layout::top_down(Align::Min)),
+                        );
+                        popup_body_user_interface.set_clip_rect(popup_body_rect.intersect(popup_user_interface.clip_rect()));
+                        popup_body_user_interface.spacing_mut().menu_margin = Margin::ZERO;
+                        popup_body_user_interface.spacing_mut().window_margin = Margin::ZERO;
+                        popup_body_user_interface.spacing_mut().menu_spacing = 0.0;
+                        popup_body_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
+                        popup_body_user_interface.set_min_width(self.width);
+                        popup_body_user_interface.set_max_width(self.width);
+
+                        (self.add_contents)(&mut popup_body_user_interface, &mut should_close);
                     });
             });
 
