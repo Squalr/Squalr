@@ -240,7 +240,12 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 Frame::new()
                     .fill(theme.background_primary)
                     .stroke(Stroke::new(self.border_width, theme.submenu_border))
-                    .inner_margin(0)
+                    .inner_margin(Margin {
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        bottom: (self.border_width.ceil() as i8) * 2,
+                    })
                     .outer_margin(0)
                     .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
