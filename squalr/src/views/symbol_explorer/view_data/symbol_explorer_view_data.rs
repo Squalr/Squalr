@@ -39,7 +39,6 @@ pub struct SymbolExplorerViewData {
     take_over_state: Option<SymbolExplorerTakeOverState>,
     rooted_symbol_create_draft: RootedSymbolCreateDraft,
     inline_rename_symbol_key: Option<String>,
-    struct_viewer_focus_target_key: Option<String>,
     expanded_tree_node_keys: HashSet<String>,
 }
 
@@ -50,7 +49,6 @@ impl SymbolExplorerViewData {
             take_over_state: None,
             rooted_symbol_create_draft: RootedSymbolCreateDraft::default(),
             inline_rename_symbol_key: None,
-            struct_viewer_focus_target_key: None,
             expanded_tree_node_keys: HashSet::new(),
         }
     }
@@ -261,23 +259,6 @@ impl SymbolExplorerViewData {
         }
     }
 
-    pub fn update_struct_viewer_focus_target(
-        symbol_explorer_view_data: Dependency<Self>,
-        struct_viewer_focus_target_key: Option<String>,
-    ) -> bool {
-        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer update struct viewer focus target") else {
-            return false;
-        };
-
-        if symbol_explorer_view_data.struct_viewer_focus_target_key == struct_viewer_focus_target_key {
-            return false;
-        }
-
-        symbol_explorer_view_data.struct_viewer_focus_target_key = struct_viewer_focus_target_key;
-
-        true
-    }
-
     fn selection_exists(
         project_symbol_catalog: &ProjectSymbolCatalog,
         selected_entry: &SymbolExplorerSelection,
@@ -456,20 +437,5 @@ mod tests {
             .expect("Expected symbol explorer dependency read access in test.");
 
         assert_eq!(symbol_explorer_view_data.get_inline_rename_symbol_key(), None);
-    }
-
-    #[test]
-    fn update_struct_viewer_focus_target_reports_changes() {
-        let symbol_explorer_view_data = create_dependency();
-
-        assert!(SymbolExplorerViewData::update_struct_viewer_focus_target(
-            symbol_explorer_view_data.clone(),
-            Some(String::from("root:sym.player")),
-        ));
-        assert!(!SymbolExplorerViewData::update_struct_viewer_focus_target(
-            symbol_explorer_view_data.clone(),
-            Some(String::from("root:sym.player")),
-        ));
-        assert!(SymbolExplorerViewData::update_struct_viewer_focus_target(symbol_explorer_view_data, None,));
     }
 }

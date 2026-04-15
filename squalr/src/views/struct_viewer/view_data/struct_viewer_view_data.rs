@@ -122,6 +122,18 @@ impl StructViewerViewData {
         struct_viewer_view_data.struct_field_modified_callback = None;
     }
 
+    pub fn build_read_only_presented_state(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        valued_struct: ValuedStruct,
+    ) -> Self {
+        let mut struct_viewer_view_data = Self::new();
+
+        struct_viewer_view_data.source_struct_under_view = Arc::new(Some(valued_struct));
+        struct_viewer_view_data.refresh_cached_field_state(engine_unprivileged_state);
+
+        struct_viewer_view_data
+    }
+
     fn set_valued_struct_and_callback(
         &mut self,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
