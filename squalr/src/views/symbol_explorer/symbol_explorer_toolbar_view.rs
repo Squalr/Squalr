@@ -2,7 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, theme::Theme, widgets::controls::button::Button},
 };
-use eframe::egui::{Align, Layout, RichText, Sense, Ui, UiBuilder};
+use eframe::egui::{Align, Layout, Sense, Ui, UiBuilder};
 use epaint::{Color32, CornerRadius, vec2};
 use std::sync::Arc;
 
@@ -21,7 +21,6 @@ pub enum SymbolExplorerToolbarAction {
 #[derive(Clone)]
 pub struct SymbolExplorerToolbarView {
     app_context: Arc<AppContext>,
-    summary_text: String,
     show_actions: bool,
     can_create_rooted_symbol: bool,
     can_rename_rooted_symbol: bool,
@@ -37,13 +36,9 @@ impl SymbolExplorerToolbarView {
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const TOOLBAR_BUTTON_SIZE: f32 = 36.0;
 
-    pub fn new(
-        app_context: Arc<AppContext>,
-        summary_text: String,
-    ) -> Self {
+    pub fn new(app_context: Arc<AppContext>) -> Self {
         Self {
             app_context,
-            summary_text,
             show_actions: true,
             can_create_rooted_symbol: false,
             can_rename_rooted_symbol: false,
@@ -154,12 +149,6 @@ impl SymbolExplorerToolbarView {
             UiBuilder::new()
                 .max_rect(toolbar_rect)
                 .layout(Layout::left_to_right(Align::Center)),
-        );
-
-        toolbar_user_interface.label(
-            RichText::new(self.summary_text)
-                .font(theme.font_library.font_noto_sans.font_normal.clone())
-                .color(theme.foreground),
         );
 
         if !self.show_actions {

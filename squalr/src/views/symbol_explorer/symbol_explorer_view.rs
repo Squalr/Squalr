@@ -1349,27 +1349,20 @@ impl Widget for SymbolExplorerView {
                         )
                         .layout(Layout::top_down(Align::Min)),
                 );
-                let toolbar_action = SymbolExplorerToolbarView::new(
-                    self.app_context.clone(),
-                    format!(
-                        "{} rooted symbol(s), {} symbol type(s)",
-                        project_symbol_catalog.get_rooted_symbols().len(),
-                        project_symbol_catalog.get_struct_layout_descriptors().len()
-                    ),
-                )
-                .show_actions(!matches!(
-                    take_over_state.as_ref(),
-                    Some(SymbolExplorerTakeOverState::DeleteConfirmation { .. })
-                ))
-                .can_create_rooted_symbol(!is_inline_rename_active)
-                .can_rename_rooted_symbol(selected_rooted_symbol.is_some() && !is_inline_rename_active)
-                .can_delete_rooted_symbol(selected_rooted_symbol.is_some() && !is_inline_rename_active)
-                .can_open_in_code_viewer(selected_symbol_tree_entry.is_some())
-                .can_open_in_memory_viewer(selected_symbol_tree_entry.is_some())
-                .can_promote_derived_symbol(matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::DerivedNode(_))))
-                .can_cancel_create_rooted_symbol(matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateRootedSymbol)))
-                .can_commit_create_rooted_symbol(create_rooted_symbol_request.is_some())
-                .show(&mut list_user_interface);
+                let toolbar_action = SymbolExplorerToolbarView::new(self.app_context.clone())
+                    .show_actions(!matches!(
+                        take_over_state.as_ref(),
+                        Some(SymbolExplorerTakeOverState::DeleteConfirmation { .. })
+                    ))
+                    .can_create_rooted_symbol(!is_inline_rename_active)
+                    .can_rename_rooted_symbol(selected_rooted_symbol.is_some() && !is_inline_rename_active)
+                    .can_delete_rooted_symbol(selected_rooted_symbol.is_some() && !is_inline_rename_active)
+                    .can_open_in_code_viewer(selected_symbol_tree_entry.is_some())
+                    .can_open_in_memory_viewer(selected_symbol_tree_entry.is_some())
+                    .can_promote_derived_symbol(matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::DerivedNode(_))))
+                    .can_cancel_create_rooted_symbol(matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateRootedSymbol)))
+                    .can_commit_create_rooted_symbol(create_rooted_symbol_request.is_some())
+                    .show(&mut list_user_interface);
 
                 match toolbar_action {
                     Some(SymbolExplorerToolbarAction::CreateRootedSymbol) => {
