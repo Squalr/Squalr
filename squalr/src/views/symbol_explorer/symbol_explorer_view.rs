@@ -60,6 +60,7 @@ impl SymbolExplorerView {
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
     const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
+    const STRUCT_VIEWER_SYMBOL_KEY_FIELD: &'static str = "symbol_key";
     const STRING_DATA_TYPE_ID: &'static str = "string_utf8";
     const INLINE_RENAME_TEXT_STORAGE_ID_PREFIX: &'static str = "symbol_explorer_inline_rename_text";
     const INLINE_RENAME_HIGHLIGHT_STORAGE_ID_PREFIX: &'static str = "symbol_explorer_inline_rename_highlight";
@@ -352,11 +353,7 @@ impl SymbolExplorerView {
             );
         }
 
-        Self::normalize_symbol_memory_struct(
-            memory_read_response.valued_struct,
-            symbol_tree_entry.get_display_name(),
-            include_editable_display_name,
-        )
+        Self::normalize_symbol_memory_struct(memory_read_response.valued_struct, symbol_tree_entry, include_editable_display_name)
     }
 
     fn build_named_symbolic_struct_definition_for_symbol_tree_entry(
@@ -379,16 +376,23 @@ impl SymbolExplorerView {
 
     fn normalize_symbol_memory_struct(
         valued_struct: ValuedStruct,
-        fallback_field_name: &str,
+        symbol_tree_entry: &SymbolTreeEntry,
         include_editable_display_name: bool,
     ) -> ValuedStruct {
         let mut normalized_fields = Vec::new();
 
         if include_editable_display_name {
             normalized_fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(fallback_field_name)
+                DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_display_name())
                     .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
             );
+
+            if let SymbolTreeEntryKind::RootedSymbol { symbol_key } = symbol_tree_entry.get_kind() {
+                normalized_fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(symbol_key)
+                        .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_KEY_FIELD.to_string(), true),
+                );
+            }
         }
 
         normalized_fields.extend(
@@ -398,8 +402,8 @@ impl SymbolExplorerView {
                 .enumerate()
                 .map(|(field_index, valued_struct_field)| {
                     let resolved_field_name = if valued_struct_field.get_name().trim().is_empty() {
-                        if field_index == 0 && !fallback_field_name.trim().is_empty() {
-                            fallback_field_name.to_string()
+                        if field_index == 0 {
+                            String::from("value")
                         } else {
                             format!("value_{}", field_index)
                         }
@@ -421,15 +425,31 @@ impl SymbolExplorerView {
         status_text: &str,
         include_editable_display_name: bool,
     ) -> ValuedStruct {
-        ValuedStruct::new_anonymous(vec![
+        let mut fallback_fields = Vec::new();
+
+        fallback_fields.push(
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_display_name())
-                .to_named_valued_struct_field(String::from("display_name"), !include_editable_display_name),
+                .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), !include_editable_display_name),
+        );
+
+        if include_editable_display_name {
+            if let SymbolTreeEntryKind::RootedSymbol { symbol_key } = symbol_tree_entry.get_kind() {
+                fallback_fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(symbol_key)
+                        .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_KEY_FIELD.to_string(), true),
+                );
+            }
+        }
+
+        fallback_fields.extend([
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_symbol_type_id())
                 .to_named_valued_struct_field(String::from("type"), true),
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_locator().to_string())
                 .to_named_valued_struct_field(String::from("locator"), true),
             DataTypeStringUtf8::get_value_from_primitive_string(status_text).to_named_valued_struct_field(String::from("status"), true),
-        ])
+        ]);
+
+        ValuedStruct::new_anonymous(fallback_fields)
     }
 
     fn dispatch_memory_read_request(
