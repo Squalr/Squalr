@@ -51,7 +51,6 @@ pub struct SymbolExplorerView {
     app_context: Arc<AppContext>,
     symbol_explorer_view_data: Dependency<SymbolExplorerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
-    struct_viewer_view: StructViewerView,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     code_viewer_view_data: Dependency<CodeViewerViewData>,
 }
@@ -72,7 +71,6 @@ impl SymbolExplorerView {
         let symbol_explorer_view_data = app_context
             .dependency_container
             .register(SymbolExplorerViewData::new());
-        let struct_viewer_view = StructViewerView::new(app_context.clone());
         let struct_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<StructViewerViewData>();
@@ -87,7 +85,6 @@ impl SymbolExplorerView {
             app_context,
             symbol_explorer_view_data,
             struct_viewer_view_data,
-            struct_viewer_view,
             memory_viewer_view_data,
             code_viewer_view_data,
         }
@@ -1344,6 +1341,12 @@ impl Widget for SymbolExplorerView {
             }
         }
 
+        if is_inline_rename_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+            if let Some(active_inline_rename_symbol_key) = inline_rename_symbol_key.as_deref() {
+                self.clear_inline_rename_state(user_interface, active_inline_rename_symbol_key);
+            }
+        }
+
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let content_rect = user_interface.available_rect_before_wrap();
@@ -1619,7 +1622,7 @@ impl Widget for SymbolExplorerView {
                 } else {
                     match selected_entry.as_ref() {
                         Some(SymbolExplorerSelection::RootedSymbol(_)) | Some(SymbolExplorerSelection::DerivedNode(_)) => {
-                            details_user_interface.add(self.struct_viewer_view.clone());
+                            details_user_interface.add(StructViewerView::new(self.app_context.clone()));
                         }
                         Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
                             ScrollArea::vertical()

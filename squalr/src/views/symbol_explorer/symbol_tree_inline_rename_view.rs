@@ -137,7 +137,10 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
         SymbolTreeInlineRenameViewResponse {
             row_response,
             should_commit: text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)),
-            should_cancel: text_edit_response.has_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)),
+            should_cancel: (text_edit_response.has_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)))
+                || (text_edit_response.lost_focus()
+                    && user_interface.input(|input_state| input_state.pointer.any_click())
+                    && !user_interface.input(|input_state| input_state.key_pressed(Key::Enter))),
         }
     }
 }
