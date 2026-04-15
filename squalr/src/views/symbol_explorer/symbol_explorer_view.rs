@@ -669,44 +669,67 @@ impl SymbolExplorerView {
         }
     }
 
-    fn render_delete_confirmation_details(
+    fn render_delete_confirmation_take_over(
         &self,
         user_interface: &mut Ui,
         display_name: &str,
+        symbol_key: &str,
     ) {
-        let details_width = user_interface.available_width().max(1.0);
+        let theme = &self.app_context.theme;
 
-        user_interface.add(
-            GroupBox::new_from_theme(&self.app_context.theme, "Delete Rooted Symbol", |user_interface| {
-                user_interface.label(
-                    RichText::new("Confirm deletion of this rooted symbol.")
-                        .font(
-                            self.app_context
-                                .theme
-                                .font_library
-                                .font_noto_sans
-                                .font_header
-                                .clone(),
-                        )
-                        .color(self.app_context.theme.foreground),
+        user_interface.allocate_ui_with_layout(
+            user_interface.available_size(),
+            Layout::centered_and_justified(Direction::TopDown),
+            |user_interface| {
+                let panel_width = user_interface.available_width().min(420.0).max(260.0);
+
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Delete Rooted Symbol", |user_interface| {
+                        user_interface.vertical_centered(|user_interface| {
+                            user_interface.label(
+                                RichText::new("Delete this rooted symbol?")
+                                    .font(theme.font_library.font_noto_sans.font_header.clone())
+                                    .color(theme.foreground),
+                            );
+                            user_interface.add_space(8.0);
+                            user_interface.label(
+                                RichText::new(display_name)
+                                    .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                            user_interface.add_space(6.0);
+                            user_interface.label(RichText::new("This removes the authored rooted symbol from the project.").color(theme.foreground_preview));
+                        });
+
+                        user_interface.add_space(12.0);
+                        user_interface.horizontal_centered(|user_interface| {
+                            let button_size = [96.0, 30.0];
+                            let button_cancel = user_interface.add_sized(
+                                button_size,
+                                eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                    .fill(theme.background_control_secondary)
+                                    .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                            );
+
+                            if button_cancel.clicked() {
+                                SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+                            }
+
+                            let button_confirm_delete = user_interface.add_sized(
+                                button_size,
+                                eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
+                                    .fill(theme.background_control_danger)
+                                    .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                            );
+
+                            if button_confirm_delete.clicked() {
+                                self.delete_rooted_symbol(symbol_key);
+                            }
+                        });
+                    })
+                    .desired_width(panel_width),
                 );
-                user_interface.add_space(8.0);
-                user_interface.label(
-                    RichText::new(display_name)
-                        .font(
-                            self.app_context
-                                .theme
-                                .font_library
-                                .font_ubuntu_mono_bold
-                                .font_normal
-                                .clone(),
-                        )
-                        .color(self.app_context.theme.foreground),
-                );
-                user_interface.add_space(6.0);
-                user_interface.label(RichText::new("Use the toolbar actions above to confirm or cancel.").color(self.app_context.theme.foreground_preview));
-            })
-            .desired_width(details_width),
+            },
         );
     }
 
@@ -905,6 +928,17 @@ impl SymbolExplorerView {
                 };
 
                 SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+            }
+
+            if allow_interaction
+                && symbol_tree_entry_view_response.row_response.double_clicked()
+                && matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { .. })
+            {
+                let SymbolTreeEntryKind::RootedSymbol { symbol_key } = symbol_tree_entry.get_kind() else {
+                    continue;
+                };
+
+                SymbolExplorerViewData::begin_inline_rename(self.symbol_explorer_view_data.clone(), symbol_key.to_string());
             }
         }
     }
@@ -1388,33 +1422,7 @@ impl Widget for SymbolExplorerView {
                     .color(theme.foreground),
                 );
                 toolbar_user_interface.with_layout(Layout::right_to_left(Align::Center), |toolbar_user_interface| {
-                    if let Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_key, .. }) = take_over_state.as_ref() {
-                        if self
-                            .draw_icon_button(
-                                toolbar_user_interface,
-                                &theme.icon_library.icon_handle_common_delete,
-                                "Delete rooted symbol.",
-                                true,
-                                theme.background_control_secondary,
-                            )
-                            .clicked()
-                        {
-                            self.delete_rooted_symbol(symbol_key);
-                        }
-
-                        if self
-                            .draw_icon_button(
-                                toolbar_user_interface,
-                                &theme.icon_library.icon_handle_navigation_cancel,
-                                "Cancel deletion.",
-                                true,
-                                theme.background_control_secondary,
-                            )
-                            .clicked()
-                        {
-                            SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
-                        }
-
+                    if matches!(take_over_state.as_ref(), Some(SymbolExplorerTakeOverState::DeleteConfirmation { .. })) {
                         return;
                     }
 
@@ -1582,6 +1590,13 @@ impl Widget for SymbolExplorerView {
                     }
                 });
 
+                if let Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_key, display_name }) = take_over_state.as_ref() {
+                    list_user_interface.add_space(8.0);
+                    self.render_delete_confirmation_take_over(&mut list_user_interface, display_name, symbol_key);
+
+                    return;
+                }
+
                 list_user_interface.add_space(8.0);
                 ScrollArea::vertical()
                     .id_salt("symbol_explorer_list")
@@ -1612,37 +1627,28 @@ impl Widget for SymbolExplorerView {
                         .layout(Layout::top_down(Align::Min)),
                 );
 
-                if let Some(SymbolExplorerTakeOverState::DeleteConfirmation { display_name, .. }) = take_over_state.as_ref() {
-                    ScrollArea::vertical()
-                        .id_salt("symbol_explorer_details_delete_confirmation")
-                        .auto_shrink([false, false])
-                        .show(&mut details_user_interface, |details_user_interface| {
-                            self.render_delete_confirmation_details(details_user_interface, display_name);
-                        });
-                } else {
-                    match selected_entry.as_ref() {
-                        Some(SymbolExplorerSelection::RootedSymbol(_)) | Some(SymbolExplorerSelection::DerivedNode(_)) => {
-                            details_user_interface.add(StructViewerView::new(self.app_context.clone()));
-                        }
-                        Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
-                            ScrollArea::vertical()
-                                .id_salt("symbol_explorer_details_struct_layout")
-                                .auto_shrink([false, false])
-                                .show(&mut details_user_interface, |details_user_interface| {
-                                    self.render_struct_layout_details(details_user_interface, &project_symbol_catalog, struct_layout_id);
-                                });
-                        }
-                        Some(SymbolExplorerSelection::CreateRootedSymbol) => {
-                            ScrollArea::vertical()
-                                .id_salt("symbol_explorer_details_create")
-                                .auto_shrink([false, false])
-                                .show(&mut details_user_interface, |details_user_interface| {
-                                    self.render_create_rooted_symbol_details(details_user_interface, &project_symbol_catalog);
-                                });
-                        }
-                        None => {
-                            details_user_interface.label(RichText::new("Select a rooted symbol or symbol type.").color(theme.foreground_preview));
-                        }
+                match selected_entry.as_ref() {
+                    Some(SymbolExplorerSelection::RootedSymbol(_)) | Some(SymbolExplorerSelection::DerivedNode(_)) => {
+                        details_user_interface.add(StructViewerView::new(self.app_context.clone()));
+                    }
+                    Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
+                        ScrollArea::vertical()
+                            .id_salt("symbol_explorer_details_struct_layout")
+                            .auto_shrink([false, false])
+                            .show(&mut details_user_interface, |details_user_interface| {
+                                self.render_struct_layout_details(details_user_interface, &project_symbol_catalog, struct_layout_id);
+                            });
+                    }
+                    Some(SymbolExplorerSelection::CreateRootedSymbol) => {
+                        ScrollArea::vertical()
+                            .id_salt("symbol_explorer_details_create")
+                            .auto_shrink([false, false])
+                            .show(&mut details_user_interface, |details_user_interface| {
+                                self.render_create_rooted_symbol_details(details_user_interface, &project_symbol_catalog);
+                            });
+                    }
+                    None => {
+                        details_user_interface.label(RichText::new("Select a rooted symbol or symbol type.").color(theme.foreground_preview));
                     }
                 }
             })
