@@ -810,12 +810,12 @@ impl Widget for ProjectHierarchyView {
                     .struct_viewer_view_data
                     .read("Project hierarchy shared struct viewer focus target")
                     .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
-                if matches!(
-                    shared_struct_viewer_focus_target,
-                    Some(StructViewerFocusTarget::SymbolExplorer { .. })
-                ) {
-                    ProjectHierarchyViewData::clear_selection(self.project_hierarchy_view_data.clone());
-                }
+                let active_struct_viewer_project_item_paths: HashSet<PathBuf> = match shared_struct_viewer_focus_target.as_ref() {
+                    Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }) => {
+                        project_item_paths.iter().cloned().collect()
+                    }
+                    _ => HashSet::new(),
+                };
 
                 let project_hierarchy_view_data = match self.project_hierarchy_view_data.read("Project hierarchy view") {
                     Some(project_hierarchy_view_data) => project_hierarchy_view_data,
@@ -881,7 +881,8 @@ impl Widget for ProjectHierarchyView {
                                 );
 
                                 for tree_entry in &tree_entries[visible_row_range] {
-                                    let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path);
+                                    let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path)
+                                        && active_struct_viewer_project_item_paths.contains(&tree_entry.project_item_path);
                                     let icon = Self::resolve_tree_entry_icon(
                                         self.app_context.clone(),
                                         project_hierarchy_view_data.opened_project_info.as_ref(),

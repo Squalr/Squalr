@@ -273,29 +273,31 @@ impl SymbolExplorerView {
         })
     }
 
-    fn sync_selected_symbol_into_struct_viewer(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: Option<&SymbolTreeEntry>,
-    ) {
-        let focus_target_key = Self::build_struct_viewer_focus_target_key(selected_symbol_tree_entry);
-        let should_refresh_struct_viewer_focus =
-            SymbolExplorerViewData::update_struct_viewer_focus_target(self.symbol_explorer_view_data.clone(), focus_target_key.clone());
+    fn build_struct_viewer_focus_target(selected_symbol_tree_entry: Option<&SymbolTreeEntry>) -> Option<StructViewerFocusTarget> {
+        Self::build_struct_viewer_focus_target_key(selected_symbol_tree_entry).map(|selection_key| StructViewerFocusTarget::SymbolExplorer { selection_key })
+    }
 
-        if !should_refresh_struct_viewer_focus {
-            return;
-        }
-
-        let Some(selected_symbol_tree_entry) = selected_symbol_tree_entry else {
-            StructViewerViewData::clear_focus(self.struct_viewer_view_data.clone());
-            return;
+    fn is_symbol_tree_entry_struct_viewer_focused(
+        symbol_tree_entry: &SymbolTreeEntry,
+        shared_struct_viewer_focus_target: Option<&StructViewerFocusTarget>,
+    ) -> bool {
+        let Some(StructViewerFocusTarget::SymbolExplorer { selection_key }) = shared_struct_viewer_focus_target else {
+            return false;
         };
 
+        Self::build_struct_viewer_focus_target_key(Some(symbol_tree_entry))
+            .as_ref()
+            .is_some_and(|row_selection_key| row_selection_key == selection_key)
+    }
+
+    fn focus_symbol_tree_entry_in_struct_viewer(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        selected_symbol_tree_entry: &SymbolTreeEntry,
+    ) {
         let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
         let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
-        let focus_target = focus_target_key
-            .clone()
-            .map(|selection_key| StructViewerFocusTarget::SymbolExplorer { selection_key });
+        let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
 
         StructViewerViewData::focus_valued_struct_with_focus_target(
             self.struct_viewer_view_data.clone(),
@@ -304,6 +306,35 @@ impl SymbolExplorerView {
             struct_viewer_edit_callback,
             focus_target,
         );
+    }
+
+    fn sync_selected_symbol_into_struct_viewer(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        selected_symbol_tree_entry: Option<&SymbolTreeEntry>,
+    ) {
+        let current_focus_target = self
+            .struct_viewer_view_data
+            .read("Symbol explorer current struct viewer focus target")
+            .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
+        let desired_focus_target = Self::build_struct_viewer_focus_target(selected_symbol_tree_entry);
+
+        if current_focus_target == desired_focus_target {
+            return;
+        }
+
+        let Some(selected_symbol_tree_entry) = selected_symbol_tree_entry else {
+            if matches!(current_focus_target, Some(StructViewerFocusTarget::SymbolExplorer { .. })) {
+                StructViewerViewData::clear_focus(self.struct_viewer_view_data.clone());
+            }
+            return;
+        };
+
+        if matches!(current_focus_target, Some(StructViewerFocusTarget::ProjectHierarchy { .. })) {
+            return;
+        }
+
+        self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, selected_symbol_tree_entry);
     }
 
     fn build_struct_viewer_edit_callback(
@@ -1362,10 +1393,12 @@ impl SymbolExplorerView {
     fn render_symbol_tree_list(
         &self,
         user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entries: &[SymbolTreeEntry],
         preview_values_by_node_key: &HashMap<String, String>,
         selected_entry: Option<&SymbolExplorerSelection>,
         inline_rename_symbol_key: Option<&str>,
+        shared_struct_viewer_focus_target: Option<&StructViewerFocusTarget>,
         allow_interaction: bool,
     ) {
         user_interface.label(
@@ -1389,7 +1422,7 @@ impl SymbolExplorerView {
         user_interface.add_space(6.0);
 
         for symbol_tree_entry in symbol_tree_entries {
-            let is_selected = matches!(
+            let is_locally_selected = matches!(
                 selected_entry,
                 Some(SymbolExplorerSelection::RootedSymbol(selected_symbol_key))
                     if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { symbol_key } if selected_symbol_key == symbol_key)
@@ -1397,6 +1430,7 @@ impl SymbolExplorerView {
                 selected_entry,
                 Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
             );
+            let is_selected = is_locally_selected && Self::is_symbol_tree_entry_struct_viewer_focused(symbol_tree_entry, shared_struct_viewer_focus_target);
 
             let is_inline_rename_row = inline_rename_symbol_key.is_some_and(|active_inline_rename_symbol_key| {
                 matches!(
@@ -1476,6 +1510,7 @@ impl SymbolExplorerView {
                 };
 
                 SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+                self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
             }
 
             if allow_interaction
@@ -1764,10 +1799,6 @@ impl Widget for SymbolExplorerView {
             .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
         let suppress_default_selection = matches!(shared_struct_viewer_focus_target, Some(StructViewerFocusTarget::ProjectHierarchy { .. }));
 
-        if suppress_default_selection {
-            SymbolExplorerViewData::clear_selection(self.symbol_explorer_view_data.clone());
-        }
-
         SymbolExplorerViewData::synchronize_selection(self.symbol_explorer_view_data.clone(), &project_symbol_catalog, suppress_default_selection);
         SymbolExplorerViewData::synchronize_rooted_symbol_create_draft(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_inline_rename(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
@@ -1965,10 +1996,12 @@ impl Widget for SymbolExplorerView {
                     .show(&mut list_user_interface, |user_interface| {
                         self.render_symbol_tree_list(
                             user_interface,
+                            &project_symbol_catalog,
                             &symbol_tree_entries,
                             &preview_values_by_node_key,
                             selected_entry.as_ref(),
                             inline_rename_symbol_key.as_deref(),
+                            shared_struct_viewer_focus_target.as_ref(),
                             !is_inline_rename_active,
                         );
                         self.render_struct_layout_list(user_interface, &project_symbol_catalog, selected_entry.as_ref(), !is_inline_rename_active);
@@ -1990,6 +2023,7 @@ impl Widget for SymbolExplorerView {
 #[cfg(test)]
 mod tests {
     use super::SymbolExplorerView;
+    use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
     use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
     use squalr_engine_api::structures::{
         data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u32::data_type_u32::DataTypeU32},
@@ -2029,6 +2063,30 @@ mod tests {
         let manager_focus_key = SymbolExplorerView::build_struct_viewer_focus_target_key(Some(&manager_entry));
 
         assert_ne!(player_focus_key, manager_focus_key);
+    }
+
+    #[test]
+    fn symbol_tree_entry_is_struct_viewer_focused_when_focus_target_matches_row_key() {
+        let player_entry = create_rooted_symbol_tree_entry("Player", "i32");
+        let focus_target = SymbolExplorerView::build_struct_viewer_focus_target(Some(&player_entry));
+
+        assert!(SymbolExplorerView::is_symbol_tree_entry_struct_viewer_focused(
+            &player_entry,
+            focus_target.as_ref(),
+        ));
+    }
+
+    #[test]
+    fn symbol_tree_entry_is_not_struct_viewer_focused_for_other_origin() {
+        let player_entry = create_rooted_symbol_tree_entry("Player", "i32");
+        let focus_target = StructViewerFocusTarget::ProjectHierarchy {
+            project_item_paths: Vec::new(),
+        };
+
+        assert!(!SymbolExplorerView::is_symbol_tree_entry_struct_viewer_focused(
+            &player_entry,
+            Some(&focus_target),
+        ));
     }
 
     #[test]
