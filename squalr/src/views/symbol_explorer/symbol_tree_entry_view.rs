@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
+    ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
     views::symbol_explorer::view_data::symbol_tree_entry::SymbolTreeEntry,
 };
 use eframe::egui::{Align2, Color32, FontId, Rect, Response, Sense, Ui, Widget, pos2, vec2};
@@ -41,6 +41,8 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let tree_level_indent = 18.0;
         let text_left_padding = 4.0;
         let expand_arrow_size = vec2(10.0, 10.0);
+        let data_type_icon_size = vec2(16.0, 16.0);
+        let data_type_icon_gap = 6.0;
         let right_preview_padding = 8.0;
         let row_height = 28.0;
         let (allocated_size_rectangle, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, row_height), Sense::click());
@@ -96,17 +98,18 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             IconDraw::draw_sized(user_interface, arrow_center, expand_arrow_size, expand_icon);
         }
 
-        let text_position_x = allocated_size_rectangle.min.x + row_left_padding + indentation + expand_arrow_size.x + text_left_padding;
+        let data_type_icon_center = pos2(
+            allocated_size_rectangle.min.x + row_left_padding + indentation + expand_arrow_size.x + text_left_padding + data_type_icon_size.x * 0.5,
+            allocated_size_rectangle.center().y,
+        );
+        let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(&self.symbol_tree_entry.get_promoted_symbol_type_id(), &theme.icon_library);
+        IconDraw::draw_sized(user_interface, data_type_icon_center, data_type_icon_size, &data_type_icon);
+
+        let text_position_x = data_type_icon_center.x + data_type_icon_size.x * 0.5 + data_type_icon_gap;
         let text_position = pos2(text_position_x, allocated_size_rectangle.center().y);
         let locator_position = pos2(allocated_size_rectangle.max.x - right_preview_padding, allocated_size_rectangle.center().y);
         let display_name_font = theme.font_library.font_noto_sans.font_normal.clone();
-        let preview_path_font = theme.font_library.font_noto_sans.font_small.clone();
         let locator_font = theme.font_library.font_noto_sans.font_small.clone();
-        let type_preview_text = format!(
-            "[{}{}]",
-            self.symbol_tree_entry.get_symbol_type_id(),
-            self.symbol_tree_entry.get_container_type()
-        );
         let locator_text = self.symbol_tree_entry.get_locator().to_string();
         let locator_width = Self::measure_text_width(user_interface, &locator_text, &locator_font, theme.foreground_preview);
         let left_text_max_x = locator_position.x - locator_width - 12.0;
@@ -124,37 +127,9 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         } else {
             self.symbol_tree_entry.get_display_name().to_string()
         };
-        let painted_display_name_width = Self::measure_text_width(user_interface, &display_name_text, &display_name_font, theme.foreground);
-
         user_interface
             .painter()
             .text(text_position, Align2::LEFT_CENTER, display_name_text, display_name_font, theme.foreground);
-
-        if painted_display_name_width < max_left_text_width {
-            let preview_path_gap = 10.0;
-            let preview_path_position = pos2(
-                text_position.x + painted_display_name_width + preview_path_gap,
-                allocated_size_rectangle.center().y,
-            );
-            let max_preview_path_width = (max_left_text_width - painted_display_name_width - preview_path_gap).max(0.0);
-            let preview_path_text = Self::truncate_text_to_width(
-                user_interface,
-                &type_preview_text,
-                &preview_path_font,
-                theme.foreground_preview,
-                max_preview_path_width,
-            );
-
-            if !preview_path_text.is_empty() {
-                user_interface.painter().text(
-                    preview_path_position,
-                    Align2::LEFT_CENTER,
-                    preview_path_text,
-                    preview_path_font,
-                    theme.foreground_preview,
-                );
-            }
-        }
 
         user_interface
             .painter()
@@ -165,7 +140,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let hover_text = format!(
             "{}\n{}\n{}",
             self.symbol_tree_entry.get_full_path(),
-            type_preview_text,
+            self.symbol_tree_entry.get_promoted_symbol_type_id(),
             self.symbol_tree_entry.get_locator()
         );
 
