@@ -80,6 +80,13 @@ impl ProjectRootSymbol {
         &self.struct_layout_id
     }
 
+    pub fn set_struct_layout_id(
+        &mut self,
+        struct_layout_id: String,
+    ) {
+        self.struct_layout_id = struct_layout_id;
+    }
+
     pub fn get_metadata(&self) -> &BTreeMap<String, String> {
         &self.metadata
     }

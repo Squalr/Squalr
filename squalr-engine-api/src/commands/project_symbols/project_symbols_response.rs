@@ -1,6 +1,7 @@
 use crate::commands::project_symbols::{
     create::project_symbols_create_response::ProjectSymbolsCreateResponse, delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse,
     list::project_symbols_list_response::ProjectSymbolsListResponse, rename::project_symbols_rename_response::ProjectSymbolsRenameResponse,
+    update::project_symbols_update_response::ProjectSymbolsUpdateResponse,
 };
 use serde::{Deserialize, Serialize};
 
@@ -17,5 +18,8 @@ pub enum ProjectSymbolsResponse {
     },
     Rename {
         project_symbols_rename_response: ProjectSymbolsRenameResponse,
+    },
+    Update {
+        project_symbols_update_response: ProjectSymbolsUpdateResponse,
     },
 }

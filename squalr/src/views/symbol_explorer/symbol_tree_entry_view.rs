@@ -10,6 +10,8 @@ use std::sync::Arc;
 pub struct SymbolTreeEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     symbol_tree_entry: &'lifetime SymbolTreeEntry,
+    secondary_identity_text: &'lifetime str,
+    preview_value: &'lifetime str,
     is_selected: bool,
 }
 
@@ -23,11 +25,15 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         symbol_tree_entry: &'lifetime SymbolTreeEntry,
+        secondary_identity_text: &'lifetime str,
+        preview_value: &'lifetime str,
         is_selected: bool,
     ) -> Self {
         Self {
             app_context,
             symbol_tree_entry,
+            secondary_identity_text,
+            preview_value,
             is_selected,
         }
     }
@@ -107,16 +113,24 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
 
         let text_position_x = data_type_icon_center.x + data_type_icon_size.x * 0.5 + data_type_icon_gap;
         let text_position = pos2(text_position_x, allocated_size_rectangle.center().y);
-        let locator_position = pos2(allocated_size_rectangle.max.x - right_preview_padding, allocated_size_rectangle.center().y);
+        let preview_position = pos2(allocated_size_rectangle.max.x - right_preview_padding, allocated_size_rectangle.center().y);
         let display_name_font = theme.font_library.font_noto_sans.font_normal.clone();
-        let locator_font = theme.font_library.font_noto_sans.font_small.clone();
-        let locator_text = self.symbol_tree_entry.get_locator().to_string();
-        let locator_width = Self::measure_text_width(user_interface, &locator_text, &locator_font, theme.foreground_preview);
-        let left_text_max_x = locator_position.x - locator_width - 12.0;
+        let secondary_identity_font = theme.font_library.font_noto_sans.font_small.clone();
+        let preview_value_font = theme.font_library.font_noto_sans.font_small.clone();
+        let max_preview_text_width = (allocated_size_rectangle.max.x - text_position.x - 24.0).max(0.0);
+        let preview_value_text = Self::truncate_text_to_width(
+            user_interface,
+            self.preview_value,
+            &preview_value_font,
+            theme.foreground_preview,
+            max_preview_text_width,
+        );
+        let preview_value_width = Self::measure_text_width(user_interface, &preview_value_text, &preview_value_font, theme.foreground_preview);
+        let left_text_max_x = preview_position.x - preview_value_width - 12.0;
         let max_left_text_width = (left_text_max_x - text_position.x).max(0.0);
         let display_name_width = Self::measure_text_width(user_interface, self.symbol_tree_entry.get_display_name(), &display_name_font, theme.foreground);
 
-        let display_name_text = if display_name_width >= max_left_text_width {
+        let display_name_text = if self.secondary_identity_text.is_empty() || display_name_width >= max_left_text_width {
             Self::truncate_text_to_width(
                 user_interface,
                 self.symbol_tree_entry.get_display_name(),
@@ -127,13 +141,48 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         } else {
             self.symbol_tree_entry.get_display_name().to_string()
         };
-        user_interface
-            .painter()
-            .text(text_position, Align2::LEFT_CENTER, display_name_text, display_name_font, theme.foreground);
+        let display_name_text_width = Self::measure_text_width(user_interface, &display_name_text, &display_name_font, theme.foreground);
+        user_interface.painter().text(
+            text_position,
+            Align2::LEFT_CENTER,
+            display_name_text,
+            display_name_font.clone(),
+            theme.foreground,
+        );
 
-        user_interface
-            .painter()
-            .text(locator_position, Align2::RIGHT_CENTER, locator_text, locator_font, theme.foreground_preview);
+        if !self.secondary_identity_text.is_empty() && display_name_text_width < max_left_text_width {
+            let secondary_identity_gap = 10.0;
+            let secondary_identity_position = pos2(
+                text_position.x + display_name_text_width + secondary_identity_gap,
+                allocated_size_rectangle.center().y,
+            );
+            let max_secondary_identity_width = (max_left_text_width - display_name_text_width - secondary_identity_gap).max(0.0);
+            let secondary_identity_text = Self::truncate_text_to_width(
+                user_interface,
+                self.secondary_identity_text,
+                &secondary_identity_font,
+                theme.foreground_preview,
+                max_secondary_identity_width,
+            );
+
+            if !secondary_identity_text.is_empty() {
+                user_interface.painter().text(
+                    secondary_identity_position,
+                    Align2::LEFT_CENTER,
+                    secondary_identity_text,
+                    secondary_identity_font,
+                    theme.foreground_preview,
+                );
+            }
+        }
+
+        user_interface.painter().text(
+            preview_position,
+            Align2::RIGHT_CENTER,
+            preview_value_text,
+            preview_value_font,
+            theme.foreground_preview,
+        );
 
         let did_click_expand_arrow = self.symbol_tree_entry.can_expand() && arrow_response.clicked();
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
