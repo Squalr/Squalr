@@ -3,6 +3,7 @@ use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
+    struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget,
     struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     symbol_explorer::symbol_explorer_toolbar_view::{SymbolExplorerToolbarAction, SymbolExplorerToolbarView},
     symbol_explorer::symbol_tree_entry_view::SymbolTreeEntryView,
@@ -279,7 +280,7 @@ impl SymbolExplorerView {
     ) {
         let focus_target_key = Self::build_struct_viewer_focus_target_key(selected_symbol_tree_entry);
         let should_refresh_struct_viewer_focus =
-            SymbolExplorerViewData::update_struct_viewer_focus_target(self.symbol_explorer_view_data.clone(), focus_target_key);
+            SymbolExplorerViewData::update_struct_viewer_focus_target(self.symbol_explorer_view_data.clone(), focus_target_key.clone());
 
         if !should_refresh_struct_viewer_focus {
             return;
@@ -292,12 +293,16 @@ impl SymbolExplorerView {
 
         let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
         let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
+        let focus_target = focus_target_key
+            .clone()
+            .map(|selection_key| StructViewerFocusTarget::SymbolExplorer { selection_key });
 
-        StructViewerViewData::focus_valued_struct(
+        StructViewerViewData::focus_valued_struct_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
             symbol_struct,
             struct_viewer_edit_callback,
+            focus_target,
         );
     }
 
@@ -1753,7 +1758,17 @@ impl Widget for SymbolExplorerView {
                 .response;
         };
 
-        SymbolExplorerViewData::synchronize_selection(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
+        let shared_struct_viewer_focus_target = self
+            .struct_viewer_view_data
+            .read("Symbol explorer shared struct viewer focus target")
+            .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
+        let suppress_default_selection = matches!(shared_struct_viewer_focus_target, Some(StructViewerFocusTarget::ProjectHierarchy { .. }));
+
+        if suppress_default_selection {
+            SymbolExplorerViewData::clear_selection(self.symbol_explorer_view_data.clone());
+        }
+
+        SymbolExplorerViewData::synchronize_selection(self.symbol_explorer_view_data.clone(), &project_symbol_catalog, suppress_default_selection);
         SymbolExplorerViewData::synchronize_rooted_symbol_create_draft(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_inline_rename(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);
         SymbolExplorerViewData::synchronize_take_over_state(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);

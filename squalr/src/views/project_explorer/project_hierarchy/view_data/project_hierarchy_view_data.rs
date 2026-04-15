@@ -206,6 +206,16 @@ impl ProjectHierarchyViewData {
         });
     }
 
+    pub fn clear_selection(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
+        let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Project hierarchy clear selection") else {
+            return;
+        };
+
+        project_hierarchy_view_data.selected_project_item_path = None;
+        project_hierarchy_view_data.selected_project_item_paths.clear();
+        project_hierarchy_view_data.selection_anchor_project_item_path = None;
+    }
+
     pub fn set_visible_preview_project_item_paths(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         visible_preview_project_item_paths: Vec<PathBuf>,

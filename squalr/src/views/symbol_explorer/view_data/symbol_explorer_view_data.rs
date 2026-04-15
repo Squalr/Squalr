@@ -87,6 +87,15 @@ impl SymbolExplorerViewData {
         }
     }
 
+    pub fn clear_selection(symbol_explorer_view_data: Dependency<Self>) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer clear selection") {
+            symbol_explorer_view_data.selected_entry = None;
+            symbol_explorer_view_data.take_over_state = None;
+            symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+            symbol_explorer_view_data.inline_rename_symbol_key = None;
+        }
+    }
+
     pub fn begin_create_rooted_symbol(
         symbol_explorer_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -164,6 +173,7 @@ impl SymbolExplorerViewData {
     pub fn synchronize_selection(
         symbol_explorer_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
+        suppress_default_selection: bool,
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize selection") {
             let has_valid_selection = symbol_explorer_view_data
@@ -172,6 +182,14 @@ impl SymbolExplorerViewData {
                 .is_some_and(|selected_entry| Self::selection_exists(project_symbol_catalog, selected_entry));
 
             if has_valid_selection {
+                return;
+            }
+
+            if suppress_default_selection {
+                symbol_explorer_view_data.selected_entry = None;
+                symbol_explorer_view_data.take_over_state = None;
+                symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+                symbol_explorer_view_data.inline_rename_symbol_key = None;
                 return;
             }
 
@@ -377,7 +395,7 @@ mod tests {
             )],
         );
 
-        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog);
+        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, false);
 
         let selected_entry = symbol_explorer_view_data
             .read("Symbol explorer synchronize selection test")
@@ -433,6 +451,28 @@ mod tests {
             .expect("Expected symbol explorer dependency read access in test.");
 
         assert_eq!(symbol_explorer_view_data.get_inline_rename_symbol_key(), None);
+    }
+
+    #[test]
+    fn synchronize_selection_can_leave_selection_empty_when_default_selection_is_suppressed() {
+        let symbol_explorer_view_data = create_dependency();
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+            vec![],
+            vec![ProjectRootSymbol::new_absolute_address(
+                String::from("sym.player"),
+                String::from("Player"),
+                0x1234,
+                String::from("player.stats"),
+            )],
+        );
+
+        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, true);
+
+        let selected_entry = symbol_explorer_view_data
+            .read("Symbol explorer suppressed synchronize selection test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
+
+        assert_eq!(selected_entry, None);
     }
 
     #[test]

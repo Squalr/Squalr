@@ -19,7 +19,7 @@ use crate::{
             project_hierarchy_tree_entry::ProjectHierarchyTreeEntry, project_hierarchy_view_data::ProjectHierarchyViewData,
         },
     },
-    views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
+    views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
 };
 use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
@@ -806,6 +806,17 @@ impl Widget for ProjectHierarchyView {
         let mut visible_preview_project_item_paths = Vec::new();
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                let shared_struct_viewer_focus_target = self
+                    .struct_viewer_view_data
+                    .read("Project hierarchy shared struct viewer focus target")
+                    .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
+                if matches!(
+                    shared_struct_viewer_focus_target,
+                    Some(StructViewerFocusTarget::SymbolExplorer { .. })
+                ) {
+                    ProjectHierarchyViewData::clear_selection(self.project_hierarchy_view_data.clone());
+                }
+
                 let project_hierarchy_view_data = match self.project_hierarchy_view_data.read("Project hierarchy view") {
                     Some(project_hierarchy_view_data) => project_hierarchy_view_data,
                     None => return,
@@ -2446,11 +2457,14 @@ impl ProjectHierarchyView {
 
         if selected_project_items.len() == 1 {
             if let Some(selected_project_item) = selected_project_items.into_iter().next() {
-                StructViewerViewData::focus_valued_struct(
+                StructViewerViewData::focus_valued_struct_with_focus_target(
                     self.struct_viewer_view_data.clone(),
                     self.app_context.engine_unprivileged_state.clone(),
                     Self::build_struct_view_properties(opened_project_info.as_ref(), &selected_project_item),
                     callback,
+                    Some(StructViewerFocusTarget::ProjectHierarchy {
+                        project_item_paths: selected_project_item_paths,
+                    }),
                 );
             }
         } else {
@@ -2458,11 +2472,14 @@ impl ProjectHierarchyView {
                 .into_iter()
                 .map(|selected_project_item| Self::build_struct_view_properties(opened_project_info.as_ref(), &selected_project_item))
                 .collect::<Vec<_>>();
-            StructViewerViewData::focus_valued_structs(
+            StructViewerViewData::focus_valued_structs_with_focus_target(
                 self.struct_viewer_view_data.clone(),
                 self.app_context.engine_unprivileged_state.clone(),
                 selected_project_item_properties,
                 callback,
+                Some(StructViewerFocusTarget::ProjectHierarchy {
+                    project_item_paths: selected_project_item_paths,
+                }),
             );
         }
     }
