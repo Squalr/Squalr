@@ -59,6 +59,7 @@ impl SymbolExplorerView {
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
+    const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
     const STRING_DATA_TYPE_ID: &'static str = "string_utf8";
     const INLINE_RENAME_TEXT_STORAGE_ID_PREFIX: &'static str = "symbol_explorer_inline_rename_text";
     const INLINE_RENAME_HIGHLIGHT_STORAGE_ID_PREFIX: &'static str = "symbol_explorer_inline_rename_highlight";
@@ -272,14 +273,44 @@ impl SymbolExplorerView {
         };
 
         let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
-        let no_op_callback = Arc::new(|_edited_field: ValuedStructField| {});
+        let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(selected_symbol_tree_entry);
 
         StructViewerViewData::focus_valued_struct(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
             symbol_struct,
-            no_op_callback,
+            struct_viewer_edit_callback,
         );
+    }
+
+    fn build_struct_viewer_edit_callback(
+        &self,
+        selected_symbol_tree_entry: &SymbolTreeEntry,
+    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
+        let SymbolTreeEntryKind::RootedSymbol { symbol_key } = selected_symbol_tree_entry.get_kind() else {
+            return Arc::new(|_edited_field: ValuedStructField| {});
+        };
+        let symbol_key = symbol_key.to_string();
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
+
+        Arc::new(move |edited_field: ValuedStructField| {
+            if edited_field.get_name() != Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD {
+                return;
+            }
+
+            let next_display_name = StructViewerViewData::read_utf8_field_text(&edited_field)
+                .trim()
+                .to_string();
+            if next_display_name.is_empty() {
+                return;
+            }
+
+            ProjectSymbolsRenameRequest {
+                symbol_key: symbol_key.clone(),
+                display_name: next_display_name,
+            }
+            .send(&engine_unprivileged_state, |_project_symbols_rename_response| {});
+        })
     }
 
     fn build_symbol_struct_for_tree_entry(
@@ -287,9 +318,15 @@ impl SymbolExplorerView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entry: &SymbolTreeEntry,
     ) -> ValuedStruct {
+        let include_editable_display_name = matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::RootedSymbol { .. });
+
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
         else {
-            return self.build_symbol_struct_fallback(symbol_tree_entry, "Unable to resolve a struct definition for the selected symbol.");
+            return self.build_symbol_struct_fallback(
+                symbol_tree_entry,
+                "Unable to resolve a struct definition for the selected symbol.",
+                include_editable_display_name,
+            );
         };
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
@@ -300,14 +337,26 @@ impl SymbolExplorerView {
             &symbolic_struct_definition,
         );
         let Some(memory_read_response) = memory_read_response else {
-            return self.build_symbol_struct_fallback(symbol_tree_entry, "Timed out while reading the selected symbol from memory.");
+            return self.build_symbol_struct_fallback(
+                symbol_tree_entry,
+                "Timed out while reading the selected symbol from memory.",
+                include_editable_display_name,
+            );
         };
 
         if !memory_read_response.success {
-            return self.build_symbol_struct_fallback(symbol_tree_entry, "The selected symbol could not be read from memory.");
+            return self.build_symbol_struct_fallback(
+                symbol_tree_entry,
+                "The selected symbol could not be read from memory.",
+                include_editable_display_name,
+            );
         }
 
-        Self::normalize_symbol_memory_struct(memory_read_response.valued_struct, symbol_tree_entry.get_display_name())
+        Self::normalize_symbol_memory_struct(
+            memory_read_response.valued_struct,
+            symbol_tree_entry.get_display_name(),
+            include_editable_display_name,
+        )
     }
 
     fn build_named_symbolic_struct_definition_for_symbol_tree_entry(
@@ -331,25 +380,37 @@ impl SymbolExplorerView {
     fn normalize_symbol_memory_struct(
         valued_struct: ValuedStruct,
         fallback_field_name: &str,
+        include_editable_display_name: bool,
     ) -> ValuedStruct {
-        let normalized_fields = valued_struct
-            .get_fields()
-            .iter()
-            .enumerate()
-            .map(|(field_index, valued_struct_field)| {
-                let resolved_field_name = if valued_struct_field.get_name().trim().is_empty() {
-                    if field_index == 0 && !fallback_field_name.trim().is_empty() {
-                        fallback_field_name.to_string()
-                    } else {
-                        format!("value_{}", field_index)
-                    }
-                } else {
-                    valued_struct_field.get_name().to_string()
-                };
+        let mut normalized_fields = Vec::new();
 
-                ValuedStructField::new(resolved_field_name, valued_struct_field.get_field_data().clone(), true)
-            })
-            .collect::<Vec<_>>();
+        if include_editable_display_name {
+            normalized_fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(fallback_field_name)
+                    .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
+            );
+        }
+
+        normalized_fields.extend(
+            valued_struct
+                .get_fields()
+                .iter()
+                .enumerate()
+                .map(|(field_index, valued_struct_field)| {
+                    let resolved_field_name = if valued_struct_field.get_name().trim().is_empty() {
+                        if field_index == 0 && !fallback_field_name.trim().is_empty() {
+                            fallback_field_name.to_string()
+                        } else {
+                            format!("value_{}", field_index)
+                        }
+                    } else {
+                        valued_struct_field.get_name().to_string()
+                    };
+
+                    ValuedStructField::new(resolved_field_name, valued_struct_field.get_field_data().clone(), true)
+                })
+                .collect::<Vec<_>>(),
+        );
 
         ValuedStruct::new_anonymous(normalized_fields)
     }
@@ -358,10 +419,11 @@ impl SymbolExplorerView {
         &self,
         symbol_tree_entry: &SymbolTreeEntry,
         status_text: &str,
+        include_editable_display_name: bool,
     ) -> ValuedStruct {
         ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_display_name())
-                .to_named_valued_struct_field(String::from("display_name"), true),
+                .to_named_valued_struct_field(String::from("display_name"), !include_editable_display_name),
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_symbol_type_id())
                 .to_named_valued_struct_field(String::from("type"), true),
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_locator().to_string())
