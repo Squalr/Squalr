@@ -3,10 +3,7 @@ use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
-    struct_viewer::{
-        struct_viewer_entry_view::StructViewerEntryView,
-        view_data::{struct_viewer_frame_action::StructViewerFrameAction, struct_viewer_view_data::StructViewerViewData},
-    },
+    struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     symbol_explorer::symbol_explorer_toolbar_view::{SymbolExplorerToolbarAction, SymbolExplorerToolbarView},
     symbol_explorer::symbol_tree_entry_view::SymbolTreeEntryView,
     symbol_explorer::symbol_tree_inline_rename_view::SymbolTreeInlineRenameView,
@@ -16,7 +13,7 @@ use crate::views::{
     },
 };
 use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, TextEdit, Ui, UiBuilder, Widget, vec2};
-use epaint::{Rect, Stroke, pos2};
+use epaint::{Stroke, pos2};
 use squalr_engine_api::commands::{
     memory::read::{memory_read_request::MemoryReadRequest, memory_read_response::MemoryReadResponse},
     privileged_command_request::PrivilegedCommandRequest,
@@ -51,13 +48,13 @@ use std::time::Duration;
 pub struct SymbolExplorerView {
     app_context: Arc<AppContext>,
     symbol_explorer_view_data: Dependency<SymbolExplorerViewData>,
+    struct_viewer_view_data: Dependency<StructViewerViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     code_viewer_view_data: Dependency<CodeViewerViewData>,
 }
 
 impl SymbolExplorerView {
     pub const WINDOW_ID: &'static str = "window_symbol_explorer";
-    const DETAILS_PANEL_WIDTH_RATIO: f32 = 0.42;
     const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_pointer_children";
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const TOOLBAR_HEIGHT: f32 = 28.0;
@@ -70,6 +67,9 @@ impl SymbolExplorerView {
         let symbol_explorer_view_data = app_context
             .dependency_container
             .register(SymbolExplorerViewData::new());
+        let struct_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<StructViewerViewData>();
         let memory_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<MemoryViewerViewData>();
@@ -80,6 +80,7 @@ impl SymbolExplorerView {
         Self {
             app_context,
             symbol_explorer_view_data,
+            struct_viewer_view_data,
             memory_viewer_view_data,
             code_viewer_view_data,
         }
@@ -246,6 +247,39 @@ impl SymbolExplorerView {
                 .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key),
             _ => None,
         }
+    }
+
+    fn build_struct_viewer_focus_target_key(selected_symbol_tree_entry: Option<&SymbolTreeEntry>) -> Option<String> {
+        selected_symbol_tree_entry.map(|symbol_tree_entry| symbol_tree_entry.get_node_key().to_string())
+    }
+
+    fn sync_selected_symbol_into_struct_viewer(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        selected_symbol_tree_entry: Option<&SymbolTreeEntry>,
+    ) {
+        let focus_target_key = Self::build_struct_viewer_focus_target_key(selected_symbol_tree_entry);
+        let should_refresh_struct_viewer_focus =
+            SymbolExplorerViewData::update_struct_viewer_focus_target(self.symbol_explorer_view_data.clone(), focus_target_key);
+
+        if !should_refresh_struct_viewer_focus {
+            return;
+        }
+
+        let Some(selected_symbol_tree_entry) = selected_symbol_tree_entry else {
+            StructViewerViewData::clear_focus(self.struct_viewer_view_data.clone());
+            return;
+        };
+
+        let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
+        let no_op_callback = Arc::new(|_edited_field: ValuedStructField| {});
+
+        StructViewerViewData::focus_valued_struct(
+            self.struct_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            symbol_struct,
+            no_op_callback,
+        );
     }
 
     fn build_symbol_struct_for_tree_entry(
@@ -942,107 +976,6 @@ impl SymbolExplorerView {
         }
     }
 
-    fn render_struct_layout_details(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        struct_layout_id: &str,
-    ) {
-        let Some(struct_layout_descriptor) = project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
-        else {
-            user_interface.label("Selected symbol type no longer exists.");
-            return;
-        };
-        let details_width = user_interface.available_width().max(1.0);
-
-        user_interface.add(
-            GroupBox::new_from_theme(&self.app_context.theme, "Symbol Type", |user_interface| {
-                user_interface.label(
-                    RichText::new(struct_layout_descriptor.get_struct_layout_id())
-                        .font(
-                            self.app_context
-                                .theme
-                                .font_library
-                                .font_noto_sans
-                                .font_header
-                                .clone(),
-                        )
-                        .color(self.app_context.theme.foreground),
-                );
-                user_interface.add_space(6.0);
-                user_interface.label(
-                    RichText::new(format!(
-                        "{} field(s)",
-                        struct_layout_descriptor
-                            .get_struct_layout_definition()
-                            .get_fields()
-                            .len()
-                    ))
-                    .monospace()
-                    .color(self.app_context.theme.foreground_preview),
-                );
-                user_interface.add_space(10.0);
-
-                for field_definition in struct_layout_descriptor
-                    .get_struct_layout_definition()
-                    .get_fields()
-                {
-                    let unit_size_in_bytes = self
-                        .app_context
-                        .engine_unprivileged_state
-                        .get_default_value(field_definition.get_data_type_ref())
-                        .map(|default_value| default_value.get_size_in_bytes())
-                        .unwrap_or(1);
-                    let field_name = if field_definition.get_field_name().is_empty() {
-                        "(anonymous)"
-                    } else {
-                        field_definition.get_field_name()
-                    };
-
-                    user_interface.label(
-                        RichText::new(format!(
-                            "{}: {}{}",
-                            field_name,
-                            field_definition.get_data_type_ref(),
-                            field_definition.get_container_type()
-                        ))
-                        .font(
-                            self.app_context
-                                .theme
-                                .font_library
-                                .font_noto_sans
-                                .font_normal
-                                .clone(),
-                        )
-                        .color(self.app_context.theme.foreground),
-                    );
-                    user_interface.label(
-                        RichText::new(format!(
-                            "{} byte(s)",
-                            field_definition
-                                .get_container_type()
-                                .get_total_size_in_bytes(unit_size_in_bytes)
-                        ))
-                        .font(
-                            self.app_context
-                                .theme
-                                .font_library
-                                .font_noto_sans
-                                .font_small
-                                .clone(),
-                        )
-                        .color(self.app_context.theme.foreground_preview),
-                    );
-                    user_interface.add_space(4.0);
-                }
-            })
-            .desired_width(details_width),
-        );
-    }
-
     fn render_create_rooted_symbol_details(
         &self,
         user_interface: &mut Ui,
@@ -1193,151 +1126,29 @@ impl SymbolExplorerView {
         })
     }
 
-    fn render_symbol_tree_entry_details(
+    fn render_create_rooted_symbol_take_over(
         &self,
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
     ) {
-        let details_width = user_interface.available_width().max(1.0);
-        let selection_kind_label = match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::RootedSymbol { .. } => "Rooted Symbol",
-            SymbolTreeEntryKind::StructField => "Struct Field",
-            SymbolTreeEntryKind::ArrayElement => "Array Element",
-            SymbolTreeEntryKind::PointerTarget => "Pointer Target",
-        };
-
-        user_interface.add(
-            GroupBox::new_from_theme(&self.app_context.theme, selection_kind_label, |user_interface| {
-                user_interface.label(
-                    RichText::new(symbol_tree_entry.get_display_name())
-                        .font(
-                            self.app_context
-                                .theme
-                                .font_library
-                                .font_noto_sans
-                                .font_header
-                                .clone(),
-                        )
-                        .color(self.app_context.theme.foreground),
-                );
-                user_interface.add_space(6.0);
-                user_interface.label(
-                    RichText::new(format!("Type: {}", symbol_tree_entry.get_promoted_symbol_type_id())).color(self.app_context.theme.foreground_preview),
-                );
-                user_interface.label(RichText::new(format!("Locator: {}", symbol_tree_entry.get_locator())).color(self.app_context.theme.foreground_preview));
-                user_interface.label(RichText::new(format!("Path: {}", symbol_tree_entry.get_full_path())).color(self.app_context.theme.foreground_preview));
-            })
-            .desired_width(details_width),
-        );
-
-        user_interface.add_space(12.0);
-
-        user_interface.add(
-            GroupBox::new_from_theme(&self.app_context.theme, "Properties", |user_interface| {
-                let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, symbol_tree_entry);
-
-                self.render_read_only_struct_rows(user_interface, symbol_struct);
-            })
-            .desired_width(details_width),
-        );
-    }
-
-    fn render_read_only_struct_rows(
-        &self,
-        user_interface: &mut Ui,
-        symbol_struct: ValuedStruct,
-    ) {
-        const ICON_COLUMN_WIDTH: f32 = 32.0;
-        const BAR_THICKNESS: f32 = 4.0;
-        const ROW_HEIGHT: f32 = 32.0;
-
-        let theme = &self.app_context.theme;
-        let mut struct_viewer_view_data = StructViewerViewData::build_read_only_presented_state(&self.app_context.engine_unprivileged_state, symbol_struct);
-        let Some(struct_under_view) = struct_viewer_view_data
-            .struct_under_view
-            .as_ref()
-            .as_ref()
-            .cloned()
-        else {
-            user_interface.label(RichText::new("No properties available.").color(theme.foreground_preview));
-            return;
-        };
-        if struct_under_view.get_fields().is_empty() {
-            user_interface.label(RichText::new("No properties available.").color(theme.foreground_preview));
-            return;
-        }
-
-        let row_body_height = struct_under_view.get_fields().len() as f32 * ROW_HEIGHT;
-
         user_interface.allocate_ui_with_layout(
-            vec2(user_interface.available_width().max(1.0), row_body_height),
-            Layout::top_down(Align::Min),
+            user_interface.available_size(),
+            Layout::centered_and_justified(Direction::TopDown),
             |user_interface| {
-                let content_rect = user_interface.available_rect_before_wrap();
-                if content_rect.width() <= 0.0 {
-                    return;
-                }
+                let panel_width = user_interface.available_width().min(520.0).max(320.0);
 
-                let value_splitter_x = content_rect.min.x + content_rect.width() * StructViewerViewData::DEFAULT_NAME_SPLITTER_RATIO;
-                let mut frame_action = StructViewerFrameAction::None;
-
-                for (field_row_index, valued_struct_field) in struct_under_view.get_fields().iter().cloned().enumerate() {
-                    let validation_data_type_ref = struct_viewer_view_data
-                        .field_validation_data_type_refs
-                        .get(valued_struct_field.get_name())
-                        .cloned();
-                    let field_display_values = struct_viewer_view_data
-                        .field_display_values
-                        .get(valued_struct_field.get_name())
-                        .map(Vec::as_slice);
-                    let field_presentation = struct_viewer_view_data
-                        .field_presentations
-                        .get(valued_struct_field.get_name())
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldPresentation::new(
-                                valued_struct_field.get_name().to_string(),
-                                crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind::ValueBox,
-                            )
-                        });
-                    let field_edit_value = struct_viewer_view_data
-                        .field_edit_values
-                        .get_mut(valued_struct_field.get_name());
-
-                    user_interface.add(StructViewerEntryView::new(
-                        self.app_context.clone(),
-                        &valued_struct_field,
-                        &field_presentation,
-                        field_row_index,
-                        false,
-                        &mut frame_action,
-                        field_edit_value,
-                        field_display_values,
-                        None,
-                        validation_data_type_ref.as_ref(),
-                        ICON_COLUMN_WIDTH + BAR_THICKNESS,
-                        value_splitter_x + BAR_THICKNESS,
-                    ));
-                }
-
-                let icon_divider_x = content_rect.min.x + ICON_COLUMN_WIDTH;
-                user_interface.painter().rect_filled(
-                    Rect::from_min_max(
-                        pos2(icon_divider_x - BAR_THICKNESS * 0.5, content_rect.min.y),
-                        pos2(icon_divider_x + BAR_THICKNESS * 0.5, content_rect.max.y),
-                    ),
-                    0.0,
-                    theme.background_control,
-                );
-                user_interface.painter().rect_filled(
-                    Rect::from_min_max(
-                        pos2(value_splitter_x - BAR_THICKNESS * 0.5, content_rect.min.y),
-                        pos2(value_splitter_x + BAR_THICKNESS * 0.5, content_rect.max.y),
-                    ),
-                    0.0,
-                    theme.background_control,
-                );
+                ScrollArea::vertical()
+                    .id_salt("symbol_explorer_create_rooted_symbol_take_over")
+                    .auto_shrink([false, false])
+                    .show(user_interface, |user_interface| {
+                        user_interface.allocate_ui_with_layout(
+                            vec2(panel_width, user_interface.available_height()),
+                            Layout::top_down(Align::Min),
+                            |user_interface| {
+                                self.render_create_rooted_symbol_details(user_interface, project_symbol_catalog);
+                            },
+                        );
+                    });
             },
         );
     }
@@ -1424,6 +1235,7 @@ impl Widget for SymbolExplorerView {
             }
             _ => None,
         };
+        self.sync_selected_symbol_into_struct_viewer(&project_symbol_catalog, selected_symbol_tree_entry);
         let theme = self.app_context.theme.clone();
         let is_delete_confirmation_active = take_over_state.is_some();
         let is_inline_rename_active = inline_rename_symbol_key.is_some();
@@ -1466,22 +1278,13 @@ impl Widget for SymbolExplorerView {
 
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                let content_rect = user_interface.available_rect_before_wrap();
-                let details_panel_width = (content_rect.width() * Self::DETAILS_PANEL_WIDTH_RATIO).clamp(220.0, content_rect.width() - 140.0);
-                let list_rect = Rect::from_min_max(content_rect.min, pos2(content_rect.max.x - details_panel_width, content_rect.max.y));
-                let details_rect = Rect::from_min_max(pos2(list_rect.max.x, content_rect.min.y), content_rect.max);
-
-                user_interface.painter().line_segment(
-                    [
-                        pos2(list_rect.max.x, list_rect.min.y),
-                        pos2(list_rect.max.x, list_rect.max.y),
-                    ],
-                    Stroke::new(1.0, theme.submenu_border),
-                );
-
                 let mut list_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(list_rect.shrink2(vec2(10.0, 8.0)))
+                        .max_rect(
+                            user_interface
+                                .available_rect_before_wrap()
+                                .shrink2(vec2(10.0, 8.0)),
+                        )
                         .layout(Layout::top_down(Align::Min)),
                 );
                 let toolbar_action = SymbolExplorerToolbarView::new(
@@ -1561,6 +1364,13 @@ impl Widget for SymbolExplorerView {
                     return;
                 }
 
+                if matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateRootedSymbol)) {
+                    list_user_interface.add_space(8.0);
+                    self.render_create_rooted_symbol_take_over(&mut list_user_interface, &project_symbol_catalog);
+
+                    return;
+                }
+
                 list_user_interface.add_space(8.0);
                 ScrollArea::vertical()
                     .id_salt("symbol_explorer_list")
@@ -1584,44 +1394,6 @@ impl Widget for SymbolExplorerView {
                             );
                         }
                     });
-
-                let mut details_user_interface = user_interface.new_child(
-                    UiBuilder::new()
-                        .max_rect(details_rect.shrink2(vec2(12.0, 8.0)))
-                        .layout(Layout::top_down(Align::Min)),
-                );
-
-                match selected_entry.as_ref() {
-                    Some(SymbolExplorerSelection::RootedSymbol(_)) | Some(SymbolExplorerSelection::DerivedNode(_)) => {
-                        ScrollArea::vertical()
-                            .id_salt("symbol_explorer_details_symbol_selection")
-                            .auto_shrink([false, false])
-                            .show(&mut details_user_interface, |details_user_interface| {
-                                if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
-                                    self.render_symbol_tree_entry_details(details_user_interface, &project_symbol_catalog, symbol_tree_entry);
-                                }
-                            });
-                    }
-                    Some(SymbolExplorerSelection::StructLayout(struct_layout_id)) => {
-                        ScrollArea::vertical()
-                            .id_salt("symbol_explorer_details_struct_layout")
-                            .auto_shrink([false, false])
-                            .show(&mut details_user_interface, |details_user_interface| {
-                                self.render_struct_layout_details(details_user_interface, &project_symbol_catalog, struct_layout_id);
-                            });
-                    }
-                    Some(SymbolExplorerSelection::CreateRootedSymbol) => {
-                        ScrollArea::vertical()
-                            .id_salt("symbol_explorer_details_create")
-                            .auto_shrink([false, false])
-                            .show(&mut details_user_interface, |details_user_interface| {
-                                self.render_create_rooted_symbol_details(details_user_interface, &project_symbol_catalog);
-                            });
-                    }
-                    None => {
-                        details_user_interface.label(RichText::new("Select a rooted symbol or symbol type.").color(theme.foreground_preview));
-                    }
-                }
             })
             .response
     }
