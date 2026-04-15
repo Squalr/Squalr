@@ -39,9 +39,19 @@ impl StructViewerView {
     pub const WINDOW_ID: &'static str = "window_struct_viewer";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        let struct_viewer_view_data = app_context
+        let struct_viewer_view_data = if app_context
             .dependency_container
-            .register(StructViewerViewData::new());
+            .get_existing::<StructViewerViewData>()
+            .is_ok()
+        {
+            app_context
+                .dependency_container
+                .get_dependency::<StructViewerViewData>()
+        } else {
+            app_context
+                .dependency_container
+                .register(StructViewerViewData::new())
+        };
         let code_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<CodeViewerViewData>();
