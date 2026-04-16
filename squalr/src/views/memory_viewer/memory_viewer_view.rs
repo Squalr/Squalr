@@ -84,8 +84,8 @@ impl MemoryViewerView {
             project_hierarchy_view_data,
         };
 
-        MemoryViewerViewData::refresh_memory_pages(instance.memory_viewer_view_data.clone(), instance.app_context.engine_unprivileged_state.clone());
         instance.listen_for_process_change();
+        MemoryViewerViewData::refresh_memory_pages(instance.memory_viewer_view_data.clone(), instance.app_context.engine_unprivileged_state.clone());
 
         instance
     }
@@ -96,9 +96,14 @@ impl MemoryViewerView {
 
         self.app_context
             .engine_unprivileged_state
-            .listen_for_engine_event::<ProcessChangedEvent>(move |_process_changed_event| {
-                MemoryViewerViewData::clear_for_process_change(memory_viewer_view_data.clone(), engine_unprivileged_state.clone());
-                MemoryViewerViewData::refresh_memory_pages(memory_viewer_view_data.clone(), engine_unprivileged_state.clone());
+            .listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
+                let should_refresh_memory_pages = process_changed_event.process_info.is_some();
+
+                MemoryViewerViewData::clear_for_process_change(memory_viewer_view_data.clone(), engine_unprivileged_state.clone(), should_refresh_memory_pages);
+
+                if should_refresh_memory_pages {
+                    MemoryViewerViewData::refresh_memory_pages(memory_viewer_view_data.clone(), engine_unprivileged_state.clone());
+                }
             });
     }
 

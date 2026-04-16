@@ -99,6 +99,7 @@ pub struct MemoryViewerViewData {
     memory_pages_request_started_at: Option<Instant>,
     active_memory_pages_request_revision: u64,
     next_memory_pages_request_revision: u64,
+    retry_memory_pages_refresh_on_failure: bool,
     last_applied_snapshot_generation: u64,
     page_caches_by_base_address: HashMap<u64, MemoryViewerPageCache>,
     unreadable_page_base_addresses: HashSet<u64>,
@@ -135,6 +136,7 @@ impl MemoryViewerViewData {
             memory_pages_request_started_at: None,
             active_memory_pages_request_revision: 0,
             next_memory_pages_request_revision: 1,
+            retry_memory_pages_refresh_on_failure: false,
             last_applied_snapshot_generation: 0,
             page_caches_by_base_address: HashMap::new(),
             unreadable_page_base_addresses: HashSet::new(),
@@ -774,6 +776,7 @@ impl MemoryViewerViewData {
     pub fn clear_for_process_change(
         memory_viewer_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        retry_memory_pages_refresh_on_failure: bool,
     ) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer clear for process change") {
             memory_viewer_view_data.virtual_pages.clear();
@@ -781,6 +784,7 @@ impl MemoryViewerViewData {
             memory_viewer_view_data.current_page_index = 0;
             memory_viewer_view_data.cached_last_page_index = 0;
             memory_viewer_view_data.stats_string.clear();
+            memory_viewer_view_data.retry_memory_pages_refresh_on_failure = retry_memory_pages_refresh_on_failure;
             memory_viewer_view_data.last_applied_snapshot_generation = 0;
             memory_viewer_view_data.page_caches_by_base_address.clear();
             memory_viewer_view_data.unreadable_page_base_addresses.clear();
@@ -905,46 +909,54 @@ impl MemoryViewerViewData {
         selected_page_base_address: Option<u64>,
         memory_query_response: MemoryQueryResponse,
     ) {
-        let has_pages = match memory_viewer_view_data.write("Memory viewer apply memory query response") {
+        let (has_pages, should_retry_refresh_after_failed_response) = match memory_viewer_view_data.write("Memory viewer apply memory query response") {
             Some(mut memory_viewer_view_data) => {
                 if !memory_viewer_view_data.should_apply_memory_pages_request(request_revision) {
                     return;
                 }
 
                 memory_viewer_view_data.complete_memory_pages_request();
-                memory_viewer_view_data.virtual_pages = memory_query_response.virtual_pages;
-                memory_viewer_view_data.modules = memory_query_response.modules;
-                memory_viewer_view_data.page_caches_by_base_address.clear();
-                memory_viewer_view_data.unreadable_page_base_addresses.clear();
-                memory_viewer_view_data.last_applied_snapshot_generation = 0;
-                memory_viewer_view_data.cached_last_page_index = memory_viewer_view_data.virtual_pages.len().saturating_sub(1) as u64;
-                if !memory_viewer_view_data.try_apply_pending_focus_request() {
-                    memory_viewer_view_data.current_page_index =
-                        Self::resolve_page_index_after_refresh(&memory_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
-                            Self::resolve_initial_page_index(&memory_viewer_view_data.virtual_pages, &memory_viewer_view_data.modules).unwrap_or(
-                                memory_viewer_view_data
-                                    .current_page_index
-                                    .clamp(0, memory_viewer_view_data.cached_last_page_index),
-                            )
-                        });
+
+                if !memory_query_response.success {
+                    (false, memory_viewer_view_data.consume_retry_memory_pages_refresh_on_failure(false))
+                } else {
+                    memory_viewer_view_data.virtual_pages = memory_query_response.virtual_pages;
+                    memory_viewer_view_data.modules = memory_query_response.modules;
+                    memory_viewer_view_data.page_caches_by_base_address.clear();
+                    memory_viewer_view_data.unreadable_page_base_addresses.clear();
+                    memory_viewer_view_data.consume_retry_memory_pages_refresh_on_failure(true);
+                    memory_viewer_view_data.last_applied_snapshot_generation = 0;
+                    memory_viewer_view_data.cached_last_page_index = memory_viewer_view_data.virtual_pages.len().saturating_sub(1) as u64;
+                    if !memory_viewer_view_data.try_apply_pending_focus_request() {
+                        memory_viewer_view_data.current_page_index =
+                            Self::resolve_page_index_after_refresh(&memory_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
+                                Self::resolve_initial_page_index(&memory_viewer_view_data.virtual_pages, &memory_viewer_view_data.modules).unwrap_or(
+                                    memory_viewer_view_data
+                                        .current_page_index
+                                        .clamp(0, memory_viewer_view_data.cached_last_page_index),
+                                )
+                            });
+                    }
+
+                    let current_page = memory_viewer_view_data
+                        .virtual_pages
+                        .get(memory_viewer_view_data.current_page_index as usize)
+                        .cloned();
+                    memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
+                        &memory_viewer_view_data.modules,
+                        &memory_viewer_view_data.unreadable_page_base_addresses,
+                        current_page.as_ref(),
+                    );
+
+                    (!memory_viewer_view_data.virtual_pages.is_empty(), false)
                 }
-
-                let current_page = memory_viewer_view_data
-                    .virtual_pages
-                    .get(memory_viewer_view_data.current_page_index as usize)
-                    .cloned();
-                memory_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
-                    &memory_viewer_view_data.modules,
-                    &memory_viewer_view_data.unreadable_page_base_addresses,
-                    current_page.as_ref(),
-                );
-
-                !memory_viewer_view_data.virtual_pages.is_empty()
             }
-            None => false,
+            None => (false, false),
         };
 
-        if !has_pages {
+        if should_retry_refresh_after_failed_response {
+            Self::refresh_memory_pages(memory_viewer_view_data, engine_unprivileged_state);
+        } else if !has_pages {
             engine_unprivileged_state.set_virtual_snapshot_queries(Self::WINDOW_VIRTUAL_SNAPSHOT_ID, Self::SNAPSHOT_REFRESH_INTERVAL, Vec::new());
         }
     }
@@ -1384,6 +1396,22 @@ impl MemoryViewerViewData {
         self.is_querying_memory_pages = false;
         self.memory_pages_request_started_at = None;
     }
+
+    fn consume_retry_memory_pages_refresh_on_failure(
+        &mut self,
+        query_succeeded: bool,
+    ) -> bool {
+        if query_succeeded {
+            self.retry_memory_pages_refresh_on_failure = false;
+
+            return false;
+        }
+
+        let should_retry_memory_pages_refresh = self.retry_memory_pages_refresh_on_failure;
+        self.retry_memory_pages_refresh_on_failure = false;
+
+        should_retry_memory_pages_refresh
+    }
 }
 
 fn parse_address_text(address_text: &str) -> Option<u64> {
@@ -1607,6 +1635,25 @@ mod tests {
             })
         );
         assert_eq!(memory_viewer_view_data.append_hex_edit_character_internal('C'), None);
+    }
+
+    #[test]
+    fn consume_retry_memory_pages_refresh_on_failure_retries_only_once() {
+        let mut memory_viewer_view_data = MemoryViewerViewData::new();
+        memory_viewer_view_data.retry_memory_pages_refresh_on_failure = true;
+
+        assert!(memory_viewer_view_data.consume_retry_memory_pages_refresh_on_failure(false));
+        assert!(!memory_viewer_view_data.retry_memory_pages_refresh_on_failure);
+        assert!(!memory_viewer_view_data.consume_retry_memory_pages_refresh_on_failure(false));
+    }
+
+    #[test]
+    fn consume_retry_memory_pages_refresh_on_failure_clears_retry_after_success() {
+        let mut memory_viewer_view_data = MemoryViewerViewData::new();
+        memory_viewer_view_data.retry_memory_pages_refresh_on_failure = true;
+
+        assert!(!memory_viewer_view_data.consume_retry_memory_pages_refresh_on_failure(true));
+        assert!(!memory_viewer_view_data.retry_memory_pages_refresh_on_failure);
     }
 
     #[test]
