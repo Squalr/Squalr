@@ -54,7 +54,7 @@ impl MemoryViewerView {
     const CONTENT_HEADER_HEIGHT: f32 = 26.0;
     const CONTENT_HEADER_SEPARATOR_HEIGHT: f32 = 3.0;
     const ROW_HEIGHT: f32 = 20.0;
-    const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
+    const ADDRESS_COLUMN_WIDTH: f32 = 128.0;
     const HEX_CELL_WIDTH: f32 = 22.0;
     const ASCII_CELL_WIDTH: f32 = 10.0;
     const HEX_COLUMN_LEFT_PADDING: f32 = 8.0;
@@ -1032,6 +1032,11 @@ impl Widget for MemoryViewerView {
 #[cfg(test)]
 mod tests {
     use super::MemoryViewerView;
+
+    #[test]
+    fn address_column_width_keeps_full_64_bit_addresses_visible() {
+        assert_eq!(MemoryViewerView::ADDRESS_COLUMN_WIDTH, 128.0);
+    }
 
     #[test]
     fn resolve_hex_ascii_splitter_position_x_clamps_to_minimum_visible_columns() {
