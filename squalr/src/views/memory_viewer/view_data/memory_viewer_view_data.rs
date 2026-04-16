@@ -118,6 +118,7 @@ pub struct MemoryViewerViewData {
 impl MemoryViewerViewData {
     pub const WINDOW_VIRTUAL_SNAPSHOT_ID: &'static str = "memory_viewer";
     pub const BYTES_PER_ROW: u64 = 16;
+    pub const MAX_SELECTION_SIZE_IN_BYTES: u64 = 2 * 1024 * 1024;
     pub const QUERY_CHUNK_SIZE_IN_BYTES: u64 = 256;
     pub const QUERY_PREFETCH_CHUNK_COUNT: u64 = 1;
     pub const DEFAULT_HEX_ASCII_SPLITTER_RATIO: f32 = 0.68;
@@ -468,12 +469,7 @@ impl MemoryViewerViewData {
                 return;
             };
 
-            let selection_end_address = current_page_address_range.end.saturating_sub(1);
-
-            memory_viewer_view_data.selected_byte_range = Some(MemoryViewerSelectionRange {
-                anchor_address: current_page_address_range.start,
-                active_address: selection_end_address,
-            });
+            memory_viewer_view_data.set_selected_byte_range(current_page_address_range.start, current_page_address_range.end.saturating_sub(1));
             memory_viewer_view_data.has_keyboard_focus = true;
             memory_viewer_view_data.set_hex_edit_cursor(current_page_address_range.start);
         }
@@ -1048,10 +1044,10 @@ impl MemoryViewerViewData {
 
         self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
         self.pending_scroll_address = Some(resolved_address);
-        self.selected_byte_range = Some(MemoryViewerSelectionRange {
-            anchor_address: resolved_address,
-            active_address: resolved_address.saturating_add(pending_focus_request.selection_byte_count.saturating_sub(1)),
-        });
+        self.set_selected_byte_range(
+            resolved_address,
+            resolved_address.saturating_add(pending_focus_request.selection_byte_count.saturating_sub(1)),
+        );
         self.is_drag_selection_active = false;
         self.has_keyboard_focus = true;
         self.set_hex_edit_cursor(resolved_address);
@@ -1072,10 +1068,7 @@ impl MemoryViewerViewData {
         let (page_index, resolved_address) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, target_address)?;
         self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
         self.pending_scroll_address = Some(resolved_address);
-        self.selected_byte_range = Some(MemoryViewerSelectionRange {
-            anchor_address: resolved_address,
-            active_address: resolved_address.saturating_add(selection_byte_count.saturating_sub(1)),
-        });
+        self.set_selected_byte_range(resolved_address, resolved_address.saturating_add(selection_byte_count.saturating_sub(1)));
         self.is_drag_selection_active = false;
         self.has_keyboard_focus = true;
         self.set_hex_edit_cursor(resolved_address);
@@ -1130,14 +1123,17 @@ impl MemoryViewerViewData {
 
     fn resolve_selected_address_bounds(&self) -> Option<(u64, u64)> {
         let selected_byte_range = self.selected_byte_range.as_ref()?;
+        let current_page_address_range = self.resolve_current_page_address_range();
+        let selection_anchor_address = Self::clamp_selection_address_to_page_bounds(selected_byte_range.anchor_address, current_page_address_range.as_ref());
+        let selection_active_address = Self::clamp_selection_active_address(
+            selection_anchor_address,
+            selected_byte_range.active_address,
+            current_page_address_range.as_ref(),
+        );
 
         Some((
-            selected_byte_range
-                .anchor_address
-                .min(selected_byte_range.active_address),
-            selected_byte_range
-                .anchor_address
-                .max(selected_byte_range.active_address),
+            selection_anchor_address.min(selection_active_address),
+            selection_anchor_address.max(selection_active_address),
         ))
     }
 
@@ -1170,10 +1166,7 @@ impl MemoryViewerViewData {
             address
         };
 
-        self.selected_byte_range = Some(MemoryViewerSelectionRange {
-            anchor_address: selection_anchor_address,
-            active_address: address,
-        });
+        self.set_selected_byte_range(selection_anchor_address, address);
         self.has_keyboard_focus = true;
         self.set_hex_edit_cursor(address);
     }
@@ -1182,10 +1175,54 @@ impl MemoryViewerViewData {
         &mut self,
         address: u64,
     ) {
-        if let Some(selected_byte_range) = self.selected_byte_range.as_mut() {
-            selected_byte_range.active_address = address;
+        if let Some(selection_anchor_address) = self
+            .selected_byte_range
+            .as_ref()
+            .map(|selected_byte_range| selected_byte_range.anchor_address)
+        {
+            self.set_selected_byte_range(selection_anchor_address, address);
             self.set_hex_edit_cursor(address);
         }
+    }
+
+    fn set_selected_byte_range(
+        &mut self,
+        selection_anchor_address: u64,
+        selection_active_address: u64,
+    ) {
+        let current_page_address_range = self.resolve_current_page_address_range();
+        let clamped_selection_anchor_address = Self::clamp_selection_address_to_page_bounds(selection_anchor_address, current_page_address_range.as_ref());
+        let clamped_selection_active_address =
+            Self::clamp_selection_active_address(clamped_selection_anchor_address, selection_active_address, current_page_address_range.as_ref());
+
+        self.selected_byte_range = Some(MemoryViewerSelectionRange {
+            anchor_address: clamped_selection_anchor_address,
+            active_address: clamped_selection_active_address,
+        });
+    }
+
+    fn clamp_selection_address_to_page_bounds(
+        selection_address: u64,
+        current_page_address_range: Option<&Range<u64>>,
+    ) -> u64 {
+        current_page_address_range.map_or(selection_address, |current_page_address_range| {
+            selection_address.clamp(current_page_address_range.start, current_page_address_range.end.saturating_sub(1))
+        })
+    }
+
+    fn clamp_selection_active_address(
+        selection_anchor_address: u64,
+        requested_selection_active_address: u64,
+        current_page_address_range: Option<&Range<u64>>,
+    ) -> u64 {
+        let max_selection_delta = Self::MAX_SELECTION_SIZE_IN_BYTES.saturating_sub(1);
+        let capped_selection_active_address = if requested_selection_active_address >= selection_anchor_address {
+            requested_selection_active_address.min(selection_anchor_address.saturating_add(max_selection_delta))
+        } else {
+            requested_selection_active_address.max(selection_anchor_address.saturating_sub(max_selection_delta))
+        };
+
+        Self::clamp_selection_address_to_page_bounds(capped_selection_active_address, current_page_address_range)
     }
 
     fn set_hex_edit_cursor(
@@ -1351,15 +1388,9 @@ impl MemoryViewerViewData {
                 .as_ref()
                 .map(|selected_byte_range| selected_byte_range.anchor_address)
                 .unwrap_or(base_cursor_address);
-            self.selected_byte_range = Some(MemoryViewerSelectionRange {
-                anchor_address: selection_anchor_address,
-                active_address: target_cursor_address,
-            });
+            self.set_selected_byte_range(selection_anchor_address, target_cursor_address);
         } else {
-            self.selected_byte_range = Some(MemoryViewerSelectionRange {
-                anchor_address: target_cursor_address,
-                active_address: target_cursor_address,
-            });
+            self.set_selected_byte_range(target_cursor_address, target_cursor_address);
         }
 
         self.has_keyboard_focus = true;
@@ -1718,6 +1749,24 @@ mod tests {
     }
 
     #[test]
+    fn update_selection_internal_clamps_selection_size_to_two_megabytes() {
+        let mut memory_viewer_view_data = MemoryViewerViewData::new();
+        memory_viewer_view_data.virtual_pages = vec![NormalizedRegion::new(
+            0x9000,
+            MemoryViewerViewData::MAX_SELECTION_SIZE_IN_BYTES + 0x4000,
+        )];
+        memory_viewer_view_data.cached_last_page_index = 0;
+        memory_viewer_view_data.begin_selection_internal(0x9000, false);
+
+        memory_viewer_view_data.update_selection_internal(0x9000 + MemoryViewerViewData::MAX_SELECTION_SIZE_IN_BYTES + 0x1234);
+
+        assert_eq!(
+            memory_viewer_view_data.resolve_selected_address_bounds(),
+            Some((0x9000, 0x9000 + MemoryViewerViewData::MAX_SELECTION_SIZE_IN_BYTES - 1))
+        );
+    }
+
+    #[test]
     fn build_address_project_item_create_request_uses_u8_array_type_for_multi_byte_selection() {
         let dependency_container = DependencyContainer::new();
         let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
@@ -1803,6 +1852,27 @@ mod tests {
                 active_nibble_index: 0,
                 pending_high_nibble: None,
             })
+        );
+    }
+
+    #[test]
+    fn select_all_bytes_on_current_page_clamps_selection_size_to_two_megabytes() {
+        let dependency_container = DependencyContainer::new();
+        let memory_viewer_view_data = dependency_container.register(MemoryViewerViewData::new());
+
+        if let Some(mut memory_viewer_view_data_guard) = memory_viewer_view_data.write("Test select all clamp setup") {
+            memory_viewer_view_data_guard.virtual_pages = vec![NormalizedRegion::new(
+                0xA000,
+                MemoryViewerViewData::MAX_SELECTION_SIZE_IN_BYTES + 0x8000,
+            )];
+            memory_viewer_view_data_guard.cached_last_page_index = 0;
+        }
+
+        MemoryViewerViewData::select_all_bytes_on_current_page(memory_viewer_view_data.clone());
+
+        assert_eq!(
+            MemoryViewerViewData::get_selected_address_bounds(memory_viewer_view_data),
+            Some((0xA000, 0xA000 + MemoryViewerViewData::MAX_SELECTION_SIZE_IN_BYTES - 1))
         );
     }
 }

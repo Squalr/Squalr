@@ -108,6 +108,7 @@ pub struct MemoryViewerPaneState {
 impl MemoryViewerPaneState {
     pub const VIRTUAL_SNAPSHOT_ID: &'static str = "tui_memory_viewer";
     pub const BYTES_PER_ROW: u64 = 16;
+    pub const MAX_SELECTION_SIZE_IN_BYTES: u64 = 2 * 1024 * 1024;
     pub const QUERY_CHUNK_SIZE_IN_BYTES: u64 = 256;
     pub const QUERY_PREFETCH_CHUNK_COUNT: u64 = 1;
     pub const SNAPSHOT_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
@@ -366,12 +367,8 @@ impl MemoryViewerPaneState {
         let Some(current_page_address_range) = self.resolve_current_page_address_range() else {
             return;
         };
-        let selection_end_address = current_page_address_range.end.saturating_sub(1);
 
-        self.selected_byte_range = Some(MemoryViewerSelectionRange {
-            anchor_address: current_page_address_range.start,
-            active_address: selection_end_address,
-        });
+        self.set_selected_byte_range(current_page_address_range.start, current_page_address_range.end.saturating_sub(1));
         self.set_hex_edit_cursor(current_page_address_range.start);
         self.synchronize_selected_row_index_with_active_address();
     }
@@ -604,14 +601,17 @@ impl MemoryViewerPaneState {
 
     fn resolve_selected_address_bounds(&self) -> Option<(u64, u64)> {
         let selected_byte_range = self.selected_byte_range.as_ref()?;
+        let current_page_address_range = self.resolve_current_page_address_range();
+        let selection_anchor_address = Self::clamp_selection_address_to_page_bounds(selected_byte_range.anchor_address, current_page_address_range.as_ref());
+        let selection_active_address = Self::clamp_selection_active_address(
+            selection_anchor_address,
+            selected_byte_range.active_address,
+            current_page_address_range.as_ref(),
+        );
 
         Some((
-            selected_byte_range
-                .anchor_address
-                .min(selected_byte_range.active_address),
-            selected_byte_range
-                .anchor_address
-                .max(selected_byte_range.active_address),
+            selection_anchor_address.min(selection_active_address),
+            selection_anchor_address.max(selection_active_address),
         ))
     }
 
@@ -727,12 +727,49 @@ impl MemoryViewerPaneState {
             address
         };
 
-        self.selected_byte_range = Some(MemoryViewerSelectionRange {
-            anchor_address: selection_anchor_address,
-            active_address: address,
-        });
+        self.set_selected_byte_range(selection_anchor_address, address);
         self.set_hex_edit_cursor(address);
         self.synchronize_selected_row_index_with_active_address();
+    }
+
+    fn set_selected_byte_range(
+        &mut self,
+        selection_anchor_address: u64,
+        selection_active_address: u64,
+    ) {
+        let current_page_address_range = self.resolve_current_page_address_range();
+        let clamped_selection_anchor_address = Self::clamp_selection_address_to_page_bounds(selection_anchor_address, current_page_address_range.as_ref());
+        let clamped_selection_active_address =
+            Self::clamp_selection_active_address(clamped_selection_anchor_address, selection_active_address, current_page_address_range.as_ref());
+
+        self.selected_byte_range = Some(MemoryViewerSelectionRange {
+            anchor_address: clamped_selection_anchor_address,
+            active_address: clamped_selection_active_address,
+        });
+    }
+
+    fn clamp_selection_address_to_page_bounds(
+        selection_address: u64,
+        current_page_address_range: Option<&Range<u64>>,
+    ) -> u64 {
+        current_page_address_range.map_or(selection_address, |current_page_address_range| {
+            selection_address.clamp(current_page_address_range.start, current_page_address_range.end.saturating_sub(1))
+        })
+    }
+
+    fn clamp_selection_active_address(
+        selection_anchor_address: u64,
+        requested_selection_active_address: u64,
+        current_page_address_range: Option<&Range<u64>>,
+    ) -> u64 {
+        let max_selection_delta = Self::MAX_SELECTION_SIZE_IN_BYTES.saturating_sub(1);
+        let capped_selection_active_address = if requested_selection_active_address >= selection_anchor_address {
+            requested_selection_active_address.min(selection_anchor_address.saturating_add(max_selection_delta))
+        } else {
+            requested_selection_active_address.max(selection_anchor_address.saturating_sub(max_selection_delta))
+        };
+
+        Self::clamp_selection_address_to_page_bounds(capped_selection_active_address, current_page_address_range)
     }
 
     fn set_hex_edit_cursor(
@@ -1155,6 +1192,23 @@ mod tests {
     }
 
     #[test]
+    fn move_cursor_horizontal_clamps_selection_size_to_two_megabytes() {
+        let mut memory_viewer_pane_state = MemoryViewerPaneState::default();
+        memory_viewer_pane_state.virtual_pages = vec![NormalizedRegion::new(
+            0x2000,
+            MemoryViewerPaneState::MAX_SELECTION_SIZE_IN_BYTES + 0x8000,
+        )];
+        memory_viewer_pane_state.focus_address(0x2000, "");
+
+        memory_viewer_pane_state.move_cursor_horizontal((MemoryViewerPaneState::MAX_SELECTION_SIZE_IN_BYTES + 0x1234) as i64, true);
+
+        assert_eq!(
+            memory_viewer_pane_state.resolve_selected_address_bounds(),
+            Some((0x2000, 0x2000 + MemoryViewerPaneState::MAX_SELECTION_SIZE_IN_BYTES - 1))
+        );
+    }
+
+    #[test]
     fn append_hex_edit_character_writes_and_advances_cursor() {
         let mut memory_viewer_pane_state = MemoryViewerPaneState::default();
         memory_viewer_pane_state.virtual_pages = vec![NormalizedRegion::new(0x1000, 0x40)];
@@ -1205,5 +1259,28 @@ mod tests {
         assert_eq!(create_request.module_name, Some(String::from("game.exe")));
         assert_eq!(create_request.address, Some(0x4));
         assert_eq!(create_request.data_type_id, Some(String::from("u8[4]")));
+    }
+
+    #[test]
+    fn select_all_bytes_on_current_page_clamps_selection_size_to_two_megabytes() {
+        let mut memory_viewer_pane_state = MemoryViewerPaneState::default();
+        memory_viewer_pane_state.virtual_pages = vec![NormalizedRegion::new(
+            0x4000,
+            MemoryViewerPaneState::MAX_SELECTION_SIZE_IN_BYTES + 0x9000,
+        )];
+
+        memory_viewer_pane_state.select_all_bytes_on_current_page();
+
+        assert_eq!(
+            memory_viewer_pane_state.resolve_selected_address_bounds(),
+            Some((0x4000, 0x4000 + MemoryViewerPaneState::MAX_SELECTION_SIZE_IN_BYTES - 1))
+        );
+        assert_eq!(
+            memory_viewer_pane_state
+                .hex_edit_state
+                .as_ref()
+                .map(|hex_edit_state| hex_edit_state.cursor_address),
+            Some(0x4000)
+        );
     }
 }
