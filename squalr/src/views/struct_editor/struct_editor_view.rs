@@ -1,7 +1,9 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView};
-use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer};
+use crate::ui::widgets::controls::{
+    button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
+};
 use crate::views::struct_editor::view_data::struct_editor_view_data::{
     StructEditorTakeOverState, StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft,
 };
@@ -40,6 +42,7 @@ impl StructEditorView {
     const TAKE_OVER_PADDING_X: f32 = 12.0;
     const TAKE_OVER_PADDING_Y: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
+    const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_editor_view_data = app_context
@@ -612,33 +615,41 @@ impl StructEditorView {
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
 
         self.render_take_over_panel(user_interface, take_over_title, |user_interface| {
-            self.render_field_label(user_interface, "Struct Layout Id");
-            self.render_string_value_box(
-                user_interface,
-                &mut edited_draft.layout_id,
-                "module.type",
-                "struct_editor_layout_id",
-                user_interface.available_width(),
-                Self::FIELD_ROW_HEIGHT,
+            user_interface.add(
+                GroupBox::new_from_theme(&self.app_context.theme, "Struct Layout", |user_interface| {
+                    self.render_field_label(user_interface, "Struct Layout Id");
+                    self.render_string_value_box(
+                        user_interface,
+                        &mut edited_draft.layout_id,
+                        "module.type",
+                        "struct_editor_layout_id",
+                        user_interface.available_width(),
+                        Self::FIELD_ROW_HEIGHT,
+                    );
+                    user_interface.add_space(6.0);
+
+                    let status_text = if is_creating_new_layout {
+                        String::from("Creating a new reusable struct layout.")
+                    } else if usage_count == 0 {
+                        String::from("Not used by any rooted symbols yet.")
+                    } else if usage_count == 1 {
+                        String::from("Used by 1 rooted symbol.")
+                    } else {
+                        format!("Used by {} rooted symbols.", usage_count)
+                    };
+                    user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
+                })
+                .desired_width(user_interface.available_width()),
             );
-            user_interface.add_space(6.0);
+            user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
 
-            let status_text = if is_creating_new_layout {
-                String::from("Creating a new reusable struct layout.")
-            } else if usage_count == 0 {
-                String::from("Not used by any rooted symbols yet.")
-            } else if usage_count == 1 {
-                String::from("Used by 1 rooted symbol.")
-            } else {
-                format!("Used by {} rooted symbols.", usage_count)
-            };
-            user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
-            user_interface.add_space(12.0);
-
-            self.render_field_label(user_interface, "Fields");
-            user_interface.add_space(4.0);
-            self.render_field_rows(user_interface, &mut edited_draft);
-            user_interface.add_space(12.0);
+            user_interface.add(
+                GroupBox::new_from_theme(&self.app_context.theme, "Fields", |user_interface| {
+                    self.render_field_rows(user_interface, &mut edited_draft);
+                })
+                .desired_width(user_interface.available_width()),
+            );
+            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
 
             if let Err(validation_error) = validation_result.as_ref() {
                 user_interface.label(RichText::new(validation_error).color(self.app_context.theme.error_red));
@@ -687,10 +698,15 @@ impl StructEditorView {
 
         self.render_take_over_panel(user_interface, "Delete Struct Layout", |user_interface| {
             let theme = &self.app_context.theme;
-            user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
-            user_interface.add_space(4.0);
-            user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
-            user_interface.add_space(12.0);
+            user_interface.add(
+                GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
+                    user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
+                    user_interface.add_space(4.0);
+                    user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
+                })
+                .desired_width(user_interface.available_width()),
+            );
+            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
             user_interface.horizontal(|user_interface| {
                 let cancel_response = self.render_text_button(user_interface, "Cancel", "Cancel struct layout deletion.", 96.0, Self::FIELD_ROW_HEIGHT, false);
                 if cancel_response.clicked() {
