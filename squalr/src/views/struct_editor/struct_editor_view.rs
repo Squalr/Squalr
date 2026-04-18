@@ -5,8 +5,8 @@ use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box
 use crate::views::struct_editor::view_data::struct_editor_view_data::{
     StructEditorTakeOverState, StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft,
 };
-use eframe::egui::{Align, Align2, Direction, Frame, Key, Layout, Margin, Response, RichText, ScrollArea, Sense, Stroke, Ui, Widget, pos2, vec2};
-use epaint::{CornerRadius, StrokeKind};
+use eframe::egui::{Align, Align2, Direction, Key, Layout, Rect, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
+use epaint::{CornerRadius, StrokeKind, pos2 as epaint_pos2};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
     registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
@@ -41,7 +41,9 @@ impl StructEditorView {
     const TAKE_OVER_PANEL_MARGIN: f32 = 16.0;
     const TAKE_OVER_MIN_WIDTH: f32 = 280.0;
     const TAKE_OVER_MIN_BODY_HEIGHT: f32 = 120.0;
-    const TAKE_OVER_CHROME_HEIGHT: f32 = 64.0;
+    const TAKE_OVER_TITLE_HEIGHT: f32 = 28.0;
+    const TAKE_OVER_BODY_TOP_SPACING: f32 = 12.0;
+    const TAKE_OVER_PANEL_PADDING: f32 = 16.0;
     const STRUCT_LAYOUT_TAKE_OVER_BODY_HEIGHT: f32 = 360.0;
     const DELETE_TAKE_OVER_BODY_HEIGHT: f32 = 140.0;
 
@@ -439,38 +441,61 @@ impl StructEditorView {
         add_contents: impl FnOnce(&mut Ui),
     ) {
         let theme = &self.app_context.theme;
-        let available_size = user_interface.available_size();
-        let clamped_panel_width = panel_width.min((available_size.x - Self::TAKE_OVER_PANEL_MARGIN * 2.0).max(Self::TAKE_OVER_MIN_WIDTH));
-        let max_body_height = (available_size.y - Self::TAKE_OVER_PANEL_MARGIN * 2.0 - Self::TAKE_OVER_CHROME_HEIGHT).max(Self::TAKE_OVER_MIN_BODY_HEIGHT);
+        let (overlay_rect, _) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::hover());
+        let max_panel_width = (overlay_rect.width() - Self::TAKE_OVER_PANEL_MARGIN * 2.0).max(1.0);
+        let clamped_panel_width = panel_width
+            .min(max_panel_width)
+            .max(Self::TAKE_OVER_MIN_WIDTH.min(max_panel_width));
+        let max_body_height = (overlay_rect.height()
+            - Self::TAKE_OVER_PANEL_MARGIN * 2.0
+            - Self::TAKE_OVER_PANEL_PADDING * 2.0
+            - Self::TAKE_OVER_TITLE_HEIGHT
+            - Self::TAKE_OVER_BODY_TOP_SPACING)
+            .max(Self::TAKE_OVER_MIN_BODY_HEIGHT);
         let clamped_body_height = preferred_body_height
             .min(max_body_height)
             .max(Self::TAKE_OVER_MIN_BODY_HEIGHT.min(max_body_height));
+        let panel_height = Self::TAKE_OVER_PANEL_PADDING * 2.0 + Self::TAKE_OVER_TITLE_HEIGHT + Self::TAKE_OVER_BODY_TOP_SPACING + clamped_body_height;
+        let panel_rect = Rect::from_center_size(overlay_rect.center(), vec2(clamped_panel_width, panel_height));
+        let panel_rect = panel_rect.intersect(overlay_rect.shrink(Self::TAKE_OVER_PANEL_MARGIN));
+        let inner_rect = panel_rect.shrink(Self::TAKE_OVER_PANEL_PADDING);
+        let title_rect = Rect::from_min_size(inner_rect.min, vec2(inner_rect.width().max(1.0), Self::TAKE_OVER_TITLE_HEIGHT));
+        let body_rect = Rect::from_min_max(
+            epaint_pos2(inner_rect.min.x, title_rect.max.y + Self::TAKE_OVER_BODY_TOP_SPACING),
+            inner_rect.max,
+        );
 
-        user_interface.allocate_ui_with_layout(available_size, Layout::centered_and_justified(Direction::TopDown), |user_interface| {
-            Frame::new()
-                .fill(theme.background_primary)
-                .stroke(Stroke::new(1.0, theme.submenu_border))
-                .inner_margin(Margin::same(16))
-                .show(user_interface, |user_interface| {
-                    user_interface.set_width(clamped_panel_width);
-                    user_interface.set_min_width(clamped_panel_width);
-                    user_interface.set_max_width(clamped_panel_width);
-                    user_interface.label(
-                        RichText::new(title)
-                            .font(theme.font_library.font_noto_sans.font_window_title.clone())
-                            .color(theme.foreground),
-                    );
-                    user_interface.add_space(12.0);
-                    user_interface.allocate_ui(vec2(clamped_panel_width, clamped_body_height), |user_interface| {
-                        ScrollArea::vertical()
-                            .id_salt(format!("struct_editor_take_over_body_{title}"))
-                            .auto_shrink([false, false])
-                            .show(user_interface, |user_interface| {
-                                add_contents(user_interface);
-                            });
-                    });
-                });
-        });
+        user_interface
+            .painter()
+            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_primary);
+        user_interface
+            .painter()
+            .rect_stroke(panel_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.submenu_border), StrokeKind::Inside);
+
+        let mut title_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(title_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        title_user_interface.set_clip_rect(title_rect);
+        title_user_interface.label(
+            RichText::new(title)
+                .font(theme.font_library.font_noto_sans.font_window_title.clone())
+                .color(theme.foreground),
+        );
+
+        let mut body_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(body_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        body_user_interface.set_clip_rect(body_rect);
+        ScrollArea::vertical()
+            .id_salt(format!("struct_editor_take_over_body_{title}"))
+            .auto_shrink([false, false])
+            .show(&mut body_user_interface, |user_interface| {
+                add_contents(user_interface);
+            });
     }
 
     fn render_field_editor_section(
