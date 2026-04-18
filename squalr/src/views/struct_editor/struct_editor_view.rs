@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView};
 use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer};
 use crate::views::struct_editor::view_data::struct_editor_view_data::{StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft};
@@ -32,6 +33,7 @@ impl StructEditorView {
     const LIST_PANEL_WIDTH: f32 = 280.0;
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
+    const ICON_BUTTON_WIDTH: f32 = 36.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_editor_view_data = app_context
@@ -160,6 +162,32 @@ impl StructEditorView {
         button_response
     }
 
+    fn render_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
+            ThemeButton::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .background_color(epaint::Color32::TRANSPARENT)
+                .disabled(is_disabled),
+        );
+
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
+
+        button_response
+    }
+
     fn render_string_value_box(
         &self,
         user_interface: &mut Ui,
@@ -246,13 +274,13 @@ impl StructEditorView {
         filter_text: &str,
         is_creating_new_layout: bool,
     ) {
+        let theme = &self.app_context.theme;
+
         user_interface.horizontal(|user_interface| {
-            let new_layout_response = self.render_text_button(
+            let new_layout_response = self.render_icon_button(
                 user_interface,
-                "New",
+                &theme.icon_library.icon_handle_common_add,
                 "Create a new reusable struct layout.",
-                80.0,
-                Self::FIELD_ROW_HEIGHT,
                 false,
             );
             if new_layout_response.clicked() {
@@ -263,12 +291,10 @@ impl StructEditorView {
                 .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
                 .unwrap_or(0);
             let can_delete_selected_layout = !is_creating_new_layout && selected_layout_id.is_some() && usage_count == 0;
-            let delete_layout_response = self.render_text_button(
+            let delete_layout_response = self.render_icon_button(
                 user_interface,
-                "Delete",
+                &theme.icon_library.icon_handle_common_delete,
                 "Delete the selected struct layout.",
-                80.0,
-                Self::FIELD_ROW_HEIGHT,
                 !can_delete_selected_layout,
             );
             if delete_layout_response.clicked() {
@@ -336,12 +362,20 @@ impl StructEditorView {
         &self,
         user_interface: &mut Ui,
     ) {
+        let theme = &self.app_context.theme;
+
         user_interface.horizontal(|user_interface| {
-            user_interface.add_sized(vec2(140.0, Self::FIELD_ROW_HEIGHT), eframe::egui::Label::new(RichText::new("Field").strong()));
-            user_interface.add_sized(vec2(180.0, Self::FIELD_ROW_HEIGHT), eframe::egui::Label::new(RichText::new("Type").strong()));
+            user_interface.add_sized(
+                vec2(140.0, Self::FIELD_ROW_HEIGHT),
+                eframe::egui::Label::new(RichText::new("Field").strong().color(theme.foreground)),
+            );
+            user_interface.add_sized(
+                vec2(180.0, Self::FIELD_ROW_HEIGHT),
+                eframe::egui::Label::new(RichText::new("Type").strong().color(theme.foreground)),
+            );
             user_interface.add_sized(
                 vec2(110.0, Self::FIELD_ROW_HEIGHT),
-                eframe::egui::Label::new(RichText::new("Container").strong()),
+                eframe::egui::Label::new(RichText::new("Container").strong().color(theme.foreground)),
             );
             user_interface.add_sized(vec2(60.0, Self::FIELD_ROW_HEIGHT), eframe::egui::Label::new(""));
         });
@@ -353,6 +387,7 @@ impl StructEditorView {
         draft: &mut StructLayoutEditDraft,
     ) {
         let available_data_types = self.available_data_types();
+        let theme = &self.app_context.theme;
         self.render_field_row_header(user_interface);
         user_interface.add_space(4.0);
 
@@ -388,12 +423,10 @@ impl StructEditorView {
                             110.0,
                             Self::FIELD_ROW_HEIGHT,
                         );
-                        let remove_field_response = self.render_text_button(
+                        let remove_field_response = self.render_icon_button(
                             user_interface,
-                            "Remove",
+                            &theme.icon_library.icon_handle_common_delete,
                             "Remove this field from the draft struct layout.",
-                            72.0,
-                            Self::FIELD_ROW_HEIGHT,
                             false,
                         );
                         if remove_field_response.clicked() {
@@ -416,12 +449,10 @@ impl StructEditorView {
         }
 
         if self
-            .render_text_button(
+            .render_icon_button(
                 user_interface,
-                "Add Field",
+                &theme.icon_library.icon_handle_common_add,
                 "Append a new field to the draft struct layout.",
-                96.0,
-                Self::FIELD_ROW_HEIGHT,
                 false,
             )
             .clicked()
@@ -454,9 +485,14 @@ impl StructEditorView {
             .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
             .unwrap_or(0);
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
+        let theme = &self.app_context.theme;
 
         user_interface.horizontal(|user_interface| {
-            user_interface.label(RichText::new("Struct Layout Id").strong());
+            user_interface.label(
+                RichText::new("Struct Layout Id")
+                    .strong()
+                    .color(theme.foreground),
+            );
             user_interface.add_space(8.0);
             self.render_string_value_box(
                 user_interface,
