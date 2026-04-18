@@ -618,19 +618,17 @@ impl StructEditorView {
 
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
 
-                            if can_remove_field {
-                                let remove_field_response = self.render_icon_button(
-                                    user_interface,
-                                    &theme.icon_library.icon_handle_common_delete,
-                                    "Remove this field from the draft struct layout.",
-                                    false,
-                                );
-                                if remove_field_response.clicked() {
-                                    pending_field_row_action = Some(StructFieldRowAction::RemoveField);
-                                }
-
-                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                            let remove_field_response = self.render_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_delete,
+                                "Remove this field from the draft struct layout.",
+                                !can_remove_field,
+                            );
+                            if remove_field_response.clicked() {
+                                pending_field_row_action = Some(StructFieldRowAction::RemoveField);
                             }
+
+                            user_interface.add_space(Self::FIELD_INPUT_SPACING);
 
                             let move_down_response = self.render_icon_button(
                                 user_interface,
