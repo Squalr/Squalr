@@ -37,6 +37,7 @@ pub struct DataTypeSelectorView<'lifetime> {
     selectable_data_type_column_count: usize,
     show_preview_text: bool,
     enforce_format_compatibility: bool,
+    single_select: bool,
 }
 
 impl<'lifetime> DataTypeSelectorView<'lifetime> {
@@ -72,6 +73,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             selectable_data_type_column_count: Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT,
             show_preview_text: true,
             enforce_format_compatibility: false,
+            single_select: false,
         }
     }
 
@@ -124,6 +126,11 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
     pub fn enforce_format_compatibility(mut self) -> Self {
         self.enforce_format_compatibility = true;
+        self
+    }
+
+    pub fn single_select(mut self) -> Self {
+        self.single_select = true;
         self
     }
 
@@ -353,6 +360,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let selectable_data_type_column_count = self.selectable_data_type_column_count.max(1);
         let show_preview_text = self.show_preview_text;
         let enforce_format_compatibility = self.enforce_format_compatibility;
+        let single_select = self.single_select;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
         let combo_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
         let combo_icon = if Self::should_render_combo_icon(data_type_selection, label_mode) {
@@ -371,7 +379,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
             combo_label,
             menu_id,
             combo_icon,
-            move |popup_user_interface: &mut Ui, _should_close: &mut bool| {
+            move |popup_user_interface: &mut Ui, should_close: &mut bool| {
                 Self::reset_drag_state_if_needed(popup_user_interface, menu_id);
                 popup_user_interface.set_min_width(popup_width);
 
@@ -401,7 +409,10 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                                     .disabled(!is_data_type_compatible),
                                 );
 
-                                if is_data_type_compatible {
+                                if is_data_type_compatible && single_select && data_type_item_response.clicked() {
+                                    data_type_selection.select_single_data_type(data_type_ref.clone());
+                                    *should_close = true;
+                                } else if is_data_type_compatible {
                                     Self::handle_selectable_data_type_interaction(
                                         user_interface,
                                         menu_id,

@@ -700,6 +700,7 @@ impl StructEditorView {
                         vec2(type_width, Self::FIELD_ROW_HEIGHT),
                         DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
                             .available_data_types(available_data_types.to_vec())
+                            .single_select()
                             .stacked_list()
                             .width(type_width)
                             .height(Self::FIELD_ROW_HEIGHT),

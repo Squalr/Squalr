@@ -78,6 +78,14 @@ impl DataTypeSelection {
         }
     }
 
+    pub fn select_single_data_type(
+        &mut self,
+        data_type_ref: DataTypeRef,
+    ) {
+        self.active_data_type = data_type_ref.clone();
+        self.selected_data_types = vec![data_type_ref];
+    }
+
     pub fn scan_data_type_refs(&self) -> Vec<DataTypeRef> {
         self.selected_data_types.clone()
     }
@@ -153,5 +161,16 @@ mod tests {
 
         assert_eq!(data_type_selection.active_data_type(), &DataTypeRef::new("u64"));
         assert_eq!(data_type_selection.selected_data_types(), &[DataTypeRef::new("u64"), DataTypeRef::new("u16")]);
+    }
+
+    #[test]
+    fn select_single_data_type_replaces_existing_selection() {
+        let mut data_type_selection = DataTypeSelection::new(DataTypeRef::new("i32"));
+        data_type_selection.set_data_type_selected(DataTypeRef::new("u32"), true);
+
+        data_type_selection.select_single_data_type(DataTypeRef::new("f32"));
+
+        assert_eq!(data_type_selection.active_data_type(), &DataTypeRef::new("f32"));
+        assert_eq!(data_type_selection.selected_data_types(), &[DataTypeRef::new("f32")]);
     }
 }
