@@ -34,6 +34,7 @@ pub struct StructEditorViewData {
     selected_layout_id: Option<String>,
     filter_text: String,
     take_over_state: Option<StructEditorTakeOverState>,
+    baseline_draft: Option<StructLayoutEditDraft>,
     draft: Option<StructLayoutEditDraft>,
 }
 
@@ -43,6 +44,7 @@ impl StructEditorViewData {
             selected_layout_id: None,
             filter_text: String::new(),
             take_over_state: None,
+            baseline_draft: None,
             draft: None,
         }
     }
@@ -61,6 +63,10 @@ impl StructEditorViewData {
 
     pub fn get_draft(&self) -> Option<&StructLayoutEditDraft> {
         self.draft.as_ref()
+    }
+
+    pub fn get_baseline_draft(&self) -> Option<&StructLayoutEditDraft> {
+        self.baseline_draft.as_ref()
     }
 
     pub fn set_filter_text(
@@ -98,7 +104,9 @@ impl StructEditorViewData {
         if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor begin create struct layout") {
             struct_editor_view_data.selected_layout_id = None;
             struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::CreateStructLayout);
-            struct_editor_view_data.draft = Some(Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref));
+            let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
+            struct_editor_view_data.baseline_draft = Some(baseline_draft.clone());
+            struct_editor_view_data.draft = Some(baseline_draft);
         }
     }
 
@@ -112,11 +120,12 @@ impl StructEditorViewData {
             struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::EditStructLayout {
                 layout_id: layout_id.to_string(),
             });
-            struct_editor_view_data.draft = project_symbol_catalog
+            struct_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
                 .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
                 .map(Self::create_draft_from_descriptor);
+            struct_editor_view_data.draft = struct_editor_view_data.baseline_draft.clone();
         }
     }
 
@@ -132,6 +141,7 @@ impl StructEditorViewData {
     pub fn cancel_take_over_state(struct_editor_view_data: Dependency<Self>) {
         if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor cancel take over state") {
             struct_editor_view_data.take_over_state = None;
+            struct_editor_view_data.baseline_draft = None;
             struct_editor_view_data.draft = None;
         }
     }
@@ -176,6 +186,7 @@ impl StructEditorViewData {
 
         if should_clear_take_over_state {
             struct_editor_view_data.take_over_state = None;
+            struct_editor_view_data.baseline_draft = None;
             struct_editor_view_data.draft = None;
         }
     }

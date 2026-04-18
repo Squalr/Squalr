@@ -813,11 +813,13 @@ impl StructEditorView {
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
         take_over_title: &str,
+        baseline_draft: Option<&StructLayoutEditDraft>,
         draft: Option<&StructLayoutEditDraft>,
     ) {
         let Some(draft) = draft else {
             return;
         };
+        let baseline_draft = baseline_draft.unwrap_or(draft);
 
         let mut edited_draft = draft.clone();
         let validation_result = StructEditorViewData::build_struct_layout_descriptor(project_symbol_catalog, &edited_draft);
@@ -826,7 +828,7 @@ impl StructEditorView {
             .as_deref()
             .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
             .unwrap_or(0);
-        let has_unsaved_changes = edited_draft != *draft;
+        let has_unsaved_changes = edited_draft != *baseline_draft;
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
         let can_save = validation_result.is_ok() && has_unsaved_changes;
         let save_tooltip = if !has_unsaved_changes {
@@ -1028,7 +1030,7 @@ impl Widget for StructEditorView {
         };
 
         StructEditorViewData::synchronize(self.struct_editor_view_data.clone(), &project_symbol_catalog);
-        let (selected_layout_id, filter_text, take_over_state, draft) = self
+        let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft) = self
             .struct_editor_view_data
             .read("Struct editor view")
             .map(|struct_editor_view_data| {
@@ -1038,10 +1040,11 @@ impl Widget for StructEditorView {
                         .map(str::to_string),
                     struct_editor_view_data.get_filter_text().to_string(),
                     struct_editor_view_data.get_take_over_state().cloned(),
+                    struct_editor_view_data.get_baseline_draft().cloned(),
                     struct_editor_view_data.get_draft().cloned(),
                 )
             })
-            .unwrap_or((None, String::new(), None, None));
+            .unwrap_or((None, String::new(), None, None, None));
         let is_take_over_active = take_over_state.is_some();
 
         if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
@@ -1073,10 +1076,22 @@ impl Widget for StructEditorView {
                 );
                 match take_over_state.as_ref() {
                     Some(StructEditorTakeOverState::CreateStructLayout) => {
-                        self.render_struct_layout_take_over(&mut content_user_interface, &project_symbol_catalog, "New Struct Layout", draft.as_ref());
+                        self.render_struct_layout_take_over(
+                            &mut content_user_interface,
+                            &project_symbol_catalog,
+                            "New Struct Layout",
+                            baseline_draft.as_ref(),
+                            draft.as_ref(),
+                        );
                     }
                     Some(StructEditorTakeOverState::EditStructLayout { .. }) => {
-                        self.render_struct_layout_take_over(&mut content_user_interface, &project_symbol_catalog, "Edit Struct Layout", draft.as_ref());
+                        self.render_struct_layout_take_over(
+                            &mut content_user_interface,
+                            &project_symbol_catalog,
+                            "Edit Struct Layout",
+                            baseline_draft.as_ref(),
+                            draft.as_ref(),
+                        );
                     }
                     Some(StructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
                         self.render_delete_confirmation_take_over(&mut content_user_interface, &project_symbol_catalog, layout_id);
