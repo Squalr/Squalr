@@ -1,4 +1,7 @@
-use crate::ui::widgets::docking::dockable_window::DockableWindow;
+use crate::ui::widgets::docking::{
+    dock_tab_attention_state::{DockTabAttentionKind, DockTabAttentionState},
+    dockable_window::DockableWindow,
+};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
@@ -10,6 +13,7 @@ pub struct DockRootViewData {
     pub windows: Arc<RwLock<Vec<Box<dyn DockableWindow>>>>,
     pub maximized_window_identifier: Arc<RwLock<Option<String>>>,
     pub tab_strip_scroll_offsets: Arc<RwLock<HashMap<String, f32>>>,
+    pub tab_attention_states: Arc<RwLock<HashMap<String, DockTabAttentionState>>>,
 }
 
 impl DockRootViewData {
@@ -18,6 +22,7 @@ impl DockRootViewData {
             windows: Arc::new(RwLock::new(Vec::new())),
             maximized_window_identifier: Arc::new(RwLock::new(None)),
             tab_strip_scroll_offsets: Arc::new(RwLock::new(HashMap::new())),
+            tab_attention_states: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -120,11 +125,66 @@ impl DockRootViewData {
             }
         }
     }
+
+    pub fn request_tab_attention(
+        &self,
+        window_identifier: &str,
+        attention_kind: DockTabAttentionKind,
+        force_when_visible: bool,
+    ) {
+        match self.tab_attention_states.write() {
+            Ok(mut tab_attention_states) => match tab_attention_states.get_mut(window_identifier) {
+                Some(existing_attention_state) => {
+                    if attention_kind > existing_attention_state.get_attention_kind() {
+                        *existing_attention_state =
+                            DockTabAttentionState::new(attention_kind, force_when_visible || existing_attention_state.get_force_when_visible());
+                    } else if force_when_visible && !existing_attention_state.get_force_when_visible() {
+                        *existing_attention_state = DockTabAttentionState::new(attention_kind, true);
+                    }
+                }
+                None => {
+                    tab_attention_states.insert(window_identifier.to_string(), DockTabAttentionState::new(attention_kind, force_when_visible));
+                }
+            },
+            Err(error) => {
+                log::error!("Failed to acquire tab attention state map for write: {}.", error);
+            }
+        }
+    }
+
+    pub fn get_tab_attention_state(
+        &self,
+        window_identifier: &str,
+    ) -> Option<DockTabAttentionState> {
+        match self.tab_attention_states.read() {
+            Ok(tab_attention_states) => tab_attention_states.get(window_identifier).cloned(),
+            Err(error) => {
+                log::error!("Failed to acquire tab attention state map for read: {}.", error);
+
+                None
+            }
+        }
+    }
+
+    pub fn clear_tab_attention(
+        &self,
+        window_identifier: &str,
+    ) {
+        match self.tab_attention_states.write() {
+            Ok(mut tab_attention_states) => {
+                tab_attention_states.remove(window_identifier);
+            }
+            Err(error) => {
+                log::error!("Failed to acquire tab attention state map for write: {}.", error);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::DockRootViewData;
+    use crate::ui::widgets::docking::dock_tab_attention_state::DockTabAttentionKind;
 
     #[test]
     fn is_window_maximized_matches_active_identifier() {
@@ -146,5 +206,48 @@ mod tests {
 
         dock_root_view_data.set_tab_strip_scroll_offset(String::from("project|memory"), 0.0);
         assert_eq!(dock_root_view_data.get_tab_strip_scroll_offset("project|memory"), 0.0);
+    }
+
+    #[test]
+    fn request_tab_attention_round_trips_and_clears() {
+        let dock_root_view_data = DockRootViewData::new();
+        dock_root_view_data.request_tab_attention("window_output", DockTabAttentionKind::Warning, false);
+
+        let tab_attention_state = dock_root_view_data
+            .get_tab_attention_state("window_output")
+            .expect("expected warning attention state");
+        assert_eq!(tab_attention_state.get_attention_kind(), DockTabAttentionKind::Warning);
+        assert!(!tab_attention_state.get_force_when_visible());
+
+        dock_root_view_data.clear_tab_attention("window_output");
+        assert!(
+            dock_root_view_data
+                .get_tab_attention_state("window_output")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn request_tab_attention_upgrades_severity() {
+        let dock_root_view_data = DockRootViewData::new();
+        dock_root_view_data.request_tab_attention("window_output", DockTabAttentionKind::Warning, false);
+        dock_root_view_data.request_tab_attention("window_output", DockTabAttentionKind::Danger, false);
+
+        let tab_attention_state = dock_root_view_data
+            .get_tab_attention_state("window_output")
+            .expect("expected danger attention state");
+        assert_eq!(tab_attention_state.get_attention_kind(), DockTabAttentionKind::Danger);
+    }
+
+    #[test]
+    fn request_tab_attention_can_promote_force_when_visible() {
+        let dock_root_view_data = DockRootViewData::new();
+        dock_root_view_data.request_tab_attention("window_project_selector", DockTabAttentionKind::Warning, false);
+        dock_root_view_data.request_tab_attention("window_project_selector", DockTabAttentionKind::Warning, true);
+
+        let tab_attention_state = dock_root_view_data
+            .get_tab_attention_state("window_project_selector")
+            .expect("expected warning attention state");
+        assert!(tab_attention_state.get_force_when_visible());
     }
 }

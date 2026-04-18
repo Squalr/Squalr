@@ -3,7 +3,13 @@ use crate::{
     models::docking::{drag_drop::dock_tab_drop_target::DockTabDropTarget, hierarchy::types::dock_tab_insertion_direction::DockTabInsertionDirection},
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::{controls::button::Button, docking::dock_root_view_data::DockRootViewData},
+        widgets::{
+            controls::button::Button,
+            docking::{
+                dock_root_view_data::DockRootViewData,
+                dock_tab_attention_state::{DockTabAttentionKind, DockTabAttentionState},
+            },
+        },
     },
 };
 use eframe::egui::{Align, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Widget};
@@ -24,6 +30,51 @@ impl DockedWindowFooterView {
     const TAB_MIN_WIDTH: f32 = 96.0;
     const TAB_MAX_WIDTH: f32 = 160.0;
     const TAB_SCROLL_STEP: f32 = 128.0;
+    const ATTENTION_PULSE_PERIOD_SECS: f32 = 2.6;
+
+    fn lerp_color(
+        from: Color32,
+        to: Color32,
+        factor: f32,
+    ) -> Color32 {
+        let clamped_factor = factor.clamp(0.0, 1.0);
+        let lerp_channel = |from_channel: u8, to_channel: u8| -> u8 {
+            let from_channel = from_channel as f32;
+            let to_channel = to_channel as f32;
+
+            (from_channel + (to_channel - from_channel) * clamped_factor)
+                .round()
+                .clamp(0.0, 255.0) as u8
+        };
+
+        Color32::from_rgba_unmultiplied(
+            lerp_channel(from.r(), to.r()),
+            lerp_channel(from.g(), to.g()),
+            lerp_channel(from.b(), to.b()),
+            lerp_channel(from.a(), to.a()),
+        )
+    }
+
+    fn resolve_attention_colors(
+        theme: &crate::ui::theme::Theme,
+        attention_state: &DockTabAttentionState,
+        base_background_color: Color32,
+        base_border_color: Color32,
+    ) -> (Color32, Color32) {
+        let (target_background_color, target_border_color) = match attention_state.get_attention_kind() {
+            DockTabAttentionKind::Warning => (theme.background_control_warning, theme.background_control_warning_dark),
+            DockTabAttentionKind::Danger => (theme.background_control_danger, theme.background_control_danger_dark),
+        };
+        let pulse_elapsed_secs = attention_state.get_requested_at().elapsed().as_secs_f32();
+        let pulse_cycle = ((pulse_elapsed_secs / Self::ATTENTION_PULSE_PERIOD_SECS) * std::f32::consts::TAU).sin();
+        let pulse_factor = 0.14 + ((pulse_cycle * 0.5) + 0.5) * 0.26;
+        let border_factor = (pulse_factor + 0.14).min(0.6);
+
+        (
+            Self::lerp_color(base_background_color, target_background_color, pulse_factor),
+            Self::lerp_color(base_border_color, target_border_color, border_factor),
+        )
+    }
 
     pub fn new(
         app_context: Arc<AppContext>,
@@ -256,6 +307,23 @@ impl Widget for DockedWindowFooterView {
                 button.border_color = theme.selected_border;
             }
 
+            let mut tab_attention_state = self.dock_view_data.get_tab_attention_state(sibling_id);
+            if sibling_id.as_str() == active_tab_id
+                && tab_attention_state
+                    .as_ref()
+                    .is_some_and(|tab_attention_state| !tab_attention_state.get_force_when_visible())
+            {
+                self.dock_view_data.clear_tab_attention(sibling_id);
+                tab_attention_state = None;
+            }
+            if let Some(tab_attention_state) = tab_attention_state.as_ref() {
+                let (attention_background_color, attention_border_color) =
+                    Self::resolve_attention_colors(theme, tab_attention_state, button.backgorund_color, button.border_color);
+                button.backgorund_color = attention_background_color;
+                button.border_color = attention_border_color;
+                tab_strip_user_interface.ctx().request_repaint();
+            }
+
             let response = tab_strip_user_interface
                 .add_sized(
                     vec2(*tab_width, available_size_rect.height()),
@@ -272,12 +340,14 @@ impl Widget for DockedWindowFooterView {
             if response.clicked() {
                 selected_tab_id = Some(sibling_id.clone());
                 selected_tab_index = Some(tab_index);
+                self.dock_view_data.clear_tab_attention(sibling_id);
             }
 
             if response.double_clicked() {
                 selected_tab_id = Some(sibling_id.clone());
                 selected_tab_index = Some(tab_index);
                 toggled_maximized_tab_id = Some(sibling_id.clone());
+                self.dock_view_data.clear_tab_attention(sibling_id);
             }
 
             if response.drag_started() {

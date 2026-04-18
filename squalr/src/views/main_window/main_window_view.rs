@@ -1,6 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::docking::dock_root_view::DockRootView;
 use crate::ui::widgets::docking::dock_root_view_data::DockRootViewData;
+use crate::ui::widgets::docking::dock_tab_attention_state::DockTabAttentionKind;
 use crate::ui::widgets::docking::docked_window_view::DockedWindowView;
 use crate::views::code_viewer::code_viewer_view::CodeViewerView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
@@ -16,6 +17,7 @@ use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
+use crate::views::project_explorer::project_selector::project_selector_view::ProjectSelectorView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_editor::struct_editor_view::StructEditorView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
@@ -24,6 +26,7 @@ use crate::views::symbol_table::symbol_table_view::SymbolTableView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
+use log::Level;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
@@ -33,9 +36,11 @@ pub struct MainWindowView {
     main_title_bar_view: MainTitleBarView,
     main_toolbar_view: MainToolbarView,
     main_shortcut_bar_view: MainShortcutBarView,
+    dock_view_data: Arc<DockRootViewData>,
     dock_root_view: DockRootView,
     main_footer_view: MainFooterView,
     main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
+    output_log_history_len_cursor: Arc<RwLock<usize>>,
     resize_thickness: f32,
 }
 
@@ -57,6 +62,15 @@ impl MainWindowView {
         let main_toolbar_view = MainToolbarView::new(app_context.clone(), main_window_take_over_state.clone());
         let main_shortcut_bar_view = MainShortcutBarView::new(app_context.clone());
         let dock_view_data = Arc::new(DockRootViewData::new());
+        let output_log_history_len_cursor = Arc::new(RwLock::new(
+            app_context
+                .engine_unprivileged_state
+                .get_logger()
+                .get_log_history()
+                .read()
+                .map(|log_history| log_history.len())
+                .unwrap_or(0),
+        ));
 
         let app_context_for_output = app_context.clone();
         let output_view = DockedWindowView::new(
@@ -190,8 +204,9 @@ impl MainWindowView {
             Box::new(pointer_scanner_view),
             Box::new(plugins_view),
         ]);
+        dock_view_data.request_tab_attention(ProjectSelectorView::WINDOW_ID, DockTabAttentionKind::Warning, true);
 
-        let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data);
+        let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data.clone());
         let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 24.0);
         let resize_thickness = 4.0;
 
@@ -200,9 +215,11 @@ impl MainWindowView {
             main_title_bar_view,
             main_toolbar_view,
             main_shortcut_bar_view,
+            dock_view_data,
             dock_root_view,
             main_footer_view,
             main_window_take_over_state,
+            output_log_history_len_cursor,
             resize_thickness,
         }
     }
@@ -224,6 +241,87 @@ impl MainWindowView {
             }
             Err(error) => {
                 log::error!("Failed to acquire main window take over state for write: {}", error);
+            }
+        }
+    }
+
+    fn is_window_active_tab(
+        app_context: &AppContext,
+        window_identifier: &str,
+    ) -> bool {
+        match app_context.docking_manager.read() {
+            Ok(docking_manager) => docking_manager.get_active_tab(window_identifier) == window_identifier,
+            Err(error) => {
+                log::error!("Failed to acquire docking manager lock while checking active tab state: {}.", error);
+
+                false
+            }
+        }
+    }
+
+    fn poll_output_tab_attention(&self) {
+        let log_history = self
+            .app_context
+            .engine_unprivileged_state
+            .get_logger()
+            .get_log_history();
+        let previous_log_history_len = match self.output_log_history_len_cursor.read() {
+            Ok(previous_log_history_len) => *previous_log_history_len,
+            Err(error) => {
+                log::error!("Failed to acquire output log history cursor for read: {}.", error);
+
+                return;
+            }
+        };
+
+        let requested_attention_kind = match log_history.read() {
+            Ok(log_history) => {
+                let current_log_history_len = log_history.len();
+                let requested_attention_kind = if current_log_history_len >= previous_log_history_len {
+                    let mut requested_attention_kind = None;
+
+                    for log_event in log_history.iter().skip(previous_log_history_len) {
+                        match log_event.level {
+                            Level::Error => {
+                                requested_attention_kind = Some(DockTabAttentionKind::Danger);
+                                break;
+                            }
+                            Level::Warn => {
+                                requested_attention_kind = Some(DockTabAttentionKind::Warning);
+                            }
+                            _ => {}
+                        }
+                    }
+
+                    requested_attention_kind
+                } else {
+                    None
+                };
+
+                match self.output_log_history_len_cursor.write() {
+                    Ok(mut output_log_history_len_cursor) => {
+                        *output_log_history_len_cursor = current_log_history_len;
+                    }
+                    Err(error) => {
+                        log::error!("Failed to acquire output log history cursor for write: {}.", error);
+                    }
+                }
+
+                requested_attention_kind
+            }
+            Err(error) => {
+                log::error!("Failed to acquire output log history for read: {}.", error);
+
+                None
+            }
+        };
+
+        if let Some(requested_attention_kind) = requested_attention_kind {
+            let is_output_tab_active = Self::is_window_active_tab(&self.app_context, OutputView::WINDOW_ID);
+
+            if !is_output_tab_active {
+                self.dock_view_data
+                    .request_tab_attention(OutputView::WINDOW_ID, requested_attention_kind, false);
             }
         }
     }
@@ -359,6 +457,7 @@ impl Widget for MainWindowView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
+        self.poll_output_tab_attention();
         let take_over_state = self.get_take_over_state();
         let app_context = self.app_context.clone();
         let resize_thickness = self.resize_thickness;
