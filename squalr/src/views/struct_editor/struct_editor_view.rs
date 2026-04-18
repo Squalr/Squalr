@@ -38,6 +38,8 @@ impl StructEditorView {
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
     const FIELD_SECTION_VERTICAL_SPACING: f32 = 10.0;
+    const FIELD_INPUT_SPACING: f32 = 8.0;
+    const FIELD_CONTAINER_WIDTH: f32 = 140.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 12.0;
     const TAKE_OVER_PADDING_Y: f32 = 8.0;
@@ -523,8 +525,6 @@ impl StructEditorView {
                 },
             );
 
-            user_interface.add_space(6.0);
-            self.render_field_label(user_interface, "Field Name");
             self.render_string_value_box(
                 user_interface,
                 &mut field_draft.field_name,
@@ -534,27 +534,34 @@ impl StructEditorView {
                 Self::FIELD_ROW_HEIGHT,
             );
 
-            user_interface.add_space(6.0);
-            self.render_field_label(user_interface, "Type");
             let selector_id = format!("struct_editor_data_type_{}", field_index);
-            user_interface.add_sized(
+            user_interface.add_space(Self::FIELD_INPUT_SPACING);
+            user_interface.allocate_ui_with_layout(
                 vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
-                DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
-                    .available_data_types(available_data_types.to_vec())
-                    .stacked_list()
-                    .width(user_interface.available_width())
-                    .height(Self::FIELD_ROW_HEIGHT),
-            );
+                Layout::left_to_right(Align::Center),
+                |user_interface| {
+                    let container_width = Self::FIELD_CONTAINER_WIDTH.min(user_interface.available_width().max(0.0));
+                    let type_width = (user_interface.available_width() - container_width - Self::FIELD_INPUT_SPACING).max(0.0);
 
-            user_interface.add_space(6.0);
-            self.render_field_label(user_interface, "Container");
-            self.render_string_value_box(
-                user_interface,
-                &mut field_draft.container_suffix,
-                "[] / [4] / *(64)",
-                &format!("struct_editor_container_suffix_{}", field_index),
-                user_interface.available_width(),
-                Self::FIELD_ROW_HEIGHT,
+                    user_interface.add_sized(
+                        vec2(type_width, Self::FIELD_ROW_HEIGHT),
+                        DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
+                            .available_data_types(available_data_types.to_vec())
+                            .stacked_list()
+                            .width(type_width)
+                            .height(Self::FIELD_ROW_HEIGHT),
+                    );
+
+                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                    self.render_string_value_box(
+                        user_interface,
+                        &mut field_draft.container_suffix,
+                        "[] / [4] / *(64)",
+                        &format!("struct_editor_container_suffix_{}", field_index),
+                        container_width,
+                        Self::FIELD_ROW_HEIGHT,
+                    );
+                },
             );
         });
 
