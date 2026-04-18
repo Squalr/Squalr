@@ -656,6 +656,7 @@ impl StructEditorView {
                 },
             );
 
+            user_interface.add_space(Self::FIELD_INPUT_SPACING);
             self.render_string_value_box(
                 user_interface,
                 &mut field_draft.field_name,
