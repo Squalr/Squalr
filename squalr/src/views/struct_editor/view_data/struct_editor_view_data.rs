@@ -21,10 +21,18 @@ pub struct StructLayoutEditDraft {
     pub field_drafts: Vec<StructFieldEditDraft>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StructEditorTakeOverState {
+    CreateStructLayout,
+    EditStructLayout { layout_id: String },
+    DeleteConfirmation { layout_id: String },
+}
+
 #[derive(Clone, Default)]
 pub struct StructEditorViewData {
     selected_layout_id: Option<String>,
     filter_text: String,
+    take_over_state: Option<StructEditorTakeOverState>,
     draft: Option<StructLayoutEditDraft>,
 }
 
@@ -33,6 +41,7 @@ impl StructEditorViewData {
         Self {
             selected_layout_id: None,
             filter_text: String::new(),
+            take_over_state: None,
             draft: None,
         }
     }
@@ -43,6 +52,10 @@ impl StructEditorViewData {
 
     pub fn get_filter_text(&self) -> &str {
         &self.filter_text
+    }
+
+    pub fn get_take_over_state(&self) -> Option<&StructEditorTakeOverState> {
+        self.take_over_state.as_ref()
     }
 
     pub fn get_draft(&self) -> Option<&StructLayoutEditDraft> {
@@ -69,20 +82,10 @@ impl StructEditorViewData {
 
     pub fn select_struct_layout(
         struct_editor_view_data: Dependency<Self>,
-        project_symbol_catalog: &ProjectSymbolCatalog,
         selected_layout_id: Option<String>,
     ) {
         if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor select struct layout") {
-            struct_editor_view_data.selected_layout_id = selected_layout_id.clone();
-            struct_editor_view_data.draft = selected_layout_id
-                .as_deref()
-                .and_then(|selected_layout_id| {
-                    project_symbol_catalog
-                        .get_struct_layout_descriptors()
-                        .iter()
-                        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == selected_layout_id)
-                })
-                .map(Self::create_draft_from_descriptor);
+            struct_editor_view_data.selected_layout_id = selected_layout_id;
         }
     }
 
@@ -93,7 +96,42 @@ impl StructEditorViewData {
     ) {
         if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor begin create struct layout") {
             struct_editor_view_data.selected_layout_id = None;
+            struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::CreateStructLayout);
             struct_editor_view_data.draft = Some(Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref));
+        }
+    }
+
+    pub fn begin_edit_struct_layout(
+        struct_editor_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_id: &str,
+    ) {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor begin edit struct layout") {
+            struct_editor_view_data.selected_layout_id = Some(layout_id.to_string());
+            struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::EditStructLayout {
+                layout_id: layout_id.to_string(),
+            });
+            struct_editor_view_data.draft = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
+                .map(Self::create_draft_from_descriptor);
+        }
+    }
+
+    pub fn request_delete_confirmation(
+        struct_editor_view_data: Dependency<Self>,
+        layout_id: String,
+    ) {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor request delete confirmation") {
+            struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::DeleteConfirmation { layout_id });
+        }
+    }
+
+    pub fn cancel_take_over_state(struct_editor_view_data: Dependency<Self>) {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor cancel take over state") {
+            struct_editor_view_data.take_over_state = None;
+            struct_editor_view_data.draft = None;
         }
     }
 
@@ -104,14 +142,6 @@ impl StructEditorViewData {
         let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor synchronize") else {
             return;
         };
-
-        let is_creating_new_layout = struct_editor_view_data
-            .draft
-            .as_ref()
-            .is_some_and(|draft| draft.original_layout_id.is_none());
-        if is_creating_new_layout {
-            return;
-        }
 
         let next_selected_layout_id = struct_editor_view_data
             .selected_layout_id
@@ -132,23 +162,21 @@ impl StructEditorViewData {
 
         struct_editor_view_data.selected_layout_id = next_selected_layout_id.clone();
 
-        let draft_matches_selection = matches!(
-            (struct_editor_view_data.draft.as_ref(), next_selected_layout_id.as_deref()),
-            (Some(draft), Some(selected_layout_id)) if draft.original_layout_id.as_deref() == Some(selected_layout_id)
-        );
-        if draft_matches_selection {
-            return;
-        }
-
-        struct_editor_view_data.draft = next_selected_layout_id
-            .as_deref()
-            .and_then(|selected_layout_id| {
-                project_symbol_catalog
+        let should_clear_take_over_state = match struct_editor_view_data.take_over_state.as_ref() {
+            Some(StructEditorTakeOverState::CreateStructLayout) => false,
+            Some(StructEditorTakeOverState::EditStructLayout { layout_id }) | Some(StructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
+                !project_symbol_catalog
                     .get_struct_layout_descriptors()
                     .iter()
-                    .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == selected_layout_id)
-            })
-            .map(Self::create_draft_from_descriptor);
+                    .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
+            }
+            None => false,
+        };
+
+        if should_clear_take_over_state {
+            struct_editor_view_data.take_over_state = None;
+            struct_editor_view_data.draft = None;
+        }
     }
 
     pub fn layout_matches_filter(
