@@ -1,4 +1,5 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+use crate::views::struct_editor::view_data::struct_field_container_edit::StructFieldContainerEdit;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
@@ -11,7 +12,7 @@ use squalr_engine_api::structures::{
 pub struct StructFieldEditDraft {
     pub field_name: String,
     pub data_type_selection: DataTypeSelection,
-    pub container_suffix: String,
+    pub container_edit: StructFieldContainerEdit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -231,7 +232,7 @@ impl StructEditorViewData {
                 .map(|symbolic_field_definition| StructFieldEditDraft {
                     field_name: symbolic_field_definition.get_field_name().to_string(),
                     data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
-                    container_suffix: symbolic_field_definition.get_container_type().to_string(),
+                    container_edit: StructFieldContainerEdit::from_container_type(symbolic_field_definition.get_container_type()),
                 })
                 .collect(),
         }
@@ -258,7 +259,7 @@ impl StructEditorViewData {
             field_drafts: vec![StructFieldEditDraft {
                 field_name: String::new(),
                 data_type_selection: DataTypeSelection::new(default_data_type_ref),
-                container_suffix: String::new(),
+                container_edit: StructFieldContainerEdit::default(),
             }],
         }
     }
@@ -294,10 +295,7 @@ impl StructEditorViewData {
                 return Err(String::from("Each field needs a data type."));
             }
 
-            let container_type = field_draft
-                .container_suffix
-                .parse()
-                .map_err(|error: String| format!("Invalid container suffix '{}': {}.", field_draft.container_suffix.trim(), error))?;
+            let container_type = field_draft.container_edit.to_container_type()?;
             let trimmed_field_name = field_draft.field_name.trim().to_string();
             let data_type_ref = DataTypeRef::new(&trimmed_data_type_id);
             let symbolic_field_definition = if trimmed_field_name.is_empty() {
@@ -384,7 +382,7 @@ impl Default for StructLayoutEditDraft {
             field_drafts: vec![StructFieldEditDraft {
                 field_name: String::new(),
                 data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
-                container_suffix: String::new(),
+                container_edit: StructFieldContainerEdit::default(),
             }],
         }
     }
@@ -394,6 +392,7 @@ impl Default for StructLayoutEditDraft {
 mod tests {
     use super::{StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+    use crate::views::struct_editor::view_data::struct_field_container_edit::{StructFieldContainerEdit, StructFieldContainerKind};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
@@ -449,7 +448,11 @@ mod tests {
             field_drafts: vec![StructFieldEditDraft {
                 field_name: String::from("items"),
                 data_type_selection: DataTypeSelection::new(DataTypeRef::new("u16")),
-                container_suffix: String::from("[4]"),
+                container_edit: StructFieldContainerEdit {
+                    kind: StructFieldContainerKind::FixedArray,
+                    fixed_array_length: String::from("4"),
+                    ..StructFieldContainerEdit::default()
+                },
             }],
         };
 
@@ -475,7 +478,7 @@ mod tests {
             field_drafts: vec![StructFieldEditDraft {
                 field_name: String::from("health"),
                 data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
-                container_suffix: String::new(),
+                container_edit: StructFieldContainerEdit::default(),
             }],
         };
 

@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
+use crate::ui::widgets::controls::combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView};
 use crate::ui::widgets::controls::data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView};
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
@@ -7,6 +8,7 @@ use crate::ui::widgets::controls::{
 use crate::views::struct_editor::view_data::struct_editor_view_data::{
     StructEditorTakeOverState, StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft,
 };
+use crate::views::struct_editor::view_data::struct_field_container_edit::{StructFieldContainerEdit, StructFieldContainerKind};
 use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
@@ -22,9 +24,16 @@ use squalr_engine_api::structures::{
         data_type_ref::DataTypeRef,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+    pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
 };
 use std::sync::Arc;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StructFieldRowAction {
+    AppendField,
+    RemoveField,
+}
 
 #[derive(Clone)]
 pub struct StructEditorView {
@@ -39,7 +48,8 @@ impl StructEditorView {
     const ICON_BUTTON_WIDTH: f32 = 36.0;
     const FIELD_SECTION_VERTICAL_SPACING: f32 = 10.0;
     const FIELD_INPUT_SPACING: f32 = 8.0;
-    const FIELD_CONTAINER_WIDTH: f32 = 140.0;
+    const FIELD_CONTAINER_MODE_WIDTH: f32 = 160.0;
+    const FIELD_CONTAINER_DETAIL_WIDTH: f32 = 140.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 12.0;
     const TAKE_OVER_PADDING_Y: f32 = 8.0;
@@ -237,6 +247,89 @@ impl StructEditorView {
         );
 
         *value = value_string.get_anonymous_value_string().to_string();
+    }
+
+    fn render_container_kind_selector(
+        &self,
+        user_interface: &mut Ui,
+        container_edit: &mut StructFieldContainerEdit,
+        field_index: usize,
+        width: f32,
+    ) {
+        let selector_id = format!("struct_editor_container_kind_{}", field_index);
+        let current_label = container_edit.kind.label();
+        let mut selected_container_kind = None;
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                current_label,
+                &selector_id,
+                None,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    for container_kind in StructFieldContainerKind::ALL {
+                        let container_kind_response =
+                            popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), container_kind.label(), None, width));
+
+                        if container_kind_response.clicked() {
+                            selected_container_kind = Some(container_kind);
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(width)
+            .height(Self::FIELD_ROW_HEIGHT),
+        );
+
+        if let Some(selected_container_kind) = selected_container_kind {
+            container_edit.kind = selected_container_kind;
+        }
+    }
+
+    fn render_pointer_size_selector(
+        &self,
+        user_interface: &mut Ui,
+        container_edit: &mut StructFieldContainerEdit,
+        field_index: usize,
+        width: f32,
+    ) {
+        let selector_id = format!("struct_editor_pointer_size_{}", field_index);
+        let current_label = container_edit.pointer_size.to_string();
+        let mut selected_pointer_size = None;
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                &current_label,
+                &selector_id,
+                None,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    for pointer_size in [
+                        PointerScanPointerSize::Pointer24,
+                        PointerScanPointerSize::Pointer24be,
+                        PointerScanPointerSize::Pointer32,
+                        PointerScanPointerSize::Pointer32be,
+                        PointerScanPointerSize::Pointer64,
+                        PointerScanPointerSize::Pointer64be,
+                    ] {
+                        let pointer_size_label = pointer_size.to_string();
+                        let pointer_size_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &pointer_size_label, None, width));
+
+                        if pointer_size_response.clicked() {
+                            selected_pointer_size = Some(pointer_size);
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(width)
+            .height(Self::FIELD_ROW_HEIGHT),
+        );
+
+        if let Some(selected_pointer_size) = selected_pointer_size {
+            container_edit.pointer_size = selected_pointer_size;
+        }
     }
 
     fn render_struct_layout_row(
@@ -489,10 +582,11 @@ impl StructEditorView {
         field_draft: &mut StructFieldEditDraft,
         field_index: usize,
         can_remove_field: bool,
+        can_append_field: bool,
         available_data_types: &[DataTypeRef],
-    ) -> bool {
+    ) -> Option<StructFieldRowAction> {
         let theme = &self.app_context.theme;
-        let mut should_remove_field = false;
+        let mut pending_field_row_action = None;
 
         user_interface.allocate_ui_with_layout(vec2(user_interface.available_width(), 0.0), Layout::top_down(Align::Min), |user_interface| {
             user_interface.allocate_ui_with_layout(
@@ -509,6 +603,20 @@ impl StructEditorView {
                         vec2(user_interface.available_width().max(0.0), Self::FIELD_ROW_HEIGHT),
                         Layout::right_to_left(Align::Center),
                         |user_interface| {
+                            if can_append_field {
+                                let append_field_response = self.render_icon_button(
+                                    user_interface,
+                                    &theme.icon_library.icon_handle_common_add,
+                                    "Append a new field to the draft struct layout.",
+                                    false,
+                                );
+                                if append_field_response.clicked() {
+                                    pending_field_row_action = Some(StructFieldRowAction::AppendField);
+                                }
+
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                            }
+
                             if can_remove_field {
                                 let remove_field_response = self.render_icon_button(
                                     user_interface,
@@ -517,7 +625,7 @@ impl StructEditorView {
                                     false,
                                 );
                                 if remove_field_response.clicked() {
-                                    should_remove_field = true;
+                                    pending_field_row_action = Some(StructFieldRowAction::RemoveField);
                                 }
                             }
                         },
@@ -540,8 +648,9 @@ impl StructEditorView {
                 vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
                 Layout::left_to_right(Align::Center),
                 |user_interface| {
-                    let container_width = Self::FIELD_CONTAINER_WIDTH.min(user_interface.available_width().max(0.0));
-                    let type_width = (user_interface.available_width() - container_width - Self::FIELD_INPUT_SPACING).max(0.0);
+                    let available_width = user_interface.available_width().max(0.0);
+                    let container_mode_width = Self::FIELD_CONTAINER_MODE_WIDTH.min(available_width);
+                    let type_width = (available_width - container_mode_width - Self::FIELD_INPUT_SPACING).max(0.0);
 
                     user_interface.add_sized(
                         vec2(type_width, Self::FIELD_ROW_HEIGHT),
@@ -553,19 +662,36 @@ impl StructEditorView {
                     );
 
                     user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                    self.render_string_value_box(
-                        user_interface,
-                        &mut field_draft.container_suffix,
-                        "[] / [4] / *(64)",
-                        &format!("struct_editor_container_suffix_{}", field_index),
-                        container_width,
-                        Self::FIELD_ROW_HEIGHT,
-                    );
+                    self.render_container_kind_selector(user_interface, &mut field_draft.container_edit, field_index, container_mode_width);
                 },
             );
+
+            match field_draft.container_edit.kind {
+                StructFieldContainerKind::Element | StructFieldContainerKind::Array => {}
+                StructFieldContainerKind::FixedArray => {
+                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                    self.render_string_value_box(
+                        user_interface,
+                        &mut field_draft.container_edit.fixed_array_length,
+                        "length",
+                        &format!("struct_editor_fixed_array_length_{}", field_index),
+                        Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
+                        Self::FIELD_ROW_HEIGHT,
+                    );
+                }
+                StructFieldContainerKind::Pointer => {
+                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                    self.render_pointer_size_selector(
+                        user_interface,
+                        &mut field_draft.container_edit,
+                        field_index,
+                        Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
+                    );
+                }
+            }
         });
 
-        should_remove_field
+        pending_field_row_action
     }
 
     fn render_field_rows(
@@ -574,16 +700,23 @@ impl StructEditorView {
         draft: &mut StructLayoutEditDraft,
     ) {
         let available_data_types = self.available_data_types();
-        let theme = &self.app_context.theme;
-        let can_remove_field = draft.field_drafts.len() > 1;
-
-        let mut pending_removed_field_index = None;
-        for field_index in 0..draft.field_drafts.len() {
+        let field_count = draft.field_drafts.len();
+        let can_remove_field = field_count > 1;
+        let mut pending_field_row_action = None;
+        for field_index in 0..field_count {
             let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
                 continue;
             };
-            if self.render_field_editor_section(user_interface, field_draft, field_index, can_remove_field, &available_data_types) {
-                pending_removed_field_index = Some(field_index);
+            let can_append_field = field_index + 1 == field_count;
+            if let Some(field_row_action) = self.render_field_editor_section(
+                user_interface,
+                field_draft,
+                field_index,
+                can_remove_field,
+                can_append_field,
+                &available_data_types,
+            ) {
+                pending_field_row_action = Some((field_index, field_row_action));
             }
             if field_index + 1 < draft.field_drafts.len() {
                 user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
@@ -592,31 +725,30 @@ impl StructEditorView {
             }
         }
 
-        if let Some(removed_field_index) = pending_removed_field_index {
-            draft.field_drafts.remove(removed_field_index);
-            if draft.field_drafts.is_empty() {
-                draft.field_drafts.push(StructFieldEditDraft {
-                    field_name: String::new(),
-                    data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
-                    container_suffix: String::new(),
-                });
+        if let Some((field_index, field_row_action)) = pending_field_row_action {
+            match field_row_action {
+                StructFieldRowAction::AppendField => {
+                    let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
+                    draft.field_drafts.insert(
+                        insert_index,
+                        StructFieldEditDraft {
+                            field_name: String::new(),
+                            data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
+                            container_edit: StructFieldContainerEdit::default(),
+                        },
+                    );
+                }
+                StructFieldRowAction::RemoveField => {
+                    draft.field_drafts.remove(field_index);
+                    if draft.field_drafts.is_empty() {
+                        draft.field_drafts.push(StructFieldEditDraft {
+                            field_name: String::new(),
+                            data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
+                            container_edit: StructFieldContainerEdit::default(),
+                        });
+                    }
+                }
             }
-        }
-
-        if self
-            .render_icon_button(
-                user_interface,
-                &theme.icon_library.icon_handle_common_add,
-                "Append a new field to the draft struct layout.",
-                false,
-            )
-            .clicked()
-        {
-            draft.field_drafts.push(StructFieldEditDraft {
-                field_name: String::new(),
-                data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
-                container_suffix: String::new(),
-            });
         }
     }
 
