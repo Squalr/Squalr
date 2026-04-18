@@ -2,7 +2,7 @@ use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataT
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
-    data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
+    data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
 };
@@ -383,7 +383,7 @@ impl Default for StructLayoutEditDraft {
             layout_id: String::new(),
             field_drafts: vec![StructFieldEditDraft {
                 field_name: String::new(),
-                data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeU8::DATA_TYPE_ID)),
+                data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
                 container_suffix: String::new(),
             }],
         }
@@ -396,7 +396,7 @@ mod tests {
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
-        data_types::data_type_ref::DataTypeRef,
+        data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
         projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
@@ -428,9 +428,16 @@ mod tests {
     fn create_default_new_draft_picks_unique_layout_id() {
         let project_symbol_catalog = create_project_symbol_catalog();
 
-        let draft = StructEditorViewData::create_default_new_draft(&project_symbol_catalog, DataTypeRef::new("u8"));
+        let draft = StructEditorViewData::create_default_new_draft(&project_symbol_catalog, DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
 
         assert_eq!(draft.layout_id, "new.struct");
+        assert_eq!(
+            draft.field_drafts.first().map(|field_draft| field_draft
+                .data_type_selection
+                .visible_data_type()
+                .get_data_type_id()),
+            Some(DataTypeI32::DATA_TYPE_ID)
+        );
     }
 
     #[test]

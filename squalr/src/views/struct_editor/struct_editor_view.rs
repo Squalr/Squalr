@@ -18,7 +18,7 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
     data_types::{
-        built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8},
+        built_in_types::{i32::data_type_i32::DataTypeI32, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
         data_type_ref::DataTypeRef,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
@@ -119,12 +119,17 @@ impl StructEditorView {
     }
 
     fn default_data_type_ref(&self) -> DataTypeRef {
-        self.app_context
+        let registered_data_types = self
+            .app_context
             .engine_unprivileged_state
-            .get_registered_data_type_refs()
-            .first()
+            .get_registered_data_type_refs();
+
+        registered_data_types
+            .iter()
+            .find(|data_type_ref| data_type_ref.get_data_type_id() == DataTypeI32::DATA_TYPE_ID)
             .cloned()
-            .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID))
+            .or_else(|| registered_data_types.first().cloned())
+            .unwrap_or_else(|| DataTypeRef::new(DataTypeI32::DATA_TYPE_ID))
     }
 
     fn available_data_types(&self) -> Vec<DataTypeRef> {
@@ -133,7 +138,7 @@ impl StructEditorView {
             .engine_unprivileged_state
             .get_registered_data_type_refs();
         if available_data_types.is_empty() {
-            available_data_types.push(DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
+            available_data_types.push(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
         }
 
         available_data_types
