@@ -1,7 +1,9 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView};
+use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer};
 use crate::views::struct_editor::view_data::struct_editor_view_data::{StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft};
-use eframe::egui::{Align, Button, Direction, Layout, RichText, ScrollArea, Sense, TextEdit, Ui, Widget, vec2};
+use eframe::egui::{Align, Align2, Direction, Layout, Response, RichText, ScrollArea, Sense, Ui, Widget, pos2, vec2};
+use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
     registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
@@ -10,7 +12,11 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
-    data_types::{built_in_types::u8::data_type_u8::DataTypeU8, data_type_ref::DataTypeRef},
+    data_types::{
+        built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8},
+        data_type_ref::DataTypeRef,
+    },
+    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
 };
 use std::sync::Arc;
@@ -25,6 +31,7 @@ impl StructEditorView {
     pub const WINDOW_ID: &'static str = "window_struct_editor";
     const LIST_PANEL_WIDTH: f32 = 280.0;
     const FIELD_ROW_HEIGHT: f32 = 28.0;
+    const LIST_ROW_HEIGHT: f32 = 28.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_editor_view_data = app_context
@@ -121,6 +128,116 @@ impl StructEditorView {
         available_data_types
     }
 
+    fn string_data_type_ref() -> DataTypeRef {
+        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
+    }
+
+    fn render_text_button(
+        &self,
+        user_interface: &mut Ui,
+        label: &str,
+        tooltip_text: &str,
+        width: f32,
+        height: f32,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(width, height),
+            ThemeButton::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .disabled(is_disabled),
+        );
+
+        user_interface.painter().text(
+            button_response.rect.center(),
+            Align2::CENTER_CENTER,
+            label,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
+
+        button_response
+    }
+
+    fn render_string_value_box(
+        &self,
+        user_interface: &mut Ui,
+        value: &mut String,
+        preview_text: &str,
+        id: &str,
+        width: f32,
+        height: f32,
+    ) {
+        let validation_data_type_ref = Self::string_data_type_ref();
+        let mut value_string = AnonymousValueString::new(value.clone(), AnonymousValueStringFormat::String, ContainerType::None);
+
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut value_string,
+                &validation_data_type_ref,
+                false,
+                true,
+                preview_text,
+                id,
+            )
+            .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
+            .show_format_button(false)
+            .normalize_value_format(false)
+            .use_format_text_colors(false)
+            .width(width)
+            .height(height),
+        );
+
+        *value = value_string.get_anonymous_value_string().to_string();
+    }
+
+    fn render_struct_layout_row(
+        &self,
+        user_interface: &mut Ui,
+        label: &str,
+        is_selected: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::LIST_ROW_HEIGHT), Sense::click());
+
+        if is_selected {
+            user_interface
+                .painter()
+                .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
+            user_interface
+                .painter()
+                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
+        }
+
+        StateLayer {
+            bounds_min: row_rect.min,
+            bounds_max: row_rect.max,
+            enabled: true,
+            pressed: row_response.is_pointer_button_down_on(),
+            has_hover: row_response.hovered(),
+            has_focus: false,
+            corner_radius: CornerRadius::ZERO,
+            border_width: 0.0,
+            hover_color: theme.hover_tint,
+            pressed_color: theme.pressed_tint,
+            border_color: theme.background_control_secondary_dark,
+            border_color_focused: theme.background_control_secondary_dark,
+        }
+        .ui(user_interface);
+
+        user_interface.painter().text(
+            pos2(row_rect.min.x + 8.0, row_rect.center().y),
+            Align2::LEFT_CENTER,
+            label,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            if is_selected { theme.foreground } else { theme.foreground_preview },
+        );
+
+        row_response
+    }
+
     fn render_list_panel(
         &self,
         user_interface: &mut Ui,
@@ -130,7 +247,14 @@ impl StructEditorView {
         is_creating_new_layout: bool,
     ) {
         user_interface.horizontal(|user_interface| {
-            let new_layout_response = user_interface.button("New");
+            let new_layout_response = self.render_text_button(
+                user_interface,
+                "New",
+                "Create a new reusable struct layout.",
+                80.0,
+                Self::FIELD_ROW_HEIGHT,
+                false,
+            );
             if new_layout_response.clicked() {
                 StructEditorViewData::begin_create_struct_layout(self.struct_editor_view_data.clone(), project_symbol_catalog, self.default_data_type_ref());
             }
@@ -139,7 +263,14 @@ impl StructEditorView {
                 .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
                 .unwrap_or(0);
             let can_delete_selected_layout = !is_creating_new_layout && selected_layout_id.is_some() && usage_count == 0;
-            let delete_layout_response = user_interface.add_enabled(can_delete_selected_layout, Button::new("Delete"));
+            let delete_layout_response = self.render_text_button(
+                user_interface,
+                "Delete",
+                "Delete the selected struct layout.",
+                80.0,
+                Self::FIELD_ROW_HEIGHT,
+                !can_delete_selected_layout,
+            );
             if delete_layout_response.clicked() {
                 if let Some(selected_layout_id) = selected_layout_id {
                     if let Ok(updated_project_symbol_catalog) =
@@ -153,12 +284,15 @@ impl StructEditorView {
 
         user_interface.add_space(8.0);
         let mut edited_filter_text = filter_text.to_string();
-        let filter_response = user_interface.add(
-            TextEdit::singleline(&mut edited_filter_text)
-                .hint_text("Filter struct layouts...")
-                .desired_width(f32::INFINITY),
+        self.render_string_value_box(
+            user_interface,
+            &mut edited_filter_text,
+            "Filter struct layouts...",
+            "struct_editor_filter_text",
+            user_interface.available_width(),
+            Self::FIELD_ROW_HEIGHT,
         );
-        if filter_response.changed() {
+        if edited_filter_text != filter_text {
             StructEditorViewData::set_filter_text(self.struct_editor_view_data.clone(), edited_filter_text);
         }
 
@@ -179,7 +313,7 @@ impl StructEditorView {
                     } else {
                         format!("{} ({})", struct_layout_id, usage_count)
                     };
-                    let row_response = user_interface.selectable_label(selected_layout_id == Some(struct_layout_id), layout_label);
+                    let row_response = self.render_struct_layout_row(user_interface, &layout_label, selected_layout_id == Some(struct_layout_id));
                     if row_response.clicked() {
                         StructEditorViewData::select_struct_layout(
                             self.struct_editor_view_data.clone(),
@@ -229,9 +363,13 @@ impl StructEditorView {
             .show(user_interface, |user_interface| {
                 for (field_index, field_draft) in draft.field_drafts.iter_mut().enumerate() {
                     user_interface.horizontal(|user_interface| {
-                        user_interface.add_sized(
-                            vec2(140.0, Self::FIELD_ROW_HEIGHT),
-                            TextEdit::singleline(&mut field_draft.field_name).hint_text("field_name"),
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut field_draft.field_name,
+                            "field_name",
+                            &format!("struct_editor_field_name_{}", field_index),
+                            140.0,
+                            Self::FIELD_ROW_HEIGHT,
                         );
                         let selector_id = format!("struct_editor_data_type_{}", field_index);
                         user_interface.add_sized(
@@ -242,11 +380,22 @@ impl StructEditorView {
                                 .width(180.0)
                                 .height(Self::FIELD_ROW_HEIGHT),
                         );
-                        user_interface.add_sized(
-                            vec2(110.0, Self::FIELD_ROW_HEIGHT),
-                            TextEdit::singleline(&mut field_draft.container_suffix).hint_text("[] / [4] / *(64)"),
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut field_draft.container_suffix,
+                            "[] / [4] / *(64)",
+                            &format!("struct_editor_container_suffix_{}", field_index),
+                            110.0,
+                            Self::FIELD_ROW_HEIGHT,
                         );
-                        let remove_field_response = user_interface.add_sized(vec2(60.0, Self::FIELD_ROW_HEIGHT), Button::new("Remove"));
+                        let remove_field_response = self.render_text_button(
+                            user_interface,
+                            "Remove",
+                            "Remove this field from the draft struct layout.",
+                            72.0,
+                            Self::FIELD_ROW_HEIGHT,
+                            false,
+                        );
                         if remove_field_response.clicked() {
                             pending_removed_field_index = Some(field_index);
                         }
@@ -266,7 +415,17 @@ impl StructEditorView {
             }
         }
 
-        if user_interface.button("Add Field").clicked() {
+        if self
+            .render_text_button(
+                user_interface,
+                "Add Field",
+                "Append a new field to the draft struct layout.",
+                96.0,
+                Self::FIELD_ROW_HEIGHT,
+                false,
+            )
+            .clicked()
+        {
             draft.field_drafts.push(StructFieldEditDraft {
                 field_name: String::new(),
                 data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
@@ -299,10 +458,13 @@ impl StructEditorView {
         user_interface.horizontal(|user_interface| {
             user_interface.label(RichText::new("Struct Layout Id").strong());
             user_interface.add_space(8.0);
-            user_interface.add(
-                TextEdit::singleline(&mut edited_draft.layout_id)
-                    .desired_width(280.0)
-                    .hint_text("module.type"),
+            self.render_string_value_box(
+                user_interface,
+                &mut edited_draft.layout_id,
+                "module.type",
+                "struct_editor_layout_id",
+                280.0,
+                Self::FIELD_ROW_HEIGHT,
             );
         });
         user_interface.add_space(6.0);
@@ -329,7 +491,14 @@ impl StructEditorView {
 
         user_interface.horizontal(|user_interface| {
             let can_apply = validation_result.is_ok();
-            let apply_response = user_interface.add_enabled(can_apply, Button::new("Apply"));
+            let apply_response = self.render_text_button(
+                user_interface,
+                "Apply",
+                "Apply this struct layout draft.",
+                96.0,
+                Self::FIELD_ROW_HEIGHT,
+                !can_apply,
+            );
             if apply_response.clicked() {
                 match StructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
                     Ok(updated_project_symbol_catalog) => {
@@ -346,7 +515,14 @@ impl StructEditorView {
                 }
             }
 
-            let revert_response = user_interface.add(Button::new("Revert"));
+            let revert_response = self.render_text_button(
+                user_interface,
+                "Revert",
+                "Revert this draft back to the selected struct layout.",
+                96.0,
+                Self::FIELD_ROW_HEIGHT,
+                false,
+            );
             if revert_response.clicked() {
                 if let Some(original_layout_id) = edited_draft.original_layout_id.clone() {
                     StructEditorViewData::select_struct_layout(self.struct_editor_view_data.clone(), project_symbol_catalog, Some(original_layout_id));
