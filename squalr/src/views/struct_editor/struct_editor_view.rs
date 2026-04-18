@@ -48,7 +48,6 @@ impl StructEditorView {
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
-    const GLYPH_BUTTON_WIDTH: f32 = 28.0;
     const FIELD_SECTION_VERTICAL_SPACING: f32 = 10.0;
     const FIELD_INPUT_SPACING: f32 = 8.0;
     const FIELD_CONTAINER_MODE_WIDTH: f32 = 160.0;
@@ -213,35 +212,6 @@ impl StructEditorView {
             user_interface,
             button_response.rect,
             icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
-    }
-
-    fn render_glyph_button(
-        &self,
-        user_interface: &mut Ui,
-        label: &str,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::GLYPH_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(theme.background_control_secondary)
-                .border_color(theme.submenu_border)
-                .border_width(1.0)
-                .disabled(is_disabled),
-        );
-
-        user_interface.painter().text(
-            button_response.rect.center(),
-            Align2::CENTER_CENTER,
-            label,
-            theme.font_library.font_noto_sans.font_normal.clone(),
             if is_disabled { theme.foreground_preview } else { theme.foreground },
         );
 
@@ -662,14 +632,24 @@ impl StructEditorView {
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
                             }
 
-                            let move_down_response = self.render_glyph_button(user_interface, "v", "Move this field down.", !can_move_down);
+                            let move_down_response = self.render_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_down_arrow_small,
+                                "Move this field down.",
+                                !can_move_down,
+                            );
                             if move_down_response.clicked() {
                                 pending_field_row_action = Some(StructFieldRowAction::MoveDown);
                             }
 
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
 
-                            let move_up_response = self.render_glyph_button(user_interface, "^", "Move this field up.", !can_move_up);
+                            let move_up_response = self.render_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_navigation_up_arrow_small,
+                                "Move this field up.",
+                                !can_move_up,
+                            );
                             if move_up_response.clicked() {
                                 pending_field_row_action = Some(StructFieldRowAction::MoveUp);
                             }
