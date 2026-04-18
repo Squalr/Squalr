@@ -38,6 +38,10 @@ impl StructEditorView {
     const FIELD_SECTION_VERTICAL_SPACING: f32 = 10.0;
     const TAKE_OVER_PANEL_WIDTH: f32 = 640.0;
     const DELETE_PANEL_WIDTH: f32 = 420.0;
+    const TAKE_OVER_PANEL_MARGIN: f32 = 16.0;
+    const TAKE_OVER_MIN_WIDTH: f32 = 280.0;
+    const TAKE_OVER_MIN_BODY_HEIGHT: f32 = 120.0;
+    const TAKE_OVER_CHROME_HEIGHT: f32 = 64.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_editor_view_data = app_context
@@ -432,27 +436,34 @@ impl StructEditorView {
         add_contents: impl FnOnce(&mut Ui),
     ) {
         let theme = &self.app_context.theme;
+        let available_size = user_interface.available_size();
+        let clamped_panel_width = panel_width.min((available_size.x - Self::TAKE_OVER_PANEL_MARGIN * 2.0).max(Self::TAKE_OVER_MIN_WIDTH));
+        let max_body_height = (available_size.y - Self::TAKE_OVER_PANEL_MARGIN * 2.0 - Self::TAKE_OVER_CHROME_HEIGHT).max(Self::TAKE_OVER_MIN_BODY_HEIGHT);
 
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                Frame::new()
-                    .fill(theme.background_primary)
-                    .stroke(Stroke::new(1.0, theme.submenu_border))
-                    .inner_margin(Margin::same(16))
-                    .show(user_interface, |user_interface| {
-                        user_interface.set_width(panel_width);
-                        user_interface.label(
-                            RichText::new(title)
-                                .font(theme.font_library.font_noto_sans.font_window_title.clone())
-                                .color(theme.foreground),
-                        );
-                        user_interface.add_space(12.0);
-                        add_contents(user_interface);
-                    });
-            },
-        );
+        user_interface.allocate_ui_with_layout(available_size, Layout::centered_and_justified(Direction::TopDown), |user_interface| {
+            Frame::new()
+                .fill(theme.background_primary)
+                .stroke(Stroke::new(1.0, theme.submenu_border))
+                .inner_margin(Margin::same(16))
+                .show(user_interface, |user_interface| {
+                    user_interface.set_width(clamped_panel_width);
+                    user_interface.set_min_width(clamped_panel_width);
+                    user_interface.set_max_width(clamped_panel_width);
+                    user_interface.label(
+                        RichText::new(title)
+                            .font(theme.font_library.font_noto_sans.font_window_title.clone())
+                            .color(theme.foreground),
+                    );
+                    user_interface.add_space(12.0);
+                    ScrollArea::vertical()
+                        .id_salt(format!("struct_editor_take_over_body_{title}"))
+                        .auto_shrink([false, false])
+                        .max_height(max_body_height)
+                        .show(user_interface, |user_interface| {
+                            add_contents(user_interface);
+                        });
+                });
+        });
     }
 
     fn render_field_editor_section(
@@ -531,24 +542,19 @@ impl StructEditorView {
         let theme = &self.app_context.theme;
 
         let mut pending_removed_field_index = None;
-        ScrollArea::vertical()
-            .id_salt("struct_editor_field_rows")
-            .auto_shrink([false, false])
-            .show(user_interface, |user_interface| {
-                for field_index in 0..draft.field_drafts.len() {
-                    let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
-                        continue;
-                    };
-                    if self.render_field_editor_section(user_interface, field_draft, field_index, &available_data_types) {
-                        pending_removed_field_index = Some(field_index);
-                    }
-                    if field_index + 1 < draft.field_drafts.len() {
-                        user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
-                        user_interface.separator();
-                        user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
-                    }
-                }
-            });
+        for field_index in 0..draft.field_drafts.len() {
+            let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                continue;
+            };
+            if self.render_field_editor_section(user_interface, field_draft, field_index, &available_data_types) {
+                pending_removed_field_index = Some(field_index);
+            }
+            if field_index + 1 < draft.field_drafts.len() {
+                user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
+                user_interface.separator();
+                user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
+            }
+        }
 
         if let Some(removed_field_index) = pending_removed_field_index {
             draft.field_drafts.remove(removed_field_index);
