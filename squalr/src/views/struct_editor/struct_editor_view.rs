@@ -487,23 +487,33 @@ impl StructEditorView {
         let mut should_remove_field = false;
 
         user_interface.allocate_ui_with_layout(vec2(user_interface.available_width(), 0.0), Layout::top_down(Align::Min), |user_interface| {
-            user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
-                user_interface.label(
-                    RichText::new(format!("Field {}", field_index + 1))
-                        .strong()
-                        .color(theme.foreground),
-                );
-                user_interface.add_space(user_interface.available_width().max(0.0));
-                let remove_field_response = self.render_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_common_delete,
-                    "Remove this field from the draft struct layout.",
-                    false,
-                );
-                if remove_field_response.clicked() {
-                    should_remove_field = true;
-                }
-            });
+            user_interface.allocate_ui_with_layout(
+                vec2(user_interface.available_width().max(1.0), Self::FIELD_ROW_HEIGHT),
+                Layout::left_to_right(Align::Center),
+                |user_interface| {
+                    user_interface.label(
+                        RichText::new(format!("Field {}", field_index + 1))
+                            .strong()
+                            .color(theme.foreground),
+                    );
+
+                    user_interface.allocate_ui_with_layout(
+                        vec2(user_interface.available_width().max(0.0), Self::FIELD_ROW_HEIGHT),
+                        Layout::right_to_left(Align::Center),
+                        |user_interface| {
+                            let remove_field_response = self.render_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_delete,
+                                "Remove this field from the draft struct layout.",
+                                false,
+                            );
+                            if remove_field_response.clicked() {
+                                should_remove_field = true;
+                            }
+                        },
+                    );
+                },
+            );
 
             user_interface.add_space(6.0);
             self.render_field_label(user_interface, "Field Name");
