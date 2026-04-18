@@ -19,6 +19,7 @@ use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_table::symbol_table_view::SymbolTableView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
@@ -115,8 +116,17 @@ impl MainWindowView {
             app_context_for_symbol_explorer.clone(),
             dock_view_data.clone(),
             SymbolExplorerView::new(app_context_for_symbol_explorer.clone()),
-            Rc::new("Symbol Explorer".to_string()),
+            Rc::new("Symbol Tree".to_string()),
             Rc::new(SymbolExplorerView::WINDOW_ID.to_string()),
+        );
+
+        let app_context_for_symbol_table = app_context.clone();
+        let symbol_table_view = DockedWindowView::new(
+            app_context_for_symbol_table.clone(),
+            dock_view_data.clone(),
+            SymbolTableView::new(app_context_for_symbol_table.clone()),
+            Rc::new("Symbol Table".to_string()),
+            Rc::new(SymbolTableView::WINDOW_ID.to_string()),
         );
 
         let app_context_for_process_selector = app_context.clone();
@@ -163,6 +173,7 @@ impl MainWindowView {
             Box::new(code_viewer_view),
             Box::new(project_explorer_view),
             Box::new(symbol_explorer_view),
+            Box::new(symbol_table_view),
             Box::new(process_selector_view),
             Box::new(element_scanner_view),
             Box::new(pointer_scanner_view),

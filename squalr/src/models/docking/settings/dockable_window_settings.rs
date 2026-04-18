@@ -13,6 +13,7 @@ use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_table::symbol_table_view::SymbolTableView;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::fs;
@@ -70,7 +71,8 @@ impl DockSettingsConfig {
                 DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
+                    .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(SymbolTableView::WINDOW_ID)),
             )
             .build();
 
@@ -90,7 +92,8 @@ impl DockSettingsConfig {
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
+                            .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(SymbolTableView::WINDOW_ID)),
                     ),
             )
             .push_child(
@@ -117,6 +120,7 @@ impl DockSettingsConfig {
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolTableView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
@@ -228,7 +232,7 @@ mod tests {
         code_viewer::code_viewer_view::CodeViewerView, element_scanner::scanner::element_scanner_view::ElementScannerView,
         memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView, plugins::plugins_view::PluginsView,
         pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
-        symbol_explorer::symbol_explorer_view::SymbolExplorerView,
+        symbol_explorer::symbol_explorer_view::SymbolExplorerView, symbol_table::symbol_table_view::SymbolTableView,
     };
 
     #[test]
@@ -246,6 +250,7 @@ mod tests {
 
         assert!(dock_root.are_windows_in_same_tab_group(ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(PointerScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(SymbolTableView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
     }
 
     #[test]
