@@ -177,7 +177,9 @@ impl StructEditorView {
             vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
             ThemeButton::new_from_theme(theme)
                 .with_tooltip_text(tooltip_text)
-                .background_color(epaint::Color32::TRANSPARENT)
+                .background_color(theme.background_control_secondary)
+                .border_color(theme.submenu_border)
+                .border_width(1.0)
                 .disabled(is_disabled),
         );
 
@@ -733,27 +735,48 @@ impl Widget for StructEditorView {
             }
         }
 
+        let theme = self.app_context.theme.clone();
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                let content_rect = user_interface.available_rect_before_wrap();
+                let mut content_user_interface = user_interface.new_child(
+                    eframe::egui::UiBuilder::new()
+                        .max_rect(content_rect)
+                        .layout(Layout::top_down(Align::Min)),
+                );
+
                 self.render_list_panel(
-                    user_interface,
+                    &mut content_user_interface,
                     &project_symbol_catalog,
                     selected_layout_id.as_deref(),
                     &filter_text,
                     is_take_over_active,
                 );
 
-                match take_over_state.as_ref() {
-                    Some(StructEditorTakeOverState::CreateStructLayout) => {
-                        self.render_struct_layout_take_over(user_interface, &project_symbol_catalog, "New Struct Layout", draft.as_ref());
+                if let Some(take_over_state) = take_over_state.as_ref() {
+                    let mut take_over_user_interface = user_interface.new_child(
+                        eframe::egui::UiBuilder::new()
+                            .max_rect(content_rect)
+                            .layout(Layout::top_down(Align::Min)),
+                    );
+                    take_over_user_interface.set_clip_rect(content_rect);
+                    take_over_user_interface.painter().rect_filled(
+                        content_rect,
+                        CornerRadius::ZERO,
+                        epaint::Color32::from_rgba_unmultiplied(theme.background_panel.r(), theme.background_panel.g(), theme.background_panel.b(), 0xD0),
+                    );
+
+                    match take_over_state {
+                        StructEditorTakeOverState::CreateStructLayout => {
+                            self.render_struct_layout_take_over(&mut take_over_user_interface, &project_symbol_catalog, "New Struct Layout", draft.as_ref());
+                        }
+                        StructEditorTakeOverState::EditStructLayout { .. } => {
+                            self.render_struct_layout_take_over(&mut take_over_user_interface, &project_symbol_catalog, "Edit Struct Layout", draft.as_ref());
+                        }
+                        StructEditorTakeOverState::DeleteConfirmation { layout_id } => {
+                            self.render_delete_confirmation_take_over(&mut take_over_user_interface, &project_symbol_catalog, layout_id);
+                        }
                     }
-                    Some(StructEditorTakeOverState::EditStructLayout { .. }) => {
-                        self.render_struct_layout_take_over(user_interface, &project_symbol_catalog, "Edit Struct Layout", draft.as_ref());
-                    }
-                    Some(StructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
-                        self.render_delete_confirmation_take_over(user_interface, &project_symbol_catalog, layout_id);
-                    }
-                    None => {}
                 }
             })
             .response
