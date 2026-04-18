@@ -481,6 +481,7 @@ impl StructEditorView {
         user_interface: &mut Ui,
         field_draft: &mut StructFieldEditDraft,
         field_index: usize,
+        can_remove_field: bool,
         available_data_types: &[DataTypeRef],
     ) -> bool {
         let theme = &self.app_context.theme;
@@ -501,14 +502,16 @@ impl StructEditorView {
                         vec2(user_interface.available_width().max(0.0), Self::FIELD_ROW_HEIGHT),
                         Layout::right_to_left(Align::Center),
                         |user_interface| {
-                            let remove_field_response = self.render_icon_button(
-                                user_interface,
-                                &theme.icon_library.icon_handle_common_delete,
-                                "Remove this field from the draft struct layout.",
-                                false,
-                            );
-                            if remove_field_response.clicked() {
-                                should_remove_field = true;
+                            if can_remove_field {
+                                let remove_field_response = self.render_icon_button(
+                                    user_interface,
+                                    &theme.icon_library.icon_handle_common_delete,
+                                    "Remove this field from the draft struct layout.",
+                                    false,
+                                );
+                                if remove_field_response.clicked() {
+                                    should_remove_field = true;
+                                }
                             }
                         },
                     );
@@ -560,13 +563,14 @@ impl StructEditorView {
     ) {
         let available_data_types = self.available_data_types();
         let theme = &self.app_context.theme;
+        let can_remove_field = draft.field_drafts.len() > 1;
 
         let mut pending_removed_field_index = None;
         for field_index in 0..draft.field_drafts.len() {
             let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
                 continue;
             };
-            if self.render_field_editor_section(user_interface, field_draft, field_index, &available_data_types) {
+            if self.render_field_editor_section(user_interface, field_draft, field_index, can_remove_field, &available_data_types) {
                 pending_removed_field_index = Some(field_index);
             }
             if field_index + 1 < draft.field_drafts.len() {
