@@ -421,6 +421,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                     .text_color(text_color)
                     .hint_text(self.preview_text)
                     .interactive(!self.is_read_only)
+                    .desired_width(text_edit_rectangle_inner.width())
                     .frame(false),
             )
         };
