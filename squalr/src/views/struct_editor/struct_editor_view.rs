@@ -37,6 +37,9 @@ impl StructEditorView {
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
+    const FIELD_CARD_HEADER_HEIGHT: f32 = 22.0;
+    const FIELD_CARD_VERTICAL_SPACING: f32 = 10.0;
+    const FIELD_CARD_INNER_SPACING: f32 = 6.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_editor_view_data = app_context
@@ -414,27 +417,94 @@ impl StructEditorView {
             });
     }
 
-    fn render_field_row_header(
+    fn render_field_label(
         &self,
         user_interface: &mut Ui,
+        label: &str,
     ) {
         let theme = &self.app_context.theme;
+        user_interface.label(RichText::new(label).strong().color(theme.foreground));
+    }
 
-        user_interface.horizontal(|user_interface| {
-            user_interface.add_sized(
-                vec2(140.0, Self::FIELD_ROW_HEIGHT),
-                eframe::egui::Label::new(RichText::new("Field").strong().color(theme.foreground)),
-            );
-            user_interface.add_sized(
-                vec2(180.0, Self::FIELD_ROW_HEIGHT),
-                eframe::egui::Label::new(RichText::new("Type").strong().color(theme.foreground)),
-            );
-            user_interface.add_sized(
-                vec2(110.0, Self::FIELD_ROW_HEIGHT),
-                eframe::egui::Label::new(RichText::new("Container").strong().color(theme.foreground)),
-            );
-            user_interface.add_sized(vec2(60.0, Self::FIELD_ROW_HEIGHT), eframe::egui::Label::new(""));
-        });
+    fn render_field_card(
+        &self,
+        user_interface: &mut Ui,
+        draft: &mut StructLayoutEditDraft,
+        field_index: usize,
+        available_data_types: &[DataTypeRef],
+    ) -> bool {
+        let theme = &self.app_context.theme;
+        let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+            return false;
+        };
+        let mut should_remove_field = false;
+
+        user_interface.add(
+            GroupBox::new_from_theme(theme, "", |user_interface| {
+                user_interface.allocate_ui_with_layout(
+                    vec2(user_interface.available_width(), Self::FIELD_CARD_HEADER_HEIGHT),
+                    Layout::left_to_right(Align::Center),
+                    |user_interface| {
+                        user_interface.label(
+                            RichText::new(format!("Field {}", field_index + 1))
+                                .strong()
+                                .color(theme.foreground),
+                        );
+                        user_interface.add_space(user_interface.available_width().max(0.0));
+                        let remove_field_response = self.render_icon_button(
+                            user_interface,
+                            &theme.icon_library.icon_handle_common_delete,
+                            "Remove this field from the draft struct layout.",
+                            false,
+                        );
+                        if remove_field_response.clicked() {
+                            should_remove_field = true;
+                        }
+                    },
+                );
+
+                user_interface.add_space(Self::FIELD_CARD_INNER_SPACING);
+                self.render_field_label(user_interface, "Field Name");
+                self.render_string_value_box(
+                    user_interface,
+                    &mut field_draft.field_name,
+                    "field_name",
+                    &format!("struct_editor_field_name_{}", field_index),
+                    user_interface.available_width(),
+                    Self::FIELD_ROW_HEIGHT,
+                );
+
+                user_interface.add_space(Self::FIELD_CARD_INNER_SPACING);
+                user_interface.columns(2, |columns| {
+                    columns[0].with_layout(Layout::top_down(Align::Min), |user_interface| {
+                        self.render_field_label(user_interface, "Type");
+                        let selector_id = format!("struct_editor_data_type_{}", field_index);
+                        user_interface.add_sized(
+                            vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
+                            DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
+                                .available_data_types(available_data_types.to_vec())
+                                .stacked_list()
+                                .width(user_interface.available_width())
+                                .height(Self::FIELD_ROW_HEIGHT),
+                        );
+                    });
+                    columns[1].with_layout(Layout::top_down(Align::Min), |user_interface| {
+                        self.render_field_label(user_interface, "Container");
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut field_draft.container_suffix,
+                            "[] / [4] / *(64)",
+                            &format!("struct_editor_container_suffix_{}", field_index),
+                            user_interface.available_width(),
+                            Self::FIELD_ROW_HEIGHT,
+                        );
+                    });
+                });
+            })
+            .desired_width(user_interface.available_width()),
+        );
+
+        should_remove_field
     }
 
     fn render_field_rows(
@@ -444,52 +514,17 @@ impl StructEditorView {
     ) {
         let available_data_types = self.available_data_types();
         let theme = &self.app_context.theme;
-        self.render_field_row_header(user_interface);
-        user_interface.add_space(4.0);
 
         let mut pending_removed_field_index = None;
         ScrollArea::vertical()
             .id_salt("struct_editor_field_rows")
             .auto_shrink([false, false])
             .show(user_interface, |user_interface| {
-                for (field_index, field_draft) in draft.field_drafts.iter_mut().enumerate() {
-                    user_interface.horizontal(|user_interface| {
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut field_draft.field_name,
-                            "field_name",
-                            &format!("struct_editor_field_name_{}", field_index),
-                            140.0,
-                            Self::FIELD_ROW_HEIGHT,
-                        );
-                        let selector_id = format!("struct_editor_data_type_{}", field_index);
-                        user_interface.add_sized(
-                            vec2(180.0, Self::FIELD_ROW_HEIGHT),
-                            DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
-                                .available_data_types(available_data_types.clone())
-                                .stacked_list()
-                                .width(180.0)
-                                .height(Self::FIELD_ROW_HEIGHT),
-                        );
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut field_draft.container_suffix,
-                            "[] / [4] / *(64)",
-                            &format!("struct_editor_container_suffix_{}", field_index),
-                            110.0,
-                            Self::FIELD_ROW_HEIGHT,
-                        );
-                        let remove_field_response = self.render_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_common_delete,
-                            "Remove this field from the draft struct layout.",
-                            false,
-                        );
-                        if remove_field_response.clicked() {
-                            pending_removed_field_index = Some(field_index);
-                        }
-                    });
-                    user_interface.add_space(4.0);
+                for field_index in 0..draft.field_drafts.len() {
+                    if self.render_field_card(user_interface, draft, field_index, &available_data_types) {
+                        pending_removed_field_index = Some(field_index);
+                    }
+                    user_interface.add_space(Self::FIELD_CARD_VERTICAL_SPACING);
                 }
             });
 
@@ -548,22 +583,15 @@ impl StructEditorView {
             |user_interface| {
                 user_interface.add(
                     GroupBox::new_from_theme(theme, take_over_title, |user_interface| {
-                        user_interface.horizontal(|user_interface| {
-                            user_interface.label(
-                                RichText::new("Struct Layout Id")
-                                    .strong()
-                                    .color(theme.foreground),
-                            );
-                            user_interface.add_space(8.0);
-                            self.render_string_value_box(
-                                user_interface,
-                                &mut edited_draft.layout_id,
-                                "module.type",
-                                "struct_editor_layout_id",
-                                320.0,
-                                Self::FIELD_ROW_HEIGHT,
-                            );
-                        });
+                        self.render_field_label(user_interface, "Struct Layout Id");
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut edited_draft.layout_id,
+                            "module.type",
+                            "struct_editor_layout_id",
+                            user_interface.available_width(),
+                            Self::FIELD_ROW_HEIGHT,
+                        );
                         user_interface.add_space(6.0);
 
                         let status_text = if is_creating_new_layout {
@@ -578,6 +606,8 @@ impl StructEditorView {
                         user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
                         user_interface.add_space(12.0);
 
+                        self.render_field_label(user_interface, "Fields");
+                        user_interface.add_space(4.0);
                         self.render_field_rows(user_interface, &mut edited_draft);
                         user_interface.add_space(12.0);
 
