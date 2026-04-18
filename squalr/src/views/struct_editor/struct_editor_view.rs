@@ -1,14 +1,12 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView};
-use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
-};
+use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer};
 use crate::views::struct_editor::view_data::struct_editor_view_data::{
     StructEditorTakeOverState, StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft,
 };
-use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, Widget, pos2, vec2};
-use epaint::{CornerRadius, Stroke, StrokeKind};
+use eframe::egui::{Align, Align2, Direction, Frame, Key, Layout, Margin, Response, RichText, ScrollArea, Sense, Stroke, Ui, Widget, pos2, vec2};
+use epaint::{CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
     registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
@@ -37,9 +35,9 @@ impl StructEditorView {
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
-    const FIELD_CARD_HEADER_HEIGHT: f32 = 22.0;
-    const FIELD_CARD_VERTICAL_SPACING: f32 = 10.0;
-    const FIELD_CARD_INNER_SPACING: f32 = 6.0;
+    const FIELD_SECTION_VERTICAL_SPACING: f32 = 10.0;
+    const TAKE_OVER_PANEL_WIDTH: f32 = 640.0;
+    const DELETE_PANEL_WIDTH: f32 = 420.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_editor_view_data = app_context
@@ -426,83 +424,100 @@ impl StructEditorView {
         user_interface.label(RichText::new(label).strong().color(theme.foreground));
     }
 
-    fn render_field_card(
+    fn render_take_over_panel(
         &self,
         user_interface: &mut Ui,
-        draft: &mut StructLayoutEditDraft,
+        title: &str,
+        panel_width: f32,
+        add_contents: impl FnOnce(&mut Ui),
+    ) {
+        let theme = &self.app_context.theme;
+
+        user_interface.allocate_ui_with_layout(
+            user_interface.available_size(),
+            Layout::centered_and_justified(Direction::TopDown),
+            |user_interface| {
+                Frame::new()
+                    .fill(theme.background_primary)
+                    .stroke(Stroke::new(1.0, theme.submenu_border))
+                    .inner_margin(Margin::same(16))
+                    .show(user_interface, |user_interface| {
+                        user_interface.set_width(panel_width);
+                        user_interface.label(
+                            RichText::new(title)
+                                .font(theme.font_library.font_noto_sans.font_window_title.clone())
+                                .color(theme.foreground),
+                        );
+                        user_interface.add_space(12.0);
+                        add_contents(user_interface);
+                    });
+            },
+        );
+    }
+
+    fn render_field_editor_section(
+        &self,
+        user_interface: &mut Ui,
+        field_draft: &mut StructFieldEditDraft,
         field_index: usize,
         available_data_types: &[DataTypeRef],
     ) -> bool {
         let theme = &self.app_context.theme;
-        let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
-            return false;
-        };
         let mut should_remove_field = false;
 
-        user_interface.add(
-            GroupBox::new_from_theme(theme, "", |user_interface| {
-                user_interface.allocate_ui_with_layout(
-                    vec2(user_interface.available_width(), Self::FIELD_CARD_HEADER_HEIGHT),
-                    Layout::left_to_right(Align::Center),
-                    |user_interface| {
-                        user_interface.label(
-                            RichText::new(format!("Field {}", field_index + 1))
-                                .strong()
-                                .color(theme.foreground),
-                        );
-                        user_interface.add_space(user_interface.available_width().max(0.0));
-                        let remove_field_response = self.render_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_common_delete,
-                            "Remove this field from the draft struct layout.",
-                            false,
-                        );
-                        if remove_field_response.clicked() {
-                            should_remove_field = true;
-                        }
-                    },
+        user_interface.allocate_ui_with_layout(vec2(user_interface.available_width(), 0.0), Layout::top_down(Align::Min), |user_interface| {
+            user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
+                user_interface.label(
+                    RichText::new(format!("Field {}", field_index + 1))
+                        .strong()
+                        .color(theme.foreground),
                 );
-
-                user_interface.add_space(Self::FIELD_CARD_INNER_SPACING);
-                self.render_field_label(user_interface, "Field Name");
-                self.render_string_value_box(
+                user_interface.add_space(user_interface.available_width().max(0.0));
+                let remove_field_response = self.render_icon_button(
                     user_interface,
-                    &mut field_draft.field_name,
-                    "field_name",
-                    &format!("struct_editor_field_name_{}", field_index),
-                    user_interface.available_width(),
-                    Self::FIELD_ROW_HEIGHT,
+                    &theme.icon_library.icon_handle_common_delete,
+                    "Remove this field from the draft struct layout.",
+                    false,
                 );
+                if remove_field_response.clicked() {
+                    should_remove_field = true;
+                }
+            });
 
-                user_interface.add_space(Self::FIELD_CARD_INNER_SPACING);
-                user_interface.columns(2, |columns| {
-                    columns[0].with_layout(Layout::top_down(Align::Min), |user_interface| {
-                        self.render_field_label(user_interface, "Type");
-                        let selector_id = format!("struct_editor_data_type_{}", field_index);
-                        user_interface.add_sized(
-                            vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
-                            DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
-                                .available_data_types(available_data_types.to_vec())
-                                .stacked_list()
-                                .width(user_interface.available_width())
-                                .height(Self::FIELD_ROW_HEIGHT),
-                        );
-                    });
-                    columns[1].with_layout(Layout::top_down(Align::Min), |user_interface| {
-                        self.render_field_label(user_interface, "Container");
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut field_draft.container_suffix,
-                            "[] / [4] / *(64)",
-                            &format!("struct_editor_container_suffix_{}", field_index),
-                            user_interface.available_width(),
-                            Self::FIELD_ROW_HEIGHT,
-                        );
-                    });
-                });
-            })
-            .desired_width(user_interface.available_width()),
-        );
+            user_interface.add_space(6.0);
+            self.render_field_label(user_interface, "Field Name");
+            self.render_string_value_box(
+                user_interface,
+                &mut field_draft.field_name,
+                "field_name",
+                &format!("struct_editor_field_name_{}", field_index),
+                user_interface.available_width(),
+                Self::FIELD_ROW_HEIGHT,
+            );
+
+            user_interface.add_space(6.0);
+            self.render_field_label(user_interface, "Type");
+            let selector_id = format!("struct_editor_data_type_{}", field_index);
+            user_interface.add_sized(
+                vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
+                DataTypeSelectorView::new(self.app_context.clone(), &mut field_draft.data_type_selection, &selector_id)
+                    .available_data_types(available_data_types.to_vec())
+                    .stacked_list()
+                    .width(user_interface.available_width())
+                    .height(Self::FIELD_ROW_HEIGHT),
+            );
+
+            user_interface.add_space(6.0);
+            self.render_field_label(user_interface, "Container");
+            self.render_string_value_box(
+                user_interface,
+                &mut field_draft.container_suffix,
+                "[] / [4] / *(64)",
+                &format!("struct_editor_container_suffix_{}", field_index),
+                user_interface.available_width(),
+                Self::FIELD_ROW_HEIGHT,
+            );
+        });
 
         should_remove_field
     }
@@ -521,10 +536,17 @@ impl StructEditorView {
             .auto_shrink([false, false])
             .show(user_interface, |user_interface| {
                 for field_index in 0..draft.field_drafts.len() {
-                    if self.render_field_card(user_interface, draft, field_index, &available_data_types) {
+                    let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                        continue;
+                    };
+                    if self.render_field_editor_section(user_interface, field_draft, field_index, &available_data_types) {
                         pending_removed_field_index = Some(field_index);
                     }
-                    user_interface.add_space(Self::FIELD_CARD_VERTICAL_SPACING);
+                    if field_index + 1 < draft.field_drafts.len() {
+                        user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
+                        user_interface.separator();
+                        user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
+                    }
                 }
             });
 
@@ -563,7 +585,6 @@ impl StructEditorView {
         take_over_title: &str,
         draft: Option<&StructLayoutEditDraft>,
     ) {
-        let theme = &self.app_context.theme;
         let Some(draft) = draft else {
             return;
         };
@@ -577,81 +598,68 @@ impl StructEditorView {
             .unwrap_or(0);
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
 
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, take_over_title, |user_interface| {
-                        self.render_field_label(user_interface, "Struct Layout Id");
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut edited_draft.layout_id,
-                            "module.type",
-                            "struct_editor_layout_id",
-                            user_interface.available_width(),
-                            Self::FIELD_ROW_HEIGHT,
-                        );
-                        user_interface.add_space(6.0);
+        self.render_take_over_panel(user_interface, take_over_title, Self::TAKE_OVER_PANEL_WIDTH, |user_interface| {
+            self.render_field_label(user_interface, "Struct Layout Id");
+            self.render_string_value_box(
+                user_interface,
+                &mut edited_draft.layout_id,
+                "module.type",
+                "struct_editor_layout_id",
+                user_interface.available_width(),
+                Self::FIELD_ROW_HEIGHT,
+            );
+            user_interface.add_space(6.0);
 
-                        let status_text = if is_creating_new_layout {
-                            String::from("Creating a new reusable struct layout.")
-                        } else if usage_count == 0 {
-                            String::from("Not used by any rooted symbols yet.")
-                        } else if usage_count == 1 {
-                            String::from("Used by 1 rooted symbol.")
-                        } else {
-                            format!("Used by {} rooted symbols.", usage_count)
-                        };
-                        user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
-                        user_interface.add_space(12.0);
+            let status_text = if is_creating_new_layout {
+                String::from("Creating a new reusable struct layout.")
+            } else if usage_count == 0 {
+                String::from("Not used by any rooted symbols yet.")
+            } else if usage_count == 1 {
+                String::from("Used by 1 rooted symbol.")
+            } else {
+                format!("Used by {} rooted symbols.", usage_count)
+            };
+            user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
+            user_interface.add_space(12.0);
 
-                        self.render_field_label(user_interface, "Fields");
-                        user_interface.add_space(4.0);
-                        self.render_field_rows(user_interface, &mut edited_draft);
-                        user_interface.add_space(12.0);
+            self.render_field_label(user_interface, "Fields");
+            user_interface.add_space(4.0);
+            self.render_field_rows(user_interface, &mut edited_draft);
+            user_interface.add_space(12.0);
 
-                        if let Err(validation_error) = validation_result.as_ref() {
-                            user_interface.label(RichText::new(validation_error).color(self.app_context.theme.error_red));
-                            user_interface.add_space(8.0);
+            if let Err(validation_error) = validation_result.as_ref() {
+                user_interface.label(RichText::new(validation_error).color(self.app_context.theme.error_red));
+                user_interface.add_space(8.0);
+            }
+
+            user_interface.horizontal(|user_interface| {
+                let cancel_response = self.render_text_button(user_interface, "Cancel", "Cancel struct layout editing.", 96.0, Self::FIELD_ROW_HEIGHT, false);
+                if cancel_response.clicked() {
+                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                }
+
+                let can_apply = validation_result.is_ok();
+                let apply_label = if is_creating_new_layout { "Create" } else { "Apply" };
+                let apply_tooltip = if is_creating_new_layout {
+                    "Create this struct layout."
+                } else {
+                    "Apply this struct layout draft."
+                };
+                let apply_response = self.render_text_button(user_interface, apply_label, apply_tooltip, 96.0, Self::FIELD_ROW_HEIGHT, !can_apply);
+                if apply_response.clicked() {
+                    match StructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
+                        Ok(updated_project_symbol_catalog) => {
+                            self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
+                            StructEditorViewData::select_struct_layout(self.struct_editor_view_data.clone(), Some(edited_draft.layout_id.trim().to_string()));
+                            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
                         }
-
-                        user_interface.horizontal(|user_interface| {
-                            let cancel_response =
-                                self.render_text_button(user_interface, "Cancel", "Cancel struct layout editing.", 96.0, Self::FIELD_ROW_HEIGHT, false);
-                            if cancel_response.clicked() {
-                                StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                            }
-
-                            let can_apply = validation_result.is_ok();
-                            let apply_label = if is_creating_new_layout { "Create" } else { "Apply" };
-                            let apply_tooltip = if is_creating_new_layout {
-                                "Create this struct layout."
-                            } else {
-                                "Apply this struct layout draft."
-                            };
-                            let apply_response = self.render_text_button(user_interface, apply_label, apply_tooltip, 96.0, Self::FIELD_ROW_HEIGHT, !can_apply);
-                            if apply_response.clicked() {
-                                match StructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
-                                    Ok(updated_project_symbol_catalog) => {
-                                        self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
-                                        StructEditorViewData::select_struct_layout(
-                                            self.struct_editor_view_data.clone(),
-                                            Some(edited_draft.layout_id.trim().to_string()),
-                                        );
-                                        StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                                    }
-                                    Err(error) => {
-                                        log::error!("Failed to apply struct editor draft: {}.", error);
-                                    }
-                                }
-                            }
-                        });
-                    })
-                    .desired_width(680.0),
-                );
-            },
-        );
+                        Err(error) => {
+                            log::error!("Failed to apply struct editor draft: {}.", error);
+                        }
+                    }
+                }
+            });
+        });
 
         StructEditorViewData::update_draft(self.struct_editor_view_data.clone(), edited_draft);
     }
@@ -662,52 +670,42 @@ impl StructEditorView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        let theme = &self.app_context.theme;
         let usage_count = StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, layout_id);
 
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, "Delete Struct Layout", |user_interface| {
-                        user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
-                        user_interface.add_space(4.0);
-                        user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
-                        user_interface.add_space(12.0);
-                        user_interface.horizontal(|user_interface| {
-                            let cancel_response =
-                                self.render_text_button(user_interface, "Cancel", "Cancel struct layout deletion.", 96.0, Self::FIELD_ROW_HEIGHT, false);
-                            if cancel_response.clicked() {
-                                StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                            }
+        self.render_take_over_panel(user_interface, "Delete Struct Layout", Self::DELETE_PANEL_WIDTH, |user_interface| {
+            let theme = &self.app_context.theme;
+            user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
+            user_interface.add_space(4.0);
+            user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
+            user_interface.add_space(12.0);
+            user_interface.horizontal(|user_interface| {
+                let cancel_response = self.render_text_button(user_interface, "Cancel", "Cancel struct layout deletion.", 96.0, Self::FIELD_ROW_HEIGHT, false);
+                if cancel_response.clicked() {
+                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                }
 
-                            let can_delete_layout = usage_count == 0;
-                            let delete_response = self.render_text_button(
-                                user_interface,
-                                "Delete",
-                                "Delete the selected struct layout.",
-                                96.0,
-                                Self::FIELD_ROW_HEIGHT,
-                                !can_delete_layout,
-                            );
-                            if delete_response.clicked() {
-                                match StructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
-                                    Ok(updated_project_symbol_catalog) => {
-                                        self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                                        StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                                    }
-                                    Err(error) => {
-                                        log::error!("Failed to delete struct layout: {}.", error);
-                                    }
-                                }
-                            }
-                        });
-                    })
-                    .desired_width(420.0),
+                let can_delete_layout = usage_count == 0;
+                let delete_response = self.render_text_button(
+                    user_interface,
+                    "Delete",
+                    "Delete the selected struct layout.",
+                    96.0,
+                    Self::FIELD_ROW_HEIGHT,
+                    !can_delete_layout,
                 );
-            },
-        );
+                if delete_response.clicked() {
+                    match StructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
+                        Ok(updated_project_symbol_catalog) => {
+                            self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                        }
+                        Err(error) => {
+                            log::error!("Failed to delete struct layout: {}.", error);
+                        }
+                    }
+                }
+            });
+        });
     }
 }
 
