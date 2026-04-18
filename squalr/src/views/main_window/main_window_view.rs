@@ -17,7 +17,6 @@ use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
-use crate::views::project_explorer::project_selector::project_selector_view::ProjectSelectorView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_editor::struct_editor_view::StructEditorView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
@@ -27,6 +26,7 @@ use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense,
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
 use log::Level;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
@@ -204,8 +204,6 @@ impl MainWindowView {
             Box::new(pointer_scanner_view),
             Box::new(plugins_view),
         ]);
-        dock_view_data.request_tab_attention(ProjectSelectorView::WINDOW_ID, DockTabAttentionKind::Warning, true);
-
         let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data.clone());
         let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 24.0);
         let resize_thickness = 4.0;
@@ -323,6 +321,31 @@ impl MainWindowView {
                 self.dock_view_data
                     .request_tab_attention(OutputView::WINDOW_ID, requested_attention_kind, false);
             }
+        }
+    }
+
+    fn poll_project_explorer_tab_attention(&self) {
+        let has_opened_project = match self
+            .app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .read()
+        {
+            Ok(opened_project) => opened_project.is_some(),
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while polling project explorer tab attention: {}.", error);
+
+                false
+            }
+        };
+
+        if has_opened_project {
+            self.dock_view_data
+                .clear_tab_attention(ProjectExplorerView::WINDOW_ID);
+        } else {
+            self.dock_view_data
+                .request_tab_attention(ProjectExplorerView::WINDOW_ID, DockTabAttentionKind::Warning, true);
         }
     }
 
@@ -458,6 +481,7 @@ impl Widget for MainWindowView {
         user_interface: &mut Ui,
     ) -> Response {
         self.poll_output_tab_attention();
+        self.poll_project_explorer_tab_attention();
         let take_over_state = self.get_take_over_state();
         let app_context = self.app_context.clone();
         let resize_thickness = self.resize_thickness;
