@@ -262,6 +262,19 @@ impl Widget for DockedWindowFooterView {
         let viewport_width = viewport_rect.width().max(1.0);
         let mut scroll_offset =
             Self::clamp_tab_strip_scroll_offset(self.dock_view_data.get_tab_strip_scroll_offset(&tab_group_key), total_tab_width, viewport_width);
+        let active_tab_index = sibling_ids
+            .iter()
+            .position(|sibling_id| sibling_id == active_tab_id.as_str());
+
+        if let Some(active_tab_index) = active_tab_index {
+            let tab_start_x = tab_widths.iter().take(active_tab_index).sum::<f32>();
+            let active_tab_rect = Rect::from_min_size(
+                pos2(tab_start_x, available_size_rect.min.y),
+                vec2(tab_widths[active_tab_index], available_size_rect.height()),
+            );
+            scroll_offset = Self::scroll_offset_for_visible_tab(scroll_offset, active_tab_rect, viewport_width, total_tab_width);
+        }
+
         let max_scroll_offset = (total_tab_width - viewport_width).max(0.0);
 
         // Background.
