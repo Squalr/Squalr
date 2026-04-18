@@ -10,7 +10,7 @@ use crate::views::struct_editor::view_data::struct_editor_view_data::{
 };
 use crate::views::struct_editor::view_data::struct_field_container_edit::{StructFieldContainerEdit, StructFieldContainerKind};
 use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
-use epaint::{CornerRadius, StrokeKind};
+use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
     registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
@@ -162,34 +162,6 @@ impl StructEditorView {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
-    fn render_text_button(
-        &self,
-        user_interface: &mut Ui,
-        label: &str,
-        tooltip_text: &str,
-        width: f32,
-        height: f32,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(width, height),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .disabled(is_disabled),
-        );
-
-        user_interface.painter().text(
-            button_response.rect.center(),
-            Align2::CENTER_CENTER,
-            label,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
-    }
-
     fn render_icon_button(
         &self,
         user_interface: &mut Ui,
@@ -205,6 +177,32 @@ impl StructEditorView {
                 .background_color(theme.background_control_secondary)
                 .border_color(theme.submenu_border)
                 .border_width(1.0)
+                .disabled(is_disabled),
+        );
+
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
+
+        button_response
+    }
+
+    fn render_take_over_header_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT),
+            ThemeButton::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .background_color(Color32::TRANSPARENT)
                 .disabled(is_disabled),
         );
 
@@ -535,6 +533,8 @@ impl StructEditorView {
         &self,
         user_interface: &mut Ui,
         title: &str,
+        header_action_width: f32,
+        render_header_actions: impl FnOnce(&mut Ui),
         add_contents: impl FnOnce(&mut Ui),
     ) {
         let theme = &self.app_context.theme;
@@ -561,13 +561,33 @@ impl StructEditorView {
         panel_user_interface
             .painter()
             .rect_stroke(header_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.submenu_border), StrokeKind::Inside);
-        panel_user_interface.painter().text(
-            header_rect.left_center() + vec2(8.0, 0.0),
+        let header_inner_rect = header_rect.shrink2(vec2(8.0, 0.0));
+        let mut header_user_interface = panel_user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(header_inner_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        header_user_interface.set_clip_rect(header_inner_rect);
+
+        let title_width = (header_inner_rect.width() - header_action_width).max(0.0);
+        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
+        header_user_interface.painter().text(
+            title_rect.left_center(),
             Align2::LEFT_CENTER,
             title,
             theme.font_library.font_noto_sans.font_window_title.clone(),
             theme.foreground,
         );
+
+        if header_action_width > 0.0 {
+            header_user_interface.allocate_ui_with_layout(
+                vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+                Layout::right_to_left(Align::Center),
+                |user_interface| {
+                    render_header_actions(user_interface);
+                },
+            );
+        }
 
         panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
         ScrollArea::vertical()
@@ -806,78 +826,112 @@ impl StructEditorView {
             .as_deref()
             .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
             .unwrap_or(0);
+        let has_unsaved_changes = edited_draft != *draft;
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
+        let can_save = validation_result.is_ok() && has_unsaved_changes;
+        let save_tooltip = if !has_unsaved_changes {
+            "No struct layout changes to save."
+        } else if validation_result.is_err() {
+            "Fix validation errors before saving this struct layout."
+        } else if is_creating_new_layout {
+            "Save this new struct layout."
+        } else {
+            "Save these struct layout changes."
+        };
+        let mut should_cancel_take_over = false;
+        let mut should_save_draft = false;
 
-        self.render_take_over_panel(user_interface, take_over_title, |user_interface| {
-            user_interface.add(
-                GroupBox::new_from_theme(&self.app_context.theme, "Struct Layout", |user_interface| {
-                    self.render_field_label(user_interface, "Struct Layout Id");
-                    self.render_string_value_box(
-                        user_interface,
-                        &mut edited_draft.layout_id,
-                        "module.type",
-                        "struct_editor_layout_id",
-                        user_interface.available_width(),
-                        Self::FIELD_ROW_HEIGHT,
-                    );
-                    user_interface.add_space(6.0);
+        self.render_take_over_panel(
+            user_interface,
+            take_over_title,
+            Self::ICON_BUTTON_WIDTH * 2.0,
+            |user_interface| {
+                let save_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &self.app_context.theme.icon_library.icon_handle_file_system_save,
+                    save_tooltip,
+                    !can_save,
+                );
+                if save_response.clicked() {
+                    should_save_draft = true;
+                }
 
-                    let status_text = if is_creating_new_layout {
-                        String::from("Creating a new reusable struct layout.")
-                    } else if usage_count == 0 {
-                        String::from("Not used by any rooted symbols yet.")
-                    } else if usage_count == 1 {
-                        String::from("Used by 1 rooted symbol.")
-                    } else {
-                        format!("Used by {} rooted symbols.", usage_count)
-                    };
-                    user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
-                })
-                .desired_width(user_interface.available_width()),
-            );
-            user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-
-            user_interface.add(
-                GroupBox::new_from_theme(&self.app_context.theme, "Fields", |user_interface| {
-                    self.render_field_rows(user_interface, &mut edited_draft);
-                })
-                .desired_width(user_interface.available_width()),
-            );
-            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
-
-            if let Err(validation_error) = validation_result.as_ref() {
-                user_interface.label(RichText::new(validation_error).color(self.app_context.theme.error_red));
-                user_interface.add_space(8.0);
-            }
-
-            user_interface.horizontal(|user_interface| {
-                let cancel_response = self.render_text_button(user_interface, "Cancel", "Cancel struct layout editing.", 96.0, Self::FIELD_ROW_HEIGHT, false);
+                let cancel_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &self
+                        .app_context
+                        .theme
+                        .icon_library
+                        .icon_handle_navigation_cancel,
+                    "Cancel struct layout editing.",
+                    false,
+                );
                 if cancel_response.clicked() {
-                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                    should_cancel_take_over = true;
                 }
+            },
+            |user_interface| {
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, "Struct Layout", |user_interface| {
+                        self.render_field_label(user_interface, "Struct Layout Id");
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut edited_draft.layout_id,
+                            "module.type",
+                            "struct_editor_layout_id",
+                            user_interface.available_width(),
+                            Self::FIELD_ROW_HEIGHT,
+                        );
+                        user_interface.add_space(6.0);
 
-                let can_apply = validation_result.is_ok();
-                let apply_label = if is_creating_new_layout { "Create" } else { "Apply" };
-                let apply_tooltip = if is_creating_new_layout {
-                    "Create this struct layout."
-                } else {
-                    "Apply this struct layout draft."
-                };
-                let apply_response = self.render_text_button(user_interface, apply_label, apply_tooltip, 96.0, Self::FIELD_ROW_HEIGHT, !can_apply);
-                if apply_response.clicked() {
-                    match StructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
-                        Ok(updated_project_symbol_catalog) => {
-                            self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
-                            StructEditorViewData::select_struct_layout(self.struct_editor_view_data.clone(), Some(edited_draft.layout_id.trim().to_string()));
-                            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                        }
-                        Err(error) => {
-                            log::error!("Failed to apply struct editor draft: {}.", error);
-                        }
-                    }
+                        let status_text = if is_creating_new_layout {
+                            String::from("Creating a new reusable struct layout.")
+                        } else if usage_count == 0 {
+                            String::from("Not used by any rooted symbols yet.")
+                        } else if usage_count == 1 {
+                            String::from("Used by 1 rooted symbol.")
+                        } else {
+                            format!("Used by {} rooted symbols.", usage_count)
+                        };
+                        user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+                user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, "Fields", |user_interface| {
+                        self.render_field_rows(user_interface, &mut edited_draft);
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+                user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+
+                if let Err(validation_error) = validation_result.as_ref() {
+                    user_interface.label(RichText::new(validation_error).color(self.app_context.theme.error_red));
+                    user_interface.add_space(8.0);
                 }
-            });
-        });
+            },
+        );
+
+        if should_cancel_take_over {
+            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+            return;
+        }
+
+        if should_save_draft {
+            match StructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
+                Ok(updated_project_symbol_catalog) => {
+                    self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
+                    StructEditorViewData::select_struct_layout(self.struct_editor_view_data.clone(), Some(edited_draft.layout_id.trim().to_string()));
+                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                    return;
+                }
+                Err(error) => {
+                    log::error!("Failed to apply struct editor draft: {}.", error);
+                }
+            }
+        }
 
         StructEditorViewData::update_draft(self.struct_editor_view_data.clone(), edited_draft);
     }
@@ -890,45 +944,68 @@ impl StructEditorView {
     ) {
         let usage_count = StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, layout_id);
 
-        self.render_take_over_panel(user_interface, "Delete Struct Layout", |user_interface| {
-            let theme = &self.app_context.theme;
-            user_interface.add(
-                GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
-                    user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
-                    user_interface.add_space(4.0);
-                    user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
-                })
-                .desired_width(user_interface.available_width()),
-            );
-            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
-            user_interface.horizontal(|user_interface| {
-                let cancel_response = self.render_text_button(user_interface, "Cancel", "Cancel struct layout deletion.", 96.0, Self::FIELD_ROW_HEIGHT, false);
-                if cancel_response.clicked() {
-                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                }
+        let can_delete_layout = usage_count == 0;
+        let mut should_cancel_take_over = false;
+        let mut should_delete_layout = false;
 
-                let can_delete_layout = usage_count == 0;
-                let delete_response = self.render_text_button(
+        self.render_take_over_panel(
+            user_interface,
+            "Delete Struct Layout",
+            Self::ICON_BUTTON_WIDTH * 2.0,
+            |user_interface| {
+                let delete_response = self.render_take_over_header_icon_button(
                     user_interface,
-                    "Delete",
+                    &self.app_context.theme.icon_library.icon_handle_common_delete,
                     "Delete the selected struct layout.",
-                    96.0,
-                    Self::FIELD_ROW_HEIGHT,
                     !can_delete_layout,
                 );
                 if delete_response.clicked() {
-                    match StructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
-                        Ok(updated_project_symbol_catalog) => {
-                            self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
-                        }
-                        Err(error) => {
-                            log::error!("Failed to delete struct layout: {}.", error);
-                        }
-                    }
+                    should_delete_layout = true;
                 }
-            });
-        });
+
+                let cancel_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &self
+                        .app_context
+                        .theme
+                        .icon_library
+                        .icon_handle_navigation_cancel,
+                    "Cancel struct layout deletion.",
+                    false,
+                );
+                if cancel_response.clicked() {
+                    should_cancel_take_over = true;
+                }
+            },
+            |user_interface| {
+                let theme = &self.app_context.theme;
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
+                        user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
+                        user_interface.add_space(4.0);
+                        user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+            },
+        );
+
+        if should_cancel_take_over {
+            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+            return;
+        }
+
+        if should_delete_layout {
+            match StructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
+                Ok(updated_project_symbol_catalog) => {
+                    self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                }
+                Err(error) => {
+                    log::error!("Failed to delete struct layout: {}.", error);
+                }
+            }
+        }
     }
 }
 
