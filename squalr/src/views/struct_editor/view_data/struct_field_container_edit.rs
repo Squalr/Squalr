@@ -89,3 +89,19 @@ impl StructFieldContainerEdit {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{StructFieldContainerEdit, StructFieldContainerKind};
+
+    #[test]
+    fn fixed_array_container_rejects_negative_length() {
+        let container_edit = StructFieldContainerEdit {
+            kind: StructFieldContainerKind::FixedArray,
+            fixed_array_length: String::from("-1"),
+            ..StructFieldContainerEdit::default()
+        };
+
+        assert!(container_edit.to_container_type().is_err());
+    }
+}

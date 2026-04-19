@@ -20,7 +20,7 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
     data_types::{
-        built_in_types::{i32::data_type_i32::DataTypeI32, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
+        built_in_types::{i32::data_type_i32::DataTypeI32, string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
         data_type_ref::DataTypeRef,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
@@ -162,6 +162,10 @@ impl StructEditorView {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
+    fn unsigned_integer_data_type_ref() -> DataTypeRef {
+        DataTypeRef::new(DataTypeU64::DATA_TYPE_ID)
+    }
+
     fn render_icon_button(
         &self,
         user_interface: &mut Ui,
@@ -239,6 +243,39 @@ impl StructEditorView {
                 id,
             )
             .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
+            .show_format_button(false)
+            .normalize_value_format(false)
+            .use_format_text_colors(false)
+            .width(width)
+            .height(height),
+        );
+
+        *value = value_string.get_anonymous_value_string().to_string();
+    }
+
+    fn render_unsigned_integer_value_box(
+        &self,
+        user_interface: &mut Ui,
+        value: &mut String,
+        preview_text: &str,
+        id: &str,
+        width: f32,
+        height: f32,
+    ) {
+        let validation_data_type_ref = Self::unsigned_integer_data_type_ref();
+        let mut value_string = AnonymousValueString::new(value.clone(), AnonymousValueStringFormat::Decimal, ContainerType::None);
+
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut value_string,
+                &validation_data_type_ref,
+                false,
+                true,
+                preview_text,
+                id,
+            )
+            .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::Decimal])
             .show_format_button(false)
             .normalize_value_format(false)
             .use_format_text_colors(false)
@@ -715,7 +752,7 @@ impl StructEditorView {
                 StructFieldContainerKind::Element | StructFieldContainerKind::Array => {}
                 StructFieldContainerKind::FixedArray => {
                     user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                    self.render_string_value_box(
+                    self.render_unsigned_integer_value_box(
                         user_interface,
                         &mut field_draft.container_edit.fixed_array_length,
                         "length",
