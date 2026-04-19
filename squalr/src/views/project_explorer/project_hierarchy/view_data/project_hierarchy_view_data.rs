@@ -1,15 +1,24 @@
 use crate::app_context::AppContext;
 use crate::views::project_explorer::project_hierarchy::view_data::{
-    project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
-    project_hierarchy_menu_target::ProjectHierarchyMenuTarget, project_hierarchy_pending_operation::ProjectHierarchyPendingOperation,
-    project_hierarchy_take_over_state::ProjectHierarchyTakeOverState, project_hierarchy_tree_entry::ProjectHierarchyTreeEntry,
+    project_hierarchy_clipboard::{ProjectHierarchyClipboard, ProjectHierarchyClipboardMode},
+    project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind,
+    project_hierarchy_drop_target::ProjectHierarchyDropTarget,
+    project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
+    project_hierarchy_pending_operation::ProjectHierarchyPendingOperation,
+    project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
+    project_hierarchy_tree_entry::ProjectHierarchyTreeEntry,
 };
 use eframe::egui::Pos2;
 use squalr_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
+use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::{
+    ProjectItemSymbolRefConversionTarget, ProjectItemsConvertSymbolRefRequest,
+};
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
+use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
+use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -17,7 +26,8 @@ use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
@@ -42,6 +52,12 @@ enum ProjectHierarchyDropOperation {
     },
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProjectHierarchyPasteTarget {
+    target_directory_path: PathBuf,
+    insert_after_project_item_path: Option<PathBuf>,
+}
+
 #[derive(Clone)]
 pub struct ProjectHierarchyViewData {
     pub opened_project_info: Option<ProjectInfo>,
@@ -55,6 +71,7 @@ pub struct ProjectHierarchyViewData {
     pub menu_target: Option<ProjectHierarchyMenuTarget>,
     pub menu_position: Option<Pos2>,
     pub dragged_project_item_paths: Option<Vec<PathBuf>>,
+    pub project_item_clipboard: ProjectHierarchyClipboard,
     pub visible_preview_project_item_paths: Vec<PathBuf>,
     pub take_over_state: ProjectHierarchyTakeOverState,
     pub pending_operation: ProjectHierarchyPendingOperation,
@@ -78,6 +95,7 @@ impl ProjectHierarchyViewData {
             menu_target: None,
             menu_position: None,
             dragged_project_item_paths: None,
+            project_item_clipboard: ProjectHierarchyClipboard::default(),
             visible_preview_project_item_paths: Vec::new(),
             take_over_state: ProjectHierarchyTakeOverState::None,
             pending_operation: ProjectHierarchyPendingOperation::None,
@@ -113,6 +131,10 @@ impl ProjectHierarchyViewData {
                 Some(project_hierarchy_view_data) => project_hierarchy_view_data,
                 None => return,
             };
+            let previous_project_file_path = project_hierarchy_view_data
+                .opened_project_info
+                .as_ref()
+                .map(|opened_project_info| opened_project_info.get_project_file_path().clone());
 
             project_hierarchy_view_data.opened_project_info = project_items_list_response.opened_project_info;
             project_hierarchy_view_data.opened_project_root = project_items_list_response.opened_project_root;
@@ -144,6 +166,23 @@ impl ProjectHierarchyViewData {
                 .iter()
                 .map(|(project_item_ref, _)| project_item_ref.get_project_item_path().clone())
                 .collect::<HashSet<PathBuf>>();
+            let current_project_file_path = project_hierarchy_view_data
+                .opened_project_info
+                .as_ref()
+                .map(|opened_project_info| opened_project_info.get_project_file_path().clone());
+
+            if previous_project_file_path != current_project_file_path {
+                project_hierarchy_view_data.project_item_clipboard.clear();
+            } else {
+                let mut valid_project_item_paths_in_order = valid_project_item_paths
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<PathBuf>>();
+                valid_project_item_paths_in_order.sort();
+                project_hierarchy_view_data
+                    .project_item_clipboard
+                    .retain_valid_paths(&valid_project_item_paths_in_order);
+            }
             project_hierarchy_view_data
                 .visible_preview_project_item_paths
                 .retain(|project_item_path| valid_project_item_paths.contains(project_item_path));
@@ -282,6 +321,14 @@ impl ProjectHierarchyViewData {
                     self.take_over_state = ProjectHierarchyTakeOverState::None;
                 }
             }
+            ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, conflicts } => {
+                project_item_paths.retain(|project_item_path| visible_project_item_paths.contains(project_item_path));
+                conflicts.retain(|conflict| visible_project_item_paths.contains(&conflict.project_item_path));
+
+                if project_item_paths.is_empty() || conflicts.is_empty() {
+                    self.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
         }
     }
 
@@ -337,6 +384,19 @@ impl ProjectHierarchyViewData {
 
                 if existing_preview_path != *preview_path {
                     ProjectItemTypePointer::set_field_evaluated_pointer_path(project_item, preview_path);
+                    did_change = true;
+                }
+            } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+                let existing_preview_value = ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(project_item);
+                let existing_preview_path = ProjectItemTypeSymbolRef::get_field_symbol_locator_display(project_item);
+
+                if existing_preview_value != *preview_value {
+                    ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, preview_value);
+                    did_change = true;
+                }
+
+                if existing_preview_path != *preview_path {
+                    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, preview_path);
                     did_change = true;
                 }
             }
@@ -400,6 +460,150 @@ impl ProjectHierarchyViewData {
 
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
             ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
+        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            let preview_value = ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(source_project_item);
+            let preview_path = ProjectItemTypeSymbolRef::get_field_symbol_locator_display(source_project_item);
+
+            ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+            ProjectItemTypeSymbolRef::set_field_symbol_locator_display(target_project_item, &preview_path);
+        }
+    }
+
+    fn contains_promotable_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_item_paths
+            .iter()
+            .any(|project_item_path| self.is_promotable_project_item_path(project_item_path))
+    }
+
+    fn filter_promotable_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .filter(|project_item_path| self.is_promotable_project_item_path(project_item_path))
+            .collect()
+    }
+
+    fn is_promotable_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        self.project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+            .map(|(_, project_item)| {
+                let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+            })
+            .unwrap_or(false)
+    }
+
+    fn contains_convertible_symbol_ref_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        !project_item_paths.is_empty()
+            && project_item_paths
+                .iter()
+                .all(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path))
+    }
+
+    fn filter_convertible_symbol_ref_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .filter(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path))
+            .collect()
+    }
+
+    fn is_convertible_symbol_ref_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        let Some((_, project_item)) = self
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+        else {
+            return false;
+        };
+
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return false;
+        }
+
+        Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item).is_some()
+    }
+
+    fn has_pointer_origin_metadata(rooted_symbol: &squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol) -> bool {
+        let rooted_symbol_metadata = rooted_symbol.get_metadata();
+
+        rooted_symbol_metadata.contains_key("source.pointer_offsets")
+            && (rooted_symbol_metadata.contains_key("source.pointer_root")
+                || (rooted_symbol_metadata.contains_key("source.pointer_root_module") && rooted_symbol_metadata.contains_key("source.pointer_root_offset")))
+    }
+
+    fn resolve_project_rooted_symbol<'a>(
+        opened_project_info: Option<&'a ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> Option<&'a squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol> {
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return None;
+        }
+
+        let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+
+        opened_project_info?
+            .get_project_symbol_catalog()
+            .find_rooted_symbol(&symbol_key)
+    }
+
+    fn resolve_convertible_symbol_ref_action_label(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> Option<String> {
+        let mut resolved_conversion_target: Option<ProjectItemSymbolRefConversionTarget> = None;
+
+        for project_item_path in project_item_paths {
+            let preferred_conversion_target = self.resolve_preferred_symbol_ref_conversion_target(project_item_path)?;
+
+            if let Some(existing_conversion_target) = resolved_conversion_target {
+                if existing_conversion_target != preferred_conversion_target {
+                    return Some(String::from("Convert to Source Item Type"));
+                }
+            } else {
+                resolved_conversion_target = Some(preferred_conversion_target);
+            }
+        }
+
+        match resolved_conversion_target? {
+            ProjectItemSymbolRefConversionTarget::Address => Some(String::from("Convert to Address Item")),
+            ProjectItemSymbolRefConversionTarget::Pointer => Some(String::from("Convert to Pointer Item")),
+            ProjectItemSymbolRefConversionTarget::Inferred => Some(String::from("Convert to Source Item Type")),
+        }
+    }
+
+    fn resolve_preferred_symbol_ref_conversion_target(
+        &self,
+        project_item_path: &Path,
+    ) -> Option<ProjectItemSymbolRefConversionTarget> {
+        let (_, project_item) = self
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)?;
+        let rooted_symbol = Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item)?;
+
+        if Self::has_pointer_origin_metadata(rooted_symbol) {
+            Some(ProjectItemSymbolRefConversionTarget::Pointer)
+        } else {
+            Some(ProjectItemSymbolRefConversionTarget::Address)
         }
     }
 
@@ -595,7 +799,9 @@ impl ProjectHierarchyViewData {
             .map(|(_, project_item)| {
                 let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
-                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
+                    || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+                    || project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
             })
             .unwrap_or(false);
 
@@ -697,6 +903,10 @@ impl ProjectHierarchyViewData {
                     Self::replace_project_item_path_prefix(dragged_project_item_path, previous_project_item_path, renamed_project_item_path);
             }
         }
+
+        project_hierarchy_view_data
+            .project_item_clipboard
+            .update_path_prefix(previous_project_item_path, renamed_project_item_path);
     }
 
     pub fn begin_reorder_drag(
@@ -911,6 +1121,441 @@ impl ProjectHierarchyViewData {
         });
     }
 
+    pub fn copy_project_items(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy copy project items") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+        let clipboard_project_item_paths = project_hierarchy_view_data.filter_clipboard_project_item_paths(project_item_paths);
+
+        if clipboard_project_item_paths.is_empty() {
+            project_hierarchy_view_data.project_item_clipboard.clear();
+            return;
+        }
+
+        let project_file_path = project_hierarchy_view_data
+            .opened_project_info
+            .as_ref()
+            .map(|opened_project_info| opened_project_info.get_project_file_path().clone());
+        project_hierarchy_view_data
+            .project_item_clipboard
+            .set(project_file_path, clipboard_project_item_paths, ProjectHierarchyClipboardMode::Copy);
+        project_hierarchy_view_data.menu_target = None;
+        project_hierarchy_view_data.menu_position = None;
+    }
+
+    pub fn cut_project_items(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy cut project items") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+        let clipboard_project_item_paths = project_hierarchy_view_data.filter_deletable_project_item_paths(project_item_paths);
+        let clipboard_project_item_paths = project_hierarchy_view_data.reduce_project_item_paths_to_root_set(&clipboard_project_item_paths);
+
+        if clipboard_project_item_paths.is_empty() {
+            project_hierarchy_view_data.project_item_clipboard.clear();
+            return;
+        }
+
+        let project_file_path = project_hierarchy_view_data
+            .opened_project_info
+            .as_ref()
+            .map(|opened_project_info| opened_project_info.get_project_file_path().clone());
+        project_hierarchy_view_data
+            .project_item_clipboard
+            .set(project_file_path, clipboard_project_item_paths, ProjectHierarchyClipboardMode::Cut);
+        project_hierarchy_view_data.menu_target = None;
+        project_hierarchy_view_data.menu_position = None;
+    }
+
+    pub fn clear_project_item_clipboard(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy clear project item clipboard") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        project_hierarchy_view_data.project_item_clipboard.clear();
+    }
+
+    pub fn has_project_item_clipboard(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has project item clipboard")
+            .map(|project_hierarchy_view_data| !project_hierarchy_view_data.project_item_clipboard.is_empty())
+            .unwrap_or(false)
+    }
+
+    pub fn can_paste_project_item_clipboard(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        target_project_item_path: &Path,
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy can paste project item clipboard")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.can_paste_clipboard_into_target_path(target_project_item_path))
+            .unwrap_or(false)
+    }
+
+    pub fn is_cut_project_item_path(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_path: &Path,
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy is cut project item path")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.is_cut_clipboard_project_item_path(project_item_path))
+            .unwrap_or(false)
+    }
+
+    pub fn paste_project_item_clipboard(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        app_context: Arc<AppContext>,
+        target_project_item_path: PathBuf,
+    ) {
+        enum PasteOperation {
+            Copy {
+                duplicate_request: ProjectItemsDuplicateRequest,
+                insert_after_project_item_path: Option<PathBuf>,
+            },
+            CutMove {
+                move_request: ProjectItemsMoveRequest,
+                pasted_project_item_paths: Vec<PathBuf>,
+            },
+            CutMoveAndReorder {
+                move_request: ProjectItemsMoveRequest,
+                pasted_project_item_paths: Vec<PathBuf>,
+                reordered_project_item_paths: Vec<PathBuf>,
+            },
+            CutReorder {
+                pasted_project_item_paths: Vec<PathBuf>,
+                reordered_project_item_paths: Vec<PathBuf>,
+            },
+        }
+
+        let paste_operation = match project_hierarchy_view_data.write("Project hierarchy paste project item clipboard") {
+            Some(mut project_hierarchy_view_data) => {
+                if project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
+                    return;
+                }
+
+                let Some(paste_target) = project_hierarchy_view_data.resolve_clipboard_paste_target(&target_project_item_path) else {
+                    return;
+                };
+                let Some(current_project_file_path) = project_hierarchy_view_data
+                    .opened_project_info
+                    .as_ref()
+                    .map(|opened_project_info| opened_project_info.get_project_file_path().clone())
+                else {
+                    return;
+                };
+
+                if project_hierarchy_view_data
+                    .project_item_clipboard
+                    .get_project_file_path()
+                    != Some(&current_project_file_path)
+                {
+                    project_hierarchy_view_data.project_item_clipboard.clear();
+                    return;
+                }
+
+                let clipboard_project_item_paths = project_hierarchy_view_data
+                    .project_item_clipboard
+                    .get_project_item_paths()
+                    .to_vec();
+
+                if clipboard_project_item_paths.is_empty() {
+                    project_hierarchy_view_data.project_item_clipboard.clear();
+                    return;
+                }
+
+                let clipboard_mode = project_hierarchy_view_data
+                    .project_item_clipboard
+                    .get_mode()
+                    .cloned();
+                let filtered_project_item_paths =
+                    project_hierarchy_view_data.filter_pasteable_project_item_paths(&clipboard_project_item_paths, &paste_target, clipboard_mode.as_ref());
+
+                if filtered_project_item_paths.is_empty() {
+                    if clipboard_mode == Some(ProjectHierarchyClipboardMode::Cut) {
+                        project_hierarchy_view_data.project_item_clipboard.clear();
+                    }
+                    return;
+                }
+
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Pasting;
+                project_hierarchy_view_data.menu_target = None;
+                project_hierarchy_view_data.menu_position = None;
+
+                match clipboard_mode {
+                    Some(ProjectHierarchyClipboardMode::Copy) => PasteOperation::Copy {
+                        duplicate_request: ProjectItemsDuplicateRequest {
+                            project_item_paths: filtered_project_item_paths,
+                            target_directory_path: paste_target.target_directory_path,
+                        },
+                        insert_after_project_item_path: paste_target.insert_after_project_item_path,
+                    },
+                    Some(ProjectHierarchyClipboardMode::Cut) => {
+                        let pasted_project_item_paths = filtered_project_item_paths
+                            .iter()
+                            .map(|project_item_path| {
+                                if project_item_path.parent() == Some(paste_target.target_directory_path.as_path()) {
+                                    project_item_path.clone()
+                                } else {
+                                    paste_target
+                                        .target_directory_path
+                                        .join(project_item_path.file_name().unwrap_or_default())
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        let project_item_paths_to_move = filtered_project_item_paths
+                            .iter()
+                            .filter(|project_item_path| project_item_path.parent() != Some(paste_target.target_directory_path.as_path()))
+                            .cloned()
+                            .collect::<Vec<_>>();
+
+                        if let Some(insert_after_project_item_path) = paste_target.insert_after_project_item_path.clone() {
+                            let reordered_project_item_paths = Self::build_paste_reorder_paths_after_target(
+                                project_hierarchy_view_data.opened_project_info.as_ref(),
+                                &project_hierarchy_view_data.project_items,
+                                &insert_after_project_item_path,
+                                &pasted_project_item_paths,
+                                &filtered_project_item_paths,
+                            );
+
+                            match (project_item_paths_to_move.is_empty(), reordered_project_item_paths) {
+                                (true, Some(reordered_project_item_paths)) => PasteOperation::CutReorder {
+                                    pasted_project_item_paths,
+                                    reordered_project_item_paths,
+                                },
+                                (false, Some(reordered_project_item_paths)) => PasteOperation::CutMoveAndReorder {
+                                    move_request: ProjectItemsMoveRequest {
+                                        project_item_paths: project_item_paths_to_move,
+                                        target_directory_path: paste_target.target_directory_path,
+                                    },
+                                    pasted_project_item_paths,
+                                    reordered_project_item_paths,
+                                },
+                                (false, None) => PasteOperation::CutMove {
+                                    move_request: ProjectItemsMoveRequest {
+                                        project_item_paths: project_item_paths_to_move,
+                                        target_directory_path: paste_target.target_directory_path,
+                                    },
+                                    pasted_project_item_paths,
+                                },
+                                (true, None) => {
+                                    project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                                    return;
+                                }
+                            }
+                        } else {
+                            PasteOperation::CutMove {
+                                move_request: ProjectItemsMoveRequest {
+                                    project_item_paths: project_item_paths_to_move,
+                                    target_directory_path: paste_target.target_directory_path,
+                                },
+                                pasted_project_item_paths,
+                            }
+                        }
+                    }
+                    None => {
+                        project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                        return;
+                    }
+                }
+            }
+            None => return,
+        };
+        let app_context_clone = app_context.clone();
+        let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
+        let engine_unprivileged_state = app_context.engine_unprivileged_state.clone();
+
+        match paste_operation {
+            PasteOperation::Copy {
+                duplicate_request,
+                insert_after_project_item_path,
+            } => {
+                duplicate_request.send(&engine_unprivileged_state, move |project_items_duplicate_response| {
+                    if !project_items_duplicate_response.success {
+                        log::error!(
+                            "Failed to duplicate one or more project items. Duplicated count: {}.",
+                            project_items_duplicate_response.duplicated_project_item_count
+                        );
+                    }
+
+                    let duplicated_project_item_paths = project_items_duplicate_response
+                        .duplicated_project_item_paths
+                        .clone();
+                    let reordered_project_item_paths = insert_after_project_item_path
+                        .as_ref()
+                        .and_then(|insert_after_project_item_path| {
+                            project_hierarchy_view_data_clone
+                                .read("Project hierarchy duplicate project items reorder plan")
+                                .and_then(|project_hierarchy_view_data| {
+                                    Self::build_paste_reorder_paths_after_target(
+                                        project_hierarchy_view_data.opened_project_info.as_ref(),
+                                        &project_hierarchy_view_data.project_items,
+                                        insert_after_project_item_path,
+                                        &duplicated_project_item_paths,
+                                        &[],
+                                    )
+                                })
+                        });
+
+                    if let Some(reordered_project_item_paths) = reordered_project_item_paths {
+                        let app_context_after_reorder = app_context_clone.clone();
+                        let project_hierarchy_view_data_after_reorder = project_hierarchy_view_data_clone.clone();
+                        let duplicated_project_item_paths_after_reorder = duplicated_project_item_paths.clone();
+                        let project_items_reorder_request = ProjectItemsReorderRequest {
+                            project_item_paths: reordered_project_item_paths,
+                        };
+                        let engine_unprivileged_state_after_reorder = app_context_clone.engine_unprivileged_state.clone();
+
+                        project_items_reorder_request.send(&engine_unprivileged_state_after_reorder, move |project_items_reorder_response| {
+                            if !project_items_reorder_response.success {
+                                log::error!(
+                                    "Failed to reorder duplicated project items. Reordered count: {}.",
+                                    project_items_reorder_response.reordered_project_item_count
+                                );
+                            }
+
+                            if let Some(mut project_hierarchy_view_data) =
+                                project_hierarchy_view_data_after_reorder.write("Project hierarchy duplicate project items reorder response")
+                            {
+                                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                                Self::apply_pasted_project_item_selection(&mut project_hierarchy_view_data, &duplicated_project_item_paths_after_reorder);
+                            }
+
+                            Self::refresh_project_items(project_hierarchy_view_data_after_reorder, app_context_after_reorder);
+                        });
+
+                        return;
+                    }
+
+                    if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy duplicate project items response")
+                    {
+                        project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                        Self::apply_pasted_project_item_selection(&mut project_hierarchy_view_data, &duplicated_project_item_paths);
+                    }
+
+                    Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+                });
+            }
+            PasteOperation::CutMove {
+                move_request,
+                pasted_project_item_paths,
+            } => {
+                move_request.send(&engine_unprivileged_state, move |project_items_move_response| {
+                    if !project_items_move_response.success {
+                        log::error!(
+                            "Failed to paste cut project items. Moved count: {}.",
+                            project_items_move_response.moved_project_item_count
+                        );
+                    }
+
+                    if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy move cut project items response")
+                    {
+                        project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+
+                        if project_items_move_response.success {
+                            project_hierarchy_view_data.project_item_clipboard.clear();
+                            Self::apply_pasted_project_item_selection(&mut project_hierarchy_view_data, &pasted_project_item_paths);
+                        }
+                    }
+
+                    Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+                });
+            }
+            PasteOperation::CutMoveAndReorder {
+                move_request,
+                pasted_project_item_paths,
+                reordered_project_item_paths,
+            } => {
+                move_request.send(&engine_unprivileged_state, move |project_items_move_response| {
+                    if !project_items_move_response.success {
+                        log::error!(
+                            "Failed to move cut project items before reorder. Moved count: {}.",
+                            project_items_move_response.moved_project_item_count
+                        );
+
+                        if let Some(mut project_hierarchy_view_data) =
+                            project_hierarchy_view_data_clone.write("Project hierarchy move and reorder cut project items move response")
+                        {
+                            project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                        }
+
+                        Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+                        return;
+                    }
+
+                    if let Some(mut project_hierarchy_view_data) =
+                        project_hierarchy_view_data_clone.write("Project hierarchy move and reorder cut project items move success")
+                    {
+                        project_hierarchy_view_data.project_item_clipboard.clear();
+                    }
+
+                    let app_context_after_reorder = app_context_clone.clone();
+                    let project_hierarchy_view_data_after_reorder = project_hierarchy_view_data_clone.clone();
+                    let pasted_project_item_paths_after_reorder = pasted_project_item_paths.clone();
+                    let project_items_reorder_request = ProjectItemsReorderRequest {
+                        project_item_paths: reordered_project_item_paths.clone(),
+                    };
+                    let engine_unprivileged_state_after_reorder = app_context_clone.engine_unprivileged_state.clone();
+
+                    project_items_reorder_request.send(&engine_unprivileged_state_after_reorder, move |project_items_reorder_response| {
+                        if !project_items_reorder_response.success {
+                            log::error!(
+                                "Failed to reorder cut project items after move. Reordered count: {}.",
+                                project_items_reorder_response.reordered_project_item_count
+                            );
+                        }
+
+                        if let Some(mut project_hierarchy_view_data) =
+                            project_hierarchy_view_data_after_reorder.write("Project hierarchy move and reorder cut project items reorder response")
+                        {
+                            project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                            Self::apply_pasted_project_item_selection(&mut project_hierarchy_view_data, &pasted_project_item_paths_after_reorder);
+                        }
+
+                        Self::refresh_project_items(project_hierarchy_view_data_after_reorder, app_context_after_reorder);
+                    });
+                });
+            }
+            PasteOperation::CutReorder {
+                pasted_project_item_paths,
+                reordered_project_item_paths,
+            } => {
+                let project_items_reorder_request = ProjectItemsReorderRequest {
+                    project_item_paths: reordered_project_item_paths,
+                };
+
+                project_items_reorder_request.send(&engine_unprivileged_state, move |project_items_reorder_response| {
+                    if !project_items_reorder_response.success {
+                        log::error!(
+                            "Failed to reorder cut project items. Reordered count: {}.",
+                            project_items_reorder_response.reordered_project_item_count
+                        );
+                    }
+
+                    if let Some(mut project_hierarchy_view_data) =
+                        project_hierarchy_view_data_clone.write("Project hierarchy reorder cut project items response")
+                    {
+                        project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+
+                        if project_items_reorder_response.success {
+                            project_hierarchy_view_data.project_item_clipboard.clear();
+                            Self::apply_pasted_project_item_selection(&mut project_hierarchy_view_data, &pasted_project_item_paths);
+                        }
+                    }
+
+                    Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+                });
+            }
+        }
+    }
+
     pub fn has_deletable_selected_project_item(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> bool {
         project_hierarchy_view_data
             .read("Project hierarchy has deletable selected project item")
@@ -930,6 +1575,132 @@ impl ProjectHierarchyViewData {
             .read("Project hierarchy has deletable project item paths")
             .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_deletable_project_item_paths(project_item_paths))
             .unwrap_or(false)
+    }
+
+    pub fn has_promotable_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has promotable project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_promotable_project_item_paths(project_item_paths))
+            .unwrap_or(false)
+    }
+
+    pub fn has_convertible_symbol_ref_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has convertible symbol-ref project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_convertible_symbol_ref_project_item_paths(project_item_paths))
+            .unwrap_or(false)
+    }
+
+    pub fn get_convertible_symbol_ref_action_label(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> Option<String> {
+        project_hierarchy_view_data
+            .read("Project hierarchy get symbol-ref conversion action label")
+            .and_then(|project_hierarchy_view_data| project_hierarchy_view_data.resolve_convertible_symbol_ref_action_label(project_item_paths))
+    }
+
+    pub fn promote_project_items_to_symbols(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        app_context: Arc<AppContext>,
+        project_item_paths: Vec<PathBuf>,
+        overwrite_conflicting_symbols: bool,
+    ) {
+        let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter promote project items") {
+            Some(mut project_hierarchy_view_data) => {
+                let filtered_project_item_paths = project_hierarchy_view_data.filter_promotable_project_item_paths(project_item_paths);
+
+                if filtered_project_item_paths.is_empty() {
+                    return;
+                }
+
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::Promoting;
+
+                filtered_project_item_paths
+            }
+            None => return,
+        };
+        let promote_conflict_project_item_paths = filtered_project_item_paths.clone();
+        let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: filtered_project_item_paths,
+            overwrite_conflicting_symbols,
+        };
+        let app_context_clone = app_context.clone();
+        let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
+
+        project_items_promote_symbol_request.send(&app_context.engine_unprivileged_state, move |project_items_promote_symbol_response| {
+            if !project_items_promote_symbol_response.success {
+                log::error!(
+                    "Failed to promote one or more project items to symbols. Promoted count before failure: {}.",
+                    project_items_promote_symbol_response.promoted_symbol_count
+                );
+            }
+
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy promote project items response") {
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+
+                if !project_items_promote_symbol_response.conflicts.is_empty() {
+                    project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::PromoteSymbolConflict {
+                        project_item_paths: promote_conflict_project_item_paths.clone(),
+                        conflicts: project_items_promote_symbol_response.conflicts.clone(),
+                    };
+                } else {
+                    project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+                }
+            }
+
+            Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+        });
+    }
+
+    pub fn convert_symbol_refs_to_project_items(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        app_context: Arc<AppContext>,
+        project_item_paths: Vec<PathBuf>,
+    ) {
+        let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter symbol-ref conversion paths") {
+            Some(mut project_hierarchy_view_data) => {
+                let filtered_project_item_paths = project_hierarchy_view_data.filter_convertible_symbol_ref_project_item_paths(project_item_paths);
+
+                if filtered_project_item_paths.is_empty() {
+                    return;
+                }
+
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::ConvertingSymbolRefs;
+                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+
+                filtered_project_item_paths
+            }
+            None => return,
+        };
+        let project_items_convert_symbol_ref_request = ProjectItemsConvertSymbolRefRequest {
+            project_item_paths: filtered_project_item_paths,
+            target: ProjectItemSymbolRefConversionTarget::Inferred,
+        };
+        let app_context_clone = app_context.clone();
+        let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
+
+        project_items_convert_symbol_ref_request.send(&app_context.engine_unprivileged_state, move |project_items_convert_symbol_ref_response| {
+            if !project_items_convert_symbol_ref_response.success {
+                log::error!(
+                    "Failed to convert one or more symbol-ref project items. Converted count before failure: {}.",
+                    project_items_convert_symbol_ref_response.converted_project_item_count
+                );
+            }
+
+            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy convert symbol refs response") {
+                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
+            }
+
+            Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+        });
     }
 
     pub fn create_project_item(
@@ -1176,6 +1947,37 @@ impl ProjectHierarchyViewData {
         })
     }
 
+    fn build_paste_reorder_paths_after_target(
+        opened_project_info: Option<&ProjectInfo>,
+        project_items: &[(ProjectItemRef, ProjectItem)],
+        target_project_item_path: &Path,
+        project_item_paths_to_insert: &[PathBuf],
+        project_item_paths_to_remove: &[PathBuf],
+    ) -> Option<Vec<PathBuf>> {
+        if project_item_paths_to_insert.is_empty() {
+            return None;
+        }
+
+        let (_project_root_directory_path, _project_item_map, mut child_paths_by_parent_path) =
+            Self::build_project_hierarchy_maps(opened_project_info, project_items)?;
+        let target_directory_path = target_project_item_path.parent()?.to_path_buf();
+        let sibling_paths = child_paths_by_parent_path.get_mut(&target_directory_path)?;
+        let project_item_paths_to_remove: HashSet<&PathBuf> = project_item_paths_to_remove.iter().collect();
+
+        sibling_paths.retain(|sibling_project_item_path| !project_item_paths_to_remove.contains(sibling_project_item_path));
+
+        let target_sibling_index = sibling_paths
+            .iter()
+            .position(|project_item_path| project_item_path == target_project_item_path)?;
+        let insert_sibling_index = target_sibling_index.saturating_add(1);
+
+        for (inserted_project_item_index, inserted_project_item_path) in project_item_paths_to_insert.iter().cloned().enumerate() {
+            sibling_paths.insert(insert_sibling_index + inserted_project_item_index, inserted_project_item_path);
+        }
+
+        Some(sibling_paths.clone())
+    }
+
     fn append_visible_entries(
         visible_tree_entries: &mut Vec<ProjectHierarchyTreeEntry>,
         parent_path: &PathBuf,
@@ -1349,6 +2151,23 @@ impl ProjectHierarchyViewData {
         }
     }
 
+    fn apply_pasted_project_item_selection(
+        project_hierarchy_view_data: &mut ProjectHierarchyViewData,
+        pasted_project_item_paths: &[PathBuf],
+    ) {
+        if pasted_project_item_paths.is_empty() {
+            return;
+        }
+
+        project_hierarchy_view_data.selected_project_item_path = pasted_project_item_paths.first().cloned();
+        project_hierarchy_view_data.selected_project_item_paths = pasted_project_item_paths.iter().cloned().collect();
+        project_hierarchy_view_data.selection_anchor_project_item_path = pasted_project_item_paths.first().cloned();
+
+        for pasted_project_item_path in pasted_project_item_paths {
+            Self::expand_project_item_ancestor_directories(&mut project_hierarchy_view_data.expanded_directory_paths, pasted_project_item_path);
+        }
+    }
+
     fn is_directory_path(
         project_item_path: &Path,
         project_item_map: &HashMap<PathBuf, (ProjectItemRef, ProjectItem)>,
@@ -1374,6 +2193,10 @@ impl ProjectHierarchyViewData {
             let preview_value = Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE);
 
             if preview_value.is_empty() { "??".to_string() } else { preview_value }
+        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            let preview_value = Self::read_string_field(project_item, ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE);
+
+            if preview_value.is_empty() { "??".to_string() } else { preview_value }
         } else {
             String::new()
         }
@@ -1384,6 +2207,8 @@ impl ProjectHierarchyViewData {
 
         if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH)
+        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            Self::read_string_field(project_item, ProjectItemTypeSymbolRef::PROPERTY_SYMBOL_LOCATOR_DISPLAY)
         } else {
             String::new()
         }
@@ -1492,6 +2317,15 @@ impl ProjectHierarchyViewData {
                 module_name: None,
                 data_type_id: Some(String::from("u8")),
             },
+            ProjectHierarchyCreateItemKind::SymbolRef => ProjectItemsCreateRequest {
+                parent_directory_path,
+                project_item_name: ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME.to_string(),
+                project_item_type: ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID.to_string(),
+                pointer: None,
+                address: None,
+                module_name: None,
+                data_type_id: None,
+            },
         }
     }
 
@@ -1522,6 +2356,148 @@ impl ProjectHierarchyViewData {
             .as_ref()
             .map(|root_project_item_path| root_project_item_path == project_item_path)
             .unwrap_or(false)
+    }
+
+    fn filter_clipboard_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        let copyable_project_item_paths = project_item_paths
+            .into_iter()
+            .filter(|project_item_path| !self.is_protected_project_item_path(project_item_path))
+            .collect::<Vec<PathBuf>>();
+
+        self.reduce_project_item_paths_to_root_set(&copyable_project_item_paths)
+    }
+
+    fn reduce_project_item_paths_to_root_set(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> Vec<PathBuf> {
+        let selected_project_item_path_set: HashSet<&PathBuf> = project_item_paths.iter().collect();
+
+        self.tree_entries
+            .iter()
+            .map(|tree_entry| tree_entry.project_item_path.clone())
+            .filter(|project_item_path| selected_project_item_path_set.contains(project_item_path))
+            .filter(|project_item_path| {
+                !project_item_paths
+                    .iter()
+                    .any(|candidate_root_path| candidate_root_path != project_item_path && project_item_path.starts_with(candidate_root_path))
+            })
+            .collect()
+    }
+
+    fn resolve_clipboard_paste_target(
+        &self,
+        target_project_item_path: &Path,
+    ) -> Option<ProjectHierarchyPasteTarget> {
+        let target_directory_path = Self::resolve_directory_create_parent_path(&self.project_items, target_project_item_path);
+        let insert_after_project_item_path = if Self::is_directory_project_item_path(&self.project_items, target_project_item_path) {
+            None
+        } else {
+            Some(target_project_item_path.to_path_buf())
+        };
+
+        Some(ProjectHierarchyPasteTarget {
+            target_directory_path,
+            insert_after_project_item_path,
+        })
+    }
+
+    fn can_paste_clipboard_into_target_path(
+        &self,
+        target_project_item_path: &Path,
+    ) -> bool {
+        let Some(current_project_file_path) = self
+            .opened_project_info
+            .as_ref()
+            .map(|opened_project_info| opened_project_info.get_project_file_path().clone())
+        else {
+            return false;
+        };
+        let Some(paste_target) = self.resolve_clipboard_paste_target(target_project_item_path) else {
+            return false;
+        };
+
+        if self.project_item_clipboard.get_project_file_path() != Some(&current_project_file_path) {
+            return false;
+        }
+
+        !self
+            .filter_pasteable_project_item_paths(
+                self.project_item_clipboard.get_project_item_paths(),
+                &paste_target,
+                self.project_item_clipboard.get_mode(),
+            )
+            .is_empty()
+    }
+
+    fn filter_pasteable_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+        paste_target: &ProjectHierarchyPasteTarget,
+        clipboard_mode: Option<&ProjectHierarchyClipboardMode>,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .iter()
+            .filter(|project_item_path| !self.is_protected_project_item_path(project_item_path))
+            .filter(|project_item_path| match clipboard_mode {
+                Some(ProjectHierarchyClipboardMode::Copy) => {
+                    !Self::is_directory_project_item_path(&self.project_items, project_item_path)
+                        || (!paste_target
+                            .target_directory_path
+                            .starts_with(project_item_path.as_path())
+                            && !paste_target
+                                .insert_after_project_item_path
+                                .as_ref()
+                                .map(|insert_after_project_item_path| insert_after_project_item_path.starts_with(project_item_path))
+                                .unwrap_or(false))
+                }
+                Some(ProjectHierarchyClipboardMode::Cut) => {
+                    if paste_target
+                        .target_directory_path
+                        .starts_with(project_item_path.as_path())
+                    {
+                        return false;
+                    }
+
+                    match &paste_target.insert_after_project_item_path {
+                        Some(insert_after_project_item_path) => {
+                            *project_item_path != insert_after_project_item_path && !insert_after_project_item_path.starts_with(project_item_path)
+                        }
+                        None => project_item_path.parent() != Some(paste_target.target_directory_path.as_path()),
+                    }
+                }
+                None => false,
+            })
+            .cloned()
+            .collect()
+    }
+
+    fn is_directory_project_item_path(
+        project_items: &[(ProjectItemRef, ProjectItem)],
+        project_item_path: &Path,
+    ) -> bool {
+        project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+            .map(|(_, project_item)| Self::is_directory_project_item(project_item))
+            .unwrap_or(false)
+    }
+
+    fn is_cut_clipboard_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        if !self.project_item_clipboard.is_cut() {
+            return false;
+        }
+
+        self.project_item_clipboard
+            .get_project_item_paths()
+            .iter()
+            .any(|cut_project_item_path| project_item_path == cut_project_item_path || project_item_path.starts_with(cut_project_item_path))
     }
 
     fn retain_valid_selection(&mut self) {
@@ -1638,18 +2614,18 @@ impl ProjectHierarchyViewData {
 
 #[cfg(test)]
 mod tests {
-    use super::ProjectHierarchyViewData;
+    use super::{ProjectHierarchyPasteTarget, ProjectHierarchyViewData};
     use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_tree_entry::ProjectHierarchyTreeEntry;
     use crate::views::project_explorer::project_hierarchy::view_data::{
-        project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
-        project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
+        project_hierarchy_clipboard::ProjectHierarchyClipboardMode, project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind,
+        project_hierarchy_drop_target::ProjectHierarchyDropTarget, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
     };
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer,
+        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
     use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
@@ -1727,6 +2703,140 @@ mod tests {
     }
 
     #[test]
+    fn resolve_clipboard_paste_target_for_file_target_inserts_after_target() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let target_directory_path = project_root_path.join("Cheats");
+        let target_file_path = target_directory_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&project_root_path),
+            create_directory_project_item(&target_directory_path),
+            (
+                ProjectItemRef::new(target_file_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Health", 0x1234, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+
+        let paste_target = project_hierarchy_view_data
+            .resolve_clipboard_paste_target(&target_file_path)
+            .expect("Expected paste target.");
+
+        assert_eq!(paste_target.target_directory_path, target_directory_path);
+        assert_eq!(paste_target.insert_after_project_item_path, Some(target_file_path));
+    }
+
+    #[test]
+    fn build_paste_reorder_paths_after_target_inserts_paths_after_target() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let first_child_path = project_root_path.join("First.json");
+        let second_child_path = project_root_path.join("Second.json");
+        let third_child_path = project_root_path.join("Third.json");
+        let duplicated_path = project_root_path.join("Second_1.json");
+        let project_info = create_project_info(&project_directory_path);
+        let project_items = vec![
+            create_directory_project_item(&project_root_path),
+            (
+                ProjectItemRef::new(first_child_path.clone()),
+                ProjectItemTypeAddress::new_project_item("First", 0x10, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+            (
+                ProjectItemRef::new(second_child_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Second", 0x20, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+            (
+                ProjectItemRef::new(third_child_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Third", 0x30, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+
+        let reordered_project_item_paths = ProjectHierarchyViewData::build_paste_reorder_paths_after_target(
+            Some(&project_info),
+            &project_items,
+            &second_child_path,
+            std::slice::from_ref(&duplicated_path),
+            &[],
+        )
+        .expect("Expected reordered paste paths.");
+
+        assert_eq!(
+            reordered_project_item_paths,
+            vec![
+                first_child_path,
+                second_child_path,
+                duplicated_path,
+                third_child_path
+            ]
+        );
+    }
+
+    #[test]
+    fn filter_pasteable_project_item_paths_allows_cut_reorder_after_sibling_in_same_parent() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let first_child_path = project_root_path.join("First.json");
+        let second_child_path = project_root_path.join("Second.json");
+        let third_child_path = project_root_path.join("Third.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&project_root_path),
+            (
+                ProjectItemRef::new(first_child_path.clone()),
+                ProjectItemTypeAddress::new_project_item("First", 0x10, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+            (
+                ProjectItemRef::new(second_child_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Second", 0x20, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+            (
+                ProjectItemRef::new(third_child_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Third", 0x30, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+        let paste_target = ProjectHierarchyPasteTarget {
+            target_directory_path: project_root_path,
+            insert_after_project_item_path: Some(second_child_path),
+        };
+
+        let pasteable_project_item_paths = project_hierarchy_view_data.filter_pasteable_project_item_paths(
+            std::slice::from_ref(&first_child_path),
+            &paste_target,
+            Some(&ProjectHierarchyClipboardMode::Cut),
+        );
+
+        assert_eq!(pasteable_project_item_paths, vec![first_child_path]);
+    }
+
+    #[test]
+    fn filter_pasteable_project_item_paths_rejects_cut_into_same_directory_target() {
+        let project_root_path = PathBuf::from("C:/Projects/TestProject/project");
+        let folder_path = project_root_path.join("Folder");
+        let nested_item_path = folder_path.join("Nested.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&project_root_path),
+            create_directory_project_item(&folder_path),
+            (
+                ProjectItemRef::new(nested_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Nested", 0x20, "", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+        let paste_target = ProjectHierarchyPasteTarget {
+            target_directory_path: folder_path,
+            insert_after_project_item_path: None,
+        };
+
+        let pasteable_project_item_paths = project_hierarchy_view_data.filter_pasteable_project_item_paths(
+            std::slice::from_ref(&nested_item_path),
+            &paste_target,
+            Some(&ProjectHierarchyClipboardMode::Cut),
+        );
+
+        assert!(pasteable_project_item_paths.is_empty());
+    }
+
+    #[test]
     fn build_unique_directory_name_returns_incremented_suffix_when_name_conflicts() {
         let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project");
         let project_items = vec![
@@ -1767,6 +2877,21 @@ mod tests {
         assert_eq!(create_request.project_item_type, ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID);
         assert_eq!(create_request.data_type_id.as_deref(), Some("u8"));
         assert_eq!(create_request.pointer, Some(Pointer::new(0, Vec::new(), String::new())));
+    }
+
+    #[test]
+    fn build_project_item_create_request_for_symbol_ref_uses_symbol_ref_defaults() {
+        let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
+        let project_items = vec![create_directory_project_item(&parent_directory_path)];
+
+        let create_request =
+            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::SymbolRef);
+
+        assert_eq!(create_request.parent_directory_path, parent_directory_path);
+        assert_eq!(create_request.project_item_name, ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME);
+        assert_eq!(create_request.project_item_type, ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
+        assert!(create_request.pointer.is_none());
+        assert!(create_request.data_type_id.is_none());
     }
 
     #[test]
@@ -1870,6 +2995,44 @@ mod tests {
         project_hierarchy_view_data.apply_selection(first_child_path.clone(), true, false);
         let selected_project_item_paths = project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order();
         assert_eq!(selected_project_item_paths, vec![second_child_path.clone()]);
+    }
+
+    #[test]
+    fn reduce_project_item_paths_to_root_set_removes_selected_descendants() {
+        let root_path = PathBuf::from("C:/Projects/TestProject/project_items");
+        let folder_path = root_path.join("Folder");
+        let nested_item_path = folder_path.join("Nested.json");
+        let sibling_item_path = root_path.join("Sibling.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.tree_entries = vec![
+            create_directory_tree_entry(&root_path, 0),
+            create_directory_tree_entry(&folder_path, 1),
+            create_directory_tree_entry(&nested_item_path, 2),
+            create_directory_tree_entry(&sibling_item_path, 1),
+        ];
+
+        let reduced_project_item_paths =
+            project_hierarchy_view_data.reduce_project_item_paths_to_root_set(&[folder_path.clone(), nested_item_path, sibling_item_path.clone()]);
+
+        assert_eq!(reduced_project_item_paths, vec![folder_path, sibling_item_path]);
+    }
+
+    #[test]
+    fn is_cut_clipboard_project_item_path_returns_true_for_descendant_of_cut_directory() {
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let folder_path = project_root_path.join("Folder");
+        let nested_item_path = folder_path.join("Nested.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_item_clipboard.set(
+            Some(project_directory_path.join(Project::PROJECT_FILE)),
+            vec![folder_path.clone()],
+            ProjectHierarchyClipboardMode::Cut,
+        );
+
+        assert!(project_hierarchy_view_data.is_cut_clipboard_project_item_path(&folder_path));
+        assert!(project_hierarchy_view_data.is_cut_clipboard_project_item_path(&nested_item_path));
     }
 
     #[test]
@@ -2215,5 +3378,34 @@ mod tests {
         let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
 
         assert!(!ProjectHierarchyViewData::has_deletable_selected_project_item(project_hierarchy_view_data));
+    }
+
+    #[test]
+    fn has_promotable_project_item_paths_returns_true_for_address_items_and_false_for_directories() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_directory_path = hidden_project_root_path.join("Folder");
+        let child_project_item_path = hidden_project_root_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info(&project_directory_path));
+        project_hierarchy_view_data.project_items = vec![
+            create_directory_project_item(&hidden_project_root_path),
+            create_directory_project_item(&child_directory_path),
+            (
+                ProjectItemRef::new(child_project_item_path.clone()),
+                ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0)),
+            ),
+        ];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        assert!(ProjectHierarchyViewData::has_promotable_project_item_paths(
+            project_hierarchy_view_data.clone(),
+            std::slice::from_ref(&child_project_item_path)
+        ));
+        assert!(!ProjectHierarchyViewData::has_promotable_project_item_paths(
+            project_hierarchy_view_data,
+            std::slice::from_ref(&child_directory_path)
+        ));
     }
 }

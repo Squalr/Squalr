@@ -172,7 +172,7 @@ impl AppShell {
     }
 
     fn footer_navigation_controls_line() -> &'static str {
-        "[NAV] F1 Project | F2 Scanner | F3 Settings | F4 Process | F5 Plugins | F6 Memory | Tab/Shift+Tab focus | Ctrl+Q/C exit."
+        "[NAV] F1 Project | F2 Scanner | F3 Settings | F4 Process | F5 Plugins | F6 Memory | F7 Code | Tab/Shift+Tab focus | Ctrl+Q/C exit."
     }
 
     fn session_opened_process_metadata_line(&self) -> String {
@@ -436,5 +436,19 @@ mod tests {
 
         assert!(was_consumed);
         assert_eq!(app_shell.app_state.active_workspace_page(), TuiWorkspacePage::MemoryWorkspace);
+    }
+
+    #[test]
+    fn f7_switches_to_code_workspace() {
+        let mut app_shell = AppShell::new(Duration::from_millis(100));
+        app_shell
+            .app_state
+            .set_active_workspace_page(TuiWorkspacePage::ScannerWorkspace);
+        let f7_key_event = KeyEvent::new(KeyCode::F(7), KeyModifiers::NONE);
+
+        let was_consumed = app_shell.handle_global_key_event(f7_key_event);
+
+        assert!(was_consumed);
+        assert_eq!(app_shell.app_state.active_workspace_page(), TuiWorkspacePage::CodeWorkspace);
     }
 }

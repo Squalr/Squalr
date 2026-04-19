@@ -1,3 +1,4 @@
+pub mod project_hierarchy_clipboard;
 pub mod project_hierarchy_create_item_kind;
 pub mod project_hierarchy_drop_target;
 pub mod project_hierarchy_frame_action;

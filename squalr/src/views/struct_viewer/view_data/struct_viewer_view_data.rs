@@ -1,6 +1,7 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
+use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
 use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -28,6 +29,7 @@ pub struct StructViewerViewData {
     pub source_struct_under_view: Arc<Option<ValuedStruct>>,
     pub struct_under_view: Arc<Option<ValuedStruct>>,
     pub struct_field_modified_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
+    pub focus_target: Arc<Option<StructViewerFocusTarget>>,
     pub selected_field_name: Arc<Option<String>>,
     pub field_edit_values: HashMap<String, AnonymousValueString>,
     pub field_display_values: HashMap<String, Vec<AnonymousValueString>>,
@@ -47,6 +49,7 @@ impl StructViewerViewData {
             source_struct_under_view: Arc::new(None),
             struct_under_view: Arc::new(None),
             struct_field_modified_callback: None,
+            focus_target: Arc::new(None),
             selected_field_name: Arc::new(None),
             field_edit_values: HashMap::new(),
             field_display_values: HashMap::new(),
@@ -84,11 +87,32 @@ impl StructViewerViewData {
         valued_struct: ValuedStruct,
         valued_struct_field_edited_callback: Arc<dyn Fn(ValuedStructField) + Send + Sync>,
     ) {
+        Self::focus_valued_struct_with_focus_target(
+            struct_viewer_view_data,
+            engine_unprivileged_state,
+            valued_struct,
+            valued_struct_field_edited_callback,
+            None,
+        );
+    }
+
+    pub fn focus_valued_struct_with_focus_target(
+        struct_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        valued_struct: ValuedStruct,
+        valued_struct_field_edited_callback: Arc<dyn Fn(ValuedStructField) + Send + Sync>,
+        focus_target: Option<StructViewerFocusTarget>,
+    ) {
         let mut struct_viewer_view_data = match struct_viewer_view_data.write("Focus valued struct") {
             Some(struct_viewer_view_data) => struct_viewer_view_data,
             None => return,
         };
-        struct_viewer_view_data.set_valued_struct_and_callback(engine_unprivileged_state, Some(valued_struct), Some(valued_struct_field_edited_callback));
+        struct_viewer_view_data.set_valued_struct_and_callback(
+            engine_unprivileged_state,
+            Some(valued_struct),
+            Some(valued_struct_field_edited_callback),
+            focus_target,
+        );
     }
 
     pub fn focus_valued_structs(
@@ -97,13 +121,34 @@ impl StructViewerViewData {
         valued_structs: Vec<ValuedStruct>,
         valued_struct_field_edited_callback: Arc<dyn Fn(ValuedStructField) + Send + Sync>,
     ) {
+        Self::focus_valued_structs_with_focus_target(
+            struct_viewer_view_data,
+            engine_unprivileged_state,
+            valued_structs,
+            valued_struct_field_edited_callback,
+            None,
+        );
+    }
+
+    pub fn focus_valued_structs_with_focus_target(
+        struct_viewer_view_data: Dependency<Self>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        valued_structs: Vec<ValuedStruct>,
+        valued_struct_field_edited_callback: Arc<dyn Fn(ValuedStructField) + Send + Sync>,
+        focus_target: Option<StructViewerFocusTarget>,
+    ) {
         let mut struct_viewer_view_data = match struct_viewer_view_data.write("Focus valued struct") {
             Some(struct_viewer_view_data) => struct_viewer_view_data,
             None => return,
         };
         let valued_struct = ValuedStruct::combine_exclusive(&valued_structs);
 
-        struct_viewer_view_data.set_valued_struct_and_callback(engine_unprivileged_state, Some(valued_struct), Some(valued_struct_field_edited_callback));
+        struct_viewer_view_data.set_valued_struct_and_callback(
+            engine_unprivileged_state,
+            Some(valued_struct),
+            Some(valued_struct_field_edited_callback),
+            focus_target,
+        );
     }
 
     pub fn clear_focus(struct_viewer_view_data: Dependency<Self>) {
@@ -120,6 +165,23 @@ impl StructViewerViewData {
         struct_viewer_view_data.source_struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_field_modified_callback = None;
+        struct_viewer_view_data.focus_target = Arc::new(None);
+    }
+
+    pub fn get_focus_target(&self) -> Option<&StructViewerFocusTarget> {
+        self.focus_target.as_ref().as_ref()
+    }
+
+    pub fn build_read_only_presented_state(
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        valued_struct: ValuedStruct,
+    ) -> Self {
+        let mut struct_viewer_view_data = Self::new();
+
+        struct_viewer_view_data.source_struct_under_view = Arc::new(Some(valued_struct));
+        struct_viewer_view_data.refresh_cached_field_state(engine_unprivileged_state);
+
+        struct_viewer_view_data
     }
 
     fn set_valued_struct_and_callback(
@@ -127,10 +189,12 @@ impl StructViewerViewData {
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         valued_struct: Option<ValuedStruct>,
         valued_struct_field_edited_callback: Option<Arc<dyn Fn(ValuedStructField) + Send + Sync>>,
+        focus_target: Option<StructViewerFocusTarget>,
     ) {
         self.selected_field_name = Arc::new(None);
         self.source_struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = valued_struct_field_edited_callback;
+        self.focus_target = Arc::new(focus_target);
         self.refresh_cached_field_state(&engine_unprivileged_state);
     }
 

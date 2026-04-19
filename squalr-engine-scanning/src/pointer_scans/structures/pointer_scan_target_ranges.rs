@@ -1,8 +1,47 @@
-use crate::pointer_scans::structures::pointer_scan_target_range_bucket::PointerScanTargetRangeBucket;
 use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
 
 const TARGET_RANGE_BUCKET_SHIFT: u32 = 16;
 const TARGET_RANGE_BUCKET_LINEAR_SEARCH_THRESHOLD: usize = 8;
+
+#[derive(Clone, Default, PartialEq, Eq)]
+struct PointerScanTargetRangeBucket {
+    bucket_key: u64,
+    start_range_index: usize,
+    end_range_index_exclusive: usize,
+}
+
+impl PointerScanTargetRangeBucket {
+    fn new(
+        bucket_key: u64,
+        start_range_index: usize,
+        end_range_index_exclusive: usize,
+    ) -> Self {
+        Self {
+            bucket_key,
+            start_range_index,
+            end_range_index_exclusive,
+        }
+    }
+
+    fn get_bucket_key(&self) -> u64 {
+        self.bucket_key
+    }
+
+    fn get_start_range_index(&self) -> usize {
+        self.start_range_index
+    }
+
+    fn get_end_range_index_exclusive(&self) -> usize {
+        self.end_range_index_exclusive
+    }
+
+    fn set_end_range_index_exclusive(
+        &mut self,
+        end_range_index_exclusive: usize,
+    ) {
+        self.end_range_index_exclusive = end_range_index_exclusive;
+    }
+}
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct PointerScanTargetRangeSet {
@@ -96,7 +135,6 @@ impl PointerScanTargetRangeSet {
         }
 
         let target_range_buckets = Self::build_target_range_buckets(&lower_bounds, &upper_bounds);
-
         Self {
             source_target_count: if source_target_count == 0 { unique_target_count } else { source_target_count },
             target_ranges,

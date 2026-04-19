@@ -1,36 +1,45 @@
 use crate::pointer_scans::search_kernels::pointer_scan_pointer_value_reader::{read_pointer_lane_values_u32, read_pointer_lane_values_u64};
-use crate::pointer_scans::search_kernels::pointer_scan_scalar_search_kernel::scan_region_scalar;
-use crate::pointer_scans::structures::pointer_scan_region_match::PointerScanRegionMatch;
+use crate::pointer_scans::search_kernels::pointer_scan_scalar_region_scanner::scan_region_scalar_with_predicate;
+use crate::pointer_scans::search_kernels::pointer_scan_search_kernel::{PointerScanRegionMatch, PointerScanSearchKernel};
+use crate::pointer_scans::search_kernels::pointer_scan_search_kernel_context::PointerScanSearchKernelContext;
+use crate::pointer_scans::search_kernels::pointer_scan_search_kernel_utils::find_scan_start_offset;
 use crate::pointer_scans::structures::pointer_scan_target_ranges::PointerScanTargetRangeSet;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use std::mem::size_of;
 use std::simd::Simd;
 use std::simd::cmp::SimdPartialOrd;
 
-pub(crate) fn scan_region_simd_linear<VisitMatch>(
-    base_address: u64,
-    current_values: &[u8],
-    start_offset: usize,
-    pointer_size: PointerScanPointerSize,
-    target_range_set: &PointerScanTargetRangeSet,
-    visit_match: &mut VisitMatch,
-) where
-    VisitMatch: FnMut(PointerScanRegionMatch),
-{
-    match pointer_size {
-        PointerScanPointerSize::Pointer24 | PointerScanPointerSize::Pointer24be => scan_region_scalar(
-            base_address,
-            current_values,
-            start_offset,
-            pointer_size,
-            |pointer_value| target_range_set.contains_value_linear(pointer_value),
-            visit_match,
-        ),
-        PointerScanPointerSize::Pointer32 | PointerScanPointerSize::Pointer32be => {
-            scan_region_simd_linear_u32(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
-        }
-        PointerScanPointerSize::Pointer64 | PointerScanPointerSize::Pointer64be => {
-            scan_region_simd_linear_u64(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
+pub(crate) struct SimdLinearPointerScanKernel;
+
+impl PointerScanSearchKernel for SimdLinearPointerScanKernel {
+    fn scan_region_with_visitor(
+        &self,
+        pointer_scan_search_kernel_context: &PointerScanSearchKernelContext<'_>,
+        base_address: u64,
+        current_values: &[u8],
+        visit_match: &mut dyn FnMut(PointerScanRegionMatch),
+    ) {
+        let pointer_size = pointer_scan_search_kernel_context.get_pointer_size();
+        let target_range_set = pointer_scan_search_kernel_context.get_target_range_set();
+        let Some(start_offset) = find_scan_start_offset(base_address, current_values, pointer_size) else {
+            return;
+        };
+
+        match pointer_size {
+            PointerScanPointerSize::Pointer24 | PointerScanPointerSize::Pointer24be => scan_region_scalar_with_predicate(
+                base_address,
+                current_values,
+                start_offset,
+                pointer_size,
+                |pointer_value| target_range_set.contains_value_linear(pointer_value),
+                visit_match,
+            ),
+            PointerScanPointerSize::Pointer32 | PointerScanPointerSize::Pointer32be => {
+                scan_region_simd_linear_u32(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
+            }
+            PointerScanPointerSize::Pointer64 | PointerScanPointerSize::Pointer64be => {
+                scan_region_simd_linear_u64(base_address, current_values, start_offset, pointer_size, target_range_set, visit_match)
+            }
         }
     }
 }
@@ -43,7 +52,7 @@ fn scan_region_simd_linear_u32<VisitMatch>(
     target_range_set: &PointerScanTargetRangeSet,
     visit_match: &mut VisitMatch,
 ) where
-    VisitMatch: FnMut(PointerScanRegionMatch),
+    VisitMatch: FnMut(PointerScanRegionMatch) + ?Sized,
 {
     const SIMD_LANE_COUNT: usize = 16;
     let pointer_size_in_bytes = size_of::<u32>();
@@ -51,7 +60,6 @@ fn scan_region_simd_linear_u32<VisitMatch>(
     let mut pointer_value_offset = start_offset;
 
     while pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT) <= current_values.len() {
-        // The loop guard guarantees a full SIMD-width unaligned load.
         let lane_values = unsafe { read_pointer_lane_values_u32::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset), pointer_size) };
         let pointer_values = Simd::<u32, SIMD_LANE_COUNT>::from_array(lane_values);
         let mut matching_lane_mask = 0_u64;
@@ -83,7 +91,7 @@ fn scan_region_simd_linear_u32<VisitMatch>(
         pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT);
     }
 
-    scan_region_scalar(
+    scan_region_scalar_with_predicate(
         base_address,
         current_values,
         pointer_value_offset,
@@ -101,7 +109,7 @@ fn scan_region_simd_linear_u64<VisitMatch>(
     target_range_set: &PointerScanTargetRangeSet,
     visit_match: &mut VisitMatch,
 ) where
-    VisitMatch: FnMut(PointerScanRegionMatch),
+    VisitMatch: FnMut(PointerScanRegionMatch) + ?Sized,
 {
     const SIMD_LANE_COUNT: usize = 8;
     let pointer_size_in_bytes = size_of::<u64>();
@@ -109,7 +117,6 @@ fn scan_region_simd_linear_u64<VisitMatch>(
     let mut pointer_value_offset = start_offset;
 
     while pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT) <= current_values.len() {
-        // The loop guard guarantees a full SIMD-width unaligned load.
         let lane_values = unsafe { read_pointer_lane_values_u64::<SIMD_LANE_COUNT>(current_values_ptr.add(pointer_value_offset), pointer_size) };
         let pointer_values = Simd::<u64, SIMD_LANE_COUNT>::from_array(lane_values);
         let mut matching_lane_mask = 0_u64;
@@ -137,7 +144,7 @@ fn scan_region_simd_linear_u64<VisitMatch>(
         pointer_value_offset = pointer_value_offset.saturating_add(pointer_size_in_bytes * SIMD_LANE_COUNT);
     }
 
-    scan_region_scalar(
+    scan_region_scalar_with_predicate(
         base_address,
         current_values,
         pointer_value_offset,

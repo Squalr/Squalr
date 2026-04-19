@@ -35,6 +35,9 @@ impl Widget for StateLayer {
             return response;
         }
 
+        let clip_rectangle = bounds_rect.intersect(user_interface.clip_rect());
+        let clipped_painter = user_interface.painter().with_clip_rect(clip_rectangle);
+
         // Select background color depending on state (pressed > hover > default).
         let fill = if self.enabled && self.pressed {
             self.pressed_color
@@ -45,15 +48,13 @@ impl Widget for StateLayer {
         };
 
         // Draw the background.
-        user_interface
-            .painter()
-            .rect_filled(bounds_rect, self.corner_radius, fill);
+        clipped_painter.rect_filled(bounds_rect, self.corner_radius, fill);
 
         // Draw the border.
         if self.border_width > 0.0 {
             let border_color = if self.has_focus { self.border_color_focused } else { self.border_color };
 
-            user_interface.painter().rect_stroke(
+            clipped_painter.rect_stroke(
                 bounds_rect,
                 self.corner_radius,
                 Stroke::new(self.border_width, border_color),

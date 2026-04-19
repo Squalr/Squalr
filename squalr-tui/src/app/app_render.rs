@@ -19,6 +19,7 @@ impl AppShell {
             TuiWorkspacePage::SettingsWorkspace => self.draw_settings_workspace_layout(frame, body_area),
             TuiWorkspacePage::PluginsWorkspace => self.draw_plugins_workspace_layout(frame, body_area),
             TuiWorkspacePage::MemoryWorkspace => self.draw_memory_workspace_layout(frame, body_area),
+            TuiWorkspacePage::CodeWorkspace => self.draw_code_workspace_layout(frame, body_area),
         }
     }
 
@@ -109,10 +110,29 @@ impl AppShell {
     ) {
         let rows = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .constraints([
+                Constraint::Percentage(62),
+                Constraint::Percentage(18),
+                Constraint::Percentage(20),
+            ])
             .split(body_area);
 
         self.draw_single_pane(frame, rows[0], TuiPane::MemoryViewer);
+        self.draw_single_pane(frame, rows[1], TuiPane::MemoryInterpretation);
+        self.draw_single_pane(frame, rows[2], TuiPane::Output);
+    }
+
+    fn draw_code_workspace_layout(
+        &mut self,
+        frame: &mut ratatui::Frame<'_>,
+        body_area: Rect,
+    ) {
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(body_area);
+
+        self.draw_single_pane(frame, rows[0], TuiPane::CodeViewer);
         self.draw_single_pane(frame, rows[1], TuiPane::Output);
     }
 
@@ -150,6 +170,12 @@ impl AppShell {
         } else if pane == TuiPane::MemoryViewer {
             self.app_state
                 .memory_viewer_pane_state
+                .set_viewport_row_capacity(entry_row_capacity);
+        } else if pane == TuiPane::MemoryInterpretation {
+            // Interpretation pane uses the generic entry-row capacity directly.
+        } else if pane == TuiPane::CodeViewer {
+            self.app_state
+                .code_viewer_pane_state
                 .set_viewport_row_capacity(entry_row_capacity);
         }
         let summary_lines = Self::fold_scan_results_visible_rows_into_page_line(pane, summary_lines, entry_row_capacity);
@@ -346,7 +372,13 @@ impl AppShell {
     fn is_entry_heavy_pane(pane: TuiPane) -> bool {
         matches!(
             pane,
-            TuiPane::ProcessSelector | TuiPane::ScanResults | TuiPane::ProjectExplorer | TuiPane::MemoryViewer | TuiPane::Plugins
+            TuiPane::ProcessSelector
+                | TuiPane::ScanResults
+                | TuiPane::ProjectExplorer
+                | TuiPane::MemoryViewer
+                | TuiPane::MemoryInterpretation
+                | TuiPane::CodeViewer
+                | TuiPane::Plugins
         )
     }
 

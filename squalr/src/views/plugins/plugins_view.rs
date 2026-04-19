@@ -161,6 +161,7 @@ impl Widget for PluginsView {
                         .max_rect(content_response.rect)
                         .layout(Layout::top_down(Align::Min)),
                 );
+                content_user_interface.set_clip_rect(content_response.rect);
 
                 ScrollArea::vertical()
                     .id_salt("plugins_list")
@@ -205,6 +206,7 @@ impl Widget for PluginsView {
                         .max_rect(details_content_rectangle)
                         .layout(Layout::top_down(Align::Min)),
                 );
+                details_user_interface.set_clip_rect(details_content_rectangle);
 
                 if let Some(selected_plugin_state) = selected_plugin_state {
                     let plugin_metadata = selected_plugin_state.get_metadata();

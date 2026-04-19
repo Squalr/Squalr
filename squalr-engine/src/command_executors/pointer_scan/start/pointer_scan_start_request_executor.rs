@@ -124,11 +124,11 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
                 return PointerScanStartResponse::default();
             }
         };
-        let pointer_scan_session_id = engine_privileged_state.allocate_pointer_scan_session_id();
-        let pointer_scan_session = PointerScanExecutor::execute_scan_with_precollected_values(
+        let pointer_scan_results_id = engine_privileged_state.allocate_pointer_scan_results_id();
+        let pointer_scan_results = PointerScanExecutor::execute_scan_with_precollected_values(
             pointer_scan_snapshot.clone(),
             pointer_scan_snapshot,
-            pointer_scan_session_id,
+            pointer_scan_results_id,
             pointer_scan_parameters,
             resolved_targets.target_descriptor,
             resolved_targets.target_addresses,
@@ -136,17 +136,16 @@ impl PrivilegedCommandRequestExecutor for PointerScanStartRequest {
             &modules,
             true,
         );
-        let pointer_scan_summary = pointer_scan_session.summarize();
+        let pointer_scan_summary = pointer_scan_results.summarize();
 
-        match engine_privileged_state.get_pointer_scan_session().write() {
-            Ok(mut pointer_scan_session_guard) => {
-                *pointer_scan_session_guard = Some(pointer_scan_session);
+        match engine_privileged_state.get_pointer_scan_results().write() {
+            Ok(mut pointer_scan_results_guard) => {
+                *pointer_scan_results_guard = Some(pointer_scan_results);
             }
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
             }
         }
-
         PointerScanStartResponse {
             success: true,
             pointer_scan_summary: Some(pointer_scan_summary),
@@ -663,9 +662,9 @@ mod tests {
         assert!(pointer_scan_start_response.pointer_scan_summary.is_none());
         assert!(
             engine_privileged_state
-                .get_pointer_scan_session()
+                .get_pointer_scan_results()
                 .read()
-                .expect("Expected the pointer scan session lock.")
+                .expect("Expected the pointer scan results lock.")
                 .is_none()
         );
     }

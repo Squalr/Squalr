@@ -11,9 +11,11 @@ use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use std::collections::{HashMap, HashSet};
@@ -98,7 +100,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
                     .collect::<Vec<(ProjectItemRef, ProjectItem)>>();
                 let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(self.preview_project_item_paths.clone());
 
-                refresh_project_item_display_values(engine_unprivileged_state, &mut opened_project_items, &mut project_item_preview_refresh_session);
+                refresh_project_item_display_values(
+                    engine_unprivileged_state,
+                    opened_project.get_project_info().get_project_symbol_catalog(),
+                    &mut opened_project_items,
+                    &mut project_item_preview_refresh_session,
+                );
 
                 ProjectItemsListResponse {
                     opened_project_info: Some(opened_project.get_project_info().clone()),
@@ -116,6 +123,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
 
 fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     opened_project_items: &mut [(ProjectItemRef, ProjectItem)],
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
@@ -130,6 +138,13 @@ fn refresh_project_item_display_values(
             refresh_address_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
+        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            refresh_symbol_ref_project_item_display_value(
+                engine_unprivileged_state,
+                project_symbol_catalog,
+                project_item,
+                project_item_preview_refresh_session,
+            );
         }
     }
 }
@@ -199,6 +214,45 @@ fn refresh_pointer_project_item_display_value(
         &project_item_preview_read_definition,
         |freeze_display_value| {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
+        },
+    );
+}
+
+fn refresh_symbol_ref_project_item_display_value(
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    project_item: &mut ProjectItem,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
+) {
+    let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+    let Some(rooted_symbol) = project_symbol_catalog.find_rooted_symbol(&symbol_key) else {
+        ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
+        ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, "");
+        return;
+    };
+
+    let address = rooted_symbol.get_root_locator().get_focus_address();
+    let module_name = rooted_symbol
+        .get_root_locator()
+        .get_focus_module_name()
+        .to_string();
+    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, &rooted_symbol.get_root_locator().to_string());
+
+    let Some(project_item_preview_read_definition) =
+        build_project_item_preview_read_definition(engine_unprivileged_state, rooted_symbol.get_struct_layout_id())
+    else {
+        ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
+        return;
+    };
+
+    refresh_project_item_display_value_from_memory_read(
+        engine_unprivileged_state,
+        project_item_preview_refresh_session,
+        address,
+        &module_name,
+        &project_item_preview_read_definition,
+        |freeze_display_value| {
+            ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
     );
 }
@@ -611,8 +665,10 @@ mod tests {
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+        project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_api::structures::projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::path::PathBuf;
@@ -994,7 +1050,12 @@ mod tests {
         )];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(Some(Vec::new()));
 
-        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &ProjectSymbolCatalog::default(),
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -1025,7 +1086,12 @@ mod tests {
         ];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 
-        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &ProjectSymbolCatalog::default(),
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -1072,7 +1138,12 @@ mod tests {
         ];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 
-        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &ProjectSymbolCatalog::default(),
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -1111,6 +1182,48 @@ mod tests {
         assert_eq!(
             ProjectItemTypePointer::get_field_evaluated_pointer_path(&opened_project_items[1].1),
             "game.exe+0x1000 -> 0x2020 -> 0x2FF0"
+        );
+    }
+
+    #[test]
+    fn refresh_project_item_display_values_reads_symbol_ref_target_and_locator() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x1234);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x1234), true)
+        });
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+            Vec::new(),
+            vec![ProjectRootSymbol::new_module_offset(
+                String::from("sym.gold"),
+                String::from("Gold"),
+                String::from("game.exe"),
+                0x1234,
+                String::from("u16"),
+            )],
+        );
+        let mut opened_project_items = vec![(
+            ProjectItemRef::new(PathBuf::from("project/gold.json")),
+            ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.gold", ""),
+        )];
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &project_symbol_catalog,
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
+
+        assert_eq!(
+            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&opened_project_items[0].1),
+            "4660"
+        );
+        assert_eq!(
+            ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&opened_project_items[0].1),
+            "game.exe + 0x1234"
         );
     }
 

@@ -365,6 +365,10 @@ impl PointerScannerViewData {
                                 page_index: 0,
                             });
                         }
+
+                        if let Some(pointer_scan_summary) = pointer_scan_summary.as_ref() {
+                            pointer_scanner_view_data_guard.status_message = Self::format_start_completed_status(pointer_scan_summary);
+                        }
                     } else if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
                         pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
                     }
@@ -460,6 +464,10 @@ impl PointerScannerViewData {
                                 parent_node_id: None,
                                 page_index: 0,
                             });
+                        }
+
+                        if let Some(pointer_scan_summary) = pointer_scan_summary.as_ref() {
+                            pointer_scanner_view_data_guard.status_message = Self::format_start_completed_status(pointer_scan_summary);
                         }
                     } else if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
                         pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
@@ -1782,6 +1790,10 @@ impl PointerScannerViewData {
             pointer_scan_summary.get_total_static_node_count(),
             pointer_scan_summary.get_total_heap_node_count(),
         )
+    }
+
+    fn format_start_completed_status(pointer_scan_summary: &PointerScanSummary) -> String {
+        format!("Pointer scan complete | {}", Self::format_summary_status(pointer_scan_summary))
     }
 
     fn format_refreshing_summary_status(session_id: Option<u64>) -> String {
@@ -3226,6 +3238,14 @@ mod tests {
         wait_for_condition("pointer scanner start response repaint request", || {
             repaint_request_count.load(Ordering::Relaxed) > repaint_request_count_before_start_response
         });
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner start completed status test")
+            .expect("Expected the pointer scanner view data read guard after the start response.");
+        assert_eq!(
+            pointer_scanner_view_data_guard.status_message,
+            "Pointer scan complete | Session 11 | Target 0x3010 | Space host | Roots 1 | Nodes 2 (Static 1 / Heap 1)"
+        );
     }
 
     #[test]

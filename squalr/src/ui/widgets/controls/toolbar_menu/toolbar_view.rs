@@ -50,8 +50,7 @@ impl<'lifetime> Widget for ToolbarView<'lifetime> {
 
         // Draw each menu header.
         for menu in &self.menu.menus {
-            ToolbarHeaderItemView::new(self.app_context.clone(), &menu.header, &menu.items, 256.0, self.height, 8.0, self.on_select)
-                .ui(&mut row_user_interface);
+            ToolbarHeaderItemView::new(self.app_context.clone(), &menu.header, &menu.items, self.height, 8.0, self.on_select).ui(&mut row_user_interface);
         }
 
         response

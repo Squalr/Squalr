@@ -6,6 +6,7 @@ pub struct GroupBox<'lifetime, F: FnOnce(&mut Ui)> {
     pub header_text: &'lifetime str,
     pub background_color: Color32,
     pub border_color: Color32,
+    pub header_text_color: Color32,
     pub add_contents: F,
     pub header_font_id: FontId,
     pub header_padding: f32,
@@ -25,6 +26,7 @@ impl<'lifetime, F: FnOnce(&mut Ui)> GroupBox<'lifetime, F> {
             header_text,
             background_color: theme.background_panel,
             border_color: theme.submenu_border,
+            header_text_color: theme.foreground,
             add_contents,
             header_font_id: theme.font_library.font_noto_sans.font_header.clone(),
             header_padding: 16.0,
@@ -60,7 +62,7 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for GroupBox<'lifetime, F> {
         // Measure header without painting.
         let header_galley = user_interface
             .painter()
-            .layout_no_wrap(self.header_text.to_owned(), self.header_font_id.clone(), Color32::WHITE);
+            .layout_no_wrap(self.header_text.to_owned(), self.header_font_id.clone(), self.header_text_color);
         let header_size = header_galley.size();
         let header_height = header_size.y;
         let header_min_width = header_size.x + self.header_padding * 2.0;
@@ -145,7 +147,7 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for GroupBox<'lifetime, F> {
             // Header text.
             user_interface
                 .painter()
-                .galley(header_position, header_galley, Color32::WHITE);
+                .galley(header_position, header_galley, self.header_text_color);
         }
 
         response

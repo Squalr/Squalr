@@ -19,7 +19,7 @@ use crate::{
             project_hierarchy_tree_entry::ProjectHierarchyTreeEntry, project_hierarchy_view_data::ProjectHierarchyViewData,
         },
     },
-    views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
+    views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
 };
 use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
@@ -31,12 +31,14 @@ use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWrit
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
+use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::ProjectItemSymbolRefConversionTarget;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
+use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
@@ -44,10 +46,14 @@ use squalr_engine_api::structures::memory::normalized_module::NormalizedModule;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project::Project;
+use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
+use squalr_engine_api::structures::projects::project_root_symbol_locator::ProjectRootSymbolLocator;
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
@@ -485,15 +491,33 @@ mod tests {
     }
 
     #[test]
+    fn project_item_menu_width_respects_minimum_width_for_short_labels() {
+        assert_eq!(
+            ProjectHierarchyView::project_item_menu_width_from_longest_label_width(0.0),
+            ProjectHierarchyView::MIN_PROJECT_ITEM_MENU_WIDTH,
+        );
+    }
+
+    #[test]
+    fn project_item_menu_width_grows_for_wider_labels() {
+        let longest_label_width = 200.0;
+
+        assert_eq!(
+            ProjectHierarchyView::project_item_menu_width_from_longest_label_width(longest_label_width),
+            236.0,
+        );
+    }
+
+    #[test]
     fn build_pointer_scanner_context_actions_returns_address_item_values() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(&project_item);
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(None, &project_item);
 
         assert_eq!(
             pointer_scanner_context_actions,
             vec![super::PointerScannerContextAction::Address {
-                label: "Pointer Scan",
+                label: "Open in Pointer Scan",
                 address: 0x1234,
                 module_name: "game.exe".to_string(),
                 data_type_id: "u64".to_string(),
@@ -506,19 +530,19 @@ mod tests {
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
         let project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u16");
 
-        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(&project_item);
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(None, &project_item);
 
         assert_eq!(
             pointer_scanner_context_actions,
             vec![
                 super::PointerScannerContextAction::Address {
-                    label: "Pointer Scan for Base Address",
+                    label: "Open Base Address in Pointer Scan",
                     address: 0x1000,
                     module_name: "game.exe".to_string(),
                     data_type_id: "u16".to_string(),
                 },
                 super::PointerScannerContextAction::ResolvedPointer {
-                    label: "Pointer Scan for Resolved Address",
+                    label: "Open Resolved Address in Pointer Scan",
                     pointer,
                     data_type_id: "u16".to_string(),
                 }
@@ -531,7 +555,7 @@ mod tests {
         let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
         let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
 
-        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(&project_item);
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(None, &project_item);
 
         assert!(pointer_scanner_context_actions.is_empty());
     }
@@ -548,7 +572,7 @@ mod tests {
         let pointer = Pointer::new_with_size(0x1000, vec![0x20, -0x10], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
 
         let resolved_pointer_action = super::PointerScannerContextAction::ResolvedPointer {
-            label: "Pointer Scan for Resolved Address",
+            label: "Open Resolved Address in Pointer Scan",
             pointer,
             data_type_id: "u16".to_string(),
         };
@@ -563,14 +587,14 @@ mod tests {
         let project_item =
             ProjectItemTypeAddress::new_project_item("Patch", 0x1234, "game.exe", "", DataValue::new(DataTypeRef::new("i_x86[2]"), vec![0x90, 0x90]));
 
-        assert!(ProjectHierarchyView::should_open_project_item_in_code_viewer(&project_item));
+        assert!(ProjectHierarchyView::should_open_project_item_in_code_viewer(None, &project_item));
     }
 
     #[test]
     fn should_open_project_item_in_code_viewer_returns_false_for_plain_numeric_data_type() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        assert!(!ProjectHierarchyView::should_open_project_item_in_code_viewer(&project_item));
+        assert!(!ProjectHierarchyView::should_open_project_item_in_code_viewer(None, &project_item));
     }
 
     #[test]
@@ -580,8 +604,8 @@ mod tests {
         let mut project_item = project_item;
         ProjectItemTypeAddress::set_field_symbolic_struct_definition_reference(&mut project_item, "u8[190]");
 
-        let icon =
-            ProjectHierarchyView::resolve_tree_entry_icon(app_context.clone(), &project_item).unwrap_or_else(|| panic!("Expected address project item icon."));
+        let icon = ProjectHierarchyView::resolve_tree_entry_icon(app_context.clone(), None, &project_item)
+            .unwrap_or_else(|| panic!("Expected address project item icon."));
 
         assert_eq!(
             icon.id(),
@@ -599,8 +623,8 @@ mod tests {
         let pointer = Pointer::new(0x1000, vec![0x20], "game.exe".to_string());
         let project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u8[190]");
 
-        let icon =
-            ProjectHierarchyView::resolve_tree_entry_icon(app_context.clone(), &project_item).unwrap_or_else(|| panic!("Expected pointer project item icon."));
+        let icon = ProjectHierarchyView::resolve_tree_entry_icon(app_context.clone(), None, &project_item)
+            .unwrap_or_else(|| panic!("Expected pointer project item icon."));
 
         assert_eq!(
             icon.id(),
@@ -616,7 +640,7 @@ mod tests {
     fn build_struct_view_properties_exposes_runtime_value_field_as_editable() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(&project_item);
+        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
         let runtime_value_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
             .expect("Expected runtime value field in struct view properties.");
@@ -637,7 +661,7 @@ mod tests {
         );
 
         let memory_write_request =
-            ProjectHierarchyView::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, &address_project_item, &edited_field);
+            ProjectHierarchyView::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &address_project_item, &edited_field);
 
         assert!(memory_write_request.is_some());
         let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected runtime value memory write request for address project item."));
@@ -664,7 +688,7 @@ mod tests {
         );
 
         let memory_write_request =
-            ProjectHierarchyView::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, &pointer_project_item, &edited_field);
+            ProjectHierarchyView::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, None, &pointer_project_item, &edited_field);
 
         assert!(memory_write_request.is_some());
         let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected runtime value memory write request for pointer project item."));
@@ -684,7 +708,7 @@ mod tests {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "4660");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item)
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
             .expect("Expected value edit context for address project item.");
 
         assert_eq!(value_edit_context.project_item_name, "Health");
@@ -707,7 +731,7 @@ mod tests {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "4660");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item)
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
             .expect("Expected value edit context fallback for address project item.");
 
         assert_eq!(
@@ -725,7 +749,7 @@ mod tests {
         let mut project_item = ProjectItemTypePointer::new_project_item("Ammo", &pointer, "", "u16[2]");
         ProjectItemTypePointer::set_field_freeze_data_value_interpreter(&mut project_item, "1, 2");
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item)
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item)
             .expect("Expected value edit context for pointer project item.");
 
         assert_eq!(value_edit_context.initial_value_edit.get_container_type(), ContainerType::ArrayFixed(2));
@@ -737,7 +761,7 @@ mod tests {
         let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
         let project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
 
-        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, &project_item);
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, None, &project_item);
 
         assert!(value_edit_context.is_none());
     }
@@ -771,15 +795,28 @@ impl Widget for ProjectHierarchyView {
         let mut hovered_drop_target_project_item_path: Option<ProjectHierarchyDropTarget> = None;
         let mut should_cancel_take_over = false;
         let mut delete_confirmation_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
+        let mut promote_symbol_overwrite_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
         let mut rename_project_item_submission: Option<(PathBuf, String, String)> = None;
         let mut value_edit_project_item_submission: Option<(PathBuf, String, DataTypeRef, AnonymousValueString)> = None;
         let mut keyboard_activation_toggle_target: Option<(Vec<PathBuf>, bool)> = None;
         let mut is_delete_confirmation_active = false;
+        let mut is_promote_symbol_conflict_active = false;
         let mut is_rename_take_over_active = false;
         let mut is_value_edit_take_over_active = false;
         let mut visible_preview_project_item_paths = Vec::new();
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
+                let shared_struct_viewer_focus_target = self
+                    .struct_viewer_view_data
+                    .read("Project hierarchy shared struct viewer focus target")
+                    .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
+                let active_struct_viewer_project_item_paths: HashSet<PathBuf> = match shared_struct_viewer_focus_target.as_ref() {
+                    Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }) => {
+                        project_item_paths.iter().cloned().collect()
+                    }
+                    _ => HashSet::new(),
+                };
+
                 let project_hierarchy_view_data = match self.project_hierarchy_view_data.read("Project hierarchy view") {
                     Some(project_hierarchy_view_data) => project_hierarchy_view_data,
                     None => return,
@@ -802,8 +839,14 @@ impl Widget for ProjectHierarchyView {
                 );
 
                 match pending_operation {
+                    ProjectHierarchyPendingOperation::ConvertingSymbolRefs => {
+                        user_interface.label("Converting symbol refs...");
+                    }
                     ProjectHierarchyPendingOperation::Deleting => {
                         user_interface.label("Deleting project item(s)...");
+                    }
+                    ProjectHierarchyPendingOperation::Promoting => {
+                        user_interface.label("Promoting project item(s) to symbols...");
                     }
                     ProjectHierarchyPendingOperation::Reordering => {
                         user_interface.label("Reordering project item(s)...");
@@ -838,8 +881,13 @@ impl Widget for ProjectHierarchyView {
                                 );
 
                                 for tree_entry in &tree_entries[visible_row_range] {
-                                    let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path);
-                                    let icon = Self::resolve_tree_entry_icon(self.app_context.clone(), &tree_entry.project_item);
+                                    let is_selected = selected_project_item_paths.contains(&tree_entry.project_item_path)
+                                        && active_struct_viewer_project_item_paths.contains(&tree_entry.project_item_path);
+                                    let icon = Self::resolve_tree_entry_icon(
+                                        self.app_context.clone(),
+                                        project_hierarchy_view_data.opened_project_info.as_ref(),
+                                        &tree_entry.project_item,
+                                    );
 
                                     let is_inline_rename_row = active_inline_rename
                                         .as_ref()
@@ -905,6 +953,10 @@ impl Widget for ProjectHierarchyView {
                                             tree_entry.depth,
                                             icon,
                                             is_selected,
+                                            ProjectHierarchyViewData::is_cut_project_item_path(
+                                                self.project_hierarchy_view_data.clone(),
+                                                &tree_entry.project_item_path,
+                                            ),
                                             tree_entry.is_directory,
                                             tree_entry.has_children,
                                             tree_entry.is_expanded,
@@ -936,8 +988,10 @@ impl Widget for ProjectHierarchyView {
                                     }
 
                                     let tree_entry_project_item_path = tree_entry.project_item_path.clone();
-                                    let pointer_scanner_context_actions = Self::build_pointer_scanner_context_actions(&tree_entry.project_item);
-                                    let can_open_in_memory_viewer = Self::can_open_project_item_in_memory_viewer(&tree_entry.project_item);
+                                    let pointer_scanner_context_actions =
+                                        Self::build_pointer_scanner_context_actions(project_hierarchy_view_data.opened_project_info.as_ref(), &tree_entry.project_item);
+                                    let can_open_in_memory_viewer =
+                                        Self::can_open_project_item_in_memory_viewer(project_hierarchy_view_data.opened_project_info.as_ref(), &tree_entry.project_item);
                                     let is_context_menu_visible =
                                         matches!(menu_target.as_ref(), Some(ProjectHierarchyMenuTarget::ProjectItem(menu_project_item_path)) if menu_project_item_path == &tree_entry.project_item_path);
                                     let default_context_menu_position = row_response.rect.left_bottom();
@@ -965,7 +1019,74 @@ impl Widget for ProjectHierarchyView {
                                             self.project_hierarchy_view_data.clone(),
                                             &project_item_paths_for_delete,
                                         );
-
+                                        let can_copy_project_item_paths = can_delete_project_item_paths;
+                                        let can_cut_project_item_paths = can_delete_project_item_paths;
+                                        let can_promote_project_item_paths = ProjectHierarchyViewData::has_promotable_project_item_paths(
+                                            self.project_hierarchy_view_data.clone(),
+                                            &project_item_paths_for_delete,
+                                        );
+                                        let can_paste_project_items = ProjectHierarchyViewData::can_paste_project_item_clipboard(
+                                            self.project_hierarchy_view_data.clone(),
+                                            &tree_entry_project_item_path,
+                                        );
+                                        let can_convert_project_item_paths =
+                                            ProjectHierarchyViewData::has_convertible_symbol_ref_project_item_paths(
+                                                self.project_hierarchy_view_data.clone(),
+                                                &project_item_paths_for_delete,
+                                            );
+                                        let convert_project_item_menu_label =
+                                            ProjectHierarchyViewData::get_convertible_symbol_ref_action_label(
+                                                self.project_hierarchy_view_data.clone(),
+                                                &project_item_paths_for_delete,
+                                            )
+                                            .unwrap_or_else(|| "Convert to Source Item Type".to_string());
+                                        let runtime_viewer_label = if Self::should_open_project_item_in_code_viewer(
+                                            project_hierarchy_view_data.opened_project_info.as_ref(),
+                                            &tree_entry.project_item,
+                                        ) {
+                                            "Open in Code Viewer"
+                                        } else {
+                                            "Open in Memory Viewer"
+                                        };
+                                        let mut project_item_menu_labels =
+                                            pointer_scanner_context_actions.iter().map(PointerScannerContextAction::label).collect::<Vec<_>>();
+                                        let has_runtime_actions = !pointer_scanner_context_actions.is_empty()
+                                            || can_open_in_memory_viewer
+                                            || can_promote_project_item_paths
+                                            || can_convert_project_item_paths;
+                                        let has_create_actions = true;
+                                        let has_clipboard_actions =
+                                            can_cut_project_item_paths || can_copy_project_item_paths || can_paste_project_items;
+                                        let has_delete_actions = can_delete_project_item_paths;
+                                        if can_open_in_memory_viewer {
+                                            project_item_menu_labels.push(runtime_viewer_label);
+                                        }
+                                        if can_promote_project_item_paths {
+                                            project_item_menu_labels.push("Promote to Symbol");
+                                        }
+                                        if can_convert_project_item_paths {
+                                            project_item_menu_labels.push(convert_project_item_menu_label.as_str());
+                                        }
+                                        if has_create_actions {
+                                            project_item_menu_labels.extend(["New Folder", "New Address", "New Pointer", "New Symbol Ref"]);
+                                        }
+                                        if can_cut_project_item_paths {
+                                            project_item_menu_labels.push("Cut");
+                                        }
+                                        if can_copy_project_item_paths {
+                                            project_item_menu_labels.push("Copy");
+                                        }
+                                        if can_paste_project_items {
+                                            project_item_menu_labels.push("Paste");
+                                        }
+                                        if has_delete_actions {
+                                            project_item_menu_labels.push("Delete");
+                                        }
+                                        let project_item_menu_width = Self::calculate_project_item_menu_width(
+                                            self.app_context.as_ref(),
+                                            user_interface,
+                                            &project_item_menu_labels,
+                                        );
                                         ContextMenu::new(
                                             self.app_context.clone(),
                                             "project_hierarchy_context_menu",
@@ -982,7 +1103,7 @@ impl Widget for ProjectHierarchyView {
                                                                 pointer_scanner_context_action.label(),
                                                                 pointer_scanner_context_action.label(),
                                                                 &None,
-                                                                Self::PROJECT_ITEM_MENU_WIDTH,
+                                                                project_item_menu_width,
                                                             ))
                                                             .clicked()
                                                         {
@@ -1006,51 +1127,106 @@ impl Widget for ProjectHierarchyView {
                                                     }
                                                 }
 
-                                                let runtime_viewer_label = if Self::should_open_project_item_in_code_viewer(&tree_entry.project_item) {
-                                                    "Open in Code Viewer"
-                                                } else {
-                                                    "Open in Memory Viewer"
-                                                };
-
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_open_in_memory_viewer,
-                                                        ToolbarMenuItemView::new(
-                                                            self.app_context.clone(),
-                                                            runtime_viewer_label,
-                                                            "project_hierarchy_ctx_open_runtime_viewer",
-                                                            &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    let engine_execution_context: Arc<dyn EngineExecutionContext> =
-                                                        self.app_context.engine_unprivileged_state.clone();
-
-                                                    if let Some((address, module_name)) =
-                                                        Self::resolve_project_item_runtime_value_target(&engine_execution_context, &tree_entry.project_item)
-                                                    {
-                                                        project_hierarchy_frame_action = if Self::should_open_project_item_in_code_viewer(&tree_entry.project_item) {
-                                                            ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
-                                                        } else {
-                                                            ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
-                                                                address,
-                                                                module_name,
-                                                                selection_byte_count: Self::resolve_project_item_runtime_value_byte_count(
-                                                                    &self.app_context.engine_unprivileged_state,
+                                                if can_open_in_memory_viewer {
+                                                    if user_interface
+                                                        .add(
+                                                            ToolbarMenuItemView::new(
+                                                                self.app_context.clone(),
+                                                                runtime_viewer_label,
+                                                                "project_hierarchy_ctx_open_runtime_viewer",
+                                                                &None,
+                                                                project_item_menu_width,
+                                                            )
+                                                            .icon(
+                                                                if Self::should_open_project_item_in_code_viewer(
+                                                                    project_hierarchy_view_data.opened_project_info.as_ref(),
                                                                     &tree_entry.project_item,
-                                                                )
-                                                                .unwrap_or(1),
-                                                            }
+                                                                ) {
+                                                                    self.app_context.theme.icon_library.icon_handle_project_cpu_instruction.clone()
+                                                                } else {
+                                                                    self.app_context.theme.icon_library.icon_handle_scan_collect_values.clone()
+                                                                },
+                                                            ),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        let engine_execution_context: Arc<dyn EngineExecutionContext> =
+                                                            self.app_context.engine_unprivileged_state.clone();
+
+                                                        if let Some((address, module_name)) =
+                                                            Self::resolve_project_item_runtime_value_target(
+                                                                &engine_execution_context,
+                                                                project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                &tree_entry.project_item,
+                                                            )
+                                                        {
+                                                            project_hierarchy_frame_action = if Self::should_open_project_item_in_code_viewer(
+                                                                project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                &tree_entry.project_item,
+                                                            ) {
+                                                                ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name }
+                                                            } else {
+                                                                ProjectHierarchyFrameAction::OpenMemoryViewerForAddress {
+                                                                    address,
+                                                                    module_name,
+                                                                    selection_byte_count: Self::resolve_project_item_runtime_value_byte_count(
+                                                                        &self.app_context.engine_unprivileged_state,
+                                                                        project_hierarchy_view_data.opened_project_info.as_ref(),
+                                                                        &tree_entry.project_item,
+                                                                    )
+                                                                    .unwrap_or(1),
+                                                                }
+                                                            };
+                                                            *should_close = true;
+                                                        } else {
+                                                            log::error!(
+                                                                "Failed to resolve memory viewer target for project item: {:?}.",
+                                                                tree_entry_project_item_path
+                                                            );
+                                                        }
+                                                    }
+                                                }
+
+                                                if can_promote_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Promote to Symbol",
+                                                            "project_hierarchy_ctx_promote_to_symbol",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::PromoteToSymbol {
+                                                            project_item_paths: project_item_paths_for_delete.clone(),
+                                                            overwrite_conflicting_symbols: false,
                                                         };
                                                         *should_close = true;
-                                                    } else {
-                                                        log::error!(
-                                                            "Failed to resolve memory viewer target for project item: {:?}.",
-                                                            tree_entry_project_item_path
-                                                        );
                                                     }
+                                                }
+
+                                                if can_convert_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            convert_project_item_menu_label.as_str(),
+                                                            "project_hierarchy_ctx_convert_to_address_item",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
+                                                            project_item_paths: project_item_paths_for_delete.clone(),
+                                                            conversion_target: ProjectItemSymbolRefConversionTarget::Inferred,
+                                                        };
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if has_runtime_actions && has_create_actions {
+                                                    user_interface.separator();
                                                 }
 
                                                 Self::show_create_project_item_menu_items(
@@ -1058,29 +1234,95 @@ impl Widget for ProjectHierarchyView {
                                                     user_interface,
                                                     &tree_entry_project_item_path,
                                                     &mut project_hierarchy_frame_action,
+                                                    project_item_menu_width,
                                                     should_close,
                                                 );
 
-                                                if user_interface
-                                                    .add_enabled(
-                                                        can_delete_project_item_paths,
-                                                        ToolbarMenuItemView::new(
+                                                if (has_runtime_actions || has_create_actions) && has_clipboard_actions {
+                                                    user_interface.separator();
+                                                }
+
+                                                if can_cut_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Cut",
+                                                            "project_hierarchy_ctx_cut",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        )
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::CutProjectItems(project_item_paths_for_delete.clone());
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if can_copy_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            "Copy",
+                                                            "project_hierarchy_ctx_copy",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        )
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths_for_delete.clone());
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if can_paste_project_items {
+                                                    if user_interface
+                                                        .add(
+                                                            ToolbarMenuItemView::new(
+                                                                self.app_context.clone(),
+                                                                "Paste",
+                                                                "project_hierarchy_ctx_paste",
+                                                                &None,
+                                                                project_item_menu_width,
+                                                            )
+                                                            .icon(self.app_context.theme.icon_library.icon_handle_data_type_unknown.clone()),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems {
+                                                            target_project_item_path: tree_entry_project_item_path.clone(),
+                                                        };
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if (has_runtime_actions || has_create_actions || has_clipboard_actions) && has_delete_actions {
+                                                    user_interface.separator();
+                                                }
+
+                                                if has_delete_actions {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
                                                             self.app_context.clone(),
                                                             "Delete",
                                                             "project_hierarchy_ctx_delete",
                                                             &None,
-                                                            Self::PROJECT_ITEM_MENU_WIDTH,
-                                                        ),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    project_hierarchy_frame_action =
-                                                        ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete.clone());
-                                                    *should_close = true;
+                                                            project_item_menu_width,
+                                                        )
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_common_delete.clone()))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action =
+                                                            ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths_for_delete.clone());
+                                                        *should_close = true;
+                                                    }
                                                 }
                                             },
                                         )
-                                        .width(Self::PROJECT_ITEM_MENU_WIDTH)
+                                        .width(project_item_menu_width)
                                         .corner_radius(8)
                                         .show(user_interface, &mut open);
 
@@ -1123,8 +1365,11 @@ impl Widget for ProjectHierarchyView {
                             should_cancel_take_over = true;
                             return;
                         };
-                        let Some(value_edit_context) =
-                            Self::build_project_item_value_edit_context(&self.app_context.engine_unprivileged_state, &project_item)
+                        let Some(value_edit_context) = Self::build_project_item_value_edit_context(
+                            &self.app_context.engine_unprivileged_state,
+                            project_hierarchy_view_data.opened_project_info.as_ref(),
+                            &project_item,
+                        )
                         else {
                             should_cancel_take_over = true;
                             return;
@@ -1245,17 +1490,87 @@ impl Widget for ProjectHierarchyView {
                             });
                         });
                     }
+                    ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, conflicts } => {
+                        is_promote_symbol_conflict_active = true;
+                        let theme = &self.app_context.theme;
+
+                        user_interface.add_space(12.0);
+                        user_interface.vertical_centered(|user_interface| {
+                            user_interface.label(
+                                RichText::new("Overwrite conflicting rooted symbol(s)?")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            );
+                        });
+                        user_interface.add_space(8.0);
+
+                        ScrollArea::vertical()
+                            .id_salt("project_hierarchy_promote_symbol_conflicts")
+                            .max_height(180.0)
+                            .auto_shrink([false, false])
+                            .show(user_interface, |user_interface| {
+                                user_interface.vertical(|user_interface| {
+                                    for conflict in &conflicts {
+                                        user_interface.label(
+                                            RichText::new(format!(
+                                                "{} -> {} ({})",
+                                                conflict.requested_display_name, conflict.symbol_key, conflict.existing_locator_display
+                                            ))
+                                            .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
+                                            .color(theme.foreground),
+                                        );
+                                    }
+                                });
+                            });
+
+                        user_interface.add_space(8.0);
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(120.0, 28.0);
+                            let button_spacing = 12.0;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                let button_cancel = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if button_cancel.clicked() {
+                                    should_cancel_take_over = true;
+                                }
+
+                                let button_confirm_overwrite = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Overwrite").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if button_confirm_overwrite.clicked() {
+                                    promote_symbol_overwrite_project_item_paths = Some(project_item_paths);
+                                }
+                            });
+                        });
+                    }
                 }
             })
             .response;
 
-        if is_delete_confirmation_active {
+        if is_delete_confirmation_active || is_promote_symbol_conflict_active {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
                 || user_interface.input(|input_state| input_state.key_pressed(Key::Backspace))
             {
                 should_cancel_take_over = true;
             }
+        }
 
+        if is_delete_confirmation_active {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
                 delete_confirmation_project_item_paths = self
                     .project_hierarchy_view_data
@@ -1267,7 +1582,18 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
+        if is_promote_symbol_conflict_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+            promote_symbol_overwrite_project_item_paths = self
+                .project_hierarchy_view_data
+                .read("Project hierarchy confirm promote overwrite by keyboard")
+                .and_then(|project_hierarchy_view_data| match project_hierarchy_view_data.take_over_state.clone() {
+                    ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, .. } => Some(project_item_paths),
+                    _ => None,
+                });
+        }
+
         if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
@@ -1276,6 +1602,50 @@ impl Widget for ProjectHierarchyView {
         }
 
         if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::X))
+        {
+            if let Some(project_item_paths) = self
+                .project_hierarchy_view_data
+                .read("Project hierarchy keyboard cut selection")
+                .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
+                .filter(|project_item_paths| !project_item_paths.is_empty())
+            {
+                project_hierarchy_frame_action = ProjectHierarchyFrameAction::CutProjectItems(project_item_paths);
+            }
+        }
+
+        if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::C))
+        {
+            if let Some(project_item_paths) = self
+                .project_hierarchy_view_data
+                .read("Project hierarchy keyboard copy selection")
+                .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
+                .filter(|project_item_paths| !project_item_paths.is_empty())
+            {
+                project_hierarchy_frame_action = ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths);
+            }
+        }
+
+        if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::V))
+        {
+            if let Some(target_project_item_path) = ProjectHierarchyViewData::get_selected_or_root_directory_path(self.project_hierarchy_view_data.clone()) {
+                project_hierarchy_frame_action = ProjectHierarchyFrameAction::PasteProjectItems { target_project_item_path };
+            }
+        }
+
+        if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::F2))
@@ -1284,6 +1654,7 @@ impl Widget for ProjectHierarchyView {
         }
 
         if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::Space))
@@ -1344,6 +1715,15 @@ impl Widget for ProjectHierarchyView {
 
         if let Some(project_item_paths) = delete_confirmation_project_item_paths {
             ProjectHierarchyViewData::delete_project_items(self.project_hierarchy_view_data.clone(), self.app_context.clone(), project_item_paths);
+        }
+
+        if let Some(project_item_paths) = promote_symbol_overwrite_project_item_paths {
+            ProjectHierarchyViewData::promote_project_items_to_symbols(
+                self.project_hierarchy_view_data.clone(),
+                self.app_context.clone(),
+                project_item_paths,
+                true,
+            );
         }
 
         if let Some((project_item_path, project_item_type_id, edited_name)) = rename_project_item_submission {
@@ -1462,7 +1842,7 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::toggle_directory_expansion(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::SetProjectItemActivation(project_item_path, is_activated) => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1491,7 +1871,7 @@ impl Widget for ProjectHierarchyView {
                 target_project_item_path,
                 create_item_kind,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1502,12 +1882,37 @@ impl Widget for ProjectHierarchyView {
                     create_item_kind,
                 );
             }
+            ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths) => {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::copy_project_items(self.project_hierarchy_view_data.clone(), project_item_paths);
+            }
+            ProjectHierarchyFrameAction::CutProjectItems(project_item_paths) => {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::cut_project_items(self.project_hierarchy_view_data.clone(), project_item_paths);
+            }
+            ProjectHierarchyFrameAction::PasteProjectItems { target_project_item_path } => {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::paste_project_item_clipboard(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    target_project_item_path,
+                );
+            }
             ProjectHierarchyFrameAction::OpenPointerScannerForAddress {
                 address,
                 module_name,
                 data_type_id,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1518,21 +1923,50 @@ impl Widget for ProjectHierarchyView {
                 module_name,
                 selection_byte_count,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
                 self.focus_memory_viewer_for_address(address, &module_name, selection_byte_count);
             }
             ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
                 self.focus_code_viewer_for_address(address, &module_name);
             }
+            ProjectHierarchyFrameAction::PromoteToSymbol {
+                project_item_paths,
+                overwrite_conflicting_symbols,
+            } => {
+                if is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::promote_project_items_to_symbols(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    project_item_paths,
+                    overwrite_conflicting_symbols,
+                );
+            }
+            ProjectHierarchyFrameAction::ConvertSymbolRef {
+                project_item_paths,
+                conversion_target: _conversion_target,
+            } => {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                ProjectHierarchyViewData::convert_symbol_refs_to_project_items(
+                    self.project_hierarchy_view_data.clone(),
+                    self.app_context.clone(),
+                    project_item_paths,
+                );
+            }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
-                if is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1543,6 +1977,10 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::request_rename_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::RequestValueEdit(project_item_path) => {
+                if is_promote_symbol_conflict_active {
+                    return response;
+                }
+
                 if is_rename_take_over_active {
                     Self::clear_active_project_item_rename_state(user_interface, self.project_hierarchy_view_data.clone());
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
@@ -1551,7 +1989,7 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::request_value_edit_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
                     return response;
                 }
 
@@ -1567,7 +2005,8 @@ impl ProjectHierarchyView {
     const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
     const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
     const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
-    const PROJECT_ITEM_MENU_WIDTH: f32 = 220.0;
+    const MIN_PROJECT_ITEM_MENU_WIDTH: f32 = 160.0;
+    const PROJECT_ITEM_MENU_ITEM_HORIZONTAL_PADDING: f32 = 36.0;
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
@@ -1589,8 +2028,9 @@ impl ProjectHierarchyView {
         let Some(menu_position) = menu_position else {
             return;
         };
+        let create_project_item_menu_labels = ["New Folder", "New Address", "New Pointer", "New Symbol Ref"];
+        let project_item_menu_width = Self::calculate_project_item_menu_width(self.app_context.as_ref(), user_interface, &create_project_item_menu_labels);
         let mut open = true;
-
         ContextMenu::new(
             self.app_context.clone(),
             "project_hierarchy_toolbar_add_menu",
@@ -1601,11 +2041,12 @@ impl ProjectHierarchyView {
                     user_interface,
                     target_project_item_path,
                     project_hierarchy_frame_action,
+                    project_item_menu_width,
                     should_close,
                 );
             },
         )
-        .width(Self::PROJECT_ITEM_MENU_WIDTH)
+        .width(project_item_menu_width)
         .corner_radius(8)
         .show(user_interface, &mut open);
 
@@ -1619,21 +2060,44 @@ impl ProjectHierarchyView {
         user_interface: &mut Ui,
         target_project_item_path: &Path,
         project_hierarchy_frame_action: &mut ProjectHierarchyFrameAction,
+        project_item_menu_width: f32,
         should_close: &mut bool,
     ) {
         for (label, item_id, create_item_kind) in [
             ("New Folder", "project_hierarchy_ctx_new_folder", ProjectHierarchyCreateItemKind::Directory),
             ("New Address", "project_hierarchy_ctx_new_address", ProjectHierarchyCreateItemKind::Address),
             ("New Pointer", "project_hierarchy_ctx_new_pointer", ProjectHierarchyCreateItemKind::Pointer),
+            (
+                "New Symbol Ref",
+                "project_hierarchy_ctx_new_symbol_ref",
+                ProjectHierarchyCreateItemKind::SymbolRef,
+            ),
         ] {
             if user_interface
-                .add(ToolbarMenuItemView::new(
-                    app_context.clone(),
-                    label,
-                    item_id,
-                    &None,
-                    Self::PROJECT_ITEM_MENU_WIDTH,
-                ))
+                .add(
+                    ToolbarMenuItemView::new(app_context.clone(), label, item_id, &None, project_item_menu_width).icon(match create_item_kind {
+                        ProjectHierarchyCreateItemKind::Directory => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_file_system_open_folder
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::Address => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_data_type_blue_blocks_4
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::Pointer => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_project_pointer_type
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::SymbolRef => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_data_type_unknown
+                            .clone(),
+                    }),
+                )
                 .clicked()
             {
                 *project_hierarchy_frame_action = ProjectHierarchyFrameAction::CreateProjectItem {
@@ -1643,6 +2107,38 @@ impl ProjectHierarchyView {
                 *should_close = true;
             }
         }
+    }
+
+    fn calculate_project_item_menu_width(
+        app_context: &AppContext,
+        user_interface: &mut Ui,
+        item_labels: &[&str],
+    ) -> f32 {
+        let mut longest_label_width: f32 = 0.0;
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            for item_label in item_labels {
+                let galley = fonts.layout_no_wrap(
+                    (*item_label).to_string(),
+                    app_context
+                        .theme
+                        .font_library
+                        .font_noto_sans
+                        .font_normal
+                        .clone(),
+                    app_context.theme.foreground,
+                );
+                longest_label_width = longest_label_width.max(galley.size().x);
+            }
+        });
+
+        Self::project_item_menu_width_from_longest_label_width(longest_label_width)
+    }
+
+    fn project_item_menu_width_from_longest_label_width(longest_label_width: f32) -> f32 {
+        (longest_label_width + Self::PROJECT_ITEM_MENU_ITEM_HORIZONTAL_PADDING)
+            .ceil()
+            .max(Self::MIN_PROJECT_ITEM_MENU_WIDTH)
     }
 
     fn resolve_drop_target(
@@ -1860,7 +2356,12 @@ impl ProjectHierarchyView {
                             .iter()
                             .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
                             .and_then(|(_, project_item)| {
-                                Self::build_project_item_virtual_snapshot_query(&project_item_path, project_item, &self.app_context.engine_unprivileged_state)
+                                Self::build_project_item_virtual_snapshot_query(
+                                    project_hierarchy_view_data.opened_project_info.as_ref(),
+                                    &project_item_path,
+                                    project_item,
+                                    &self.app_context.engine_unprivileged_state,
+                                )
                             })
                     })
                     .collect::<Vec<VirtualSnapshotQuery>>()
@@ -1897,11 +2398,16 @@ impl ProjectHierarchyView {
                         let query_result = virtual_snapshot.get_query_results().get(&query_id)?;
                         let preview_value = Self::build_project_item_preview_value_from_virtual_snapshot_result(
                             &self.app_context.engine_unprivileged_state,
+                            project_hierarchy_view_data.opened_project_info.as_ref(),
                             project_item,
                             query_result,
                         );
                         let preview_path = if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
                             query_result.evaluated_pointer_path.clone()
+                        } else if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+                            Self::resolve_project_rooted_symbol(project_hierarchy_view_data.opened_project_info.as_ref(), project_item)
+                                .map(|rooted_symbol| rooted_symbol.get_root_locator().to_string())
+                                .unwrap_or_default()
                         } else {
                             String::new()
                         };
@@ -1923,16 +2429,19 @@ impl ProjectHierarchyView {
             .read("Project hierarchy selected project items for struct viewer focus")
             .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
             .unwrap_or_default();
-        let selected_project_items = self
+        let (selected_project_items, opened_project_info) = self
             .project_hierarchy_view_data
             .read("Project hierarchy selected project item data for struct viewer focus")
             .map(|project_hierarchy_view_data| {
-                project_hierarchy_view_data
-                    .project_items
-                    .iter()
-                    .filter(|(project_item_ref, _)| selected_project_item_paths.contains(project_item_ref.get_project_item_path()))
-                    .map(|(_, project_item)| project_item.clone())
-                    .collect::<Vec<ProjectItem>>()
+                (
+                    project_hierarchy_view_data
+                        .project_items
+                        .iter()
+                        .filter(|(project_item_ref, _)| selected_project_item_paths.contains(project_item_ref.get_project_item_path()))
+                        .map(|(_, project_item)| project_item.clone())
+                        .collect::<Vec<ProjectItem>>(),
+                    project_hierarchy_view_data.opened_project_info.clone(),
+                )
             })
             .unwrap_or_default();
 
@@ -1949,23 +2458,29 @@ impl ProjectHierarchyView {
 
         if selected_project_items.len() == 1 {
             if let Some(selected_project_item) = selected_project_items.into_iter().next() {
-                StructViewerViewData::focus_valued_struct(
+                StructViewerViewData::focus_valued_struct_with_focus_target(
                     self.struct_viewer_view_data.clone(),
                     self.app_context.engine_unprivileged_state.clone(),
-                    Self::build_struct_view_properties(&selected_project_item),
+                    Self::build_struct_view_properties(opened_project_info.as_ref(), &selected_project_item),
                     callback,
+                    Some(StructViewerFocusTarget::ProjectHierarchy {
+                        project_item_paths: selected_project_item_paths,
+                    }),
                 );
             }
         } else {
             let selected_project_item_properties = selected_project_items
                 .into_iter()
-                .map(|selected_project_item| Self::build_struct_view_properties(&selected_project_item))
+                .map(|selected_project_item| Self::build_struct_view_properties(opened_project_info.as_ref(), &selected_project_item))
                 .collect::<Vec<_>>();
-            StructViewerViewData::focus_valued_structs(
+            StructViewerViewData::focus_valued_structs_with_focus_target(
                 self.struct_viewer_view_data.clone(),
                 self.app_context.engine_unprivileged_state.clone(),
                 selected_project_item_properties,
                 callback,
+                Some(StructViewerFocusTarget::ProjectHierarchy {
+                    project_item_paths: selected_project_item_paths,
+                }),
             );
         }
     }
@@ -2006,6 +2521,7 @@ impl ProjectHierarchyView {
                 return;
             }
         };
+        let opened_project_info = opened_project.get_project_info().clone();
         let root_project_item_path = opened_project
             .get_project_root_ref()
             .get_project_item_path()
@@ -2050,7 +2566,7 @@ impl ProjectHierarchyView {
             if let Some(memory_write_request) = Self::build_memory_write_request_for_project_item_edit(project_item, &edited_field) {
                 memory_write_requests.push(memory_write_request);
             } else if let Some(memory_write_request) =
-                Self::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, project_item, &edited_field)
+                Self::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, Some(&opened_project_info), project_item, &edited_field)
             {
                 memory_write_requests.push(memory_write_request);
             }
@@ -2123,6 +2639,7 @@ impl ProjectHierarchyView {
 
     fn build_memory_write_request_for_runtime_value_edit(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
         edited_field: &ValuedStructField,
     ) -> Option<MemoryWriteRequest> {
@@ -2156,17 +2673,33 @@ impl ProjectHierarchyView {
             });
         }
 
+        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            let rooted_symbol = Self::resolve_project_rooted_symbol(opened_project_info, project_item)?;
+
+            return Some(MemoryWriteRequest {
+                address: rooted_symbol.get_root_locator().get_focus_address(),
+                module_name: rooted_symbol
+                    .get_root_locator()
+                    .get_focus_module_name()
+                    .to_string(),
+                value: edited_data_value.get_value_bytes().clone(),
+            });
+        }
+
         None
     }
 
-    fn build_pointer_scanner_context_actions(project_item: &ProjectItem) -> Vec<PointerScannerContextAction> {
+    fn build_pointer_scanner_context_actions(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> Vec<PointerScannerContextAction> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
             let mut project_item = project_item.clone();
 
             return vec![PointerScannerContextAction::Address {
-                label: "Pointer Scan",
+                label: "Open in Pointer Scan",
                 address: ProjectItemTypeAddress::get_field_address(&mut project_item),
                 module_name: ProjectItemTypeAddress::get_field_module(&mut project_item),
                 data_type_id: ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item)
@@ -2191,26 +2724,48 @@ impl ProjectHierarchyView {
 
             return vec![
                 PointerScannerContextAction::Address {
-                    label: "Pointer Scan for Base Address",
+                    label: "Open Base Address in Pointer Scan",
                     address: pointer.get_address(),
                     module_name: pointer.get_module_name().to_string(),
                     data_type_id: data_type_id.clone(),
                 },
                 PointerScannerContextAction::ResolvedPointer {
-                    label: "Pointer Scan for Resolved Address",
+                    label: "Open Resolved Address in Pointer Scan",
                     pointer,
                     data_type_id,
                 },
             ];
         }
 
+        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            let Some(rooted_symbol) = Self::resolve_project_rooted_symbol(opened_project_info, project_item) else {
+                return Vec::new();
+            };
+
+            return vec![PointerScannerContextAction::Address {
+                label: "Open in Pointer Scan",
+                address: rooted_symbol.get_root_locator().get_focus_address(),
+                module_name: rooted_symbol
+                    .get_root_locator()
+                    .get_focus_module_name()
+                    .to_string(),
+                data_type_id: rooted_symbol.get_struct_layout_id().to_string(),
+            }];
+        }
+
         Vec::new()
     }
 
-    fn can_open_project_item_in_memory_viewer(project_item: &ProjectItem) -> bool {
+    fn can_open_project_item_in_memory_viewer(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> bool {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
-        project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+        project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
+            || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+            || (project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
+                && Self::resolve_project_rooted_symbol(opened_project_info, project_item).is_some())
     }
 
     fn resolve_pointer_scanner_context_action(
@@ -2232,32 +2787,57 @@ impl ProjectHierarchyView {
         }
     }
 
-    fn build_struct_view_properties(project_item: &ProjectItem) -> ValuedStruct {
-        let properties = project_item.get_properties();
+    fn build_struct_view_properties(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> ValuedStruct {
+        let mut fields = project_item
+            .get_properties()
+            .get_fields()
+            .iter()
+            .map(|valued_struct_field| {
+                let is_runtime_value_field = Self::is_runtime_value_field(valued_struct_field.get_name());
 
-        ValuedStruct::new_anonymous(
-            properties
-                .get_fields()
-                .iter()
-                .map(|valued_struct_field| {
-                    let is_runtime_value_field = Self::is_runtime_value_field(valued_struct_field.get_name());
+                ValuedStructField::new(
+                    valued_struct_field.get_name().to_string(),
+                    valued_struct_field.get_field_data().clone(),
+                    if is_runtime_value_field {
+                        false
+                    } else {
+                        valued_struct_field.get_is_read_only()
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
 
-                    ValuedStructField::new(
-                        valued_struct_field.get_name().to_string(),
-                        valued_struct_field.get_field_data().clone(),
-                        if is_runtime_value_field {
-                            false
-                        } else {
-                            valued_struct_field.get_is_read_only()
-                        },
-                    )
-                })
-                .collect(),
-        )
+        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            if let Some(rooted_symbol) = Self::resolve_project_rooted_symbol(opened_project_info, project_item) {
+                let (address, module_name) = match rooted_symbol.get_root_locator() {
+                    ProjectRootSymbolLocator::AbsoluteAddress { address } => (*address, String::new()),
+                    ProjectRootSymbolLocator::ModuleOffset { module_name, offset } => (*offset, module_name.clone()),
+                };
+
+                fields.push(
+                    DataTypeU64::get_value_from_primitive(address).to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(), true),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&module_name)
+                        .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_MODULE.to_string(), true),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(rooted_symbol.get_struct_layout_id())
+                        .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
+                );
+            }
+        }
+
+        ValuedStruct::new_anonymous(fields)
     }
 
     fn is_runtime_value_field(field_name: &str) -> bool {
-        field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
+        field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
+            || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
+            || field_name == ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE
     }
 
     fn resolve_pointer_write_target(
@@ -2503,8 +3083,11 @@ impl ProjectHierarchyView {
         }
     }
 
-    fn should_open_project_item_in_code_viewer(project_item: &ProjectItem) -> bool {
-        Self::resolve_project_item_symbolic_struct_namespace(project_item)
+    fn should_open_project_item_in_code_viewer(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> bool {
+        Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)
             .and_then(|symbolic_struct_namespace| normalize_instruction_data_type_id(&symbolic_struct_namespace))
             .map(|data_type_id| matches!(data_type_id.as_str(), "i_x86" | "i_x64"))
             .unwrap_or(false)
@@ -2512,6 +3095,7 @@ impl ProjectHierarchyView {
 
     fn resolve_tree_entry_icon(
         app_context: Arc<AppContext>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<TextureHandle> {
         let icon_library = &app_context.theme.icon_library;
@@ -2520,13 +3104,16 @@ impl ProjectHierarchyView {
         if project_item_type_id == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
             Some(icon_library.icon_handle_file_system_open_folder.clone())
         } else {
-            let icon_data_type_id = Self::resolve_project_item_icon_data_type_id(project_item).unwrap_or_default();
+            let icon_data_type_id = Self::resolve_project_item_icon_data_type_id(opened_project_info, project_item).unwrap_or_default();
 
             Some(DataTypeToIconConverter::convert_data_type_to_icon(&icon_data_type_id, icon_library))
         }
     }
 
-    fn resolve_project_item_icon_data_type_id(project_item: &ProjectItem) -> Option<String> {
+    fn resolve_project_item_icon_data_type_id(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> Option<String> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
@@ -2545,6 +3132,11 @@ impl ProjectHierarchyView {
                     .get_symbolic_struct_namespace()
                     .to_string()
             });
+        }
+
+        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return Self::resolve_project_rooted_symbol(opened_project_info, project_item)
+                .map(|rooted_symbol| rooted_symbol.get_struct_layout_id().to_string());
         }
 
         None
@@ -2685,6 +3277,7 @@ impl ProjectHierarchyView {
 
     fn build_project_item_value_edit_context(
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<ProjectItemValueEditContext> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -2692,23 +3285,17 @@ impl ProjectHierarchyView {
             ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
+        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE
         } else {
             return None;
         };
         let value_field = project_item.get_properties().get_field(value_field_name)?;
         let value_data_value = value_field.get_data_value()?;
-        let symbolic_struct_definition_reference_field = project_item
-            .get_properties()
-            .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE);
-        let symbolic_struct_namespace = symbolic_struct_definition_reference_field.and_then(|valued_struct_field| {
-            valued_struct_field
-                .get_data_value()
-                .and_then(|data_value| String::from_utf8(data_value.get_value_bytes().clone()).ok())
-                .map(|symbolic_struct_namespace| symbolic_struct_namespace.trim().to_string())
-                .filter(|symbolic_struct_namespace| !symbolic_struct_namespace.is_empty())
-        });
-        let symbolic_field_definition =
-            symbolic_struct_definition_reference_field.and_then(StructViewerViewData::read_symbolic_field_definition_reference_from_field_set);
+        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item);
+        let symbolic_field_definition = symbolic_struct_namespace
+            .as_deref()
+            .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(symbolic_struct_namespace).ok());
         let validation_data_type_ref = symbolic_field_definition
             .as_ref()
             .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
@@ -2721,7 +3308,7 @@ impl ProjectHierarchyView {
         let initial_value_edit = symbolic_struct_namespace
             .as_deref()
             .and_then(|symbolic_struct_namespace| {
-                Self::read_project_item_runtime_value_from_memory(&engine_execution_context, project_item, symbolic_struct_namespace)
+                Self::read_project_item_runtime_value_from_memory(&engine_execution_context, opened_project_info, project_item, symbolic_struct_namespace)
             })
             .unwrap_or_else(|| {
                 let raw_display_value = String::from_utf8(value_data_value.get_value_bytes().clone()).unwrap_or_default();
@@ -2739,10 +3326,11 @@ impl ProjectHierarchyView {
 
     fn read_project_item_runtime_value_from_memory(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
         symbolic_struct_namespace: &str,
     ) -> Option<AnonymousValueString> {
-        let (address, module_name) = Self::resolve_project_item_runtime_value_target(engine_execution_context, project_item)?;
+        let (address, module_name) = Self::resolve_project_item_runtime_value_target(engine_execution_context, opened_project_info, project_item)?;
         let symbolic_struct_definition = engine_execution_context.resolve_struct_layout_definition(symbolic_struct_namespace)?;
         let memory_read_response = Self::dispatch_memory_read_request(engine_execution_context, address, &module_name, &symbolic_struct_definition)?;
 
@@ -2764,6 +3352,7 @@ impl ProjectHierarchyView {
 
     fn resolve_project_item_runtime_value_target(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<(u64, String)> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -2781,6 +3370,18 @@ impl ProjectHierarchyView {
             let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
 
             return Self::resolve_pointer_write_target(engine_execution_context, &pointer);
+        }
+
+        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            let rooted_symbol = Self::resolve_project_rooted_symbol(opened_project_info, project_item)?;
+
+            return Some((
+                rooted_symbol.get_root_locator().get_focus_address(),
+                rooted_symbol
+                    .get_root_locator()
+                    .get_focus_module_name()
+                    .to_string(),
+            ));
         }
 
         None
@@ -2801,12 +3402,13 @@ impl ProjectHierarchyView {
     }
 
     fn build_project_item_virtual_snapshot_query(
+        opened_project_info: Option<&ProjectInfo>,
         project_item_path: &Path,
         project_item: &ProjectItem,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> Option<VirtualSnapshotQuery> {
         let query_id = project_item_path.to_string_lossy().to_string();
-        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(project_item)?;
+        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)?;
         let symbolic_struct_definition = Self::build_project_item_preview_symbolic_struct_definition(engine_unprivileged_state, &symbolic_struct_namespace)?;
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
@@ -2825,6 +3427,20 @@ impl ProjectHierarchyView {
             return Some(VirtualSnapshotQuery::Pointer {
                 query_id,
                 pointer: ProjectItemTypePointer::get_field_pointer(project_item),
+                symbolic_struct_definition,
+            });
+        }
+
+        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            let rooted_symbol = Self::resolve_project_rooted_symbol(opened_project_info, project_item)?;
+
+            return Some(VirtualSnapshotQuery::Address {
+                query_id,
+                address: rooted_symbol.get_root_locator().get_focus_address(),
+                module_name: rooted_symbol
+                    .get_root_locator()
+                    .get_focus_module_name()
+                    .to_string(),
                 symbolic_struct_definition,
             });
         }
@@ -2862,6 +3478,7 @@ impl ProjectHierarchyView {
 
     fn build_project_item_preview_value_from_virtual_snapshot_result(
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
         virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
     ) -> String {
@@ -2884,8 +3501,8 @@ impl ProjectHierarchyView {
 
         let default_anonymous_value_string_format =
             engine_unprivileged_state.get_default_anonymous_value_string_format(first_read_field_data_value.get_data_type_ref());
-        let symbolic_field_container_type = Self::resolve_project_item_symbolic_container_type(project_item);
-        let preview_was_truncated = Self::project_item_preview_was_truncated(project_item);
+        let symbolic_field_container_type = Self::resolve_project_item_symbolic_container_type(opened_project_info, project_item);
+        let preview_was_truncated = Self::project_item_preview_was_truncated(opened_project_info, project_item);
 
         engine_unprivileged_state
             .anonymize_value(first_read_field_data_value, default_anonymous_value_string_format)
@@ -2895,7 +3512,26 @@ impl ProjectHierarchyView {
             .unwrap_or_default()
     }
 
-    fn resolve_project_item_symbolic_struct_namespace(project_item: &ProjectItem) -> Option<String> {
+    fn resolve_project_rooted_symbol<'a>(
+        opened_project_info: Option<&'a ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> Option<&'a ProjectRootSymbol> {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return None;
+        }
+
+        let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+        let project_symbol_catalog = opened_project_info?.get_project_symbol_catalog();
+
+        project_symbol_catalog.find_rooted_symbol(&symbol_key)
+    }
+
+    fn resolve_project_item_symbolic_struct_namespace(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> Option<String> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
@@ -2916,18 +3552,29 @@ impl ProjectHierarchyView {
             });
         }
 
+        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            return Self::resolve_project_rooted_symbol(opened_project_info, project_item)
+                .map(|rooted_symbol| rooted_symbol.get_struct_layout_id().to_string());
+        }
+
         None
     }
 
-    fn resolve_project_item_symbolic_container_type(project_item: &ProjectItem) -> ContainerType {
-        Self::resolve_project_item_symbolic_struct_namespace(project_item)
+    fn resolve_project_item_symbolic_container_type(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> ContainerType {
+        Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)
             .and_then(|symbolic_struct_namespace| SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok())
             .map(|symbolic_field_definition| symbolic_field_definition.get_container_type())
             .unwrap_or(ContainerType::None)
     }
 
-    fn project_item_preview_was_truncated(project_item: &ProjectItem) -> bool {
-        let Some(symbolic_struct_namespace) = Self::resolve_project_item_symbolic_struct_namespace(project_item) else {
+    fn project_item_preview_was_truncated(
+        opened_project_info: Option<&ProjectInfo>,
+        project_item: &ProjectItem,
+    ) -> bool {
+        let Some(symbolic_struct_namespace) = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item) else {
             return false;
         };
         let Some(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok() else {
@@ -2942,25 +3589,21 @@ impl ProjectHierarchyView {
 
     fn resolve_project_item_runtime_value_byte_count(
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<u64> {
-        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(project_item)?;
+        let symbolic_struct_namespace = Self::resolve_project_item_symbolic_struct_namespace(opened_project_info, project_item)?;
         let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbolic_struct_namespace).ok()?;
-        let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            _ => engine_unprivileged_state
-                .get_default_value(symbolic_field_definition.get_data_type_ref())?
-                .get_size_in_bytes(),
-        };
+        let unit_size_in_bytes = engine_unprivileged_state
+            .get_default_value(symbolic_field_definition.get_data_type_ref())
+            .map(|default_value| default_value.get_size_in_bytes())
+            .unwrap_or(1);
 
-        Some(match symbolic_field_definition.get_container_type() {
-            ContainerType::None => unit_size_in_bytes,
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            ContainerType::Array => unit_size_in_bytes,
-            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length.max(1)),
-        })
+        Some(
+            symbolic_field_definition
+                .get_container_type()
+                .get_total_size_in_bytes(unit_size_in_bytes),
+        )
     }
 
     fn format_project_item_preview_value(

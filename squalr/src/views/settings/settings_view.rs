@@ -6,7 +6,7 @@ use crate::{
         settings_tab_general_view::SettingsTabGeneralView, settings_tab_memory_view::SettingsTabMemoryView, settings_tab_scan_view::SettingsTabScanView,
     },
 };
-use eframe::egui::{Align, Layout, Response, Ui, Widget};
+use eframe::egui::{Align, Layout, Response, ScrollArea, Ui, Widget};
 use std::{
     rc::Rc,
     sync::{
@@ -57,18 +57,22 @@ impl Widget for SettingsView {
                 let tab_menu = TabMenuView::new(self.app_context.clone(), &self.tab_menu_data);
 
                 user_interface.add(tab_menu);
-
-                match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
-                    1 => {
-                        user_interface.add(self.settings_tab_memory_view.as_ref().clone());
-                    }
-                    2 => {
-                        user_interface.add(self.settings_tab_scan_view.as_ref().clone());
-                    }
-                    _ => {
-                        user_interface.add(self.settings_tab_general_view.as_ref().clone());
-                    }
-                }
+                ScrollArea::vertical()
+                    .id_salt("settings_view_tabs")
+                    .auto_shrink([false, false])
+                    .show(user_interface, |user_interface| {
+                        match self.tab_menu_data.active_tab_index.load(Ordering::Acquire) {
+                            1 => {
+                                user_interface.add(self.settings_tab_memory_view.as_ref().clone());
+                            }
+                            2 => {
+                                user_interface.add(self.settings_tab_scan_view.as_ref().clone());
+                            }
+                            _ => {
+                                user_interface.add(self.settings_tab_general_view.as_ref().clone());
+                            }
+                        }
+                    });
             })
             .response;
 

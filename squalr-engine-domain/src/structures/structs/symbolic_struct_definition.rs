@@ -29,6 +29,10 @@ impl SymbolicStructDefinition {
         &self.symbol_namespace
     }
 
+    pub fn get_fields(&self) -> &[SymbolicFieldDefinition] {
+        &self.fields
+    }
+
     pub fn add_field(
         &mut self,
         symbolic_struct_field: SymbolicFieldDefinition,

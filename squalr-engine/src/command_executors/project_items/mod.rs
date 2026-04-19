@@ -1,10 +1,14 @@
 pub mod activate;
 pub mod add;
+pub mod convert_symbol_ref;
 pub mod create;
 pub mod delete;
+pub mod duplicate;
 pub mod list;
 pub mod move_item;
 pub mod project_item_sort_order;
+pub mod project_item_symbol_resolution;
 pub mod project_items_executor;
+pub mod promote_symbol;
 pub mod rename;
 pub mod reorder;

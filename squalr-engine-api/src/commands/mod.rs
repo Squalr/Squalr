@@ -8,6 +8,7 @@ pub mod privileged_command_result;
 pub mod process;
 pub mod project;
 pub mod project_items;
+pub mod project_symbols;
 pub mod registry;
 pub mod scan;
 pub mod scan_results;

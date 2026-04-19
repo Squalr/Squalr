@@ -1,10 +1,29 @@
-use crate::views::memory_viewer::pane_state::MemoryViewerPaneState;
+use crate::views::memory_viewer::pane_state::{MemoryViewerInputMode, MemoryViewerPaneState};
 
 pub fn build_memory_viewer_summary_lines(memory_viewer_pane_state: &MemoryViewerPaneState) -> Vec<String> {
+    let action_line = match memory_viewer_pane_state.input_mode {
+        MemoryViewerInputMode::Normal => {
+            String::from("[ACT] r refresh | g// seek | [/] page | Arrows move | Shift extend | PgUp/PgDn jump | Ctrl+A page | Hex edit.")
+        }
+        MemoryViewerInputMode::SeekInput => String::from("[SEEK] Enter commit | Esc cancel | Backspace delete | Ctrl+U clear."),
+    };
+    let selection_text = memory_viewer_pane_state
+        .selection_summary()
+        .map(|selection_summary| selection_summary.selection_display_text)
+        .unwrap_or_else(|| String::from("none"));
+    let selected_byte_count = memory_viewer_pane_state
+        .get_selected_address_bounds()
+        .map(|(selection_start_address, selection_end_address)| {
+            selection_end_address
+                .saturating_sub(selection_start_address)
+                .saturating_add(1)
+        })
+        .unwrap_or(0);
+
     let mut summary_lines = vec![
-        String::from("[ACT] r refresh pages | [/] page | Home/End first/last page | Up/Down row | PgUp/PgDn jump."),
+        action_line,
         format!(
-            "[PAGE] index={} / {} | rows={} | selected_row={} | mode={:?} | loading={}.",
+            "[PAGE] index={} / {} | rows={} | row={} | mode={:?} | loading={}.",
             memory_viewer_pane_state.current_page_index.saturating_add(1),
             memory_viewer_pane_state
                 .cached_last_page_index
@@ -15,14 +34,21 @@ pub fn build_memory_viewer_summary_lines(memory_viewer_pane_state: &MemoryViewer
             memory_viewer_pane_state.is_querying_memory_pages
         ),
         format!(
-            "[ADDR] page_base={} | row_addr={} | viewport_rows={}.",
+            "[ADDR] page_base={} | row_start={} | cursor={} | selection={} | bytes={}.",
             option_hex(memory_viewer_pane_state.current_page_base_address()),
             option_hex(memory_viewer_pane_state.selected_row_address()),
-            memory_viewer_pane_state.last_visible_row_capacity
+            option_hex(memory_viewer_pane_state.selected_cursor_address()),
+            selection_text,
+            selected_byte_count
         ),
-        format!("[STAT] {}.", memory_viewer_pane_state.stats_string),
-        format!("[INFO] {}.", memory_viewer_pane_state.status_message),
     ];
+
+    if memory_viewer_pane_state.input_mode == MemoryViewerInputMode::SeekInput {
+        summary_lines.push(format!("[INP] goto={}.", memory_viewer_pane_state.pending_seek_input));
+    }
+
+    summary_lines.push(format!("[STAT] {}.", memory_viewer_pane_state.stats_string));
+    summary_lines.push(format!("[INFO] {}.", memory_viewer_pane_state.status_message));
 
     if memory_viewer_pane_state.virtual_pages.is_empty() {
         summary_lines.insert(1, String::from("[PAGE] No memory pages loaded."));

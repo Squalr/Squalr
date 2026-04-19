@@ -8,8 +8,9 @@ use crate::{
         },
     },
     views::memory_viewer::{
-        memory_viewer_footer_view::MemoryViewerFooterView, memory_viewer_interpretation_panel_view::MemoryViewerInterpretationPanelView,
-        view_data::memory_viewer_view_data::MemoryViewerViewData,
+        memory_viewer_footer_view::MemoryViewerFooterView,
+        memory_viewer_interpretation_panel_view::MemoryViewerInterpretationPanelView,
+        view_data::memory_viewer_view_data::{MemoryViewerEditCursorLane, MemoryViewerEditState, MemoryViewerViewData},
     },
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData,
 };
@@ -45,6 +46,12 @@ struct MemoryViewerColumnLayout {
     ascii_columns_right: f32,
 }
 
+#[derive(Clone, Copy)]
+struct MemoryViewerPointerTarget {
+    byte_address: u64,
+    edit_cursor_lane: MemoryViewerEditCursorLane,
+}
+
 impl MemoryViewerView {
     const GO_TO_ADDRESS_INPUT_ID: &'static str = "memory_viewer_go_to_address";
     pub const WINDOW_ID: &'static str = "window_memory_viewer";
@@ -54,7 +61,7 @@ impl MemoryViewerView {
     const CONTENT_HEADER_HEIGHT: f32 = 26.0;
     const CONTENT_HEADER_SEPARATOR_HEIGHT: f32 = 3.0;
     const ROW_HEIGHT: f32 = 20.0;
-    const ADDRESS_COLUMN_WIDTH: f32 = 126.0;
+    const ADDRESS_COLUMN_WIDTH: f32 = 128.0;
     const HEX_CELL_WIDTH: f32 = 22.0;
     const ASCII_CELL_WIDTH: f32 = 10.0;
     const HEX_COLUMN_LEFT_PADDING: f32 = 8.0;
@@ -84,8 +91,8 @@ impl MemoryViewerView {
             project_hierarchy_view_data,
         };
 
-        MemoryViewerViewData::refresh_memory_pages(instance.memory_viewer_view_data.clone(), instance.app_context.engine_unprivileged_state.clone());
         instance.listen_for_process_change();
+        MemoryViewerViewData::refresh_memory_pages(instance.memory_viewer_view_data.clone(), instance.app_context.engine_unprivileged_state.clone());
 
         instance
     }
@@ -96,9 +103,14 @@ impl MemoryViewerView {
 
         self.app_context
             .engine_unprivileged_state
-            .listen_for_engine_event::<ProcessChangedEvent>(move |_process_changed_event| {
-                MemoryViewerViewData::clear_for_process_change(memory_viewer_view_data.clone(), engine_unprivileged_state.clone());
-                MemoryViewerViewData::refresh_memory_pages(memory_viewer_view_data.clone(), engine_unprivileged_state.clone());
+            .listen_for_engine_event::<ProcessChangedEvent>(move |process_changed_event| {
+                let should_refresh_memory_pages = process_changed_event.process_info.is_some();
+
+                MemoryViewerViewData::clear_for_process_change(memory_viewer_view_data.clone(), engine_unprivileged_state.clone(), should_refresh_memory_pages);
+
+                if should_refresh_memory_pages {
+                    MemoryViewerViewData::refresh_memory_pages(memory_viewer_view_data.clone(), engine_unprivileged_state.clone());
+                }
             });
     }
 
@@ -157,13 +169,13 @@ impl MemoryViewerView {
         }
     }
 
-    fn resolve_byte_address_for_pointer(
+    fn resolve_pointer_target_for_pointer(
         normalized_region: &squalr_engine_api::structures::memory::normalized_region::NormalizedRegion,
         row_index: usize,
         row_rect: Rect,
         hex_ascii_splitter_position_x: f32,
         pointer_position: Pos2,
-    ) -> Option<u64> {
+    ) -> Option<MemoryViewerPointerTarget> {
         if !row_rect.contains(pointer_position) {
             return None;
         }
@@ -174,10 +186,16 @@ impl MemoryViewerView {
             (column_layout.hex_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::HEX_CELL_WIDTH)).min(column_layout.hex_columns_right);
         let visible_ascii_right =
             (column_layout.ascii_columns_left + (MemoryViewerViewData::BYTES_PER_ROW as f32 * Self::ASCII_CELL_WIDTH)).min(column_layout.ascii_columns_right);
-        let column_index = if pointer_position.x >= column_layout.hex_columns_left && pointer_position.x < visible_hex_right {
-            ((pointer_position.x - column_layout.hex_columns_left) / Self::HEX_CELL_WIDTH).floor() as u64
+        let (column_index, edit_cursor_lane) = if pointer_position.x >= column_layout.hex_columns_left && pointer_position.x < visible_hex_right {
+            (
+                ((pointer_position.x - column_layout.hex_columns_left) / Self::HEX_CELL_WIDTH).floor() as u64,
+                MemoryViewerEditCursorLane::Hexadecimal,
+            )
         } else if pointer_position.x >= column_layout.ascii_columns_left && pointer_position.x < visible_ascii_right {
-            ((pointer_position.x - column_layout.ascii_columns_left) / Self::ASCII_CELL_WIDTH).floor() as u64
+            (
+                ((pointer_position.x - column_layout.ascii_columns_left) / Self::ASCII_CELL_WIDTH).floor() as u64,
+                MemoryViewerEditCursorLane::String,
+            )
         } else {
             return None;
         };
@@ -188,7 +206,10 @@ impl MemoryViewerView {
             return None;
         }
 
-        Some(normalized_region.get_base_address().saturating_add(byte_offset))
+        Some(MemoryViewerPointerTarget {
+            byte_address: normalized_region.get_base_address().saturating_add(byte_offset),
+            edit_cursor_lane,
+        })
     }
 
     fn draw_selection_background(
@@ -303,17 +324,18 @@ impl MemoryViewerView {
     fn build_hex_text(
         byte_value: Option<u8>,
         byte_address: u64,
-        hex_edit_state: Option<&crate::views::memory_viewer::view_data::memory_viewer_view_data::MemoryViewerHexEditState>,
+        edit_state: Option<&MemoryViewerEditState>,
     ) -> String {
-        let Some(hex_edit_state) = hex_edit_state else {
+        let Some(edit_state) = edit_state else {
             return Self::format_hex_cell(byte_value);
         };
 
-        if hex_edit_state.cursor_address != byte_address || hex_edit_state.active_nibble_index != 1 {
+        if edit_state.active_lane != MemoryViewerEditCursorLane::Hexadecimal || edit_state.cursor_address != byte_address || edit_state.active_nibble_index != 1
+        {
             return Self::format_hex_cell(byte_value);
         }
 
-        let Some(pending_high_nibble) = hex_edit_state.pending_high_nibble else {
+        let Some(pending_high_nibble) = edit_state.pending_high_nibble else {
             return Self::format_hex_cell(byte_value);
         };
 
@@ -341,6 +363,19 @@ impl MemoryViewerView {
         );
     }
 
+    fn draw_string_edit_caret(
+        user_interface: &Ui,
+        ascii_rect: Rect,
+        caret_color: EpaintColor32,
+    ) {
+        user_interface.painter().rect_stroke(
+            ascii_rect.shrink2(vec2(1.0, 1.5)),
+            CornerRadius::same(2),
+            Stroke::new(1.0, caret_color),
+            epaint::StrokeKind::Inside,
+        );
+    }
+
     fn dispatch_memory_write(
         &self,
         write_start_address: u64,
@@ -361,7 +396,7 @@ impl MemoryViewerView {
                 MemoryViewerViewData::apply_memory_write(memory_viewer_view_data.clone(), write_start_address, &written_bytes_for_refresh);
                 engine_unprivileged_state_for_callback.request_virtual_snapshot_refresh(MemoryViewerViewData::WINDOW_VIRTUAL_SNAPSHOT_ID);
             } else {
-                log::warn!("Memory viewer hex edit memory write command failed.");
+                log::warn!("Memory viewer edit memory write command failed.");
             }
         });
     }
@@ -545,7 +580,7 @@ impl Widget for MemoryViewerView {
                 }
 
                 if memory_viewer_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(Key::Backspace)) {
-                    MemoryViewerViewData::handle_hex_edit_backspace(self.memory_viewer_view_data.clone());
+                    MemoryViewerViewData::handle_edit_backspace(self.memory_viewer_view_data.clone());
                 }
 
                 if memory_viewer_has_keyboard_focus {
@@ -592,12 +627,8 @@ impl Widget for MemoryViewerView {
                     });
 
                     for typed_text in typed_hex_characters {
-                        for typed_character in typed_text.chars() {
-                            if let Some((write_start_address, written_bytes)) =
-                                MemoryViewerViewData::append_hex_edit_character(self.memory_viewer_view_data.clone(), typed_character)
-                            {
-                                self.dispatch_memory_write(write_start_address, written_bytes);
-                            }
+                        for (write_start_address, written_bytes) in MemoryViewerViewData::append_edit_text(self.memory_viewer_view_data.clone(), &typed_text) {
+                            self.dispatch_memory_write(write_start_address, written_bytes);
                         }
                     }
                 }
@@ -716,14 +747,27 @@ impl Widget for MemoryViewerView {
                                     user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::click_and_drag());
                                 let row_offset = (row_index as u64).saturating_mul(MemoryViewerViewData::BYTES_PER_ROW);
                                 let row_address = Self::format_row_address(&current_page, row_index);
-                                let hovered_byte_address = row_response.hover_pos().and_then(|pointer_position| {
-                                    Self::resolve_byte_address_for_pointer(&current_page, row_index, row_rect, hex_ascii_splitter_position_x, pointer_position)
+                                let hovered_pointer_target = row_response.hover_pos().and_then(|pointer_position| {
+                                    Self::resolve_pointer_target_for_pointer(
+                                        &current_page,
+                                        row_index,
+                                        row_rect,
+                                        hex_ascii_splitter_position_x,
+                                        pointer_position,
+                                    )
                                 });
                                 let pointer_byte_address = pointer_interaction_position.and_then(|pointer_position| {
-                                    Self::resolve_byte_address_for_pointer(&current_page, row_index, row_rect, hex_ascii_splitter_position_x, pointer_position)
+                                    Self::resolve_pointer_target_for_pointer(
+                                        &current_page,
+                                        row_index,
+                                        row_rect,
+                                        hex_ascii_splitter_position_x,
+                                        pointer_position,
+                                    )
+                                    .map(|pointer_target| pointer_target.byte_address)
                                 });
                                 let selected_address_bounds = MemoryViewerViewData::get_selected_address_bounds(self.memory_viewer_view_data.clone());
-                                let hex_edit_state = MemoryViewerViewData::get_hex_edit_state(self.memory_viewer_view_data.clone());
+                                let edit_state = MemoryViewerViewData::get_edit_state(self.memory_viewer_view_data.clone());
                                 let column_layout = Self::resolve_column_layout(row_rect, hex_ascii_splitter_position_x);
                                 let hex_column_clip_rect = Rect::from_min_max(
                                     pos2(column_layout.hex_columns_left, row_rect.min.y),
@@ -738,11 +782,37 @@ impl Widget for MemoryViewerView {
                                     MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
                                     MemoryViewerViewData::set_drag_selection_active(self.memory_viewer_view_data.clone(), false);
 
-                                    if let Some(hovered_byte_address) = hovered_byte_address {
+                                    if let Some(hovered_pointer_target) = hovered_pointer_target {
                                         if is_shift_modifier_active {
-                                            MemoryViewerViewData::extend_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
+                                            match hovered_pointer_target.edit_cursor_lane {
+                                                MemoryViewerEditCursorLane::Hexadecimal => {
+                                                    MemoryViewerViewData::extend_hex_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                                MemoryViewerEditCursorLane::String => {
+                                                    MemoryViewerViewData::extend_string_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                            }
                                         } else {
-                                            MemoryViewerViewData::begin_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
+                                            match hovered_pointer_target.edit_cursor_lane {
+                                                MemoryViewerEditCursorLane::Hexadecimal => {
+                                                    MemoryViewerViewData::begin_hex_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                                MemoryViewerEditCursorLane::String => {
+                                                    MemoryViewerViewData::begin_string_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -751,11 +821,37 @@ impl Widget for MemoryViewerView {
                                     MemoryViewerViewData::set_keyboard_focus(self.memory_viewer_view_data.clone(), true);
                                     MemoryViewerViewData::set_drag_selection_active(self.memory_viewer_view_data.clone(), true);
 
-                                    if let Some(hovered_byte_address) = hovered_byte_address {
+                                    if let Some(hovered_pointer_target) = hovered_pointer_target {
                                         if is_shift_modifier_active {
-                                            MemoryViewerViewData::extend_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
+                                            match hovered_pointer_target.edit_cursor_lane {
+                                                MemoryViewerEditCursorLane::Hexadecimal => {
+                                                    MemoryViewerViewData::extend_hex_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                                MemoryViewerEditCursorLane::String => {
+                                                    MemoryViewerViewData::extend_string_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                            }
                                         } else {
-                                            MemoryViewerViewData::begin_byte_selection(self.memory_viewer_view_data.clone(), hovered_byte_address);
+                                            match hovered_pointer_target.edit_cursor_lane {
+                                                MemoryViewerEditCursorLane::Hexadecimal => {
+                                                    MemoryViewerViewData::begin_hex_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                                MemoryViewerEditCursorLane::String => {
+                                                    MemoryViewerViewData::begin_string_selection(
+                                                        self.memory_viewer_view_data.clone(),
+                                                        hovered_pointer_target.byte_address,
+                                                    );
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -769,7 +865,9 @@ impl Widget for MemoryViewerView {
                                 if row_response.secondary_clicked() {
                                     MemoryViewerViewData::show_context_menu(
                                         self.memory_viewer_view_data.clone(),
-                                        hovered_byte_address.unwrap_or(row_address),
+                                        hovered_pointer_target
+                                            .map(|pointer_target| pointer_target.byte_address)
+                                            .unwrap_or(row_address),
                                         row_response.hover_pos().unwrap_or(row_rect.left_bottom()),
                                     );
                                 }
@@ -840,7 +938,7 @@ impl Widget for MemoryViewerView {
                                     let byte_address = page_base_address.saturating_add(byte_offset);
                                     let byte_value =
                                         MemoryViewerViewData::get_cached_byte_for_page(self.memory_viewer_view_data.clone(), page_base_address, byte_offset);
-                                    let hex_text = Self::build_hex_text(byte_value, byte_address, hex_edit_state.as_ref());
+                                    let hex_text = Self::build_hex_text(byte_value, byte_address, edit_state.as_ref());
                                     let ascii_text = Self::format_ascii_cell(byte_value).to_string();
                                     let hex_rect = Rect::from_min_max(
                                         pos2(
@@ -864,21 +962,36 @@ impl Widget for MemoryViewerView {
                                     );
 
                                     if caret_is_visible
-                                        && hex_edit_state
+                                        && edit_state
                                             .as_ref()
-                                            .map(|hex_edit_state| hex_edit_state.cursor_address == byte_address)
+                                            .map(|edit_state| edit_state.cursor_address == byte_address)
                                             .unwrap_or(false)
-                                        && hex_rect.intersects(hex_column_clip_rect)
                                     {
-                                        Self::draw_hex_edit_caret(
-                                            user_interface,
-                                            hex_rect,
-                                            hex_edit_state
-                                                .as_ref()
-                                                .map(|hex_edit_state| hex_edit_state.active_nibble_index)
-                                                .unwrap_or(0),
-                                            theme.hexadecimal_green,
-                                        );
+                                        if edit_state
+                                            .as_ref()
+                                            .map(|edit_state| edit_state.active_lane == MemoryViewerEditCursorLane::Hexadecimal)
+                                            .unwrap_or(false)
+                                            && hex_rect.intersects(hex_column_clip_rect)
+                                        {
+                                            Self::draw_hex_edit_caret(
+                                                user_interface,
+                                                hex_rect,
+                                                edit_state
+                                                    .as_ref()
+                                                    .map(|edit_state| edit_state.active_nibble_index)
+                                                    .unwrap_or(0),
+                                                theme.hexadecimal_green,
+                                            );
+                                        }
+
+                                        if edit_state
+                                            .as_ref()
+                                            .map(|edit_state| edit_state.active_lane == MemoryViewerEditCursorLane::String)
+                                            .unwrap_or(false)
+                                            && ascii_rect.intersects(ascii_column_clip_rect)
+                                        {
+                                            Self::draw_string_edit_caret(user_interface, ascii_rect, theme.foreground);
+                                        }
                                     }
 
                                     user_interface
@@ -1032,6 +1145,14 @@ impl Widget for MemoryViewerView {
 #[cfg(test)]
 mod tests {
     use super::MemoryViewerView;
+    use crate::views::memory_viewer::view_data::memory_viewer_view_data::MemoryViewerEditCursorLane;
+    use eframe::egui::{Rect, pos2};
+    use squalr_engine_api::structures::memory::normalized_region::NormalizedRegion;
+
+    #[test]
+    fn address_column_width_keeps_full_64_bit_addresses_visible() {
+        assert_eq!(MemoryViewerView::ADDRESS_COLUMN_WIDTH, 128.0);
+    }
 
     #[test]
     fn resolve_hex_ascii_splitter_position_x_clamps_to_minimum_visible_columns() {
@@ -1041,5 +1162,19 @@ mod tests {
             resolved_splitter_position_x,
             MemoryViewerView::ADDRESS_COLUMN_WIDTH + MemoryViewerView::HEX_COLUMN_LEFT_PADDING + MemoryViewerView::MINIMUM_HEX_COLUMN_WIDTH
         );
+    }
+
+    #[test]
+    fn resolve_pointer_target_for_pointer_marks_ascii_column_as_string_lane() {
+        let normalized_region = NormalizedRegion::new(0x2000, 0x40);
+        let row_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(420.0, MemoryViewerView::ROW_HEIGHT));
+        let splitter_position_x = MemoryViewerView::resolve_hex_ascii_splitter_position_x(0.0, row_rect.width(), 0.68);
+        let pointer_position = pos2(splitter_position_x + MemoryViewerView::ASCII_COLUMN_LEFT_PADDING + 2.0, row_rect.center().y);
+
+        let pointer_target = MemoryViewerView::resolve_pointer_target_for_pointer(&normalized_region, 0, row_rect, splitter_position_x, pointer_position)
+            .expect("Expected pointer target.");
+
+        assert_eq!(pointer_target.byte_address, 0x2000);
+        assert_eq!(pointer_target.edit_cursor_lane, MemoryViewerEditCursorLane::String);
     }
 }

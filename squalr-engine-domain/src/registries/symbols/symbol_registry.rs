@@ -84,23 +84,19 @@ impl SymbolRegistry {
         &self,
         symbolic_struct_ref_id: &str,
     ) -> Option<Arc<SymbolicStructDefinition>> {
+        let trimmed_symbolic_struct_ref_id = symbolic_struct_ref_id.trim();
+
         match self.symbolic_struct_registry.read() {
             Ok(symbolic_struct_registry) => {
-                if let Some(symbolic_struct_definition) = symbolic_struct_registry.get(symbolic_struct_ref_id.trim()) {
+                if let Some(symbolic_struct_definition) = symbolic_struct_registry.get(trimmed_symbolic_struct_ref_id) {
                     Some(symbolic_struct_definition.clone())
                 } else if let Ok(project_symbolic_struct_registry) = self.project_symbolic_struct_registry.read() {
                     project_symbolic_struct_registry
-                        .get(symbolic_struct_ref_id.trim())
+                        .get(trimmed_symbolic_struct_ref_id)
                         .cloned()
-                        .or_else(|| {
-                            SymbolicStructDefinition::from_str(symbolic_struct_ref_id.trim())
-                                .ok()
-                                .map(Arc::new)
-                        })
+                        .or_else(|| Self::parse_inline_symbolic_struct_definition(trimmed_symbolic_struct_ref_id))
                 } else {
-                    SymbolicStructDefinition::from_str(symbolic_struct_ref_id.trim())
-                        .ok()
-                        .map(Arc::new)
+                    Self::parse_inline_symbolic_struct_definition(trimmed_symbolic_struct_ref_id)
                 }
             }
             Err(error) => {
@@ -108,6 +104,17 @@ impl SymbolRegistry {
                 None
             }
         }
+    }
+
+    fn parse_inline_symbolic_struct_definition(symbolic_struct_ref_id: &str) -> Option<Arc<SymbolicStructDefinition>> {
+        Self::looks_like_inline_symbolic_struct_definition(symbolic_struct_ref_id)
+            .then(|| SymbolicStructDefinition::from_str(symbolic_struct_ref_id).ok())
+            .flatten()
+            .map(Arc::new)
+    }
+
+    fn looks_like_inline_symbolic_struct_definition(symbolic_struct_ref_id: &str) -> bool {
+        symbolic_struct_ref_id.contains(';') || symbolic_struct_ref_id.contains('[') || symbolic_struct_ref_id.contains('*')
     }
 
     pub fn get_data_type_registry(&self) -> HashMap<String, Arc<dyn DataType>> {
@@ -1668,6 +1675,13 @@ mod tests {
 
         assert!(symbol_registry.set_project_symbol_catalog(&colliding_project_symbols));
         assert_eq!(symbol_registry.get_registry().len(), registry_size_before_project_symbols);
+    }
+
+    #[test]
+    fn get_does_not_materialize_unknown_named_symbol_as_inline_struct_definition() {
+        let symbol_registry = SymbolRegistry::new();
+
+        assert!(symbol_registry.get("player.stats").is_none());
     }
 
     fn create_test_data_type_descriptor(

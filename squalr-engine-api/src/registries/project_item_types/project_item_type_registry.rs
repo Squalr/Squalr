@@ -1,7 +1,7 @@
 use crate::structures::projects::project_items::{
     built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer,
+        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     },
     project_item_type::ProjectItemType,
 };
@@ -36,6 +36,7 @@ impl ProjectItemTypeRegistry {
             Arc::new(ProjectItemTypeDirectory {}),
             Arc::new(ProjectItemTypeAddress {}),
             Arc::new(ProjectItemTypePointer {}),
+            Arc::new(ProjectItemTypeSymbolRef {}),
         ];
 
         for built_in_project_item_type in built_in_project_item_types.into_iter() {

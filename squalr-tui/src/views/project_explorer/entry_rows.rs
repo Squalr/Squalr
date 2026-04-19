@@ -115,10 +115,50 @@ pub fn build_visible_project_item_entry_rows(
     entry_rows
 }
 
+pub fn build_visible_project_symbol_entry_rows(
+    project_explorer_pane_state: &ProjectExplorerPaneState,
+    viewport_capacity: usize,
+) -> Vec<PaneEntryRow> {
+    let visible_rooted_symbol_range = build_selection_relative_viewport_range(
+        project_explorer_pane_state.rooted_symbols.len(),
+        project_explorer_pane_state.selected_rooted_symbol_index,
+        viewport_capacity,
+    );
+    let mut entry_rows = Vec::with_capacity(visible_rooted_symbol_range.len());
+
+    for visible_rooted_symbol_position in visible_rooted_symbol_range {
+        if let Some(rooted_symbol) = project_explorer_pane_state
+            .rooted_symbols
+            .get(visible_rooted_symbol_position)
+        {
+            let is_selected_rooted_symbol = project_explorer_pane_state.selected_rooted_symbol_index == Some(visible_rooted_symbol_position);
+            let marker_text = "@".to_string();
+            let primary_text = rooted_symbol.get_display_name().to_string();
+            let secondary_text = Some(format!(
+                "{} | {} | {}",
+                rooted_symbol.get_struct_layout_id(),
+                rooted_symbol.get_root_locator(),
+                rooted_symbol.get_symbol_key()
+            ));
+
+            if project_explorer_pane_state.focus_target != ProjectExplorerFocusTarget::ProjectSymbols {
+                entry_rows.push(PaneEntryRow::disabled(marker_text, primary_text, secondary_text));
+            } else if is_selected_rooted_symbol {
+                entry_rows.push(PaneEntryRow::selected(marker_text, primary_text, secondary_text));
+            } else {
+                entry_rows.push(PaneEntryRow::normal(marker_text, primary_text, secondary_text));
+            }
+        }
+    }
+
+    entry_rows
+}
+
 #[cfg(test)]
 mod tests {
-    use super::build_visible_project_item_entry_rows;
+    use super::{build_visible_project_item_entry_rows, build_visible_project_symbol_entry_rows};
     use crate::views::project_explorer::pane_state::{ProjectExplorerFocusTarget, ProjectExplorerPaneState, ProjectHierarchyEntry};
+    use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
     use std::path::PathBuf;
 
     #[test]
@@ -140,5 +180,25 @@ mod tests {
 
         assert_eq!(visible_entry_rows.len(), 1);
         assert_eq!(visible_entry_rows[0].secondary_text.as_deref(), Some("value=255"));
+    }
+
+    #[test]
+    fn rooted_symbol_rows_show_type_locator_and_key() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        project_explorer_pane_state.focus_target = ProjectExplorerFocusTarget::ProjectSymbols;
+        project_explorer_pane_state.selected_rooted_symbol_index = Some(0);
+        project_explorer_pane_state.rooted_symbols = vec![ProjectRootSymbol::new_absolute_address(
+            String::from("sym.player"),
+            String::from("Player"),
+            0x1234,
+            String::from("player"),
+        )];
+
+        let visible_entry_rows = build_visible_project_symbol_entry_rows(&project_explorer_pane_state, 4);
+
+        assert_eq!(visible_entry_rows.len(), 1);
+        assert_eq!(visible_entry_rows[0].marker_text, "@");
+        assert_eq!(visible_entry_rows[0].primary_text, "Player");
+        assert_eq!(visible_entry_rows[0].secondary_text.as_deref(), Some("player | 0x1234 | sym.player"));
     }
 }

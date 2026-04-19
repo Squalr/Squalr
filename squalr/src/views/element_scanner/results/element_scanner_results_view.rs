@@ -42,7 +42,7 @@ pub struct ElementScannerResultsView {
 }
 
 impl ElementScannerResultsView {
-    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 96.0;
+    const DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH: f32 = 32.0;
     const DISPLAY_TYPE_SELECTOR_POPUP_WIDTH: f32 = 176.0;
     pub const WINDOW_ID: &'static str = "window_element_scanner_results";
 
@@ -92,6 +92,33 @@ impl ElementScannerResultsView {
     fn normalize_display_formats(supported_display_formats: &mut Vec<AnonymousValueStringFormat>) {
         supported_display_formats.sort_by_key(|anonymous_value_string_format| Self::display_format_sort_key(*anonymous_value_string_format));
         supported_display_formats.dedup();
+    }
+
+    fn resolve_display_type_selector_rectangle(
+        value_splitter_position_x: f32,
+        previous_value_splitter_position_x: f32,
+        header_center_y: f32,
+        horizontal_padding: f32,
+    ) -> Rect {
+        let selector_max_x = previous_value_splitter_position_x - horizontal_padding;
+        let selector_min_x = (selector_max_x - Self::DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH).max(value_splitter_position_x + horizontal_padding);
+
+        Rect::from_min_max(pos2(selector_min_x, header_center_y - 12.0), pos2(selector_max_x, header_center_y + 12.0))
+    }
+
+    fn resolve_value_header_clip_rectangle(
+        value_splitter_position_x: f32,
+        header_rectangle: Rect,
+        display_type_selector_rectangle: Rect,
+        text_left_padding: f32,
+    ) -> Rect {
+        Rect::from_min_max(
+            pos2(value_splitter_position_x + text_left_padding, header_rectangle.min.y),
+            pos2(
+                (display_type_selector_rectangle.min.x - text_left_padding).max(value_splitter_position_x + text_left_padding),
+                header_rectangle.max.y,
+            ),
+        )
     }
 
     fn display_format_icon(
@@ -335,14 +362,26 @@ impl Widget for ElementScannerResultsView {
                 theme.foreground,
             );
 
-            let display_type_selector_rectangle = Rect::from_min_max(
-                pos2(value_splitter_position_x + data_type_filter_combo_padding, header_rectangle.center().y - 12.0),
-                pos2(
-                    (value_splitter_position_x + data_type_filter_combo_padding + Self::DISPLAY_TYPE_SELECTOR_BUTTON_WIDTH)
-                        .min(previous_value_splitter_position_x - data_type_filter_combo_padding),
-                    header_rectangle.center().y + 12.0,
-                ),
+            let display_type_selector_rectangle = Self::resolve_display_type_selector_rectangle(
+                value_splitter_position_x,
+                previous_value_splitter_position_x,
+                header_rectangle.center().y,
+                data_type_filter_combo_padding,
             );
+            let value_header_position = pos2(value_splitter_position_x + text_left_padding, header_rectangle.center().y);
+            let value_header_clip_rectangle =
+                Self::resolve_value_header_clip_rectangle(value_splitter_position_x, header_rectangle, display_type_selector_rectangle, text_left_padding);
+
+            user_interface
+                .painter()
+                .with_clip_rect(value_header_clip_rectangle)
+                .text(
+                    value_header_position,
+                    Align2::LEFT_CENTER,
+                    "Value",
+                    theme.font_library.font_noto_sans.font_header.clone(),
+                    theme.foreground,
+                );
 
             if let Some(mut element_scanner_results_view_data) = self
                 .element_scanner_results_view_data
@@ -376,7 +415,7 @@ impl Widget for ElementScannerResultsView {
                     display_type_selector_rectangle,
                     ComboBoxView::new(
                         self.app_context.clone(),
-                        "Value",
+                        String::new(),
                         "element_scanner_results_display_type",
                         Some(self.display_format_icon(element_scanner_results_view_data.active_display_format)),
                         |popup_user_interface, should_close| {
@@ -636,5 +675,33 @@ impl Widget for ElementScannerResultsView {
         }
 
         results_response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ElementScannerResultsView;
+    use epaint::{Rect, pos2};
+
+    #[test]
+    fn display_type_selector_stays_right_aligned_in_value_header() {
+        let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
+
+        assert_eq!(display_type_selector_rectangle.min.x, 284.0);
+        assert_eq!(display_type_selector_rectangle.max.x, 316.0);
+        assert_eq!(display_type_selector_rectangle.height(), 24.0);
+    }
+
+    #[test]
+    fn value_header_clip_stops_before_display_type_selector() {
+        let header_rectangle = Rect::from_min_max(pos2(0.0, 24.0), pos2(400.0, 56.0));
+        let display_type_selector_rectangle = ElementScannerResultsView::resolve_display_type_selector_rectangle(120.0, 320.0, 40.0, 4.0);
+        let value_header_clip_rectangle =
+            ElementScannerResultsView::resolve_value_header_clip_rectangle(120.0, header_rectangle, display_type_selector_rectangle, 8.0);
+
+        assert_eq!(value_header_clip_rectangle.min.x, 128.0);
+        assert_eq!(value_header_clip_rectangle.max.x, 276.0);
+        assert_eq!(value_header_clip_rectangle.min.y, 24.0);
+        assert_eq!(value_header_clip_rectangle.max.y, 56.0);
     }
 }

@@ -11,45 +11,45 @@ impl PrivilegedCommandRequestExecutor for PointerScanExpandRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        match engine_privileged_state.get_pointer_scan_session().write() {
-            Ok(mut pointer_scan_session_guard) => {
-                if let Some(pointer_scan_session) = pointer_scan_session_guard.as_mut() {
-                    if pointer_scan_session.get_session_id() == self.session_id {
-                        let (pointer_scan_nodes, page_index, last_page_index, total_node_count) =
-                            pointer_scan_session.get_expanded_node_page(self.parent_node_id, self.page_index, self.page_size);
+        let pointer_scan_results_store = engine_privileged_state.get_pointer_scan_results();
 
-                        return PointerScanExpandResponse {
-                            session_id: self.session_id,
-                            parent_node_id: self.parent_node_id,
-                            page_index,
-                            last_page_index,
-                            total_node_count,
-                            pointer_scan_nodes,
-                        };
-                    }
-                }
-
-                PointerScanExpandResponse {
-                    session_id: self.session_id,
-                    parent_node_id: self.parent_node_id,
-                    page_index: 0,
-                    last_page_index: 0,
-                    total_node_count: 0,
-                    pointer_scan_nodes: Vec::new(),
-                }
-            }
+        let mut pointer_scan_results_guard = match pointer_scan_results_store.write() {
+            Ok(pointer_scan_results_guard) => pointer_scan_results_guard,
             Err(error) => {
-                log::error!("Failed to acquire write lock on pointer scan session store: {}", error);
-
-                PointerScanExpandResponse {
+                log::error!("Failed to acquire write lock on pointer scan results store: {}", error);
+                return PointerScanExpandResponse {
                     session_id: self.session_id,
                     parent_node_id: self.parent_node_id,
                     page_index: 0,
                     last_page_index: 0,
                     total_node_count: 0,
                     pointer_scan_nodes: Vec::new(),
-                }
+                };
             }
+        };
+        if let Some(pointer_scan_results) = pointer_scan_results_guard.as_mut() {
+            if pointer_scan_results.get_session_id() == self.session_id {
+                let (pointer_scan_nodes, page_index, last_page_index, total_node_count) =
+                    pointer_scan_results.get_expanded_node_page(self.parent_node_id, self.page_index, self.page_size);
+
+                return PointerScanExpandResponse {
+                    session_id: self.session_id,
+                    parent_node_id: self.parent_node_id,
+                    page_index,
+                    last_page_index,
+                    total_node_count,
+                    pointer_scan_nodes,
+                };
+            }
+        }
+
+        PointerScanExpandResponse {
+            session_id: self.session_id,
+            parent_node_id: self.parent_node_id,
+            page_index: 0,
+            last_page_index: 0,
+            total_node_count: 0,
+            pointer_scan_nodes: Vec::new(),
         }
     }
 }

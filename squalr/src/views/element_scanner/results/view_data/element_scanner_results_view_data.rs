@@ -714,6 +714,13 @@ impl ElementScannerResultsViewData {
         self.active_refresh_request_revision == refresh_request_revision
     }
 
+    fn clear_selection(element_scanner_results_view_data: Dependency<Self>) {
+        if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Clear scan result selection") {
+            element_scanner_results_view_data.selection_index_start = None;
+            element_scanner_results_view_data.selection_index_end = None;
+        }
+    }
+
     fn set_page_index(
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
@@ -905,9 +912,10 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
 
         if !scan_result_refs.is_empty() {
+            Self::clear_selection(element_scanner_results_view_data);
             let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_delete_request = ScanResultsDeleteRequest { scan_result_refs };
 
@@ -1237,6 +1245,29 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(selected_scan_result_global_indices, vec![12]);
+    }
+
+    #[test]
+    fn clear_selection_resets_selected_scan_result_bounds() {
+        let dependency_container = DependencyContainer::new();
+        let element_scanner_results_view_data = dependency_container.register(create_view_data_with_scan_results(&[10, 11, 12, 13]));
+
+        {
+            let mut element_scanner_results_view_data = element_scanner_results_view_data
+                .write("Seed scan result selection")
+                .expect("Expected scan results view data write guard.");
+            element_scanner_results_view_data.selection_index_start = Some(1);
+            element_scanner_results_view_data.selection_index_end = Some(3);
+        }
+
+        ElementScannerResultsViewData::clear_selection(element_scanner_results_view_data.clone());
+
+        let element_scanner_results_view_data = element_scanner_results_view_data
+            .read("Verify scan result selection cleared")
+            .expect("Expected scan results view data read guard.");
+
+        assert_eq!(element_scanner_results_view_data.selection_index_start, None);
+        assert_eq!(element_scanner_results_view_data.selection_index_end, None);
     }
 
     #[test]

@@ -106,6 +106,7 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
                         popup_ui.spacing_mut().menu_spacing = 0.0;
                         popup_ui.spacing_mut().item_spacing = Vec2::ZERO;
                         popup_ui.set_min_width(self.width);
+                        popup_ui.set_max_width(self.width);
 
                         popup_ui.with_layout(Layout::top_down(Align::Min), |inner_ui| {
                             (self.add_contents)(inner_ui, &mut should_close);
