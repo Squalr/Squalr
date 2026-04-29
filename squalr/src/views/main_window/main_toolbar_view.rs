@@ -108,6 +108,19 @@ impl MainToolbarView {
                         })),
                     ),
                     ToolbarMenuItemData::new(
+                        StructViewerView::WINDOW_ID,
+                        "Details Viewer",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_struct_viewer.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(StructViewerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
                         SymbolExplorerView::WINDOW_ID,
                         "Symbol Tree",
                         Some(Box::new(move || {
@@ -127,19 +140,6 @@ impl MainToolbarView {
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_symbol_table.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(SymbolTableView::WINDOW_ID) {
-                                    return Some(docked_node.is_visible());
-                                }
-                            }
-
-                            None
-                        })),
-                    ),
-                    ToolbarMenuItemData::new(
-                        StructViewerView::WINDOW_ID,
-                        "Details Viewer",
-                        Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_struct_viewer.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(StructViewerView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
