@@ -7,7 +7,6 @@ use std::collections::HashSet;
 pub enum SymbolExplorerSelection {
     RootedSymbol(String),
     DerivedNode(String),
-    StructLayout(String),
     CreateRootedSymbol,
 }
 
@@ -185,13 +184,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.selected_entry = project_symbol_catalog
                 .get_rooted_symbols()
                 .first()
-                .map(|rooted_symbol| SymbolExplorerSelection::RootedSymbol(rooted_symbol.get_symbol_key().to_string()))
-                .or_else(|| {
-                    project_symbol_catalog
-                        .get_struct_layout_descriptors()
-                        .first()
-                        .map(|struct_layout_descriptor| SymbolExplorerSelection::StructLayout(struct_layout_descriptor.get_struct_layout_id().to_string()))
-                });
+                .map(|rooted_symbol| SymbolExplorerSelection::RootedSymbol(rooted_symbol.get_symbol_key().to_string()));
 
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
@@ -277,10 +270,6 @@ impl SymbolExplorerViewData {
                 .get_rooted_symbols()
                 .iter()
                 .any(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key),
-            SymbolExplorerSelection::StructLayout(struct_layout_id) => project_symbol_catalog
-                .get_struct_layout_descriptors()
-                .iter()
-                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id),
             SymbolExplorerSelection::DerivedNode(_) => true,
             SymbolExplorerSelection::CreateRootedSymbol => true,
         }
@@ -374,6 +363,29 @@ mod tests {
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
         assert_eq!(selected_entry, Some(SymbolExplorerSelection::RootedSymbol(String::from("sym.player"))));
+    }
+
+    #[test]
+    fn synchronize_selection_ignores_struct_layouts_without_rooted_symbols() {
+        let symbol_explorer_view_data = create_dependency();
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("player.stats"),
+            SymbolicStructDefinition::new(
+                String::from("player.stats"),
+                vec![SymbolicFieldDefinition::new(
+                    DataTypeRef::new("u32"),
+                    ContainerType::None,
+                )],
+            ),
+        )]);
+
+        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, false);
+
+        let selected_entry = symbol_explorer_view_data
+            .read("Symbol explorer struct layout synchronize selection test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
+
+        assert_eq!(selected_entry, None);
     }
 
     #[test]

@@ -119,7 +119,8 @@ impl MainToolbarView {
 
                             None
                         })),
-                    ),
+                    )
+                    .with_separator(),
                     ToolbarMenuItemData::new(
                         SymbolTableView::WINDOW_ID,
                         "Symbol Table",

@@ -1529,70 +1529,6 @@ impl SymbolExplorerView {
         }
     }
 
-    fn render_struct_layout_list(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_entry: Option<&SymbolExplorerSelection>,
-        allow_interaction: bool,
-    ) {
-        user_interface.add_space(8.0);
-        user_interface.label(
-            RichText::new(format!("Symbol Types ({})", project_symbol_catalog.get_struct_layout_descriptors().len()))
-                .font(
-                    self.app_context
-                        .theme
-                        .font_library
-                        .font_noto_sans
-                        .font_header
-                        .clone(),
-                )
-                .color(self.app_context.theme.foreground),
-        );
-        user_interface.add_space(6.0);
-
-        for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
-            let is_selected = matches!(
-                selected_entry,
-                Some(SymbolExplorerSelection::StructLayout(selected_struct_layout_id))
-                    if selected_struct_layout_id == struct_layout_descriptor.get_struct_layout_id()
-            );
-            let response = user_interface.selectable_label(
-                is_selected,
-                RichText::new(struct_layout_descriptor.get_struct_layout_id()).color(self.app_context.theme.foreground),
-            );
-
-            if allow_interaction && response.clicked() {
-                SymbolExplorerViewData::set_selected_entry(
-                    self.symbol_explorer_view_data.clone(),
-                    Some(SymbolExplorerSelection::StructLayout(
-                        struct_layout_descriptor.get_struct_layout_id().to_string(),
-                    )),
-                );
-            }
-
-            user_interface.label(
-                RichText::new(format!(
-                    "{} field(s)",
-                    struct_layout_descriptor
-                        .get_struct_layout_definition()
-                        .get_fields()
-                        .len()
-                ))
-                .font(
-                    self.app_context
-                        .theme
-                        .font_library
-                        .font_noto_sans
-                        .font_small
-                        .clone(),
-                )
-                .color(self.app_context.theme.foreground_preview),
-            );
-            user_interface.add_space(6.0);
-        }
-    }
-
     fn render_create_rooted_symbol_details(
         &self,
         user_interface: &mut Ui,
@@ -2010,9 +1946,7 @@ impl Widget for SymbolExplorerView {
                             shared_struct_viewer_focus_target.as_ref(),
                             !is_inline_rename_active,
                         );
-                        self.render_struct_layout_list(user_interface, &project_symbol_catalog, selected_entry.as_ref(), !is_inline_rename_active);
-
-                        if project_symbol_catalog.is_empty() {
+                        if project_symbol_catalog.get_rooted_symbols().is_empty() {
                             user_interface.add_space(12.0);
                             user_interface.label(
                                 RichText::new("This project has no authored symbols yet.")
