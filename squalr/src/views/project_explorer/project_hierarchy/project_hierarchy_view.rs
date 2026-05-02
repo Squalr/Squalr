@@ -1450,7 +1450,7 @@ impl Widget for ProjectHierarchyView {
                                                             .unwrap_or_default();
                                                         user_interface.label(
                                                             RichText::new(project_item_name)
-                                                                .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
+                                                                .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
                                                                 .color(theme.foreground),
                                                         );
                                                     }

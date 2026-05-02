@@ -1373,7 +1373,7 @@ impl SymbolExplorerView {
                         user_interface.vertical_centered(|user_interface| {
                             user_interface.label(
                                 RichText::new(display_name)
-                                    .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
+                                    .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
                                     .color(theme.foreground),
                             );
                             user_interface.add_space(6.0);
