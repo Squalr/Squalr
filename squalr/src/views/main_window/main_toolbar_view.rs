@@ -149,7 +149,7 @@ impl MainToolbarView {
                     ),
                     ToolbarMenuItemData::new(
                         StructEditorView::WINDOW_ID,
-                        "Struct Editor",
+                        "Symbol Structs",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_struct_editor.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(StructEditorView::WINDOW_ID) {

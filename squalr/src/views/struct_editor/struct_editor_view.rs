@@ -44,7 +44,7 @@ pub struct StructEditorView {
 }
 
 impl StructEditorView {
-    pub const WINDOW_ID: &'static str = "window_struct_editor";
+    pub const WINDOW_ID: &'static str = "window_symbol_structs";
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
@@ -107,7 +107,7 @@ impl StructEditorView {
                 }
             }
             Err(error) => {
-                log::error!("Failed to acquire opened project while persisting struct editor changes: {}.", error);
+                log::error!("Failed to acquire opened project while persisting symbol struct changes: {}.", error);
                 false
             }
         };
@@ -119,7 +119,7 @@ impl StructEditorView {
         let project_save_request = ProjectSaveRequest {};
         project_save_request.send(&self.app_context.engine_unprivileged_state, |project_save_response| {
             if !project_save_response.success {
-                log::error!("Failed to save project after applying struct editor changes.");
+                log::error!("Failed to save project after applying symbol struct changes.");
             }
         });
 
@@ -128,7 +128,7 @@ impl StructEditorView {
         };
         let did_dispatch_registry_sync = registry_set_project_symbols_request.send(&self.app_context.engine_unprivileged_state, |_response| {});
         if !did_dispatch_registry_sync {
-            log::error!("Failed to dispatch project symbol registry sync after struct editor changes.");
+            log::error!("Failed to dispatch project symbol registry sync after symbol struct changes.");
         }
     }
 
@@ -968,7 +968,7 @@ impl StructEditorView {
                     return;
                 }
                 Err(error) => {
-                    log::error!("Failed to apply struct editor draft: {}.", error);
+                    log::error!("Failed to apply symbol struct draft: {}.", error);
                 }
             }
         }
@@ -1070,7 +1070,7 @@ impl Widget for StructEditorView {
         StructEditorViewData::synchronize(self.struct_editor_view_data.clone(), &project_symbol_catalog);
         let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft) = self
             .struct_editor_view_data
-            .read("Struct editor view")
+            .read("Symbol structs view")
             .map(|struct_editor_view_data| {
                 (
                     struct_editor_view_data

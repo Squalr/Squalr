@@ -8,7 +8,7 @@ This is not a "copy Ghidra exactly" document. The goal is to understand which wo
 The important shift is: the Symbol Tree should not be a flat list of "rooted symbols." It should be a true module tree where module memory is gradually claimed, split, retyped, and expanded.
 
 ## Related Squalr Context
-- `squalr/src/views/main_window/main_window_view.rs` treats `Project Explorer`, `Symbol Tree`, `Symbol Table`, `Struct Editor`, `Details Viewer`, `Memory Viewer`, and `Code Viewer` as peer docked windows.
+- `squalr/src/views/main_window/main_window_view.rs` treats `Project Explorer`, `Symbol Tree`, `Symbol Table`, `Symbol Structs`, `Details Viewer`, `Memory Viewer`, and `Code Viewer` as peer docked windows.
 - `squalr/src/views/symbol_explorer/symbol_explorer_view.rs` is the current Symbol Tree implementation.
 - `squalr/src/views/symbol_table/symbol_table_view.rs` is the current flat symbol maintenance implementation.
 - `squalr/src/views/struct_editor/struct_editor_view.rs` owns reusable struct layout authoring.
@@ -62,10 +62,10 @@ Important takeaway:
 - it should also answer "what space is still unknown?"
 - promoted discoveries should reshape the tree, not merely add another row.
 
-### Data Type Manager / Struct Editor
+### Data Type Manager / Symbol Structs
 Ghidra's Data Type Manager owns reusable type definitions.
 
-Squalr currently has a narrower but useful `Struct Editor`. That window should remain focused on reusable type authoring:
+Squalr currently has a narrower but useful `Symbol Structs` window. That window should remain focused on reusable type authoring:
 - create and edit structures,
 - manage field names, offsets, data types, arrays, and pointers,
 - handle type reuse and conflicts later.
@@ -130,8 +130,8 @@ Responsibilities:
 
 Unknown gaps should usually stay out of this table unless the user explicitly enables a module-map/debug view.
 
-### 3. Struct Editor
-The Struct Editor should own reusable type definitions.
+### 3. Symbol Structs
+The Symbol Structs window should own reusable type definitions.
 
 Responsibilities:
 - create and edit reusable layouts,
@@ -252,7 +252,7 @@ These actions should route through the same claim engine as the Symbol Tree. The
 - Do treat modules as the visible roots of symbol space.
 - Do make unknown module space visible as `u8[]` chunks.
 - Do make promotion reshape the typed memory map.
-- Do keep reusable type authoring in Struct Editor.
+- Do keep reusable type authoring in Symbol Structs.
 - Do keep Symbol Table flat and maintenance-oriented.
 - Do keep derived children lazy unless explicitly promoted.
 - Do not persist a giant module-sized struct just to render the tree.

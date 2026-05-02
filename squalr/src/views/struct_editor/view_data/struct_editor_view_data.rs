@@ -73,7 +73,7 @@ impl StructEditorViewData {
         struct_editor_view_data: Dependency<Self>,
         filter_text: String,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor set filter text") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs set filter text") {
             struct_editor_view_data.filter_text = filter_text;
         }
     }
@@ -82,7 +82,7 @@ impl StructEditorViewData {
         struct_editor_view_data: Dependency<Self>,
         draft: StructLayoutEditDraft,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor update draft") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs update draft") {
             struct_editor_view_data.draft = Some(draft);
         }
     }
@@ -91,7 +91,7 @@ impl StructEditorViewData {
         struct_editor_view_data: Dependency<Self>,
         selected_layout_id: Option<String>,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor select struct layout") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs select struct layout") {
             struct_editor_view_data.selected_layout_id = selected_layout_id;
         }
     }
@@ -101,7 +101,7 @@ impl StructEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         default_data_type_ref: DataTypeRef,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor begin create struct layout") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs begin create struct layout") {
             struct_editor_view_data.selected_layout_id = None;
             struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::CreateStructLayout);
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
@@ -115,7 +115,7 @@ impl StructEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor begin edit struct layout") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs begin edit struct layout") {
             struct_editor_view_data.selected_layout_id = Some(layout_id.to_string());
             struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::EditStructLayout {
                 layout_id: layout_id.to_string(),
@@ -133,13 +133,13 @@ impl StructEditorViewData {
         struct_editor_view_data: Dependency<Self>,
         layout_id: String,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor request delete confirmation") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs request delete confirmation") {
             struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::DeleteConfirmation { layout_id });
         }
     }
 
     pub fn cancel_take_over_state(struct_editor_view_data: Dependency<Self>) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor cancel take over state") {
+        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs cancel take over state") {
             struct_editor_view_data.take_over_state = None;
             struct_editor_view_data.baseline_draft = None;
             struct_editor_view_data.draft = None;
@@ -150,7 +150,7 @@ impl StructEditorViewData {
         struct_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Struct editor synchronize") else {
+        let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs synchronize") else {
             return;
         };
 

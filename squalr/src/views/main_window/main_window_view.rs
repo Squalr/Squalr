@@ -104,7 +104,7 @@ impl MainWindowView {
             app_context_for_struct_editor.clone(),
             dock_view_data.clone(),
             StructEditorView::new(app_context_for_struct_editor.clone()),
-            Rc::new("Struct Editor".to_string()),
+            Rc::new("Symbol Structs".to_string()),
             Rc::new(StructEditorView::WINDOW_ID.to_string()),
         );
 

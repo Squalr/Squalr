@@ -317,8 +317,8 @@ Responsibilities:
 
 Unknown synthesized gaps do not need to appear in the table by default.
 
-### Struct Editor
-The Struct Editor owns reusable layout authoring.
+### Symbol Structs
+The Symbol Structs window owns reusable layout authoring.
 
 It should not own module occupancy. It defines what a claim means once placed.
 
