@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::ui::widgets::controls::data_type_selector::data_type_selector_view::DataTypeSelectorView;
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -13,7 +14,8 @@ use crate::views::{
     symbol_explorer::symbol_tree_inline_rename_view::SymbolTreeInlineRenameView,
     symbol_explorer::view_data::{
         symbol_explorer_view_data::{
-            ModuleRootCreateDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData,
+            DefineFieldDraft, ModuleRootCreateDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState,
+            SymbolExplorerViewData,
         },
         symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries, resolve_symbol_tree_entry_size_in_bytes},
     },
@@ -223,7 +225,7 @@ impl SymbolExplorerView {
         let module_name = module_name.to_string();
         let project_symbols_create_request = ProjectSymbolsCreateRequest {
             display_name,
-            struct_layout_id: format!("u8[{}]", length),
+            struct_layout_id: Self::u8_array_type_id(length),
             address: None,
             module_name: Some(module_name.clone()),
             offset: Some(offset),
@@ -306,6 +308,160 @@ impl SymbolExplorerView {
                 SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
             }
         });
+    }
+
+    fn create_symbol_claim(
+        &self,
+        project_symbols_create_request: ProjectSymbolsCreateRequest,
+        selection_module_name: Option<String>,
+    ) {
+        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
+
+        project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, move |project_symbols_create_response| {
+            if project_symbols_create_response.success {
+                SymbolExplorerViewData::set_selected_entry(
+                    symbol_explorer_view_data.clone(),
+                    Some(SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)),
+                );
+
+                if let Some(module_name) = selection_module_name {
+                    SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
+                }
+            }
+        });
+    }
+
+    fn create_u8_module_claim(
+        &self,
+        module_name: &str,
+        offset: u64,
+        length: u64,
+        should_select_created_claim: bool,
+    ) {
+        if length == 0 {
+            return;
+        }
+
+        let project_symbols_create_request = ProjectSymbolsCreateRequest {
+            display_name: format!("u8_{:08X}", offset),
+            struct_layout_id: Self::u8_array_type_id(length),
+            address: None,
+            module_name: Some(module_name.to_string()),
+            offset: Some(offset),
+            metadata: Default::default(),
+        };
+
+        if should_select_created_claim {
+            self.create_symbol_claim(project_symbols_create_request, Some(module_name.to_string()));
+        } else {
+            project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_create_response| {});
+        }
+    }
+
+    fn split_u8_segment_in_half(
+        &self,
+        module_name: &str,
+        offset: u64,
+        length: u64,
+    ) {
+        if length < 2 {
+            log::warn!("Cannot split a u8[] segment smaller than 2 byte(s).");
+            return;
+        }
+
+        let first_length = length / 2;
+        let second_length = length.saturating_sub(first_length);
+
+        self.create_u8_module_claim(module_name, offset, first_length, false);
+        self.create_u8_module_claim(module_name, offset.saturating_add(first_length), second_length, true);
+    }
+
+    fn u8_array_type_id(length: u64) -> String {
+        format!("u8[{}]", length)
+    }
+
+    fn parse_define_field_relative_offset(relative_offset_text: &str) -> Result<u64, String> {
+        let trimmed_relative_offset_text = relative_offset_text.trim();
+
+        if trimmed_relative_offset_text.is_empty() {
+            return Err(String::from("Offset is required."));
+        }
+
+        let normalized_hex_text = trimmed_relative_offset_text
+            .strip_prefix("0x")
+            .or_else(|| trimmed_relative_offset_text.strip_prefix("0X"));
+
+        if let Some(hex_text) = normalized_hex_text {
+            if hex_text.is_empty() {
+                return Err(String::from("Hex offset is missing digits."));
+            }
+
+            return u64::from_str_radix(hex_text, 16).map_err(|_| format!("Invalid hex offset: {}.", trimmed_relative_offset_text));
+        }
+
+        trimmed_relative_offset_text
+            .parse::<u64>()
+            .map_err(|_| format!("Invalid decimal offset: {}.", trimmed_relative_offset_text))
+    }
+
+    fn resolve_define_field_type_size(
+        &self,
+        define_field_draft: &DefineFieldDraft,
+    ) -> Option<u64> {
+        self.app_context
+            .engine_unprivileged_state
+            .get_default_value(define_field_draft.data_type_selection.visible_data_type())
+            .map(|default_value| default_value.get_size_in_bytes())
+    }
+
+    fn build_define_field_create_request(
+        define_field_draft: &DefineFieldDraft,
+        module_name: &str,
+        segment_offset: u64,
+        segment_length: u64,
+        resolve_type_size: impl Fn(&DataTypeRef) -> Option<u64>,
+    ) -> Result<ProjectSymbolsCreateRequest, String> {
+        let display_name = define_field_draft.display_name.trim();
+
+        if display_name.is_empty() {
+            return Err(String::from("Field name is required."));
+        }
+
+        let relative_offset = Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text)?;
+        let data_type_ref = define_field_draft.data_type_selection.visible_data_type();
+        let Some(field_size) = resolve_type_size(data_type_ref) else {
+            return Err(format!("Cannot resolve byte size for `{}`.", data_type_ref.get_data_type_id()));
+        };
+
+        if field_size == 0 {
+            return Err(format!("`{}` has no byte size.", data_type_ref.get_data_type_id()));
+        }
+
+        let Some(relative_field_end) = relative_offset.checked_add(field_size) else {
+            return Err(String::from("Field range is too large."));
+        };
+
+        if relative_field_end > segment_length {
+            return Err(format!(
+                "`{}` is {} byte(s), which does not fit inside this u8[] segment at offset 0x{:X}.",
+                data_type_ref.get_data_type_id(),
+                field_size,
+                relative_offset
+            ));
+        }
+
+        let Some(absolute_offset) = segment_offset.checked_add(relative_offset) else {
+            return Err(String::from("Module offset is too large."));
+        };
+
+        Ok(ProjectSymbolsCreateRequest {
+            display_name: display_name.to_string(),
+            struct_layout_id: data_type_ref.get_data_type_id().to_string(),
+            address: None,
+            module_name: Some(module_name.to_string()),
+            offset: Some(absolute_offset),
+            metadata: Default::default(),
+        })
     }
 
     fn inline_rename_text_storage_id(symbol_locator_key: &str) -> Id {
@@ -1428,6 +1584,150 @@ impl SymbolExplorerView {
         did_confirm_delete
     }
 
+    fn render_define_field_take_over(
+        &self,
+        user_interface: &mut Ui,
+        module_name: &str,
+        segment_offset: u64,
+        segment_length: u64,
+        define_field_draft: &DefineFieldDraft,
+    ) {
+        let theme = &self.app_context.theme;
+        let mut edited_define_field_draft = define_field_draft.clone();
+        let mut define_field_request_result = Err(String::from("Field is not ready."));
+        let mut should_cancel_take_over = false;
+        let mut should_create_field = false;
+
+        user_interface.allocate_ui_with_layout(
+            user_interface.available_size(),
+            Layout::centered_and_justified(Direction::TopDown),
+            |user_interface| {
+                let panel_width = user_interface.available_width();
+
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Define Field", |user_interface| {
+                        user_interface.label(RichText::new(format!("{} + 0x{:X}", module_name, segment_offset)).color(theme.foreground_preview));
+                        user_interface.add_space(8.0);
+
+                        user_interface.label(RichText::new("Name").color(theme.foreground));
+                        self.render_string_data_value_box(
+                            user_interface,
+                            &mut edited_define_field_draft.display_name,
+                            "field_name",
+                            "symbol_explorer_define_field_name",
+                            user_interface.available_width(),
+                        );
+                        user_interface.add_space(8.0);
+
+                        user_interface.label(RichText::new("Offset in u8[]").color(theme.foreground));
+                        self.render_string_data_value_box(
+                            user_interface,
+                            &mut edited_define_field_draft.relative_offset_text,
+                            "0x0",
+                            "symbol_explorer_define_field_offset",
+                            user_interface.available_width(),
+                        );
+                        user_interface.add_space(8.0);
+
+                        user_interface.label(RichText::new("Type").color(theme.foreground));
+                        let data_type_selector_id = format!("symbol_explorer_define_field_type_{}_{}", module_name, segment_offset);
+                        user_interface.add(
+                            DataTypeSelectorView::new(
+                                self.app_context.clone(),
+                                &mut edited_define_field_draft.data_type_selection,
+                                &data_type_selector_id,
+                            )
+                            .single_select()
+                            .width(user_interface.available_width())
+                            .height(Self::TOOLBAR_HEIGHT),
+                        );
+
+                        define_field_request_result =
+                            Self::build_define_field_create_request(&edited_define_field_draft, module_name, segment_offset, segment_length, |data_type_ref| {
+                                self.app_context
+                                    .engine_unprivileged_state
+                                    .get_default_value(data_type_ref)
+                                    .map(|default_value| default_value.get_size_in_bytes())
+                            });
+                        let selected_type_size = self.resolve_define_field_type_size(&edited_define_field_draft);
+
+                        user_interface.add_space(8.0);
+                        if let Some(selected_type_size) = selected_type_size {
+                            user_interface.label(
+                                RichText::new(format!(
+                                    "This carves {} byte(s) from the selected {} byte u8[] span. No module bytes move.",
+                                    selected_type_size, segment_length
+                                ))
+                                .color(theme.foreground_preview),
+                            );
+                        }
+
+                        if let Err(validation_error) = define_field_request_result.as_ref() {
+                            user_interface.add_space(6.0);
+                            user_interface.label(RichText::new(validation_error).color(theme.error_red));
+                        }
+
+                        user_interface.add_space(12.0);
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(120.0, 28.0);
+                            let button_spacing = 12.0;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                let button_cancel = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if button_cancel.clicked() {
+                                    should_cancel_take_over = true;
+                                }
+
+                                let can_create_field = define_field_request_result.is_ok();
+                                let button_create = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Create").color(if can_create_field {
+                                        theme.foreground
+                                    } else {
+                                        theme.foreground_preview
+                                    }))
+                                    .fill(theme.background_control_secondary)
+                                    .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+
+                                if can_create_field && button_create.clicked() {
+                                    should_create_field = true;
+                                }
+                            });
+                        });
+                    })
+                    .desired_width(panel_width),
+                );
+            },
+        );
+
+        if should_cancel_take_over {
+            SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+            return;
+        }
+
+        if should_create_field {
+            if let Ok(project_symbols_create_request) = define_field_request_result {
+                SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+                self.create_symbol_claim(project_symbols_create_request, Some(module_name.to_string()));
+                return;
+            }
+        }
+
+        SymbolExplorerViewData::set_define_field_draft(self.symbol_explorer_view_data.clone(), edited_define_field_draft);
+    }
+
     fn calculate_symbol_tree_context_menu_width(
         app_context: &AppContext,
         user_interface: &mut Ui,
@@ -1733,11 +2033,19 @@ impl SymbolExplorerView {
                             .get_default_value(data_type_ref)
                             .map(|default_value| default_value.get_size_in_bytes())
                     });
+                let context_menu_u8_segment = match symbol_tree_entry.get_kind() {
+                    SymbolTreeEntryKind::U8Segment { module_name, offset, length } => Some((module_name.as_str(), *offset, *length)),
+                    _ => None,
+                };
                 let can_delete_symbol_tree_entry =
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
                 if can_open_symbol_tree_entry {
                     context_menu_labels.extend(["Open in Memory Viewer", "Open in Code Viewer"]);
+                }
+                if context_menu_u8_segment.is_some() {
+                    context_menu_labels.push("Define Field...");
+                    context_menu_labels.push("Split in Half");
                 }
                 if can_rename_symbol_tree_entry {
                     context_menu_labels.push("Rename");
@@ -1809,6 +2117,63 @@ impl SymbolExplorerView {
                             user_interface.separator();
                         }
 
+                        if let Some((module_name, offset, length)) = context_menu_u8_segment {
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Define Field...",
+                                        "symbol_tree_ctx_define_field",
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_data_type_blue_blocks_4
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                SymbolExplorerViewData::begin_define_field_from_u8_segment(
+                                    self.symbol_explorer_view_data.clone(),
+                                    module_name.to_string(),
+                                    offset,
+                                    length,
+                                );
+                                *should_close = true;
+                            }
+
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Split in Half",
+                                        "symbol_tree_ctx_split_in_half",
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_data_type_purple_blocks_array
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.split_u8_segment_in_half(module_name, offset, length);
+                                *should_close = true;
+                            }
+                        }
+
+                        if context_menu_u8_segment.is_some() && can_rename_symbol_tree_entry {
+                            user_interface.separator();
+                        }
+
                         if can_rename_symbol_tree_entry
                             && user_interface
                                 .add(
@@ -1826,7 +2191,7 @@ impl SymbolExplorerView {
                             *should_close = true;
                         }
 
-                        if can_open_symbol_tree_entry || can_rename_symbol_tree_entry {
+                        if can_open_symbol_tree_entry || context_menu_u8_segment.is_some() || can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -2083,21 +2448,22 @@ impl Widget for SymbolExplorerView {
         self.sync_symbol_preview_virtual_snapshot(&project_symbol_catalog, &symbol_tree_entries);
         let preview_values_by_node_key = self.collect_preview_values_by_node_key(&symbol_tree_entries);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
-        let (selected_entry, take_over_state, inline_rename_tree_node_key, context_menu_target, current_module_root_create_draft) = self
-            .symbol_explorer_view_data
-            .read("Symbol explorer view")
-            .map(|symbol_explorer_view_data| {
-                (
-                    symbol_explorer_view_data.get_selected_entry().cloned(),
-                    symbol_explorer_view_data.get_take_over_state().cloned(),
-                    symbol_explorer_view_data
-                        .get_inline_rename_tree_node_key()
-                        .map(str::to_string),
-                    symbol_explorer_view_data.get_context_menu_target().cloned(),
-                    symbol_explorer_view_data.get_module_root_create_draft().clone(),
-                )
-            })
-            .unwrap_or((None, None, None, None, Default::default()));
+        let (selected_entry, take_over_state, inline_rename_tree_node_key, context_menu_target, current_module_root_create_draft, current_define_field_draft) =
+            self.symbol_explorer_view_data
+                .read("Symbol explorer view")
+                .map(|symbol_explorer_view_data| {
+                    (
+                        symbol_explorer_view_data.get_selected_entry().cloned(),
+                        symbol_explorer_view_data.get_take_over_state().cloned(),
+                        symbol_explorer_view_data
+                            .get_inline_rename_tree_node_key()
+                            .map(str::to_string),
+                        symbol_explorer_view_data.get_context_menu_target().cloned(),
+                        symbol_explorer_view_data.get_module_root_create_draft().clone(),
+                        symbol_explorer_view_data.get_define_field_draft().clone(),
+                    )
+                })
+                .unwrap_or((None, None, None, None, Default::default(), Default::default()));
         let selected_symbol_claim = match selected_entry.as_ref() {
             Some(SymbolExplorerSelection::SymbolClaim(selected_symbol_locator_key)) => project_symbol_catalog
                 .get_symbol_claims()
@@ -2146,6 +2512,7 @@ impl Widget for SymbolExplorerView {
                 Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation {
                     module_name, offset, length, ..
                 }) => self.delete_module_range(module_name, *offset, *length),
+                Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { .. }) => {}
                 None => {}
             }
         }
@@ -2314,6 +2681,12 @@ impl Widget for SymbolExplorerView {
 
                         return;
                     }
+                    Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, offset, length }) => {
+                        list_user_interface.add_space(8.0);
+                        self.render_define_field_take_over(&mut list_user_interface, module_name, *offset, *length, &current_define_field_draft);
+
+                        return;
+                    }
                     None => {}
                 }
 
@@ -2357,10 +2730,12 @@ impl Widget for SymbolExplorerView {
 #[cfg(test)]
 mod tests {
     use super::SymbolExplorerView;
+    use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
+    use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::DefineFieldDraft;
     use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
     use squalr_engine_api::structures::{
-        data_types::built_in_types::u32::data_type_u32::DataTypeU32,
+        data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
         projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
         structs::valued_struct::ValuedStruct,
@@ -2535,6 +2910,46 @@ mod tests {
         assert_eq!(symbol_claim_target.module_name, "game.exe");
         assert_eq!(symbol_claim_target.offset, 0x04);
         assert_eq!(symbol_claim_target.length, 4);
+    }
+
+    #[test]
+    fn build_define_field_create_request_offsets_into_u8_segment() {
+        let define_field_draft = DefineFieldDraft {
+            display_name: String::from("health"),
+            relative_offset_text: String::from("0x10"),
+            data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
+        };
+        let project_symbols_create_request =
+            SymbolExplorerView::build_define_field_create_request(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
+                (data_type_ref.get_data_type_id() == "i32").then_some(4)
+            })
+            .expect("Expected valid define-field request.");
+
+        assert_eq!(project_symbols_create_request.display_name, "health");
+        assert_eq!(project_symbols_create_request.struct_layout_id, "i32");
+        assert_eq!(project_symbols_create_request.module_name, Some(String::from("game.exe")));
+        assert_eq!(project_symbols_create_request.offset, Some(0x110));
+    }
+
+    #[test]
+    fn build_define_field_create_request_rejects_out_of_bounds_type() {
+        let define_field_draft = DefineFieldDraft {
+            display_name: String::from("health"),
+            relative_offset_text: String::from("0x3E"),
+            data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
+        };
+        let project_symbols_create_request =
+            SymbolExplorerView::build_define_field_create_request(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
+                (data_type_ref.get_data_type_id() == "i32").then_some(4)
+            });
+
+        assert!(project_symbols_create_request.is_err());
+    }
+
+    #[test]
+    fn parse_define_field_relative_offset_accepts_hex_and_decimal() {
+        assert_eq!(SymbolExplorerView::parse_define_field_relative_offset("0x10"), Ok(16));
+        assert_eq!(SymbolExplorerView::parse_define_field_relative_offset("16"), Ok(16));
     }
 
     #[test]

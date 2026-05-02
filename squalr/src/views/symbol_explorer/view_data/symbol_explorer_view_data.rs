@@ -1,6 +1,8 @@
+use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
 use epaint::Pos2;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::collections::HashSet;
 
@@ -27,12 +29,34 @@ pub enum SymbolExplorerTakeOverState {
         length: u64,
         display_name: String,
     },
+    DefineFieldFromU8Segment {
+        module_name: String,
+        offset: u64,
+        length: u64,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ModuleRootCreateDraft {
     pub module_name: String,
     pub size_text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DefineFieldDraft {
+    pub display_name: String,
+    pub relative_offset_text: String,
+    pub data_type_selection: DataTypeSelection,
+}
+
+impl Default for DefineFieldDraft {
+    fn default() -> Self {
+        Self {
+            display_name: String::new(),
+            relative_offset_text: String::from("0x0"),
+            data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -63,6 +87,7 @@ pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
     take_over_state: Option<SymbolExplorerTakeOverState>,
     module_root_create_draft: ModuleRootCreateDraft,
+    define_field_draft: DefineFieldDraft,
     inline_rename_tree_node_key: Option<String>,
     expanded_tree_node_keys: HashSet<String>,
     context_menu_target: Option<SymbolExplorerContextMenuTarget>,
@@ -74,6 +99,7 @@ impl SymbolExplorerViewData {
             selected_entry: None,
             take_over_state: None,
             module_root_create_draft: ModuleRootCreateDraft::default(),
+            define_field_draft: DefineFieldDraft::default(),
             inline_rename_tree_node_key: None,
             expanded_tree_node_keys: HashSet::new(),
             context_menu_target: None,
@@ -90,6 +116,10 @@ impl SymbolExplorerViewData {
 
     pub fn get_module_root_create_draft(&self) -> &ModuleRootCreateDraft {
         &self.module_root_create_draft
+    }
+
+    pub fn get_define_field_draft(&self) -> &DefineFieldDraft {
+        &self.define_field_draft
     }
 
     pub fn get_inline_rename_tree_node_key(&self) -> Option<&str> {
@@ -112,6 +142,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.selected_entry = selected_entry;
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
+            symbol_explorer_view_data.define_field_draft = DefineFieldDraft::default();
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
             symbol_explorer_view_data.context_menu_target = None;
         }
@@ -122,6 +153,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::CreateModuleRoot);
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
+            symbol_explorer_view_data.define_field_draft = DefineFieldDraft::default();
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
             symbol_explorer_view_data.context_menu_target = None;
         }
@@ -150,6 +182,15 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set module root create draft") {
             symbol_explorer_view_data.module_root_create_draft = module_root_create_draft;
+        }
+    }
+
+    pub fn set_define_field_draft(
+        symbol_explorer_view_data: Dependency<Self>,
+        define_field_draft: DefineFieldDraft,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set define field draft") {
+            symbol_explorer_view_data.define_field_draft = define_field_draft;
         }
     }
 
@@ -201,6 +242,24 @@ impl SymbolExplorerViewData {
     pub fn cancel_take_over_state(symbol_explorer_view_data: Dependency<Self>) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer cancel take over state") {
             symbol_explorer_view_data.take_over_state = None;
+            symbol_explorer_view_data.define_field_draft = DefineFieldDraft::default();
+        }
+    }
+
+    pub fn begin_define_field_from_u8_segment(
+        symbol_explorer_view_data: Dependency<Self>,
+        module_name: String,
+        offset: u64,
+        length: u64,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin define field from u8 segment") {
+            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, offset, length });
+            symbol_explorer_view_data.define_field_draft = DefineFieldDraft {
+                display_name: format!("field_{:08X}", offset),
+                ..Default::default()
+            };
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -271,6 +330,7 @@ impl SymbolExplorerViewData {
                 symbol_explorer_view_data.selected_entry = None;
                 symbol_explorer_view_data.take_over_state = None;
                 symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
+                symbol_explorer_view_data.define_field_draft = DefineFieldDraft::default();
                 symbol_explorer_view_data.inline_rename_tree_node_key = None;
                 symbol_explorer_view_data.context_menu_target = None;
                 return;
@@ -289,6 +349,7 @@ impl SymbolExplorerViewData {
 
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
+            symbol_explorer_view_data.define_field_draft = DefineFieldDraft::default();
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
             symbol_explorer_view_data.context_menu_target = None;
         }
@@ -340,6 +401,7 @@ impl SymbolExplorerViewData {
             Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation { module_name, .. }) => {
                 project_symbol_catalog.find_symbol_module(module_name).is_none()
             }
+            Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, .. }) => project_symbol_catalog.find_symbol_module(module_name).is_none(),
             None => false,
         };
 
@@ -380,6 +442,25 @@ impl SymbolExplorerViewData {
             }
         }
 
+        if let Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, offset, length }) = symbol_explorer_view_data.take_over_state.as_ref()
+        {
+            let is_target_segment_still_available = symbol_tree_entries.iter().any(|symbol_tree_entry| {
+                matches!(
+                    symbol_tree_entry.get_kind(),
+                    SymbolTreeEntryKind::U8Segment {
+                        module_name: segment_module_name,
+                        offset: segment_offset,
+                        length: segment_length,
+                    } if segment_module_name == module_name && segment_offset == offset && segment_length == length
+                )
+            });
+
+            if !is_target_segment_still_available {
+                symbol_explorer_view_data.take_over_state = None;
+                symbol_explorer_view_data.define_field_draft = DefineFieldDraft::default();
+            }
+        }
+
         let Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) = symbol_explorer_view_data.selected_entry.as_ref() else {
             return;
         };
@@ -406,7 +487,7 @@ impl SymbolExplorerViewData {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData};
+    use super::{DefineFieldDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData};
     use epaint::pos2;
     use squalr_engine_api::dependency_injection::dependency::Dependency;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
@@ -644,5 +725,46 @@ mod tests {
                 module_name: String::from("game.exe"),
             })
         );
+    }
+
+    #[test]
+    fn begin_define_field_from_u8_segment_initializes_takeover_and_draft() {
+        let symbol_explorer_view_data = create_dependency();
+
+        SymbolExplorerViewData::begin_define_field_from_u8_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
+
+        let symbol_explorer_view_data = symbol_explorer_view_data
+            .read("Symbol explorer begin define field test")
+            .expect("Expected symbol explorer dependency read access in test.");
+
+        assert_eq!(
+            symbol_explorer_view_data.get_take_over_state(),
+            Some(&SymbolExplorerTakeOverState::DefineFieldFromU8Segment {
+                module_name: String::from("game.exe"),
+                offset: 0x40,
+                length: 0x100,
+            })
+        );
+        assert_eq!(
+            symbol_explorer_view_data.get_define_field_draft(),
+            &DefineFieldDraft {
+                display_name: String::from("field_00000040"),
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn synchronize_selection_to_tree_entries_clears_missing_define_field_target() {
+        let symbol_explorer_view_data = create_dependency();
+
+        SymbolExplorerViewData::begin_define_field_from_u8_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
+        SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &[]);
+
+        let take_over_state = symbol_explorer_view_data
+            .read("Symbol explorer missing define field target test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_take_over_state().cloned());
+
+        assert_eq!(take_over_state, None);
     }
 }
