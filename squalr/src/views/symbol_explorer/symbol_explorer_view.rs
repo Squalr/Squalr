@@ -2077,8 +2077,8 @@ impl Widget for SymbolExplorerView {
                             "Delete this field",
                             display_name,
                             &format!(
-                                "This shrinks {} by {} byte(s) at +0x{:X}; later module fields shift left.",
-                                module_name, length, offset
+                                "WARNING: {} will be {} byte(s) smaller. Proceeding fields will be shifted left.",
+                                module_name, length
                             ),
                             true,
                         ) {
