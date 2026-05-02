@@ -277,7 +277,7 @@ impl SymbolTableView {
         let mut normalized_fields = vec![
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim_entry.get_display_name())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_promoted_symbol_type_id())
+            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_display_type_id())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), false),
         ];
 
@@ -304,7 +304,7 @@ impl SymbolTableView {
         ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim_entry.get_display_name())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_promoted_symbol_type_id())
+            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_display_type_id())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_locator().to_string())
                 .to_named_valued_struct_field(String::from("locator"), true),
@@ -358,7 +358,7 @@ impl SymbolTableView {
                 let next_struct_layout_id = StructViewerViewData::read_utf8_field_text(&edited_field)
                     .trim()
                     .to_string();
-                if next_struct_layout_id.is_empty() || next_struct_layout_id == symbol_claim_entry.get_promoted_symbol_type_id() {
+                if next_struct_layout_id.is_empty() || next_struct_layout_id == symbol_claim_entry.get_display_type_id() {
                     return;
                 }
 
@@ -765,7 +765,7 @@ impl SymbolTableView {
             row_rect,
             8.0 + name_width + locator_width,
             type_width,
-            &symbol_claim_entry.get_promoted_symbol_type_id(),
+            &symbol_claim_entry.get_display_type_id(),
             secondary_text_color,
             false,
             user_interface,
@@ -815,7 +815,7 @@ impl SymbolTableView {
 
         [
             symbol_claim_entry.get_display_name().to_string(),
-            symbol_claim_entry.get_promoted_symbol_type_id(),
+            symbol_claim_entry.get_display_type_id(),
             symbol_claim_entry.get_locator().to_string(),
         ]
         .iter()

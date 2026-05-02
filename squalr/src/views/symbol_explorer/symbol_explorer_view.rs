@@ -23,7 +23,6 @@ use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest,
     privileged_command_response::TypedPrivilegedCommandResponse,
     project_symbols::{
-        create::project_symbols_create_request::ProjectSymbolsCreateRequest,
         create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
         delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
         rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
@@ -224,26 +223,6 @@ impl SymbolExplorerView {
         project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
     }
 
-    fn create_symbol_claim(
-        &self,
-        project_symbols_create_request: ProjectSymbolsCreateRequest,
-    ) {
-        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
-
-        project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, move |project_symbols_create_response| {
-            if project_symbols_create_response.success
-                && !project_symbols_create_response
-                    .created_symbol_locator_key
-                    .is_empty()
-            {
-                SymbolExplorerViewData::set_selected_entry(
-                    symbol_explorer_view_data,
-                    Some(SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)),
-                );
-            }
-        });
-    }
-
     fn create_module_root(
         &self,
         project_symbols_create_module_request: ProjectSymbolsCreateModuleRequest,
@@ -260,27 +239,6 @@ impl SymbolExplorerView {
                 );
                 SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
             }
-        });
-    }
-
-    fn create_symbol_claim_from_locator(
-        &self,
-        display_name: String,
-        symbol_type_id: String,
-        project_symbol_locator: ProjectSymbolLocator,
-    ) {
-        let (address, module_name, offset) = match project_symbol_locator {
-            ProjectSymbolLocator::AbsoluteAddress { address } => (Some(address), None, None),
-            ProjectSymbolLocator::ModuleOffset { module_name, offset } => (None, Some(module_name), Some(offset)),
-        };
-
-        self.create_symbol_claim(ProjectSymbolsCreateRequest {
-            display_name,
-            struct_layout_id: symbol_type_id,
-            address,
-            module_name,
-            offset,
-            metadata: Default::default(),
         });
     }
 
@@ -337,7 +295,7 @@ impl SymbolExplorerView {
                 "{}|{}|{}",
                 symbol_tree_entry.get_node_key(),
                 symbol_tree_entry.get_display_name(),
-                symbol_tree_entry.get_promoted_symbol_type_id()
+                symbol_tree_entry.get_display_type_id()
             )
         })
     }
@@ -456,7 +414,7 @@ impl SymbolExplorerView {
                 let next_struct_layout_id = StructViewerViewData::read_utf8_field_text(&edited_field)
                     .trim()
                     .to_string();
-                if next_struct_layout_id.is_empty() || next_struct_layout_id == selected_symbol_tree_entry.get_promoted_symbol_type_id() {
+                if next_struct_layout_id.is_empty() || next_struct_layout_id == selected_symbol_tree_entry.get_display_type_id() {
                     return;
                 }
 
@@ -632,24 +590,20 @@ impl SymbolExplorerView {
         symbol_tree_entry: &SymbolTreeEntry,
         truncate_preview_arrays: bool,
     ) -> Option<SymbolicStructDefinition> {
-        let promoted_symbol_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_promoted_symbol_type_id()).ok()?;
+        let entry_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()).ok()?;
         let preview_container_type = if truncate_preview_arrays {
-            match promoted_symbol_field_definition.get_container_type() {
+            match entry_field_definition.get_container_type() {
                 ContainerType::ArrayFixed(length) if length > Self::MAX_SYMBOL_PREVIEW_ELEMENT_COUNT => {
                     ContainerType::ArrayFixed(Self::MAX_SYMBOL_PREVIEW_ELEMENT_COUNT)
                 }
                 container_type => container_type,
             }
         } else {
-            promoted_symbol_field_definition.get_container_type()
+            entry_field_definition.get_container_type()
         };
 
-        let resolved_symbolic_struct_definition = self.build_symbolic_struct_definition_for_symbol_type(
-            project_symbol_catalog,
-            promoted_symbol_field_definition
-                .get_data_type_ref()
-                .get_data_type_id(),
-        )?;
+        let resolved_symbolic_struct_definition =
+            self.build_symbolic_struct_definition_for_symbol_type(project_symbol_catalog, entry_field_definition.get_data_type_ref().get_data_type_id())?;
 
         if resolved_symbolic_struct_definition.get_fields().len() > 1 {
             return None;
@@ -657,7 +611,7 @@ impl SymbolExplorerView {
 
         if resolved_symbolic_struct_definition.get_fields().is_empty() || preview_container_type != ContainerType::None {
             return Some(SymbolicStructDefinition::new_anonymous(vec![SymbolicFieldDefinition::new(
-                promoted_symbol_field_definition.get_data_type_ref().clone(),
+                entry_field_definition.get_data_type_ref().clone(),
                 preview_container_type,
             )]));
         }
@@ -770,7 +724,7 @@ impl SymbolExplorerView {
         }
 
         normalized_fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_promoted_symbol_type_id())
+            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_display_type_id())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), !include_symbol_claim_metadata),
         );
 
@@ -806,7 +760,7 @@ impl SymbolExplorerView {
         }
 
         fallback_fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_promoted_symbol_type_id())
+            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_display_type_id())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), !include_symbol_claim_metadata),
         );
 
@@ -1671,7 +1625,10 @@ impl SymbolExplorerView {
     fn render_create_module_root_take_over(
         &self,
         user_interface: &mut Ui,
+        create_module_root_request: Option<ProjectSymbolsCreateModuleRequest>,
     ) {
+        let theme = &self.app_context.theme;
+
         user_interface.allocate_ui_with_layout(
             user_interface.available_size(),
             Layout::centered_and_justified(Direction::TopDown),
@@ -1687,6 +1644,39 @@ impl SymbolExplorerView {
                             Layout::top_down(Align::Min),
                             |user_interface| {
                                 self.render_create_module_root_details(user_interface);
+                                user_interface.add_space(12.0);
+                                user_interface.horizontal_centered(|user_interface| {
+                                    let button_size = [96.0, 30.0];
+                                    let button_cancel = user_interface.add_sized(
+                                        button_size,
+                                        eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                            .fill(theme.background_control_secondary)
+                                            .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                    );
+
+                                    if button_cancel.clicked() {
+                                        SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
+                                    }
+
+                                    let can_create_module = create_module_root_request.is_some();
+                                    let button_create = user_interface.add_enabled(
+                                        can_create_module,
+                                        eframe::egui::Button::new(RichText::new("Create").color(if can_create_module {
+                                            theme.foreground
+                                        } else {
+                                            theme.foreground_preview
+                                        }))
+                                        .min_size(vec2(button_size[0], button_size[1]))
+                                        .fill(theme.background_control_primary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
+                                    );
+
+                                    if button_create.clicked() {
+                                        if let Some(project_symbols_create_module_request) = create_module_root_request.clone() {
+                                            self.create_module_root(project_symbols_create_module_request);
+                                        }
+                                    }
+                                });
                             },
                         );
                     });
@@ -1809,6 +1799,16 @@ impl Widget for SymbolExplorerView {
             SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         }
 
+        if is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+            SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
+        }
+
+        if is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+            if let Some(project_symbols_create_module_request) = create_module_root_request.clone() {
+                self.create_module_root(project_symbols_create_module_request);
+            }
+        }
+
         if !is_delete_confirmation_active
             && !is_inline_rename_active
             && !is_create_module_root_active
@@ -1869,11 +1869,6 @@ impl Widget for SymbolExplorerView {
                     .can_delete_selected_entry((selected_symbol_claim.is_some() || selected_module_name.is_some()) && can_use_standard_toolbar_actions)
                     .can_open_in_code_viewer(can_open_selected_entry && can_use_standard_toolbar_actions)
                     .can_open_in_memory_viewer(can_open_selected_entry && can_use_standard_toolbar_actions)
-                    .can_promote_derived_symbol(
-                        matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::DerivedNode(_))) && can_use_standard_toolbar_actions,
-                    )
-                    .can_cancel_create_module_root(is_create_module_root_active)
-                    .can_commit_create_module_root(create_module_root_request.is_some())
                     .show(&mut list_user_interface);
 
                 match toolbar_action {
@@ -1909,23 +1904,6 @@ impl Widget for SymbolExplorerView {
                     Some(SymbolExplorerToolbarAction::OpenSelectedInMemoryViewer) => {
                         if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
                             self.focus_memory_viewer_for_locator(symbol_tree_entry.get_locator());
-                        }
-                    }
-                    Some(SymbolExplorerToolbarAction::PromoteSelectedDerivedSymbol) => {
-                        if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
-                            self.create_symbol_claim_from_locator(
-                                symbol_tree_entry.get_promotion_display_name().to_string(),
-                                symbol_tree_entry.get_promoted_symbol_type_id(),
-                                symbol_tree_entry.get_locator().clone(),
-                            );
-                        }
-                    }
-                    Some(SymbolExplorerToolbarAction::CancelCreateModuleRoot) => {
-                        SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
-                    }
-                    Some(SymbolExplorerToolbarAction::CommitCreateModuleRoot) => {
-                        if let Some(project_symbols_create_module_request) = create_module_root_request.clone() {
-                            self.create_module_root(project_symbols_create_module_request);
                         }
                     }
                     None => {}
@@ -1968,7 +1946,7 @@ impl Widget for SymbolExplorerView {
 
                 if matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot)) {
                     list_user_interface.add_space(8.0);
-                    self.render_create_module_root_take_over(&mut list_user_interface);
+                    self.render_create_module_root_take_over(&mut list_user_interface, create_module_root_request.clone());
 
                     return;
                 }
@@ -2024,7 +2002,6 @@ mod tests {
             1,
             display_name.to_string(),
             display_name.to_string(),
-            display_name.to_string(),
             String::from("absolute:1234"),
             ProjectSymbolLocator::new_absolute_address(0x1234),
             symbol_type_id.to_string(),
@@ -2045,7 +2022,6 @@ mod tests {
             module_name.to_string(),
             module_name.to_string(),
             String::new(),
-            String::new(),
             ProjectSymbolLocator::new_absolute_address(0),
             String::from("u8"),
             ContainerType::ArrayFixed(0x2000),
@@ -2065,7 +2041,6 @@ mod tests {
             1,
             String::from("u8_00000000"),
             String::from("game.exe.u8_00000000"),
-            String::new(),
             String::new(),
             ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0),
             String::from("u8"),

@@ -13,9 +13,6 @@ pub enum SymbolExplorerToolbarAction {
     DeleteSelectedEntry,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
-    PromoteSelectedDerivedSymbol,
-    CancelCreateModuleRoot,
-    CommitCreateModuleRoot,
 }
 
 #[derive(Clone)]
@@ -26,9 +23,6 @@ pub struct SymbolExplorerToolbarView {
     can_delete_selected_entry: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
-    can_promote_derived_symbol: bool,
-    can_cancel_create_module_root: bool,
-    can_commit_create_module_root: bool,
 }
 
 impl SymbolExplorerToolbarView {
@@ -43,9 +37,6 @@ impl SymbolExplorerToolbarView {
             can_delete_selected_entry: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
-            can_promote_derived_symbol: false,
-            can_cancel_create_module_root: false,
-            can_commit_create_module_root: false,
         }
     }
 
@@ -94,33 +85,6 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_promote_derived_symbol(
-        mut self,
-        can_promote_derived_symbol: bool,
-    ) -> Self {
-        self.can_promote_derived_symbol = can_promote_derived_symbol;
-
-        self
-    }
-
-    pub fn can_cancel_create_module_root(
-        mut self,
-        can_cancel_create_module_root: bool,
-    ) -> Self {
-        self.can_cancel_create_module_root = can_cancel_create_module_root;
-
-        self
-    }
-
-    pub fn can_commit_create_module_root(
-        mut self,
-        can_commit_create_module_root: bool,
-    ) -> Self {
-        self.can_commit_create_module_root = can_commit_create_module_root;
-
-        self
-    }
-
     pub fn show(
         self,
         user_interface: &mut Ui,
@@ -151,18 +115,6 @@ impl SymbolExplorerToolbarView {
             .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::DeleteSelectedEntry);
-            }
-
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_data_type_blue_blocks_array,
-                "Promote selected derived field to a symbol.",
-                self.can_promote_derived_symbol,
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::PromoteSelectedDerivedSymbol);
             }
 
             if Self::draw_icon_button(
@@ -211,30 +163,6 @@ impl SymbolExplorerToolbarView {
             .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::CreateModuleRoot);
-            }
-
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_navigation_cancel,
-                "Cancel module creation.",
-                self.can_cancel_create_module_root,
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateModuleRoot);
-            }
-
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_common_check_mark,
-                "Create module.",
-                self.can_commit_create_module_root,
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateModuleRoot);
             }
         });
 

@@ -108,7 +108,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             allocated_size_rectangle.min.x + row_left_padding + indentation + expand_arrow_size.x + text_left_padding + data_type_icon_size.x * 0.5,
             allocated_size_rectangle.center().y,
         );
-        let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(&self.symbol_tree_entry.get_promoted_symbol_type_id(), &theme.icon_library);
+        let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(&self.symbol_tree_entry.get_display_type_id(), &theme.icon_library);
         IconDraw::draw_sized(user_interface, data_type_icon_center, data_type_icon_size, &data_type_icon);
 
         let text_position_x = data_type_icon_center.x + data_type_icon_size.x * 0.5 + data_type_icon_gap;
@@ -188,16 +188,12 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
         let hover_text = match self.symbol_tree_entry.get_kind() {
             SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. } => {
-                format!(
-                    "{}\n{}",
-                    self.symbol_tree_entry.get_full_path(),
-                    self.symbol_tree_entry.get_promoted_symbol_type_id()
-                )
+                format!("{}\n{}", self.symbol_tree_entry.get_full_path(), self.symbol_tree_entry.get_display_type_id())
             }
             _ => format!(
                 "{}\n{}\n{}",
                 self.symbol_tree_entry.get_full_path(),
-                self.symbol_tree_entry.get_promoted_symbol_type_id(),
+                self.symbol_tree_entry.get_display_type_id(),
                 self.symbol_tree_entry.get_locator()
             ),
         };

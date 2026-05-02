@@ -52,7 +52,6 @@ pub struct SymbolTreeEntry {
     depth: usize,
     display_name: String,
     full_path: String,
-    promotion_display_name: String,
     symbol_claim_locator_key: String,
     locator: ProjectSymbolLocator,
     symbol_type_id: String,
@@ -70,7 +69,6 @@ impl SymbolTreeEntry {
         depth: usize,
         display_name: String,
         full_path: String,
-        promotion_display_name: String,
         symbol_claim_locator_key: String,
         locator: ProjectSymbolLocator,
         symbol_type_id: String,
@@ -84,7 +82,6 @@ impl SymbolTreeEntry {
             depth,
             display_name,
             full_path,
-            promotion_display_name,
             symbol_claim_locator_key,
             locator,
             symbol_type_id,
@@ -114,10 +111,6 @@ impl SymbolTreeEntry {
         &self.full_path
     }
 
-    pub fn get_promotion_display_name(&self) -> &str {
-        &self.promotion_display_name
-    }
-
     pub fn get_symbol_claim_locator_key(&self) -> &str {
         &self.symbol_claim_locator_key
     }
@@ -130,7 +123,7 @@ impl SymbolTreeEntry {
         &self.symbol_type_id
     }
 
-    pub fn get_promoted_symbol_type_id(&self) -> String {
+    pub fn get_display_type_id(&self) -> String {
         format!("{}{}", self.symbol_type_id, self.container_type)
     }
 
@@ -292,7 +285,6 @@ fn append_u8_segment_entry(
         display_name,
         full_path,
         String::new(),
-        String::new(),
         ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset),
         String::from("u8"),
         ContainerType::ArrayFixed(length),
@@ -319,7 +311,6 @@ fn append_module_space_entry(
         0,
         module_name.clone(),
         module_name,
-        String::new(),
         String::new(),
         ProjectSymbolLocator::new_absolute_address(0),
         String::from("u8"),
@@ -357,7 +348,6 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
         depth,
         symbol_claim.get_display_name().to_string(),
         symbol_claim.get_display_name().to_string(),
-        symbol_claim.get_display_name().to_string(),
         symbol_claim.get_symbol_locator_key().to_string(),
         symbol_claim.get_locator().clone(),
         symbol_claim_type.symbol_type_id().to_string(),
@@ -377,7 +367,6 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
             &symbol_claim.get_symbol_locator_key(),
             &root_node_key,
             symbol_claim.get_display_name(),
-            symbol_claim.get_display_name(),
             symbol_claim.get_locator(),
             &struct_layout_definition,
             depth + 1,
@@ -393,7 +382,6 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
             project_symbol_catalog,
             &symbol_claim.get_symbol_locator_key(),
             &root_node_key,
-            symbol_claim.get_display_name(),
             symbol_claim.get_display_name(),
             symbol_claim.get_locator(),
             &data_type_ref,
@@ -413,7 +401,6 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
     symbol_claim_locator_key: &str,
     parent_node_key: &str,
     parent_full_path: &str,
-    parent_promotion_display_name: &str,
     parent_locator: &ProjectSymbolLocator,
     struct_layout_definition: &SymbolicStructDefinition,
     depth: usize,
@@ -433,11 +420,6 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
             field_definition.get_field_name().to_string()
         };
         let field_full_path = format!("{}.{}", parent_full_path, field_display_name);
-        let field_promotion_display_name = if parent_promotion_display_name.is_empty() {
-            field_display_name.clone()
-        } else {
-            format!("{}.{}", parent_promotion_display_name, field_display_name)
-        };
         let field_symbol_type_id = format!("{}{}", field_definition.get_data_type_ref(), field_definition.get_container_type());
         let field_node_key = format!("{}::{}", parent_node_key, field_display_name);
         let field_locator = offset_locator(parent_locator, cumulative_field_offset);
@@ -450,7 +432,6 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
             depth,
             field_display_name.clone(),
             field_full_path.clone(),
-            field_promotion_display_name.clone(),
             symbol_claim_locator_key.to_string(),
             field_locator.clone(),
             field_symbol_type_id,
@@ -466,7 +447,6 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
                 symbol_claim_locator_key,
                 &field_node_key,
                 &field_full_path,
-                &field_promotion_display_name,
                 &field_locator,
                 field_definition.get_data_type_ref(),
                 field_definition.get_container_type(),
@@ -493,7 +473,6 @@ fn append_field_children<ResolvePrimitiveSize>(
     symbol_claim_locator_key: &str,
     parent_node_key: &str,
     parent_full_path: &str,
-    parent_promotion_display_name: &str,
     parent_locator: &ProjectSymbolLocator,
     data_type_ref: &DataTypeRef,
     container_type: ContainerType,
@@ -518,7 +497,6 @@ fn append_field_children<ResolvePrimitiveSize>(
             for array_index in 0..visible_element_count {
                 let array_element_display_name = format!("[{}]", array_index);
                 let array_element_full_path = format!("{}{}", parent_full_path, array_element_display_name);
-                let array_element_promotion_display_name = format!("{}{}", parent_promotion_display_name, array_element_display_name);
                 let array_element_node_key = format!("{}{}", parent_node_key, array_element_display_name);
                 let array_element_locator = offset_locator(parent_locator, element_size_in_bytes.saturating_mul(array_index));
                 let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
@@ -530,7 +508,6 @@ fn append_field_children<ResolvePrimitiveSize>(
                     depth,
                     array_element_display_name.clone(),
                     array_element_full_path.clone(),
-                    array_element_promotion_display_name.clone(),
                     symbol_claim_locator_key.to_string(),
                     array_element_locator.clone(),
                     data_type_ref.to_string(),
@@ -547,7 +524,6 @@ fn append_field_children<ResolvePrimitiveSize>(
                             symbol_claim_locator_key,
                             &array_element_node_key,
                             &array_element_full_path,
-                            &array_element_promotion_display_name,
                             &array_element_locator,
                             &nested_struct_layout_definition,
                             depth + 1,
@@ -570,7 +546,6 @@ fn append_field_children<ResolvePrimitiveSize>(
                     depth,
                     truncation_display_name.clone(),
                     format!("{}.{}", parent_full_path, truncation_display_name),
-                    parent_promotion_display_name.to_string(),
                     symbol_claim_locator_key.to_string(),
                     offset_locator(parent_locator, element_size_in_bytes.saturating_mul(visible_element_count)),
                     data_type_ref.to_string(),
@@ -594,7 +569,6 @@ fn append_field_children<ResolvePrimitiveSize>(
                     symbol_claim_locator_key,
                     parent_node_key,
                     parent_full_path,
-                    parent_promotion_display_name,
                     parent_locator,
                     &nested_struct_layout_definition,
                     depth,
@@ -623,7 +597,6 @@ fn append_field_children<ResolvePrimitiveSize>(
                 depth,
                 String::from("*"),
                 pointer_target_full_path.clone(),
-                parent_promotion_display_name.to_string(),
                 symbol_claim_locator_key.to_string(),
                 pointer_target_locator.clone(),
                 data_type_ref.to_string(),
@@ -639,7 +612,6 @@ fn append_field_children<ResolvePrimitiveSize>(
                     symbol_claim_locator_key,
                     &pointer_target_node_key,
                     &pointer_target_full_path,
-                    parent_promotion_display_name,
                     &pointer_target_locator,
                     data_type_ref,
                     ContainerType::None,
@@ -1104,7 +1076,7 @@ mod tests {
                 length: 0x1234,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_promoted_symbol_type_id(), "u8[4660]");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[4660]");
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
         assert_eq!(symbol_tree_entries[2].get_container_type(), ContainerType::None);
         assert_eq!(symbol_tree_entries[2].can_expand(), false);
