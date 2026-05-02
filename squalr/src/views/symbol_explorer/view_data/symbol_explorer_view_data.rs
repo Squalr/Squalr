@@ -1,4 +1,5 @@
 use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
+use epaint::Pos2;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::collections::HashSet;
@@ -34,6 +35,29 @@ pub struct ModuleRootCreateDraft {
     pub size_text: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct SymbolExplorerContextMenuTarget {
+    tree_node_key: String,
+    position: Pos2,
+}
+
+impl SymbolExplorerContextMenuTarget {
+    pub fn new(
+        tree_node_key: String,
+        position: Pos2,
+    ) -> Self {
+        Self { tree_node_key, position }
+    }
+
+    pub fn get_tree_node_key(&self) -> &str {
+        &self.tree_node_key
+    }
+
+    pub fn get_position(&self) -> Pos2 {
+        self.position
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
@@ -41,6 +65,7 @@ pub struct SymbolExplorerViewData {
     module_root_create_draft: ModuleRootCreateDraft,
     inline_rename_tree_node_key: Option<String>,
     expanded_tree_node_keys: HashSet<String>,
+    context_menu_target: Option<SymbolExplorerContextMenuTarget>,
 }
 
 impl SymbolExplorerViewData {
@@ -51,6 +76,7 @@ impl SymbolExplorerViewData {
             module_root_create_draft: ModuleRootCreateDraft::default(),
             inline_rename_tree_node_key: None,
             expanded_tree_node_keys: HashSet::new(),
+            context_menu_target: None,
         }
     }
 
@@ -74,6 +100,10 @@ impl SymbolExplorerViewData {
         &self.expanded_tree_node_keys
     }
 
+    pub fn get_context_menu_target(&self) -> Option<&SymbolExplorerContextMenuTarget> {
+        self.context_menu_target.as_ref()
+    }
+
     pub fn set_selected_entry(
         symbol_explorer_view_data: Dependency<Self>,
         selected_entry: Option<SymbolExplorerSelection>,
@@ -83,6 +113,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -92,6 +123,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -102,6 +134,7 @@ impl SymbolExplorerViewData {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin inline rename") {
             symbol_explorer_view_data.inline_rename_tree_node_key = Some(tree_node_key);
             symbol_explorer_view_data.take_over_state = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -131,6 +164,7 @@ impl SymbolExplorerViewData {
                 display_name,
             });
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -141,6 +175,7 @@ impl SymbolExplorerViewData {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete module confirmation") {
             symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name });
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -159,12 +194,30 @@ impl SymbolExplorerViewData {
                 display_name,
             });
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
     pub fn cancel_take_over_state(symbol_explorer_view_data: Dependency<Self>) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer cancel take over state") {
             symbol_explorer_view_data.take_over_state = None;
+        }
+    }
+
+    pub fn show_context_menu(
+        symbol_explorer_view_data: Dependency<Self>,
+        target: SymbolExplorerContextMenuTarget,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer show context menu") {
+            symbol_explorer_view_data.context_menu_target = Some(target);
+            symbol_explorer_view_data.take_over_state = None;
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
+        }
+    }
+
+    pub fn hide_context_menu(symbol_explorer_view_data: Dependency<Self>) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer hide context menu") {
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -219,6 +272,7 @@ impl SymbolExplorerViewData {
                 symbol_explorer_view_data.take_over_state = None;
                 symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
                 symbol_explorer_view_data.inline_rename_tree_node_key = None;
+                symbol_explorer_view_data.context_menu_target = None;
                 return;
             }
 
@@ -236,6 +290,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
+            symbol_explorer_view_data.context_menu_target = None;
         }
     }
 
@@ -315,6 +370,16 @@ impl SymbolExplorerViewData {
         let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize selection to tree entries") else {
             return;
         };
+
+        if let Some(context_menu_target) = symbol_explorer_view_data.context_menu_target.as_ref() {
+            if !symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_node_key() == context_menu_target.get_tree_node_key())
+            {
+                symbol_explorer_view_data.context_menu_target = None;
+            }
+        }
+
         let Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) = symbol_explorer_view_data.selected_entry.as_ref() else {
             return;
         };
@@ -341,7 +406,8 @@ impl SymbolExplorerViewData {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData};
+    use super::{SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData};
+    use epaint::pos2;
     use squalr_engine_api::dependency_injection::dependency::Dependency;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
@@ -461,6 +527,43 @@ mod tests {
             .expect("Expected symbol explorer dependency read access in test.");
 
         assert_eq!(symbol_explorer_view_data.get_inline_rename_tree_node_key(), None);
+    }
+
+    #[test]
+    fn show_context_menu_tracks_tree_node_and_position() {
+        let symbol_explorer_view_data = create_dependency();
+        let context_menu_position = pos2(12.0, 34.0);
+
+        SymbolExplorerViewData::show_context_menu(
+            symbol_explorer_view_data.clone(),
+            SymbolExplorerContextMenuTarget::new(String::from("claim:absolute:1234"), context_menu_position),
+        );
+
+        let context_menu_target = symbol_explorer_view_data
+            .read("Symbol explorer context menu target test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_context_menu_target().cloned());
+
+        assert_eq!(
+            context_menu_target,
+            Some(SymbolExplorerContextMenuTarget::new(String::from("claim:absolute:1234"), context_menu_position))
+        );
+    }
+
+    #[test]
+    fn begin_inline_rename_clears_context_menu() {
+        let symbol_explorer_view_data = create_dependency();
+
+        SymbolExplorerViewData::show_context_menu(
+            symbol_explorer_view_data.clone(),
+            SymbolExplorerContextMenuTarget::new(String::from("claim:absolute:1234"), pos2(12.0, 34.0)),
+        );
+        SymbolExplorerViewData::begin_inline_rename(symbol_explorer_view_data.clone(), String::from("claim:absolute:1234"));
+
+        let context_menu_target = symbol_explorer_view_data
+            .read("Symbol explorer context menu clear test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_context_menu_target().cloned());
+
+        assert_eq!(context_menu_target, None);
     }
 
     #[test]

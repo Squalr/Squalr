@@ -1,5 +1,8 @@
 use crate::app_context::AppContext;
-use crate::ui::widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox};
+use crate::ui::widgets::controls::{
+    button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
+    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+};
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
@@ -9,7 +12,9 @@ use crate::views::{
     symbol_explorer::symbol_tree_entry_view::SymbolTreeEntryView,
     symbol_explorer::symbol_tree_inline_rename_view::SymbolTreeInlineRenameView,
     symbol_explorer::view_data::{
-        symbol_explorer_view_data::{ModuleRootCreateDraft, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData},
+        symbol_explorer_view_data::{
+            ModuleRootCreateDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData,
+        },
         symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries, resolve_symbol_tree_entry_size_in_bytes},
     },
 };
@@ -1423,6 +1428,32 @@ impl SymbolExplorerView {
         did_confirm_delete
     }
 
+    fn calculate_symbol_tree_context_menu_width(
+        app_context: &AppContext,
+        user_interface: &mut Ui,
+        item_labels: &[&str],
+    ) -> f32 {
+        let mut longest_label_width: f32 = 0.0;
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            for item_label in item_labels {
+                let galley = fonts.layout_no_wrap(
+                    (*item_label).to_string(),
+                    app_context
+                        .theme
+                        .font_library
+                        .font_noto_sans
+                        .font_normal
+                        .clone(),
+                    app_context.theme.foreground,
+                );
+                longest_label_width = longest_label_width.max(galley.size().x);
+            }
+        });
+
+        ToolbarMenuItemView::row_width_from_text_width(longest_label_width).ceil()
+    }
+
     #[allow(dead_code)]
     fn render_symbol_tree_list_legacy(
         &self,
@@ -1524,6 +1555,7 @@ impl SymbolExplorerView {
         preview_values_by_node_key: &HashMap<String, String>,
         selected_entry: Option<&SymbolExplorerSelection>,
         inline_rename_tree_node_key: Option<&str>,
+        context_menu_target: Option<&SymbolExplorerContextMenuTarget>,
         shared_struct_viewer_focus_target: Option<&StructViewerFocusTarget>,
         allow_interaction: bool,
     ) {
@@ -1644,6 +1676,25 @@ impl SymbolExplorerView {
                 }
             }
 
+            if allow_interaction && symbol_tree_entry_view_response.row_response.secondary_clicked() {
+                let Some(selection) = Self::build_selection_for_tree_entry(symbol_tree_entry) else {
+                    continue;
+                };
+                let context_menu_position = symbol_tree_entry_view_response
+                    .row_response
+                    .interact_pointer_pos()
+                    .unwrap_or(symbol_tree_entry_view_response.row_response.rect.left_top());
+
+                SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                    self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
+                }
+                SymbolExplorerViewData::show_context_menu(
+                    self.symbol_explorer_view_data.clone(),
+                    SymbolExplorerContextMenuTarget::new(symbol_tree_entry.get_node_key().to_string(), context_menu_position),
+                );
+            }
+
             if allow_interaction
                 && symbol_tree_entry_view_response.row_response.double_clicked()
                 && matches!(
@@ -1652,6 +1703,181 @@ impl SymbolExplorerView {
                 )
             {
                 SymbolExplorerViewData::begin_inline_rename(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key().to_string());
+            }
+
+            if allow_interaction
+                && context_menu_target
+                    .as_ref()
+                    .is_some_and(|context_menu_target| context_menu_target.get_tree_node_key() == symbol_tree_entry.get_node_key())
+            {
+                let can_open_symbol_tree_entry = !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. });
+                let can_rename_symbol_tree_entry = matches!(
+                    symbol_tree_entry.get_kind(),
+                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. } | SymbolTreeEntryKind::U8Segment { .. }
+                );
+                let context_menu_symbol_claim = match symbol_tree_entry.get_kind() {
+                    SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => project_symbol_catalog
+                        .get_symbol_claims()
+                        .iter()
+                        .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == *symbol_locator_key),
+                    _ => None,
+                };
+                let context_menu_module_name = match symbol_tree_entry.get_kind() {
+                    SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(module_name.as_str()),
+                    _ => None,
+                };
+                let context_menu_module_child_range_target =
+                    Self::build_module_child_range_target(project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
+                        self.app_context
+                            .engine_unprivileged_state
+                            .get_default_value(data_type_ref)
+                            .map(|default_value| default_value.get_size_in_bytes())
+                    });
+                let can_delete_symbol_tree_entry =
+                    context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
+                let mut context_menu_labels = Vec::new();
+                if can_open_symbol_tree_entry {
+                    context_menu_labels.extend(["Open in Memory Viewer", "Open in Code Viewer"]);
+                }
+                if can_rename_symbol_tree_entry {
+                    context_menu_labels.push("Rename");
+                }
+                context_menu_labels.push("New Module");
+                if can_delete_symbol_tree_entry {
+                    context_menu_labels.push("Delete");
+                }
+                let context_menu_width = Self::calculate_symbol_tree_context_menu_width(self.app_context.as_ref(), user_interface, &context_menu_labels);
+                let mut is_context_menu_open = true;
+
+                ContextMenu::new(
+                    self.app_context.clone(),
+                    "symbol_tree_context_menu",
+                    context_menu_target
+                        .as_ref()
+                        .map(|context_menu_target| context_menu_target.get_position())
+                        .unwrap_or(symbol_tree_entry_view_response.row_response.rect.left_top()),
+                    |user_interface, should_close| {
+                        if can_open_symbol_tree_entry {
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Open in Memory Viewer",
+                                        "symbol_tree_ctx_open_memory_viewer",
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_scan_collect_values
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.focus_memory_viewer_for_locator(symbol_tree_entry.get_locator());
+                                *should_close = true;
+                            }
+
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Open in Code Viewer",
+                                        "symbol_tree_ctx_open_code_viewer",
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_project_cpu_instruction
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.focus_code_viewer_for_locator(symbol_tree_entry.get_locator());
+                                *should_close = true;
+                            }
+                        }
+
+                        if can_open_symbol_tree_entry && can_rename_symbol_tree_entry {
+                            user_interface.separator();
+                        }
+
+                        if can_rename_symbol_tree_entry
+                            && user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(self.app_context.clone(), "Rename", "symbol_tree_ctx_rename", &None, context_menu_width).icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_common_edit
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                        {
+                            SymbolExplorerViewData::begin_inline_rename(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key().to_string());
+                            *should_close = true;
+                        }
+
+                        if can_open_symbol_tree_entry || can_rename_symbol_tree_entry {
+                            user_interface.separator();
+                        }
+
+                        if user_interface
+                            .add(
+                                ToolbarMenuItemView::new(self.app_context.clone(), "New Module", "symbol_tree_ctx_new_module", &None, context_menu_width).icon(
+                                    self.app_context
+                                        .theme
+                                        .icon_library
+                                        .icon_handle_common_add
+                                        .clone(),
+                                ),
+                            )
+                            .clicked()
+                        {
+                            SymbolExplorerViewData::begin_create_module_root(self.symbol_explorer_view_data.clone());
+                            *should_close = true;
+                        }
+
+                        if can_delete_symbol_tree_entry {
+                            user_interface.separator();
+
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(self.app_context.clone(), "Delete", "symbol_tree_ctx_delete", &None, context_menu_width).icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_common_delete
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.request_delete_for_selection(
+                                    context_menu_symbol_claim,
+                                    context_menu_module_name,
+                                    context_menu_module_child_range_target.as_ref(),
+                                );
+                                *should_close = true;
+                            }
+                        }
+                    },
+                )
+                .width(context_menu_width)
+                .corner_radius(8)
+                .show(user_interface, &mut is_context_menu_open);
+
+                if !is_context_menu_open {
+                    SymbolExplorerViewData::hide_context_menu(self.symbol_explorer_view_data.clone());
+                }
             }
         }
     }
@@ -1857,7 +2083,7 @@ impl Widget for SymbolExplorerView {
         self.sync_symbol_preview_virtual_snapshot(&project_symbol_catalog, &symbol_tree_entries);
         let preview_values_by_node_key = self.collect_preview_values_by_node_key(&symbol_tree_entries);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
-        let (selected_entry, take_over_state, inline_rename_tree_node_key, current_module_root_create_draft) = self
+        let (selected_entry, take_over_state, inline_rename_tree_node_key, context_menu_target, current_module_root_create_draft) = self
             .symbol_explorer_view_data
             .read("Symbol explorer view")
             .map(|symbol_explorer_view_data| {
@@ -1867,10 +2093,11 @@ impl Widget for SymbolExplorerView {
                     symbol_explorer_view_data
                         .get_inline_rename_tree_node_key()
                         .map(str::to_string),
+                    symbol_explorer_view_data.get_context_menu_target().cloned(),
                     symbol_explorer_view_data.get_module_root_create_draft().clone(),
                 )
             })
-            .unwrap_or((None, None, None, Default::default()));
+            .unwrap_or((None, None, None, None, Default::default()));
         let selected_symbol_claim = match selected_entry.as_ref() {
             Some(SymbolExplorerSelection::SymbolClaim(selected_symbol_locator_key)) => project_symbol_catalog
                 .get_symbol_claims()
@@ -2109,6 +2336,7 @@ impl Widget for SymbolExplorerView {
                             &preview_values_by_node_key,
                             selected_entry.as_ref(),
                             inline_rename_tree_node_key.as_deref(),
+                            context_menu_target.as_ref(),
                             shared_struct_viewer_focus_target.as_ref(),
                             !is_inline_rename_active,
                         );
