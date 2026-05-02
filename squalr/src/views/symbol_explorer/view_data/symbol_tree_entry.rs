@@ -14,8 +14,6 @@ pub enum SymbolTreeEntryKind {
     U8Segment { module_name: String, offset: u64, length: u64 },
     SymbolClaim { symbol_locator_key: String },
     StructField,
-    ArrayElement,
-    ArrayPreviewTruncation { omitted_element_count: u64 },
     PointerTarget,
 }
 
@@ -59,8 +57,6 @@ pub struct SymbolTreeEntry {
     can_expand: bool,
     is_expanded: bool,
 }
-
-const MAX_EXPANDED_ARRAY_ELEMENT_COUNT: u64 = 256;
 
 impl SymbolTreeEntry {
     pub fn new(
@@ -288,7 +284,7 @@ fn append_u8_segment_entry(
         ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset),
         String::from("u8"),
         ContainerType::ArrayFixed(length),
-        length > 0,
+        false,
         false,
     ));
 }
@@ -420,7 +416,6 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
             field_definition.get_field_name().to_string()
         };
         let field_full_path = format!("{}.{}", parent_full_path, field_display_name);
-        let field_symbol_type_id = format!("{}{}", field_definition.get_data_type_ref(), field_definition.get_container_type());
         let field_node_key = format!("{}::{}", parent_node_key, field_display_name);
         let field_locator = offset_locator(parent_locator, cumulative_field_offset);
         let can_expand = field_can_expand(project_symbol_catalog, field_definition);
@@ -434,7 +429,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
             field_full_path.clone(),
             symbol_claim_locator_key.to_string(),
             field_locator.clone(),
-            field_symbol_type_id,
+            field_definition.get_data_type_ref().to_string(),
             field_definition.get_container_type(),
             can_expand,
             is_expanded,
@@ -485,76 +480,7 @@ fn append_field_children<ResolvePrimitiveSize>(
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
     match container_type {
-        ContainerType::ArrayFixed(length) => {
-            let visible_element_count = length.min(MAX_EXPANDED_ARRAY_ELEMENT_COUNT);
-            let element_size_in_bytes = resolve_data_type_size_in_bytes(
-                project_symbol_catalog,
-                data_type_ref,
-                resolve_primitive_size_in_bytes,
-                visited_struct_layout_ids,
-            );
-
-            for array_index in 0..visible_element_count {
-                let array_element_display_name = format!("[{}]", array_index);
-                let array_element_full_path = format!("{}{}", parent_full_path, array_element_display_name);
-                let array_element_node_key = format!("{}{}", parent_node_key, array_element_display_name);
-                let array_element_locator = offset_locator(parent_locator, element_size_in_bytes.saturating_mul(array_index));
-                let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
-                let is_expanded = can_expand && expanded_tree_node_keys.contains(&array_element_node_key);
-
-                symbol_tree_entries.push(SymbolTreeEntry::new(
-                    array_element_node_key.clone(),
-                    SymbolTreeEntryKind::ArrayElement,
-                    depth,
-                    array_element_display_name.clone(),
-                    array_element_full_path.clone(),
-                    symbol_claim_locator_key.to_string(),
-                    array_element_locator.clone(),
-                    data_type_ref.to_string(),
-                    ContainerType::None,
-                    can_expand,
-                    is_expanded,
-                ));
-
-                if is_expanded {
-                    if let Some(nested_struct_layout_definition) = resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()) {
-                        append_struct_field_entries(
-                            symbol_tree_entries,
-                            project_symbol_catalog,
-                            symbol_claim_locator_key,
-                            &array_element_node_key,
-                            &array_element_full_path,
-                            &array_element_locator,
-                            &nested_struct_layout_definition,
-                            depth + 1,
-                            expanded_tree_node_keys,
-                            resolved_pointer_targets_by_node_key,
-                            resolve_primitive_size_in_bytes,
-                            visited_struct_layout_ids,
-                        );
-                    }
-                }
-            }
-
-            if length > visible_element_count {
-                let omitted_element_count = length.saturating_sub(visible_element_count);
-                let truncation_display_name = format!("... {} more", omitted_element_count);
-
-                symbol_tree_entries.push(SymbolTreeEntry::new(
-                    format!("{}::truncated", parent_node_key),
-                    SymbolTreeEntryKind::ArrayPreviewTruncation { omitted_element_count },
-                    depth,
-                    truncation_display_name.clone(),
-                    format!("{}.{}", parent_full_path, truncation_display_name),
-                    symbol_claim_locator_key.to_string(),
-                    offset_locator(parent_locator, element_size_in_bytes.saturating_mul(visible_element_count)),
-                    data_type_ref.to_string(),
-                    ContainerType::None,
-                    false,
-                    false,
-                ));
-            }
-        }
+        ContainerType::ArrayFixed(_) => {}
         ContainerType::None => {
             if let Some(nested_struct_layout_definition) = resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()) {
                 let type_identifier = data_type_ref.get_data_type_id().to_string();
@@ -646,7 +572,7 @@ fn data_type_ref_can_expand(
     visited_struct_layout_ids: &mut HashSet<String>,
 ) -> bool {
     match container_type {
-        ContainerType::ArrayFixed(length) => length > 0,
+        ContainerType::ArrayFixed(_) => false,
         ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => true,
         ContainerType::None => {
             let data_type_id = data_type_ref.get_data_type_id();
@@ -841,7 +767,7 @@ fn resolve_symbol_claim_type(
 
     if let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(symbol_claim_type_id) {
         return ResolvedSymbolClaimType::Field {
-            symbol_type_id: symbol_claim_type_id.to_string(),
+            symbol_type_id: symbolic_field_definition.get_data_type_ref().to_string(),
             data_type_ref: symbolic_field_definition.get_data_type_ref().clone(),
             container_type: symbolic_field_definition.get_container_type(),
         };
@@ -922,7 +848,7 @@ mod tests {
                 },
             );
 
-        assert_eq!(symbol_tree_entries.len(), 10);
+        assert_eq!(symbol_tree_entries.len(), 8);
         assert_eq!(symbol_tree_entries[0].get_display_name(), "Absolute / Unmapped");
         assert_eq!(
             symbol_tree_entries[0].get_kind(),
@@ -949,12 +875,10 @@ mod tests {
         assert_eq!(symbol_tree_entries[5].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x108));
         assert_eq!(symbol_tree_entries[6].get_full_path(), "Player.items");
         assert_eq!(symbol_tree_entries[6].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10C));
-        assert_eq!(symbol_tree_entries[7].get_full_path(), "Player.items[0]");
-        assert_eq!(symbol_tree_entries[7].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10C));
-        assert_eq!(symbol_tree_entries[8].get_full_path(), "Player.items[1]");
-        assert_eq!(symbol_tree_entries[8].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10E));
-        assert_eq!(symbol_tree_entries[9].get_full_path(), "Player.next");
-        assert_eq!(symbol_tree_entries[9].can_expand(), true);
+        assert_eq!(symbol_tree_entries[6].get_display_type_id(), "u16[2]");
+        assert_eq!(symbol_tree_entries[6].can_expand(), false);
+        assert_eq!(symbol_tree_entries[7].get_full_path(), "Player.next");
+        assert_eq!(symbol_tree_entries[7].can_expand(), true);
     }
 
     #[test]
@@ -987,6 +911,8 @@ mod tests {
                 length: 0x20,
             }
         );
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[32]");
+        assert_eq!(symbol_tree_entries[1].can_expand(), false);
     }
 
     #[test]
@@ -1012,7 +938,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_truncates_large_fixed_array_children() {
+    fn build_symbol_tree_entries_keeps_large_fixed_array_as_preview_leaf() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
@@ -1031,16 +957,11 @@ mod tests {
             (data_type_ref.get_data_type_id() == "u8").then_some(1)
         });
 
-        assert_eq!(symbol_tree_entries.len(), 259);
+        assert_eq!(symbol_tree_entries.len(), 2);
         assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
         assert_eq!(symbol_tree_entries[1].get_display_name(), "Blob");
-        assert_eq!(symbol_tree_entries[2].get_display_name(), "[0]");
-        assert_eq!(symbol_tree_entries[257].get_display_name(), "[255]");
-        assert_eq!(
-            symbol_tree_entries[258].get_kind(),
-            &SymbolTreeEntryKind::ArrayPreviewTruncation { omitted_element_count: 44 }
-        );
-        assert_eq!(symbol_tree_entries[258].get_display_name(), "... 44 more");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[300]");
+        assert_eq!(symbol_tree_entries[1].can_expand(), false);
     }
 
     #[test]
@@ -1077,6 +998,7 @@ mod tests {
             }
         );
         assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[4660]");
+        assert_eq!(symbol_tree_entries[1].can_expand(), false);
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
         assert_eq!(symbol_tree_entries[2].get_container_type(), ContainerType::None);
         assert_eq!(symbol_tree_entries[2].can_expand(), false);
@@ -1088,6 +1010,8 @@ mod tests {
                 length: 0xDC8,
             }
         );
+        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "u8[3528]");
+        assert_eq!(symbol_tree_entries[3].can_expand(), false);
     }
 
     #[test]
@@ -1117,6 +1041,8 @@ mod tests {
                 length: 4,
             }
         );
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[4]");
+        assert_eq!(symbol_tree_entries[1].can_expand(), false);
         assert_eq!(symbol_tree_entries[2].get_display_name(), "First");
         assert_eq!(
             symbol_tree_entries[3].get_kind(),
@@ -1126,6 +1052,8 @@ mod tests {
                 length: 4,
             }
         );
+        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "u8[4]");
+        assert_eq!(symbol_tree_entries[3].can_expand(), false);
         assert_eq!(symbol_tree_entries[4].get_display_name(), "Second");
     }
 

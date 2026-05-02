@@ -187,7 +187,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let did_click_expand_arrow = self.symbol_tree_entry.can_expand() && arrow_response.clicked();
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
         let hover_text = match self.symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. } => {
+            SymbolTreeEntryKind::ModuleSpace { .. } => {
                 format!("{}\n{}", self.symbol_tree_entry.get_full_path(), self.symbol_tree_entry.get_display_type_id())
             }
             _ => format!(

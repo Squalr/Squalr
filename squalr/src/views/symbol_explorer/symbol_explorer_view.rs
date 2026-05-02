@@ -347,7 +347,7 @@ impl SymbolExplorerView {
         let selected_symbol_tree_entry = selected_symbol_tree_entry.filter(|symbol_tree_entry| {
             !matches!(
                 symbol_tree_entry.get_kind(),
-                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
+                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. }
             )
         });
         let desired_focus_target = Self::build_struct_viewer_focus_target(selected_symbol_tree_entry);
@@ -980,14 +980,13 @@ impl SymbolExplorerView {
     ) -> Vec<VirtualSnapshotQuery> {
         symbol_tree_entries
             .iter()
-            .filter(|symbol_tree_entry| {
-                !matches!(
-                    symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
-                )
-            })
+            .filter(|symbol_tree_entry| Self::symbol_tree_entry_should_query_preview(symbol_tree_entry))
             .filter_map(|symbol_tree_entry| self.build_symbol_preview_virtual_snapshot_query(project_symbol_catalog, symbol_tree_entry))
             .collect()
+    }
+
+    fn symbol_tree_entry_should_query_preview(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+        !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. })
     }
 
     fn build_symbol_preview_virtual_snapshot_query(
@@ -1375,10 +1374,9 @@ impl SymbolExplorerView {
                         SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(SymbolExplorerSelection::ModuleRoot(module_name.to_string())),
                         SymbolTreeEntryKind::U8Segment { .. } => Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())),
                         SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => Some(SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string())),
-                        SymbolTreeEntryKind::StructField
-                        | SymbolTreeEntryKind::ArrayElement
-                        | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
-                        | SymbolTreeEntryKind::PointerTarget => Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())),
+                        SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::PointerTarget => {
+                            Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
+                        }
                     };
 
                     if let Some(selection) = selection {
@@ -1527,7 +1525,7 @@ impl SymbolExplorerView {
                 SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
                 if !matches!(
                     symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
+                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. }
                 ) {
                     self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
                 }
@@ -1549,11 +1547,9 @@ impl SymbolExplorerView {
         match symbol_tree_entry.get_kind() {
             SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(SymbolExplorerSelection::ModuleRoot(module_name.to_string())),
             SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => Some(SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string())),
-            SymbolTreeEntryKind::StructField
-            | SymbolTreeEntryKind::U8Segment { .. }
-            | SymbolTreeEntryKind::ArrayElement
-            | SymbolTreeEntryKind::PointerTarget => Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())),
-            SymbolTreeEntryKind::ArrayPreviewTruncation { .. } => None,
+            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::PointerTarget => {
+                Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
+            }
         }
     }
 
@@ -1834,7 +1830,7 @@ impl Widget for SymbolExplorerView {
         let can_open_selected_entry = selected_symbol_tree_entry.is_some_and(|symbol_tree_entry| {
             !matches!(
                 symbol_tree_entry.get_kind(),
-                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
+                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::U8Segment { .. }
             )
         });
 
@@ -2045,7 +2041,7 @@ mod tests {
             ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0),
             String::from("u8"),
             ContainerType::ArrayFixed(0x1234),
-            true,
+            false,
             false,
         )
     }
@@ -2098,6 +2094,15 @@ mod tests {
             SymbolExplorerView::build_selection_for_tree_entry(&u8_segment_entry),
             Some(crate::views::symbol_explorer::view_data::symbol_explorer_view_data::SymbolExplorerSelection::DerivedNode(String::from("u8:game.exe:0:1234")))
         );
+    }
+
+    #[test]
+    fn symbol_tree_entry_preview_queries_include_u8_segments_but_not_modules() {
+        let module_entry = create_module_tree_entry("game.exe");
+        let u8_segment_entry = create_u8_segment_tree_entry();
+
+        assert!(!SymbolExplorerView::symbol_tree_entry_should_query_preview(&module_entry));
+        assert!(SymbolExplorerView::symbol_tree_entry_should_query_preview(&u8_segment_entry));
     }
 
     #[test]
