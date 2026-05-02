@@ -5,10 +5,9 @@ This document is the working plan for turning project symbols into a real typed 
 
 The goal is not to copy Ghidra, Binary Ninja, or IDA. The goal is to give Squalr a practical symbol model that:
 - treats modules as the visible roots of symbol space,
-- models each module root as one literal struct instance,
+- models each module root expansion as one literal struct instance,
 - lets promotion split `u8[]` filler into typed fields,
 - expands through structs, arrays, and pointers,
-- keeps external-tool specifics in metadata instead of core types,
 - lets raw address and pointer discoveries reshape the typed module struct.
 
 ## Current Reality In The Repo
@@ -20,23 +19,29 @@ The goal is not to copy Ghidra, Binary Ninja, or IDA. The goal is to give Squalr
 - Virtual modules already have a good extension seam through `MemoryViewInstance`.
 - Project symbols are authored on the unprivileged side, but the privileged registry refresh still republishes the merged symbol catalog wholesale.
 
-The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and each module is edited like one parent struct whose fields gradually replace raw `u8[]` filler.
+The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and each module expands like one parent struct whose fields gradually replace raw `u8[]` filler.
 
 ## Desired End State
 
 ### 1. Modules are symbol roots
 The Symbol Tree should start from manually authored module roots, not from a flat list of "rooted symbols."
 
-A module root is a named parent struct:
+A module root represents a named parent struct:
 - host modules such as `game.exe`,
 - virtual modules such as `Dolphin MEM1`,
 - synthetic or runtime-backed module-like spaces later.
 
-The module name is the resolving key. If the user renames `winmine.exe`, that new name is what module-offset symbols resolve against.
+The stored module root has exactly:
+- `module_name`,
+- `size`.
+
+There is no module identifier, no stored base address, no path, no load state, and no metadata for the basic Symbol Tree add flow. The module name is the resolver key. The base address comes from the attached process at read/write time. If the user renames `winmine.exe`, that new name is what module-offset fields resolve against.
+
+The size can usually be derived when attached, but it is still stored because target patches can change the runtime module size. The project should keep the authored size unless the user or a promotion flow explicitly updates it.
 
 Modules should not appear automatically just because the user attached to a process. The Symbol Tree is empty by default. Users add module roots with the normal `+` action, rename them with the standard F2 mechanism, and expand them like any other tree struct.
 
-Each module owns a struct layout over its address range. Unknown space is represented as `u8[]` fields inside that struct.
+Each module owns a struct layout over offsets `0..size`. Unknown space is represented as `u8[]` fields inside that struct.
 
 Example:
 
@@ -49,7 +54,7 @@ Modules
       entity_list
     unknown_001234A0: u8[0xCB60]
   Dolphin MEM1
-    GameState: GameState @ +0x80400000
+    game_state: GameState @ +0x400000
 ```
 
 This gives the tree a physical meaning: every child is a field inside the parent module struct.
@@ -58,19 +63,17 @@ This gives the tree a physical meaning: every child is a field inside the parent
 A project symbol instance should be understood as a typed field in a module struct.
 
 The product concept should become:
-- stable symbol key,
-- display name,
-- module or absolute locator,
+- field name,
+- module offset,
 - referenced type/layout,
-- field byte range,
-- optional metadata.
+- field byte range.
 
 The byte range is derived from the symbol type when possible. For raw unknown bytes, the field is simply a `u8[]` range.
 
 ### 3. Unclaimed module space is real
 Unknown space should not disappear from the tree.
 
-When a module is first introduced manually, it can start with no known size. When promotion has enough runtime context to resolve the module and its size, Squalr creates or updates the backing module struct with one large unknown chunk:
+When a module is first introduced manually, the user supplies the module name and size. When promotion creates a module root, Squalr should derive the size from the attached process and store that value. Either way, the module starts as one large unknown chunk:
 
 ```text
 game.exe
@@ -84,7 +87,7 @@ This makes the symbol tree feel like a gradually-filled memory map instead of a 
 ### 4. Promotion transforms the module struct
 Promotion should not merely append another symbol record.
 
-If the target module root does not exist yet, promotion creates it. For example, if the user attached to `winmine.exe`, scanned, added a static address to the project, and then promoted it, promotion should create the `winmine.exe` module struct, query the correct module size when available, seed it with `u8[module_size]`, and then split that filler around the promoted field.
+If the target module root does not exist yet, promotion creates it. For example, if the user attached to `winmine.exe`, scanned, added a static address to the project, and then promoted it, promotion should create the `winmine.exe` module struct, query and store the module size, seed it with `u8[module_size]`, and then split that filler around the promoted field.
 
 If the promoted address falls inside an unknown `u8[]` field, promotion splits that field:
 
@@ -118,7 +121,7 @@ If the new field overlaps an existing typed field, the user needs an explicit co
 Struct fields, fixed-array elements, and pointer dereferences should remain derived tree nodes.
 
 Persist the top-level module fields. Derive children lazily from:
-- the field locator,
+- the module name plus field offset,
 - the referenced type layout,
 - container semantics,
 - pointer reads when the user expands pointer nodes.
@@ -131,16 +134,16 @@ Do not persist a giant child graph just because the UI can display one.
 They are discovery tools. Promotion is the bridge from discovery into the typed module map:
 - an address item promotes to a module field or absolute field,
 - a pointer item can promote either the pointer slot itself or the current pointed-to target,
-- pointer provenance stays in metadata when useful.
+- pointer provenance can remain on acquisition/project-item state when useful.
 
 After promotion, project items can reference the symbol field instead of continuing to own long-term layout identity.
 
 ### 7. Modules stay name-backed for now
-Do not introduce a new `ModuleId` abstraction yet.
+Do not introduce a new `ModuleId` abstraction.
 
 The current memory layer already resolves modules by name, including virtual-module style sources. We can build the first module tree using module names as they exist today.
 
-If module identity becomes painful later, add normalization then.
+If module identity becomes painful later, solve that later. Do not add an identifier to the Symbol Tree module root now.
 
 ### 8. Pointer encoding reuses the pointer-scan model
 Do not build a fresh generic pointer plugin system first.
@@ -169,34 +172,30 @@ Reusable type definitions should continue to describe structure:
 
 These are reusable layouts, not placed fields over memory by themselves.
 
-### Module structs
-Add a module-oriented struct concept over the existing catalog.
+### Module root records
+Add a module-oriented root record over the existing catalog.
 
-Conceptually, each module struct contains:
+The persisted root record contains only:
 - `module_name`,
-- `module_size` when known,
-- ordered fields,
-- explicit `u8[]` filler fields.
+- `size`.
 
-Unlike a separate import-candidate model, the tree should work directly against this module struct. If no module has been added, there is nothing to show.
+Everything else is expansion content under that root. Typed fields and `u8[]` filler are children in the module struct tree, not extra identifying fields on the module root record.
+
+The module root itself contains no stored address. `module_name` resolves to the current base address through the active memory view. Stored fields are offsets inside `size`.
 
 ### Symbol fields
 A symbol field is the long-term replacement concept for "rooted symbol."
 
 It should contain:
-- stable symbol key,
-- display name,
-- locator,
+- field name,
+- module offset,
 - referenced symbol type,
-- field size or size policy,
-- optional metadata.
+- field size or size policy.
 
 In the current code this is represented by `ProjectSymbolClaim`, but the product concept should be "field in a module struct."
 
 ### Locators
-The first field locators should remain:
-- absolute address,
-- module name + offset.
+The normal field locator is module name + offset.
 
 Module-relative fields are the normal case. Absolute-address symbols can render under an `Absolute / Unmapped` group, but they should not drive the main UX.
 
@@ -207,34 +206,20 @@ Most field sizes come from the referenced type:
 - struct: sum of fields,
 - pointer: pointer slot size.
 
-Some cases need an explicit size:
+Some fields need an explicit size:
 - raw unknown bytes,
-- dynamic arrays,
-- imported ranges whose exact type is not known yet.
+- dynamic arrays.
 
 Start with explicit sizes only where the type system cannot derive one.
-
-### Metadata
-Metadata should stay small and optional.
-
-Start with a simple extension map for:
-- import/export hints,
-- comments,
-- aliases if needed later,
-- promotion provenance.
-
-Do not build a typed metadata framework up front.
 
 ## Struct Operations
 
 ### Add module
 Adding a module should be as simple as pressing `+` in the Symbol Tree.
 
-The new root has:
+The new root has exactly:
 1. a module name,
-2. an optional known size,
-3. an optional initial `u8[]` filler field,
-4. a parent struct identity derived from the module name.
+2. a size.
 
 Rename uses the standard F2 tree rename flow. The name is the resolver name.
 
@@ -242,8 +227,8 @@ Rename uses the standard F2 tree rename flow. The name is the resolver name.
 Promoting a static address should:
 1. resolve the module name and module offset,
 2. create the module struct if it does not exist,
-3. query and store the module size when available,
-4. create an initial `u8[]` filler field if needed,
+3. query and store the module size when the module struct is created from a live process,
+4. create an initial `u8[]` filler field from the stored size,
 5. split the filler around the new typed field,
 6. insert the new typed field in offset order.
 
@@ -266,6 +251,8 @@ It is not a separate storage path. It is a convenient entry point from a discove
 ## What We Are Explicitly Not Building Yet
 - No full opaque `SymbolId` architecture with UUID-heavy plumbing.
 - No separate `ModuleId` system.
+- No stored module base address.
+- No stored module path/hash/load state for the basic tree add flow.
 - No persistent derived child graph.
 - No exporter/plugin framework redesign.
 - No global reverse address-to-symbol pointer map.
@@ -285,7 +272,7 @@ It is not a separate storage path. It is a convenient entry point from a discove
 ### Sprint 2: Make module roots editable
 1. Add `+` module creation to the Symbol Tree.
 2. Add standard F2 rename for module roots.
-3. Store module roots by resolver name.
+3. Store module roots as only `module_name` plus `size`.
 4. Keep empty projects empty until a module is added or promotion creates one.
 
 ### Sprint 3: Make promotion reshape module structs
@@ -310,7 +297,7 @@ It is not a separate storage path. It is a convenient entry point from a discove
 ### Sprint 6: Clean up the transport boundary
 1. Stop treating the privileged registry catalog as the permanent transport for the full authored symbol map.
 2. Move toward sending compact execution-oriented symbol data instead of the entire authored model.
-3. Keep authoring-only metadata and tree state unprivileged-side.
+3. Keep authoring-only tree state unprivileged-side.
 
 ## GUI Shape
 
@@ -320,6 +307,7 @@ The Symbol Tree should be the module struct editor for placed symbols.
 Responsibilities:
 - show manually added modules as top-level roots,
 - expose a `+` action to add a module,
+- store each module root as only module name plus size,
 - support F2 rename for module roots and fields,
 - show ordered typed fields and `u8[]` filler fields,
 - lazily expand struct, array, and pointer children,
@@ -334,7 +322,7 @@ The Symbol Table should be secondary. It can remain a flat maintenance surface f
 
 Responsibilities:
 - list all user-authored symbol fields,
-- filter by name, module, locator, type, source, and metadata,
+- filter by name, module, offset, and type,
 - bulk rename/delete/update where practical,
 - show field size and overlap/conflict status,
 - jump to the corresponding Symbol Tree row.
@@ -364,9 +352,14 @@ Address and pointer items can promote into module fields, then optionally become
 ## Practical Design Decisions
 
 ### Identity
-Use project-local stable keys for stored types and stored symbol fields.
+Module roots do not have separate identities.
 
-Do not use the user-visible display name as the only identity, because rename support and references from project items need something stable.
+For a Symbol Tree module root:
+- `module_name` is the resolver name,
+- `size` is the authored module size,
+- the current base address is resolved live from the attached process.
+
+Stored symbol fields live inside that module by offset. Do not add a module UUID or stored address to make this feel more database-like.
 
 ### Naming
 Avoid exposing "rooted symbol" in UI copy.
@@ -389,7 +382,7 @@ For now:
 - promotion is the bridge from the former to the latter.
 
 ### External tools
-If an import/export plugin needs extra naming hints, original-source names, namespace mappings, comments, or tags, those belong in metadata associated with that plugin or format.
+If an import/export plugin later needs extra naming hints, original-source names, namespace mappings, comments, or tags, keep that outside the core module-root shape.
 
 ### Managed runtimes
 If we later want strong support for CLR-heavy, JVM-heavy, or other managed-runtime targets, the current plan should extend by adding a runtime-aware symbol provider layer rather than reshaping the whole core model.
@@ -402,4 +395,4 @@ The intended shape is:
 ## Bottom Line
 The symbol-store plan should move from "sparse rooted symbols" to "module roots as literal structs."
 
-Modules are the roots. The Symbol Tree starts empty until the user adds a module or promotion creates one. Each module is a parent struct with `u8[]` filler and typed fields. Promotion creates the module struct when needed, queries the size when possible, and splits filler into meaningful data.
+Modules are the roots. The Symbol Tree starts empty until the user adds a module or promotion creates one. Each module root record is only `module_name` plus `size`; the address resolves at runtime by name. Expanding that root shows the module struct contents: `u8[]` filler and typed fields. Promotion creates the module root when needed, queries and stores the size when possible, and splits filler into meaningful data.

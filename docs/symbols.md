@@ -5,7 +5,7 @@ This document captures the symbol UX direction for Squalr and turns it into a co
 
 This is not a "copy Ghidra exactly" document. The goal is to understand which workflows should be separated, then adapt that separation to Squalr's dynamic-analysis-first model.
 
-The important shift is: the Symbol Tree should not be a flat list of "rooted symbols." It should be a literal module tree where each module root is a parent struct with `u8[]` filler and typed fields.
+The important shift is: the Symbol Tree should not be a flat list of "rooted symbols." It should be a literal module tree where each module root record is just `module_name` plus `size`, and expanding that root shows the parent-struct contents: `u8[]` filler and typed fields.
 
 ## Related Squalr Context
 - `squalr/src/views/main_window/main_window_view.rs` treats `Project Explorer`, `Symbol Tree`, `Symbol Table`, `SymbolStructEditor`, `Details Viewer`, `Memory Viewer`, and `Code Viewer` as peer docked windows.
@@ -32,7 +32,7 @@ Use cases it covers:
 
 Squalr equivalent:
 - optional flat list of authored symbol fields,
-- fast filtering by module, type, name, locator, and metadata,
+- fast filtering by module, type, name, and offset,
 - maintenance actions,
 - jump to tree/memory/code/details.
 
@@ -41,7 +41,7 @@ The Symbol Table should not become a static-import staging system. Static symbol
 ### Symbol Tree
 Ghidra's Symbol Tree is a hierarchical browsing and navigation surface.
 
-For Squalr, this should be more physical: the tree should start with manually authored modules, then expand each module like one struct.
+For Squalr, this should be more physical: the tree should start with manually authored modules, then expand each module root like one struct.
 
 Squalr equivalent:
 
@@ -65,6 +65,8 @@ Important takeaway:
 - promoted discoveries should reshape the tree, not merely add another row.
 
 Attach should not automatically fill this tree. A fresh project attached to `winmine.exe` can still show no module roots. The user can add `winmine.exe` with `+`, or promotion from a static address can create that module root on demand.
+
+A module root has only `module_name` and `size`. There is no separate module id and no stored base address. The module name resolves to the current base address through the attached process.
 
 ### Data Type Manager / SymbolStructEditor
 Ghidra's Data Type Manager owns reusable type definitions.
@@ -117,6 +119,7 @@ Responsibilities:
 - expose a simple `+` action to add a module root,
 - use the standard F2 mechanism for module and field rename,
 - treat the module name as the resolver name,
+- store each module root as only `module_name` plus `size`,
 - show `u8[]` filler fields plus typed fields in module-offset order,
 - expand fields into struct fields, arrays, and pointer targets lazily,
 - support promote/retype/delete/split flows,
@@ -129,7 +132,7 @@ The Symbol Table should be secondary to the tree. It can remain a flat maintenan
 
 Responsibilities:
 - list all authored symbol fields,
-- filter by module, address, type, name, and metadata,
+- filter by module, offset, type, and name,
 - bulk delete/rename/update where practical,
 - show field size and conflict status,
 - jump to Symbol Tree, Memory Viewer, Code Viewer, and Details Viewer.
@@ -168,7 +171,7 @@ Responsibilities:
 
 Promotion should feel like transforming bytes into typed data.
 
-If promotion targets a module that is not yet in the Symbol Tree, promotion creates the module root first. If Squalr is attached and can query the module size, it seeds the module root with one `u8[module_size]` filler field before splitting.
+If promotion targets a module that is not yet in the Symbol Tree, promotion creates the module root first. If Squalr is attached and can query the module size, it stores that size and seeds the module root with one `u8[module_size]` filler field before splitting.
 
 ### Promoting inside unknown bytes
 When the selected range is inside an unknown `u8[]` field, promotion splits that field around the new type.
@@ -232,7 +235,8 @@ These actions should route through the same module-struct mutation engine as the
 1. Add a `+` action to create module roots.
 2. Support F2 rename using the existing tree rename mechanics.
 3. Treat module name as the module resolver name.
-4. Keep fresh attached projects empty until a module is added or promotion creates one.
+4. Store each module root as only `module_name` plus `size`.
+5. Keep fresh attached projects empty until a module is added or promotion creates one.
 
 ### Phase 3: Module struct fields
 1. Store ordered fields under each module root.
@@ -243,7 +247,7 @@ These actions should route through the same module-struct mutation engine as the
 ### Phase 4: Promotion creates and mutates module structs
 1. Route static promotion through module struct mutation.
 2. Create the module root if it does not exist.
-3. Query module size and seed `u8[module_size]` when attached.
+3. Query and store module size, then seed `u8[module_size]` when attached.
 4. Split unknown fields around promoted types.
 5. Replace exact unknown fields with promoted types.
 6. Show conflict UX for overlaps with typed fields.
@@ -268,7 +272,10 @@ These actions should route through the same module-struct mutation engine as the
 - Do keep reusable type authoring in SymbolStructEditor.
 - Do keep Symbol Table flat, secondary, and maintenance-oriented.
 - Do keep derived children lazy unless explicitly promoted.
+- Do keep module roots to only `module_name` plus `size`.
+- Do resolve module base addresses live by name.
 - Do not populate modules automatically on attach.
+- Do not add module ids, stored module addresses, paths, hashes, or load-state fields to the basic Symbol Tree module root.
 - Do not add a static-candidate workflow before the module tree exists.
 - Do not silently split existing typed fields during promotion.
 
@@ -276,11 +283,12 @@ These actions should route through the same module-struct mutation engine as the
 1. Rename user-facing rooted-symbol copy.
 2. Add manual module-root creation to Symbol Tree.
 3. Add F2 rename for module roots using the standard rename mechanism.
-4. Make promotion create a missing module root and seed `u8[module_size]` when runtime size is known.
-5. Make promotion split unknown `u8[]` fields.
-6. Add overlap/conflict tests before wiring the full UX.
+4. Store module roots as `module_name` plus `size`.
+5. Make promotion create a missing module root and seed `u8[module_size]` when runtime size is known.
+6. Make promotion split unknown `u8[]` fields.
+7. Add overlap/conflict tests before wiring the full UX.
 
 ## Bottom Line
 Squalr does not need a symbol-backend reset, but it does need a simpler symbol-tree model.
 
-Modules should be roots. The tree is empty until modules are added or promotion creates one. Each module is a parent struct with `u8[]` filler and typed fields. Promotion should create that parent struct when needed, split filler, and turn raw bytes into meaningful data over time.
+Modules should be roots. The tree is empty until modules are added or promotion creates one. Each module root record is only `module_name` plus `size`; the address resolves live by name. Expanding a module shows its parent-struct contents: `u8[]` filler and typed fields. Promotion should create that root when needed, split filler, and turn raw bytes into meaningful data over time.
