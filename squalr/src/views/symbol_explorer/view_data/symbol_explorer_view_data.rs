@@ -284,15 +284,15 @@ impl SymbolExplorerViewData {
 
         symbol_explorer_view_data.selected_entry = symbol_tree_entries
             .iter()
-            .find(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::UnknownBytes { .. }))
+            .find(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ArrayPreviewTruncation { .. }))
             .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
                 SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolExplorerSelection::ModuleRoot(module_name.to_string()),
                 SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string()),
                 SymbolTreeEntryKind::StructField
+                | SymbolTreeEntryKind::U8Segment { .. }
                 | SymbolTreeEntryKind::ArrayElement
-                | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
                 | SymbolTreeEntryKind::PointerTarget => SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()),
-                SymbolTreeEntryKind::UnknownBytes { .. } => unreachable!(),
+                SymbolTreeEntryKind::ArrayPreviewTruncation { .. } => unreachable!(),
             });
     }
 }

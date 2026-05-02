@@ -272,11 +272,22 @@ fn query_loaded_module_size(
         return None;
     }
 
-    memory_query_response
+    let loaded_module = memory_query_response
         .modules
         .iter()
-        .find(|normalized_module| normalized_module.get_module_name() == module_name)
-        .map(|normalized_module| normalized_module.get_region_size())
+        .find(|normalized_module| normalized_module.get_module_name() == module_name)?;
+    let module_base_address = loaded_module.get_base_address();
+
+    memory_query_response
+        .virtual_pages
+        .iter()
+        .find(|virtual_page| virtual_page.contains_address(module_base_address))
+        .map(|virtual_page| {
+            virtual_page
+                .get_end_address()
+                .saturating_sub(module_base_address)
+        })
+        .or_else(|| Some(loaded_module.get_region_size()))
 }
 
 fn estimate_symbol_claim_size_in_bytes(
@@ -524,8 +535,8 @@ mod tests {
     };
     use squalr_engine_api::structures::{
         data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
-        memory::normalized_module::NormalizedModule,
         memory::pointer::Pointer,
+        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project::Project, project_info::ProjectInfo, project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
@@ -550,6 +561,7 @@ mod tests {
         captured_project_symbol_catalogs: Arc<Mutex<Vec<ProjectSymbolCatalog>>>,
         memory_read_response_factory: Arc<dyn Fn(&MemoryReadRequest) -> MemoryReadResponse + Send + Sync>,
         memory_query_modules: Vec<NormalizedModule>,
+        memory_query_virtual_pages: Vec<NormalizedRegion>,
     }
 
     impl MockPromoteBindings {
@@ -558,6 +570,7 @@ mod tests {
                 captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
                 memory_read_response_factory: Arc::new(memory_read_response_factory),
                 memory_query_modules: Vec::new(),
+                memory_query_virtual_pages: Vec::new(),
             }
         }
 
@@ -566,6 +579,15 @@ mod tests {
             memory_query_modules: Vec<NormalizedModule>,
         ) -> Self {
             self.memory_query_modules = memory_query_modules;
+
+            self
+        }
+
+        fn with_memory_query_virtual_pages(
+            mut self,
+            memory_query_virtual_pages: Vec<NormalizedRegion>,
+        ) -> Self {
+            self.memory_query_virtual_pages = memory_query_virtual_pages;
 
             self
         }
@@ -609,7 +631,7 @@ mod tests {
                 PrivilegedCommand::Memory(MemoryCommand::Query { .. }) => {
                     callback(
                         MemoryQueryResponse {
-                            virtual_pages: Vec::new(),
+                            virtual_pages: self.memory_query_virtual_pages.clone(),
                             modules: self.memory_query_modules.clone(),
                             success: true,
                         }
@@ -688,7 +710,8 @@ mod tests {
         let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
         let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
         let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default())
-            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x2000)]);
+            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x2000)])
+            .with_memory_query_virtual_pages(vec![NormalizedRegion::new(0x10000000, 0x5000)]);
         let captured_project_symbol_catalogs = mock_promote_bindings.captured_project_symbol_catalogs();
         let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
 
@@ -736,7 +759,7 @@ mod tests {
             .get_symbol_modules();
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
-        assert_eq!(symbol_modules[0].get_size(), 0x2000);
+        assert_eq!(symbol_modules[0].get_size(), 0x5000);
         let promoted_project_item = loaded_project
             .get_project_items()
             .get(&ProjectItemRef::new(project_item_path.clone()))

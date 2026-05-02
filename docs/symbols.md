@@ -48,11 +48,11 @@ Squalr equivalent:
 ```text
 Modules
   game.exe
-    unknown_00000000: u8[0x1200]
+    u8_00000000: u8[0x1200]
     player_manager: PlayerManager @ +0x1200
       local_player
       entity_count
-    unknown_00001240: u8[0x200]
+    u8_00001240: u8[0x200]
   Dolphin MEM1
     game_state: GameState @ +0x80400000
 Absolute / Unmapped
@@ -104,7 +104,7 @@ Squalr has already split several windows, but the concept boundary is still fuzz
 - the Symbol Tree still treats symbol instances as roots instead of module structs,
 - the Symbol Table still speaks in rooted-symbol language,
 - promotion currently reads like symbol creation instead of typed memory transformation,
-- unknown module space is invisible,
+- unclaimed module space is invisible,
 - users cannot see what portions of a module are typed fields versus raw `u8[]`.
 
 That makes symbols feel like bookmarks. They should feel like a growing typed model of the target process.
@@ -125,7 +125,7 @@ Responsibilities:
 - support promote/retype/delete/split flows,
 - jump to memory/code/details.
 
-User-facing copy should prefer `Symbol`, `Field`, `Unknown Bytes`, and `Module`. Avoid `Rooted Symbol`.
+User-facing copy should prefer `Symbol`, `Field`, `u8[]`, and `Module`. Avoid `Rooted Symbol`.
 
 ### 2. Symbol Table
 The Symbol Table should be secondary to the tree. It can remain a flat maintenance surface for authored fields.
@@ -137,7 +137,7 @@ Responsibilities:
 - show field size and conflict status,
 - jump to Symbol Tree, Memory Viewer, Code Viewer, and Details Viewer.
 
-Unknown gaps should usually stay out of this table unless the user explicitly enables a module-map/debug view.
+Unclaimed `u8[]` gaps should usually stay out of this table unless the user explicitly enables a module-map/debug view.
 
 Do not add a separate `Static Candidates` mode. That is too much product surface for now. Imports and promotions should mutate the module struct directly.
 
@@ -173,27 +173,27 @@ Promotion should feel like transforming bytes into typed data.
 
 If promotion targets a module that is not yet in the Symbol Tree, promotion creates the module root first. If Squalr is attached and can query the module size, it stores that size and seeds the module root with one `u8[module_size]` filler field before splitting.
 
-### Promoting inside unknown bytes
-When the selected range is inside an unknown `u8[]` field, promotion splits that field around the new type.
+### Promoting inside u8[] bytes
+When the selected range is inside a `u8[]` field, promotion splits that field around the new type.
 
 ```text
 Before:
-  unknown_00100000: u8[0x100]
+  u8_00100000: u8[0x100]
 
 Promote +0x100020 as player_ptr: Player*(u64)
 
 After:
-  unknown_00100000: u8[0x20]
+  u8_00100000: u8[0x20]
   player_ptr: Player*(u64)
-  unknown_00100028: u8[0xD8]
+  u8_00100028: u8[0xD8]
 ```
 
 ### Promoting an exact static chunk
-When the selected chunk exactly matches an existing unknown field, promotion replaces the field with the new type.
+When the selected chunk exactly matches an existing `u8[]` field, promotion replaces the field with the new type.
 
 ```text
 Before:
-  unknown_00123456: u8[0x40]
+  u8_00123456: u8[0x40]
 
 After:
   player_manager: PlayerManager
@@ -204,7 +204,7 @@ When promotion overlaps an existing typed field, the user needs a conflict flow:
 - replace existing field,
 - cancel,
 - promote as a pointer/runtime target instead,
-- or split only if the existing field is unknown bytes.
+- or split only if the existing field is `u8[]`.
 
 Typed fields should not be silently broken apart.
 
@@ -248,15 +248,15 @@ These actions should route through the same module-struct mutation engine as the
 1. Route static promotion through module struct mutation.
 2. Create the module root if it does not exist.
 3. Query and store module size, then seed `u8[module_size]` when attached.
-4. Split unknown fields around promoted types.
-5. Replace exact unknown fields with promoted types.
+4. Split `u8[]` fields around promoted types.
+5. Replace exact `u8[]` fields with promoted types.
 6. Show conflict UX for overlaps with typed fields.
 
 ### Phase 5: Retype and delete semantics
 1. Retype fields in place.
 2. Recompute field sizes from type layout.
-3. Convert deleted fields back into unknown gaps.
-4. Merge adjacent unknown fields in the tree.
+3. Convert deleted fields back into `u8[]` gaps.
+4. Merge adjacent `u8[]` fields in the tree.
 
 ### Phase 6: Viewer authoring
 1. Add `Place Symbol` and `Apply Type` to Memory Viewer.
@@ -267,7 +267,7 @@ These actions should route through the same module-struct mutation engine as the
 ## Design Rules For Squalr
 - Do not expose `Rooted Symbol` as product terminology.
 - Do treat modules as the visible roots of symbol space.
-- Do make unknown module space visible as `u8[]` fields.
+- Do make unclaimed module space visible as `u8[]` fields.
 - Do make promotion reshape the typed memory map.
 - Do keep reusable type authoring in SymbolStructEditor.
 - Do keep Symbol Table flat, secondary, and maintenance-oriented.
@@ -285,7 +285,7 @@ These actions should route through the same module-struct mutation engine as the
 3. Add F2 rename for module roots using the standard rename mechanism.
 4. Store module roots as `module_name` plus `size`.
 5. Make promotion create a missing module root and seed `u8[module_size]` when runtime size is known.
-6. Make promotion split unknown `u8[]` fields.
+6. Make promotion split `u8[]` fields.
 7. Add overlap/conflict tests before wiring the full UX.
 
 ## Bottom Line

@@ -11,7 +11,7 @@ use std::str::FromStr;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTreeEntryKind {
     ModuleSpace { module_name: String, size: u64 },
-    UnknownBytes { module_name: String, offset: u64, length: u64 },
+    U8Segment { module_name: String, offset: u64, length: u64 },
     SymbolClaim { symbol_locator_key: String },
     StructField,
     ArrayElement,
@@ -209,7 +209,7 @@ where
             let claim_offset = symbol_claim.get_locator().get_focus_address();
 
             if claim_offset > next_unclaimed_offset {
-                append_unknown_bytes_entry(
+                append_u8_segment_entry(
                     &mut symbol_tree_entries,
                     &module_name,
                     next_unclaimed_offset,
@@ -232,7 +232,7 @@ where
         }
 
         if effective_module_size > next_unclaimed_offset {
-            append_unknown_bytes_entry(
+            append_u8_segment_entry(
                 &mut symbol_tree_entries,
                 &module_name,
                 next_unclaimed_offset,
@@ -268,7 +268,7 @@ where
     symbol_tree_entries
 }
 
-fn append_unknown_bytes_entry(
+fn append_u8_segment_entry(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     module_name: &str,
     offset: u64,
@@ -278,12 +278,12 @@ fn append_unknown_bytes_entry(
         return;
     }
 
-    let display_name = format!("unknown_{:08X}", offset);
+    let display_name = format!("u8_{:08X}", offset);
     let full_path = format!("{}.{}", module_name, display_name);
 
     symbol_tree_entries.push(SymbolTreeEntry::new(
-        format!("unknown:{}:{:X}:{:X}", module_name, offset, length),
-        SymbolTreeEntryKind::UnknownBytes {
+        format!("u8:{}:{:X}:{:X}", module_name, offset, length),
+        SymbolTreeEntryKind::U8Segment {
             module_name: module_name.to_string(),
             offset,
             length,
@@ -296,7 +296,7 @@ fn append_unknown_bytes_entry(
         ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset),
         String::from("u8"),
         ContainerType::ArrayFixed(length),
-        false,
+        length > 0,
         false,
     ));
 }
@@ -986,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_shows_empty_module_root_as_unknown_bytes() {
+    fn build_symbol_tree_entries_shows_empty_module_root_as_u8_segment() {
         use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let project_symbol_catalog =
@@ -1009,7 +1009,7 @@ mod tests {
         );
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnknownBytes {
+            &SymbolTreeEntryKind::U8Segment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x20,
@@ -1072,8 +1072,11 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_treats_primitive_root_type_as_leaf_node() {
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+    fn build_symbol_tree_entries_splits_module_space_into_u8_segments_around_symbol_claim() {
+        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
+
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x2000)],
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
                 String::from("Health"),
@@ -1091,11 +1094,11 @@ mod tests {
             (data_type_ref.get_data_type_id() == "u32").then_some(4)
         });
 
-        assert_eq!(symbol_tree_entries.len(), 3);
+        assert_eq!(symbol_tree_entries.len(), 4);
         assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnknownBytes {
+            &SymbolTreeEntryKind::U8Segment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x1234,
@@ -1105,10 +1108,18 @@ mod tests {
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
         assert_eq!(symbol_tree_entries[2].get_container_type(), ContainerType::None);
         assert_eq!(symbol_tree_entries[2].can_expand(), false);
+        assert_eq!(
+            symbol_tree_entries[3].get_kind(),
+            &SymbolTreeEntryKind::U8Segment {
+                module_name: String::from("game.exe"),
+                offset: 0x1238,
+                length: 0xDC8,
+            }
+        );
     }
 
     #[test]
-    fn build_symbol_tree_entries_synthesizes_unknown_module_gaps_between_claims() {
+    fn build_symbol_tree_entries_synthesizes_u8_module_segments_between_claims() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![
@@ -1128,7 +1139,7 @@ mod tests {
         assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnknownBytes {
+            &SymbolTreeEntryKind::U8Segment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 4,
@@ -1137,7 +1148,7 @@ mod tests {
         assert_eq!(symbol_tree_entries[2].get_display_name(), "First");
         assert_eq!(
             symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::UnknownBytes {
+            &SymbolTreeEntryKind::U8Segment {
                 module_name: String::from("game.exe"),
                 offset: 8,
                 length: 4,

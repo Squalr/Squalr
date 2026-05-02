@@ -41,18 +41,18 @@ The size can usually be derived when attached, but it is still stored because ta
 
 Modules should not appear automatically just because the user attached to a process. The Symbol Tree is empty by default. Users add module roots with the normal `+` action, rename them with the standard F2 mechanism, and expand them like any other tree struct.
 
-Each module owns a struct layout over offsets `0..size`. Unknown space is represented as `u8[]` fields inside that struct.
+Each module owns a struct layout over offsets `0..size`. Unclaimed space is represented as concrete `u8[]` fields inside that struct.
 
 Example:
 
 ```text
 Modules
   game.exe
-    unknown_00000000: u8[0x123456]
+    u8_00000000: u8[0x123456]
     player_manager: PlayerManager @ +0x123456
       local_player
       entity_list
-    unknown_001234A0: u8[0xCB60]
+    u8_001234A0: u8[0xCB60]
   Dolphin MEM1
     game_state: GameState @ +0x400000
 ```
@@ -68,19 +68,19 @@ The product concept should become:
 - referenced type/layout,
 - field byte range.
 
-The byte range is derived from the symbol type when possible. For raw unknown bytes, the field is simply a `u8[]` range.
+The byte range is derived from the symbol type when possible. For raw unclaimed bytes, the field is simply a `u8[]` range.
 
 ### 3. Unclaimed module space is real
-Unknown space should not disappear from the tree.
+Unclaimed `u8[]` space should not disappear from the tree.
 
-When a module is first introduced manually, the user supplies the module name and size. When promotion creates a module root, Squalr should derive the size from the attached process and store that value. Either way, the module starts as one large unknown chunk:
+When a module is first introduced manually, the user supplies the module name and size. When promotion creates a module root, Squalr should derive the size from the attached process virtual page and store that value. Either way, the module starts as one large `u8[]` chunk:
 
 ```text
 game.exe
   bytes: u8[module_size]
 ```
 
-As symbols are created, promoted, deleted, resized, or retyped, that unknown chunk splits and merges around typed fields.
+As symbols are created, promoted, deleted, resized, or retyped, that `u8[]` chunk splits and merges around typed fields.
 
 This makes the symbol tree feel like a gradually-filled memory map instead of a bag of bookmarks.
 
@@ -89,23 +89,23 @@ Promotion should not merely append another symbol record.
 
 If the target module root does not exist yet, promotion creates it. For example, if the user attached to `winmine.exe`, scanned, added a static address to the project, and then promoted it, promotion should create the `winmine.exe` module struct, query and store the module size, seed it with `u8[module_size]`, and then split that filler around the promoted field.
 
-If the promoted address falls inside an unknown `u8[]` field, promotion splits that field:
+If the promoted address falls inside a `u8[]` field, promotion splits that field:
 
 ```text
 Before:
-  unknown_00001000: u8[0x100]
+  u8_00001000: u8[0x100]
 
 Promote +0x104 as ptr64 Player*:
-  unknown_00001000: u8[0x4]
+  u8_00001000: u8[0x4]
   player_ptr: Player*(u64)
-  unknown_0000100C: u8[0xF4]
+  u8_0000100C: u8[0xF4]
 ```
 
-If the promoted address exactly matches an existing unknown field, promotion can replace that field in place:
+If the promoted address exactly matches an existing `u8[]` field, promotion can replace that field in place:
 
 ```text
 Before:
-  unknown_00123456: u8[0x40]
+  u8_00123456: u8[0x40]
 
 Promote +0x123456 as PlayerManager:
   PlayerManager: PlayerManager
@@ -113,7 +113,7 @@ Promote +0x123456 as PlayerManager:
 
 If the new field overlaps an existing typed field, the user needs an explicit conflict flow:
 - replace the old field,
-- split the old field if the old field is splittable unknown bytes,
+- split the old field if the old field is splittable `u8[]`,
 - reject the promotion,
 - or create a separate pointer/runtime symbol if the address is not actually static module layout.
 
@@ -207,7 +207,7 @@ Most field sizes come from the referenced type:
 - pointer: pointer slot size.
 
 Some fields need an explicit size:
-- raw unknown bytes,
+- raw unclaimed bytes,
 - dynamic arrays.
 
 Start with explicit sizes only where the type system cannot derive one.
@@ -235,13 +235,13 @@ Promoting a static address should:
 ### Retype field
 Retyping a field changes its type and recomputes its range.
 
-If the new range is smaller, the trailing space becomes an unknown `u8[]` gap.
+If the new range is smaller, the trailing space becomes a `u8[]` gap.
 If the new range is larger, conflict handling is required for the newly covered range.
 
 ### Delete field
-Deleting a typed field should return its bytes to unknown space.
+Deleting a typed field should return its bytes to `u8[]` space.
 
-Adjacent unknown byte chunks should merge.
+Adjacent `u8[]` chunks should merge.
 
 ### Promote discovery
 Promotion should route through the same module-struct mutation machinery.
@@ -285,8 +285,8 @@ It is not a separate storage path. It is a convenient entry point from a discove
 ### Sprint 4: Support retyping and deletion
 1. Retype existing fields in place.
 2. Recompute field ranges after type changes.
-3. Return deleted fields to unknown space.
-4. Merge adjacent unknown gaps in the derived view.
+3. Return deleted fields to `u8[]` space.
+4. Merge adjacent `u8[]` gaps in the derived view.
 
 ### Sprint 5: Keep derived children lazy
 1. Expand struct fields from field type layouts.
@@ -311,7 +311,7 @@ Responsibilities:
 - support F2 rename for module roots and fields,
 - show ordered typed fields and `u8[]` filler fields,
 - lazily expand struct, array, and pointer children,
-- promote unknown chunks or derived children into typed fields,
+- promote `u8[]` chunks or derived children into typed fields,
 - retype, resize, rename, and delete fields,
 - jump fields to Memory Viewer or Code Viewer.
 
@@ -327,7 +327,7 @@ Responsibilities:
 - show field size and overlap/conflict status,
 - jump to the corresponding Symbol Tree row.
 
-Unknown `u8[]` filler does not need to appear in the table by default.
+Unclaimed `u8[]` filler does not need to appear in the table by default.
 
 ### SymbolStructEditor
 The SymbolStructEditor window owns reusable layout authoring.
@@ -368,7 +368,7 @@ Use:
 - `Symbol` for normal user-facing rows and actions,
 - `Symbol Field` when discussing occupied module ranges,
 - `Module` for top-level symbol tree roots,
-- `Unknown Bytes` or `u8[]` for unclaimed gaps.
+- `u8[]` for unclaimed gaps.
 
 ### Children
 Children are derived views, not stored facts, unless the user explicitly promotes one into a module field.
