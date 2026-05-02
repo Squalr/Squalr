@@ -5,33 +5,38 @@ This document is the working plan for turning project symbols into a real typed 
 
 The goal is not to copy Ghidra, Binary Ninja, or IDA. The goal is to give Squalr a practical symbol model that:
 - treats modules as the visible roots of symbol space,
-- lets users claim and progressively type chunks of module memory,
+- models each module root as one literal struct instance,
+- lets promotion split `u8[]` filler into typed fields,
 - expands through structs, arrays, and pointers,
 - keeps external-tool specifics in metadata instead of core types,
-- lets raw address and pointer discoveries reshape the typed memory map.
+- lets raw address and pointer discoveries reshape the typed module struct.
 
 ## Current Reality In The Repo
-- `ProjectSymbolCatalog` stores reusable struct layouts and project symbol instances.
-- `ProjectRootSymbol` is the current persisted symbol-instance type.
-- `ProjectRootSymbolLocator` currently supports absolute addresses and module-name-plus-offset locators.
+- `ProjectSymbolCatalog` stores reusable struct layouts and project symbol fields.
+- `ProjectSymbolClaim` is the current persisted symbol-instance type.
+- `ProjectSymbolLocator` currently supports absolute addresses and module-name-plus-offset locators.
 - `SymbolicFieldDefinition` has field names and shared pointer-size/container encoding.
 - Address and pointer project items can be promoted into project symbols.
 - Virtual modules already have a good extension seam through `MemoryViewInstance`.
 - Project symbols are authored on the unprivileged side, but the privileged registry refresh still republishes the merged symbol catalog wholesale.
 
-The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and symbols are typed claims inside module memory.
+The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and each module is edited like one parent struct whose fields gradually replace raw `u8[]` filler.
 
 ## Desired End State
 
 ### 1. Modules are symbol roots
-The Symbol Tree should start from modules, not from a flat list of "rooted symbols."
+The Symbol Tree should start from manually authored module roots, not from a flat list of "rooted symbols."
 
-A module is a claimable address space:
+A module root is a named parent struct:
 - host modules such as `game.exe`,
 - virtual modules such as `Dolphin MEM1`,
 - synthetic or runtime-backed module-like spaces later.
 
-Each module owns a typed layout map over its address range. Unknown space is still represented explicitly, usually as coarse `u8[]` chunks.
+The module name is the resolving key. If the user renames `winmine.exe`, that new name is what module-offset symbols resolve against.
+
+Modules should not appear automatically just because the user attached to a process. The Symbol Tree is empty by default. Users add module roots with the normal `+` action, rename them with the standard F2 mechanism, and expand them like any other tree struct.
+
+Each module owns a struct layout over its address range. Unknown space is represented as `u8[]` fields inside that struct.
 
 Example:
 
@@ -39,7 +44,7 @@ Example:
 Modules
   game.exe
     unknown_00000000: u8[0x123456]
-    PlayerManager: PlayerManager @ +0x123456
+    player_manager: PlayerManager @ +0x123456
       local_player
       entity_list
     unknown_001234A0: u8[0xCB60]
@@ -47,39 +52,41 @@ Modules
     GameState: GameState @ +0x80400000
 ```
 
-This gives the tree a physical meaning: every top-level child claims bytes from a parent module space.
+This gives the tree a physical meaning: every child is a field inside the parent module struct.
 
-### 2. Symbols are typed claims
-A project symbol instance should be understood as a typed claim over a range.
+### 2. Symbols are typed fields
+A project symbol instance should be understood as a typed field in a module struct.
 
-The current `ProjectRootSymbol` type can remain as a compatibility bridge, but the product concept should become:
+The product concept should become:
 - stable symbol key,
 - display name,
 - module or absolute locator,
 - referenced type/layout,
-- claimed byte range,
+- field byte range,
 - optional metadata.
 
-The claimed byte range is derived from the symbol type when possible. For dynamically sized arrays or unresolved types, the claim can use an explicit length or stay conservative.
+The byte range is derived from the symbol type when possible. For raw unknown bytes, the field is simply a `u8[]` range.
 
 ### 3. Unclaimed module space is real
 Unknown space should not disappear from the tree.
 
-When a module is first introduced into the symbol tree, the default representation can be one large unknown chunk:
+When a module is first introduced manually, it can start with no known size. When promotion has enough runtime context to resolve the module and its size, Squalr creates or updates the backing module struct with one large unknown chunk:
 
 ```text
 game.exe
   bytes: u8[module_size]
 ```
 
-As symbols are created, promoted, deleted, resized, or retyped, that unknown chunk splits and merges around the typed claims.
+As symbols are created, promoted, deleted, resized, or retyped, that unknown chunk splits and merges around typed fields.
 
 This makes the symbol tree feel like a gradually-filled memory map instead of a bag of bookmarks.
 
-### 4. Promotion transforms chunks
+### 4. Promotion transforms the module struct
 Promotion should not merely append another symbol record.
 
-If the promoted address falls inside an unknown `u8[]` claim, promotion splits that claim:
+If the target module root does not exist yet, promotion creates it. For example, if the user attached to `winmine.exe`, scanned, added a static address to the project, and then promoted it, promotion should create the `winmine.exe` module struct, query the correct module size when available, seed it with `u8[module_size]`, and then split that filler around the promoted field.
+
+If the promoted address falls inside an unknown `u8[]` field, promotion splits that field:
 
 ```text
 Before:
@@ -91,7 +98,7 @@ Promote +0x104 as ptr64 Player*:
   unknown_0000100C: u8[0xF4]
 ```
 
-If the promoted address exactly matches an existing static claim, promotion can reassign that claim in place:
+If the promoted address exactly matches an existing unknown field, promotion can replace that field in place:
 
 ```text
 Before:
@@ -101,17 +108,17 @@ Promote +0x123456 as PlayerManager:
   PlayerManager: PlayerManager
 ```
 
-If the new claim overlaps an existing typed claim, the user needs an explicit conflict flow:
-- replace the old claim,
-- split the old claim if the old claim is splittable unknown bytes,
+If the new field overlaps an existing typed field, the user needs an explicit conflict flow:
+- replace the old field,
+- split the old field if the old field is splittable unknown bytes,
 - reject the promotion,
 - or create a separate pointer/runtime symbol if the address is not actually static module layout.
 
 ### 5. Struct fields are derived children
 Struct fields, fixed-array elements, and pointer dereferences should remain derived tree nodes.
 
-Persist the top-level typed claims. Derive children lazily from:
-- the claim locator,
+Persist the top-level module fields. Derive children lazily from:
+- the field locator,
 - the referenced type layout,
 - container semantics,
 - pointer reads when the user expands pointer nodes.
@@ -122,16 +129,16 @@ Do not persist a giant child graph just because the UI can display one.
 `AddressItem` and `PointerItem` should stay.
 
 They are discovery tools. Promotion is the bridge from discovery into the typed module map:
-- an address item promotes to a static module or absolute claim,
+- an address item promotes to a module field or absolute field,
 - a pointer item can promote either the pointer slot itself or the current pointed-to target,
 - pointer provenance stays in metadata when useful.
 
-After promotion, project items can reference the symbol claim instead of continuing to own long-term layout identity.
+After promotion, project items can reference the symbol field instead of continuing to own long-term layout identity.
 
 ### 7. Modules stay name-backed for now
 Do not introduce a new `ModuleId` abstraction yet.
 
-The current memory layer already resolves modules by name, including virtual-module style sources. We can build the first claim-based tree using module names as they exist today.
+The current memory layer already resolves modules by name, including virtual-module style sources. We can build the first module tree using module names as they exist today.
 
 If module identity becomes painful later, add normalization then.
 
@@ -160,41 +167,41 @@ Reusable type definitions should continue to describe structure:
 - ordered named fields,
 - field type/container information.
 
-These are reusable layouts, not claims over memory by themselves.
+These are reusable layouts, not placed fields over memory by themselves.
 
-### Module symbol maps
-Add a module-oriented symbol map concept over the existing catalog.
+### Module structs
+Add a module-oriented struct concept over the existing catalog.
 
-Conceptually, each module map contains ordered claims:
+Conceptually, each module struct contains:
 - `module_name`,
 - `module_size` when known,
-- ordered `SymbolClaim` records,
-- synthesized unknown gaps.
+- ordered fields,
+- explicit `u8[]` filler fields.
 
-Unknown gaps do not need to be persisted as full records if they can be derived from module size and existing claims. It is fine to synthesize them in the tree.
+Unlike a separate import-candidate model, the tree should work directly against this module struct. If no module has been added, there is nothing to show.
 
-### Symbol claims
-A symbol claim is the long-term replacement concept for "rooted symbol."
+### Symbol fields
+A symbol field is the long-term replacement concept for "rooted symbol."
 
 It should contain:
 - stable symbol key,
 - display name,
 - locator,
 - referenced symbol type,
-- claim size or size policy,
+- field size or size policy,
 - optional metadata.
 
-For compatibility, this can initially be implemented by extending or renaming `ProjectRootSymbol`.
+In the current code this is represented by `ProjectSymbolClaim`, but the product concept should be "field in a module struct."
 
 ### Locators
-The first claim locators should remain:
+The first field locators should remain:
 - absolute address,
 - module name + offset.
 
-Module-relative claims are the normal case. Absolute-address claims should render under an `Absolute / Unmapped` group, not as peers of real modules.
+Module-relative fields are the normal case. Absolute-address symbols can render under an `Absolute / Unmapped` group, but they should not drive the main UX.
 
-### Claim size policy
-Most claim sizes come from the referenced type:
+### Field size policy
+Most field sizes come from the referenced type:
 - primitive: primitive size,
 - fixed array: element size times length,
 - struct: sum of fields,
@@ -218,29 +225,41 @@ Start with a simple extension map for:
 
 Do not build a typed metadata framework up front.
 
-## Claim Operations
+## Struct Operations
 
-### Create claim
-Creating a claim at a module offset should:
-1. compute the new claim range,
-2. find overlapping existing claims,
-3. split unknown byte claims when possible,
-4. require confirmation for replacing typed claims,
-5. insert the new typed claim into module order.
+### Add module
+Adding a module should be as simple as pressing `+` in the Symbol Tree.
 
-### Retype claim
-Retyping a claim changes its type and recomputes its range.
+The new root has:
+1. a module name,
+2. an optional known size,
+3. an optional initial `u8[]` filler field,
+4. a parent struct identity derived from the module name.
+
+Rename uses the standard F2 tree rename flow. The name is the resolver name.
+
+### Promote field
+Promoting a static address should:
+1. resolve the module name and module offset,
+2. create the module struct if it does not exist,
+3. query and store the module size when available,
+4. create an initial `u8[]` filler field if needed,
+5. split the filler around the new typed field,
+6. insert the new typed field in offset order.
+
+### Retype field
+Retyping a field changes its type and recomputes its range.
 
 If the new range is smaller, the trailing space becomes an unknown `u8[]` gap.
 If the new range is larger, conflict handling is required for the newly covered range.
 
-### Delete claim
-Deleting a typed claim should return its bytes to unknown space.
+### Delete field
+Deleting a typed field should return its bytes to unknown space.
 
 Adjacent unknown byte chunks should merge.
 
 ### Promote discovery
-Promotion should route through the same create/retype machinery.
+Promotion should route through the same module-struct mutation machinery.
 
 It is not a separate storage path. It is a convenient entry point from a discovered address, pointer, scan result, memory selection, or derived child.
 
@@ -251,39 +270,42 @@ It is not a separate storage path. It is a convenient entry point from a discove
 - No exporter/plugin framework redesign.
 - No global reverse address-to-symbol pointer map.
 - No replacement of all project item types with symbols immediately.
-- No literal mega-struct allocation for every module in persisted project files.
+- No static-symbol candidate database.
+- No attach-time module population.
+- No import workflow before the manual module tree exists.
 
 ## Implementation Plan
 
 ### Sprint 1: Rename the product model
-1. Update docs and UI language from "rooted symbol" to "symbol claim" or plain "symbol."
+1. Update docs and UI language from "rooted symbol" to "symbol field" or plain "symbol."
 2. Keep Rust compatibility names until the data model is ready to move.
 3. Make module grouping the visible shape of the Symbol Tree.
 4. Put absolute-address symbols under an `Absolute / Unmapped` group.
 
-### Sprint 2: Add claim-range semantics
-1. Add claim size calculation for existing symbol instances.
-2. Synthesize unknown `u8[]` gaps from module size and existing claims.
-3. Sort module claims by offset.
-4. Detect overlaps and expose conflict information.
+### Sprint 2: Make module roots editable
+1. Add `+` module creation to the Symbol Tree.
+2. Add standard F2 rename for module roots.
+3. Store module roots by resolver name.
+4. Keep empty projects empty until a module is added or promotion creates one.
 
-### Sprint 3: Make promotion reshape module space
-1. Promote address selections by splitting unknown chunks.
-2. Promote scan/address project items through the same claim-creation path.
-3. Promote pointer items as either pointer-slot claims or pointed-target claims.
-4. Add overwrite/split/reject conflict UX.
+### Sprint 3: Make promotion reshape module structs
+1. Promote static address selections by creating the module struct when missing.
+2. Query module size during promotion when the process is attached.
+3. Seed the module with `u8[module_size]`.
+4. Split `u8[]` filler around promoted typed fields.
+5. Add overwrite/split/reject conflict UX only for typed overlaps.
 
 ### Sprint 4: Support retyping and deletion
-1. Retype existing claims in place.
-2. Recompute claim ranges after type changes.
-3. Return deleted claims to unknown space.
+1. Retype existing fields in place.
+2. Recompute field ranges after type changes.
+3. Return deleted fields to unknown space.
 4. Merge adjacent unknown gaps in the derived view.
 
 ### Sprint 5: Keep derived children lazy
-1. Expand struct fields from claim type layouts.
+1. Expand struct fields from field type layouts.
 2. Expand fixed arrays on demand.
 3. Resolve pointer children on demand.
-4. Promote derived children into top-level claims only when explicitly requested.
+4. Promote derived children into module fields only when explicitly requested.
 
 ### Sprint 6: Clean up the transport boundary
 1. Stop treating the privileged registry catalog as the permanent transport for the full authored symbol map.
@@ -293,41 +315,43 @@ It is not a separate storage path. It is a convenient entry point from a discove
 ## GUI Shape
 
 ### Symbol Tree
-The Symbol Tree should be a module memory map.
+The Symbol Tree should be the module struct editor for placed symbols.
 
 Responsibilities:
-- show modules as top-level roots,
-- show ordered typed claims and synthesized unknown gaps,
+- show manually added modules as top-level roots,
+- expose a `+` action to add a module,
+- support F2 rename for module roots and fields,
+- show ordered typed fields and `u8[]` filler fields,
 - lazily expand struct, array, and pointer children,
-- promote unknown chunks or derived children into typed claims,
-- retype, resize, rename, and delete claims,
-- jump claims to Memory Viewer or Code Viewer.
+- promote unknown chunks or derived children into typed fields,
+- retype, resize, rename, and delete fields,
+- jump fields to Memory Viewer or Code Viewer.
 
-The tree is not just a namespace browser. It is the visible typed occupancy map for a module.
+The tree is not just a namespace browser. It is the literal parent struct for each module.
 
 ### Symbol Table
-The Symbol Table should remain the flat maintenance surface.
+The Symbol Table should be secondary. It can remain a flat maintenance surface for authored fields, but it should not introduce static candidates or a separate import state machine.
 
 Responsibilities:
-- list all user-authored symbol claims,
+- list all user-authored symbol fields,
 - filter by name, module, locator, type, source, and metadata,
 - bulk rename/delete/update where practical,
-- show claim size and overlap/conflict status,
+- show field size and overlap/conflict status,
 - jump to the corresponding Symbol Tree row.
 
-Unknown synthesized gaps do not need to appear in the table by default.
+Unknown `u8[]` filler does not need to appear in the table by default.
 
 ### SymbolStructEditor
 The SymbolStructEditor window owns reusable layout authoring.
 
-It should not own module occupancy. It defines what a claim means once placed.
+It should not own module occupancy. It defines what a field means once placed.
 
 ### Memory Viewer and Code Viewer
-Viewer-side symbol actions should feed the same claim operations:
+Viewer-side symbol actions should feed the same module-field operations:
 - assign symbol at current address,
 - apply type to current address or selection,
-- retype existing claim,
-- promote selection into a claim,
+- retype existing field,
+- promote selection into a field,
 - jump to the matching Symbol Tree row.
 
 The viewers are where discoveries happen. The Symbol Tree is where those discoveries become durable layout.
@@ -335,12 +359,12 @@ The viewers are where discoveries happen. The Symbol Tree is where those discove
 ### Project Explorer
 The Project Explorer remains focused on acquisition and workflow artifacts.
 
-Address and pointer items can promote into claims, then optionally become symbol references.
+Address and pointer items can promote into module fields, then optionally become symbol references.
 
 ## Practical Design Decisions
 
 ### Identity
-Use project-local stable keys for stored types and stored symbol claims.
+Use project-local stable keys for stored types and stored symbol fields.
 
 Do not use the user-visible display name as the only identity, because rename support and references from project items need something stable.
 
@@ -349,19 +373,19 @@ Avoid exposing "rooted symbol" in UI copy.
 
 Use:
 - `Symbol` for normal user-facing rows and actions,
-- `Symbol Claim` when discussing occupied module ranges,
+- `Symbol Field` when discussing occupied module ranges,
 - `Module` for top-level symbol tree roots,
 - `Unknown Bytes` or `u8[]` for unclaimed gaps.
 
 ### Children
-Children are derived views, not stored facts, unless the user explicitly promotes one into a claim.
+Children are derived views, not stored facts, unless the user explicitly promotes one into a module field.
 
 ### Project items versus symbols
 Symbols and project items should not collapse into one concept.
 
 For now:
 - address items and pointer items are workflow and acquisition objects,
-- symbol claims are authored typed memory ranges,
+- symbol fields are authored typed memory ranges,
 - promotion is the bridge from the former to the latter.
 
 ### External tools
@@ -373,9 +397,9 @@ If we later want strong support for CLR-heavy, JVM-heavy, or other managed-runti
 The intended shape is:
 - virtual modules still describe the visible memory space,
 - data-type plugins still describe value encodings,
-- a future runtime/symbol-provider plugin can contribute runtime-specific modules, claims, and resolution logic.
+- a future runtime/symbol-provider plugin can contribute runtime-specific modules, fields, and resolution logic.
 
 ## Bottom Line
-The symbol-store plan should move from "sparse rooted symbols" to "typed claims inside modules."
+The symbol-store plan should move from "sparse rooted symbols" to "module roots as literal structs."
 
-Modules are the roots. Unknown module space is explicit. Promotion is a chunk split/retype operation. Struct fields and pointer targets stay lazily derived unless the user promotes them into real claims.
+Modules are the roots. The Symbol Tree starts empty until the user adds a module or promotion creates one. Each module is a parent struct with `u8[]` filler and typed fields. Promotion creates the module struct when needed, queries the size when possible, and splits filler into meaningful data.
