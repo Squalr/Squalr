@@ -1,6 +1,8 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
+use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
+use crate::structures::projects::project_symbol_module_field::ProjectSymbolModuleField;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -61,6 +63,31 @@ impl ProjectSymbolCatalog {
         self.symbol_modules
             .iter_mut()
             .find(|symbol_module| symbol_module.get_module_name() == module_name)
+    }
+
+    pub fn find_module_field(
+        &self,
+        symbol_locator_key: &str,
+    ) -> Option<(&ProjectSymbolModule, &ProjectSymbolModuleField)> {
+        let ProjectSymbolLocator::ModuleOffset { module_name, offset } = parse_symbol_locator_key(symbol_locator_key)? else {
+            return None;
+        };
+        let symbol_module = self.find_symbol_module(&module_name)?;
+        let module_field = symbol_module.find_field(offset)?;
+
+        Some((symbol_module, module_field))
+    }
+
+    pub fn find_module_field_mut(
+        &mut self,
+        symbol_locator_key: &str,
+    ) -> Option<&mut ProjectSymbolModuleField> {
+        let ProjectSymbolLocator::ModuleOffset { module_name, offset } = parse_symbol_locator_key(symbol_locator_key)? else {
+            return None;
+        };
+        let symbol_module = self.find_symbol_module_mut(&module_name)?;
+
+        symbol_module.find_field_mut(offset)
     }
 
     pub fn ensure_symbol_module(
@@ -131,4 +158,18 @@ impl ProjectSymbolCatalog {
     pub fn is_empty(&self) -> bool {
         self.symbol_modules.is_empty() && self.struct_layout_descriptors.is_empty() && self.symbol_claims.is_empty()
     }
+}
+
+fn parse_symbol_locator_key(symbol_locator_key: &str) -> Option<ProjectSymbolLocator> {
+    if let Some(address_text) = symbol_locator_key.strip_prefix("absolute:") {
+        let address = u64::from_str_radix(address_text, 16).ok()?;
+
+        return Some(ProjectSymbolLocator::new_absolute_address(address));
+    }
+
+    let module_locator_text = symbol_locator_key.strip_prefix("module:")?;
+    let (module_name, offset_text) = module_locator_text.rsplit_once(':')?;
+    let offset = u64::from_str_radix(offset_text, 16).ok()?;
+
+    Some(ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset))
 }

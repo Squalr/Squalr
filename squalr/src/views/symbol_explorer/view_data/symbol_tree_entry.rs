@@ -2,7 +2,10 @@ use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayo
 use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::container_type::ContainerType,
-    projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
+    projects::{
+        project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
+        project_symbol_module_field::ProjectSymbolModuleField,
+    },
     structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -146,12 +149,14 @@ where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
     let mut symbol_tree_entries = Vec::new();
-    let mut module_symbol_claims: BTreeMap<String, Vec<&ProjectSymbolClaim>> = BTreeMap::new();
+    let mut module_symbol_claims: BTreeMap<String, Vec<ProjectSymbolClaim>> = BTreeMap::new();
+    let mut module_fields_by_name: BTreeMap<String, Vec<ProjectSymbolModuleField>> = BTreeMap::new();
     let mut module_sizes_by_name: BTreeMap<String, u64> = BTreeMap::new();
     let mut absolute_symbol_claims = Vec::new();
 
     for symbol_module in project_symbol_catalog.get_symbol_modules() {
         module_sizes_by_name.insert(symbol_module.get_module_name().to_string(), symbol_module.get_size());
+        module_fields_by_name.insert(symbol_module.get_module_name().to_string(), symbol_module.get_fields().to_vec());
     }
 
     for symbol_claim in project_symbol_catalog.get_symbol_claims() {
@@ -162,13 +167,21 @@ where
                 module_symbol_claims
                     .entry(module_name.clone())
                     .or_default()
-                    .push(symbol_claim);
+                    .push(symbol_claim.clone());
             }
         }
     }
 
     for (module_name, module_size) in module_sizes_by_name {
         let mut symbol_claims = module_symbol_claims.remove(&module_name).unwrap_or_default();
+        for module_field in module_fields_by_name.remove(&module_name).unwrap_or_default() {
+            symbol_claims.push(ProjectSymbolClaim::new_module_offset(
+                module_field.get_display_name().to_string(),
+                module_name.clone(),
+                module_field.get_offset(),
+                module_field.get_struct_layout_id().to_string(),
+            ));
+        }
         symbol_claims.sort_by_key(|symbol_claim| symbol_claim.get_locator().get_focus_address());
         let effective_module_size = module_size.max(
             symbol_claims
@@ -192,40 +205,40 @@ where
             continue;
         }
 
-        let mut next_unclaimed_offset = 0_u64;
+        let mut next_u8_span_offset = 0_u64;
 
         for symbol_claim in symbol_claims {
             let claim_offset = symbol_claim.get_locator().get_focus_address();
 
-            if claim_offset > next_unclaimed_offset {
+            if claim_offset > next_u8_span_offset {
                 append_u8_segment_entry(
                     &mut symbol_tree_entries,
                     &module_name,
-                    next_unclaimed_offset,
-                    claim_offset.saturating_sub(next_unclaimed_offset),
+                    next_u8_span_offset,
+                    claim_offset.saturating_sub(next_u8_span_offset),
                 );
             }
 
             append_symbol_claim_entry(
                 &mut symbol_tree_entries,
                 project_symbol_catalog,
-                symbol_claim,
+                &symbol_claim,
                 1,
                 expanded_tree_node_keys,
                 resolved_pointer_targets_by_node_key,
                 resolve_primitive_size_in_bytes,
             );
 
-            let claim_size_in_bytes = resolve_symbol_claim_size_in_bytes(project_symbol_catalog, symbol_claim, resolve_primitive_size_in_bytes);
-            next_unclaimed_offset = next_unclaimed_offset.max(claim_offset.saturating_add(claim_size_in_bytes));
+            let claim_size_in_bytes = resolve_symbol_claim_size_in_bytes(project_symbol_catalog, &symbol_claim, resolve_primitive_size_in_bytes);
+            next_u8_span_offset = next_u8_span_offset.max(claim_offset.saturating_add(claim_size_in_bytes));
         }
 
-        if effective_module_size > next_unclaimed_offset {
+        if effective_module_size > next_u8_span_offset {
             append_u8_segment_entry(
                 &mut symbol_tree_entries,
                 &module_name,
-                next_unclaimed_offset,
-                effective_module_size.saturating_sub(next_unclaimed_offset),
+                next_u8_span_offset,
+                effective_module_size.saturating_sub(next_u8_span_offset),
             );
         }
     }
@@ -933,6 +946,48 @@ mod tests {
         );
         assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[32]");
         assert_eq!(symbol_tree_entries[1].can_expand(), false);
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_reads_module_fields_as_module_children() {
+        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x04, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
+        );
+
+        assert_eq!(symbol_tree_entries.len(), 4);
+        assert_eq!(
+            symbol_tree_entries[1].get_kind(),
+            &SymbolTreeEntryKind::U8Segment {
+                module_name: String::from("game.exe"),
+                offset: 0,
+                length: 0x04,
+            }
+        );
+        assert_eq!(symbol_tree_entries[2].get_display_name(), "Health");
+        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
+        assert_eq!(
+            symbol_tree_entries[2].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x04)
+        );
+        assert_eq!(
+            symbol_tree_entries[3].get_kind(),
+            &SymbolTreeEntryKind::U8Segment {
+                module_name: String::from("game.exe"),
+                offset: 0x08,
+                length: 0x18,
+            }
+        );
     }
 
     #[test]

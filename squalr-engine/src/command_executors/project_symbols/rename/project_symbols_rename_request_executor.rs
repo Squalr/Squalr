@@ -36,22 +36,26 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsRenameRequest {
             return ProjectSymbolsRenameResponse::default();
         }
 
-        let symbol_claims = opened_project
+        let project_symbol_catalog = opened_project
             .get_project_info_mut()
-            .get_project_symbol_catalog_mut()
-            .get_symbol_claims_mut();
-        let Some(symbol_claim) = symbol_claims
-            .iter_mut()
-            .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == self.symbol_locator_key)
-        else {
+            .get_project_symbol_catalog_mut();
+        let did_rename = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {
+            symbol_claim.set_display_name(trimmed_display_name.to_string());
+            true
+        } else if let Some(module_field) = project_symbol_catalog.find_module_field_mut(&self.symbol_locator_key) {
+            module_field.set_display_name(trimmed_display_name.to_string());
+            true
+        } else {
+            false
+        };
+
+        if !did_rename {
             log::warn!(
                 "Project-symbols rename request could not find symbol locator key '{}'.",
                 self.symbol_locator_key
             );
             return ProjectSymbolsRenameResponse::default();
-        };
-
-        symbol_claim.set_display_name(trimmed_display_name.to_string());
+        }
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsRenameResponse::default();

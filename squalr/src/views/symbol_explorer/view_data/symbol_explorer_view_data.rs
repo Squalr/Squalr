@@ -35,7 +35,7 @@ pub enum SymbolExplorerTakeOverState {
         module_name: String,
         offset: u64,
         length: u64,
-        source_symbol_locator_key: Option<String>,
+        span_symbol_locator_key: Option<String>,
     },
 }
 
@@ -254,14 +254,14 @@ impl SymbolExplorerViewData {
         module_name: String,
         offset: u64,
         length: u64,
-        source_symbol_locator_key: Option<String>,
+        span_symbol_locator_key: Option<String>,
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin define field from u8 segment") {
             symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment {
                 module_name,
                 offset,
                 length,
-                source_symbol_locator_key,
+                span_symbol_locator_key,
             });
             symbol_explorer_view_data.define_field_draft = DefineFieldDraft {
                 display_name: format!("field_{:08X}", offset),
@@ -455,13 +455,13 @@ impl SymbolExplorerViewData {
             module_name,
             offset,
             length,
-            source_symbol_locator_key,
+            span_symbol_locator_key,
         }) = symbol_explorer_view_data.take_over_state.as_ref()
         {
             let is_target_segment_still_available =
                 symbol_tree_entries
                     .iter()
-                    .any(|symbol_tree_entry| match (source_symbol_locator_key.as_deref(), symbol_tree_entry.get_kind()) {
+                    .any(|symbol_tree_entry| match (span_symbol_locator_key.as_deref(), symbol_tree_entry.get_kind()) {
                         (
                             None,
                             SymbolTreeEntryKind::U8Segment {
@@ -470,8 +470,8 @@ impl SymbolExplorerViewData {
                                 length: segment_length,
                             },
                         ) => segment_module_name == module_name && segment_offset == offset && segment_length == length,
-                        (Some(source_symbol_locator_key), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key })
-                            if source_symbol_locator_key == symbol_locator_key =>
+                        (Some(span_symbol_locator_key), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key })
+                            if span_symbol_locator_key == symbol_locator_key =>
                         {
                             let ProjectSymbolLocator::ModuleOffset {
                                 module_name: claim_module_name,
@@ -787,7 +787,7 @@ mod tests {
                 module_name: String::from("game.exe"),
                 offset: 0x40,
                 length: 0x100,
-                source_symbol_locator_key: Some(String::from("module:game.exe:40")),
+                span_symbol_locator_key: Some(String::from("module:game.exe:40")),
             })
         );
         assert_eq!(
@@ -814,7 +814,7 @@ mod tests {
     }
 
     #[test]
-    fn synchronize_selection_to_tree_entries_keeps_claimed_u8_define_field_target() {
+    fn synchronize_selection_to_tree_entries_keeps_materialized_u8_define_field_target() {
         let symbol_explorer_view_data = create_dependency();
         let symbol_tree_entries = vec![SymbolTreeEntry::new(
             String::from("claim:module:game.exe:40"),
@@ -842,7 +842,7 @@ mod tests {
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &symbol_tree_entries);
 
         let take_over_state = symbol_explorer_view_data
-            .read("Symbol explorer claimed define field target test")
+            .read("Symbol explorer materialized define field target test")
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_take_over_state().cloned());
 
         assert_eq!(
@@ -851,7 +851,7 @@ mod tests {
                 module_name: String::from("game.exe"),
                 offset: 0x40,
                 length: 0x100,
-                source_symbol_locator_key: Some(String::from("module:game.exe:40")),
+                span_symbol_locator_key: Some(String::from("module:game.exe:40")),
             })
         );
     }

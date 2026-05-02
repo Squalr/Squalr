@@ -48,24 +48,39 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
             return ProjectSymbolsUpdateResponse::default();
         }
 
-        let Some(symbol_claim) = opened_project
+        let project_symbol_catalog = opened_project
             .get_project_info_mut()
-            .get_project_symbol_catalog_mut()
-            .find_symbol_claim_mut(&self.symbol_locator_key)
-        else {
+            .get_project_symbol_catalog_mut();
+        let did_update = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {
+            if let Some(display_name) = trimmed_display_name.as_ref() {
+                symbol_claim.set_display_name(display_name.clone());
+            }
+
+            if let Some(struct_layout_id) = trimmed_struct_layout_id.as_ref() {
+                symbol_claim.set_struct_layout_id(struct_layout_id.clone());
+            }
+
+            true
+        } else if let Some(module_field) = project_symbol_catalog.find_module_field_mut(&self.symbol_locator_key) {
+            if let Some(display_name) = trimmed_display_name.as_ref() {
+                module_field.set_display_name(display_name.clone());
+            }
+
+            if let Some(struct_layout_id) = trimmed_struct_layout_id.as_ref() {
+                module_field.set_struct_layout_id(struct_layout_id.clone());
+            }
+
+            true
+        } else {
+            false
+        };
+
+        if !did_update {
             log::warn!(
                 "Project-symbols update request could not find symbol locator key '{}'.",
                 self.symbol_locator_key
             );
             return ProjectSymbolsUpdateResponse::default();
-        };
-
-        if let Some(display_name) = trimmed_display_name {
-            symbol_claim.set_display_name(display_name);
-        }
-
-        if let Some(struct_layout_id) = trimmed_struct_layout_id {
-            symbol_claim.set_struct_layout_id(struct_layout_id);
         }
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {

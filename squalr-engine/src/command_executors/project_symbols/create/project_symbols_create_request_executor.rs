@@ -3,7 +3,9 @@ use crate::command_executors::unprivileged_request_executor::UnprivilegedCommand
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_request::ProjectSymbolsCreateRequest;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_response::ProjectSymbolsCreateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::{project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator};
+use squalr_engine_api::structures::projects::{
+    project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator, project_symbol_module_field::ProjectSymbolModuleField,
+};
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
@@ -41,18 +43,38 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             return ProjectSymbolsCreateResponse::default();
         }
 
-        let mut created_symbol = ProjectSymbolClaim::new(trimmed_display_name.to_string(), locator, self.struct_layout_id.trim().to_string());
-        let created_symbol_locator_key = created_symbol.get_symbol_locator_key();
-        *created_symbol.get_metadata_mut() = self.metadata.clone();
+        let struct_layout_id = self.struct_layout_id.trim().to_string();
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        if let ProjectSymbolLocator::ModuleOffset { module_name, offset } = created_symbol.get_locator() {
-            project_symbol_catalog.ensure_symbol_module(module_name, offset.saturating_add(1));
+
+        let created_symbol_locator_key = locator.to_locator_key();
+        match locator {
+            ProjectSymbolLocator::ModuleOffset { module_name, offset } => {
+                project_symbol_catalog.ensure_symbol_module(&module_name, offset.saturating_add(1));
+
+                let Some(symbol_module) = project_symbol_catalog.find_symbol_module_mut(&module_name) else {
+                    log::error!("Failed to resolve module after ensuring it for project-symbols create command.");
+                    return ProjectSymbolsCreateResponse::default();
+                };
+
+                if let Some(module_field) = symbol_module.find_field_mut(offset) {
+                    module_field.set_display_name(trimmed_display_name.to_string());
+                    module_field.set_struct_layout_id(struct_layout_id);
+                } else {
+                    symbol_module
+                        .get_fields_mut()
+                        .push(ProjectSymbolModuleField::new(trimmed_display_name.to_string(), offset, struct_layout_id));
+                }
+            }
+            ProjectSymbolLocator::AbsoluteAddress { .. } => {
+                let mut created_symbol = ProjectSymbolClaim::new(trimmed_display_name.to_string(), locator, struct_layout_id);
+                *created_symbol.get_metadata_mut() = self.metadata.clone();
+                project_symbol_catalog
+                    .get_symbol_claims_mut()
+                    .push(created_symbol);
+            }
         }
-        project_symbol_catalog
-            .get_symbol_claims_mut()
-            .push(created_symbol);
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsCreateResponse::default();
@@ -88,14 +110,12 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::projects::{
-        project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_locator::ProjectSymbolLocator,
-    };
+    use squalr_engine_api::structures::projects::{project::Project, project_symbol_catalog::ProjectSymbolCatalog};
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
     #[test]
-    fn create_project_symbol_request_persists_symbol_claim_and_syncs_catalog() {
+    fn create_project_symbol_request_persists_module_field_and_syncs_catalog() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let project = create_project_with_symbol_catalog(temp_directory.path(), ProjectSymbolCatalog::default());
         let mock_project_symbols_bindings = MockProjectSymbolsBindings::new();
@@ -123,23 +143,22 @@ mod tests {
         assert_eq!(project_symbols_create_response.created_symbol_locator_key, "module:game.exe:1234");
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected created-symbol project to load from disk.");
-        let symbol_claims = loaded_project
-            .get_project_info()
-            .get_project_symbol_catalog()
-            .get_symbol_claims();
+        let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
+        let symbol_modules = project_symbol_catalog.get_symbol_modules();
 
-        assert_eq!(symbol_claims.len(), 1);
-        assert_eq!(symbol_claims[0].get_display_name(), "Player Manager");
-        assert_eq!(symbol_claims[0].get_struct_layout_id(), "player.manager");
-        assert_eq!(
-            symbol_claims[0].get_locator(),
-            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
-        );
+        assert_eq!(project_symbol_catalog.get_symbol_claims().len(), 0);
+        assert_eq!(symbol_modules.len(), 1);
+        assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
+        assert_eq!(symbol_modules[0].get_size(), 0x1235);
+        assert_eq!(symbol_modules[0].get_fields().len(), 1);
+        assert_eq!(symbol_modules[0].get_fields()[0].get_display_name(), "Player Manager");
+        assert_eq!(symbol_modules[0].get_fields()[0].get_offset(), 0x1234);
+        assert_eq!(symbol_modules[0].get_fields()[0].get_struct_layout_id(), "player.manager");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
-        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_modules(), symbol_modules);
     }
 }
