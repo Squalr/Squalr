@@ -1,86 +1,147 @@
 # Symbol Store Plan
 
 ## Purpose
-This document is the working plan for turning project symbols into a real symbol store over the next few sprints.
+This document is the working plan for turning project symbols into a real typed memory map.
 
 The goal is not to copy Ghidra, Binary Ninja, or IDA. The goal is to give Squalr a practical symbol model that:
-- fits the current project and IPC architecture,
-- supports static and virtual modules,
+- treats modules as the visible roots of symbol space,
+- lets users claim and progressively type chunks of module memory,
 - expands through structs, arrays, and pointers,
 - keeps external-tool specifics in metadata instead of core types,
-- lets raw address and pointer discoveries become durable project symbols.
+- lets raw address and pointer discoveries reshape the typed memory map.
 
 ## Current Reality In The Repo
-- `ProjectSymbolCatalog` only stores reusable layouts. It does not store rooted symbols.
-- `StructLayoutDescriptor` is currently just `{ id, definition }`.
-- `SymbolicFieldDefinition` currently stores only `(data_type_ref, container_type)`. It does not yet carry a field name.
-- Address and pointer project items already bind concrete addresses and pointer chains to a symbolic struct definition string.
+- `ProjectSymbolCatalog` stores reusable struct layouts and project symbol instances.
+- `ProjectRootSymbol` is the current persisted symbol-instance type.
+- `ProjectRootSymbolLocator` currently supports absolute addresses and module-name-plus-offset locators.
+- `SymbolicFieldDefinition` has field names and shared pointer-size/container encoding.
+- Address and pointer project items can be promoted into project symbols.
 - Virtual modules already have a good extension seam through `MemoryViewInstance`.
-- Pointer scans already support more pointer encodings than symbolic layouts do today.
-- Project symbols are authored on the unprivileged side, but the current privileged registry refresh still republishes the merged symbol catalog wholesale.
+- Project symbols are authored on the unprivileged side, but the privileged registry refresh still republishes the merged symbol catalog wholesale.
+
+The main gap is no longer "we have no symbol store." The gap is that the store and UI still talk like symbols are floating roots. The better model is: modules are roots, and symbols are typed claims inside module memory.
 
 ## Desired End State
 
-### 1. Projects own a real symbol store
-Projects should store two things:
-- reusable symbol types,
-- rooted symbols.
+### 1. Modules are symbol roots
+The Symbol Tree should start from modules, not from a flat list of "rooted symbols."
 
-Reusable symbol types are layouts that can be referenced from many places.
-Rooted symbols are named instances such as:
-- `game.exe + 0x123456` of type `PlayerManager`,
-- `Dolphin MEM1 + 0x80400000` of type `GameState`.
+A module is a claimable address space:
+- host modules such as `game.exe`,
+- virtual modules such as `Dolphin MEM1`,
+- synthetic or runtime-backed module-like spaces later.
 
-A rooted symbol is its own project-owned thing. It is not just an `AddressItem` or a `PointerItem` with extra decoration.
+Each module owns a typed layout map over its address range. Unknown space is still represented explicitly, usually as coarse `u8[]` chunks.
 
-### 2. Layouts have named fields
-This is a hard prerequisite.
+Example:
 
-If fields remain anonymous, we cannot build a meaningful symbol tree, stable child paths, good exports, or a useful explorer. The layout model needs named fields before the rest of the symbol-store work is worth much.
+```text
+Modules
+  game.exe
+    unknown_00000000: u8[0x123456]
+    PlayerManager: PlayerManager @ +0x123456
+      local_player
+      entity_list
+    unknown_001234A0: u8[0xCB60]
+  Dolphin MEM1
+    GameState: GameState @ +0x80400000
+```
 
-### 3. Rooted symbols stay sparse
-We should persist only the authored roots.
+This gives the tree a physical meaning: every top-level child claims bytes from a parent module space.
 
-Children should be derived lazily from:
-- the root locator,
-- the type layout,
-- pointer/container semantics.
+### 2. Symbols are typed claims
+A project symbol instance should be understood as a typed claim over a range.
 
-This keeps the stored model small and avoids inventing a giant persistent symbol graph we do not need.
+The current `ProjectRootSymbol` type can remain as a compatibility bridge, but the product concept should become:
+- stable symbol key,
+- display name,
+- module or absolute locator,
+- referenced type/layout,
+- claimed byte range,
+- optional metadata.
 
-### 4. Address and pointer items remain acquisition tools
+The claimed byte range is derived from the symbol type when possible. For dynamically sized arrays or unresolved types, the claim can use an explicit length or stay conservative.
+
+### 3. Unclaimed module space is real
+Unknown space should not disappear from the tree.
+
+When a module is first introduced into the symbol tree, the default representation can be one large unknown chunk:
+
+```text
+game.exe
+  bytes: u8[module_size]
+```
+
+As symbols are created, promoted, deleted, resized, or retyped, that unknown chunk splits and merges around the typed claims.
+
+This makes the symbol tree feel like a gradually-filled memory map instead of a bag of bookmarks.
+
+### 4. Promotion transforms chunks
+Promotion should not merely append another symbol record.
+
+If the promoted address falls inside an unknown `u8[]` claim, promotion splits that claim:
+
+```text
+Before:
+  unknown_00001000: u8[0x100]
+
+Promote +0x104 as ptr64 Player*:
+  unknown_00001000: u8[0x4]
+  player_ptr: Player*(u64)
+  unknown_0000100C: u8[0xF4]
+```
+
+If the promoted address exactly matches an existing static claim, promotion can reassign that claim in place:
+
+```text
+Before:
+  unknown_00123456: u8[0x40]
+
+Promote +0x123456 as PlayerManager:
+  PlayerManager: PlayerManager
+```
+
+If the new claim overlaps an existing typed claim, the user needs an explicit conflict flow:
+- replace the old claim,
+- split the old claim if the old claim is splittable unknown bytes,
+- reject the promotion,
+- or create a separate pointer/runtime symbol if the address is not actually static module layout.
+
+### 5. Struct fields are derived children
+Struct fields, fixed-array elements, and pointer dereferences should remain derived tree nodes.
+
+Persist the top-level typed claims. Derive children lazily from:
+- the claim locator,
+- the referenced type layout,
+- container semantics,
+- pointer reads when the user expands pointer nodes.
+
+Do not persist a giant child graph just because the UI can display one.
+
+### 6. Address and pointer items remain acquisition tools
 `AddressItem` and `PointerItem` should stay.
 
-They are good discovery tools. The project should gradually become a symbol workspace by letting users promote useful discoveries into rooted symbols.
+They are discovery tools. Promotion is the bridge from discovery into the typed module map:
+- an address item promotes to a static module or absolute claim,
+- a pointer item can promote either the pointer slot itself or the current pointed-to target,
+- pointer provenance stays in metadata when useful.
 
-That means the project model should distinguish between:
-- acquisition items such as address and pointer items,
-- authored symbol records created directly or via promotion.
+After promotion, project items can reference the symbol claim instead of continuing to own long-term layout identity.
 
-### 5. Modules stay as strings for now
+### 7. Modules stay name-backed for now
 Do not introduce a new `ModuleId` abstraction yet.
 
-The current memory layer already resolves modules by name, including virtual-module style sources. We can build the first real symbol store using module names as they exist today.
+The current memory layer already resolves modules by name, including virtual-module style sources. We can build the first claim-based tree using module names as they exist today.
 
-If module identity becomes painful later, we can add normalization then.
+If module identity becomes painful later, add normalization then.
 
-### 6. Pointer encoding should reuse the pointer-scan model
+### 8. Pointer encoding reuses the pointer-scan model
 Do not build a fresh generic pointer plugin system first.
 
-The immediate fix is to stop having one pointer model for pointer scans and a weaker one for symbolic layouts. Symbolic containers should reuse the existing pointer-scan encoding story first.
+Symbolic containers should continue to reuse the existing pointer-scan pointer-size model, including unusual encodings such as `u24be`.
 
-### 7. Export and import specifics live in metadata
-Squalr should keep only what it needs natively.
-
-If Ghidra, IDA, Dolphin, or other import/export workflows need extra facts, those should live in symbol metadata owned by import/export plugins or the project file, not in Squalr's core symbol model.
-
-That means:
-- no Ghidra-shaped core schema,
-- no IDA-shaped namespace system,
-- no exporter framework complexity until we actually need it.
-
-### 8. The privileged side gets only execution data
-The full authored symbol store should remain unprivileged-owned.
+### 9. The privileged side gets only execution data
+The full authored symbol map should remain unprivileged-owned.
 
 The privileged side should receive only what is needed for:
 - typed reads and writes,
@@ -88,32 +149,63 @@ The privileged side should receive only what is needed for:
 - pointer expansion for active symbol views,
 - cheap address labeling.
 
-The current whole-catalog registry sync is acceptable as a temporary bridge, but not as the intended end state for a large symbol store.
+The current whole-catalog registry sync is acceptable as a temporary bridge, but not as the intended end state for a large typed module map.
 
 ## Core Model
 
 ### Symbol types
-Keep the current reusable layout idea, but evolve it into a proper symbol type definition with:
-- a project-local stable key,
-- a display name,
+Reusable type definitions should continue to describe structure:
+- project-local stable key,
+- display name,
 - ordered named fields,
 - field type/container information.
 
-The key point is that the stable key is internal and boring. It does not need to become a giant identity system. It only needs to be stable enough that a rename does not break references.
+These are reusable layouts, not claims over memory by themselves.
 
-### Rooted symbols
-Add a first-class rooted symbol record with:
-- a project-local stable key,
-- a display name,
-- a root locator,
-- a referenced symbol type,
+### Module symbol maps
+Add a module-oriented symbol map concept over the existing catalog.
+
+Conceptually, each module map contains ordered claims:
+- `module_name`,
+- `module_size` when known,
+- ordered `SymbolClaim` records,
+- synthesized unknown gaps.
+
+Unknown gaps do not need to be persisted as full records if they can be derived from module size and existing claims. It is fine to synthesize them in the tree.
+
+### Symbol claims
+A symbol claim is the long-term replacement concept for "rooted symbol."
+
+It should contain:
+- stable symbol key,
+- display name,
+- locator,
+- referenced symbol type,
+- claim size or size policy,
 - optional metadata.
 
-For the first implementation, root locator support should be:
+For compatibility, this can initially be implemented by extending or renaming `ProjectRootSymbol`.
+
+### Locators
+The first claim locators should remain:
 - absolute address,
 - module name + offset.
 
-Virtual modules fit the same model because they already surface as modules through the memory-view layer.
+Module-relative claims are the normal case. Absolute-address claims should render under an `Absolute / Unmapped` group, not as peers of real modules.
+
+### Claim size policy
+Most claim sizes come from the referenced type:
+- primitive: primitive size,
+- fixed array: element size times length,
+- struct: sum of fields,
+- pointer: pointer slot size.
+
+Some cases need an explicit size:
+- raw unknown bytes,
+- dynamic arrays,
+- imported ranges whose exact type is not known yet.
+
+Start with explicit sizes only where the type system cannot derive one.
 
 ### Metadata
 Metadata should stay small and optional.
@@ -121,206 +213,156 @@ Metadata should stay small and optional.
 Start with a simple extension map for:
 - import/export hints,
 - comments,
-- aliases if needed later.
+- aliases if needed later,
+- promotion provenance.
 
 Do not build a typed metadata framework up front.
+
+## Claim Operations
+
+### Create claim
+Creating a claim at a module offset should:
+1. compute the new claim range,
+2. find overlapping existing claims,
+3. split unknown byte claims when possible,
+4. require confirmation for replacing typed claims,
+5. insert the new typed claim into module order.
+
+### Retype claim
+Retyping a claim changes its type and recomputes its range.
+
+If the new range is smaller, the trailing space becomes an unknown `u8[]` gap.
+If the new range is larger, conflict handling is required for the newly covered range.
+
+### Delete claim
+Deleting a typed claim should return its bytes to unknown space.
+
+Adjacent unknown byte chunks should merge.
+
+### Promote discovery
+Promotion should route through the same create/retype machinery.
+
+It is not a separate storage path. It is a convenient entry point from a discovered address, pointer, scan result, memory selection, or derived child.
 
 ## What We Are Explicitly Not Building Yet
 - No full opaque `SymbolId` architecture with UUID-heavy plumbing.
 - No separate `ModuleId` system.
-- No persistent child symbol graph.
+- No persistent derived child graph.
 - No exporter/plugin framework redesign.
 - No global reverse address-to-symbol pointer map.
 - No replacement of all project item types with symbols immediately.
+- No literal mega-struct allocation for every module in persisted project files.
 
 ## Implementation Plan
 
-### Sprint 1: Fix the model prerequisites
-1. Add field names to symbolic layout definitions.
-2. Update the layout parser, serialization, and struct-view editing flow to preserve field names.
-3. Replace `ContainerType::Pointer32/Pointer64` with a container shape that reuses the existing pointer-scan pointer encoding model.
-4. Keep migration compatibility for old layout data where possible.
+### Sprint 1: Rename the product model
+1. Update docs and UI language from "rooted symbol" to "symbol claim" or plain "symbol."
+2. Keep Rust compatibility names until the data model is ready to move.
+3. Make module grouping the visible shape of the Symbol Tree.
+4. Put absolute-address symbols under an `Absolute / Unmapped` group.
 
-### Sprint 2: Add rooted symbols
-1. Replace or evolve `ProjectSymbolCatalog` into a project symbol store that contains both symbol types and rooted symbols.
-2. Add rooted symbols for:
-   - absolute address,
-   - module name + offset.
-3. Keep module names as plain strings.
-4. Keep metadata optional and minimal.
+### Sprint 2: Add claim-range semantics
+1. Add claim size calculation for existing symbol instances.
+2. Synthesize unknown `u8[]` gaps from module size and existing claims.
+3. Sort module claims by offset.
+4. Detect overlaps and expose conflict information.
 
-### Sprint 3: Add promotion from existing project items
-1. Keep address and pointer items exactly as the bootstrap UX.
-2. Add `Promote to Symbol`.
-3. Promotion should:
-   - create a real rooted symbol record in the project symbol store,
-   - reuse the current type/layout reference,
-   - default the new symbol name from the final tail when promoting from a pointer path,
-   - avoid inventing intermediate stored symbols unless the user explicitly promotes them later.
+### Sprint 3: Make promotion reshape module space
+1. Promote address selections by splitting unknown chunks.
+2. Promote scan/address project items through the same claim-creation path.
+3. Promote pointer items as either pointer-slot claims or pointed-target claims.
+4. Add overwrite/split/reject conflict UX.
 
-After promotion, the new symbol should be browsable through the Symbol Explorer even if the original address or pointer item is later deleted.
+### Sprint 4: Support retyping and deletion
+1. Retype existing claims in place.
+2. Recompute claim ranges after type changes.
+3. Return deleted claims to unknown space.
+4. Merge adjacent unknown gaps in the derived view.
 
-### Sprint 4: Add lazy symbol expansion
-1. Build symbol-tree expansion from rooted symbols plus layouts.
-2. Derive inline children immediately.
+### Sprint 5: Keep derived children lazy
+1. Expand struct fields from claim type layouts.
+2. Expand fixed arrays on demand.
 3. Resolve pointer children on demand.
-4. Do not persist derived children by default.
-5. Only persist extra child state if there is a real edit that cannot live on the root or type.
-
-### Sprint 5: Put symbols to work in the UI
-1. Add a symbol explorer window.
-2. Show exact-match symbol labels where cheap:
-   - rooted symbol addresses,
-   - safe inline child offsets of rooted symbols,
-   - explicitly expanded pointer branches if cached.
-3. Keep scan augmentation conservative. Do not attempt a full process-wide reverse pointer graph.
+4. Promote derived children into top-level claims only when explicitly requested.
 
 ### Sprint 6: Clean up the transport boundary
-1. Stop treating the privileged registry catalog as the permanent transport for the full authored symbol store.
+1. Stop treating the privileged registry catalog as the permanent transport for the full authored symbol map.
 2. Move toward sending compact execution-oriented symbol data instead of the entire authored model.
 3. Keep authoring-only metadata and tree state unprivileged-side.
 
 ## GUI Shape
 
-### Primary symbol UI: a dedicated Symbol Explorer
-The main symbol-authoring surface should be its own dockable window.
+### Symbol Tree
+The Symbol Tree should be a module memory map.
 
-It should feel much closer to the project explorer than to the memory viewer or code viewer:
-- tree of rooted symbols on the left,
-- lazy expansion into derived children,
-- context actions on nodes,
-- selection-driven detail/preview panel,
-- explicit refresh for pointer-derived branches.
+Responsibilities:
+- show modules as top-level roots,
+- show ordered typed claims and synthesized unknown gaps,
+- lazily expand struct, array, and pointer children,
+- promote unknown chunks or derived children into typed claims,
+- retype, resize, rename, and delete claims,
+- jump claims to Memory Viewer or Code Viewer.
 
-This should be the place where users:
-- browse authored roots,
-- inspect child paths,
-- rename symbols,
-- edit symbol metadata,
-- promote a child into a real rooted symbol,
-- jump to memory view or code view,
-- create address or pointer project items from symbol nodes when useful.
+The tree is not just a namespace browser. It is the visible typed occupancy map for a module.
 
-### What the Symbol Explorer should show
-Each node should show, at minimum:
-- display name,
-- resolved address when available,
-- type name,
-- container shape,
-- current preview value if cheap to fetch.
+### Symbol Table
+The Symbol Table should remain the flat maintenance surface.
 
-The window should support:
-- expanding inline children immediately,
-- expanding pointer children on demand,
-- caching expanded pointer branches until refresh,
-- a breadcrumb or full path display for the selected node.
+Responsibilities:
+- list all user-authored symbol claims,
+- filter by name, module, locator, type, source, and metadata,
+- bulk rename/delete/update where practical,
+- show claim size and overlap/conflict status,
+- jump to the corresponding Symbol Tree row.
 
-### Memory Viewer role
-The memory viewer should remain page-oriented.
+Unknown synthesized gaps do not need to appear in the table by default.
 
-It is still the right place to walk raw memory pages, inspect bytes, and operate by address. Symbol support there should be lightweight:
-- show exact-match symbol labels beside the address when available,
-- optionally show inline child labels for visible ranges when resolution is cheap,
-- allow jump from a byte selection to the corresponding symbol if known,
-- allow promote-to-symbol from the current address selection.
+### Struct Editor
+The Struct Editor owns reusable layout authoring.
 
-The memory viewer should consume symbol information, not become the primary symbol browser.
+It should not own module occupancy. It defines what a claim means once placed.
 
-### Code Viewer role
-The code viewer should remain code-oriented.
+### Memory Viewer and Code Viewer
+Viewer-side symbol actions should feed the same claim operations:
+- assign symbol at current address,
+- apply type to current address or selection,
+- retype existing claim,
+- promote selection into a claim,
+- jump to the matching Symbol Tree row.
 
-Symbol integration there should mirror the memory viewer:
-- annotate exact symbol matches where useful,
-- show symbol names for known code/data references when cheap,
-- jump from an instruction/reference to the corresponding symbol,
-- allow promotion of discovered addresses into symbols.
+The viewers are where discoveries happen. The Symbol Tree is where those discoveries become durable layout.
 
-It should not be the main place to browse large symbol trees.
+### Project Explorer
+The Project Explorer remains focused on acquisition and workflow artifacts.
 
-### Project Explorer role
-The project explorer should remain focused on project items and workflow artifacts.
-
-In the short term:
-- address items and pointer items remain acquisition tools,
-- symbols get their own explorer,
-- promotion is the bridge between the two.
-
-This avoids mixing "raw discoveries to work from" with "authored symbolic model" into one overloaded tree too early.
-
-### TUI shape
-The TUI should be covered by this plan from the start, not treated as a GUI-only follow-up.
-
-The TUI already has a strong project-explorer style hierarchy flow, so the first TUI symbol experience should follow that shape:
-- add a symbol-oriented tree/browser in the project workspace,
-- make rooted symbols and their derived children navigable by keyboard,
-- show compact symbol details and preview values in the existing text-first style,
-- support jump-to-memory and promote-to-symbol actions from the TUI hierarchy flow.
-
-The TUI does not need a full page-oriented symbol browser first. It needs a strong tree and details workflow first.
-
-Short-term TUI goal:
-- make symbols browseable and actionable from a dedicated symbol tree or symbol mode within the project workspace.
-
-Medium-term TUI goal:
-- let the memory workspace consume symbol labels and jump targets cleanly.
-
-Current TUI limitation to account for:
-- the TUI memory viewer path is still narrower than the GUI flow and currently centers mostly on address-oriented navigation,
-- code-view style navigation is not a strong TUI workflow today,
-- some memory/code viewer cleanup may be needed before symbol-driven navigation feels complete there.
-
-So for TUI implementation order:
-1. Symbol tree browsing.
-2. Promotion and jump actions.
-3. Exact-match labels in memory-oriented flows.
-4. Deeper viewer integration only after the neglected memory/code paths are brought up to a healthy baseline.
-
-### CLI shape
-CLI coverage should be planned explicitly, not assumed.
-
-Some symbol features will naturally fall out of existing command work, because the CLI already rides the same request/command surface as the rest of the app. But symbol authoring and browsing will also introduce unprivileged project-side behaviors that do not automatically appear unless we add commands for them on purpose.
-
-So the CLI plan should be:
-- add explicit unprivileged commands for symbol-store operations that are not just privileged memory actions,
-- make symbol creation, listing, inspection, promotion, rename, and delete available from CLI command paths,
-- keep export/import and metadata edits scriptable where practical,
-- avoid requiring the GUI/TUI layer to perform essential symbol-store authoring work.
-
-In practice, that means symbol support should not be considered complete until there is a command surface for at least:
-- listing symbol types and rooted symbols,
-- creating rooted symbols,
-- promoting existing project discoveries into symbols,
-- renaming and deleting symbols,
-- inspecting resolved addresses and basic derived child information.
-
-If a symbol workflow stays entirely unprivileged-side, that is a sign we may need a dedicated unprivileged command rather than assuming the existing privileged command boundary will cover it for CLI use.
+Address and pointer items can promote into claims, then optionally become symbol references.
 
 ## Practical Design Decisions
 
 ### Identity
-We do need stable references for types and rooted symbols, but this should stay simple.
+Use project-local stable keys for stored types and stored symbol claims.
 
-Use a project-local stable key for each stored type and each rooted symbol. Do not use the user-visible display name as the only identity, because rename support and references from project items need something stable.
-
-This does not need to become a complicated generalized id system.
+Do not use the user-visible display name as the only identity, because rename support and references from project items need something stable.
 
 ### Naming
-Display names should be human-facing and easy to export.
+Avoid exposing "rooted symbol" in UI copy.
 
-Qualified names and child paths are for display and export. They should not force us to assume a C++, C#, or other source-language namespace model.
+Use:
+- `Symbol` for normal user-facing rows and actions,
+- `Symbol Claim` when discussing occupied module ranges,
+- `Module` for top-level symbol tree roots,
+- `Unknown Bytes` or `u8[]` for unclaimed gaps.
 
 ### Children
-Children are derived views, not stored facts, unless the user explicitly turns one into a real symbol later.
+Children are derived views, not stored facts, unless the user explicitly promotes one into a claim.
 
 ### Project items versus symbols
-Symbols and project items should not be the same concept.
+Symbols and project items should not collapse into one concept.
 
 For now:
 - address items and pointer items are workflow and acquisition objects,
-- rooted symbols are authored symbolic objects in the project symbol store,
-- promotion is the main bridge from the former to the latter.
-
-Long term, symbols may become the more important project-facing concept, but we do not need to collapse everything into one item type in the first implementation.
+- symbol claims are authored typed memory ranges,
+- promotion is the bridge from the former to the latter.
 
 ### External tools
 If an import/export plugin needs extra naming hints, original-source names, namespace mappings, comments, or tags, those belong in metadata associated with that plugin or format.
@@ -331,25 +373,9 @@ If we later want strong support for CLR-heavy, JVM-heavy, or other managed-runti
 The intended shape is:
 - virtual modules still describe the visible memory space,
 - data-type plugins still describe value encodings,
-- a future runtime/symbol-provider plugin can contribute runtime-specific roots and resolution logic.
-
-That future plugin would be the place for things like:
-- managed statics,
-- GC handles or pinned-object style roots,
-- metadata-token based lookup,
-- runtime-specific symbol metadata.
-
-The core symbol store should stay runtime-agnostic and let those quirks live in plugin-provided locators and metadata when the time is right.
+- a future runtime/symbol-provider plugin can contribute runtime-specific modules, claims, and resolution logic.
 
 ## Bottom Line
-The symbol-store plan should stay practical:
-- named layouts,
-- rooted symbols,
-- promote-from-address/pointer,
-- lazy children,
-- string module names for now,
-- reused pointer-scan pointer encodings,
-- metadata for external-tool specifics,
-- compact privileged execution data later.
+The symbol-store plan should move from "sparse rooted symbols" to "typed claims inside modules."
 
-That is enough to make projects gradually become symbol workspaces without building an over-generalized database first.
+Modules are the roots. Unknown module space is explicit. Promotion is a chunk split/retype operation. Struct fields and pointer targets stay lazily derived unless the user promotes them into real claims.
