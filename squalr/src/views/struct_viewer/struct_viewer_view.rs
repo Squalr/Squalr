@@ -3,6 +3,7 @@ use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{S
 use crate::views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction;
 use crate::{
     app_context::AppContext,
+    ui::geometry::safe_clamp_f32,
     views::{
         code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
         memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
@@ -475,7 +476,7 @@ impl Widget for StructViewerView {
                     let min_x = content_min_x + ICON_COLUMN_WIDTH + MINIMUM_COLUMN_PIXEL_WIDTH;
                     let max_x = content_min_x + content_width - MINIMUM_COLUMN_PIXEL_WIDTH;
 
-                    new_x = new_x.clamp(min_x, max_x);
+                    new_x = safe_clamp_f32(new_x, min_x, max_x);
                     new_value_splitter_ratio = Some((new_x - content_min_x) / content_width);
                 }
             })

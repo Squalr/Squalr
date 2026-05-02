@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
         widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
     },
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_frame_action::ProjectHierarchyFrameAction,
@@ -181,7 +182,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
         let preview_value_width = Self::measure_text_width(user_interface, self.preview_value, &preview_value_font, row_foreground_preview);
         let left_text_max_x = preview_pos.x - preview_value_width - 12.0;
         let max_left_text_width = (left_text_max_x - text_pos.x).max(0.0);
-        let value_hit_box_left = left_text_max_x.clamp(text_pos.x, allocated_size_rectangle.max.x);
+        let value_hit_box_left = safe_clamp_f32(left_text_max_x, text_pos.x, allocated_size_rectangle.max.x);
         let name_hit_box_rect = Rect::from_min_max(
             pos2(text_pos.x, allocated_size_rectangle.min.y),
             pos2(value_hit_box_left, allocated_size_rectangle.max.y),

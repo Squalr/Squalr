@@ -3,6 +3,7 @@ use crate::{
     models::docking::{drag_drop::dock_tab_drop_target::DockTabDropTarget, hierarchy::types::dock_tab_insertion_direction::DockTabInsertionDirection},
     ui::{
         draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
         widgets::{
             controls::button::Button,
             docking::{
@@ -37,14 +38,12 @@ impl DockedWindowFooterView {
         to: Color32,
         factor: f32,
     ) -> Color32 {
-        let clamped_factor = factor.clamp(0.0, 1.0);
+        let clamped_factor = safe_clamp_f32(factor, 0.0, 1.0);
         let lerp_channel = |from_channel: u8, to_channel: u8| -> u8 {
             let from_channel = from_channel as f32;
             let to_channel = to_channel as f32;
 
-            (from_channel + (to_channel - from_channel) * clamped_factor)
-                .round()
-                .clamp(0.0, 255.0) as u8
+            safe_clamp_f32((from_channel + (to_channel - from_channel) * clamped_factor).round(), 0.0, 255.0) as u8
         };
 
         Color32::from_rgba_unmultiplied(
@@ -116,7 +115,11 @@ impl DockedWindowFooterView {
             .ctx()
             .fonts_mut(|fonts| fonts.layout_no_wrap(title.to_string(), theme.font_library.font_noto_sans.font_header.clone(), theme.foreground));
 
-        (title_galley.size().x + Self::TAB_HORIZONTAL_PADDING * 2.0).clamp(Self::TAB_MIN_WIDTH, Self::TAB_MAX_WIDTH)
+        safe_clamp_f32(
+            title_galley.size().x + Self::TAB_HORIZONTAL_PADDING * 2.0,
+            Self::TAB_MIN_WIDTH,
+            Self::TAB_MAX_WIDTH,
+        )
     }
 
     fn clamp_tab_strip_scroll_offset(
@@ -126,7 +129,7 @@ impl DockedWindowFooterView {
     ) -> f32 {
         let max_scroll_offset = (total_tab_width - viewport_width).max(0.0);
 
-        requested_scroll_offset.clamp(0.0, max_scroll_offset)
+        safe_clamp_f32(requested_scroll_offset, 0.0, max_scroll_offset)
     }
 
     fn scroll_offset_for_visible_tab(
@@ -524,7 +527,7 @@ fn build_tab_drop_preview_rect(
     target_tab_rect: Rect,
     tab_insertion_direction: DockTabInsertionDirection,
 ) -> Rect {
-    let preview_width = (target_tab_rect.width() * 0.07).clamp(6.0, 10.0);
+    let preview_width = safe_clamp_f32(target_tab_rect.width() * 0.07, 6.0, 10.0);
 
     match tab_insertion_direction {
         DockTabInsertionDirection::BeforeTarget => Rect::from_min_max(target_tab_rect.min, pos2(target_tab_rect.min.x + preview_width, target_tab_rect.max.y)),

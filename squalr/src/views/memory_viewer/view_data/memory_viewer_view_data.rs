@@ -1,3 +1,4 @@
+use crate::ui::geometry::safe_clamp_ord;
 use arc_swap::Guard;
 use eframe::egui::Pos2;
 use squalr_engine_api::{
@@ -953,9 +954,7 @@ impl MemoryViewerViewData {
                         memory_viewer_view_data.current_page_index =
                             Self::resolve_page_index_after_refresh(&memory_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
                                 Self::resolve_initial_page_index(&memory_viewer_view_data.virtual_pages, &memory_viewer_view_data.modules).unwrap_or(
-                                    memory_viewer_view_data
-                                        .current_page_index
-                                        .clamp(0, memory_viewer_view_data.cached_last_page_index),
+                                    safe_clamp_ord(memory_viewer_view_data.current_page_index, 0, memory_viewer_view_data.cached_last_page_index),
                                 )
                             });
                     }
@@ -984,9 +983,7 @@ impl MemoryViewerViewData {
     }
 
     fn load_current_page_index(memory_viewer_view_data: &Guard<Arc<Self>>) -> u64 {
-        memory_viewer_view_data
-            .current_page_index
-            .clamp(0, memory_viewer_view_data.cached_last_page_index)
+        safe_clamp_ord(memory_viewer_view_data.current_page_index, 0, memory_viewer_view_data.cached_last_page_index)
     }
 
     fn set_page_index(
@@ -994,7 +991,7 @@ impl MemoryViewerViewData {
         new_page_index: u64,
     ) {
         if let Some(mut memory_viewer_view_data) = memory_viewer_view_data.write("Memory viewer set page index") {
-            let bounded_page_index = new_page_index.clamp(0, memory_viewer_view_data.cached_last_page_index);
+            let bounded_page_index = safe_clamp_ord(new_page_index, 0, memory_viewer_view_data.cached_last_page_index);
 
             if bounded_page_index == memory_viewer_view_data.current_page_index {
                 return;
@@ -1068,7 +1065,7 @@ impl MemoryViewerViewData {
             return false;
         };
 
-        self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
+        self.current_page_index = safe_clamp_ord(page_index, 0, self.cached_last_page_index);
         self.pending_scroll_address = Some(resolved_address);
         self.set_selected_byte_range(
             resolved_address,
@@ -1093,7 +1090,7 @@ impl MemoryViewerViewData {
         selection_byte_count: u64,
     ) -> Option<u64> {
         let (page_index, resolved_address) = Self::resolve_nearest_page_index_and_address(&self.virtual_pages, target_address)?;
-        self.current_page_index = page_index.clamp(0, self.cached_last_page_index);
+        self.current_page_index = safe_clamp_ord(page_index, 0, self.cached_last_page_index);
         self.pending_scroll_address = Some(resolved_address);
         self.set_selected_byte_range(resolved_address, resolved_address.saturating_add(selection_byte_count.saturating_sub(1)));
         self.is_drag_selection_active = false;
@@ -1141,7 +1138,7 @@ impl MemoryViewerViewData {
                     return None;
                 }
 
-                let clamped_address = target_address.clamp(page_base_address, page_end_address.saturating_sub(1));
+                let clamped_address = safe_clamp_ord(target_address, page_base_address, page_end_address.saturating_sub(1));
 
                 Some((page_index as u64, clamped_address, clamped_address.abs_diff(target_address)))
             })
@@ -1236,7 +1233,11 @@ impl MemoryViewerViewData {
         current_page_address_range: Option<&Range<u64>>,
     ) -> u64 {
         current_page_address_range.map_or(selection_address, |current_page_address_range| {
-            selection_address.clamp(current_page_address_range.start, current_page_address_range.end.saturating_sub(1))
+            safe_clamp_ord(
+                selection_address,
+                current_page_address_range.start,
+                current_page_address_range.end.saturating_sub(1),
+            )
         })
     }
 
@@ -1504,8 +1505,8 @@ impl MemoryViewerViewData {
                     .as_ref()
                     .map(|selected_byte_range| selected_byte_range.active_address)
             })
-            .unwrap_or(current_page_address_range.start)
-            .clamp(current_page_address_range.start, last_page_address);
+            .unwrap_or(current_page_address_range.start);
+        let base_cursor_address = safe_clamp_ord(base_cursor_address, current_page_address_range.start, last_page_address);
         let target_cursor_address = if byte_delta >= 0 {
             base_cursor_address
                 .saturating_add(byte_delta as u64)

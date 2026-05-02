@@ -1,6 +1,6 @@
 use crate::{
     app_context::AppContext,
-    ui::{draw::icon_draw::IconDraw, widgets::controls::button::Button},
+    ui::{draw::icon_draw::IconDraw, geometry::safe_clamp_f32, widgets::controls::button::Button},
     views::pointer_scanner::view_data::pointer_scanner_view_data::PointerScannerViewData,
 };
 use eframe::egui::{Align, Align2, Response, Sense, TextEdit, Ui, UiBuilder, Widget, vec2};
@@ -59,8 +59,12 @@ impl PointerScannerFooterView {
         let minimum_content_budget = Self::MIN_PAGE_BOX_WIDTH + Self::MIN_BUTTON_WIDTH * 4.0;
 
         if content_budget >= minimum_content_budget {
-            let button_width = ((content_budget - Self::MIN_PAGE_BOX_WIDTH) / 4.0).clamp(Self::MIN_BUTTON_WIDTH, Self::MAX_BUTTON_WIDTH);
-            let page_box_width = (content_budget - button_width * 4.0).clamp(Self::MIN_PAGE_BOX_WIDTH, Self::MAX_PAGE_BOX_WIDTH);
+            let button_width = safe_clamp_f32(
+                (content_budget - Self::MIN_PAGE_BOX_WIDTH) / 4.0,
+                Self::MIN_BUTTON_WIDTH,
+                Self::MAX_BUTTON_WIDTH,
+            );
+            let page_box_width = safe_clamp_f32(content_budget - button_width * 4.0, Self::MIN_PAGE_BOX_WIDTH, Self::MAX_PAGE_BOX_WIDTH);
 
             return PointerScannerFooterNavigationLayout {
                 button_width,
@@ -69,7 +73,7 @@ impl PointerScannerFooterView {
             };
         }
 
-        let compact_button_width = (clamped_available_width / 8.0).clamp(1.0, Self::MAX_BUTTON_WIDTH);
+        let compact_button_width = safe_clamp_f32(clamped_available_width / 8.0, 1.0, Self::MAX_BUTTON_WIDTH);
         let compact_page_box_width = (clamped_available_width - compact_button_width * 4.0).max(1.0);
 
         PointerScannerFooterNavigationLayout {

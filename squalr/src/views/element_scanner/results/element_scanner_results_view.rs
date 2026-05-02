@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
         widgets::controls::{
             combo_box::combo_box_view::ComboBoxView, data_type_selector::data_type_selector_view::DataTypeSelectorView,
             data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
@@ -575,7 +576,7 @@ impl Widget for ElementScannerResultsView {
                 let maximum_previous_value_splitter_position_x = content_min_x + content_width - MINIMUM_COLUMN_PIXEL_WIDTH;
                 let minimum_drag_delta_x = minimum_value_splitter_position_x - value_splitter_position_x;
                 let maximum_drag_delta_x = maximum_previous_value_splitter_position_x - previous_value_splitter_position_x;
-                let bounded_drag_delta_x = drag_delta.x.clamp(minimum_drag_delta_x, maximum_drag_delta_x);
+                let bounded_drag_delta_x = safe_clamp_f32(drag_delta.x, minimum_drag_delta_x, maximum_drag_delta_x);
                 let new_value_splitter_position_x = value_splitter_position_x + bounded_drag_delta_x;
                 let new_previous_value_splitter_position_x = previous_value_splitter_position_x + bounded_drag_delta_x;
 
@@ -594,8 +595,11 @@ impl Widget for ElementScannerResultsView {
                 let minimum_previous_value_splitter_position_x = value_splitter_position_x + MINIMUM_SPLITTER_PIXEL_GAP;
                 let maximum_previous_value_splitter_position_x = content_min_x + content_width - MINIMUM_COLUMN_PIXEL_WIDTH;
 
-                new_previous_value_splitter_position_x =
-                    new_previous_value_splitter_position_x.clamp(minimum_previous_value_splitter_position_x, maximum_previous_value_splitter_position_x);
+                new_previous_value_splitter_position_x = safe_clamp_f32(
+                    new_previous_value_splitter_position_x,
+                    minimum_previous_value_splitter_position_x,
+                    maximum_previous_value_splitter_position_x,
+                );
 
                 let bounded_previous_value_splitter_ratio = (new_previous_value_splitter_position_x - content_min_x) / content_width;
 

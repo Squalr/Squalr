@@ -1,3 +1,4 @@
+use crate::ui::geometry::safe_clamp_ord;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
@@ -1427,7 +1428,7 @@ impl PointerScannerViewData {
             Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
             None => return,
         };
-        let bounded_page_index = new_page_index.clamp(0, pointer_scanner_view_data_guard.cached_last_page_index);
+        let bounded_page_index = safe_clamp_ord(new_page_index, 0, pointer_scanner_view_data_guard.cached_last_page_index);
 
         if bounded_page_index == pointer_scanner_view_data_guard.current_page_index {
             return;

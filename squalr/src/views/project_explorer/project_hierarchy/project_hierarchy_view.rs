@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
+        geometry::{safe_clamp_f32, safe_clamp_ord},
         widgets::controls::{context_menu::context_menu::ContextMenu, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
     },
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -1388,7 +1389,7 @@ impl Widget for ProjectHierarchyView {
                             &value_edit,
                         );
                         let value_editor_id = format!("project_hierarchy_value_editor_{}", project_item_path.to_string_lossy());
-                        let panel_width = user_interface.available_width().clamp(320.0, 560.0);
+                        let panel_width = safe_clamp_f32(user_interface.available_width(), 320.0, 560.0);
 
                         user_interface.add_space(12.0);
                         user_interface.horizontal(|user_interface| {
@@ -2312,8 +2313,11 @@ impl ProjectHierarchyView {
             .read("Project hierarchy project read interval")
             .map(|project_hierarchy_view_data| project_hierarchy_view_data.project_read_interval_ms)
             .unwrap_or(200);
-        let bounded_project_read_interval_ms =
-            configured_project_read_interval_ms.clamp(Self::MIN_PROJECT_READ_INTERVAL_MS, Self::MAX_PROJECT_READ_INTERVAL_MS);
+        let bounded_project_read_interval_ms = safe_clamp_ord(
+            configured_project_read_interval_ms,
+            Self::MIN_PROJECT_READ_INTERVAL_MS,
+            Self::MAX_PROJECT_READ_INTERVAL_MS,
+        );
 
         Duration::from_millis(bounded_project_read_interval_ms)
     }

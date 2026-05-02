@@ -1,3 +1,4 @@
+use crate::ui::geometry::safe_clamp_ord;
 use crate::ui::widgets::controls::check_state::CheckState;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
@@ -161,8 +162,11 @@ impl ElementScannerResultsViewData {
             .read("Element scanner results read interval")
             .map(|element_scanner_results_view_data| element_scanner_results_view_data.results_read_interval_ms)
             .unwrap_or(ScanSettings::default().results_read_interval_ms);
-        let bounded_results_read_interval_ms =
-            configured_results_read_interval_ms.clamp(Self::MIN_RESULTS_READ_INTERVAL_MS, Self::MAX_RESULTS_READ_INTERVAL_MS);
+        let bounded_results_read_interval_ms = safe_clamp_ord(
+            configured_results_read_interval_ms,
+            Self::MIN_RESULTS_READ_INTERVAL_MS,
+            Self::MAX_RESULTS_READ_INTERVAL_MS,
+        );
 
         Duration::from_millis(bounded_results_read_interval_ms)
     }
@@ -316,15 +320,19 @@ impl ElementScannerResultsViewData {
     }
 
     fn load_current_page_index(element_scanner_results_view_data: &Guard<Arc<ElementScannerResultsViewData>>) -> u64 {
-        element_scanner_results_view_data
-            .current_page_index
-            .clamp(0, element_scanner_results_view_data.cached_last_page_index)
+        safe_clamp_ord(
+            element_scanner_results_view_data.current_page_index,
+            0,
+            element_scanner_results_view_data.cached_last_page_index,
+        )
     }
 
     fn load_current_page_index_write(element_scanner_results_view_data: &WriteGuard<'_, ElementScannerResultsViewData>) -> u64 {
-        element_scanner_results_view_data
-            .current_page_index
-            .clamp(0, element_scanner_results_view_data.cached_last_page_index)
+        safe_clamp_ord(
+            element_scanner_results_view_data.current_page_index,
+            0,
+            element_scanner_results_view_data.cached_last_page_index,
+        )
     }
 
     fn query_scan_results(
@@ -739,7 +747,7 @@ impl ElementScannerResultsViewData {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
-        let new_page_index = new_page_index.clamp(0, element_scanner_results_view_data.cached_last_page_index);
+        let new_page_index = safe_clamp_ord(new_page_index, 0, element_scanner_results_view_data.cached_last_page_index);
 
         // If the new index is the same as the current one, do nothing.
         if new_page_index == element_scanner_results_view_data.current_page_index {

@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
         widgets::controls::{
             button::Button, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView,
             toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -146,7 +147,11 @@ impl CodeViewerView {
             return minimum_splitter_position_x;
         }
 
-        (content_min_x + content_width * bytes_text_splitter_ratio).clamp(minimum_splitter_position_x, maximum_splitter_position_x)
+        safe_clamp_f32(
+            content_min_x + content_width * bytes_text_splitter_ratio,
+            minimum_splitter_position_x,
+            maximum_splitter_position_x,
+        )
     }
 
     fn resolve_column_layout(
@@ -162,7 +167,7 @@ impl CodeViewerView {
             pos2(branch_gutter_rect.max.x, row_rect.min.y),
             pos2(branch_gutter_rect.max.x + Self::ADDRESS_COLUMN_WIDTH, row_rect.max.y),
         );
-        let clamped_bytes_text_splitter_position_x = bytes_text_splitter_position_x.clamp(address_rect.max.x, row_rect.max.x.max(address_rect.max.x));
+        let clamped_bytes_text_splitter_position_x = safe_clamp_f32(bytes_text_splitter_position_x, address_rect.max.x, row_rect.max.x.max(address_rect.max.x));
         let bytes_rect = Rect::from_min_max(
             pos2(address_rect.max.x, row_rect.min.y),
             pos2(clamped_bytes_text_splitter_position_x, row_rect.max.y),
@@ -672,7 +677,7 @@ impl CodeViewerView {
         let button_width = 32.0;
         let button_spacing = 4.0;
         let total_button_width = button_width * 2.0 + button_spacing;
-        let edit_box_width = (inner_text_rect.width() - total_button_width - 8.0).clamp(120.0, Self::INLINE_EDIT_MAX_WIDTH);
+        let edit_box_width = safe_clamp_f32(inner_text_rect.width() - total_button_width - 8.0, 120.0, Self::INLINE_EDIT_MAX_WIDTH);
         edit_row_user_interface.add(
             DataValueBoxView::new(
                 self.app_context.clone(),

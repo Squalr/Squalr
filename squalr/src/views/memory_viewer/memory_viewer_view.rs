@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
         widgets::controls::{
             button::Button, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView,
             toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
@@ -149,7 +150,11 @@ impl MemoryViewerView {
             return minimum_splitter_position_x;
         }
 
-        (content_min_x + content_width * hex_ascii_splitter_ratio).clamp(minimum_splitter_position_x, maximum_splitter_position_x)
+        safe_clamp_f32(
+            content_min_x + content_width * hex_ascii_splitter_ratio,
+            minimum_splitter_position_x,
+            maximum_splitter_position_x,
+        )
     }
 
     fn resolve_column_layout(
@@ -158,8 +163,8 @@ impl MemoryViewerView {
     ) -> MemoryViewerColumnLayout {
         let address_separator_position_x = row_rect.min.x + Self::ADDRESS_COLUMN_WIDTH;
         let hex_columns_left = address_separator_position_x + Self::HEX_COLUMN_LEFT_PADDING;
-        let hex_columns_right = hex_ascii_splitter_position_x.clamp(hex_columns_left, row_rect.max.x);
-        let ascii_columns_left = (hex_ascii_splitter_position_x + Self::ASCII_COLUMN_LEFT_PADDING).clamp(row_rect.min.x, row_rect.max.x);
+        let hex_columns_right = safe_clamp_f32(hex_ascii_splitter_position_x, hex_columns_left, row_rect.max.x);
+        let ascii_columns_left = safe_clamp_f32(hex_ascii_splitter_position_x + Self::ASCII_COLUMN_LEFT_PADDING, row_rect.min.x, row_rect.max.x);
 
         MemoryViewerColumnLayout {
             hex_columns_left,

@@ -1,5 +1,5 @@
 use crate::app_context::AppContext;
-use crate::ui::widgets::controls::button::Button as ThemeButton;
+use crate::ui::{geometry::safe_clamp_f32, widgets::controls::button::Button as ThemeButton};
 use eframe::egui::{Align, Button, Frame, Hyperlink, Layout, Margin, RichText, Sense, Stroke, Ui, UiBuilder, vec2};
 use epaint::{Color32, CornerRadius, Rect, pos2};
 use std::sync::Arc;
@@ -78,9 +78,8 @@ impl AboutTakeOverView {
             should_close = true;
         }
 
-        let card_width = (available_rectangle.width() - 48.0)
-            .clamp(Self::CARD_MIN_WIDTH, Self::CARD_MAX_WIDTH)
-            .min(available_rectangle.width().max(0.0));
+        let card_width =
+            safe_clamp_f32(available_rectangle.width() - 48.0, Self::CARD_MIN_WIDTH, Self::CARD_MAX_WIDTH).min(available_rectangle.width().max(0.0));
         let horizontal_padding = ((available_rectangle.width() - card_width) * 0.5).max(0.0);
 
         take_over_user_interface.add_space(((available_rectangle.height() - 420.0) * 0.5).max(24.0));
