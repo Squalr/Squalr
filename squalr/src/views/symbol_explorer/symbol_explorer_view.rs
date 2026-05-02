@@ -77,6 +77,21 @@ struct ModuleChildRangeTarget {
     display_name: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct U8CarveTarget {
+    module_name: String,
+    offset: u64,
+    length: u64,
+    source_symbol_locator_key: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct DefineFieldPlan {
+    project_symbols_create_request: ProjectSymbolsCreateRequest,
+    relative_offset: u64,
+    field_size: u64,
+}
+
 impl SymbolExplorerView {
     pub const WINDOW_ID: &'static str = "window_symbol_explorer";
     const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_pointer_children";
@@ -310,60 +325,102 @@ impl SymbolExplorerView {
         });
     }
 
-    fn create_symbol_claim(
-        &self,
-        project_symbols_create_request: ProjectSymbolsCreateRequest,
-        selection_module_name: Option<String>,
-    ) {
-        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
-
-        project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, move |project_symbols_create_response| {
-            if project_symbols_create_response.success {
-                SymbolExplorerViewData::set_selected_entry(
-                    symbol_explorer_view_data.clone(),
-                    Some(SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)),
-                );
-
-                if let Some(module_name) = selection_module_name {
-                    SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
-                }
-            }
-        });
-    }
-
-    fn create_u8_module_claim(
-        &self,
+    fn build_u8_module_claim_create_request(
         module_name: &str,
         offset: u64,
         length: u64,
-        should_select_created_claim: bool,
-    ) {
-        if length == 0 {
-            return;
-        }
-
-        let project_symbols_create_request = ProjectSymbolsCreateRequest {
+    ) -> Option<ProjectSymbolsCreateRequest> {
+        (length > 0).then(|| ProjectSymbolsCreateRequest {
             display_name: format!("u8_{:08X}", offset),
             struct_layout_id: Self::u8_array_type_id(length),
             address: None,
             module_name: Some(module_name.to_string()),
             offset: Some(offset),
             metadata: Default::default(),
-        };
+        })
+    }
 
-        if should_select_created_claim {
-            self.create_symbol_claim(project_symbols_create_request, Some(module_name.to_string()));
-        } else {
-            project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_create_response| {});
+    fn send_project_symbols_create_requests<ExecutionContext>(
+        engine_unprivileged_state: Arc<ExecutionContext>,
+        symbol_explorer_view_data: Dependency<SymbolExplorerViewData>,
+        project_symbols_create_requests: Vec<ProjectSymbolsCreateRequest>,
+        selection_module_name: Option<String>,
+        selected_create_request_position: Option<usize>,
+    ) where
+        ExecutionContext: EngineExecutionContext + 'static,
+    {
+        for (create_request_position, project_symbols_create_request) in project_symbols_create_requests.into_iter().enumerate() {
+            if selected_create_request_position.is_some_and(|selected_position| selected_position == create_request_position) {
+                let symbol_explorer_view_data = symbol_explorer_view_data.clone();
+                let selection_module_name = selection_module_name.clone();
+
+                project_symbols_create_request.send(&engine_unprivileged_state, move |project_symbols_create_response| {
+                    if project_symbols_create_response.success {
+                        SymbolExplorerViewData::set_selected_entry(
+                            symbol_explorer_view_data.clone(),
+                            Some(SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)),
+                        );
+
+                        if let Some(module_name) = selection_module_name {
+                            SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
+                        }
+                    }
+                });
+            } else {
+                project_symbols_create_request.send(&engine_unprivileged_state, |_project_symbols_create_response| {});
+            }
         }
     }
 
-    fn split_u8_segment_in_half(
+    fn send_project_symbols_create_requests_after_optional_source_delete(
         &self,
-        module_name: &str,
-        offset: u64,
-        length: u64,
+        source_symbol_locator_key: Option<String>,
+        project_symbols_create_requests: Vec<ProjectSymbolsCreateRequest>,
+        selection_module_name: Option<String>,
+        selected_create_request_position: Option<usize>,
     ) {
+        let engine_unprivileged_state = self.app_context.engine_unprivileged_state.clone();
+        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
+
+        let Some(source_symbol_locator_key) = source_symbol_locator_key else {
+            Self::send_project_symbols_create_requests(
+                engine_unprivileged_state,
+                symbol_explorer_view_data,
+                project_symbols_create_requests,
+                selection_module_name,
+                selected_create_request_position,
+            );
+            return;
+        };
+
+        let engine_unprivileged_state_for_create = engine_unprivileged_state.clone();
+        let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
+            symbol_locator_keys: vec![source_symbol_locator_key],
+            module_names: Vec::new(),
+            module_ranges: Vec::new(),
+        };
+
+        project_symbols_delete_request.send(&engine_unprivileged_state, move |project_symbols_delete_response| {
+            if !project_symbols_delete_response.success {
+                log::warn!("Could not replace source u8[] claim because deletion failed.");
+                return;
+            }
+
+            Self::send_project_symbols_create_requests(
+                engine_unprivileged_state_for_create,
+                symbol_explorer_view_data,
+                project_symbols_create_requests,
+                selection_module_name,
+                selected_create_request_position,
+            );
+        });
+    }
+
+    fn split_u8_carve_target_in_half(
+        &self,
+        u8_carve_target: &U8CarveTarget,
+    ) {
+        let length = u8_carve_target.length;
         if length < 2 {
             log::warn!("Cannot split a u8[] segment smaller than 2 byte(s).");
             return;
@@ -371,9 +428,23 @@ impl SymbolExplorerView {
 
         let first_length = length / 2;
         let second_length = length.saturating_sub(first_length);
+        let Some(second_offset) = u8_carve_target.offset.checked_add(first_length) else {
+            log::warn!("Cannot split u8[] segment because the second half offset overflowed.");
+            return;
+        };
+        let Some(first_create_request) = Self::build_u8_module_claim_create_request(&u8_carve_target.module_name, u8_carve_target.offset, first_length) else {
+            return;
+        };
+        let Some(second_create_request) = Self::build_u8_module_claim_create_request(&u8_carve_target.module_name, second_offset, second_length) else {
+            return;
+        };
 
-        self.create_u8_module_claim(module_name, offset, first_length, false);
-        self.create_u8_module_claim(module_name, offset.saturating_add(first_length), second_length, true);
+        self.send_project_symbols_create_requests_after_optional_source_delete(
+            u8_carve_target.source_symbol_locator_key.clone(),
+            vec![first_create_request, second_create_request],
+            Some(u8_carve_target.module_name.clone()),
+            Some(1),
+        );
     }
 
     fn u8_array_type_id(length: u64) -> String {
@@ -414,13 +485,13 @@ impl SymbolExplorerView {
             .map(|default_value| default_value.get_size_in_bytes())
     }
 
-    fn build_define_field_create_request(
+    fn build_define_field_plan(
         define_field_draft: &DefineFieldDraft,
         module_name: &str,
         segment_offset: u64,
         segment_length: u64,
         resolve_type_size: impl Fn(&DataTypeRef) -> Option<u64>,
-    ) -> Result<ProjectSymbolsCreateRequest, String> {
+    ) -> Result<DefineFieldPlan, String> {
         let display_name = define_field_draft.display_name.trim();
 
         if display_name.is_empty() {
@@ -454,13 +525,17 @@ impl SymbolExplorerView {
             return Err(String::from("Module offset is too large."));
         };
 
-        Ok(ProjectSymbolsCreateRequest {
-            display_name: display_name.to_string(),
-            struct_layout_id: data_type_ref.get_data_type_id().to_string(),
-            address: None,
-            module_name: Some(module_name.to_string()),
-            offset: Some(absolute_offset),
-            metadata: Default::default(),
+        Ok(DefineFieldPlan {
+            project_symbols_create_request: ProjectSymbolsCreateRequest {
+                display_name: display_name.to_string(),
+                struct_layout_id: data_type_ref.get_data_type_id().to_string(),
+                address: None,
+                module_name: Some(module_name.to_string()),
+                offset: Some(absolute_offset),
+                metadata: Default::default(),
+            },
+            relative_offset,
+            field_size,
         })
     }
 
@@ -538,6 +613,91 @@ impl SymbolExplorerView {
             }
             _ => None,
         }
+    }
+
+    fn build_u8_carve_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<U8CarveTarget> {
+        match symbol_tree_entry.get_kind() {
+            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => (*length > 0).then(|| U8CarveTarget {
+                module_name: module_name.to_string(),
+                offset: *offset,
+                length: *length,
+                source_symbol_locator_key: None,
+            }),
+            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => {
+                if symbol_tree_entry.get_depth() != 1 || symbol_tree_entry.get_symbol_type_id() != "u8" {
+                    return None;
+                }
+
+                let ContainerType::ArrayFixed(length) = symbol_tree_entry.get_container_type() else {
+                    return None;
+                };
+
+                if length == 0 {
+                    return None;
+                }
+
+                let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_tree_entry.get_locator() else {
+                    return None;
+                };
+
+                Some(U8CarveTarget {
+                    module_name: module_name.to_string(),
+                    offset: *offset,
+                    length,
+                    source_symbol_locator_key: Some(symbol_locator_key.to_string()),
+                })
+            }
+            _ => None,
+        }
+    }
+
+    fn create_define_field_from_u8_carve_target(
+        &self,
+        module_name: &str,
+        segment_offset: u64,
+        segment_length: u64,
+        source_symbol_locator_key: Option<String>,
+        define_field_plan: DefineFieldPlan,
+    ) {
+        let mut project_symbols_create_requests = Vec::new();
+
+        if source_symbol_locator_key.is_some() {
+            if define_field_plan.relative_offset > 0 {
+                if let Some(prefix_create_request) = Self::build_u8_module_claim_create_request(module_name, segment_offset, define_field_plan.relative_offset)
+                {
+                    project_symbols_create_requests.push(prefix_create_request);
+                }
+            }
+        }
+
+        let selected_create_request_position = project_symbols_create_requests.len();
+        let Some(relative_field_end) = define_field_plan
+            .relative_offset
+            .checked_add(define_field_plan.field_size)
+        else {
+            log::warn!("Cannot define field because the field end offset overflowed.");
+            return;
+        };
+        project_symbols_create_requests.push(define_field_plan.project_symbols_create_request);
+
+        if source_symbol_locator_key.is_some() && relative_field_end < segment_length {
+            let Some(suffix_offset) = segment_offset.checked_add(relative_field_end) else {
+                log::warn!("Cannot preserve u8[] suffix because the suffix offset overflowed.");
+                return;
+            };
+            let suffix_length = segment_length - relative_field_end;
+
+            if let Some(suffix_create_request) = Self::build_u8_module_claim_create_request(module_name, suffix_offset, suffix_length) {
+                project_symbols_create_requests.push(suffix_create_request);
+            }
+        }
+
+        self.send_project_symbols_create_requests_after_optional_source_delete(
+            source_symbol_locator_key,
+            project_symbols_create_requests,
+            Some(module_name.to_string()),
+            Some(selected_create_request_position),
+        );
     }
 
     fn request_delete_for_selection(
@@ -1590,11 +1750,12 @@ impl SymbolExplorerView {
         module_name: &str,
         segment_offset: u64,
         segment_length: u64,
+        source_symbol_locator_key: Option<&str>,
         define_field_draft: &DefineFieldDraft,
     ) {
         let theme = &self.app_context.theme;
         let mut edited_define_field_draft = define_field_draft.clone();
-        let mut define_field_request_result = Err(String::from("Field is not ready."));
+        let mut define_field_plan_result = Err(String::from("Field is not ready."));
         let mut should_cancel_take_over = false;
         let mut should_create_field = false;
 
@@ -1642,8 +1803,8 @@ impl SymbolExplorerView {
                             .height(Self::TOOLBAR_HEIGHT),
                         );
 
-                        define_field_request_result =
-                            Self::build_define_field_create_request(&edited_define_field_draft, module_name, segment_offset, segment_length, |data_type_ref| {
+                        define_field_plan_result =
+                            Self::build_define_field_plan(&edited_define_field_draft, module_name, segment_offset, segment_length, |data_type_ref| {
                                 self.app_context
                                     .engine_unprivileged_state
                                     .get_default_value(data_type_ref)
@@ -1662,7 +1823,7 @@ impl SymbolExplorerView {
                             );
                         }
 
-                        if let Err(validation_error) = define_field_request_result.as_ref() {
+                        if let Err(validation_error) = define_field_plan_result.as_ref() {
                             user_interface.add_space(6.0);
                             user_interface.label(RichText::new(validation_error).color(theme.error_red));
                         }
@@ -1689,7 +1850,7 @@ impl SymbolExplorerView {
                                     should_cancel_take_over = true;
                                 }
 
-                                let can_create_field = define_field_request_result.is_ok();
+                                let can_create_field = define_field_plan_result.is_ok();
                                 let button_create = user_interface.add_sized(
                                     button_size,
                                     eframe::egui::Button::new(RichText::new("Create").color(if can_create_field {
@@ -1718,9 +1879,15 @@ impl SymbolExplorerView {
         }
 
         if should_create_field {
-            if let Ok(project_symbols_create_request) = define_field_request_result {
+            if let Ok(define_field_plan) = define_field_plan_result {
                 SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
-                self.create_symbol_claim(project_symbols_create_request, Some(module_name.to_string()));
+                self.create_define_field_from_u8_carve_target(
+                    module_name,
+                    segment_offset,
+                    segment_length,
+                    source_symbol_locator_key.map(str::to_string),
+                    define_field_plan,
+                );
                 return;
             }
         }
@@ -2033,17 +2200,14 @@ impl SymbolExplorerView {
                             .get_default_value(data_type_ref)
                             .map(|default_value| default_value.get_size_in_bytes())
                     });
-                let context_menu_u8_segment = match symbol_tree_entry.get_kind() {
-                    SymbolTreeEntryKind::U8Segment { module_name, offset, length } => Some((module_name.as_str(), *offset, *length)),
-                    _ => None,
-                };
+                let context_menu_u8_carve_target = Self::build_u8_carve_target(symbol_tree_entry);
                 let can_delete_symbol_tree_entry =
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
                 if can_open_symbol_tree_entry {
                     context_menu_labels.extend(["Open in Memory Viewer", "Open in Code Viewer"]);
                 }
-                if context_menu_u8_segment.is_some() {
+                if context_menu_u8_carve_target.is_some() {
                     context_menu_labels.push("Define Field...");
                     context_menu_labels.push("Split in Half");
                 }
@@ -2117,7 +2281,7 @@ impl SymbolExplorerView {
                             user_interface.separator();
                         }
 
-                        if let Some((module_name, offset, length)) = context_menu_u8_segment {
+                        if let Some(u8_carve_target) = context_menu_u8_carve_target.as_ref() {
                             if user_interface
                                 .add(
                                     ToolbarMenuItemView::new(
@@ -2139,9 +2303,10 @@ impl SymbolExplorerView {
                             {
                                 SymbolExplorerViewData::begin_define_field_from_u8_segment(
                                     self.symbol_explorer_view_data.clone(),
-                                    module_name.to_string(),
-                                    offset,
-                                    length,
+                                    u8_carve_target.module_name.clone(),
+                                    u8_carve_target.offset,
+                                    u8_carve_target.length,
+                                    u8_carve_target.source_symbol_locator_key.clone(),
                                 );
                                 *should_close = true;
                             }
@@ -2165,12 +2330,12 @@ impl SymbolExplorerView {
                                 )
                                 .clicked()
                             {
-                                self.split_u8_segment_in_half(module_name, offset, length);
+                                self.split_u8_carve_target_in_half(u8_carve_target);
                                 *should_close = true;
                             }
                         }
 
-                        if context_menu_u8_segment.is_some() && can_rename_symbol_tree_entry {
+                        if context_menu_u8_carve_target.is_some() && can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -2191,7 +2356,7 @@ impl SymbolExplorerView {
                             *should_close = true;
                         }
 
-                        if can_open_symbol_tree_entry || context_menu_u8_segment.is_some() || can_rename_symbol_tree_entry {
+                        if can_open_symbol_tree_entry || context_menu_u8_carve_target.is_some() || can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -2681,9 +2846,21 @@ impl Widget for SymbolExplorerView {
 
                         return;
                     }
-                    Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, offset, length }) => {
+                    Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment {
+                        module_name,
+                        offset,
+                        length,
+                        source_symbol_locator_key,
+                    }) => {
                         list_user_interface.add_space(8.0);
-                        self.render_define_field_take_over(&mut list_user_interface, module_name, *offset, *length, &current_define_field_draft);
+                        self.render_define_field_take_over(
+                            &mut list_user_interface,
+                            module_name,
+                            *offset,
+                            *length,
+                            source_symbol_locator_key.as_deref(),
+                            &current_define_field_draft,
+                        );
 
                         return;
                     }
@@ -2799,6 +2976,24 @@ mod tests {
         )
     }
 
+    fn create_module_u8_array_symbol_claim_tree_entry() -> SymbolTreeEntry {
+        SymbolTreeEntry::new(
+            String::from("claim:module:game.exe:20"),
+            SymbolTreeEntryKind::SymbolClaim {
+                symbol_locator_key: String::from("module:game.exe:20"),
+            },
+            1,
+            String::from("u8_00000020"),
+            String::from("game.exe.u8_00000020"),
+            String::from("module:game.exe:20"),
+            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x20),
+            String::from("u8"),
+            ContainerType::ArrayFixed(0x80),
+            false,
+            false,
+        )
+    }
+
     fn create_u8_segment_tree_entry() -> SymbolTreeEntry {
         SymbolTreeEntry::new(
             String::from("u8:game.exe:0:1234"),
@@ -2817,6 +3012,31 @@ mod tests {
             false,
             false,
         )
+    }
+
+    #[test]
+    fn build_u8_carve_target_handles_derived_and_claimed_u8_arrays() {
+        let u8_segment_entry = create_u8_segment_tree_entry();
+        let module_u8_array_symbol_claim_entry = create_module_u8_array_symbol_claim_tree_entry();
+
+        let u8_segment_target = SymbolExplorerView::build_u8_carve_target(&u8_segment_entry).expect("Expected derived u8[] target.");
+        let u8_claim_target = SymbolExplorerView::build_u8_carve_target(&module_u8_array_symbol_claim_entry).expect("Expected claimed u8[] target.");
+
+        assert_eq!(u8_segment_target.module_name, "game.exe");
+        assert_eq!(u8_segment_target.offset, 0);
+        assert_eq!(u8_segment_target.length, 0x1234);
+        assert_eq!(u8_segment_target.source_symbol_locator_key, None);
+        assert_eq!(u8_claim_target.module_name, "game.exe");
+        assert_eq!(u8_claim_target.offset, 0x20);
+        assert_eq!(u8_claim_target.length, 0x80);
+        assert_eq!(u8_claim_target.source_symbol_locator_key, Some(String::from("module:game.exe:20")));
+    }
+
+    #[test]
+    fn build_u8_carve_target_ignores_typed_module_claims() {
+        let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
+
+        assert_eq!(SymbolExplorerView::build_u8_carve_target(&module_symbol_claim_entry), None);
     }
 
     #[test]
@@ -2913,37 +3133,42 @@ mod tests {
     }
 
     #[test]
-    fn build_define_field_create_request_offsets_into_u8_segment() {
+    fn build_define_field_plan_offsets_into_u8_segment() {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x10"),
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let project_symbols_create_request =
-            SymbolExplorerView::build_define_field_create_request(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
-                (data_type_ref.get_data_type_id() == "i32").then_some(4)
-            })
-            .expect("Expected valid define-field request.");
+        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
+            (data_type_ref.get_data_type_id() == "i32").then_some(4)
+        })
+        .expect("Expected valid define-field request.");
 
-        assert_eq!(project_symbols_create_request.display_name, "health");
-        assert_eq!(project_symbols_create_request.struct_layout_id, "i32");
-        assert_eq!(project_symbols_create_request.module_name, Some(String::from("game.exe")));
-        assert_eq!(project_symbols_create_request.offset, Some(0x110));
+        assert_eq!(define_field_plan.project_symbols_create_request.display_name, "health");
+        assert_eq!(
+            define_field_plan
+                .project_symbols_create_request
+                .struct_layout_id,
+            "i32"
+        );
+        assert_eq!(define_field_plan.project_symbols_create_request.module_name, Some(String::from("game.exe")));
+        assert_eq!(define_field_plan.project_symbols_create_request.offset, Some(0x110));
+        assert_eq!(define_field_plan.relative_offset, 0x10);
+        assert_eq!(define_field_plan.field_size, 4);
     }
 
     #[test]
-    fn build_define_field_create_request_rejects_out_of_bounds_type() {
+    fn build_define_field_plan_rejects_out_of_bounds_type() {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x3E"),
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let project_symbols_create_request =
-            SymbolExplorerView::build_define_field_create_request(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
-                (data_type_ref.get_data_type_id() == "i32").then_some(4)
-            });
+        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
+            (data_type_ref.get_data_type_id() == "i32").then_some(4)
+        });
 
-        assert!(project_symbols_create_request.is_err());
+        assert!(define_field_plan.is_err());
     }
 
     #[test]
