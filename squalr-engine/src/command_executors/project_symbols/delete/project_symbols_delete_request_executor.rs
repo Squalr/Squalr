@@ -1,9 +1,10 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
+use crate::command_executors::project_symbols::{
+    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
+};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteRequest};
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -74,8 +75,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         symbol_modules.retain(|symbol_module| !module_name_set.contains(symbol_module.get_module_name()));
 
         let deleted_module_count = symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64;
-        let deleted_module_field_count = delete_module_fields_by_locator_key(project_symbol_catalog, &symbol_locator_key_set);
-        let deleted_module_range_count = apply_module_range_deletes(project_symbol_catalog, &module_ranges, &module_name_set);
+        let delete_module_field_summary = ProjectSymbolLayoutMutation::delete_module_fields_by_locator_key(project_symbol_catalog, &symbol_locator_key_set);
+        let delete_module_range_summary = ProjectSymbolLayoutMutation::delete_module_ranges_and_shift(project_symbol_catalog, &module_ranges, &module_name_set);
         let symbol_claims = project_symbol_catalog.get_symbol_claims_mut();
         let symbol_claim_count_before_delete = symbol_claims.len();
 
@@ -92,7 +93,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             }
         });
 
-        let deleted_symbol_count = symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64 + deleted_module_field_count;
+        let deleted_symbol_count =
+            symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64 + delete_module_field_summary.get_deleted_module_field_count();
+        let deleted_module_range_count = delete_module_range_summary.get_deleted_module_range_count();
 
         if deleted_symbol_count == 0 && deleted_module_count == 0 && deleted_module_range_count == 0 {
             return ProjectSymbolsDeleteResponse {
@@ -121,26 +124,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
     }
 }
 
-fn delete_module_fields_by_locator_key(
-    project_symbol_catalog: &mut squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog,
-    symbol_locator_key_set: &HashSet<String>,
-) -> u64 {
-    let mut deleted_module_field_count = 0_u64;
-
-    for symbol_module in project_symbol_catalog.get_symbol_modules_mut() {
-        let module_name = symbol_module.get_module_name().to_string();
-        let module_field_count_before_delete = symbol_module.get_fields().len();
-
-        symbol_module
-            .get_fields_mut()
-            .retain(|module_field| !symbol_locator_key_set.contains(&module_field.get_symbol_locator_key(&module_name)));
-        deleted_module_field_count =
-            deleted_module_field_count.saturating_add(module_field_count_before_delete.saturating_sub(symbol_module.get_fields().len()) as u64);
-    }
-
-    deleted_module_field_count
-}
-
 fn normalize_delete_module_range(project_symbols_delete_module_range: &ProjectSymbolsDeleteModuleRange) -> Option<ProjectSymbolsDeleteModuleRange> {
     let module_name = project_symbols_delete_module_range.module_name.trim();
 
@@ -153,94 +136,6 @@ fn normalize_delete_module_range(project_symbols_delete_module_range: &ProjectSy
         offset: project_symbols_delete_module_range.offset,
         length: project_symbols_delete_module_range.length,
     })
-}
-
-fn apply_module_range_deletes(
-    project_symbol_catalog: &mut squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog,
-    module_ranges: &[ProjectSymbolsDeleteModuleRange],
-    deleted_module_names: &HashSet<String>,
-) -> u64 {
-    let mut deleted_module_range_count = 0_u64;
-
-    for module_range in module_ranges {
-        if deleted_module_names.contains(&module_range.module_name) {
-            continue;
-        }
-
-        let Some(symbol_module) = project_symbol_catalog.find_symbol_module_mut(&module_range.module_name) else {
-            continue;
-        };
-        let module_size = symbol_module.get_size();
-
-        if module_range.offset >= module_size {
-            continue;
-        }
-
-        let deleted_length = module_range
-            .length
-            .min(module_size.saturating_sub(module_range.offset));
-
-        if deleted_length == 0 {
-            continue;
-        }
-
-        symbol_module.set_size(module_size.saturating_sub(deleted_length));
-        delete_or_shift_module_fields(symbol_module.get_fields_mut(), module_range, deleted_length);
-        delete_or_shift_module_symbol_claims(project_symbol_catalog.get_symbol_claims_mut(), module_range, deleted_length);
-        deleted_module_range_count = deleted_module_range_count.saturating_add(1);
-    }
-
-    deleted_module_range_count
-}
-
-fn delete_or_shift_module_fields(
-    module_fields: &mut Vec<squalr_engine_api::structures::projects::project_symbol_module_field::ProjectSymbolModuleField>,
-    module_range: &ProjectSymbolsDeleteModuleRange,
-    deleted_length: u64,
-) {
-    let deleted_range_end = module_range.offset.saturating_add(deleted_length);
-
-    module_fields.retain_mut(|module_field| {
-        let offset = module_field.get_offset();
-
-        if offset >= module_range.offset && offset < deleted_range_end {
-            return false;
-        }
-
-        if offset >= deleted_range_end {
-            module_field.set_offset(offset.saturating_sub(deleted_length));
-        }
-
-        true
-    });
-}
-
-fn delete_or_shift_module_symbol_claims(
-    symbol_claims: &mut Vec<squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim>,
-    module_range: &ProjectSymbolsDeleteModuleRange,
-    deleted_length: u64,
-) {
-    let deleted_range_end = module_range.offset.saturating_add(deleted_length);
-
-    symbol_claims.retain_mut(|symbol_claim| {
-        let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_claim.get_locator_mut() else {
-            return true;
-        };
-
-        if module_name != &module_range.module_name {
-            return true;
-        }
-
-        if *offset >= module_range.offset && *offset < deleted_range_end {
-            return false;
-        }
-
-        if *offset >= deleted_range_end {
-            *offset = offset.saturating_sub(deleted_length);
-        }
-
-        true
-    });
 }
 
 #[cfg(test)]

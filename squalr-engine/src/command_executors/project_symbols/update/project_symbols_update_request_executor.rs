@@ -1,4 +1,6 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
+use crate::command_executors::project_symbols::{
+    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
+};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_symbols::update::project_symbols_update_request::ProjectSymbolsUpdateRequest;
 use squalr_engine_api::commands::project_symbols::update::project_symbols_update_response::ProjectSymbolsUpdateResponse;
@@ -51,6 +53,17 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
+        let resolve_field_size_in_bytes = |struct_layout_id: &str| {
+            ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
+                struct_layout_id,
+                |data_type_ref| {
+                    engine_unprivileged_state
+                        .get_default_value(data_type_ref)
+                        .map(|default_value| default_value.get_size_in_bytes())
+                },
+                |resolved_struct_layout_id| engine_unprivileged_state.resolve_struct_layout_definition(resolved_struct_layout_id),
+            )
+        };
         let did_update = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {
             if let Some(display_name) = trimmed_display_name.as_ref() {
                 symbol_claim.set_display_name(display_name.clone());
@@ -61,16 +74,30 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
             }
 
             true
-        } else if let Some(module_field) = project_symbol_catalog.find_module_field_mut(&self.symbol_locator_key) {
-            if let Some(display_name) = trimmed_display_name.as_ref() {
-                module_field.set_display_name(display_name.clone());
-            }
+        } else if let Some((symbol_module, module_field)) = project_symbol_catalog.find_module_field(&self.symbol_locator_key) {
+            let module_name = symbol_module.get_module_name().to_string();
+            let display_name = trimmed_display_name
+                .clone()
+                .unwrap_or_else(|| module_field.get_display_name().to_string());
+            let offset = module_field.get_offset();
+            let struct_layout_id = trimmed_struct_layout_id
+                .clone()
+                .unwrap_or_else(|| module_field.get_struct_layout_id().to_string());
 
-            if let Some(struct_layout_id) = trimmed_struct_layout_id.as_ref() {
-                module_field.set_struct_layout_id(struct_layout_id.clone());
+            match ProjectSymbolLayoutMutation::upsert_module_field(
+                project_symbol_catalog,
+                &module_name,
+                display_name,
+                offset,
+                struct_layout_id,
+                resolve_field_size_in_bytes,
+            ) {
+                Ok(_) => true,
+                Err(error) => {
+                    log::warn!("Project-symbols update module-field request failed: {}", error);
+                    false
+                }
             }
-
-            true
         } else {
             false
         };
@@ -102,7 +129,10 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::projects::{project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
+    use squalr_engine_api::structures::projects::{
+        project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
+        project_symbol_module_field::ProjectSymbolModuleField,
+    };
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
@@ -154,5 +184,85 @@ mod tests {
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+    }
+
+    #[test]
+    fn update_project_symbol_request_retypes_module_field_through_layout_mutation() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x08, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_update_response = ProjectSymbolsUpdateRequest {
+            symbol_locator_key: String::from("module:game.exe:8"),
+            display_name: Some(String::from("Health64")),
+            struct_layout_id: Some(String::from("u64")),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_update_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected updated-module-field project to load from disk.");
+        let module_fields = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules()[0]
+            .get_fields();
+
+        assert_eq!(module_fields.len(), 1);
+        assert_eq!(module_fields[0].get_display_name(), "Health64");
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u64");
+    }
+
+    #[test]
+    fn update_project_symbol_request_rejects_module_field_retype_overlap() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x08, String::from("u32")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Ammo"), 0x0C, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_update_response = ProjectSymbolsUpdateRequest {
+            symbol_locator_key: String::from("module:game.exe:8"),
+            display_name: None,
+            struct_layout_id: Some(String::from("u64")),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(!project_symbols_update_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected overlap-rejected project to load from disk.");
+        let module_fields = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules()[0]
+            .get_fields();
+
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u32");
+        assert_eq!(module_fields[1].get_struct_layout_id(), "u32");
     }
 }

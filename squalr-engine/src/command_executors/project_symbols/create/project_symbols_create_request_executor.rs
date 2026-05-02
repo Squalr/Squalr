@@ -1,11 +1,11 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
+use crate::command_executors::project_symbols::{
+    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
+};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_request::ProjectSymbolsCreateRequest;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_response::ProjectSymbolsCreateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::{
-    project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator, project_symbol_module_field::ProjectSymbolModuleField,
-};
+use squalr_engine_api::structures::projects::{project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator};
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
@@ -47,24 +47,31 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
+        let resolve_field_size_in_bytes = |struct_layout_id: &str| {
+            ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
+                struct_layout_id,
+                |data_type_ref| {
+                    engine_unprivileged_state
+                        .get_default_value(data_type_ref)
+                        .map(|default_value| default_value.get_size_in_bytes())
+                },
+                |resolved_struct_layout_id| engine_unprivileged_state.resolve_struct_layout_definition(resolved_struct_layout_id),
+            )
+        };
 
         let created_symbol_locator_key = locator.to_locator_key();
         match locator {
             ProjectSymbolLocator::ModuleOffset { module_name, offset } => {
-                project_symbol_catalog.ensure_symbol_module(&module_name, offset.saturating_add(1));
-
-                let Some(symbol_module) = project_symbol_catalog.find_symbol_module_mut(&module_name) else {
-                    log::error!("Failed to resolve module after ensuring it for project-symbols create command.");
+                if let Err(error) = ProjectSymbolLayoutMutation::upsert_module_field(
+                    project_symbol_catalog,
+                    &module_name,
+                    trimmed_display_name.to_string(),
+                    offset,
+                    struct_layout_id,
+                    resolve_field_size_in_bytes,
+                ) {
+                    log::warn!("Project-symbols create module-field request failed: {}", error);
                     return ProjectSymbolsCreateResponse::default();
-                };
-
-                if let Some(module_field) = symbol_module.find_field_mut(offset) {
-                    module_field.set_display_name(trimmed_display_name.to_string());
-                    module_field.set_struct_layout_id(struct_layout_id);
-                } else {
-                    symbol_module
-                        .get_fields_mut()
-                        .push(ProjectSymbolModuleField::new(trimmed_display_name.to_string(), offset, struct_layout_id));
                 }
             }
             ProjectSymbolLocator::AbsoluteAddress { .. } => {
@@ -131,7 +138,7 @@ mod tests {
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let project_symbols_create_response = ProjectSymbolsCreateRequest {
             display_name: String::from("Player Manager"),
-            struct_layout_id: String::from("player.manager"),
+            struct_layout_id: String::from("u32"),
             address: None,
             module_name: Some(String::from("game.exe")),
             offset: Some(0x1234),
@@ -149,16 +156,67 @@ mod tests {
         assert_eq!(project_symbol_catalog.get_symbol_claims().len(), 0);
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
-        assert_eq!(symbol_modules[0].get_size(), 0x1235);
+        assert_eq!(symbol_modules[0].get_size(), 0x1238);
         assert_eq!(symbol_modules[0].get_fields().len(), 1);
         assert_eq!(symbol_modules[0].get_fields()[0].get_display_name(), "Player Manager");
         assert_eq!(symbol_modules[0].get_fields()[0].get_offset(), 0x1234);
-        assert_eq!(symbol_modules[0].get_fields()[0].get_struct_layout_id(), "player.manager");
+        assert_eq!(symbol_modules[0].get_fields()[0].get_struct_layout_id(), "u32");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_modules(), symbol_modules);
+    }
+
+    #[test]
+    fn create_project_symbol_request_carves_existing_module_u8_field() {
+        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0x00, String::from("u8[32]")));
+        let project = create_project_with_symbol_catalog(
+            temp_directory.path(),
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new()),
+        );
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_create_response = ProjectSymbolsCreateRequest {
+            display_name: String::from("Health"),
+            struct_layout_id: String::from("u32"),
+            address: None,
+            module_name: Some(String::from("game.exe")),
+            offset: Some(0x08),
+            metadata: std::collections::BTreeMap::default(),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_create_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected carved-symbol project to load from disk.");
+        let symbol_modules = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules();
+        let module_fields = symbol_modules[0].get_fields();
+
+        assert_eq!(module_fields.len(), 3);
+        assert_eq!(module_fields[0].get_offset(), 0x00);
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[8]");
+        assert_eq!(module_fields[1].get_display_name(), "Health");
+        assert_eq!(module_fields[1].get_offset(), 0x08);
+        assert_eq!(module_fields[1].get_struct_layout_id(), "u32");
+        assert_eq!(module_fields[2].get_offset(), 0x0C);
+        assert_eq!(module_fields[2].get_struct_layout_id(), "u8[20]");
     }
 }
