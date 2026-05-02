@@ -21,7 +21,7 @@ pub enum ProjectSymbolsCommand {
         #[structopt(flatten)]
         project_symbols_create_module_request: ProjectSymbolsCreateModuleRequest,
     },
-    /// Deletes project symbol claims.
+    /// Deletes project symbol claims or module roots.
     Delete {
         #[structopt(flatten)]
         project_symbols_delete_request: ProjectSymbolsDeleteRequest,

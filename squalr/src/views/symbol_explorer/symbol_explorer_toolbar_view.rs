@@ -10,7 +10,7 @@ use std::sync::Arc;
 pub enum SymbolExplorerToolbarAction {
     CreateModuleRoot,
     RenameSelectedEntry,
-    DeleteSelectedSymbolClaim,
+    DeleteSelectedEntry,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
     PromoteSelectedDerivedSymbol,
@@ -21,10 +21,9 @@ pub enum SymbolExplorerToolbarAction {
 #[derive(Clone)]
 pub struct SymbolExplorerToolbarView {
     app_context: Arc<AppContext>,
-    show_actions: bool,
     can_create_module_root: bool,
     can_rename_selected_entry: bool,
-    can_delete_symbol_claim: bool,
+    can_delete_selected_entry: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
     can_promote_derived_symbol: bool,
@@ -39,25 +38,15 @@ impl SymbolExplorerToolbarView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self {
             app_context,
-            show_actions: true,
             can_create_module_root: false,
             can_rename_selected_entry: false,
-            can_delete_symbol_claim: false,
+            can_delete_selected_entry: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
             can_promote_derived_symbol: false,
             can_cancel_create_module_root: false,
             can_commit_create_module_root: false,
         }
-    }
-
-    pub fn show_actions(
-        mut self,
-        show_actions: bool,
-    ) -> Self {
-        self.show_actions = show_actions;
-
-        self
     }
 
     pub fn can_create_module_root(
@@ -78,11 +67,11 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_delete_symbol_claim(
+    pub fn can_delete_selected_entry(
         mut self,
-        can_delete_symbol_claim: bool,
+        can_delete_selected_entry: bool,
     ) -> Self {
-        self.can_delete_symbol_claim = can_delete_symbol_claim;
+        self.can_delete_selected_entry = can_delete_selected_entry;
 
         self
     }
@@ -151,108 +140,101 @@ impl SymbolExplorerToolbarView {
                 .layout(Layout::left_to_right(Align::Center)),
         );
 
-        if !self.show_actions {
-            return clicked_action;
-        }
-
         toolbar_user_interface.with_layout(Layout::right_to_left(Align::Center), |toolbar_user_interface| {
-            if self.can_commit_create_module_root || self.can_cancel_create_module_root {
-                if Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_common_check_mark,
-                    "Create module.",
-                    self.can_commit_create_module_root,
-                )
-                .clicked()
-                {
-                    clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateModuleRoot);
-                }
-
-                if Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_navigation_cancel,
-                    "Cancel module creation.",
-                    self.can_cancel_create_module_root,
-                )
-                .clicked()
-                {
-                    clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateModuleRoot);
-                }
-
-                return;
-            }
-
-            if self.can_delete_symbol_claim
-                && Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_common_delete,
-                    "Delete selected symbol.",
-                    true,
-                )
-                .clicked()
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_common_delete,
+                "Delete selected module or symbol.",
+                self.can_delete_selected_entry,
+            )
+            .clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::DeleteSelectedSymbolClaim);
+                clicked_action = Some(SymbolExplorerToolbarAction::DeleteSelectedEntry);
             }
 
-            if self.can_promote_derived_symbol
-                && Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_common_add,
-                    "Promote selected derived field to a symbol.",
-                    true,
-                )
-                .clicked()
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_data_type_blue_blocks_array,
+                "Promote selected derived field to a symbol.",
+                self.can_promote_derived_symbol,
+            )
+            .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::PromoteSelectedDerivedSymbol);
             }
 
-            if self.can_rename_selected_entry
-                && Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_common_edit,
-                    "Rename selected module or symbol.",
-                    true,
-                )
-                .clicked()
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_common_edit,
+                "Rename selected module or symbol.",
+                self.can_rename_selected_entry,
+            )
+            .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::RenameSelectedEntry);
             }
 
-            if self.can_open_in_code_viewer
-                && Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_project_cpu_instruction,
-                    "Open selected symbol in Code Viewer.",
-                    true,
-                )
-                .clicked()
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_project_cpu_instruction,
+                "Open selected symbol in Code Viewer.",
+                self.can_open_in_code_viewer,
+            )
+            .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::OpenSelectedInCodeViewer);
             }
 
-            if self.can_open_in_memory_viewer
-                && Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_scan_collect_values,
-                    "Open selected symbol in Memory Viewer.",
-                    true,
-                )
-                .clicked()
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_scan_collect_values,
+                "Open selected symbol in Memory Viewer.",
+                self.can_open_in_memory_viewer,
+            )
+            .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::OpenSelectedInMemoryViewer);
             }
 
-            if self.can_create_module_root
-                && Self::draw_icon_button(toolbar_user_interface, theme, &theme.icon_library.icon_handle_common_add, "Add module.", true).clicked()
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_common_add,
+                "Add module.",
+                self.can_create_module_root,
+            )
+            .clicked()
             {
                 clicked_action = Some(SymbolExplorerToolbarAction::CreateModuleRoot);
+            }
+
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_navigation_cancel,
+                "Cancel module creation.",
+                self.can_cancel_create_module_root,
+            )
+            .clicked()
+            {
+                clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateModuleRoot);
+            }
+
+            if Self::draw_icon_button(
+                toolbar_user_interface,
+                theme,
+                &theme.icon_library.icon_handle_common_check_mark,
+                "Create module.",
+                self.can_commit_create_module_root,
+            )
+            .clicked()
+            {
+                clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateModuleRoot);
             }
         });
 

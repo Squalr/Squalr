@@ -10,6 +10,9 @@ use structopt::StructOpt;
 pub struct ProjectSymbolsDeleteRequest {
     #[structopt(short = "k", long = "key")]
     pub symbol_locator_keys: Vec<String>,
+
+    #[structopt(short = "m", long = "module")]
+    pub module_names: Vec<String>,
 }
 
 impl UnprivilegedCommandRequest for ProjectSymbolsDeleteRequest {

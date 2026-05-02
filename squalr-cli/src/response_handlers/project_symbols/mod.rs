@@ -98,8 +98,9 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
             project_symbols_delete_response,
         } => {
             log::info!(
-                "deleted symbol claims: success={}, count={}",
+                "deleted project symbols: success={}, modules={}, claims={}",
                 project_symbols_delete_response.success,
+                project_symbols_delete_response.deleted_module_count,
                 project_symbols_delete_response.deleted_symbol_count
             );
         }

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct ProjectSymbolsDeleteResponse {
     pub success: bool,
     pub deleted_symbol_count: u64,
+    pub deleted_module_count: u64,
 }
 
 impl TypedUnprivilegedCommandResponse for ProjectSymbolsDeleteResponse {

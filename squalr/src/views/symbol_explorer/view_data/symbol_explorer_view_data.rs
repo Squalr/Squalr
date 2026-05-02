@@ -13,7 +13,8 @@ pub enum SymbolExplorerSelection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerTakeOverState {
-    DeleteConfirmation { symbol_locator_key: String, display_name: String },
+    DeleteSymbolClaimConfirmation { symbol_locator_key: String, display_name: String },
+    DeleteModuleRootConfirmation { module_name: String },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -108,16 +109,26 @@ impl SymbolExplorerViewData {
         }
     }
 
-    pub fn request_delete_confirmation(
+    pub fn request_delete_symbol_claim_confirmation(
         symbol_explorer_view_data: Dependency<Self>,
         symbol_locator_key: String,
         display_name: String,
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete confirmation") {
-            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteConfirmation {
+            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation {
                 symbol_locator_key,
                 display_name,
             });
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
+        }
+    }
+
+    pub fn request_delete_module_root_confirmation(
+        symbol_explorer_view_data: Dependency<Self>,
+        module_name: String,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete module confirmation") {
+            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name });
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
@@ -237,10 +248,11 @@ impl SymbolExplorerViewData {
         };
 
         let should_clear_take_over_state = match symbol_explorer_view_data.take_over_state.as_ref() {
-            Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_locator_key, .. }) => !project_symbol_catalog
+            Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => !project_symbol_catalog
                 .get_symbol_claims()
                 .iter()
                 .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == *symbol_locator_key),
+            Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => project_symbol_catalog.find_symbol_module(module_name).is_none(),
             None => false,
         };
 
@@ -299,7 +311,7 @@ impl SymbolExplorerViewData {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolExplorerSelection, SymbolExplorerViewData};
+    use super::{SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData};
     use squalr_engine_api::dependency_injection::dependency::Dependency;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
@@ -462,5 +474,42 @@ mod tests {
             .expect("Expected symbol explorer dependency read access in test.");
 
         assert_eq!(symbol_explorer_view_data.get_inline_rename_tree_node_key(), None);
+    }
+
+    #[test]
+    fn synchronize_take_over_state_clears_missing_module_delete_confirmation() {
+        let symbol_explorer_view_data = create_dependency();
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("engine.dll"), 0x4000)],
+            Vec::new(),
+            Vec::new(),
+        );
+
+        SymbolExplorerViewData::request_delete_module_root_confirmation(symbol_explorer_view_data.clone(), String::from("game.exe"));
+        SymbolExplorerViewData::synchronize_take_over_state(symbol_explorer_view_data.clone(), &project_symbol_catalog);
+
+        let symbol_explorer_view_data = symbol_explorer_view_data
+            .read("Symbol explorer synchronize module delete takeover test")
+            .expect("Expected symbol explorer dependency read access in test.");
+
+        assert_eq!(symbol_explorer_view_data.get_take_over_state(), None);
+    }
+
+    #[test]
+    fn request_delete_module_root_confirmation_tracks_module_name() {
+        let symbol_explorer_view_data = create_dependency();
+
+        SymbolExplorerViewData::request_delete_module_root_confirmation(symbol_explorer_view_data.clone(), String::from("game.exe"));
+
+        let take_over_state = symbol_explorer_view_data
+            .read("Symbol explorer request module delete confirmation test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_take_over_state().cloned());
+
+        assert_eq!(
+            take_over_state,
+            Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation {
+                module_name: String::from("game.exe"),
+            })
+        );
     }
 }

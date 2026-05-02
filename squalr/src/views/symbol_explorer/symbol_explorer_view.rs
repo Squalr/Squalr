@@ -205,6 +205,20 @@ impl SymbolExplorerView {
         SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
             symbol_locator_keys: vec![symbol_locator_key.to_string()],
+            module_names: Vec::new(),
+        };
+
+        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
+    }
+
+    fn delete_module_root(
+        &self,
+        module_name: &str,
+    ) {
+        SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+        let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
+            symbol_locator_keys: Vec::new(),
+            module_names: vec![module_name.to_string()],
         };
 
         project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
@@ -1275,10 +1289,13 @@ impl SymbolExplorerView {
     fn render_delete_confirmation_take_over(
         &self,
         user_interface: &mut Ui,
+        title: &str,
+        prompt_text: &str,
         display_name: &str,
-        symbol_locator_key: &str,
-    ) {
+        description_text: &str,
+    ) -> bool {
         let theme = &self.app_context.theme;
+        let mut did_confirm_delete = false;
 
         user_interface.allocate_ui_with_layout(
             user_interface.available_size(),
@@ -1287,10 +1304,10 @@ impl SymbolExplorerView {
                 let panel_width = user_interface.available_width().min(420.0).max(260.0);
 
                 user_interface.add(
-                    GroupBox::new_from_theme(theme, "Delete Symbol Claim", |user_interface| {
+                    GroupBox::new_from_theme(theme, title, |user_interface| {
                         user_interface.vertical_centered(|user_interface| {
                             user_interface.label(
-                                RichText::new("Delete this symbol?")
+                                RichText::new(prompt_text)
                                     .font(theme.font_library.font_noto_sans.font_header.clone())
                                     .color(theme.foreground),
                             );
@@ -1301,7 +1318,7 @@ impl SymbolExplorerView {
                                     .color(theme.foreground),
                             );
                             user_interface.add_space(6.0);
-                            user_interface.label(RichText::new("This removes the authored symbol from the project.").color(theme.foreground_preview));
+                            user_interface.label(RichText::new(description_text).color(theme.foreground_preview));
                         });
 
                         user_interface.add_space(12.0);
@@ -1326,7 +1343,7 @@ impl SymbolExplorerView {
                             );
 
                             if button_confirm_delete.clicked() {
-                                self.delete_symbol_claim(symbol_locator_key);
+                                did_confirm_delete = true;
                             }
                         });
                     })
@@ -1334,6 +1351,8 @@ impl SymbolExplorerView {
                 );
             },
         );
+
+        did_confirm_delete
     }
 
     #[allow(dead_code)]
@@ -1760,6 +1779,12 @@ impl Widget for SymbolExplorerView {
                 .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == *selected_symbol_locator_key),
             _ => None,
         };
+        let selected_module_name = match selected_entry.as_ref() {
+            Some(SymbolExplorerSelection::ModuleRoot(module_name)) if project_symbol_catalog.find_symbol_module(module_name).is_some() => {
+                Some(module_name.to_string())
+            }
+            _ => None,
+        };
         let selected_symbol_tree_entry = Self::build_selected_symbol_tree_entry(&symbol_tree_entries, selected_entry.as_ref());
         let create_module_root_request = match selected_entry.as_ref() {
             Some(SymbolExplorerSelection::CreateModuleRoot) => Self::build_module_root_create_request_from_draft(&current_module_root_create_draft),
@@ -1769,10 +1794,14 @@ impl Widget for SymbolExplorerView {
         let theme = self.app_context.theme.clone();
         let is_delete_confirmation_active = take_over_state.is_some();
         let is_inline_rename_active = inline_rename_tree_node_key.is_some();
+        let is_create_module_root_active = matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot));
+        let can_use_standard_toolbar_actions = !is_delete_confirmation_active && !is_inline_rename_active && !is_create_module_root_active;
 
         if is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
-            if let Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_locator_key, .. }) = take_over_state.as_ref() {
-                self.delete_symbol_claim(symbol_locator_key);
+            match take_over_state.as_ref() {
+                Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => self.delete_symbol_claim(symbol_locator_key),
+                Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => self.delete_module_root(module_name),
+                None => {}
             }
         }
 
@@ -1782,15 +1811,17 @@ impl Widget for SymbolExplorerView {
 
         if !is_delete_confirmation_active
             && !is_inline_rename_active
-            && !matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot))
+            && !is_create_module_root_active
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
         {
             if let Some(symbol_claim) = selected_symbol_claim {
-                SymbolExplorerViewData::request_delete_confirmation(
+                SymbolExplorerViewData::request_delete_symbol_claim_confirmation(
                     self.symbol_explorer_view_data.clone(),
                     symbol_claim.get_symbol_locator_key().to_string(),
                     symbol_claim.get_display_name().to_string(),
                 );
+            } else if let Some(module_name) = selected_module_name.as_ref() {
+                SymbolExplorerViewData::request_delete_module_root_confirmation(self.symbol_explorer_view_data.clone(), module_name.to_string());
             }
         }
 
@@ -1833,17 +1864,15 @@ impl Widget for SymbolExplorerView {
                         .layout(Layout::top_down(Align::Min)),
                 );
                 let toolbar_action = SymbolExplorerToolbarView::new(self.app_context.clone())
-                    .show_actions(!matches!(
-                        take_over_state.as_ref(),
-                        Some(SymbolExplorerTakeOverState::DeleteConfirmation { .. })
-                    ))
-                    .can_create_module_root(!is_inline_rename_active)
-                    .can_rename_selected_entry(can_rename_selected_entry && !is_inline_rename_active)
-                    .can_delete_symbol_claim(selected_symbol_claim.is_some() && !is_inline_rename_active)
-                    .can_open_in_code_viewer(can_open_selected_entry)
-                    .can_open_in_memory_viewer(can_open_selected_entry)
-                    .can_promote_derived_symbol(matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::DerivedNode(_))))
-                    .can_cancel_create_module_root(matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot)))
+                    .can_create_module_root(can_use_standard_toolbar_actions)
+                    .can_rename_selected_entry(can_rename_selected_entry && can_use_standard_toolbar_actions)
+                    .can_delete_selected_entry((selected_symbol_claim.is_some() || selected_module_name.is_some()) && can_use_standard_toolbar_actions)
+                    .can_open_in_code_viewer(can_open_selected_entry && can_use_standard_toolbar_actions)
+                    .can_open_in_memory_viewer(can_open_selected_entry && can_use_standard_toolbar_actions)
+                    .can_promote_derived_symbol(
+                        matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::DerivedNode(_))) && can_use_standard_toolbar_actions,
+                    )
+                    .can_cancel_create_module_root(is_create_module_root_active)
                     .can_commit_create_module_root(create_module_root_request.is_some())
                     .show(&mut list_user_interface);
 
@@ -1861,13 +1890,15 @@ impl Widget for SymbolExplorerView {
                             }
                         }
                     }
-                    Some(SymbolExplorerToolbarAction::DeleteSelectedSymbolClaim) => {
+                    Some(SymbolExplorerToolbarAction::DeleteSelectedEntry) => {
                         if let Some(symbol_claim) = selected_symbol_claim {
-                            SymbolExplorerViewData::request_delete_confirmation(
+                            SymbolExplorerViewData::request_delete_symbol_claim_confirmation(
                                 self.symbol_explorer_view_data.clone(),
                                 symbol_claim.get_symbol_locator_key().to_string(),
                                 symbol_claim.get_display_name().to_string(),
                             );
+                        } else if let Some(module_name) = selected_module_name.as_ref() {
+                            SymbolExplorerViewData::request_delete_module_root_confirmation(self.symbol_explorer_view_data.clone(), module_name.to_string());
                         }
                     }
                     Some(SymbolExplorerToolbarAction::OpenSelectedInCodeViewer) => {
@@ -1900,15 +1931,39 @@ impl Widget for SymbolExplorerView {
                     None => {}
                 }
 
-                if let Some(SymbolExplorerTakeOverState::DeleteConfirmation {
-                    symbol_locator_key,
-                    display_name,
-                }) = take_over_state.as_ref()
-                {
-                    list_user_interface.add_space(8.0);
-                    self.render_delete_confirmation_take_over(&mut list_user_interface, display_name, symbol_locator_key);
+                match take_over_state.as_ref() {
+                    Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation {
+                        symbol_locator_key,
+                        display_name,
+                    }) => {
+                        list_user_interface.add_space(8.0);
+                        if self.render_delete_confirmation_take_over(
+                            &mut list_user_interface,
+                            "Delete Symbol Claim",
+                            "Delete this symbol?",
+                            display_name,
+                            "This removes the authored symbol from the project.",
+                        ) {
+                            self.delete_symbol_claim(symbol_locator_key);
+                        }
 
-                    return;
+                        return;
+                    }
+                    Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => {
+                        list_user_interface.add_space(8.0);
+                        if self.render_delete_confirmation_take_over(
+                            &mut list_user_interface,
+                            "Delete Module",
+                            "Delete this module?",
+                            module_name,
+                            "This removes the module root and all symbol claims inside it.",
+                        ) {
+                            self.delete_module_root(module_name);
+                        }
+
+                        return;
+                    }
+                    None => {}
                 }
 
                 if matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot)) {
