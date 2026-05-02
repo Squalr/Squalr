@@ -44,9 +44,13 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
         let mut created_symbol = ProjectSymbolClaim::new(trimmed_display_name.to_string(), locator, self.struct_layout_id.trim().to_string());
         let created_symbol_locator_key = created_symbol.get_symbol_locator_key();
         *created_symbol.get_metadata_mut() = self.metadata.clone();
-        opened_project
+        let project_symbol_catalog = opened_project
             .get_project_info_mut()
-            .get_project_symbol_catalog_mut()
+            .get_project_symbol_catalog_mut();
+        if let ProjectSymbolLocator::ModuleOffset { module_name, offset } = created_symbol.get_locator() {
+            project_symbol_catalog.ensure_symbol_module(module_name, offset.saturating_add(1));
+        }
+        project_symbol_catalog
             .get_symbol_claims_mut()
             .push(created_symbol);
 

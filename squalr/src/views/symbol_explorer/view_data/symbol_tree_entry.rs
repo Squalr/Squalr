@@ -15,6 +15,7 @@ pub enum SymbolTreeEntryKind {
     SymbolClaim { symbol_locator_key: String },
     StructField,
     ArrayElement,
+    ArrayPreviewTruncation { omitted_element_count: u64 },
     PointerTarget,
 }
 
@@ -59,6 +60,8 @@ pub struct SymbolTreeEntry {
     can_expand: bool,
     is_expanded: bool,
 }
+
+const MAX_EXPANDED_ARRAY_ELEMENT_COUNT: u64 = 256;
 
 impl SymbolTreeEntry {
     pub fn new(
@@ -178,7 +181,27 @@ where
     for (module_name, module_size) in module_sizes_by_name {
         let mut symbol_claims = module_symbol_claims.remove(&module_name).unwrap_or_default();
         symbol_claims.sort_by_key(|symbol_claim| symbol_claim.get_locator().get_focus_address());
-        append_module_space_entry(&mut symbol_tree_entries, module_name.clone(), module_size);
+        let effective_module_size = module_size.max(
+            symbol_claims
+                .iter()
+                .fold(0_u64, |maximum_extent, symbol_claim| {
+                    let claim_size_in_bytes = resolve_symbol_claim_size_in_bytes(project_symbol_catalog, symbol_claim, resolve_primitive_size_in_bytes);
+                    maximum_extent.max(
+                        symbol_claim
+                            .get_locator()
+                            .get_focus_address()
+                            .saturating_add(claim_size_in_bytes),
+                    )
+                }),
+        );
+        let module_node_key = module_node_key(&module_name);
+        let can_expand = effective_module_size > 0 || !symbol_claims.is_empty();
+        let is_expanded = can_expand && expanded_tree_node_keys.contains(&module_node_key);
+        append_module_space_entry(&mut symbol_tree_entries, module_name.clone(), effective_module_size, can_expand, is_expanded);
+
+        if !is_expanded {
+            continue;
+        }
 
         let mut next_unclaimed_offset = 0_u64;
 
@@ -208,19 +231,26 @@ where
             next_unclaimed_offset = next_unclaimed_offset.max(claim_offset.saturating_add(claim_size_in_bytes));
         }
 
-        if module_size > next_unclaimed_offset {
+        if effective_module_size > next_unclaimed_offset {
             append_unknown_bytes_entry(
                 &mut symbol_tree_entries,
                 &module_name,
                 next_unclaimed_offset,
-                module_size.saturating_sub(next_unclaimed_offset),
+                effective_module_size.saturating_sub(next_unclaimed_offset),
             );
         }
     }
 
     if !absolute_symbol_claims.is_empty() {
         absolute_symbol_claims.sort_by_key(|symbol_claim| symbol_claim.get_locator().get_focus_address());
-        append_module_space_entry(&mut symbol_tree_entries, String::from("Absolute / Unmapped"), 0);
+        let module_name = String::from("Absolute / Unmapped");
+        let module_node_key = module_node_key(&module_name);
+        let is_expanded = expanded_tree_node_keys.contains(&module_node_key);
+        append_module_space_entry(&mut symbol_tree_entries, module_name, 0, true, is_expanded);
+
+        if !is_expanded {
+            return symbol_tree_entries;
+        }
 
         for symbol_claim in absolute_symbol_claims {
             append_symbol_claim_entry(
@@ -275,8 +305,10 @@ fn append_module_space_entry(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     module_name: String,
     size: u64,
+    can_expand: bool,
+    is_expanded: bool,
 ) {
-    let node_key = format!("module:{}", module_name);
+    let node_key = module_node_key(&module_name);
 
     symbol_tree_entries.push(SymbolTreeEntry::new(
         node_key,
@@ -290,11 +322,15 @@ fn append_module_space_entry(
         String::new(),
         String::new(),
         ProjectSymbolLocator::new_absolute_address(0),
-        String::new(),
-        ContainerType::None,
-        false,
-        false,
+        String::from("u8"),
+        ContainerType::ArrayFixed(size),
+        can_expand,
+        is_expanded,
     ));
+}
+
+fn module_node_key(module_name: &str) -> String {
+    format!("module:{}", module_name)
 }
 
 fn append_symbol_claim_entry<ResolvePrimitiveSize>(
@@ -471,6 +507,7 @@ fn append_field_children<ResolvePrimitiveSize>(
 {
     match container_type {
         ContainerType::ArrayFixed(length) => {
+            let visible_element_count = length.min(MAX_EXPANDED_ARRAY_ELEMENT_COUNT);
             let element_size_in_bytes = resolve_data_type_size_in_bytes(
                 project_symbol_catalog,
                 data_type_ref,
@@ -478,7 +515,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                 visited_struct_layout_ids,
             );
 
-            for array_index in 0..length {
+            for array_index in 0..visible_element_count {
                 let array_element_display_name = format!("[{}]", array_index);
                 let array_element_full_path = format!("{}{}", parent_full_path, array_element_display_name);
                 let array_element_promotion_display_name = format!("{}{}", parent_promotion_display_name, array_element_display_name);
@@ -521,6 +558,26 @@ fn append_field_children<ResolvePrimitiveSize>(
                         );
                     }
                 }
+            }
+
+            if length > visible_element_count {
+                let omitted_element_count = length.saturating_sub(visible_element_count);
+                let truncation_display_name = format!("... {} more", omitted_element_count);
+
+                symbol_tree_entries.push(SymbolTreeEntry::new(
+                    format!("{}::truncated", parent_node_key),
+                    SymbolTreeEntryKind::ArrayPreviewTruncation { omitted_element_count },
+                    depth,
+                    truncation_display_name.clone(),
+                    format!("{}.{}", parent_full_path, truncation_display_name),
+                    parent_promotion_display_name.to_string(),
+                    symbol_claim_locator_key.to_string(),
+                    offset_locator(parent_locator, element_size_in_bytes.saturating_mul(visible_element_count)),
+                    data_type_ref.to_string(),
+                    ContainerType::None,
+                    false,
+                    false,
+                ));
             }
         }
         ContainerType::None => {
@@ -875,6 +932,7 @@ mod tests {
             )],
         );
         let expanded_tree_node_keys = HashSet::from([
+            String::from("module:Absolute / Unmapped"),
             String::from("claim:absolute:100"),
             String::from("claim:absolute:100::position"),
             String::from("claim:absolute:100::items"),
@@ -934,7 +992,12 @@ mod tests {
         let project_symbol_catalog =
             ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)], Vec::new(), Vec::new());
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |_| None);
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |_| None,
+        );
 
         assert_eq!(symbol_tree_entries.len(), 2);
         assert_eq!(
@@ -955,6 +1018,60 @@ mod tests {
     }
 
     #[test]
+    fn build_symbol_tree_entries_does_not_expand_collapsed_module_space() {
+        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
+
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x40000000)],
+            Vec::new(),
+            Vec::new(),
+        );
+
+        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |_| None);
+
+        assert_eq!(symbol_tree_entries.len(), 1);
+        assert_eq!(
+            symbol_tree_entries[0].get_kind(),
+            &SymbolTreeEntryKind::ModuleSpace {
+                module_name: String::from("game.exe"),
+                size: 0x40000000,
+            }
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_truncates_large_fixed_array_children() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            Vec::new(),
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Blob"),
+                String::from("game.exe"),
+                0,
+                String::from("u8[300]"),
+            )],
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:game.exe"),
+            String::from("claim:module:game.exe:0"),
+        ]);
+
+        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+            (data_type_ref.get_data_type_id() == "u8").then_some(1)
+        });
+
+        assert_eq!(symbol_tree_entries.len(), 259);
+        assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
+        assert_eq!(symbol_tree_entries[1].get_display_name(), "Blob");
+        assert_eq!(symbol_tree_entries[2].get_display_name(), "[0]");
+        assert_eq!(symbol_tree_entries[257].get_display_name(), "[255]");
+        assert_eq!(
+            symbol_tree_entries[258].get_kind(),
+            &SymbolTreeEntryKind::ArrayPreviewTruncation { omitted_element_count: 44 }
+        );
+        assert_eq!(symbol_tree_entries[258].get_display_name(), "... 44 more");
+    }
+
+    #[test]
     fn build_symbol_tree_entries_treats_primitive_root_type_as_leaf_node() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
@@ -965,7 +1082,10 @@ mod tests {
                 String::from("u32"),
             )],
         );
-        let expanded_tree_node_keys = HashSet::from([String::from("claim:module:game.exe:1234")]);
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:game.exe"),
+            String::from("claim:module:game.exe:1234"),
+        ]);
 
         let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u32").then_some(4)
@@ -997,9 +1117,12 @@ mod tests {
             ],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |data_type_ref| {
-            (data_type_ref.get_data_type_id() == "u32").then_some(4)
-        });
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
+        );
 
         assert_eq!(symbol_tree_entries.len(), 5);
         assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
@@ -1047,6 +1170,7 @@ mod tests {
             )],
         );
         let expanded_tree_node_keys = HashSet::from([
+            String::from("module:Absolute / Unmapped"),
             String::from("claim:absolute:100"),
             String::from("claim:absolute:100::next"),
             String::from("claim:absolute:100::next::target"),

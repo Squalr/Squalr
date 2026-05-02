@@ -39,6 +39,11 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             } => project_symbols_rename_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectSymbolsCommand::RenameModule {
+                project_symbols_rename_module_request,
+            } => project_symbols_rename_module_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectSymbolsCommand::Update {
                 project_symbols_update_request,
             } => project_symbols_update_request

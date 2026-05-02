@@ -5,6 +5,7 @@ use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerSelection {
+    ModuleRoot(String),
     SymbolClaim(String),
     DerivedNode(String),
     CreateModuleRoot,
@@ -26,7 +27,7 @@ pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
     take_over_state: Option<SymbolExplorerTakeOverState>,
     module_root_create_draft: ModuleRootCreateDraft,
-    inline_rename_symbol_locator_key: Option<String>,
+    inline_rename_tree_node_key: Option<String>,
     expanded_tree_node_keys: HashSet<String>,
 }
 
@@ -36,7 +37,7 @@ impl SymbolExplorerViewData {
             selected_entry: None,
             take_over_state: None,
             module_root_create_draft: ModuleRootCreateDraft::default(),
-            inline_rename_symbol_locator_key: None,
+            inline_rename_tree_node_key: None,
             expanded_tree_node_keys: HashSet::new(),
         }
     }
@@ -53,8 +54,8 @@ impl SymbolExplorerViewData {
         &self.module_root_create_draft
     }
 
-    pub fn get_inline_rename_symbol_locator_key(&self) -> Option<&str> {
-        self.inline_rename_symbol_locator_key.as_deref()
+    pub fn get_inline_rename_tree_node_key(&self) -> Option<&str> {
+        self.inline_rename_tree_node_key.as_deref()
     }
 
     pub fn get_expanded_tree_node_keys(&self) -> &HashSet<String> {
@@ -69,7 +70,7 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.selected_entry = selected_entry;
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
 
@@ -78,23 +79,23 @@ impl SymbolExplorerViewData {
             symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::CreateModuleRoot);
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
 
     pub fn begin_inline_rename(
         symbol_explorer_view_data: Dependency<Self>,
-        symbol_locator_key: String,
+        tree_node_key: String,
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin inline rename") {
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = Some(symbol_locator_key);
+            symbol_explorer_view_data.inline_rename_tree_node_key = Some(tree_node_key);
             symbol_explorer_view_data.take_over_state = None;
         }
     }
 
     pub fn cancel_inline_rename(symbol_explorer_view_data: Dependency<Self>) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer cancel inline rename") {
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
 
@@ -117,7 +118,7 @@ impl SymbolExplorerViewData {
                 symbol_locator_key,
                 display_name,
             });
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
 
@@ -147,6 +148,17 @@ impl SymbolExplorerViewData {
         }
     }
 
+    pub fn expand_tree_node(
+        symbol_explorer_view_data: Dependency<Self>,
+        tree_node_key: &str,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer expand tree node") {
+            symbol_explorer_view_data
+                .expanded_tree_node_keys
+                .insert(tree_node_key.to_string());
+        }
+    }
+
     pub fn synchronize_selection(
         symbol_explorer_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -166,18 +178,24 @@ impl SymbolExplorerViewData {
                 symbol_explorer_view_data.selected_entry = None;
                 symbol_explorer_view_data.take_over_state = None;
                 symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
-                symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+                symbol_explorer_view_data.inline_rename_tree_node_key = None;
                 return;
             }
 
             symbol_explorer_view_data.selected_entry = project_symbol_catalog
-                .get_symbol_claims()
+                .get_symbol_modules()
                 .first()
-                .map(|symbol_claim| SymbolExplorerSelection::SymbolClaim(symbol_claim.get_symbol_locator_key().to_string()));
+                .map(|symbol_module| SymbolExplorerSelection::ModuleRoot(symbol_module.get_module_name().to_string()))
+                .or_else(|| {
+                    project_symbol_catalog
+                        .get_symbol_claims()
+                        .first()
+                        .map(|symbol_claim| SymbolExplorerSelection::SymbolClaim(symbol_claim.get_symbol_locator_key().to_string()))
+                });
 
             symbol_explorer_view_data.take_over_state = None;
             symbol_explorer_view_data.module_root_create_draft = ModuleRootCreateDraft::default();
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
 
@@ -188,20 +206,25 @@ impl SymbolExplorerViewData {
         let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize inline rename state") else {
             return;
         };
-        let Some(inline_rename_symbol_locator_key) = symbol_explorer_view_data
-            .inline_rename_symbol_locator_key
-            .as_ref()
-        else {
+        let Some(inline_rename_tree_node_key) = symbol_explorer_view_data.inline_rename_tree_node_key.as_ref() else {
             return;
         };
 
-        let is_symbol_still_present = project_symbol_catalog
-            .get_symbol_claims()
-            .iter()
-            .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == *inline_rename_symbol_locator_key);
+        let is_rename_target_still_present = if let Some(module_name) = inline_rename_tree_node_key.strip_prefix("module:") {
+            project_symbol_catalog.find_symbol_module(module_name).is_some()
+        } else {
+            let symbol_locator_key = inline_rename_tree_node_key
+                .strip_prefix("claim:")
+                .unwrap_or(inline_rename_tree_node_key);
 
-        if !is_symbol_still_present {
-            symbol_explorer_view_data.inline_rename_symbol_locator_key = None;
+            project_symbol_catalog
+                .get_symbol_claims()
+                .iter()
+                .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_locator_key)
+        };
+
+        if !is_rename_target_still_present {
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
 
@@ -231,6 +254,7 @@ impl SymbolExplorerViewData {
         selected_entry: &SymbolExplorerSelection,
     ) -> bool {
         match selected_entry {
+            SymbolExplorerSelection::ModuleRoot(module_name) => project_symbol_catalog.find_symbol_module(module_name).is_some(),
             SymbolExplorerSelection::SymbolClaim(symbol_locator_key) => project_symbol_catalog
                 .get_symbol_claims()
                 .iter()
@@ -260,18 +284,15 @@ impl SymbolExplorerViewData {
 
         symbol_explorer_view_data.selected_entry = symbol_tree_entries
             .iter()
-            .find(|symbol_tree_entry| {
-                !matches!(
-                    symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnknownBytes { .. }
-                )
-            })
+            .find(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::UnknownBytes { .. }))
             .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
+                SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolExplorerSelection::ModuleRoot(module_name.to_string()),
                 SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string()),
-                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement | SymbolTreeEntryKind::PointerTarget => {
-                    SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
-                }
-                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnknownBytes { .. } => unreachable!(),
+                SymbolTreeEntryKind::StructField
+                | SymbolTreeEntryKind::ArrayElement
+                | SymbolTreeEntryKind::ArrayPreviewTruncation { .. }
+                | SymbolTreeEntryKind::PointerTarget => SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()),
+                SymbolTreeEntryKind::UnknownBytes { .. } => unreachable!(),
             });
     }
 }
@@ -285,7 +306,7 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
-        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim},
+        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
 
@@ -323,6 +344,28 @@ mod tests {
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
         assert_eq!(selected_entry, Some(SymbolExplorerSelection::SymbolClaim(String::from("absolute:1234"))));
+    }
+
+    #[test]
+    fn synchronize_selection_prefers_first_module_root() {
+        let symbol_explorer_view_data = create_dependency();
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x2000)],
+            Vec::new(),
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x1234,
+                String::from("player.stats"),
+            )],
+        );
+
+        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, false);
+
+        let selected_entry = symbol_explorer_view_data
+            .read("Symbol explorer synchronize module selection test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
+
+        assert_eq!(selected_entry, Some(SymbolExplorerSelection::ModuleRoot(String::from("game.exe"))));
     }
 
     #[test]
@@ -375,7 +418,7 @@ mod tests {
             .read("Symbol explorer inline rename clear test")
             .expect("Expected symbol explorer dependency read access in test.");
 
-        assert_eq!(symbol_explorer_view_data.get_inline_rename_symbol_locator_key(), None);
+        assert_eq!(symbol_explorer_view_data.get_inline_rename_tree_node_key(), None);
     }
 
     #[test]
@@ -418,6 +461,6 @@ mod tests {
             .read("Symbol explorer synchronize inline rename test")
             .expect("Expected symbol explorer dependency read access in test.");
 
-        assert_eq!(symbol_explorer_view_data.get_inline_rename_symbol_locator_key(), None);
+        assert_eq!(symbol_explorer_view_data.get_inline_rename_tree_node_key(), None);
     }
 }

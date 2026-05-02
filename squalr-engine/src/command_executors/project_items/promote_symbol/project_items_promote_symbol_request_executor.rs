@@ -3,11 +3,16 @@ use crate::command_executors::project_items::project_item_symbol_resolution::{
     is_promotable_project_item, resolve_project_item_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
 };
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
+use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
+use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
+use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::{
     ProjectItemsPromoteSymbolConflict, ProjectItemsPromoteSymbolResponse,
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -15,10 +20,17 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
+use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
+use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::str::FromStr;
+use std::sync::{Arc, mpsc};
+use std::time::Duration;
 
 impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
     type ResponseType = ProjectItemsPromoteSymbolResponse;
@@ -69,6 +81,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
         let mut reused_symbol_count = 0_u64;
         let mut conflicts = Vec::new();
         let mut did_mutate_symbol_catalog = false;
+        let mut module_size_hints_by_name: BTreeMap<String, u64> = BTreeMap::new();
 
         for requested_project_item_path in &self.project_item_paths {
             let project_item_path = resolve_project_item_path(&project_directory_path, requested_project_item_path);
@@ -91,6 +104,16 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 log::warn!("Skipping non-promotable project item during promote-symbol request: {:?}", project_item_path);
                 continue;
             };
+            if let Some((module_name, module_size_hint)) = resolve_promoted_symbol_module_size_hint(
+                engine_unprivileged_state,
+                opened_project.get_project_info().get_project_symbol_catalog(),
+                &promoted_symbol_candidate,
+            ) {
+                module_size_hints_by_name
+                    .entry(module_name)
+                    .and_modify(|existing_size_hint| *existing_size_hint = (*existing_size_hint).max(module_size_hint))
+                    .or_insert(module_size_hint);
+            }
 
             if let Some(existing_exact_symbol) = find_exact_symbol_claim(&existing_symbol_claims, &promoted_symbol_candidate).cloned() {
                 project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &existing_exact_symbol)));
@@ -148,6 +171,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             let updated_project_symbol_catalog = {
                 let project_symbol_catalog = project_info.get_project_symbol_catalog_mut();
                 project_symbol_catalog.set_symbol_claims(existing_symbol_claims.clone());
+                for (module_name, module_size_hint) in &module_size_hints_by_name {
+                    project_symbol_catalog.ensure_symbol_module(module_name, *module_size_hint);
+                }
                 project_symbol_catalog.clone()
             };
             project_info.set_has_unsaved_changes(true);
@@ -189,6 +215,157 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             promoted_symbol_locator_keys,
             conflicts,
         }
+    }
+}
+
+fn resolve_promoted_symbol_module_size_hint(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    promoted_symbol: &ProjectSymbolClaim,
+) -> Option<(String, u64)> {
+    let ProjectSymbolLocator::ModuleOffset { module_name, offset } = promoted_symbol.get_locator() else {
+        return None;
+    };
+    let claim_size_in_bytes = estimate_symbol_claim_size_in_bytes(project_symbol_catalog, promoted_symbol).max(1);
+    let minimum_module_size = offset.saturating_add(claim_size_in_bytes);
+    let queried_module_size = query_loaded_module_size(engine_execution_context, module_name);
+
+    Some((
+        module_name.clone(),
+        queried_module_size
+            .unwrap_or(minimum_module_size)
+            .max(minimum_module_size),
+    ))
+}
+
+fn query_loaded_module_size(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    module_name: &str,
+) -> Option<u64> {
+    let memory_query_command = MemoryQueryRequest::default().to_engine_command();
+    let (memory_query_response_sender, memory_query_response_receiver) = mpsc::channel();
+
+    let dispatch_result = match engine_execution_context.get_bindings().read() {
+        Ok(engine_bindings) => engine_bindings.dispatch_privileged_command(
+            memory_query_command,
+            Box::new(move |engine_response| {
+                let conversion_result = MemoryQueryResponse::from_engine_response(engine_response);
+                let _ = memory_query_response_sender.send(conversion_result);
+            }),
+        ),
+        Err(error) => {
+            log::error!("Failed to acquire engine bindings lock for promote-symbol module query: {}", error);
+            return None;
+        }
+    };
+
+    if dispatch_result.is_err() {
+        return None;
+    }
+
+    let memory_query_response = memory_query_response_receiver
+        .recv_timeout(Duration::from_secs(1))
+        .ok()
+        .and_then(Result::ok)?;
+
+    if !memory_query_response.success {
+        return None;
+    }
+
+    memory_query_response
+        .modules
+        .iter()
+        .find(|normalized_module| normalized_module.get_module_name() == module_name)
+        .map(|normalized_module| normalized_module.get_region_size())
+}
+
+fn estimate_symbol_claim_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbol_claim: &ProjectSymbolClaim,
+) -> u64 {
+    estimate_symbol_type_size_in_bytes(project_symbol_catalog, symbol_claim.get_struct_layout_id(), &mut HashSet::new())
+}
+
+fn estimate_symbol_type_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbol_type_id: &str,
+    visited_type_ids: &mut HashSet<String>,
+) -> u64 {
+    if let Some(primitive_size_in_bytes) = estimate_primitive_data_type_size_in_bytes(symbol_type_id) {
+        return primitive_size_in_bytes;
+    }
+
+    if let Some(struct_layout_descriptor) = project_symbol_catalog
+        .get_struct_layout_descriptors()
+        .iter()
+        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbol_type_id)
+    {
+        return estimate_symbolic_struct_size_in_bytes(
+            project_symbol_catalog,
+            struct_layout_descriptor.get_struct_layout_definition(),
+            visited_type_ids,
+        );
+    }
+
+    if let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(symbol_type_id) {
+        return estimate_symbolic_field_size_in_bytes(project_symbol_catalog, &symbolic_field_definition, visited_type_ids);
+    }
+
+    if let Ok(symbolic_struct_definition) = SymbolicStructDefinition::from_str(symbol_type_id) {
+        return estimate_symbolic_struct_size_in_bytes(project_symbol_catalog, &symbolic_struct_definition, visited_type_ids);
+    }
+
+    1
+}
+
+fn estimate_symbolic_struct_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbolic_struct_definition: &SymbolicStructDefinition,
+    visited_type_ids: &mut HashSet<String>,
+) -> u64 {
+    symbolic_struct_definition
+        .get_fields()
+        .iter()
+        .map(|symbolic_field_definition| estimate_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_type_ids))
+        .sum()
+}
+
+fn estimate_symbolic_field_size_in_bytes(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbolic_field_definition: &SymbolicFieldDefinition,
+    visited_type_ids: &mut HashSet<String>,
+) -> u64 {
+    let data_type_id = symbolic_field_definition.get_data_type_ref().get_data_type_id();
+    let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
+        ContainerType::Pointer(pointer_size) => pointer_size.get_size_in_bytes(),
+        ContainerType::Pointer32 => 4,
+        ContainerType::Pointer64 => 8,
+        _ => {
+            if !visited_type_ids.insert(data_type_id.to_string()) {
+                return 0;
+            }
+
+            let size_in_bytes = estimate_symbol_type_size_in_bytes(project_symbol_catalog, data_type_id, visited_type_ids);
+
+            visited_type_ids.remove(data_type_id);
+            size_in_bytes
+        }
+    };
+
+    symbolic_field_definition
+        .get_container_type()
+        .get_total_size_in_bytes(unit_size_in_bytes)
+}
+
+fn estimate_primitive_data_type_size_in_bytes(data_type_id: &str) -> Option<u64> {
+    match data_type_id {
+        "bool" | "i8" | "u8" => Some(1),
+        "i16" | "u16" | "i16be" | "u16be" => Some(2),
+        "i24" | "u24" | "i24be" | "u24be" => Some(3),
+        "f32" | "i32" | "u32" | "f32be" | "i32be" | "u32be" => Some(4),
+        "f64" | "i64" | "u64" | "f64be" | "i64be" | "u64be" => Some(8),
+        "i128" | "u128" | "i128be" | "u128be" => Some(16),
+        _ => None,
     }
 }
 
@@ -330,7 +507,10 @@ mod tests {
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::{
-        memory::{memory_command::MemoryCommand, read::memory_read_request::MemoryReadRequest, read::memory_read_response::MemoryReadResponse},
+        memory::{
+            memory_command::MemoryCommand, query::memory_query_response::MemoryQueryResponse, read::memory_read_request::MemoryReadRequest,
+            read::memory_read_response::MemoryReadResponse,
+        },
         privileged_command::PrivilegedCommand,
         privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse},
         project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest,
@@ -344,6 +524,7 @@ mod tests {
     };
     use squalr_engine_api::structures::{
         data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
+        memory::normalized_module::NormalizedModule,
         memory::pointer::Pointer,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
@@ -368,6 +549,7 @@ mod tests {
     struct MockPromoteBindings {
         captured_project_symbol_catalogs: Arc<Mutex<Vec<ProjectSymbolCatalog>>>,
         memory_read_response_factory: Arc<dyn Fn(&MemoryReadRequest) -> MemoryReadResponse + Send + Sync>,
+        memory_query_modules: Vec<NormalizedModule>,
     }
 
     impl MockPromoteBindings {
@@ -375,7 +557,17 @@ mod tests {
             Self {
                 captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
                 memory_read_response_factory: Arc::new(memory_read_response_factory),
+                memory_query_modules: Vec::new(),
             }
+        }
+
+        fn with_memory_query_modules(
+            mut self,
+            memory_query_modules: Vec<NormalizedModule>,
+        ) -> Self {
+            self.memory_query_modules = memory_query_modules;
+
+            self
         }
 
         fn captured_project_symbol_catalogs(&self) -> Arc<Mutex<Vec<ProjectSymbolCatalog>>> {
@@ -411,6 +603,18 @@ mod tests {
                 }
                 PrivilegedCommand::Memory(MemoryCommand::Read { memory_read_request }) => {
                     callback((self.memory_read_response_factory)(&memory_read_request).to_engine_response());
+
+                    Ok(())
+                }
+                PrivilegedCommand::Memory(MemoryCommand::Query { .. }) => {
+                    callback(
+                        MemoryQueryResponse {
+                            virtual_pages: Vec::new(),
+                            modules: self.memory_query_modules.clone(),
+                            success: true,
+                        }
+                        .to_engine_response(),
+                    );
 
                     Ok(())
                 }
@@ -483,7 +687,8 @@ mod tests {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
         let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
-        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default());
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default())
+            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x2000)]);
         let captured_project_symbol_catalogs = mock_promote_bindings.captured_project_symbol_catalogs();
         let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
 
@@ -525,6 +730,13 @@ mod tests {
             symbol_claims[0].get_metadata().get("source.project_item_path"),
             Some(&project_item_path.to_string_lossy().into_owned())
         );
+        let symbol_modules = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules();
+        assert_eq!(symbol_modules.len(), 1);
+        assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
+        assert_eq!(symbol_modules[0].get_size(), 0x2000);
         let promoted_project_item = loaded_project
             .get_project_items()
             .get(&ProjectItemRef::new(project_item_path.clone()))

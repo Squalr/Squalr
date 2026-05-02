@@ -39,6 +39,20 @@ impl ProjectSymbolLocator {
             Self::ModuleOffset { module_name, offset } => format!("module:{}:{:X}", module_name, offset),
         }
     }
+
+    pub fn rename_module(
+        &mut self,
+        old_module_name: &str,
+        new_module_name: &str,
+    ) {
+        let Self::ModuleOffset { module_name, .. } = self else {
+            return;
+        };
+
+        if module_name == old_module_name {
+            *module_name = new_module_name.to_string();
+        }
+    }
 }
 
 impl fmt::Display for ProjectSymbolLocator {

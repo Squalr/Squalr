@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerToolbarAction {
     CreateModuleRoot,
-    RenameSelectedSymbolClaim,
+    RenameSelectedEntry,
     DeleteSelectedSymbolClaim,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
@@ -23,7 +23,7 @@ pub struct SymbolExplorerToolbarView {
     app_context: Arc<AppContext>,
     show_actions: bool,
     can_create_module_root: bool,
-    can_rename_symbol_claim: bool,
+    can_rename_selected_entry: bool,
     can_delete_symbol_claim: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
@@ -41,7 +41,7 @@ impl SymbolExplorerToolbarView {
             app_context,
             show_actions: true,
             can_create_module_root: false,
-            can_rename_symbol_claim: false,
+            can_rename_selected_entry: false,
             can_delete_symbol_claim: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
@@ -69,11 +69,11 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_rename_symbol_claim(
+    pub fn can_rename_selected_entry(
         mut self,
-        can_rename_symbol_claim: bool,
+        can_rename_selected_entry: bool,
     ) -> Self {
-        self.can_rename_symbol_claim = can_rename_symbol_claim;
+        self.can_rename_selected_entry = can_rename_selected_entry;
 
         self
     }
@@ -189,7 +189,7 @@ impl SymbolExplorerToolbarView {
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_delete,
-                    "Delete selected symbol claim.",
+                    "Delete selected symbol.",
                     true,
                 )
                 .clicked()
@@ -202,7 +202,7 @@ impl SymbolExplorerToolbarView {
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_add,
-                    "Promote selected derived symbol to a symbol claim.",
+                    "Promote selected derived field to a symbol.",
                     true,
                 )
                 .clicked()
@@ -210,17 +210,17 @@ impl SymbolExplorerToolbarView {
                 clicked_action = Some(SymbolExplorerToolbarAction::PromoteSelectedDerivedSymbol);
             }
 
-            if self.can_rename_symbol_claim
+            if self.can_rename_selected_entry
                 && Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_edit,
-                    "Rename selected symbol claim.",
+                    "Rename selected module or symbol.",
                     true,
                 )
                 .clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::RenameSelectedSymbolClaim);
+                clicked_action = Some(SymbolExplorerToolbarAction::RenameSelectedEntry);
             }
 
             if self.can_open_in_code_viewer

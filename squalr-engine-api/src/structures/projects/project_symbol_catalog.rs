@@ -63,6 +63,27 @@ impl ProjectSymbolCatalog {
             .find(|symbol_module| symbol_module.get_module_name() == module_name)
     }
 
+    pub fn ensure_symbol_module(
+        &mut self,
+        module_name: &str,
+        minimum_size: u64,
+    ) {
+        if module_name.trim().is_empty() {
+            return;
+        }
+
+        if let Some(symbol_module) = self.find_symbol_module_mut(module_name) {
+            if symbol_module.get_size() < minimum_size {
+                symbol_module.set_size(minimum_size);
+            }
+
+            return;
+        }
+
+        self.symbol_modules
+            .push(ProjectSymbolModule::new(module_name.to_string(), minimum_size));
+    }
+
     pub fn get_struct_layout_descriptors(&self) -> &[StructLayoutDescriptor] {
         &self.struct_layout_descriptors
     }

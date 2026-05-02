@@ -76,6 +76,15 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 project_symbols_rename_response.symbol_locator_key
             );
         }
+        ProjectSymbolsResponse::RenameModule {
+            project_symbols_rename_module_response,
+        } => {
+            log::info!(
+                "renamed module root: success={}, module={}",
+                project_symbols_rename_module_response.success,
+                project_symbols_rename_module_response.module_name
+            );
+        }
         ProjectSymbolsResponse::Update {
             project_symbols_update_response,
         } => {

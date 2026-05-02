@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-    views::symbol_explorer::view_data::symbol_tree_entry::SymbolTreeEntry,
+    views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind},
 };
 use eframe::egui::{Align2, Color32, FontId, Rect, Response, Sense, Ui, Widget, pos2, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
@@ -186,12 +186,21 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
 
         let did_click_expand_arrow = self.symbol_tree_entry.can_expand() && arrow_response.clicked();
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
-        let hover_text = format!(
-            "{}\n{}\n{}",
-            self.symbol_tree_entry.get_full_path(),
-            self.symbol_tree_entry.get_promoted_symbol_type_id(),
-            self.symbol_tree_entry.get_locator()
-        );
+        let hover_text = match self.symbol_tree_entry.get_kind() {
+            SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::ArrayPreviewTruncation { .. } => {
+                format!(
+                    "{}\n{}",
+                    self.symbol_tree_entry.get_full_path(),
+                    self.symbol_tree_entry.get_promoted_symbol_type_id()
+                )
+            }
+            _ => format!(
+                "{}\n{}\n{}",
+                self.symbol_tree_entry.get_full_path(),
+                self.symbol_tree_entry.get_promoted_symbol_type_id(),
+                self.symbol_tree_entry.get_locator()
+            ),
+        };
 
         SymbolTreeEntryViewResponse {
             row_response: row_response.on_hover_text(hover_text),

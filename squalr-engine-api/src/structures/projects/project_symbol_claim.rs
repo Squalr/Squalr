@@ -61,6 +61,10 @@ impl ProjectSymbolClaim {
         &self.locator
     }
 
+    pub fn get_locator_mut(&mut self) -> &mut ProjectSymbolLocator {
+        &mut self.locator
+    }
+
     pub fn get_struct_layout_id(&self) -> &str {
         &self.struct_layout_id
     }
