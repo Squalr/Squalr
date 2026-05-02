@@ -12,8 +12,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -80,10 +80,10 @@ pub struct ProjectExplorerPaneState {
     pub is_reordering_project_item: bool,
     pub is_toggling_project_item_activation: bool,
     pub is_awaiting_project_symbol_list_response: bool,
-    pub rooted_symbols: Vec<ProjectRootSymbol>,
+    pub symbol_claims: Vec<ProjectSymbolClaim>,
     pub project_item_visible_entries: Vec<ProjectHierarchyEntry>,
     pub selected_project_item_visible_index: Option<usize>,
-    pub selected_rooted_symbol_index: Option<usize>,
+    pub selected_symbol_claim_index: Option<usize>,
     pub pending_move_source_paths: Vec<PathBuf>,
     pub pending_delete_confirmation_paths: Vec<PathBuf>,
     pub project_item_viewport_capacity: usize,
@@ -185,19 +185,19 @@ impl ProjectExplorerPaneState {
         project_symbol_catalog: Option<ProjectSymbolCatalog>,
     ) {
         let selected_symbol_key_before_refresh = self
-            .selected_rooted_symbol()
-            .map(|rooted_symbol| rooted_symbol.get_symbol_key().to_string());
-        self.rooted_symbols = project_symbol_catalog
-            .map(|project_symbol_catalog| project_symbol_catalog.get_rooted_symbols().to_vec())
+            .selected_symbol_claim()
+            .map(|symbol_claim| symbol_claim.get_symbol_key().to_string());
+        self.symbol_claims = project_symbol_catalog
+            .map(|project_symbol_catalog| project_symbol_catalog.get_symbol_claims().to_vec())
             .unwrap_or_default();
-        self.selected_rooted_symbol_index = selected_symbol_key_before_refresh
+        self.selected_symbol_claim_index = selected_symbol_key_before_refresh
             .as_ref()
             .and_then(|selected_symbol_key| {
-                self.rooted_symbols
+                self.symbol_claims
                     .iter()
-                    .position(|rooted_symbol| rooted_symbol.get_symbol_key() == selected_symbol_key)
+                    .position(|symbol_claim| symbol_claim.get_symbol_key() == selected_symbol_key)
             })
-            .or_else(|| (!self.rooted_symbols.is_empty()).then_some(0));
+            .or_else(|| (!self.symbol_claims.is_empty()).then_some(0));
     }
 
     pub fn clear_project_items(&mut self) {
@@ -213,8 +213,8 @@ impl ProjectExplorerPaneState {
     }
 
     pub fn clear_project_symbols(&mut self) {
-        self.rooted_symbols.clear();
-        self.selected_rooted_symbol_index = None;
+        self.symbol_claims.clear();
+        self.selected_symbol_claim_index = None;
     }
 
     pub fn select_next_project_item(&mut self) {
@@ -255,9 +255,9 @@ impl ProjectExplorerPaneState {
             .map(|project_item_entry| project_item_entry.project_item_path.clone())
     }
 
-    pub fn selected_rooted_symbol(&self) -> Option<&ProjectRootSymbol> {
-        let selected_rooted_symbol_index = self.selected_rooted_symbol_index?;
-        self.rooted_symbols.get(selected_rooted_symbol_index)
+    pub fn selected_symbol_claim(&self) -> Option<&ProjectSymbolClaim> {
+        let selected_symbol_claim_index = self.selected_symbol_claim_index?;
+        self.symbol_claims.get(selected_symbol_claim_index)
     }
 
     pub fn selected_project_items_for_struct_viewer(&self) -> Vec<(PathBuf, ProjectItem)> {
@@ -775,36 +775,36 @@ impl ProjectExplorerPaneState {
         self.update_selected_item_path();
     }
 
-    pub fn select_next_rooted_symbol(&mut self) {
-        if self.rooted_symbols.is_empty() {
-            self.selected_rooted_symbol_index = None;
+    pub fn select_next_symbol_claim(&mut self) {
+        if self.symbol_claims.is_empty() {
+            self.selected_symbol_claim_index = None;
             return;
         }
 
-        let selected_rooted_symbol_index = self.selected_rooted_symbol_index.unwrap_or(0);
-        self.selected_rooted_symbol_index = Some((selected_rooted_symbol_index + 1) % self.rooted_symbols.len());
+        let selected_symbol_claim_index = self.selected_symbol_claim_index.unwrap_or(0);
+        self.selected_symbol_claim_index = Some((selected_symbol_claim_index + 1) % self.symbol_claims.len());
     }
 
-    pub fn select_previous_rooted_symbol(&mut self) {
-        if self.rooted_symbols.is_empty() {
-            self.selected_rooted_symbol_index = None;
+    pub fn select_previous_symbol_claim(&mut self) {
+        if self.symbol_claims.is_empty() {
+            self.selected_symbol_claim_index = None;
             return;
         }
 
-        let selected_rooted_symbol_index = self.selected_rooted_symbol_index.unwrap_or(0);
-        self.selected_rooted_symbol_index = Some(if selected_rooted_symbol_index == 0 {
-            self.rooted_symbols.len() - 1
+        let selected_symbol_claim_index = self.selected_symbol_claim_index.unwrap_or(0);
+        self.selected_symbol_claim_index = Some(if selected_symbol_claim_index == 0 {
+            self.symbol_claims.len() - 1
         } else {
-            selected_rooted_symbol_index - 1
+            selected_symbol_claim_index - 1
         });
     }
 
-    pub fn select_first_rooted_symbol(&mut self) {
-        self.selected_rooted_symbol_index = (!self.rooted_symbols.is_empty()).then_some(0);
+    pub fn select_first_symbol_claim(&mut self) {
+        self.selected_symbol_claim_index = (!self.symbol_claims.is_empty()).then_some(0);
     }
 
-    pub fn select_last_rooted_symbol(&mut self) {
-        self.selected_rooted_symbol_index = (!self.rooted_symbols.is_empty()).then_some(self.rooted_symbols.len().saturating_sub(1));
+    pub fn select_last_symbol_claim(&mut self) {
+        self.selected_symbol_claim_index = (!self.symbol_claims.is_empty()).then_some(self.symbol_claims.len().saturating_sub(1));
     }
 
     pub fn switch_to_project_symbols(&mut self) -> bool {
@@ -813,8 +813,8 @@ impl ProjectExplorerPaneState {
         }
 
         self.focus_target = ProjectExplorerFocusTarget::ProjectSymbols;
-        if self.selected_rooted_symbol_index.is_none() && !self.rooted_symbols.is_empty() {
-            self.selected_rooted_symbol_index = Some(0);
+        if self.selected_symbol_claim_index.is_none() && !self.symbol_claims.is_empty() {
+            self.selected_symbol_claim_index = Some(0);
         }
 
         true
@@ -999,10 +999,10 @@ impl Default for ProjectExplorerPaneState {
             is_reordering_project_item: false,
             is_toggling_project_item_activation: false,
             is_awaiting_project_symbol_list_response: false,
-            rooted_symbols: Vec::new(),
+            symbol_claims: Vec::new(),
             project_item_visible_entries: Vec::new(),
             selected_project_item_visible_index: None,
-            selected_rooted_symbol_index: None,
+            selected_symbol_claim_index: None,
             pending_move_source_paths: Vec::new(),
             pending_delete_confirmation_paths: Vec::new(),
             project_item_viewport_capacity: 0,
@@ -1080,8 +1080,8 @@ mod tests {
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
-    use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
     use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+    use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
     use std::path::PathBuf;
 
     #[test]
@@ -1205,11 +1205,11 @@ mod tests {
     }
 
     #[test]
-    fn apply_project_symbols_list_selects_first_rooted_symbol_when_present() {
+    fn apply_project_symbols_list_selects_first_symbol_claim_when_present() {
         let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
-        project_explorer_pane_state.apply_project_symbols_list(Some(ProjectSymbolCatalog::new_with_rooted_symbols(
+        project_explorer_pane_state.apply_project_symbols_list(Some(ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x100,
@@ -1217,12 +1217,12 @@ mod tests {
             )],
         )));
 
-        assert_eq!(project_explorer_pane_state.rooted_symbols.len(), 1);
-        assert_eq!(project_explorer_pane_state.selected_rooted_symbol_index, Some(0));
+        assert_eq!(project_explorer_pane_state.symbol_claims.len(), 1);
+        assert_eq!(project_explorer_pane_state.selected_symbol_claim_index, Some(0));
         assert_eq!(
             project_explorer_pane_state
-                .selected_rooted_symbol()
-                .map(|rooted_symbol| rooted_symbol.get_symbol_key()),
+                .selected_symbol_claim()
+                .map(|symbol_claim| symbol_claim.get_symbol_key()),
             Some("sym.player")
         );
     }

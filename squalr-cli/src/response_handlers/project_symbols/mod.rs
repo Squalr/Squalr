@@ -14,22 +14,22 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
             };
 
             log::info!(
-                "project: {}, rooted symbol count: {}, symbol type count: {}",
+                "project: {}, symbol claim count: {}, symbol type count: {}",
                 opened_project_name,
-                project_symbol_catalog.get_rooted_symbols().len(),
+                project_symbol_catalog.get_symbol_claims().len(),
                 project_symbol_catalog.get_struct_layout_descriptors().len()
             );
 
-            for rooted_symbol in project_symbol_catalog.get_rooted_symbols() {
+            for symbol_claim in project_symbol_catalog.get_symbol_claims() {
                 log::info!(
                     "symbol: {}, key: {}, type: {}, locator: {}",
-                    rooted_symbol.get_display_name(),
-                    rooted_symbol.get_symbol_key(),
-                    rooted_symbol.get_struct_layout_id(),
-                    rooted_symbol.get_root_locator()
+                    symbol_claim.get_display_name(),
+                    symbol_claim.get_symbol_key(),
+                    symbol_claim.get_struct_layout_id(),
+                    symbol_claim.get_locator()
                 );
 
-                for (metadata_key, metadata_value) in rooted_symbol.get_metadata() {
+                for (metadata_key, metadata_value) in symbol_claim.get_metadata() {
                     log::info!("  metadata: {}={}", metadata_key, metadata_value);
                 }
             }
@@ -49,7 +49,7 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
             project_symbols_create_response,
         } => {
             log::info!(
-                "created rooted symbol: success={}, symbol_key={}",
+                "created symbol claim: success={}, symbol_key={}",
                 project_symbols_create_response.success,
                 project_symbols_create_response.created_symbol_key
             );
@@ -58,16 +58,25 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
             project_symbols_rename_response,
         } => {
             log::info!(
-                "renamed rooted symbol: success={}, symbol_key={}",
+                "renamed symbol claim: success={}, symbol_key={}",
                 project_symbols_rename_response.success,
                 project_symbols_rename_response.symbol_key
+            );
+        }
+        ProjectSymbolsResponse::Update {
+            project_symbols_update_response,
+        } => {
+            log::info!(
+                "updated symbol claim: success={}, symbol_key={}",
+                project_symbols_update_response.success,
+                project_symbols_update_response.symbol_key
             );
         }
         ProjectSymbolsResponse::Delete {
             project_symbols_delete_response,
         } => {
             log::info!(
-                "deleted rooted symbols: success={}, count={}",
+                "deleted symbol claims: success={}, count={}",
                 project_symbols_delete_response.success,
                 project_symbols_delete_response.deleted_symbol_count
             );

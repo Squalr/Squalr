@@ -159,15 +159,12 @@ fn create_memory_freeze_target(
 
     if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
         let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
-        let rooted_symbol = project_symbol_catalog.find_rooted_symbol(&symbol_key)?;
+        let symbol_claim = project_symbol_catalog.find_symbol_claim(&symbol_key)?;
 
         return Some(MemoryFreezeTarget {
-            address: rooted_symbol.get_root_locator().get_focus_address(),
-            module_name: rooted_symbol
-                .get_root_locator()
-                .get_focus_module_name()
-                .to_string(),
-            data_type_id: rooted_symbol.get_struct_layout_id().to_string(),
+            address: symbol_claim.get_locator().get_focus_address(),
+            module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
+            data_type_id: symbol_claim.get_struct_layout_id().to_string(),
             pointer_offsets: Vec::new(),
             pointer_size: Default::default(),
         });
@@ -246,7 +243,7 @@ mod tests {
         project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
     use std::path::PathBuf;
 
     #[test]
@@ -326,11 +323,11 @@ mod tests {
     }
 
     #[test]
-    fn create_memory_freeze_target_uses_symbol_ref_rooted_symbol_values() {
+    fn create_memory_freeze_target_uses_symbol_ref_symbol_claim_values() {
         let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.gold", "");
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
-            vec![ProjectRootSymbol::new_module_offset(
+            vec![ProjectSymbolClaim::new_module_offset(
                 String::from("sym.gold"),
                 String::from("Gold"),
                 String::from("game.exe"),

@@ -1,6 +1,6 @@
 use crate::command_executors::project::project_symbol_sync::sync_project_symbol_catalog;
 use crate::command_executors::project_items::project_item_symbol_resolution::{
-    is_promotable_project_item, resolve_project_item_root_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
+    is_promotable_project_item, resolve_project_item_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
 };
 use crate::command_executors::project_symbols::project_symbol_store_mutation::sanitize_symbol_key_component;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
@@ -16,7 +16,7 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
+use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -59,10 +59,10 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             return ProjectItemsPromoteSymbolResponse::default();
         };
 
-        let mut existing_rooted_symbols = opened_project
+        let mut existing_symbol_claims = opened_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols()
+            .get_symbol_claims()
             .to_vec();
         let mut project_item_replacements = Vec::new();
         let mut promoted_symbol_keys = Vec::new();
@@ -93,31 +93,31 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 continue;
             };
 
-            if let Some(existing_exact_symbol) = find_exact_rooted_symbol(&existing_rooted_symbols, &promoted_symbol_candidate).cloned() {
+            if let Some(existing_exact_symbol) = find_exact_symbol_claim(&existing_symbol_claims, &promoted_symbol_candidate).cloned() {
                 project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &existing_exact_symbol)));
                 reused_symbol_count = reused_symbol_count.saturating_add(1);
                 continue;
             }
 
-            if let Some(conflicting_symbol_index) = find_rooted_symbol_index_by_key(&existing_rooted_symbols, promoted_symbol_candidate.get_symbol_key()) {
+            if let Some(conflicting_symbol_index) = find_symbol_claim_index_by_key(&existing_symbol_claims, promoted_symbol_candidate.get_symbol_key()) {
                 if !self.overwrite_conflicting_symbols {
                     conflicts.push(ProjectItemsPromoteSymbolConflict {
                         project_item_path: project_item_path.clone(),
                         symbol_key: promoted_symbol_candidate.get_symbol_key().to_string(),
-                        existing_display_name: existing_rooted_symbols[conflicting_symbol_index]
+                        existing_display_name: existing_symbol_claims[conflicting_symbol_index]
                             .get_display_name()
                             .to_string(),
-                        existing_locator_display: existing_rooted_symbols[conflicting_symbol_index]
-                            .get_root_locator()
+                        existing_locator_display: existing_symbol_claims[conflicting_symbol_index]
+                            .get_locator()
                             .to_string(),
                         requested_display_name: promoted_symbol_candidate.get_display_name().to_string(),
                     });
                     continue;
                 }
 
-                existing_rooted_symbols[conflicting_symbol_index] = promoted_symbol_candidate.clone();
+                existing_symbol_claims[conflicting_symbol_index] = promoted_symbol_candidate.clone();
             } else {
-                existing_rooted_symbols.push(promoted_symbol_candidate.clone());
+                existing_symbol_claims.push(promoted_symbol_candidate.clone());
             }
 
             did_mutate_symbol_catalog = true;
@@ -146,7 +146,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             let project_info = opened_project.get_project_info_mut();
             let updated_project_symbol_catalog = {
                 let project_symbol_catalog = project_info.get_project_symbol_catalog_mut();
-                project_symbol_catalog.set_rooted_symbols(existing_rooted_symbols.clone());
+                project_symbol_catalog.set_symbol_claims(existing_symbol_claims.clone());
                 project_symbol_catalog.clone()
             };
             project_info.set_has_unsaved_changes(true);
@@ -196,16 +196,16 @@ fn build_promoted_symbol(
     project_symbol_catalog: &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog,
     project_item_path: &Path,
     project_item: &ProjectItem,
-) -> Option<ProjectRootSymbol> {
+) -> Option<ProjectSymbolClaim> {
     if !is_promotable_project_item(project_item) {
         return None;
     }
 
     let display_name = build_display_name(project_item, project_item_path);
     let struct_layout_id = resolve_project_item_struct_layout_id(project_symbol_catalog, project_item)?;
-    let root_locator = resolve_project_item_root_locator(engine_execution_context, project_symbol_catalog, project_item)?;
+    let locator = resolve_project_item_locator(engine_execution_context, project_symbol_catalog, project_item)?;
     let symbol_key = build_symbol_key(&display_name);
-    let mut promoted_symbol = ProjectRootSymbol::new(symbol_key, display_name, root_locator, struct_layout_id);
+    let mut promoted_symbol = ProjectSymbolClaim::new(symbol_key, display_name, locator, struct_layout_id);
 
     promoted_symbol
         .get_metadata_mut()
@@ -227,7 +227,7 @@ fn build_promoted_symbol(
 
 fn build_symbol_ref_project_item(
     source_project_item: &ProjectItem,
-    promoted_symbol: &ProjectRootSymbol,
+    promoted_symbol: &ProjectSymbolClaim,
 ) -> ProjectItem {
     let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item(
         source_project_item.get_field_name().as_str(),
@@ -248,7 +248,7 @@ fn build_symbol_ref_project_item(
     };
 
     ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(&mut symbol_ref_project_item, &freeze_display_value);
-    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(&mut symbol_ref_project_item, &promoted_symbol.get_root_locator().to_string());
+    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(&mut symbol_ref_project_item, &promoted_symbol.get_locator().to_string());
 
     symbol_ref_project_item
 }
@@ -298,24 +298,24 @@ fn build_symbol_key(display_name: &str) -> String {
     format!("sym.{}", sanitize_symbol_key_component(display_name))
 }
 
-fn find_exact_rooted_symbol<'a>(
-    existing_rooted_symbols: &'a [ProjectRootSymbol],
-    promoted_symbol: &ProjectRootSymbol,
-) -> Option<&'a ProjectRootSymbol> {
-    existing_rooted_symbols.iter().find(|existing_rooted_symbol| {
-        existing_rooted_symbol.get_display_name() == promoted_symbol.get_display_name()
-            && existing_rooted_symbol.get_struct_layout_id() == promoted_symbol.get_struct_layout_id()
-            && existing_rooted_symbol.get_root_locator() == promoted_symbol.get_root_locator()
+fn find_exact_symbol_claim<'a>(
+    existing_symbol_claims: &'a [ProjectSymbolClaim],
+    promoted_symbol: &ProjectSymbolClaim,
+) -> Option<&'a ProjectSymbolClaim> {
+    existing_symbol_claims.iter().find(|existing_symbol_claim| {
+        existing_symbol_claim.get_display_name() == promoted_symbol.get_display_name()
+            && existing_symbol_claim.get_struct_layout_id() == promoted_symbol.get_struct_layout_id()
+            && existing_symbol_claim.get_locator() == promoted_symbol.get_locator()
     })
 }
 
-fn find_rooted_symbol_index_by_key(
-    existing_rooted_symbols: &[ProjectRootSymbol],
+fn find_symbol_claim_index_by_key(
+    existing_symbol_claims: &[ProjectSymbolClaim],
     symbol_key: &str,
 ) -> Option<usize> {
-    existing_rooted_symbols
+    existing_symbol_claims
         .iter()
-        .position(|existing_rooted_symbol| existing_rooted_symbol.get_symbol_key() == symbol_key)
+        .position(|existing_symbol_claim| existing_symbol_claim.get_symbol_key() == symbol_key)
 }
 
 fn resolve_project_item_path(
@@ -356,8 +356,8 @@ mod tests {
             project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory,
             project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer,
             project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef, project_items::project_item::ProjectItem,
-            project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_root_symbol::ProjectRootSymbol,
-            project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog,
+            project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog,
+            project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
         },
         structs::valued_struct::ValuedStruct,
     };
@@ -494,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn promote_symbol_request_persists_address_item_as_rooted_symbol() {
+    fn promote_symbol_request_persists_address_item_as_symbol_claim() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
         let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
@@ -522,22 +522,22 @@ mod tests {
         assert!(promote_symbol_response.conflicts.is_empty());
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
 
-        assert_eq!(rooted_symbols.len(), 1);
-        assert_eq!(rooted_symbols[0].get_symbol_key(), "sym.health");
-        assert_eq!(rooted_symbols[0].get_display_name(), "Health");
+        assert_eq!(symbol_claims.len(), 1);
+        assert_eq!(symbol_claims[0].get_symbol_key(), "sym.health");
+        assert_eq!(symbol_claims[0].get_display_name(), "Health");
         assert_eq!(
-            rooted_symbols[0].get_root_locator(),
-            &ProjectRootSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
+            symbol_claims[0].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
         );
-        assert_eq!(rooted_symbols[0].get_struct_layout_id(), "u8");
-        assert_eq!(rooted_symbols[0].get_metadata().get("source.project_item_type"), Some(&String::from("address")));
+        assert_eq!(symbol_claims[0].get_struct_layout_id(), "u8");
+        assert_eq!(symbol_claims[0].get_metadata().get("source.project_item_type"), Some(&String::from("address")));
         assert_eq!(
-            rooted_symbols[0].get_metadata().get("source.project_item_path"),
+            symbol_claims[0].get_metadata().get("source.project_item_path"),
             Some(&project_item_path.to_string_lossy().into_owned())
         );
         let promoted_project_item = loaded_project
@@ -555,7 +555,7 @@ mod tests {
             .lock()
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
-        assert_eq!(captured_project_symbol_catalogs[0].get_rooted_symbols(), rooted_symbols);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
     }
 
     #[test]
@@ -593,26 +593,26 @@ mod tests {
         assert!(promote_symbol_response.conflicts.is_empty());
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
 
-        assert_eq!(rooted_symbols.len(), 1);
-        assert_eq!(rooted_symbols[0].get_root_locator(), &ProjectRootSymbolLocator::new_absolute_address(0x2020));
-        assert_eq!(rooted_symbols[0].get_struct_layout_id(), "u32");
-        assert_eq!(rooted_symbols[0].get_metadata().get("source.project_item_type"), Some(&String::from("pointer")));
+        assert_eq!(symbol_claims.len(), 1);
+        assert_eq!(symbol_claims[0].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x2020));
+        assert_eq!(symbol_claims[0].get_struct_layout_id(), "u32");
+        assert_eq!(symbol_claims[0].get_metadata().get("source.project_item_type"), Some(&String::from("pointer")));
         assert_eq!(
-            rooted_symbols[0].get_metadata().get("source.pointer_root"),
+            symbol_claims[0].get_metadata().get("source.pointer_root"),
             Some(&String::from("game.exe+0x1000"))
         );
-        assert_eq!(rooted_symbols[0].get_metadata().get("source.pointer_offsets"), Some(&String::from("[32]")));
+        assert_eq!(symbol_claims[0].get_metadata().get("source.pointer_offsets"), Some(&String::from("[32]")));
         assert_eq!(
-            rooted_symbols[0].get_metadata().get("source.pointer_size"),
+            symbol_claims[0].get_metadata().get("source.pointer_size"),
             Some(&PointerScanPointerSize::Pointer64.to_string())
         );
         assert_eq!(
-            rooted_symbols[0]
+            symbol_claims[0]
                 .get_metadata()
                 .get("source.evaluated_pointer_path"),
             Some(&String::from("game.exe+0x1000 -> 0x2020"))
@@ -625,13 +625,13 @@ mod tests {
 
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(promoted_project_item), "sym.player.gold");
         assert_eq!(
-            rooted_symbols[0]
+            symbol_claims[0]
                 .get_metadata()
                 .get("source.pointer_root_module"),
             Some(&String::from("game.exe"))
         );
         assert_eq!(
-            rooted_symbols[0]
+            symbol_claims[0]
                 .get_metadata()
                 .get("source.pointer_root_offset"),
             Some(&String::from("0x1000"))
@@ -646,7 +646,7 @@ mod tests {
         project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .set_rooted_symbols(vec![ProjectRootSymbol::new_module_offset(
+            .set_symbol_claims(vec![ProjectSymbolClaim::new_module_offset(
                 String::from("sym.health"),
                 String::from("Health"),
                 String::from("game.exe"),
@@ -680,16 +680,16 @@ mod tests {
         assert!(promote_symbol_response.conflicts.is_empty());
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
         let promoted_project_item = loaded_project
             .get_project_items()
             .get(&ProjectItemRef::new(project_item_path))
             .expect("Expected project item to remain in project after reuse.");
 
-        assert_eq!(rooted_symbols.len(), 1);
+        assert_eq!(symbol_claims.len(), 1);
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(promoted_project_item), "sym.health");
         assert!(
             captured_project_symbol_catalogs
@@ -707,7 +707,7 @@ mod tests {
         project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .set_rooted_symbols(vec![ProjectRootSymbol::new_module_offset(
+            .set_symbol_claims(vec![ProjectSymbolClaim::new_module_offset(
                 String::from("sym.health"),
                 String::from("Health"),
                 String::from("game.exe"),
@@ -750,7 +750,7 @@ mod tests {
         project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .set_rooted_symbols(vec![ProjectRootSymbol::new_module_offset(
+            .set_symbol_claims(vec![ProjectSymbolClaim::new_module_offset(
                 String::from("sym.health"),
                 String::from("Health"),
                 String::from("game.exe"),
@@ -784,15 +784,15 @@ mod tests {
         assert!(promote_symbol_response.conflicts.is_empty());
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
 
-        assert_eq!(rooted_symbols.len(), 1);
+        assert_eq!(symbol_claims.len(), 1);
         assert_eq!(
-            rooted_symbols[0].get_root_locator(),
-            &ProjectRootSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
+            symbol_claims[0].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
         );
         assert_eq!(
             loaded_project

@@ -51,7 +51,7 @@ pub enum ProjectItemsCommand {
         #[structopt(flatten)]
         project_items_move_request: ProjectItemsMoveRequest,
     },
-    /// Promotes project items into rooted symbols.
+    /// Promotes project items into symbol claims.
     PromoteSymbol {
         #[structopt(flatten)]
         project_items_promote_symbol_request: ProjectItemsPromoteSymbolRequest,

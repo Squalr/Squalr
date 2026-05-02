@@ -225,21 +225,17 @@ fn refresh_symbol_ref_project_item_display_value(
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
-    let Some(rooted_symbol) = project_symbol_catalog.find_rooted_symbol(&symbol_key) else {
+    let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(&symbol_key) else {
         ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
         ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, "");
         return;
     };
 
-    let address = rooted_symbol.get_root_locator().get_focus_address();
-    let module_name = rooted_symbol
-        .get_root_locator()
-        .get_focus_module_name()
-        .to_string();
-    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, &rooted_symbol.get_root_locator().to_string());
+    let address = symbol_claim.get_locator().get_focus_address();
+    let module_name = symbol_claim.get_locator().get_focus_module_name().to_string();
+    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, &symbol_claim.get_locator().to_string());
 
-    let Some(project_item_preview_read_definition) =
-        build_project_item_preview_read_definition(engine_unprivileged_state, rooted_symbol.get_struct_layout_id())
+    let Some(project_item_preview_read_definition) = build_project_item_preview_read_definition(engine_unprivileged_state, symbol_claim.get_struct_layout_id())
     else {
         ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
         return;
@@ -668,7 +664,7 @@ mod tests {
         project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::path::PathBuf;
@@ -1194,9 +1190,9 @@ mod tests {
             create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x1234), true)
         });
         let engine_execution_context = create_execution_context(mock_memory_read_bindings);
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
-            vec![ProjectRootSymbol::new_module_offset(
+            vec![ProjectSymbolClaim::new_module_offset(
                 String::from("sym.gold"),
                 String::from("Gold"),
                 String::from("game.exe"),

@@ -1,4 +1,4 @@
-use crate::command_executors::project_items::project_item_symbol_resolution::resolve_project_item_rooted_symbol;
+use crate::command_executors::project_items::project_item_symbol_resolution::resolve_project_item_symbol_claim;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::{
     ProjectItemSymbolRefConversionTarget, ProjectItemsConvertSymbolRefRequest,
@@ -15,8 +15,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
-use squalr_engine_api::structures::projects::project_root_symbol_locator::ProjectRootSymbolLocator;
+use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
+use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -71,11 +71,11 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsConvertSymbolRefRequest 
                 continue;
             };
 
-            let Some(rooted_symbol) = resolve_project_item_rooted_symbol(&project_symbol_catalog, &project_item).cloned() else {
+            let Some(symbol_claim) = resolve_project_item_symbol_claim(&project_symbol_catalog, &project_item).cloned() else {
                 log::warn!("Skipping symbol-ref conversion for non-symbol project item: {:?}", project_item_path);
                 continue;
             };
-            let Some(replacement_project_item) = build_replacement_project_item(&project_item, &rooted_symbol, self.target) else {
+            let Some(replacement_project_item) = build_replacement_project_item(&project_item, &symbol_claim, self.target) else {
                 log::warn!(
                     "Skipping symbol-ref conversion for project item without {:?} conversion data: {:?}",
                     self.target,
@@ -119,23 +119,23 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsConvertSymbolRefRequest 
 
 fn build_replacement_project_item(
     source_project_item: &ProjectItem,
-    rooted_symbol: &ProjectRootSymbol,
+    symbol_claim: &ProjectSymbolClaim,
     conversion_target: ProjectItemSymbolRefConversionTarget,
 ) -> Option<ProjectItem> {
-    match resolve_conversion_target(rooted_symbol, conversion_target) {
-        ProjectItemSymbolRefConversionTarget::Address => Some(build_address_project_item(source_project_item, rooted_symbol)),
-        ProjectItemSymbolRefConversionTarget::Pointer => build_pointer_project_item(source_project_item, rooted_symbol),
+    match resolve_conversion_target(symbol_claim, conversion_target) {
+        ProjectItemSymbolRefConversionTarget::Address => Some(build_address_project_item(source_project_item, symbol_claim)),
+        ProjectItemSymbolRefConversionTarget::Pointer => build_pointer_project_item(source_project_item, symbol_claim),
         ProjectItemSymbolRefConversionTarget::Inferred => None,
     }
 }
 
 fn resolve_conversion_target(
-    rooted_symbol: &ProjectRootSymbol,
+    symbol_claim: &ProjectSymbolClaim,
     conversion_target: ProjectItemSymbolRefConversionTarget,
 ) -> ProjectItemSymbolRefConversionTarget {
     match conversion_target {
         ProjectItemSymbolRefConversionTarget::Inferred => {
-            if has_pointer_origin_metadata(rooted_symbol) {
+            if has_pointer_origin_metadata(symbol_claim) {
                 ProjectItemSymbolRefConversionTarget::Pointer
             } else {
                 ProjectItemSymbolRefConversionTarget::Address
@@ -147,18 +147,18 @@ fn resolve_conversion_target(
 
 fn build_address_project_item(
     source_project_item: &ProjectItem,
-    rooted_symbol: &ProjectRootSymbol,
+    symbol_claim: &ProjectSymbolClaim,
 ) -> ProjectItem {
-    let (address, module_name) = match rooted_symbol.get_root_locator() {
-        ProjectRootSymbolLocator::AbsoluteAddress { address } => (*address, String::new()),
-        ProjectRootSymbolLocator::ModuleOffset { module_name, offset } => (*offset, module_name.clone()),
+    let (address, module_name) = match symbol_claim.get_locator() {
+        ProjectSymbolLocator::AbsoluteAddress { address } => (*address, String::new()),
+        ProjectSymbolLocator::ModuleOffset { module_name, offset } => (*offset, module_name.clone()),
     };
     let mut address_project_item = ProjectItemTypeAddress::new_project_item(
         source_project_item.get_field_name().as_str(),
         address,
         &module_name,
         &source_project_item.get_field_description(),
-        DataValue::new(DataTypeRef::new(rooted_symbol.get_struct_layout_id()), Vec::new()),
+        DataValue::new(DataTypeRef::new(symbol_claim.get_struct_layout_id()), Vec::new()),
     );
 
     if source_project_item.get_is_activated() {
@@ -175,14 +175,14 @@ fn build_address_project_item(
 
 fn build_pointer_project_item(
     source_project_item: &ProjectItem,
-    rooted_symbol: &ProjectRootSymbol,
+    symbol_claim: &ProjectSymbolClaim,
 ) -> Option<ProjectItem> {
-    let pointer = build_source_pointer(rooted_symbol)?;
+    let pointer = build_source_pointer(symbol_claim)?;
     let mut pointer_project_item = ProjectItemTypePointer::new_project_item(
         source_project_item.get_field_name().as_str(),
         &pointer,
         &source_project_item.get_field_description(),
-        rooted_symbol.get_struct_layout_id(),
+        symbol_claim.get_struct_layout_id(),
     );
 
     if source_project_item.get_is_activated() {
@@ -195,7 +195,7 @@ fn build_pointer_project_item(
     );
     ProjectItemTypePointer::set_field_evaluated_pointer_path(
         &mut pointer_project_item,
-        rooted_symbol
+        symbol_claim
             .get_metadata()
             .get("source.evaluated_pointer_path")
             .map(String::as_str)
@@ -205,41 +205,41 @@ fn build_pointer_project_item(
     Some(pointer_project_item)
 }
 
-fn build_source_pointer(rooted_symbol: &ProjectRootSymbol) -> Option<Pointer> {
-    let root_pointer_size = rooted_symbol
+fn build_source_pointer(symbol_claim: &ProjectSymbolClaim) -> Option<Pointer> {
+    let root_pointer_size = symbol_claim
         .get_metadata()
         .get("source.pointer_size")
         .and_then(|pointer_size| pointer_size.parse::<PointerScanPointerSize>().ok())
         .unwrap_or_default();
-    let pointer_offsets = rooted_symbol
+    let pointer_offsets = symbol_claim
         .get_metadata()
         .get("source.pointer_offsets")
         .and_then(|pointer_offsets| serde_json::from_str::<Vec<i64>>(pointer_offsets).ok())?;
-    let (root_address, root_module_name) = resolve_source_pointer_root(rooted_symbol)?;
+    let (root_address, root_module_name) = resolve_source_pointer_root(symbol_claim)?;
 
     Some(Pointer::new_with_size(root_address, pointer_offsets, root_module_name, root_pointer_size))
 }
 
-fn has_pointer_origin_metadata(rooted_symbol: &ProjectRootSymbol) -> bool {
-    let rooted_symbol_metadata = rooted_symbol.get_metadata();
+fn has_pointer_origin_metadata(symbol_claim: &ProjectSymbolClaim) -> bool {
+    let symbol_claim_metadata = symbol_claim.get_metadata();
 
-    rooted_symbol_metadata.contains_key("source.pointer_offsets")
-        && (rooted_symbol_metadata.contains_key("source.pointer_root")
-            || (rooted_symbol_metadata.contains_key("source.pointer_root_module") && rooted_symbol_metadata.contains_key("source.pointer_root_offset")))
+    symbol_claim_metadata.contains_key("source.pointer_offsets")
+        && (symbol_claim_metadata.contains_key("source.pointer_root")
+            || (symbol_claim_metadata.contains_key("source.pointer_root_module") && symbol_claim_metadata.contains_key("source.pointer_root_offset")))
 }
 
-fn resolve_source_pointer_root(rooted_symbol: &ProjectRootSymbol) -> Option<(u64, String)> {
-    let rooted_symbol_metadata = rooted_symbol.get_metadata();
+fn resolve_source_pointer_root(symbol_claim: &ProjectSymbolClaim) -> Option<(u64, String)> {
+    let symbol_claim_metadata = symbol_claim.get_metadata();
 
-    if let Some(root_module_name) = rooted_symbol_metadata.get("source.pointer_root_module") {
-        let root_offset = rooted_symbol_metadata
+    if let Some(root_module_name) = symbol_claim_metadata.get("source.pointer_root_module") {
+        let root_offset = symbol_claim_metadata
             .get("source.pointer_root_offset")
             .and_then(|root_offset| parse_u64_string(root_offset))?;
 
         return Some((root_offset, root_module_name.clone()));
     }
 
-    rooted_symbol_metadata
+    symbol_claim_metadata
         .get("source.pointer_root")
         .and_then(|pointer_root| parse_pointer_root_display_text(pointer_root))
 }
@@ -293,8 +293,8 @@ mod tests {
         project::Project, project_info::ProjectInfo, project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory,
         project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer,
         project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef, project_items::project_item::ProjectItem,
-        project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_root_symbol::ProjectRootSymbol,
-        project_symbol_catalog::ProjectSymbolCatalog,
+        project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog,
+        project_symbol_claim::ProjectSymbolClaim,
     };
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::{
@@ -332,10 +332,10 @@ mod tests {
     }
 
     #[test]
-    fn convert_symbol_ref_request_rebuilds_address_item_from_rooted_symbol() {
+    fn convert_symbol_ref_request_rebuilds_address_item_from_symbol_claim() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "sym.health", "");
-        let rooted_symbol = ProjectRootSymbol::new_module_offset(
+        let symbol_claim = ProjectSymbolClaim::new_module_offset(
             String::from("sym.health"),
             String::from("Health"),
             String::from("game.exe"),
@@ -346,7 +346,7 @@ mod tests {
             temp_directory.path(),
             "health.json",
             symbol_ref_project_item,
-            ProjectSymbolCatalog::new_with_rooted_symbols(Vec::new(), vec![rooted_symbol]),
+            ProjectSymbolCatalog::new_with_symbol_claims(Vec::new(), vec![symbol_claim]),
         );
         let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
 
@@ -395,27 +395,27 @@ mod tests {
     fn convert_symbol_ref_request_rebuilds_pointer_item_from_pointer_metadata() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.player.gold", "");
-        let mut rooted_symbol = ProjectRootSymbol::new_absolute_address(String::from("sym.player.gold"), String::from("Gold"), 0x2020, String::from("u32"));
-        rooted_symbol
+        let mut symbol_claim = ProjectSymbolClaim::new_absolute_address(String::from("sym.player.gold"), String::from("Gold"), 0x2020, String::from("u32"));
+        symbol_claim
             .get_metadata_mut()
             .insert(String::from("source.pointer_root_module"), String::from("game.exe"));
-        rooted_symbol
+        symbol_claim
             .get_metadata_mut()
             .insert(String::from("source.pointer_root_offset"), String::from("0x1000"));
-        rooted_symbol
+        symbol_claim
             .get_metadata_mut()
             .insert(String::from("source.pointer_offsets"), String::from("[32]"));
-        rooted_symbol
+        symbol_claim
             .get_metadata_mut()
             .insert(String::from("source.pointer_size"), String::from("u64"));
-        rooted_symbol
+        symbol_claim
             .get_metadata_mut()
             .insert(String::from("source.evaluated_pointer_path"), String::from("game.exe+0x1000 -> 0x2020"));
         let (project, project_item_path) = create_project_with_symbol_ref_item(
             temp_directory.path(),
             "gold.json",
             symbol_ref_project_item,
-            ProjectSymbolCatalog::new_with_rooted_symbols(Vec::new(), vec![rooted_symbol]),
+            ProjectSymbolCatalog::new_with_symbol_claims(Vec::new(), vec![symbol_claim]),
         );
         let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
 
@@ -463,12 +463,12 @@ mod tests {
     fn convert_symbol_ref_request_skips_pointer_conversion_without_pointer_metadata() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "sym.health", "");
-        let rooted_symbol = ProjectRootSymbol::new_absolute_address(String::from("sym.health"), String::from("Health"), 0x1234, String::from("u8"));
+        let symbol_claim = ProjectSymbolClaim::new_absolute_address(String::from("sym.health"), String::from("Health"), 0x1234, String::from("u8"));
         let (project, project_item_path) = create_project_with_symbol_ref_item(
             temp_directory.path(),
             "health.json",
             symbol_ref_project_item,
-            ProjectSymbolCatalog::new_with_rooted_symbols(Vec::new(), vec![rooted_symbol]),
+            ProjectSymbolCatalog::new_with_symbol_claims(Vec::new(), vec![symbol_claim]),
         );
         let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
 

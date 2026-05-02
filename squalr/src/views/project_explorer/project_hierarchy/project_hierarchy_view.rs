@@ -52,8 +52,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
-use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
-use squalr_engine_api::structures::projects::project_root_symbol_locator::ProjectRootSymbolLocator;
+use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
+use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
@@ -1497,7 +1497,7 @@ impl Widget for ProjectHierarchyView {
                         user_interface.add_space(12.0);
                         user_interface.vertical_centered(|user_interface| {
                             user_interface.label(
-                                RichText::new("Overwrite conflicting rooted symbol(s)?")
+                                RichText::new("Overwrite conflicting symbol claim(s)?")
                                     .font(theme.font_library.font_noto_sans.font_normal.clone())
                                     .color(theme.foreground),
                             );
@@ -2405,8 +2405,8 @@ impl ProjectHierarchyView {
                         let preview_path = if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
                             query_result.evaluated_pointer_path.clone()
                         } else if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-                            Self::resolve_project_rooted_symbol(project_hierarchy_view_data.opened_project_info.as_ref(), project_item)
-                                .map(|rooted_symbol| rooted_symbol.get_root_locator().to_string())
+                            Self::resolve_project_symbol_claim(project_hierarchy_view_data.opened_project_info.as_ref(), project_item)
+                                .map(|symbol_claim| symbol_claim.get_locator().to_string())
                                 .unwrap_or_default()
                         } else {
                             String::new()
@@ -2674,14 +2674,11 @@ impl ProjectHierarchyView {
         }
 
         if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let rooted_symbol = Self::resolve_project_rooted_symbol(opened_project_info, project_item)?;
+            let symbol_claim = Self::resolve_project_symbol_claim(opened_project_info, project_item)?;
 
             return Some(MemoryWriteRequest {
-                address: rooted_symbol.get_root_locator().get_focus_address(),
-                module_name: rooted_symbol
-                    .get_root_locator()
-                    .get_focus_module_name()
-                    .to_string(),
+                address: symbol_claim.get_locator().get_focus_address(),
+                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
                 value: edited_data_value.get_value_bytes().clone(),
             });
         }
@@ -2738,18 +2735,15 @@ impl ProjectHierarchyView {
         }
 
         if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let Some(rooted_symbol) = Self::resolve_project_rooted_symbol(opened_project_info, project_item) else {
+            let Some(symbol_claim) = Self::resolve_project_symbol_claim(opened_project_info, project_item) else {
                 return Vec::new();
             };
 
             return vec![PointerScannerContextAction::Address {
                 label: "Open in Pointer Scan",
-                address: rooted_symbol.get_root_locator().get_focus_address(),
-                module_name: rooted_symbol
-                    .get_root_locator()
-                    .get_focus_module_name()
-                    .to_string(),
-                data_type_id: rooted_symbol.get_struct_layout_id().to_string(),
+                address: symbol_claim.get_locator().get_focus_address(),
+                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
+                data_type_id: symbol_claim.get_struct_layout_id().to_string(),
             }];
         }
 
@@ -2765,7 +2759,7 @@ impl ProjectHierarchyView {
         project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
             || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
             || (project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
-                && Self::resolve_project_rooted_symbol(opened_project_info, project_item).is_some())
+                && Self::resolve_project_symbol_claim(opened_project_info, project_item).is_some())
     }
 
     fn resolve_pointer_scanner_context_action(
@@ -2811,10 +2805,10 @@ impl ProjectHierarchyView {
             .collect::<Vec<_>>();
 
         if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            if let Some(rooted_symbol) = Self::resolve_project_rooted_symbol(opened_project_info, project_item) {
-                let (address, module_name) = match rooted_symbol.get_root_locator() {
-                    ProjectRootSymbolLocator::AbsoluteAddress { address } => (*address, String::new()),
-                    ProjectRootSymbolLocator::ModuleOffset { module_name, offset } => (*offset, module_name.clone()),
+            if let Some(symbol_claim) = Self::resolve_project_symbol_claim(opened_project_info, project_item) {
+                let (address, module_name) = match symbol_claim.get_locator() {
+                    ProjectSymbolLocator::AbsoluteAddress { address } => (*address, String::new()),
+                    ProjectSymbolLocator::ModuleOffset { module_name, offset } => (*offset, module_name.clone()),
                 };
 
                 fields.push(
@@ -2825,7 +2819,7 @@ impl ProjectHierarchyView {
                         .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_MODULE.to_string(), true),
                 );
                 fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(rooted_symbol.get_struct_layout_id())
+                    DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim.get_struct_layout_id())
                         .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
                 );
             }
@@ -3135,8 +3129,7 @@ impl ProjectHierarchyView {
         }
 
         if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return Self::resolve_project_rooted_symbol(opened_project_info, project_item)
-                .map(|rooted_symbol| rooted_symbol.get_struct_layout_id().to_string());
+            return Self::resolve_project_symbol_claim(opened_project_info, project_item).map(|symbol_claim| symbol_claim.get_struct_layout_id().to_string());
         }
 
         None
@@ -3373,14 +3366,11 @@ impl ProjectHierarchyView {
         }
 
         if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let rooted_symbol = Self::resolve_project_rooted_symbol(opened_project_info, project_item)?;
+            let symbol_claim = Self::resolve_project_symbol_claim(opened_project_info, project_item)?;
 
             return Some((
-                rooted_symbol.get_root_locator().get_focus_address(),
-                rooted_symbol
-                    .get_root_locator()
-                    .get_focus_module_name()
-                    .to_string(),
+                symbol_claim.get_locator().get_focus_address(),
+                symbol_claim.get_locator().get_focus_module_name().to_string(),
             ));
         }
 
@@ -3432,15 +3422,12 @@ impl ProjectHierarchyView {
         }
 
         if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let rooted_symbol = Self::resolve_project_rooted_symbol(opened_project_info, project_item)?;
+            let symbol_claim = Self::resolve_project_symbol_claim(opened_project_info, project_item)?;
 
             return Some(VirtualSnapshotQuery::Address {
                 query_id,
-                address: rooted_symbol.get_root_locator().get_focus_address(),
-                module_name: rooted_symbol
-                    .get_root_locator()
-                    .get_focus_module_name()
-                    .to_string(),
+                address: symbol_claim.get_locator().get_focus_address(),
+                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
                 symbolic_struct_definition,
             });
         }
@@ -3512,10 +3499,10 @@ impl ProjectHierarchyView {
             .unwrap_or_default()
     }
 
-    fn resolve_project_rooted_symbol<'a>(
+    fn resolve_project_symbol_claim<'a>(
         opened_project_info: Option<&'a ProjectInfo>,
         project_item: &ProjectItem,
-    ) -> Option<&'a ProjectRootSymbol> {
+    ) -> Option<&'a ProjectSymbolClaim> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
@@ -3525,7 +3512,7 @@ impl ProjectHierarchyView {
         let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
         let project_symbol_catalog = opened_project_info?.get_project_symbol_catalog();
 
-        project_symbol_catalog.find_rooted_symbol(&symbol_key)
+        project_symbol_catalog.find_symbol_claim(&symbol_key)
     }
 
     fn resolve_project_item_symbolic_struct_namespace(
@@ -3553,8 +3540,7 @@ impl ProjectHierarchyView {
         }
 
         if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return Self::resolve_project_rooted_symbol(opened_project_info, project_item)
-                .map(|rooted_symbol| rooted_symbol.get_struct_layout_id().to_string());
+            return Self::resolve_project_symbol_claim(opened_project_info, project_item).map(|symbol_claim| symbol_claim.get_struct_layout_id().to_string());
         }
 
         None

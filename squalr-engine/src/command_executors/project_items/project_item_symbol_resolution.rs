@@ -11,9 +11,9 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
-use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
-use squalr_engine_api::structures::projects::project_root_symbol_locator::ProjectRootSymbolLocator;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
+use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
 use std::sync::{Arc, mpsc};
 
@@ -36,13 +36,13 @@ pub fn resolve_project_item_symbol_ref_key(project_item: &ProjectItem) -> Option
     if symbol_key.trim().is_empty() { None } else { Some(symbol_key) }
 }
 
-pub fn resolve_project_item_rooted_symbol<'a>(
+pub fn resolve_project_item_symbol_claim<'a>(
     project_symbol_catalog: &'a ProjectSymbolCatalog,
     project_item: &ProjectItem,
-) -> Option<&'a ProjectRootSymbol> {
+) -> Option<&'a ProjectSymbolClaim> {
     let symbol_key = resolve_project_item_symbol_ref_key(project_item)?;
 
-    project_symbol_catalog.find_rooted_symbol(&symbol_key)
+    project_symbol_catalog.find_symbol_claim(&symbol_key)
 }
 
 pub fn resolve_project_item_struct_layout_id(
@@ -64,7 +64,7 @@ pub fn resolve_project_item_struct_layout_id(
     }
 
     if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-        return resolve_project_item_rooted_symbol(project_symbol_catalog, project_item).map(|rooted_symbol| rooted_symbol.get_struct_layout_id().to_string());
+        return resolve_project_item_symbol_claim(project_symbol_catalog, project_item).map(|symbol_claim| symbol_claim.get_struct_layout_id().to_string());
     }
 
     None
@@ -88,11 +88,11 @@ pub fn resolve_project_item_type_id(project_item: &ProjectItem) -> Option<&'stat
     None
 }
 
-pub fn resolve_project_item_root_locator(
+pub fn resolve_project_item_locator(
     engine_execution_context: &Arc<dyn EngineExecutionContext>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &ProjectItem,
-) -> Option<ProjectRootSymbolLocator> {
+) -> Option<ProjectSymbolLocator> {
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
     if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
@@ -100,18 +100,18 @@ pub fn resolve_project_item_root_locator(
         let address = ProjectItemTypeAddress::get_field_address(&mut project_item);
         let module_name = ProjectItemTypeAddress::get_field_module(&mut project_item);
 
-        return Some(build_root_locator(address, &module_name));
+        return Some(build_locator(address, &module_name));
     }
 
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
         let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
         let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, &pointer)?;
 
-        return Some(build_root_locator(address, &module_name));
+        return Some(build_locator(address, &module_name));
     }
 
     if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-        return resolve_project_item_rooted_symbol(project_symbol_catalog, project_item).map(|rooted_symbol| rooted_symbol.get_root_locator().clone());
+        return resolve_project_item_symbol_claim(project_symbol_catalog, project_item).map(|symbol_claim| symbol_claim.get_locator().clone());
     }
 
     None
@@ -133,14 +133,14 @@ pub fn resolve_pointer_runtime_target(
     Some((current_address, current_module_name))
 }
 
-fn build_root_locator(
+fn build_locator(
     address: u64,
     module_name: &str,
-) -> ProjectRootSymbolLocator {
+) -> ProjectSymbolLocator {
     if module_name.trim().is_empty() {
-        ProjectRootSymbolLocator::new_absolute_address(address)
+        ProjectSymbolLocator::new_absolute_address(address)
     } else {
-        ProjectRootSymbolLocator::new_module_offset(module_name.to_string(), address)
+        ProjectSymbolLocator::new_module_offset(module_name.to_string(), address)
     }
 }
 

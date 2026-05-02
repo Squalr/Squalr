@@ -119,31 +119,31 @@ pub fn build_visible_project_symbol_entry_rows(
     project_explorer_pane_state: &ProjectExplorerPaneState,
     viewport_capacity: usize,
 ) -> Vec<PaneEntryRow> {
-    let visible_rooted_symbol_range = build_selection_relative_viewport_range(
-        project_explorer_pane_state.rooted_symbols.len(),
-        project_explorer_pane_state.selected_rooted_symbol_index,
+    let visible_symbol_claim_range = build_selection_relative_viewport_range(
+        project_explorer_pane_state.symbol_claims.len(),
+        project_explorer_pane_state.selected_symbol_claim_index,
         viewport_capacity,
     );
-    let mut entry_rows = Vec::with_capacity(visible_rooted_symbol_range.len());
+    let mut entry_rows = Vec::with_capacity(visible_symbol_claim_range.len());
 
-    for visible_rooted_symbol_position in visible_rooted_symbol_range {
-        if let Some(rooted_symbol) = project_explorer_pane_state
-            .rooted_symbols
-            .get(visible_rooted_symbol_position)
+    for visible_symbol_claim_position in visible_symbol_claim_range {
+        if let Some(symbol_claim) = project_explorer_pane_state
+            .symbol_claims
+            .get(visible_symbol_claim_position)
         {
-            let is_selected_rooted_symbol = project_explorer_pane_state.selected_rooted_symbol_index == Some(visible_rooted_symbol_position);
+            let is_selected_symbol_claim = project_explorer_pane_state.selected_symbol_claim_index == Some(visible_symbol_claim_position);
             let marker_text = "@".to_string();
-            let primary_text = rooted_symbol.get_display_name().to_string();
+            let primary_text = symbol_claim.get_display_name().to_string();
             let secondary_text = Some(format!(
                 "{} | {} | {}",
-                rooted_symbol.get_struct_layout_id(),
-                rooted_symbol.get_root_locator(),
-                rooted_symbol.get_symbol_key()
+                symbol_claim.get_struct_layout_id(),
+                symbol_claim.get_locator(),
+                symbol_claim.get_symbol_key()
             ));
 
             if project_explorer_pane_state.focus_target != ProjectExplorerFocusTarget::ProjectSymbols {
                 entry_rows.push(PaneEntryRow::disabled(marker_text, primary_text, secondary_text));
-            } else if is_selected_rooted_symbol {
+            } else if is_selected_symbol_claim {
                 entry_rows.push(PaneEntryRow::selected(marker_text, primary_text, secondary_text));
             } else {
                 entry_rows.push(PaneEntryRow::normal(marker_text, primary_text, secondary_text));
@@ -158,7 +158,7 @@ pub fn build_visible_project_symbol_entry_rows(
 mod tests {
     use super::{build_visible_project_item_entry_rows, build_visible_project_symbol_entry_rows};
     use crate::views::project_explorer::pane_state::{ProjectExplorerFocusTarget, ProjectExplorerPaneState, ProjectHierarchyEntry};
-    use squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol;
+    use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
     use std::path::PathBuf;
 
     #[test]
@@ -183,11 +183,11 @@ mod tests {
     }
 
     #[test]
-    fn rooted_symbol_rows_show_type_locator_and_key() {
+    fn symbol_claim_rows_show_type_locator_and_key() {
         let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
         project_explorer_pane_state.focus_target = ProjectExplorerFocusTarget::ProjectSymbols;
-        project_explorer_pane_state.selected_rooted_symbol_index = Some(0);
-        project_explorer_pane_state.rooted_symbols = vec![ProjectRootSymbol::new_absolute_address(
+        project_explorer_pane_state.selected_symbol_claim_index = Some(0);
+        project_explorer_pane_state.symbol_claims = vec![ProjectSymbolClaim::new_absolute_address(
             String::from("sym.player"),
             String::from("Player"),
             0x1234,

@@ -242,7 +242,7 @@ impl AppShell {
             .project_explorer_pane_state
             .is_awaiting_project_symbol_list_response = true;
         if should_update_status_message {
-            self.app_state.project_explorer_pane_state.status_message = "Refreshing rooted symbols.".to_string();
+            self.app_state.project_explorer_pane_state.status_message = "Refreshing symbol claims.".to_string();
         }
 
         let project_symbols_list_request = ProjectSymbolsListRequest::default();
@@ -253,16 +253,16 @@ impl AppShell {
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
             Ok(project_symbols_list_response) => {
-                let rooted_symbol_count = project_symbols_list_response
+                let symbol_claim_count = project_symbols_list_response
                     .project_symbol_catalog
                     .as_ref()
-                    .map(|project_symbol_catalog| project_symbol_catalog.get_rooted_symbols().len())
+                    .map(|project_symbol_catalog| project_symbol_catalog.get_symbol_claims().len())
                     .unwrap_or(0);
                 self.app_state
                     .project_explorer_pane_state
                     .apply_project_symbols_list(project_symbols_list_response.project_symbol_catalog);
                 if should_update_status_message {
-                    self.app_state.project_explorer_pane_state.status_message = format!("Loaded {} rooted symbols.", rooted_symbol_count);
+                    self.app_state.project_explorer_pane_state.status_message = format!("Loaded {} symbol claims.", symbol_claim_count);
                 }
             }
             Err(receive_error) => {
@@ -806,7 +806,7 @@ impl AppShell {
             }
         };
 
-        self.app_state.project_explorer_pane_state.status_message = format!("Promoting {} to rooted symbol.", selected_project_item_path.display());
+        self.app_state.project_explorer_pane_state.status_message = format!("Promoting {} to symbol claim.", selected_project_item_path.display());
 
         let project_items_promote_symbol_request = ProjectItemsPromoteSymbolRequest {
             project_item_paths: vec![selected_project_item_path.clone()],
@@ -821,7 +821,7 @@ impl AppShell {
             Ok(project_items_promote_symbol_response) => {
                 if project_items_promote_symbol_response.success {
                     self.app_state.project_explorer_pane_state.status_message = format!(
-                        "Promoted {} rooted symbol(s), reused {}, conflicts {}.",
+                        "Promoted {} symbol claim(s), reused {}, conflicts {}.",
                         project_items_promote_symbol_response.promoted_symbol_count,
                         project_items_promote_symbol_response.reused_symbol_count,
                         project_items_promote_symbol_response.conflicts.len()
@@ -838,32 +838,32 @@ impl AppShell {
         }
     }
 
-    pub(super) fn delete_selected_rooted_symbol(
+    pub(super) fn delete_selected_symbol_claim(
         &mut self,
         squalr_engine: &mut SqualrEngine,
     ) {
-        let Some(selected_rooted_symbol) = self
+        let Some(selected_symbol_claim) = self
             .app_state
             .project_explorer_pane_state
-            .selected_rooted_symbol()
+            .selected_symbol_claim()
             .cloned()
         else {
-            self.app_state.project_explorer_pane_state.status_message = "No rooted symbol is selected for delete.".to_string();
+            self.app_state.project_explorer_pane_state.status_message = "No symbol claim is selected for delete.".to_string();
             return;
         };
 
         let engine_unprivileged_state = match squalr_engine.get_engine_unprivileged_state().as_ref() {
             Some(engine_unprivileged_state) => engine_unprivileged_state,
             None => {
-                self.app_state.project_explorer_pane_state.status_message = "No unprivileged engine state is available for rooted symbol delete.".to_string();
+                self.app_state.project_explorer_pane_state.status_message = "No unprivileged engine state is available for symbol claim delete.".to_string();
                 return;
             }
         };
 
-        self.app_state.project_explorer_pane_state.status_message = format!("Deleting rooted symbol '{}'.", selected_rooted_symbol.get_display_name());
+        self.app_state.project_explorer_pane_state.status_message = format!("Deleting symbol claim '{}'.", selected_symbol_claim.get_display_name());
 
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
-            symbol_keys: vec![selected_rooted_symbol.get_symbol_key().to_string()],
+            symbol_keys: vec![selected_symbol_claim.get_symbol_key().to_string()],
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_symbols_delete_request.send(engine_unprivileged_state, move |project_symbols_delete_response| {
@@ -874,14 +874,14 @@ impl AppShell {
             Ok(project_symbols_delete_response) => {
                 if project_symbols_delete_response.success {
                     self.app_state.project_explorer_pane_state.status_message =
-                        format!("Deleted {} rooted symbol(s).", project_symbols_delete_response.deleted_symbol_count);
+                        format!("Deleted {} symbol claim(s).", project_symbols_delete_response.deleted_symbol_count);
                     self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
                 } else {
-                    self.app_state.project_explorer_pane_state.status_message = "Rooted symbol delete request failed.".to_string();
+                    self.app_state.project_explorer_pane_state.status_message = "Symbol claim delete request failed.".to_string();
                 }
             }
             Err(receive_error) => {
-                self.app_state.project_explorer_pane_state.status_message = format!("Timed out waiting for rooted symbol delete response: {}", receive_error);
+                self.app_state.project_explorer_pane_state.status_message = format!("Timed out waiting for symbol claim delete response: {}", receive_error);
             }
         }
     }

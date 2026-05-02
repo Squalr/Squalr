@@ -221,14 +221,14 @@ impl StructEditorViewData {
             })
     }
 
-    pub fn count_rooted_symbol_usages(
+    pub fn count_symbol_claim_usages(
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
     ) -> usize {
         project_symbol_catalog
-            .get_rooted_symbols()
+            .get_symbol_claims()
             .iter()
-            .filter(|rooted_symbol| rooted_symbol.get_struct_layout_id() == struct_layout_id)
+            .filter(|symbol_claim| symbol_claim.get_struct_layout_id() == struct_layout_id)
             .count()
     }
 
@@ -348,9 +348,9 @@ impl StructEditorViewData {
 
         if let Some(original_layout_id) = draft.original_layout_id.as_deref() {
             if original_layout_id != resolved_struct_layout_descriptor.get_struct_layout_id() {
-                for rooted_symbol in updated_project_symbol_catalog.get_rooted_symbols_mut() {
-                    if rooted_symbol.get_struct_layout_id() == original_layout_id {
-                        rooted_symbol.set_struct_layout_id(
+                for symbol_claim in updated_project_symbol_catalog.get_symbol_claims_mut() {
+                    if symbol_claim.get_struct_layout_id() == original_layout_id {
+                        symbol_claim.set_struct_layout_id(
                             resolved_struct_layout_descriptor
                                 .get_struct_layout_id()
                                 .to_string(),
@@ -367,8 +367,8 @@ impl StructEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
     ) -> Result<ProjectSymbolCatalog, String> {
-        if Self::count_rooted_symbol_usages(project_symbol_catalog, struct_layout_id) > 0 {
-            return Err(String::from("Struct layouts that are still used by rooted symbols cannot be deleted."));
+        if Self::count_symbol_claim_usages(project_symbol_catalog, struct_layout_id) > 0 {
+            return Err(String::from("Struct layouts that are still used by symbol claims cannot be deleted."));
         }
 
         let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
@@ -408,12 +408,12 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
-        projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog},
+        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
 
     fn create_project_symbol_catalog() -> ProjectSymbolCatalog {
-        ProjectSymbolCatalog::new_with_rooted_symbols(
+        ProjectSymbolCatalog::new_with_symbol_claims(
             vec![StructLayoutDescriptor::new(
                 String::from("player.stats"),
                 SymbolicStructDefinition::new(
@@ -425,7 +425,7 @@ mod tests {
                     )],
                 ),
             )],
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
@@ -481,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_draft_to_catalog_renames_rooted_symbol_type_usage() {
+    fn apply_draft_to_catalog_renames_symbol_claim_type_usage() {
         let project_symbol_catalog = create_project_symbol_catalog();
         let draft = StructLayoutEditDraft {
             original_layout_id: Some(String::from("player.stats")),
@@ -503,9 +503,9 @@ mod tests {
         );
         assert_eq!(
             updated_project_symbol_catalog
-                .get_rooted_symbols()
+                .get_symbol_claims()
                 .first()
-                .map(|rooted_symbol| rooted_symbol.get_struct_layout_id()),
+                .map(|symbol_claim| symbol_claim.get_struct_layout_id()),
             Some("player.profile")
         );
     }

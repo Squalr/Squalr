@@ -3,7 +3,7 @@ use crate::command_executors::unprivileged_request_executor::UnprivilegedCommand
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_request::ProjectSymbolsCreateRequest;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_response::ProjectSymbolsCreateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::{project_root_symbol::ProjectRootSymbol, project_root_symbol_locator::ProjectRootSymbolLocator};
+use squalr_engine_api::structures::projects::{project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator};
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
@@ -23,14 +23,14 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             }
         };
         let Some(opened_project) = opened_project_guard.as_mut() else {
-            log::warn!("Cannot create rooted symbols without an opened project.");
+            log::warn!("Cannot create symbol claims without an opened project.");
             return ProjectSymbolsCreateResponse::default();
         };
         let Some(project_directory_path) = opened_project.get_project_info().get_project_directory() else {
             log::error!("Failed to resolve opened project directory for project-symbols create command.");
             return ProjectSymbolsCreateResponse::default();
         };
-        let Some(root_locator) = build_root_locator(self) else {
+        let Some(locator) = build_locator(self) else {
             log::warn!("Project-symbols create request did not provide a valid locator.");
             return ProjectSymbolsCreateResponse::default();
         };
@@ -41,23 +41,23 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             return ProjectSymbolsCreateResponse::default();
         }
 
-        let existing_rooted_symbols = opened_project
+        let existing_symbol_claims = opened_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols()
+            .get_symbol_claims()
             .to_vec();
-        let symbol_key = build_unique_symbol_key(trimmed_display_name, &existing_rooted_symbols);
-        let mut created_symbol = ProjectRootSymbol::new(
+        let symbol_key = build_unique_symbol_key(trimmed_display_name, &existing_symbol_claims);
+        let mut created_symbol = ProjectSymbolClaim::new(
             symbol_key.clone(),
             trimmed_display_name.to_string(),
-            root_locator,
+            locator,
             self.struct_layout_id.trim().to_string(),
         );
         *created_symbol.get_metadata_mut() = self.metadata.clone();
         opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .get_rooted_symbols_mut()
+            .get_symbol_claims_mut()
             .push(created_symbol);
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
@@ -71,9 +71,9 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
     }
 }
 
-fn build_root_locator(project_symbols_create_request: &ProjectSymbolsCreateRequest) -> Option<ProjectRootSymbolLocator> {
+fn build_locator(project_symbols_create_request: &ProjectSymbolsCreateRequest) -> Option<ProjectSymbolLocator> {
     if let Some(address) = project_symbols_create_request.address {
-        return Some(ProjectRootSymbolLocator::new_absolute_address(address));
+        return Some(ProjectSymbolLocator::new_absolute_address(address));
     }
 
     let module_name = project_symbols_create_request
@@ -83,7 +83,7 @@ fn build_root_locator(project_symbols_create_request: &ProjectSymbolsCreateReque
         .filter(|module_name| !module_name.is_empty())?;
     let offset = project_symbols_create_request.offset?;
 
-    Some(ProjectRootSymbolLocator::new_module_offset(module_name.to_string(), offset))
+    Some(ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset))
 }
 
 #[cfg(test)]
@@ -95,13 +95,13 @@ mod tests {
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
     use squalr_engine_api::structures::projects::{
-        project::Project, project_root_symbol_locator::ProjectRootSymbolLocator, project_symbol_catalog::ProjectSymbolCatalog,
+        project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_locator::ProjectSymbolLocator,
     };
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
     #[test]
-    fn create_project_symbol_request_persists_rooted_symbol_and_syncs_catalog() {
+    fn create_project_symbol_request_persists_symbol_claim_and_syncs_catalog() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let project = create_project_with_symbol_catalog(temp_directory.path(), ProjectSymbolCatalog::default());
         let mock_project_symbols_bindings = MockProjectSymbolsBindings::new();
@@ -129,23 +129,23 @@ mod tests {
         assert_eq!(project_symbols_create_response.created_symbol_key, "sym.player.manager");
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected created-symbol project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
 
-        assert_eq!(rooted_symbols.len(), 1);
-        assert_eq!(rooted_symbols[0].get_display_name(), "Player Manager");
-        assert_eq!(rooted_symbols[0].get_struct_layout_id(), "player.manager");
+        assert_eq!(symbol_claims.len(), 1);
+        assert_eq!(symbol_claims[0].get_display_name(), "Player Manager");
+        assert_eq!(symbol_claims[0].get_struct_layout_id(), "player.manager");
         assert_eq!(
-            rooted_symbols[0].get_root_locator(),
-            &ProjectRootSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
+            symbol_claims[0].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x1234)
         );
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
-        assert_eq!(captured_project_symbol_catalogs[0].get_rooted_symbols(), rooted_symbols);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
     }
 }

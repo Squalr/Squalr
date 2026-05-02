@@ -178,26 +178,26 @@ impl AppShell {
         self.focus_code_viewer_address(squalr_engine, address, module_name, "Selected project item");
     }
 
-    pub(super) fn open_code_viewer_for_selected_rooted_symbol(
+    pub(super) fn open_code_viewer_for_selected_symbol_claim(
         &mut self,
         squalr_engine: &mut SqualrEngine,
     ) {
-        let Some(selected_rooted_symbol) = self
+        let Some(selected_symbol_claim) = self
             .app_state
             .project_explorer_pane_state
-            .selected_rooted_symbol()
+            .selected_symbol_claim()
             .cloned()
         else {
-            self.app_state.project_explorer_pane_state.status_message = String::from("No rooted symbol is selected for code viewer focus.");
+            self.app_state.project_explorer_pane_state.status_message = String::from("No symbol claim is selected for code viewer focus.");
             return;
         };
-        let address = selected_rooted_symbol.get_root_locator().get_focus_address();
-        let module_name = selected_rooted_symbol
-            .get_root_locator()
+        let address = selected_symbol_claim.get_locator().get_focus_address();
+        let module_name = selected_symbol_claim
+            .get_locator()
             .get_focus_module_name()
             .to_string();
 
-        self.focus_code_viewer_address(squalr_engine, address, module_name, "Selected rooted symbol");
+        self.focus_code_viewer_address(squalr_engine, address, module_name, "Selected symbol claim");
     }
 
     fn focus_code_viewer_address(

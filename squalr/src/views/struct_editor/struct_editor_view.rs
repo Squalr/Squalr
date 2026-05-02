@@ -485,7 +485,7 @@ impl StructEditorView {
             }
 
             let usage_count = selected_layout_id
-                .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
+                .map(|selected_layout_id| StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
                 .unwrap_or(0);
             let can_delete_selected_layout = !is_take_over_active && selected_layout_id.is_some() && usage_count == 0;
             let delete_layout_response = self.render_icon_button(
@@ -527,7 +527,7 @@ impl StructEditorView {
                     .filter(|struct_layout_descriptor| StructEditorViewData::layout_matches_filter(struct_layout_descriptor, filter_text))
                 {
                     let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
-                    let usage_count = StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, struct_layout_id);
+                    let usage_count = StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, struct_layout_id);
                     let field_count = struct_layout_descriptor
                         .get_struct_layout_definition()
                         .get_fields()
@@ -864,7 +864,7 @@ impl StructEditorView {
         let usage_count = edited_draft
             .original_layout_id
             .as_deref()
-            .map(|selected_layout_id| StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, selected_layout_id))
+            .map(|selected_layout_id| StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
             .unwrap_or(0);
         let has_unsaved_changes = edited_draft != *baseline_draft;
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
@@ -927,11 +927,11 @@ impl StructEditorView {
                         let status_text = if is_creating_new_layout {
                             String::from("Creating a new reusable struct layout.")
                         } else if usage_count == 0 {
-                            String::from("Not used by any rooted symbols yet.")
+                            String::from("Not used by any symbol claims yet.")
                         } else if usage_count == 1 {
-                            String::from("Used by 1 rooted symbol.")
+                            String::from("Used by 1 symbol claim.")
                         } else {
-                            format!("Used by {} rooted symbols.", usage_count)
+                            format!("Used by {} symbol claims.", usage_count)
                         };
                         user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
                     })
@@ -982,7 +982,7 @@ impl StructEditorView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        let usage_count = StructEditorViewData::count_rooted_symbol_usages(project_symbol_catalog, layout_id);
+        let usage_count = StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, layout_id);
 
         let can_delete_layout = usage_count == 0;
         let mut should_cancel_take_over = false;
@@ -1023,7 +1023,7 @@ impl StructEditorView {
                     GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
                         user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
                         user_interface.add_space(4.0);
-                        user_interface.label(RichText::new(format!("{} rooted symbol uses.", usage_count)).color(theme.foreground_preview));
+                        user_interface.label(RichText::new(format!("{} symbol claim uses.", usage_count)).color(theme.foreground_preview));
                     })
                     .desired_width(user_interface.available_width()),
                 );
@@ -1097,7 +1097,7 @@ impl Widget for StructEditorView {
 
         if !is_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
-                let usage_count = StructEditorViewData::count_rooted_symbol_usages(&project_symbol_catalog, selected_layout_id);
+                let usage_count = StructEditorViewData::count_symbol_claim_usages(&project_symbol_catalog, selected_layout_id);
                 if usage_count == 0 {
                     StructEditorViewData::request_delete_confirmation(self.struct_editor_view_data.clone(), selected_layout_id.to_string());
                 }

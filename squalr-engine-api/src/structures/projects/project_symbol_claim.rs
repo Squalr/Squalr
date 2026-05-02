@@ -1,28 +1,28 @@
-use crate::structures::projects::project_root_symbol_locator::ProjectRootSymbolLocator;
+use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProjectRootSymbol {
+pub struct ProjectSymbolClaim {
     symbol_key: String,
     display_name: String,
-    root_locator: ProjectRootSymbolLocator,
+    locator: ProjectSymbolLocator,
     struct_layout_id: String,
     #[serde(default)]
     metadata: BTreeMap<String, String>,
 }
 
-impl ProjectRootSymbol {
+impl ProjectSymbolClaim {
     pub fn new(
         symbol_key: String,
         display_name: String,
-        root_locator: ProjectRootSymbolLocator,
+        locator: ProjectSymbolLocator,
         struct_layout_id: String,
     ) -> Self {
         Self {
             symbol_key,
             display_name,
-            root_locator,
+            locator,
             struct_layout_id,
             metadata: BTreeMap::new(),
         }
@@ -34,12 +34,7 @@ impl ProjectRootSymbol {
         address: u64,
         struct_layout_id: String,
     ) -> Self {
-        Self::new(
-            symbol_key,
-            display_name,
-            ProjectRootSymbolLocator::new_absolute_address(address),
-            struct_layout_id,
-        )
+        Self::new(symbol_key, display_name, ProjectSymbolLocator::new_absolute_address(address), struct_layout_id)
     }
 
     pub fn new_module_offset(
@@ -52,7 +47,7 @@ impl ProjectRootSymbol {
         Self::new(
             symbol_key,
             display_name,
-            ProjectRootSymbolLocator::new_module_offset(module_name, offset),
+            ProjectSymbolLocator::new_module_offset(module_name, offset),
             struct_layout_id,
         )
     }
@@ -72,8 +67,8 @@ impl ProjectRootSymbol {
         self.display_name = display_name;
     }
 
-    pub fn get_root_locator(&self) -> &ProjectRootSymbolLocator {
-        &self.root_locator
+    pub fn get_locator(&self) -> &ProjectSymbolLocator {
+        &self.locator
     }
 
     pub fn get_struct_layout_id(&self) -> &str {

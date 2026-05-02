@@ -8,28 +8,28 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerToolbarAction {
-    CreateRootedSymbol,
-    RenameSelectedRootedSymbol,
-    DeleteSelectedRootedSymbol,
+    CreateSymbolClaim,
+    RenameSelectedSymbolClaim,
+    DeleteSelectedSymbolClaim,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
     PromoteSelectedDerivedSymbol,
-    CancelCreateRootedSymbol,
-    CommitCreateRootedSymbol,
+    CancelCreateSymbolClaim,
+    CommitCreateSymbolClaim,
 }
 
 #[derive(Clone)]
 pub struct SymbolExplorerToolbarView {
     app_context: Arc<AppContext>,
     show_actions: bool,
-    can_create_rooted_symbol: bool,
-    can_rename_rooted_symbol: bool,
-    can_delete_rooted_symbol: bool,
+    can_create_symbol_claim: bool,
+    can_rename_symbol_claim: bool,
+    can_delete_symbol_claim: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
     can_promote_derived_symbol: bool,
-    can_cancel_create_rooted_symbol: bool,
-    can_commit_create_rooted_symbol: bool,
+    can_cancel_create_symbol_claim: bool,
+    can_commit_create_symbol_claim: bool,
 }
 
 impl SymbolExplorerToolbarView {
@@ -40,14 +40,14 @@ impl SymbolExplorerToolbarView {
         Self {
             app_context,
             show_actions: true,
-            can_create_rooted_symbol: false,
-            can_rename_rooted_symbol: false,
-            can_delete_rooted_symbol: false,
+            can_create_symbol_claim: false,
+            can_rename_symbol_claim: false,
+            can_delete_symbol_claim: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
             can_promote_derived_symbol: false,
-            can_cancel_create_rooted_symbol: false,
-            can_commit_create_rooted_symbol: false,
+            can_cancel_create_symbol_claim: false,
+            can_commit_create_symbol_claim: false,
         }
     }
 
@@ -60,29 +60,29 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_create_rooted_symbol(
+    pub fn can_create_symbol_claim(
         mut self,
-        can_create_rooted_symbol: bool,
+        can_create_symbol_claim: bool,
     ) -> Self {
-        self.can_create_rooted_symbol = can_create_rooted_symbol;
+        self.can_create_symbol_claim = can_create_symbol_claim;
 
         self
     }
 
-    pub fn can_rename_rooted_symbol(
+    pub fn can_rename_symbol_claim(
         mut self,
-        can_rename_rooted_symbol: bool,
+        can_rename_symbol_claim: bool,
     ) -> Self {
-        self.can_rename_rooted_symbol = can_rename_rooted_symbol;
+        self.can_rename_symbol_claim = can_rename_symbol_claim;
 
         self
     }
 
-    pub fn can_delete_rooted_symbol(
+    pub fn can_delete_symbol_claim(
         mut self,
-        can_delete_rooted_symbol: bool,
+        can_delete_symbol_claim: bool,
     ) -> Self {
-        self.can_delete_rooted_symbol = can_delete_rooted_symbol;
+        self.can_delete_symbol_claim = can_delete_symbol_claim;
 
         self
     }
@@ -114,20 +114,20 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_cancel_create_rooted_symbol(
+    pub fn can_cancel_create_symbol_claim(
         mut self,
-        can_cancel_create_rooted_symbol: bool,
+        can_cancel_create_symbol_claim: bool,
     ) -> Self {
-        self.can_cancel_create_rooted_symbol = can_cancel_create_rooted_symbol;
+        self.can_cancel_create_symbol_claim = can_cancel_create_symbol_claim;
 
         self
     }
 
-    pub fn can_commit_create_rooted_symbol(
+    pub fn can_commit_create_symbol_claim(
         mut self,
-        can_commit_create_rooted_symbol: bool,
+        can_commit_create_symbol_claim: bool,
     ) -> Self {
-        self.can_commit_create_rooted_symbol = can_commit_create_rooted_symbol;
+        self.can_commit_create_symbol_claim = can_commit_create_symbol_claim;
 
         self
     }
@@ -156,45 +156,45 @@ impl SymbolExplorerToolbarView {
         }
 
         toolbar_user_interface.with_layout(Layout::right_to_left(Align::Center), |toolbar_user_interface| {
-            if self.can_commit_create_rooted_symbol || self.can_cancel_create_rooted_symbol {
+            if self.can_commit_create_symbol_claim || self.can_cancel_create_symbol_claim {
                 if Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_check_mark,
-                    "Create rooted symbol.",
-                    self.can_commit_create_rooted_symbol,
+                    "Create symbol claim.",
+                    self.can_commit_create_symbol_claim,
                 )
                 .clicked()
                 {
-                    clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateRootedSymbol);
+                    clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateSymbolClaim);
                 }
 
                 if Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_navigation_cancel,
-                    "Cancel rooted-symbol creation.",
-                    self.can_cancel_create_rooted_symbol,
+                    "Cancel symbol-claim creation.",
+                    self.can_cancel_create_symbol_claim,
                 )
                 .clicked()
                 {
-                    clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateRootedSymbol);
+                    clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateSymbolClaim);
                 }
 
                 return;
             }
 
-            if self.can_delete_rooted_symbol
+            if self.can_delete_symbol_claim
                 && Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_delete,
-                    "Delete selected rooted symbol.",
+                    "Delete selected symbol claim.",
                     true,
                 )
                 .clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::DeleteSelectedRootedSymbol);
+                clicked_action = Some(SymbolExplorerToolbarAction::DeleteSelectedSymbolClaim);
             }
 
             if self.can_promote_derived_symbol
@@ -202,7 +202,7 @@ impl SymbolExplorerToolbarView {
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_add,
-                    "Promote selected derived symbol to a rooted symbol.",
+                    "Promote selected derived symbol to a symbol claim.",
                     true,
                 )
                 .clicked()
@@ -210,17 +210,17 @@ impl SymbolExplorerToolbarView {
                 clicked_action = Some(SymbolExplorerToolbarAction::PromoteSelectedDerivedSymbol);
             }
 
-            if self.can_rename_rooted_symbol
+            if self.can_rename_symbol_claim
                 && Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_edit,
-                    "Rename selected rooted symbol.",
+                    "Rename selected symbol claim.",
                     true,
                 )
                 .clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::RenameSelectedRootedSymbol);
+                clicked_action = Some(SymbolExplorerToolbarAction::RenameSelectedSymbolClaim);
             }
 
             if self.can_open_in_code_viewer
@@ -249,17 +249,17 @@ impl SymbolExplorerToolbarView {
                 clicked_action = Some(SymbolExplorerToolbarAction::OpenSelectedInMemoryViewer);
             }
 
-            if self.can_create_rooted_symbol
+            if self.can_create_symbol_claim
                 && Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_add,
-                    "Create a new rooted symbol.",
+                    "Create a new symbol claim.",
                     true,
                 )
                 .clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::CreateRootedSymbol);
+                clicked_action = Some(SymbolExplorerToolbarAction::CreateSymbolClaim);
             }
         });
 

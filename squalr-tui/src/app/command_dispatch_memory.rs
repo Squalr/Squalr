@@ -198,22 +198,22 @@ impl AppShell {
         self.sync_memory_interpretation_from_memory_selection();
     }
 
-    pub(super) fn open_memory_viewer_for_selected_rooted_symbol(
+    pub(super) fn open_memory_viewer_for_selected_symbol_claim(
         &mut self,
         squalr_engine: &mut SqualrEngine,
     ) {
-        let Some(selected_rooted_symbol) = self
+        let Some(selected_symbol_claim) = self
             .app_state
             .project_explorer_pane_state
-            .selected_rooted_symbol()
+            .selected_symbol_claim()
             .cloned()
         else {
-            self.app_state.project_explorer_pane_state.status_message = String::from("No rooted symbol is selected for memory viewer focus.");
+            self.app_state.project_explorer_pane_state.status_message = String::from("No symbol claim is selected for memory viewer focus.");
             return;
         };
-        let address = selected_rooted_symbol.get_root_locator().get_focus_address();
-        let module_name = selected_rooted_symbol
-            .get_root_locator()
+        let address = selected_symbol_claim.get_locator().get_focus_address();
+        let module_name = selected_symbol_claim
+            .get_locator()
             .get_focus_module_name()
             .to_string();
 

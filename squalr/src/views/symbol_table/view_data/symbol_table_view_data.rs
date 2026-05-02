@@ -2,17 +2,17 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub enum RootedSymbolDraftLocatorMode {
+pub enum SymbolClaimDraftLocatorMode {
     #[default]
     AbsoluteAddress,
     ModuleOffset,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct RootedSymbolCreateDraft {
+pub struct SymbolClaimCreateDraft {
     pub display_name: String,
     pub struct_layout_id: String,
-    pub locator_mode: RootedSymbolDraftLocatorMode,
+    pub locator_mode: SymbolClaimDraftLocatorMode,
     pub address_text: String,
     pub module_name: String,
     pub offset_text: String,
@@ -20,7 +20,7 @@ pub struct RootedSymbolCreateDraft {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTableTakeOverState {
-    CreateRootedSymbol,
+    CreateSymbolClaim,
     DeleteConfirmation { symbol_key: String, display_name: String },
 }
 
@@ -29,7 +29,7 @@ pub struct SymbolTableViewData {
     selected_symbol_key: Option<String>,
     filter_text: String,
     take_over_state: Option<SymbolTableTakeOverState>,
-    rooted_symbol_create_draft: RootedSymbolCreateDraft,
+    symbol_claim_create_draft: SymbolClaimCreateDraft,
 }
 
 impl SymbolTableViewData {
@@ -38,7 +38,7 @@ impl SymbolTableViewData {
             selected_symbol_key: None,
             filter_text: String::new(),
             take_over_state: None,
-            rooted_symbol_create_draft: RootedSymbolCreateDraft::default(),
+            symbol_claim_create_draft: SymbolClaimCreateDraft::default(),
         }
     }
 
@@ -54,8 +54,8 @@ impl SymbolTableViewData {
         self.take_over_state.as_ref()
     }
 
-    pub fn get_rooted_symbol_create_draft(&self) -> &RootedSymbolCreateDraft {
-        &self.rooted_symbol_create_draft
+    pub fn get_symbol_claim_create_draft(&self) -> &SymbolClaimCreateDraft {
+        &self.symbol_claim_create_draft
     }
 
     pub fn set_selected_symbol_key(
@@ -76,13 +76,13 @@ impl SymbolTableViewData {
         }
     }
 
-    pub fn begin_create_rooted_symbol(
+    pub fn begin_create_symbol_claim(
         symbol_table_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        if let Some(mut symbol_table_view_data) = symbol_table_view_data.write("Symbol table begin create rooted symbol") {
-            symbol_table_view_data.take_over_state = Some(SymbolTableTakeOverState::CreateRootedSymbol);
-            symbol_table_view_data.rooted_symbol_create_draft = Self::create_default_rooted_symbol_create_draft(project_symbol_catalog);
+        if let Some(mut symbol_table_view_data) = symbol_table_view_data.write("Symbol table begin create symbol claim") {
+            symbol_table_view_data.take_over_state = Some(SymbolTableTakeOverState::CreateSymbolClaim);
+            symbol_table_view_data.symbol_claim_create_draft = Self::create_default_symbol_claim_create_draft(project_symbol_catalog);
         }
     }
 
@@ -102,12 +102,12 @@ impl SymbolTableViewData {
         }
     }
 
-    pub fn set_rooted_symbol_create_draft(
+    pub fn set_symbol_claim_create_draft(
         symbol_table_view_data: Dependency<Self>,
-        rooted_symbol_create_draft: RootedSymbolCreateDraft,
+        symbol_claim_create_draft: SymbolClaimCreateDraft,
     ) {
-        if let Some(mut symbol_table_view_data) = symbol_table_view_data.write("Symbol table set rooted symbol create draft") {
-            symbol_table_view_data.rooted_symbol_create_draft = rooted_symbol_create_draft;
+        if let Some(mut symbol_table_view_data) = symbol_table_view_data.write("Symbol table set symbol claim create draft") {
+            symbol_table_view_data.symbol_claim_create_draft = symbol_claim_create_draft;
         }
     }
 
@@ -121,7 +121,7 @@ impl SymbolTableViewData {
                 .as_ref()
                 .is_some_and(|selected_symbol_key| {
                     project_symbol_catalog
-                        .find_rooted_symbol(selected_symbol_key)
+                        .find_symbol_claim(selected_symbol_key)
                         .is_some()
                 });
 
@@ -130,30 +130,30 @@ impl SymbolTableViewData {
             }
 
             symbol_table_view_data.selected_symbol_key = project_symbol_catalog
-                .get_rooted_symbols()
+                .get_symbol_claims()
                 .first()
-                .map(|rooted_symbol| rooted_symbol.get_symbol_key().to_string());
+                .map(|symbol_claim| symbol_claim.get_symbol_key().to_string());
         }
     }
 
-    pub fn synchronize_rooted_symbol_create_draft(
+    pub fn synchronize_symbol_claim_create_draft(
         symbol_table_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        let Some(mut symbol_table_view_data) = symbol_table_view_data.write("Symbol table synchronize rooted symbol create draft") else {
+        let Some(mut symbol_table_view_data) = symbol_table_view_data.write("Symbol table synchronize symbol claim create draft") else {
             return;
         };
 
-        if !matches!(symbol_table_view_data.take_over_state, Some(SymbolTableTakeOverState::CreateRootedSymbol)) {
+        if !matches!(symbol_table_view_data.take_over_state, Some(SymbolTableTakeOverState::CreateSymbolClaim)) {
             return;
         }
 
         if symbol_table_view_data
-            .rooted_symbol_create_draft
+            .symbol_claim_create_draft
             .struct_layout_id
             .is_empty()
         {
-            symbol_table_view_data.rooted_symbol_create_draft = Self::create_default_rooted_symbol_create_draft(project_symbol_catalog);
+            symbol_table_view_data.symbol_claim_create_draft = Self::create_default_symbol_claim_create_draft(project_symbol_catalog);
         }
     }
 
@@ -166,7 +166,7 @@ impl SymbolTableViewData {
         };
 
         let should_clear_take_over_state = match symbol_table_view_data.take_over_state.as_ref() {
-            Some(SymbolTableTakeOverState::DeleteConfirmation { symbol_key, .. }) => project_symbol_catalog.find_rooted_symbol(symbol_key).is_none(),
+            Some(SymbolTableTakeOverState::DeleteConfirmation { symbol_key, .. }) => project_symbol_catalog.find_symbol_claim(symbol_key).is_none(),
             _ => false,
         };
 
@@ -175,14 +175,14 @@ impl SymbolTableViewData {
         }
     }
 
-    fn create_default_rooted_symbol_create_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> RootedSymbolCreateDraft {
-        RootedSymbolCreateDraft {
+    fn create_default_symbol_claim_create_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> SymbolClaimCreateDraft {
+        SymbolClaimCreateDraft {
             struct_layout_id: project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .first()
                 .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
                 .unwrap_or_default(),
-            ..RootedSymbolCreateDraft::default()
+            ..SymbolClaimCreateDraft::default()
         }
     }
 }
@@ -196,7 +196,7 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
-        projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog},
+        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
 
@@ -207,7 +207,7 @@ mod tests {
     }
 
     fn create_project_symbol_catalog() -> ProjectSymbolCatalog {
-        ProjectSymbolCatalog::new_with_rooted_symbols(
+        ProjectSymbolCatalog::new_with_symbol_claims(
             vec![StructLayoutDescriptor::new(
                 String::from("player.stats"),
                 SymbolicStructDefinition::new(
@@ -218,7 +218,7 @@ mod tests {
                     )],
                 ),
             )],
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
@@ -228,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn synchronize_selection_prefers_first_rooted_symbol() {
+    fn synchronize_selection_prefers_first_symbol_claim() {
         let symbol_table_view_data = create_dependency();
         let project_symbol_catalog = create_project_symbol_catalog();
 
@@ -246,23 +246,20 @@ mod tests {
     }
 
     #[test]
-    fn begin_create_rooted_symbol_prefills_first_struct_layout_id() {
+    fn begin_create_symbol_claim_prefills_first_struct_layout_id() {
         let symbol_table_view_data = create_dependency();
         let project_symbol_catalog = create_project_symbol_catalog();
 
-        SymbolTableViewData::begin_create_rooted_symbol(symbol_table_view_data.clone(), &project_symbol_catalog);
+        SymbolTableViewData::begin_create_symbol_claim(symbol_table_view_data.clone(), &project_symbol_catalog);
 
         let symbol_table_view_data = symbol_table_view_data
-            .read("Symbol table begin create rooted symbol test")
+            .read("Symbol table begin create symbol claim test")
             .expect("Expected symbol table dependency read access in test.");
 
-        assert_eq!(
-            symbol_table_view_data.get_take_over_state(),
-            Some(&SymbolTableTakeOverState::CreateRootedSymbol)
-        );
+        assert_eq!(symbol_table_view_data.get_take_over_state(), Some(&SymbolTableTakeOverState::CreateSymbolClaim));
         assert_eq!(
             symbol_table_view_data
-                .get_rooted_symbol_create_draft()
+                .get_symbol_claim_create_draft()
                 .struct_layout_id,
             "player.stats"
         );

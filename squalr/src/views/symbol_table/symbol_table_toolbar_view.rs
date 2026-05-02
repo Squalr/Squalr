@@ -8,17 +8,17 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTableToolbarAction {
-    CreateRootedSymbol,
+    CreateSymbolClaim,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
-    DeleteSelectedRootedSymbol,
+    DeleteSelectedSymbolClaim,
 }
 
 #[derive(Clone)]
 pub struct SymbolTableToolbarView {
     app_context: Arc<AppContext>,
-    can_create_rooted_symbol: bool,
-    can_delete_rooted_symbol: bool,
+    can_create_symbol_claim: bool,
+    can_delete_symbol_claim: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
 }
@@ -30,26 +30,26 @@ impl SymbolTableToolbarView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self {
             app_context,
-            can_create_rooted_symbol: false,
-            can_delete_rooted_symbol: false,
+            can_create_symbol_claim: false,
+            can_delete_symbol_claim: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
         }
     }
 
-    pub fn can_create_rooted_symbol(
+    pub fn can_create_symbol_claim(
         mut self,
-        can_create_rooted_symbol: bool,
+        can_create_symbol_claim: bool,
     ) -> Self {
-        self.can_create_rooted_symbol = can_create_rooted_symbol;
+        self.can_create_symbol_claim = can_create_symbol_claim;
         self
     }
 
-    pub fn can_delete_rooted_symbol(
+    pub fn can_delete_symbol_claim(
         mut self,
-        can_delete_rooted_symbol: bool,
+        can_delete_symbol_claim: bool,
     ) -> Self {
-        self.can_delete_rooted_symbol = can_delete_rooted_symbol;
+        self.can_delete_symbol_claim = can_delete_symbol_claim;
         self
     }
 
@@ -88,16 +88,16 @@ impl SymbolTableToolbarView {
                 .layout(eframe::egui::Layout::left_to_right(Align::Center)),
         );
 
-        if self.can_create_rooted_symbol
+        if self.can_create_symbol_claim
             && Self::draw_icon_button(
                 &mut toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_common_add,
-                "Create a new rooted symbol.",
+                "Create a new symbol claim.",
             )
             .clicked()
         {
-            clicked_action = Some(SymbolTableToolbarAction::CreateRootedSymbol);
+            clicked_action = Some(SymbolTableToolbarAction::CreateSymbolClaim);
         }
 
         if self.can_open_in_memory_viewer
@@ -124,16 +124,16 @@ impl SymbolTableToolbarView {
             clicked_action = Some(SymbolTableToolbarAction::OpenSelectedInCodeViewer);
         }
 
-        if self.can_delete_rooted_symbol
+        if self.can_delete_symbol_claim
             && Self::draw_icon_button(
                 &mut toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_common_delete,
-                "Delete selected rooted symbol.",
+                "Delete selected symbol claim.",
             )
             .clicked()
         {
-            clicked_action = Some(SymbolTableToolbarAction::DeleteSelectedRootedSymbol);
+            clicked_action = Some(SymbolTableToolbarAction::DeleteSelectedSymbolClaim);
         }
 
         clicked_action

@@ -5,9 +5,9 @@ use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerSelection {
-    RootedSymbol(String),
+    SymbolClaim(String),
     DerivedNode(String),
-    CreateRootedSymbol,
+    CreateSymbolClaim,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -16,17 +16,17 @@ pub enum SymbolExplorerTakeOverState {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub enum RootedSymbolDraftLocatorMode {
+pub enum SymbolClaimDraftLocatorMode {
     #[default]
     AbsoluteAddress,
     ModuleOffset,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct RootedSymbolCreateDraft {
+pub struct SymbolClaimCreateDraft {
     pub display_name: String,
     pub struct_layout_id: String,
-    pub locator_mode: RootedSymbolDraftLocatorMode,
+    pub locator_mode: SymbolClaimDraftLocatorMode,
     pub address_text: String,
     pub module_name: String,
     pub offset_text: String,
@@ -36,7 +36,7 @@ pub struct RootedSymbolCreateDraft {
 pub struct SymbolExplorerViewData {
     selected_entry: Option<SymbolExplorerSelection>,
     take_over_state: Option<SymbolExplorerTakeOverState>,
-    rooted_symbol_create_draft: RootedSymbolCreateDraft,
+    symbol_claim_create_draft: SymbolClaimCreateDraft,
     inline_rename_symbol_key: Option<String>,
     expanded_tree_node_keys: HashSet<String>,
 }
@@ -46,7 +46,7 @@ impl SymbolExplorerViewData {
         Self {
             selected_entry: None,
             take_over_state: None,
-            rooted_symbol_create_draft: RootedSymbolCreateDraft::default(),
+            symbol_claim_create_draft: SymbolClaimCreateDraft::default(),
             inline_rename_symbol_key: None,
             expanded_tree_node_keys: HashSet::new(),
         }
@@ -60,8 +60,8 @@ impl SymbolExplorerViewData {
         self.take_over_state.as_ref()
     }
 
-    pub fn get_rooted_symbol_create_draft(&self) -> &RootedSymbolCreateDraft {
-        &self.rooted_symbol_create_draft
+    pub fn get_symbol_claim_create_draft(&self) -> &SymbolClaimCreateDraft {
+        &self.symbol_claim_create_draft
     }
 
     pub fn get_inline_rename_symbol_key(&self) -> Option<&str> {
@@ -79,19 +79,19 @@ impl SymbolExplorerViewData {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set selected entry") {
             symbol_explorer_view_data.selected_entry = selected_entry;
             symbol_explorer_view_data.take_over_state = None;
-            symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+            symbol_explorer_view_data.symbol_claim_create_draft = SymbolClaimCreateDraft::default();
             symbol_explorer_view_data.inline_rename_symbol_key = None;
         }
     }
 
-    pub fn begin_create_rooted_symbol(
+    pub fn begin_create_symbol_claim(
         symbol_explorer_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin create rooted symbol") {
-            symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::CreateRootedSymbol);
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin create symbol claim") {
+            symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::CreateSymbolClaim);
             symbol_explorer_view_data.take_over_state = None;
-            symbol_explorer_view_data.rooted_symbol_create_draft = Self::create_default_rooted_symbol_create_draft(project_symbol_catalog);
+            symbol_explorer_view_data.symbol_claim_create_draft = Self::create_default_symbol_claim_create_draft(project_symbol_catalog);
             symbol_explorer_view_data.inline_rename_symbol_key = None;
         }
     }
@@ -112,12 +112,12 @@ impl SymbolExplorerViewData {
         }
     }
 
-    pub fn set_rooted_symbol_create_draft(
+    pub fn set_symbol_claim_create_draft(
         symbol_explorer_view_data: Dependency<Self>,
-        rooted_symbol_create_draft: RootedSymbolCreateDraft,
+        symbol_claim_create_draft: SymbolClaimCreateDraft,
     ) {
-        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set rooted symbol create draft") {
-            symbol_explorer_view_data.rooted_symbol_create_draft = rooted_symbol_create_draft;
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer set symbol claim create draft") {
+            symbol_explorer_view_data.symbol_claim_create_draft = symbol_claim_create_draft;
         }
     }
 
@@ -176,18 +176,18 @@ impl SymbolExplorerViewData {
             if suppress_default_selection {
                 symbol_explorer_view_data.selected_entry = None;
                 symbol_explorer_view_data.take_over_state = None;
-                symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+                symbol_explorer_view_data.symbol_claim_create_draft = SymbolClaimCreateDraft::default();
                 symbol_explorer_view_data.inline_rename_symbol_key = None;
                 return;
             }
 
             symbol_explorer_view_data.selected_entry = project_symbol_catalog
-                .get_rooted_symbols()
+                .get_symbol_claims()
                 .first()
-                .map(|rooted_symbol| SymbolExplorerSelection::RootedSymbol(rooted_symbol.get_symbol_key().to_string()));
+                .map(|symbol_claim| SymbolExplorerSelection::SymbolClaim(symbol_claim.get_symbol_key().to_string()));
 
             symbol_explorer_view_data.take_over_state = None;
-            symbol_explorer_view_data.rooted_symbol_create_draft = RootedSymbolCreateDraft::default();
+            symbol_explorer_view_data.symbol_claim_create_draft = SymbolClaimCreateDraft::default();
             symbol_explorer_view_data.inline_rename_symbol_key = None;
         }
     }
@@ -204,34 +204,34 @@ impl SymbolExplorerViewData {
         };
 
         let is_symbol_still_present = project_symbol_catalog
-            .get_rooted_symbols()
+            .get_symbol_claims()
             .iter()
-            .any(|rooted_symbol| rooted_symbol.get_symbol_key() == inline_rename_symbol_key);
+            .any(|symbol_claim| symbol_claim.get_symbol_key() == inline_rename_symbol_key);
 
         if !is_symbol_still_present {
             symbol_explorer_view_data.inline_rename_symbol_key = None;
         }
     }
 
-    pub fn synchronize_rooted_symbol_create_draft(
+    pub fn synchronize_symbol_claim_create_draft(
         symbol_explorer_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize rooted symbol create draft") else {
+        let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer synchronize symbol claim create draft") else {
             return;
         };
 
-        if !matches!(symbol_explorer_view_data.selected_entry, Some(SymbolExplorerSelection::CreateRootedSymbol)) {
+        if !matches!(symbol_explorer_view_data.selected_entry, Some(SymbolExplorerSelection::CreateSymbolClaim)) {
             return;
         }
 
         if symbol_explorer_view_data
-            .rooted_symbol_create_draft
+            .symbol_claim_create_draft
             .struct_layout_id
             .is_empty()
         {
             symbol_explorer_view_data
-                .rooted_symbol_create_draft
+                .symbol_claim_create_draft
                 .struct_layout_id = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .first()
@@ -250,9 +250,9 @@ impl SymbolExplorerViewData {
 
         let should_clear_take_over_state = match symbol_explorer_view_data.take_over_state.as_ref() {
             Some(SymbolExplorerTakeOverState::DeleteConfirmation { symbol_key, .. }) => !project_symbol_catalog
-                .get_rooted_symbols()
+                .get_symbol_claims()
                 .iter()
-                .any(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key),
+                .any(|symbol_claim| symbol_claim.get_symbol_key() == symbol_key),
             None => false,
         };
 
@@ -266,12 +266,12 @@ impl SymbolExplorerViewData {
         selected_entry: &SymbolExplorerSelection,
     ) -> bool {
         match selected_entry {
-            SymbolExplorerSelection::RootedSymbol(symbol_key) => project_symbol_catalog
-                .get_rooted_symbols()
+            SymbolExplorerSelection::SymbolClaim(symbol_key) => project_symbol_catalog
+                .get_symbol_claims()
                 .iter()
-                .any(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key),
+                .any(|symbol_claim| symbol_claim.get_symbol_key() == symbol_key),
             SymbolExplorerSelection::DerivedNode(_) => true,
-            SymbolExplorerSelection::CreateRootedSymbol => true,
+            SymbolExplorerSelection::CreateSymbolClaim => true,
         }
     }
 
@@ -294,23 +294,30 @@ impl SymbolExplorerViewData {
         }
 
         symbol_explorer_view_data.selected_entry = symbol_tree_entries
-            .first()
+            .iter()
+            .find(|symbol_tree_entry| {
+                !matches!(
+                    symbol_tree_entry.get_kind(),
+                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnknownBytes { .. }
+                )
+            })
             .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
-                SymbolTreeEntryKind::RootedSymbol { symbol_key } => SymbolExplorerSelection::RootedSymbol(symbol_key.to_string()),
+                SymbolTreeEntryKind::SymbolClaim { symbol_key } => SymbolExplorerSelection::SymbolClaim(symbol_key.to_string()),
                 SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::ArrayElement | SymbolTreeEntryKind::PointerTarget => {
                     SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                 }
+                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnknownBytes { .. } => unreachable!(),
             });
     }
 
-    fn create_default_rooted_symbol_create_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> RootedSymbolCreateDraft {
-        RootedSymbolCreateDraft {
+    fn create_default_symbol_claim_create_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> SymbolClaimCreateDraft {
+        SymbolClaimCreateDraft {
             struct_layout_id: project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .first()
                 .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
                 .unwrap_or_default(),
-            ..RootedSymbolCreateDraft::default()
+            ..SymbolClaimCreateDraft::default()
         }
     }
 }
@@ -324,7 +331,7 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
-        projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog},
+        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
 
@@ -335,9 +342,9 @@ mod tests {
     }
 
     #[test]
-    fn synchronize_selection_prefers_first_rooted_symbol() {
+    fn synchronize_selection_prefers_first_symbol_claim() {
         let symbol_explorer_view_data = create_dependency();
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![StructLayoutDescriptor::new(
                 String::from("player.stats"),
                 SymbolicStructDefinition::new(
@@ -348,7 +355,7 @@ mod tests {
                     )],
                 ),
             )],
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
@@ -362,11 +369,11 @@ mod tests {
             .read("Symbol explorer synchronize selection test")
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
-        assert_eq!(selected_entry, Some(SymbolExplorerSelection::RootedSymbol(String::from("sym.player"))));
+        assert_eq!(selected_entry, Some(SymbolExplorerSelection::SymbolClaim(String::from("sym.player"))));
     }
 
     #[test]
-    fn synchronize_selection_ignores_struct_layouts_without_rooted_symbols() {
+    fn synchronize_selection_ignores_struct_layouts_without_symbol_claims() {
         let symbol_explorer_view_data = create_dependency();
         let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
             String::from("player.stats"),
@@ -389,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn begin_create_rooted_symbol_prefills_first_struct_layout_id() {
+    fn begin_create_symbol_claim_prefills_first_struct_layout_id() {
         let symbol_explorer_view_data = create_dependency();
         let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
             String::from("player.stats"),
@@ -402,19 +409,19 @@ mod tests {
             ),
         )]);
 
-        SymbolExplorerViewData::begin_create_rooted_symbol(symbol_explorer_view_data.clone(), &project_symbol_catalog);
+        SymbolExplorerViewData::begin_create_symbol_claim(symbol_explorer_view_data.clone(), &project_symbol_catalog);
 
         let symbol_explorer_view_data = symbol_explorer_view_data
-            .read("Symbol explorer begin create rooted symbol test")
+            .read("Symbol explorer begin create symbol claim test")
             .expect("Expected symbol explorer dependency read access in test.");
 
         assert_eq!(
             symbol_explorer_view_data.get_selected_entry(),
-            Some(&SymbolExplorerSelection::CreateRootedSymbol)
+            Some(&SymbolExplorerSelection::CreateSymbolClaim)
         );
         assert_eq!(
             symbol_explorer_view_data
-                .get_rooted_symbol_create_draft()
+                .get_symbol_claim_create_draft()
                 .struct_layout_id,
             "player.stats"
         );
@@ -427,7 +434,7 @@ mod tests {
         SymbolExplorerViewData::begin_inline_rename(symbol_explorer_view_data.clone(), String::from("sym.player"));
         SymbolExplorerViewData::set_selected_entry(
             symbol_explorer_view_data.clone(),
-            Some(SymbolExplorerSelection::RootedSymbol(String::from("sym.player"))),
+            Some(SymbolExplorerSelection::SymbolClaim(String::from("sym.player"))),
         );
 
         let symbol_explorer_view_data = symbol_explorer_view_data
@@ -440,9 +447,9 @@ mod tests {
     #[test]
     fn synchronize_selection_can_leave_selection_empty_when_default_selection_is_suppressed() {
         let symbol_explorer_view_data = create_dependency();
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![],
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
@@ -462,9 +469,9 @@ mod tests {
     #[test]
     fn synchronize_inline_rename_clears_missing_symbol() {
         let symbol_explorer_view_data = create_dependency();
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![],
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,

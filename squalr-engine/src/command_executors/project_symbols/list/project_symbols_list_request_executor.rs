@@ -44,15 +44,15 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::projects::{project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
     use std::sync::Arc;
 
     #[test]
     fn list_project_symbols_request_returns_opened_project_symbol_catalog() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
@@ -81,14 +81,14 @@ mod tests {
                 .len(),
             0
         );
-        assert_eq!(listed_project_symbol_catalog.get_rooted_symbols().len(), 1);
+        assert_eq!(listed_project_symbol_catalog.get_symbol_claims().len(), 1);
         assert_eq!(
-            listed_project_symbol_catalog.get_rooted_symbols()[0].get_symbol_key(),
-            project_symbol_catalog.get_rooted_symbols()[0].get_symbol_key()
+            listed_project_symbol_catalog.get_symbol_claims()[0].get_symbol_key(),
+            project_symbol_catalog.get_symbol_claims()[0].get_symbol_key()
         );
         assert_eq!(
-            listed_project_symbol_catalog.get_rooted_symbols()[0].get_display_name(),
-            project_symbol_catalog.get_rooted_symbols()[0].get_display_name()
+            listed_project_symbol_catalog.get_symbol_claims()[0].get_display_name(),
+            project_symbol_catalog.get_symbol_claims()[0].get_display_name()
         );
     }
 }

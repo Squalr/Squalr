@@ -539,21 +539,21 @@ impl ProjectHierarchyViewData {
             return false;
         }
 
-        Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item).is_some()
+        Self::resolve_project_symbol_claim(self.opened_project_info.as_ref(), project_item).is_some()
     }
 
-    fn has_pointer_origin_metadata(rooted_symbol: &squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol) -> bool {
-        let rooted_symbol_metadata = rooted_symbol.get_metadata();
+    fn has_pointer_origin_metadata(symbol_claim: &squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim) -> bool {
+        let symbol_claim_metadata = symbol_claim.get_metadata();
 
-        rooted_symbol_metadata.contains_key("source.pointer_offsets")
-            && (rooted_symbol_metadata.contains_key("source.pointer_root")
-                || (rooted_symbol_metadata.contains_key("source.pointer_root_module") && rooted_symbol_metadata.contains_key("source.pointer_root_offset")))
+        symbol_claim_metadata.contains_key("source.pointer_offsets")
+            && (symbol_claim_metadata.contains_key("source.pointer_root")
+                || (symbol_claim_metadata.contains_key("source.pointer_root_module") && symbol_claim_metadata.contains_key("source.pointer_root_offset")))
     }
 
-    fn resolve_project_rooted_symbol<'a>(
+    fn resolve_project_symbol_claim<'a>(
         opened_project_info: Option<&'a ProjectInfo>,
         project_item: &ProjectItem,
-    ) -> Option<&'a squalr_engine_api::structures::projects::project_root_symbol::ProjectRootSymbol> {
+    ) -> Option<&'a squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim> {
         if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
             return None;
         }
@@ -562,7 +562,7 @@ impl ProjectHierarchyViewData {
 
         opened_project_info?
             .get_project_symbol_catalog()
-            .find_rooted_symbol(&symbol_key)
+            .find_symbol_claim(&symbol_key)
     }
 
     fn resolve_convertible_symbol_ref_action_label(
@@ -598,9 +598,9 @@ impl ProjectHierarchyViewData {
             .project_items
             .iter()
             .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)?;
-        let rooted_symbol = Self::resolve_project_rooted_symbol(self.opened_project_info.as_ref(), project_item)?;
+        let symbol_claim = Self::resolve_project_symbol_claim(self.opened_project_info.as_ref(), project_item)?;
 
-        if Self::has_pointer_origin_metadata(rooted_symbol) {
+        if Self::has_pointer_origin_metadata(symbol_claim) {
             Some(ProjectItemSymbolRefConversionTarget::Pointer)
         } else {
             Some(ProjectItemSymbolRefConversionTarget::Address)

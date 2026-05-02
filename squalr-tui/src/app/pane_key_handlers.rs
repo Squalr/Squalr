@@ -601,7 +601,7 @@ impl AppShell {
                 {
                     self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
                 } else {
-                    self.app_state.project_explorer_pane_state.status_message = "No active project is available for rooted symbol browsing.".to_string();
+                    self.app_state.project_explorer_pane_state.status_message = "No active project is available for symbol claim browsing.".to_string();
                 }
             }
             KeyCode::Char('u') => {
@@ -628,22 +628,22 @@ impl AppShell {
             KeyCode::Down => self
                 .app_state
                 .project_explorer_pane_state
-                .select_next_rooted_symbol(),
+                .select_next_symbol_claim(),
             KeyCode::Up => self
                 .app_state
                 .project_explorer_pane_state
-                .select_previous_rooted_symbol(),
+                .select_previous_symbol_claim(),
             KeyCode::Home => self
                 .app_state
                 .project_explorer_pane_state
-                .select_first_rooted_symbol(),
+                .select_first_symbol_claim(),
             KeyCode::End => self
                 .app_state
                 .project_explorer_pane_state
-                .select_last_rooted_symbol(),
-            KeyCode::Char('o') => self.open_memory_viewer_for_selected_rooted_symbol(squalr_engine),
-            KeyCode::Char('v') => self.open_code_viewer_for_selected_rooted_symbol(squalr_engine),
-            KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_rooted_symbol(squalr_engine),
+                .select_last_symbol_claim(),
+            KeyCode::Char('o') => self.open_memory_viewer_for_selected_symbol_claim(squalr_engine),
+            KeyCode::Char('v') => self.open_code_viewer_for_selected_symbol_claim(squalr_engine),
+            KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_symbol_claim(squalr_engine),
             KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('s') => {
                 let _ = self
                     .app_state

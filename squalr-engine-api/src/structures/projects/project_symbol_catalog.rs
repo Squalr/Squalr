@@ -1,5 +1,5 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
-use crate::structures::projects::project_root_symbol::ProjectRootSymbol;
+use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -7,21 +7,21 @@ pub struct ProjectSymbolCatalog {
     #[serde(default)]
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
     #[serde(default)]
-    rooted_symbols: Vec<ProjectRootSymbol>,
+    symbol_claims: Vec<ProjectSymbolClaim>,
 }
 
 impl ProjectSymbolCatalog {
     pub fn new(struct_layout_descriptors: Vec<StructLayoutDescriptor>) -> Self {
-        Self::new_with_rooted_symbols(struct_layout_descriptors, Vec::new())
+        Self::new_with_symbol_claims(struct_layout_descriptors, Vec::new())
     }
 
-    pub fn new_with_rooted_symbols(
+    pub fn new_with_symbol_claims(
         struct_layout_descriptors: Vec<StructLayoutDescriptor>,
-        rooted_symbols: Vec<ProjectRootSymbol>,
+        symbol_claims: Vec<ProjectSymbolClaim>,
     ) -> Self {
         Self {
             struct_layout_descriptors,
-            rooted_symbols,
+            symbol_claims,
         }
     }
 
@@ -36,40 +36,40 @@ impl ProjectSymbolCatalog {
         self.struct_layout_descriptors = struct_layout_descriptors;
     }
 
-    pub fn get_rooted_symbols(&self) -> &[ProjectRootSymbol] {
-        &self.rooted_symbols
+    pub fn get_symbol_claims(&self) -> &[ProjectSymbolClaim] {
+        &self.symbol_claims
     }
 
-    pub fn find_rooted_symbol(
+    pub fn find_symbol_claim(
         &self,
         symbol_key: &str,
-    ) -> Option<&ProjectRootSymbol> {
-        self.rooted_symbols
+    ) -> Option<&ProjectSymbolClaim> {
+        self.symbol_claims
             .iter()
-            .find(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key)
+            .find(|symbol_claim| symbol_claim.get_symbol_key() == symbol_key)
     }
 
-    pub fn find_rooted_symbol_mut(
+    pub fn find_symbol_claim_mut(
         &mut self,
         symbol_key: &str,
-    ) -> Option<&mut ProjectRootSymbol> {
-        self.rooted_symbols
+    ) -> Option<&mut ProjectSymbolClaim> {
+        self.symbol_claims
             .iter_mut()
-            .find(|rooted_symbol| rooted_symbol.get_symbol_key() == symbol_key)
+            .find(|symbol_claim| symbol_claim.get_symbol_key() == symbol_key)
     }
 
-    pub fn get_rooted_symbols_mut(&mut self) -> &mut Vec<ProjectRootSymbol> {
-        &mut self.rooted_symbols
+    pub fn get_symbol_claims_mut(&mut self) -> &mut Vec<ProjectSymbolClaim> {
+        &mut self.symbol_claims
     }
 
-    pub fn set_rooted_symbols(
+    pub fn set_symbol_claims(
         &mut self,
-        rooted_symbols: Vec<ProjectRootSymbol>,
+        symbol_claims: Vec<ProjectSymbolClaim>,
     ) {
-        self.rooted_symbols = rooted_symbols;
+        self.symbol_claims = symbol_claims;
     }
 
     pub fn is_empty(&self) -> bool {
-        self.struct_layout_descriptors.is_empty() && self.rooted_symbols.is_empty()
+        self.struct_layout_descriptors.is_empty() && self.symbol_claims.is_empty()
     }
 }

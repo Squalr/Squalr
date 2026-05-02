@@ -22,7 +22,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
             }
         };
         let Some(opened_project) = opened_project_guard.as_mut() else {
-            log::warn!("Cannot update rooted symbols without an opened project.");
+            log::warn!("Cannot update symbol claims without an opened project.");
             return ProjectSymbolsUpdateResponse::default();
         };
         let Some(project_directory_path) = opened_project.get_project_info().get_project_directory() else {
@@ -48,21 +48,21 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
             return ProjectSymbolsUpdateResponse::default();
         }
 
-        let Some(rooted_symbol) = opened_project
+        let Some(symbol_claim) = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .find_rooted_symbol_mut(&self.symbol_key)
+            .find_symbol_claim_mut(&self.symbol_key)
         else {
             log::warn!("Project-symbols update request could not find symbol key '{}'.", self.symbol_key);
             return ProjectSymbolsUpdateResponse::default();
         };
 
         if let Some(display_name) = trimmed_display_name {
-            rooted_symbol.set_display_name(display_name);
+            symbol_claim.set_display_name(display_name);
         }
 
         if let Some(struct_layout_id) = trimmed_struct_layout_id {
-            rooted_symbol.set_struct_layout_id(struct_layout_id);
+            symbol_claim.set_struct_layout_id(struct_layout_id);
         }
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
@@ -84,16 +84,16 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::projects::{project::Project, project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_api::structures::projects::{project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
     #[test]
     fn update_project_symbol_request_updates_display_name_and_type_and_syncs_catalog() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
-            vec![ProjectRootSymbol::new_absolute_address(
+            vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
@@ -123,19 +123,19 @@ mod tests {
         assert_eq!(project_symbols_update_response.symbol_key, "sym.player");
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected updated-symbol project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
 
-        assert_eq!(rooted_symbols.len(), 1);
-        assert_eq!(rooted_symbols[0].get_display_name(), "Player Manager");
-        assert_eq!(rooted_symbols[0].get_struct_layout_id(), "u64");
+        assert_eq!(symbol_claims.len(), 1);
+        assert_eq!(symbol_claims[0].get_display_name(), "Player Manager");
+        assert_eq!(symbol_claims[0].get_struct_layout_id(), "u64");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
-        assert_eq!(captured_project_symbol_catalogs[0].get_rooted_symbols(), rooted_symbols);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
     }
 }

@@ -60,10 +60,10 @@ pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &Projec
             "[SYM] selected={} | count={} | loading={}.",
             option_to_compact_text(
                 project_explorer_pane_state
-                    .selected_rooted_symbol()
-                    .map(|rooted_symbol| rooted_symbol.get_symbol_key())
+                    .selected_symbol_claim()
+                    .map(|symbol_claim| symbol_claim.get_symbol_key())
             ),
-            project_explorer_pane_state.rooted_symbols.len(),
+            project_explorer_pane_state.symbol_claims.len(),
             project_explorer_pane_state.is_awaiting_project_symbol_list_response
         ));
     }

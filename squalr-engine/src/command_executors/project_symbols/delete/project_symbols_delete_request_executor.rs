@@ -30,7 +30,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             }
         };
         let Some(opened_project) = opened_project_guard.as_mut() else {
-            log::warn!("Cannot delete rooted symbols without an opened project.");
+            log::warn!("Cannot delete symbol claims without an opened project.");
             return ProjectSymbolsDeleteResponse::default();
         };
         let Some(project_directory_path) = opened_project.get_project_info().get_project_directory() else {
@@ -38,15 +38,15 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             return ProjectSymbolsDeleteResponse::default();
         };
         let symbol_key_set = self.symbol_keys.iter().cloned().collect::<HashSet<String>>();
-        let rooted_symbols = opened_project
+        let symbol_claims = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .get_rooted_symbols_mut();
-        let rooted_symbol_count_before_delete = rooted_symbols.len();
+            .get_symbol_claims_mut();
+        let symbol_claim_count_before_delete = symbol_claims.len();
 
-        rooted_symbols.retain(|rooted_symbol| !symbol_key_set.contains(rooted_symbol.get_symbol_key()));
+        symbol_claims.retain(|symbol_claim| !symbol_key_set.contains(symbol_claim.get_symbol_key()));
 
-        let deleted_symbol_count = rooted_symbol_count_before_delete.saturating_sub(rooted_symbols.len()) as u64;
+        let deleted_symbol_count = symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64;
 
         if deleted_symbol_count == 0 {
             return ProjectSymbolsDeleteResponse {
@@ -77,18 +77,18 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::projects::{project::Project, project_root_symbol::ProjectRootSymbol, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_api::structures::projects::{project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
     #[test]
-    fn delete_project_symbols_request_removes_matching_rooted_symbols() {
+    fn delete_project_symbols_request_removes_matching_symbol_claims() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_rooted_symbols(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![
-                ProjectRootSymbol::new_absolute_address(String::from("sym.player"), String::from("Player"), 0x1234, String::from("player")),
-                ProjectRootSymbol::new_absolute_address(String::from("sym.enemy"), String::from("Enemy"), 0x5678, String::from("enemy")),
+                ProjectSymbolClaim::new_absolute_address(String::from("sym.player"), String::from("Player"), 0x1234, String::from("player")),
+                ProjectSymbolClaim::new_absolute_address(String::from("sym.enemy"), String::from("Enemy"), 0x5678, String::from("enemy")),
             ],
         );
         let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
@@ -112,18 +112,18 @@ mod tests {
         assert_eq!(project_symbols_delete_response.deleted_symbol_count, 1);
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected deleted-symbol project to load from disk.");
-        let rooted_symbols = loaded_project
+        let symbol_claims = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
-            .get_rooted_symbols();
+            .get_symbol_claims();
 
-        assert_eq!(rooted_symbols.len(), 1);
-        assert_eq!(rooted_symbols[0].get_symbol_key(), "sym.enemy");
+        assert_eq!(symbol_claims.len(), 1);
+        assert_eq!(symbol_claims[0].get_symbol_key(), "sym.enemy");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
-        assert_eq!(captured_project_symbol_catalogs[0].get_rooted_symbols(), rooted_symbols);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
     }
 }

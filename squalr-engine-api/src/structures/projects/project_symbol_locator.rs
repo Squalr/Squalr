@@ -2,12 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProjectRootSymbolLocator {
+pub enum ProjectSymbolLocator {
     AbsoluteAddress { address: u64 },
     ModuleOffset { module_name: String, offset: u64 },
 }
 
-impl ProjectRootSymbolLocator {
+impl ProjectSymbolLocator {
     pub fn new_absolute_address(address: u64) -> Self {
         Self::AbsoluteAddress { address }
     }
@@ -34,7 +34,7 @@ impl ProjectRootSymbolLocator {
     }
 }
 
-impl fmt::Display for ProjectRootSymbolLocator {
+impl fmt::Display for ProjectSymbolLocator {
     fn fmt(
         &self,
         formatter: &mut fmt::Formatter<'_>,
