@@ -382,10 +382,7 @@ impl SymbolExplorerViewData {
                 .strip_prefix("claim:")
                 .unwrap_or(inline_rename_tree_node_key);
 
-            project_symbol_catalog
-                .get_symbol_claims()
-                .iter()
-                .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_locator_key)
+            Self::symbol_locator_exists(project_symbol_catalog, symbol_locator_key)
         };
 
         if !is_rename_target_still_present {
@@ -402,10 +399,9 @@ impl SymbolExplorerViewData {
         };
 
         let should_clear_take_over_state = match symbol_explorer_view_data.take_over_state.as_ref() {
-            Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => !project_symbol_catalog
-                .get_symbol_claims()
-                .iter()
-                .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == *symbol_locator_key),
+            Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => {
+                !Self::symbol_locator_exists(project_symbol_catalog, symbol_locator_key)
+            }
             Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => project_symbol_catalog.find_symbol_module(module_name).is_none(),
             Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation { module_name, .. }) => {
                 project_symbol_catalog.find_symbol_module(module_name).is_none()
@@ -425,13 +421,22 @@ impl SymbolExplorerViewData {
     ) -> bool {
         match selected_entry {
             SymbolExplorerSelection::ModuleRoot(module_name) => project_symbol_catalog.find_symbol_module(module_name).is_some(),
-            SymbolExplorerSelection::SymbolClaim(symbol_locator_key) => project_symbol_catalog
-                .get_symbol_claims()
-                .iter()
-                .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == *symbol_locator_key),
+            SymbolExplorerSelection::SymbolClaim(symbol_locator_key) => Self::symbol_locator_exists(project_symbol_catalog, symbol_locator_key),
             SymbolExplorerSelection::DerivedNode(_) => true,
             SymbolExplorerSelection::CreateModuleRoot => true,
         }
+    }
+
+    fn symbol_locator_exists(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_locator_key: &str,
+    ) -> bool {
+        project_symbol_catalog
+            .find_symbol_claim(symbol_locator_key)
+            .is_some()
+            || project_symbol_catalog
+                .find_module_field(symbol_locator_key)
+                .is_some()
     }
 
     pub fn synchronize_selection_to_tree_entries(
@@ -532,7 +537,7 @@ mod tests {
         data_values::container_type::ContainerType,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
-            project_symbol_module::ProjectSymbolModule,
+            project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
@@ -616,6 +621,28 @@ mod tests {
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
         assert_eq!(selected_entry, None);
+    }
+
+    #[test]
+    fn synchronize_selection_keeps_module_field_selection() {
+        let symbol_explorer_view_data = create_dependency();
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x2000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Tail"), 0x1000, String::from("u8[128]")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+
+        SymbolExplorerViewData::set_selected_entry(
+            symbol_explorer_view_data.clone(),
+            Some(SymbolExplorerSelection::SymbolClaim(String::from("module:game.exe:1000"))),
+        );
+        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, false);
+
+        let selected_entry = symbol_explorer_view_data
+            .read("Symbol explorer module field selection test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
+
+        assert_eq!(selected_entry, Some(SymbolExplorerSelection::SymbolClaim(String::from("module:game.exe:1000"))));
     }
 
     #[test]
@@ -726,6 +753,29 @@ mod tests {
             .expect("Expected symbol explorer dependency read access in test.");
 
         assert_eq!(symbol_explorer_view_data.get_inline_rename_tree_node_key(), None);
+    }
+
+    #[test]
+    fn synchronize_inline_rename_keeps_module_field_target() {
+        let symbol_explorer_view_data = create_dependency();
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x2000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Tail"), 0x1000, String::from("u8[128]")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+
+        SymbolExplorerViewData::begin_inline_rename(symbol_explorer_view_data.clone(), String::from("claim:module:game.exe:1000"));
+        SymbolExplorerViewData::synchronize_inline_rename(symbol_explorer_view_data.clone(), &project_symbol_catalog);
+
+        let inline_rename_tree_node_key = symbol_explorer_view_data
+            .read("Symbol explorer module field inline rename test")
+            .and_then(|symbol_explorer_view_data| {
+                symbol_explorer_view_data
+                    .get_inline_rename_tree_node_key()
+                    .map(str::to_string)
+            });
+
+        assert_eq!(inline_rename_tree_node_key, Some(String::from("claim:module:game.exe:1000")));
     }
 
     #[test]

@@ -2891,7 +2891,7 @@ impl Widget for SymbolExplorerView {
                             shared_struct_viewer_focus_target.as_ref(),
                             !is_inline_rename_active,
                         );
-                        if project_symbol_catalog.get_symbol_claims().is_empty() {
+                        if project_symbol_catalog.is_empty() {
                             user_interface.add_space(12.0);
                             user_interface.label(
                                 RichText::new("This project has no authored symbols yet.")
