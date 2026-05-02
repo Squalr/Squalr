@@ -51,9 +51,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
         let Some(symbol_claim) = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
-            .find_symbol_claim_mut(&self.symbol_key)
+            .find_symbol_claim_mut(&self.symbol_locator_key)
         else {
-            log::warn!("Project-symbols update request could not find symbol key '{}'.", self.symbol_key);
+            log::warn!(
+                "Project-symbols update request could not find symbol locator key '{}'.",
+                self.symbol_locator_key
+            );
             return ProjectSymbolsUpdateResponse::default();
         };
 
@@ -71,7 +74,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
 
         ProjectSymbolsUpdateResponse {
             success: true,
-            symbol_key: self.symbol_key.clone(),
+            symbol_locator_key: self.symbol_locator_key.clone(),
         }
     }
 }
@@ -94,7 +97,6 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
                 String::from("i32"),
@@ -113,14 +115,14 @@ mod tests {
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let project_symbols_update_response = ProjectSymbolsUpdateRequest {
-            symbol_key: String::from("sym.player"),
+            symbol_locator_key: String::from("absolute:1234"),
             display_name: Some(String::from("Player Manager")),
             struct_layout_id: Some(String::from("u64")),
         }
         .execute(&engine_execution_context);
 
         assert!(project_symbols_update_response.success);
-        assert_eq!(project_symbols_update_response.symbol_key, "sym.player");
+        assert_eq!(project_symbols_update_response.symbol_locator_key, "absolute:1234");
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected updated-symbol project to load from disk.");
         let symbol_claims = loaded_project

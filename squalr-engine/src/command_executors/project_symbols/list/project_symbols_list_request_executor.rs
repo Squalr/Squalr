@@ -53,7 +53,6 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
                 String::from("player"),
@@ -83,8 +82,8 @@ mod tests {
         );
         assert_eq!(listed_project_symbol_catalog.get_symbol_claims().len(), 1);
         assert_eq!(
-            listed_project_symbol_catalog.get_symbol_claims()[0].get_symbol_key(),
-            project_symbol_catalog.get_symbol_claims()[0].get_symbol_key()
+            listed_project_symbol_catalog.get_symbol_claims()[0].get_symbol_locator_key(),
+            project_symbol_catalog.get_symbol_claims()[0].get_symbol_locator_key()
         );
         assert_eq!(
             listed_project_symbol_catalog.get_symbol_claims()[0].get_display_name(),

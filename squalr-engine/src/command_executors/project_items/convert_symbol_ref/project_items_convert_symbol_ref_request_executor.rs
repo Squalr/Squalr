@@ -334,14 +334,8 @@ mod tests {
     #[test]
     fn convert_symbol_ref_request_rebuilds_address_item_from_symbol_claim() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "sym.health", "");
-        let symbol_claim = ProjectSymbolClaim::new_module_offset(
-            String::from("sym.health"),
-            String::from("Health"),
-            String::from("game.exe"),
-            0x1234,
-            String::from("u8"),
-        );
+        let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "module:game.exe:1234", "");
+        let symbol_claim = ProjectSymbolClaim::new_module_offset(String::from("Health"), String::from("game.exe"), 0x1234, String::from("u8"));
         let (project, project_item_path) = create_project_with_symbol_ref_item(
             temp_directory.path(),
             "health.json",
@@ -394,8 +388,8 @@ mod tests {
     #[test]
     fn convert_symbol_ref_request_rebuilds_pointer_item_from_pointer_metadata() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.player.gold", "");
-        let mut symbol_claim = ProjectSymbolClaim::new_absolute_address(String::from("sym.player.gold"), String::from("Gold"), 0x2020, String::from("u32"));
+        let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "absolute:2020", "");
+        let mut symbol_claim = ProjectSymbolClaim::new_absolute_address(String::from("Gold"), 0x2020, String::from("u32"));
         symbol_claim
             .get_metadata_mut()
             .insert(String::from("source.pointer_root_module"), String::from("game.exe"));
@@ -462,8 +456,8 @@ mod tests {
     #[test]
     fn convert_symbol_ref_request_skips_pointer_conversion_without_pointer_metadata() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
-        let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "sym.health", "");
-        let symbol_claim = ProjectSymbolClaim::new_absolute_address(String::from("sym.health"), String::from("Health"), 0x1234, String::from("u8"));
+        let symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "absolute:1234", "");
+        let symbol_claim = ProjectSymbolClaim::new_absolute_address(String::from("Health"), 0x1234, String::from("u8"));
         let (project, project_item_path) = create_project_with_symbol_ref_item(
             temp_directory.path(),
             "health.json",

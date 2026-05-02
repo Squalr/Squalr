@@ -3,24 +3,24 @@ use crate::commands::unprivileged_command_response::{TypedUnprivilegedCommandRes
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ProjectSymbolsRenameResponse {
+pub struct ProjectSymbolsCreateModuleResponse {
     pub success: bool,
-    pub symbol_locator_key: String,
+    pub module_name: String,
 }
 
-impl TypedUnprivilegedCommandResponse for ProjectSymbolsRenameResponse {
+impl TypedUnprivilegedCommandResponse for ProjectSymbolsCreateModuleResponse {
     fn to_engine_response(&self) -> UnprivilegedCommandResponse {
-        UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::Rename {
-            project_symbols_rename_response: self.clone(),
+        UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::CreateModule {
+            project_symbols_create_module_response: self.clone(),
         })
     }
 
     fn from_engine_response(response: UnprivilegedCommandResponse) -> Result<Self, UnprivilegedCommandResponse> {
-        if let UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::Rename {
-            project_symbols_rename_response,
+        if let UnprivilegedCommandResponse::ProjectSymbols(ProjectSymbolsResponse::CreateModule {
+            project_symbols_create_module_response,
         }) = response
         {
-            Ok(project_symbols_rename_response)
+            Ok(project_symbols_create_module_response)
         } else {
             Err(response)
         }

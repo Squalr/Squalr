@@ -1,4 +1,4 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::{build_unique_symbol_key, save_and_sync_project_symbol_catalog};
+use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_request::ProjectSymbolsCreateRequest;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_response::ProjectSymbolsCreateResponse;
@@ -41,18 +41,8 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             return ProjectSymbolsCreateResponse::default();
         }
 
-        let existing_symbol_claims = opened_project
-            .get_project_info()
-            .get_project_symbol_catalog()
-            .get_symbol_claims()
-            .to_vec();
-        let symbol_key = build_unique_symbol_key(trimmed_display_name, &existing_symbol_claims);
-        let mut created_symbol = ProjectSymbolClaim::new(
-            symbol_key.clone(),
-            trimmed_display_name.to_string(),
-            locator,
-            self.struct_layout_id.trim().to_string(),
-        );
+        let mut created_symbol = ProjectSymbolClaim::new(trimmed_display_name.to_string(), locator, self.struct_layout_id.trim().to_string());
+        let created_symbol_locator_key = created_symbol.get_symbol_locator_key();
         *created_symbol.get_metadata_mut() = self.metadata.clone();
         opened_project
             .get_project_info_mut()
@@ -66,7 +56,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
 
         ProjectSymbolsCreateResponse {
             success: true,
-            created_symbol_key: symbol_key,
+            created_symbol_locator_key,
         }
     }
 }
@@ -126,7 +116,7 @@ mod tests {
         .execute(&engine_execution_context);
 
         assert!(project_symbols_create_response.success);
-        assert_eq!(project_symbols_create_response.created_symbol_key, "sym.player.manager");
+        assert_eq!(project_symbols_create_response.created_symbol_locator_key, "module:game.exe:1234");
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected created-symbol project to load from disk.");
         let symbol_claims = loaded_project

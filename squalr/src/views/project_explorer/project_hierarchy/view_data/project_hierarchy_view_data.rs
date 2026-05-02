@@ -558,11 +558,11 @@ impl ProjectHierarchyViewData {
             return None;
         }
 
-        let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+        let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
 
         opened_project_info?
             .get_project_symbol_catalog()
-            .find_symbol_claim(&symbol_key)
+            .find_symbol_claim(&symbol_locator_key)
     }
 
     fn resolve_convertible_symbol_ref_action_label(

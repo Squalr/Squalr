@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsDeleteRequest {
     #[structopt(short = "k", long = "key")]
-    pub symbol_keys: Vec<String>,
+    pub symbol_locator_keys: Vec<String>,
 }
 
 impl UnprivilegedCommandRequest for ProjectSymbolsDeleteRequest {

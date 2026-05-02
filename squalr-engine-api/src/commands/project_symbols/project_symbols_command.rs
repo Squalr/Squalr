@@ -1,7 +1,8 @@
 use crate::commands::project_symbols::{
-    create::project_symbols_create_request::ProjectSymbolsCreateRequest, delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest,
-    list::project_symbols_list_request::ProjectSymbolsListRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
-    update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
+    create::project_symbols_create_request::ProjectSymbolsCreateRequest,
+    create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
+    delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest, list::project_symbols_list_request::ProjectSymbolsListRequest,
+    rename::project_symbols_rename_request::ProjectSymbolsRenameRequest, update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
 };
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -12,6 +13,11 @@ pub enum ProjectSymbolsCommand {
     Create {
         #[structopt(flatten)]
         project_symbols_create_request: ProjectSymbolsCreateRequest,
+    },
+    /// Creates or updates a Symbol Tree module root.
+    CreateModule {
+        #[structopt(flatten)]
+        project_symbols_create_module_request: ProjectSymbolsCreateModuleRequest,
     },
     /// Deletes project symbol claims.
     Delete {

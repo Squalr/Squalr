@@ -863,7 +863,7 @@ impl AppShell {
         self.app_state.project_explorer_pane_state.status_message = format!("Deleting symbol claim '{}'.", selected_symbol_claim.get_display_name());
 
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
-            symbol_keys: vec![selected_symbol_claim.get_symbol_key().to_string()],
+            symbol_locator_keys: vec![selected_symbol_claim.get_symbol_locator_key().to_string()],
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_symbols_delete_request.send(engine_unprivileged_state, move |project_symbols_delete_response| {

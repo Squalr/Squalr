@@ -13,7 +13,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         &self,
         engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
-        if self.symbol_keys.is_empty() {
+        if self.symbol_locator_keys.is_empty() {
             return ProjectSymbolsDeleteResponse {
                 success: true,
                 deleted_symbol_count: 0,
@@ -37,14 +37,18 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             log::error!("Failed to resolve opened project directory for project-symbols delete command.");
             return ProjectSymbolsDeleteResponse::default();
         };
-        let symbol_key_set = self.symbol_keys.iter().cloned().collect::<HashSet<String>>();
+        let symbol_locator_key_set = self
+            .symbol_locator_keys
+            .iter()
+            .cloned()
+            .collect::<HashSet<String>>();
         let symbol_claims = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut()
             .get_symbol_claims_mut();
         let symbol_claim_count_before_delete = symbol_claims.len();
 
-        symbol_claims.retain(|symbol_claim| !symbol_key_set.contains(symbol_claim.get_symbol_key()));
+        symbol_claims.retain(|symbol_claim| !symbol_locator_key_set.contains(&symbol_claim.get_symbol_locator_key()));
 
         let deleted_symbol_count = symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64;
 
@@ -87,8 +91,8 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![
-                ProjectSymbolClaim::new_absolute_address(String::from("sym.player"), String::from("Player"), 0x1234, String::from("player")),
-                ProjectSymbolClaim::new_absolute_address(String::from("sym.enemy"), String::from("Enemy"), 0x5678, String::from("enemy")),
+                ProjectSymbolClaim::new_absolute_address(String::from("Player"), 0x1234, String::from("player")),
+                ProjectSymbolClaim::new_absolute_address(String::from("Enemy"), 0x5678, String::from("enemy")),
             ],
         );
         let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
@@ -104,7 +108,7 @@ mod tests {
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
-            symbol_keys: vec![String::from("sym.player")],
+            symbol_locator_keys: vec![String::from("absolute:1234")],
         }
         .execute(&engine_execution_context);
 
@@ -118,7 +122,7 @@ mod tests {
             .get_symbol_claims();
 
         assert_eq!(symbol_claims.len(), 1);
-        assert_eq!(symbol_claims[0].get_symbol_key(), "sym.enemy");
+        assert_eq!(symbol_claims[0].get_symbol_locator_key(), "absolute:5678");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()

@@ -9,7 +9,7 @@ use structopt::StructOpt;
 #[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsUpdateRequest {
     #[structopt(short = "k", long = "key")]
-    pub symbol_key: String,
+    pub symbol_locator_key: String,
 
     #[structopt(long = "name")]
     pub display_name: Option<String>,

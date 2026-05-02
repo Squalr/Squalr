@@ -61,7 +61,8 @@ pub fn build_project_explorer_summary_lines(project_explorer_pane_state: &Projec
             option_to_compact_text(
                 project_explorer_pane_state
                     .selected_symbol_claim()
-                    .map(|symbol_claim| symbol_claim.get_symbol_key())
+                    .map(|symbol_claim| symbol_claim.get_symbol_locator_key())
+                    .as_deref()
             ),
             project_explorer_pane_state.symbol_claims.len(),
             project_explorer_pane_state.is_awaiting_project_symbol_list_response

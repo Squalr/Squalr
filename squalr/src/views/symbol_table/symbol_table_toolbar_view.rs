@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTableToolbarAction {
-    CreateSymbolClaim,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
     DeleteSelectedSymbolClaim,
@@ -17,7 +16,6 @@ pub enum SymbolTableToolbarAction {
 #[derive(Clone)]
 pub struct SymbolTableToolbarView {
     app_context: Arc<AppContext>,
-    can_create_symbol_claim: bool,
     can_delete_symbol_claim: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
@@ -30,19 +28,10 @@ impl SymbolTableToolbarView {
     pub fn new(app_context: Arc<AppContext>) -> Self {
         Self {
             app_context,
-            can_create_symbol_claim: false,
             can_delete_symbol_claim: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
         }
-    }
-
-    pub fn can_create_symbol_claim(
-        mut self,
-        can_create_symbol_claim: bool,
-    ) -> Self {
-        self.can_create_symbol_claim = can_create_symbol_claim;
-        self
     }
 
     pub fn can_delete_symbol_claim(
@@ -87,18 +76,6 @@ impl SymbolTableToolbarView {
                 .max_rect(toolbar_rect)
                 .layout(eframe::egui::Layout::left_to_right(Align::Center)),
         );
-
-        if self.can_create_symbol_claim
-            && Self::draw_icon_button(
-                &mut toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_common_add,
-                "Create a new symbol claim.",
-            )
-            .clicked()
-        {
-            clicked_action = Some(SymbolTableToolbarAction::CreateSymbolClaim);
-        }
 
         if self.can_open_in_memory_viewer
             && Self::draw_icon_button(

@@ -1,9 +1,12 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
+use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectSymbolCatalog {
+    #[serde(default)]
+    symbol_modules: Vec<ProjectSymbolModule>,
     #[serde(default)]
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
     #[serde(default)]
@@ -12,17 +15,52 @@ pub struct ProjectSymbolCatalog {
 
 impl ProjectSymbolCatalog {
     pub fn new(struct_layout_descriptors: Vec<StructLayoutDescriptor>) -> Self {
-        Self::new_with_symbol_claims(struct_layout_descriptors, Vec::new())
+        Self::new_with_modules_and_symbol_claims(Vec::new(), struct_layout_descriptors, Vec::new())
     }
 
     pub fn new_with_symbol_claims(
         struct_layout_descriptors: Vec<StructLayoutDescriptor>,
         symbol_claims: Vec<ProjectSymbolClaim>,
     ) -> Self {
+        Self::new_with_modules_and_symbol_claims(Vec::new(), struct_layout_descriptors, symbol_claims)
+    }
+
+    pub fn new_with_modules_and_symbol_claims(
+        symbol_modules: Vec<ProjectSymbolModule>,
+        struct_layout_descriptors: Vec<StructLayoutDescriptor>,
+        symbol_claims: Vec<ProjectSymbolClaim>,
+    ) -> Self {
         Self {
+            symbol_modules,
             struct_layout_descriptors,
             symbol_claims,
         }
+    }
+
+    pub fn get_symbol_modules(&self) -> &[ProjectSymbolModule] {
+        &self.symbol_modules
+    }
+
+    pub fn get_symbol_modules_mut(&mut self) -> &mut Vec<ProjectSymbolModule> {
+        &mut self.symbol_modules
+    }
+
+    pub fn find_symbol_module(
+        &self,
+        module_name: &str,
+    ) -> Option<&ProjectSymbolModule> {
+        self.symbol_modules
+            .iter()
+            .find(|symbol_module| symbol_module.get_module_name() == module_name)
+    }
+
+    pub fn find_symbol_module_mut(
+        &mut self,
+        module_name: &str,
+    ) -> Option<&mut ProjectSymbolModule> {
+        self.symbol_modules
+            .iter_mut()
+            .find(|symbol_module| symbol_module.get_module_name() == module_name)
     }
 
     pub fn get_struct_layout_descriptors(&self) -> &[StructLayoutDescriptor] {
@@ -42,20 +80,20 @@ impl ProjectSymbolCatalog {
 
     pub fn find_symbol_claim(
         &self,
-        symbol_key: &str,
+        symbol_locator_key: &str,
     ) -> Option<&ProjectSymbolClaim> {
         self.symbol_claims
             .iter()
-            .find(|symbol_claim| symbol_claim.get_symbol_key() == symbol_key)
+            .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_locator_key)
     }
 
     pub fn find_symbol_claim_mut(
         &mut self,
-        symbol_key: &str,
+        symbol_locator_key: &str,
     ) -> Option<&mut ProjectSymbolClaim> {
         self.symbol_claims
             .iter_mut()
-            .find(|symbol_claim| symbol_claim.get_symbol_key() == symbol_key)
+            .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_locator_key)
     }
 
     pub fn get_symbol_claims_mut(&mut self) -> &mut Vec<ProjectSymbolClaim> {
@@ -70,6 +108,6 @@ impl ProjectSymbolCatalog {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.struct_layout_descriptors.is_empty() && self.symbol_claims.is_empty()
+        self.symbol_modules.is_empty() && self.struct_layout_descriptors.is_empty() && self.symbol_claims.is_empty()
     }
 }

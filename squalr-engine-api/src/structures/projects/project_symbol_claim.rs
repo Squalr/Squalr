@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectSymbolClaim {
-    symbol_key: String,
     display_name: String,
     locator: ProjectSymbolLocator,
     struct_layout_id: String,
@@ -14,13 +13,11 @@ pub struct ProjectSymbolClaim {
 
 impl ProjectSymbolClaim {
     pub fn new(
-        symbol_key: String,
         display_name: String,
         locator: ProjectSymbolLocator,
         struct_layout_id: String,
     ) -> Self {
         Self {
-            symbol_key,
             display_name,
             locator,
             struct_layout_id,
@@ -29,31 +26,24 @@ impl ProjectSymbolClaim {
     }
 
     pub fn new_absolute_address(
-        symbol_key: String,
         display_name: String,
         address: u64,
         struct_layout_id: String,
     ) -> Self {
-        Self::new(symbol_key, display_name, ProjectSymbolLocator::new_absolute_address(address), struct_layout_id)
+        Self::new(display_name, ProjectSymbolLocator::new_absolute_address(address), struct_layout_id)
     }
 
     pub fn new_module_offset(
-        symbol_key: String,
         display_name: String,
         module_name: String,
         offset: u64,
         struct_layout_id: String,
     ) -> Self {
-        Self::new(
-            symbol_key,
-            display_name,
-            ProjectSymbolLocator::new_module_offset(module_name, offset),
-            struct_layout_id,
-        )
+        Self::new(display_name, ProjectSymbolLocator::new_module_offset(module_name, offset), struct_layout_id)
     }
 
-    pub fn get_symbol_key(&self) -> &str {
-        &self.symbol_key
+    pub fn get_symbol_locator_key(&self) -> String {
+        self.locator.to_locator_key()
     }
 
     pub fn get_display_name(&self) -> &str {

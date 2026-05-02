@@ -224,8 +224,8 @@ fn refresh_symbol_ref_project_item_display_value(
     project_item: &mut ProjectItem,
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
-    let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
-    let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(&symbol_key) else {
+    let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
+    let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(&symbol_locator_key) else {
         ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
         ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, "");
         return;
@@ -1193,7 +1193,6 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
-                String::from("sym.gold"),
                 String::from("Gold"),
                 String::from("game.exe"),
                 0x1234,
@@ -1202,7 +1201,7 @@ mod tests {
         );
         let mut opened_project_items = vec![(
             ProjectItemRef::new(PathBuf::from("project/gold.json")),
-            ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.gold", ""),
+            ProjectItemTypeSymbolRef::new_project_item("Gold", "module:game.exe:1234", ""),
         )];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 

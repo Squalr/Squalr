@@ -24,25 +24,29 @@ pub fn is_promotable_project_item(project_item: &ProjectItem) -> bool {
         && resolve_project_item_type_id(project_item).is_some()
 }
 
-pub fn resolve_project_item_symbol_ref_key(project_item: &ProjectItem) -> Option<String> {
+pub fn resolve_project_item_symbol_ref_locator_key(project_item: &ProjectItem) -> Option<String> {
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
     if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
         return None;
     }
 
-    let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+    let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
 
-    if symbol_key.trim().is_empty() { None } else { Some(symbol_key) }
+    if symbol_locator_key.trim().is_empty() {
+        None
+    } else {
+        Some(symbol_locator_key)
+    }
 }
 
 pub fn resolve_project_item_symbol_claim<'a>(
     project_symbol_catalog: &'a ProjectSymbolCatalog,
     project_item: &ProjectItem,
 ) -> Option<&'a ProjectSymbolClaim> {
-    let symbol_key = resolve_project_item_symbol_ref_key(project_item)?;
+    let symbol_locator_key = resolve_project_item_symbol_ref_locator_key(project_item)?;
 
-    project_symbol_catalog.find_symbol_claim(&symbol_key)
+    project_symbol_catalog.find_symbol_claim(&symbol_locator_key)
 }
 
 pub fn resolve_project_item_struct_layout_id(

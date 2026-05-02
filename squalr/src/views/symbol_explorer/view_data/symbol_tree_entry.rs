@@ -10,9 +10,9 @@ use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTreeEntryKind {
-    ModuleSpace { module_name: String },
+    ModuleSpace { module_name: String, size: u64 },
     UnknownBytes { module_name: String, offset: u64, length: u64 },
-    SymbolClaim { symbol_key: String },
+    SymbolClaim { symbol_locator_key: String },
     StructField,
     ArrayElement,
     PointerTarget,
@@ -52,7 +52,7 @@ pub struct SymbolTreeEntry {
     display_name: String,
     full_path: String,
     promotion_display_name: String,
-    symbol_claim_key: String,
+    symbol_claim_locator_key: String,
     locator: ProjectSymbolLocator,
     symbol_type_id: String,
     container_type: ContainerType,
@@ -68,7 +68,7 @@ impl SymbolTreeEntry {
         display_name: String,
         full_path: String,
         promotion_display_name: String,
-        symbol_claim_key: String,
+        symbol_claim_locator_key: String,
         locator: ProjectSymbolLocator,
         symbol_type_id: String,
         container_type: ContainerType,
@@ -82,7 +82,7 @@ impl SymbolTreeEntry {
             display_name,
             full_path,
             promotion_display_name,
-            symbol_claim_key,
+            symbol_claim_locator_key,
             locator,
             symbol_type_id,
             container_type,
@@ -115,8 +115,8 @@ impl SymbolTreeEntry {
         &self.promotion_display_name
     }
 
-    pub fn get_symbol_claim_key(&self) -> &str {
-        &self.symbol_claim_key
+    pub fn get_symbol_claim_locator_key(&self) -> &str {
+        &self.symbol_claim_locator_key
     }
 
     pub fn get_locator(&self) -> &ProjectSymbolLocator {
@@ -155,12 +155,18 @@ where
 {
     let mut symbol_tree_entries = Vec::new();
     let mut module_symbol_claims: BTreeMap<String, Vec<&ProjectSymbolClaim>> = BTreeMap::new();
+    let mut module_sizes_by_name: BTreeMap<String, u64> = BTreeMap::new();
     let mut absolute_symbol_claims = Vec::new();
+
+    for symbol_module in project_symbol_catalog.get_symbol_modules() {
+        module_sizes_by_name.insert(symbol_module.get_module_name().to_string(), symbol_module.get_size());
+    }
 
     for symbol_claim in project_symbol_catalog.get_symbol_claims() {
         match symbol_claim.get_locator() {
             ProjectSymbolLocator::AbsoluteAddress { .. } => absolute_symbol_claims.push(symbol_claim),
             ProjectSymbolLocator::ModuleOffset { module_name, .. } => {
+                module_sizes_by_name.entry(module_name.clone()).or_insert(0);
                 module_symbol_claims
                     .entry(module_name.clone())
                     .or_default()
@@ -169,9 +175,10 @@ where
         }
     }
 
-    for (module_name, mut symbol_claims) in module_symbol_claims {
+    for (module_name, module_size) in module_sizes_by_name {
+        let mut symbol_claims = module_symbol_claims.remove(&module_name).unwrap_or_default();
         symbol_claims.sort_by_key(|symbol_claim| symbol_claim.get_locator().get_focus_address());
-        append_module_space_entry(&mut symbol_tree_entries, module_name.clone());
+        append_module_space_entry(&mut symbol_tree_entries, module_name.clone(), module_size);
 
         let mut next_unclaimed_offset = 0_u64;
 
@@ -200,11 +207,20 @@ where
             let claim_size_in_bytes = resolve_symbol_claim_size_in_bytes(project_symbol_catalog, symbol_claim, resolve_primitive_size_in_bytes);
             next_unclaimed_offset = next_unclaimed_offset.max(claim_offset.saturating_add(claim_size_in_bytes));
         }
+
+        if module_size > next_unclaimed_offset {
+            append_unknown_bytes_entry(
+                &mut symbol_tree_entries,
+                &module_name,
+                next_unclaimed_offset,
+                module_size.saturating_sub(next_unclaimed_offset),
+            );
+        }
     }
 
     if !absolute_symbol_claims.is_empty() {
         absolute_symbol_claims.sort_by_key(|symbol_claim| symbol_claim.get_locator().get_focus_address());
-        append_module_space_entry(&mut symbol_tree_entries, String::from("Absolute / Unmapped"));
+        append_module_space_entry(&mut symbol_tree_entries, String::from("Absolute / Unmapped"), 0);
 
         for symbol_claim in absolute_symbol_claims {
             append_symbol_claim_entry(
@@ -258,6 +274,7 @@ fn append_unknown_bytes_entry(
 fn append_module_space_entry(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     module_name: String,
+    size: u64,
 ) {
     let node_key = format!("module:{}", module_name);
 
@@ -265,6 +282,7 @@ fn append_module_space_entry(
         node_key,
         SymbolTreeEntryKind::ModuleSpace {
             module_name: module_name.clone(),
+            size,
         },
         0,
         module_name.clone(),
@@ -290,7 +308,7 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
-    let root_node_key = format!("claim:{}", symbol_claim.get_symbol_key());
+    let root_node_key = format!("claim:{}", symbol_claim.get_symbol_locator_key());
     let symbol_claim_type = resolve_symbol_claim_type(project_symbol_catalog, symbol_claim.get_struct_layout_id());
     let can_expand = symbol_claim_type.can_expand(project_symbol_catalog);
     let is_expanded = can_expand && expanded_tree_node_keys.contains(&root_node_key);
@@ -298,13 +316,13 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
     symbol_tree_entries.push(SymbolTreeEntry::new(
         root_node_key.clone(),
         SymbolTreeEntryKind::SymbolClaim {
-            symbol_key: symbol_claim.get_symbol_key().to_string(),
+            symbol_locator_key: symbol_claim.get_symbol_locator_key().to_string(),
         },
         depth,
         symbol_claim.get_display_name().to_string(),
         symbol_claim.get_display_name().to_string(),
         symbol_claim.get_display_name().to_string(),
-        symbol_claim.get_symbol_key().to_string(),
+        symbol_claim.get_symbol_locator_key().to_string(),
         symbol_claim.get_locator().clone(),
         symbol_claim_type.symbol_type_id().to_string(),
         symbol_claim_type.container_type(),
@@ -320,7 +338,7 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
         ResolvedSymbolClaimType::Struct { struct_layout_definition, .. } => append_struct_field_entries(
             symbol_tree_entries,
             project_symbol_catalog,
-            symbol_claim.get_symbol_key(),
+            &symbol_claim.get_symbol_locator_key(),
             &root_node_key,
             symbol_claim.get_display_name(),
             symbol_claim.get_display_name(),
@@ -337,7 +355,7 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
         } => append_field_children(
             symbol_tree_entries,
             project_symbol_catalog,
-            symbol_claim.get_symbol_key(),
+            &symbol_claim.get_symbol_locator_key(),
             &root_node_key,
             symbol_claim.get_display_name(),
             symbol_claim.get_display_name(),
@@ -356,7 +374,7 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
 fn append_struct_field_entries<ResolvePrimitiveSize>(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     project_symbol_catalog: &ProjectSymbolCatalog,
-    symbol_claim_key: &str,
+    symbol_claim_locator_key: &str,
     parent_node_key: &str,
     parent_full_path: &str,
     parent_promotion_display_name: &str,
@@ -397,7 +415,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
             field_display_name.clone(),
             field_full_path.clone(),
             field_promotion_display_name.clone(),
-            symbol_claim_key.to_string(),
+            symbol_claim_locator_key.to_string(),
             field_locator.clone(),
             field_symbol_type_id,
             field_definition.get_container_type(),
@@ -409,7 +427,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
             append_field_children(
                 symbol_tree_entries,
                 project_symbol_catalog,
-                symbol_claim_key,
+                symbol_claim_locator_key,
                 &field_node_key,
                 &field_full_path,
                 &field_promotion_display_name,
@@ -436,7 +454,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize>(
 fn append_field_children<ResolvePrimitiveSize>(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     project_symbol_catalog: &ProjectSymbolCatalog,
-    symbol_claim_key: &str,
+    symbol_claim_locator_key: &str,
     parent_node_key: &str,
     parent_full_path: &str,
     parent_promotion_display_name: &str,
@@ -476,7 +494,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                     array_element_display_name.clone(),
                     array_element_full_path.clone(),
                     array_element_promotion_display_name.clone(),
-                    symbol_claim_key.to_string(),
+                    symbol_claim_locator_key.to_string(),
                     array_element_locator.clone(),
                     data_type_ref.to_string(),
                     ContainerType::None,
@@ -489,7 +507,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                         append_struct_field_entries(
                             symbol_tree_entries,
                             project_symbol_catalog,
-                            symbol_claim_key,
+                            symbol_claim_locator_key,
                             &array_element_node_key,
                             &array_element_full_path,
                             &array_element_promotion_display_name,
@@ -516,7 +534,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                 append_struct_field_entries(
                     symbol_tree_entries,
                     project_symbol_catalog,
-                    symbol_claim_key,
+                    symbol_claim_locator_key,
                     parent_node_key,
                     parent_full_path,
                     parent_promotion_display_name,
@@ -549,7 +567,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                 String::from("*"),
                 pointer_target_full_path.clone(),
                 parent_promotion_display_name.to_string(),
-                symbol_claim_key.to_string(),
+                symbol_claim_locator_key.to_string(),
                 pointer_target_locator.clone(),
                 data_type_ref.to_string(),
                 ContainerType::None,
@@ -561,7 +579,7 @@ fn append_field_children<ResolvePrimitiveSize>(
                 append_field_children(
                     symbol_tree_entries,
                     project_symbol_catalog,
-                    symbol_claim_key,
+                    symbol_claim_locator_key,
                     &pointer_target_node_key,
                     &pointer_target_full_path,
                     parent_promotion_display_name,
@@ -851,16 +869,15 @@ mod tests {
                 ),
             ],
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x100,
                 String::from("player"),
             )],
         );
         let expanded_tree_node_keys = HashSet::from([
-            String::from("claim:sym.player"),
-            String::from("claim:sym.player::position"),
-            String::from("claim:sym.player::items"),
+            String::from("claim:absolute:100"),
+            String::from("claim:absolute:100::position"),
+            String::from("claim:absolute:100::items"),
         ]);
 
         let symbol_tree_entries =
@@ -881,6 +898,7 @@ mod tests {
             symbol_tree_entries[0].get_kind(),
             &SymbolTreeEntryKind::ModuleSpace {
                 module_name: String::from("Absolute / Unmapped"),
+                size: 0,
             }
         );
         assert_eq!(symbol_tree_entries[1].get_display_name(), "Player");
@@ -888,7 +906,7 @@ mod tests {
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
             &SymbolTreeEntryKind::SymbolClaim {
-                symbol_key: String::from("sym.player"),
+                symbol_locator_key: String::from("absolute:100"),
             }
         );
         assert_eq!(symbol_tree_entries[2].get_full_path(), "Player.health");
@@ -910,18 +928,44 @@ mod tests {
     }
 
     #[test]
+    fn build_symbol_tree_entries_shows_empty_module_root_as_unknown_bytes() {
+        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
+
+        let project_symbol_catalog =
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)], Vec::new(), Vec::new());
+
+        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |_| None);
+
+        assert_eq!(symbol_tree_entries.len(), 2);
+        assert_eq!(
+            symbol_tree_entries[0].get_kind(),
+            &SymbolTreeEntryKind::ModuleSpace {
+                module_name: String::from("game.exe"),
+                size: 0x20,
+            }
+        );
+        assert_eq!(
+            symbol_tree_entries[1].get_kind(),
+            &SymbolTreeEntryKind::UnknownBytes {
+                module_name: String::from("game.exe"),
+                offset: 0,
+                length: 0x20,
+            }
+        );
+    }
+
+    #[test]
     fn build_symbol_tree_entries_treats_primitive_root_type_as_leaf_node() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
-                String::from("sym.health"),
                 String::from("Health"),
                 String::from("game.exe"),
                 0x1234,
                 String::from("u32"),
             )],
         );
-        let expanded_tree_node_keys = HashSet::from([String::from("claim:sym.health")]);
+        let expanded_tree_node_keys = HashSet::from([String::from("claim:module:game.exe:1234")]);
 
         let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u32").then_some(4)
@@ -948,20 +992,8 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![
-                ProjectSymbolClaim::new_module_offset(
-                    String::from("sym.first"),
-                    String::from("First"),
-                    String::from("game.exe"),
-                    0x4,
-                    String::from("u32"),
-                ),
-                ProjectSymbolClaim::new_module_offset(
-                    String::from("sym.second"),
-                    String::from("Second"),
-                    String::from("game.exe"),
-                    0xC,
-                    String::from("u32"),
-                ),
+                ProjectSymbolClaim::new_module_offset(String::from("First"), String::from("game.exe"), 0x4, String::from("u32")),
+                ProjectSymbolClaim::new_module_offset(String::from("Second"), String::from("game.exe"), 0xC, String::from("u32")),
             ],
         );
 
@@ -1009,19 +1041,18 @@ mod tests {
                 ),
             )],
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x100,
                 String::from("player"),
             )],
         );
         let expanded_tree_node_keys = HashSet::from([
-            String::from("claim:sym.player"),
-            String::from("claim:sym.player::next"),
-            String::from("claim:sym.player::next::target"),
+            String::from("claim:absolute:100"),
+            String::from("claim:absolute:100::next"),
+            String::from("claim:absolute:100::next::target"),
         ]);
         let resolved_pointer_targets_by_node_key = HashMap::from([(
-            String::from("claim:sym.player::next"),
+            String::from("claim:absolute:100::next"),
             ResolvedPointerTarget::new(ProjectSymbolLocator::new_absolute_address(0x200), String::from("0x100 -> 0x200")),
         )]);
 

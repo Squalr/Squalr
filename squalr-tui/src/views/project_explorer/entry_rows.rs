@@ -138,7 +138,7 @@ pub fn build_visible_project_symbol_entry_rows(
                 "{} | {} | {}",
                 symbol_claim.get_struct_layout_id(),
                 symbol_claim.get_locator(),
-                symbol_claim.get_symbol_key()
+                symbol_claim.get_symbol_locator_key()
             ));
 
             if project_explorer_pane_state.focus_target != ProjectExplorerFocusTarget::ProjectSymbols {
@@ -183,12 +183,11 @@ mod tests {
     }
 
     #[test]
-    fn symbol_claim_rows_show_type_locator_and_key() {
+    fn symbol_claim_rows_show_type_locator_and_locator_key() {
         let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
         project_explorer_pane_state.focus_target = ProjectExplorerFocusTarget::ProjectSymbols;
         project_explorer_pane_state.selected_symbol_claim_index = Some(0);
         project_explorer_pane_state.symbol_claims = vec![ProjectSymbolClaim::new_absolute_address(
-            String::from("sym.player"),
             String::from("Player"),
             0x1234,
             String::from("player"),
@@ -199,6 +198,6 @@ mod tests {
         assert_eq!(visible_entry_rows.len(), 1);
         assert_eq!(visible_entry_rows[0].marker_text, "@");
         assert_eq!(visible_entry_rows[0].primary_text, "Player");
-        assert_eq!(visible_entry_rows[0].secondary_text.as_deref(), Some("player | 0x1234 | sym.player"));
+        assert_eq!(visible_entry_rows[0].secondary_text.as_deref(), Some("player | 0x1234 | absolute:1234"));
     }
 }

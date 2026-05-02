@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsUpdateResponse {
     pub success: bool,
-    pub symbol_key: String,
+    pub symbol_locator_key: String,
 }
 
 impl TypedUnprivilegedCommandResponse for ProjectSymbolsUpdateResponse {

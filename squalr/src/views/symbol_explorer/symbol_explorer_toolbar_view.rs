@@ -8,28 +8,28 @@ use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerToolbarAction {
-    CreateSymbolClaim,
+    CreateModuleRoot,
     RenameSelectedSymbolClaim,
     DeleteSelectedSymbolClaim,
     OpenSelectedInCodeViewer,
     OpenSelectedInMemoryViewer,
     PromoteSelectedDerivedSymbol,
-    CancelCreateSymbolClaim,
-    CommitCreateSymbolClaim,
+    CancelCreateModuleRoot,
+    CommitCreateModuleRoot,
 }
 
 #[derive(Clone)]
 pub struct SymbolExplorerToolbarView {
     app_context: Arc<AppContext>,
     show_actions: bool,
-    can_create_symbol_claim: bool,
+    can_create_module_root: bool,
     can_rename_symbol_claim: bool,
     can_delete_symbol_claim: bool,
     can_open_in_code_viewer: bool,
     can_open_in_memory_viewer: bool,
     can_promote_derived_symbol: bool,
-    can_cancel_create_symbol_claim: bool,
-    can_commit_create_symbol_claim: bool,
+    can_cancel_create_module_root: bool,
+    can_commit_create_module_root: bool,
 }
 
 impl SymbolExplorerToolbarView {
@@ -40,14 +40,14 @@ impl SymbolExplorerToolbarView {
         Self {
             app_context,
             show_actions: true,
-            can_create_symbol_claim: false,
+            can_create_module_root: false,
             can_rename_symbol_claim: false,
             can_delete_symbol_claim: false,
             can_open_in_code_viewer: false,
             can_open_in_memory_viewer: false,
             can_promote_derived_symbol: false,
-            can_cancel_create_symbol_claim: false,
-            can_commit_create_symbol_claim: false,
+            can_cancel_create_module_root: false,
+            can_commit_create_module_root: false,
         }
     }
 
@@ -60,11 +60,11 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_create_symbol_claim(
+    pub fn can_create_module_root(
         mut self,
-        can_create_symbol_claim: bool,
+        can_create_module_root: bool,
     ) -> Self {
-        self.can_create_symbol_claim = can_create_symbol_claim;
+        self.can_create_module_root = can_create_module_root;
 
         self
     }
@@ -114,20 +114,20 @@ impl SymbolExplorerToolbarView {
         self
     }
 
-    pub fn can_cancel_create_symbol_claim(
+    pub fn can_cancel_create_module_root(
         mut self,
-        can_cancel_create_symbol_claim: bool,
+        can_cancel_create_module_root: bool,
     ) -> Self {
-        self.can_cancel_create_symbol_claim = can_cancel_create_symbol_claim;
+        self.can_cancel_create_module_root = can_cancel_create_module_root;
 
         self
     }
 
-    pub fn can_commit_create_symbol_claim(
+    pub fn can_commit_create_module_root(
         mut self,
-        can_commit_create_symbol_claim: bool,
+        can_commit_create_module_root: bool,
     ) -> Self {
-        self.can_commit_create_symbol_claim = can_commit_create_symbol_claim;
+        self.can_commit_create_module_root = can_commit_create_module_root;
 
         self
     }
@@ -156,29 +156,29 @@ impl SymbolExplorerToolbarView {
         }
 
         toolbar_user_interface.with_layout(Layout::right_to_left(Align::Center), |toolbar_user_interface| {
-            if self.can_commit_create_symbol_claim || self.can_cancel_create_symbol_claim {
+            if self.can_commit_create_module_root || self.can_cancel_create_module_root {
                 if Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_common_check_mark,
-                    "Create symbol claim.",
-                    self.can_commit_create_symbol_claim,
+                    "Create module.",
+                    self.can_commit_create_module_root,
                 )
                 .clicked()
                 {
-                    clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateSymbolClaim);
+                    clicked_action = Some(SymbolExplorerToolbarAction::CommitCreateModuleRoot);
                 }
 
                 if Self::draw_icon_button(
                     toolbar_user_interface,
                     theme,
                     &theme.icon_library.icon_handle_navigation_cancel,
-                    "Cancel symbol-claim creation.",
-                    self.can_cancel_create_symbol_claim,
+                    "Cancel module creation.",
+                    self.can_cancel_create_module_root,
                 )
                 .clicked()
                 {
-                    clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateSymbolClaim);
+                    clicked_action = Some(SymbolExplorerToolbarAction::CancelCreateModuleRoot);
                 }
 
                 return;
@@ -249,17 +249,10 @@ impl SymbolExplorerToolbarView {
                 clicked_action = Some(SymbolExplorerToolbarAction::OpenSelectedInMemoryViewer);
             }
 
-            if self.can_create_symbol_claim
-                && Self::draw_icon_button(
-                    toolbar_user_interface,
-                    theme,
-                    &theme.icon_library.icon_handle_common_add,
-                    "Create a new symbol claim.",
-                    true,
-                )
-                .clicked()
+            if self.can_create_module_root
+                && Self::draw_icon_button(toolbar_user_interface, theme, &theme.icon_library.icon_handle_common_add, "Add module.", true).clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::CreateSymbolClaim);
+                clicked_action = Some(SymbolExplorerToolbarAction::CreateModuleRoot);
             }
         });
 

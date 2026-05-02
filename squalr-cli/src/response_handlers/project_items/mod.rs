@@ -32,7 +32,7 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
                 project_items_promote_symbol_response.reused_symbol_count,
                 project_items_promote_symbol_response.conflicts.len(),
                 project_items_promote_symbol_response
-                    .promoted_symbol_keys
+                    .promoted_symbol_locator_keys
                     .join(", ")
             );
         }

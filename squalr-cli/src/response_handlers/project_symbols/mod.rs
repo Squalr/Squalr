@@ -14,17 +14,21 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
             };
 
             log::info!(
-                "project: {}, symbol claim count: {}, symbol type count: {}",
+                "project: {}, module count: {}, symbol field count: {}, symbol type count: {}",
                 opened_project_name,
+                project_symbol_catalog.get_symbol_modules().len(),
                 project_symbol_catalog.get_symbol_claims().len(),
                 project_symbol_catalog.get_struct_layout_descriptors().len()
             );
 
+            for symbol_module in project_symbol_catalog.get_symbol_modules() {
+                log::info!("module: {}, size: 0x{:X}", symbol_module.get_module_name(), symbol_module.get_size());
+            }
+
             for symbol_claim in project_symbol_catalog.get_symbol_claims() {
                 log::info!(
-                    "symbol: {}, key: {}, type: {}, locator: {}",
+                    "symbol: {}, type: {}, locator: {}",
                     symbol_claim.get_display_name(),
-                    symbol_claim.get_symbol_key(),
                     symbol_claim.get_struct_layout_id(),
                     symbol_claim.get_locator()
                 );
@@ -49,27 +53,36 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
             project_symbols_create_response,
         } => {
             log::info!(
-                "created symbol claim: success={}, symbol_key={}",
+                "created symbol claim: success={}, symbol_locator_key={}",
                 project_symbols_create_response.success,
-                project_symbols_create_response.created_symbol_key
+                project_symbols_create_response.created_symbol_locator_key
+            );
+        }
+        ProjectSymbolsResponse::CreateModule {
+            project_symbols_create_module_response,
+        } => {
+            log::info!(
+                "created module root: success={}, module={}",
+                project_symbols_create_module_response.success,
+                project_symbols_create_module_response.module_name
             );
         }
         ProjectSymbolsResponse::Rename {
             project_symbols_rename_response,
         } => {
             log::info!(
-                "renamed symbol claim: success={}, symbol_key={}",
+                "renamed symbol claim: success={}, symbol_locator_key={}",
                 project_symbols_rename_response.success,
-                project_symbols_rename_response.symbol_key
+                project_symbols_rename_response.symbol_locator_key
             );
         }
         ProjectSymbolsResponse::Update {
             project_symbols_update_response,
         } => {
             log::info!(
-                "updated symbol claim: success={}, symbol_key={}",
+                "updated symbol claim: success={}, symbol_locator_key={}",
                 project_symbols_update_response.success,
-                project_symbols_update_response.symbol_key
+                project_symbols_update_response.symbol_locator_key
             );
         }
         ProjectSymbolsResponse::Delete {

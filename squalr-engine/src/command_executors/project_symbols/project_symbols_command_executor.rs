@@ -21,6 +21,11 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             } => project_symbols_create_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectSymbolsCommand::CreateModule {
+                project_symbols_create_module_request,
+            } => project_symbols_create_module_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectSymbolsCommand::Delete {
                 project_symbols_delete_request,
             } => project_symbols_delete_request

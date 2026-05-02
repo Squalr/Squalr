@@ -1,62 +1,9 @@
 use crate::command_executors::project::project_symbol_sync::sync_project_symbol_catalog;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::projects::{project::Project, project_symbol_claim::ProjectSymbolClaim};
+use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::path::PathBuf;
 use std::sync::Arc;
-
-pub fn build_unique_symbol_key(
-    display_name: &str,
-    existing_symbol_claims: &[ProjectSymbolClaim],
-) -> String {
-    let sanitized_component = sanitize_symbol_key_component(display_name);
-    let base_symbol_key = format!("sym.{}", sanitized_component);
-    let mut duplicate_sequence_number = 1_u64;
-    let mut candidate_symbol_key = base_symbol_key.clone();
-
-    while existing_symbol_claims
-        .iter()
-        .any(|existing_symbol_claim| existing_symbol_claim.get_symbol_key() == candidate_symbol_key)
-    {
-        duplicate_sequence_number = duplicate_sequence_number.saturating_add(1);
-        candidate_symbol_key = format!("{}.{}", base_symbol_key, duplicate_sequence_number);
-    }
-
-    candidate_symbol_key
-}
-
-pub fn sanitize_symbol_key_component(display_name: &str) -> String {
-    let mut sanitized_component = String::with_capacity(display_name.len());
-    let mut previous_character_was_separator = false;
-
-    for display_name_character in display_name.chars() {
-        let mapped_character = if display_name_character.is_ascii_alphanumeric() {
-            display_name_character.to_ascii_lowercase()
-        } else {
-            '.'
-        };
-
-        if mapped_character == '.' {
-            if previous_character_was_separator {
-                continue;
-            }
-
-            previous_character_was_separator = true;
-        } else {
-            previous_character_was_separator = false;
-        }
-
-        sanitized_component.push(mapped_character);
-    }
-
-    let trimmed_component = sanitized_component.trim_matches('.');
-
-    if trimmed_component.is_empty() {
-        String::from("symbol")
-    } else {
-        trimmed_component.to_string()
-    }
-}
 
 pub fn save_and_sync_project_symbol_catalog(
     engine_execution_context: &Arc<dyn EngineExecutionContext>,

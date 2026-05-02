@@ -184,18 +184,18 @@ impl ProjectExplorerPaneState {
         &mut self,
         project_symbol_catalog: Option<ProjectSymbolCatalog>,
     ) {
-        let selected_symbol_key_before_refresh = self
+        let selected_symbol_locator_key_before_refresh = self
             .selected_symbol_claim()
-            .map(|symbol_claim| symbol_claim.get_symbol_key().to_string());
+            .map(|symbol_claim| symbol_claim.get_symbol_locator_key().to_string());
         self.symbol_claims = project_symbol_catalog
             .map(|project_symbol_catalog| project_symbol_catalog.get_symbol_claims().to_vec())
             .unwrap_or_default();
-        self.selected_symbol_claim_index = selected_symbol_key_before_refresh
+        self.selected_symbol_claim_index = selected_symbol_locator_key_before_refresh
             .as_ref()
-            .and_then(|selected_symbol_key| {
+            .and_then(|selected_symbol_locator_key| {
                 self.symbol_claims
                     .iter()
-                    .position(|symbol_claim| symbol_claim.get_symbol_key() == selected_symbol_key)
+                    .position(|symbol_claim| symbol_claim.get_symbol_locator_key().as_str() == selected_symbol_locator_key)
             })
             .or_else(|| (!self.symbol_claims.is_empty()).then_some(0));
     }
@@ -1210,7 +1210,6 @@ mod tests {
         project_explorer_pane_state.apply_project_symbols_list(Some(ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x100,
                 String::from("player"),
@@ -1222,8 +1221,8 @@ mod tests {
         assert_eq!(
             project_explorer_pane_state
                 .selected_symbol_claim()
-                .map(|symbol_claim| symbol_claim.get_symbol_key()),
-            Some("sym.player")
+                .map(|symbol_claim| symbol_claim.get_symbol_locator_key()),
+            Some(String::from("absolute:100"))
         );
     }
 

@@ -8,12 +8,10 @@ use crate::views::{
     symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries},
     symbol_table::{
         symbol_table_toolbar_view::{SymbolTableToolbarAction, SymbolTableToolbarView},
-        view_data::symbol_table_view_data::{SymbolClaimCreateDraft, SymbolClaimDraftLocatorMode, SymbolTableTakeOverState, SymbolTableViewData},
+        view_data::symbol_table_view_data::{SymbolTableTakeOverState, SymbolTableViewData},
     },
 };
-use eframe::egui::{
-    Align, Color32, ComboBox, Direction, Key, Layout, Rect, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget, pos2, vec2,
-};
+use eframe::egui::{Align, Color32, Direction, Key, Layout, Rect, Response, RichText, ScrollArea, Sense, TextEdit, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::{
     memory::{
@@ -23,8 +21,8 @@ use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest,
     privileged_command_response::TypedPrivilegedCommandResponse,
     project_symbols::{
-        create::project_symbols_create_request::ProjectSymbolsCreateRequest, delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest,
-        rename::project_symbols_rename_request::ProjectSymbolsRenameRequest, update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
+        delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
+        update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
     },
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
@@ -58,7 +56,6 @@ impl SymbolTableView {
     const SEARCH_ROW_HEIGHT: f32 = 32.0;
     const TABLE_ROW_HEIGHT: f32 = 28.0;
     const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
-    const STRUCT_VIEWER_SYMBOL_KEY_FIELD: &'static str = "symbol_key";
     const STRUCT_VIEWER_SYMBOL_TYPE_FIELD: &'static str = "type";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -119,8 +116,8 @@ impl SymbolTableView {
                 .cmp(&right_symbol.get_display_name().to_ascii_lowercase())
                 .then_with(|| {
                     left_symbol
-                        .get_symbol_claim_key()
-                        .cmp(right_symbol.get_symbol_claim_key())
+                        .get_symbol_claim_locator_key()
+                        .cmp(right_symbol.get_symbol_claim_locator_key())
                 })
         });
 
@@ -185,7 +182,7 @@ impl SymbolTableView {
             symbol_struct,
             struct_viewer_edit_callback,
             Some(StructViewerFocusTarget::SymbolTable {
-                symbol_key: symbol_claim_entry.get_symbol_claim_key().to_string(),
+                symbol_locator_key: symbol_claim_entry.get_symbol_claim_locator_key().to_string(),
             }),
         );
     }
@@ -280,8 +277,6 @@ impl SymbolTableView {
         let mut normalized_fields = vec![
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim_entry.get_display_name())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim_entry.get_symbol_claim_key())
-                .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_KEY_FIELD.to_string(), true),
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_promoted_symbol_type_id())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), false),
         ];
@@ -309,8 +304,6 @@ impl SymbolTableView {
         ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim_entry.get_display_name())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim_entry.get_symbol_claim_key())
-                .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_KEY_FIELD.to_string(), true),
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_promoted_symbol_type_id())
                 .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_claim_entry.get_locator().to_string())
@@ -354,7 +347,7 @@ impl SymbolTableView {
                 }
 
                 ProjectSymbolsRenameRequest {
-                    symbol_key: symbol_claim_entry.get_symbol_claim_key().to_string(),
+                    symbol_locator_key: symbol_claim_entry.get_symbol_claim_locator_key().to_string(),
                     display_name: next_display_name,
                 }
                 .send(&engine_unprivileged_state, |_project_symbols_rename_response| {});
@@ -370,7 +363,7 @@ impl SymbolTableView {
                 }
 
                 ProjectSymbolsUpdateRequest {
-                    symbol_key: symbol_claim_entry.get_symbol_claim_key().to_string(),
+                    symbol_locator_key: symbol_claim_entry.get_symbol_claim_locator_key().to_string(),
                     display_name: None,
                     struct_layout_id: Some(next_struct_layout_id),
                 }
@@ -576,86 +569,16 @@ impl SymbolTableView {
         }
     }
 
-    fn parse_u64_draft(numeric_draft: &str) -> Option<u64> {
-        let trimmed_numeric_draft = numeric_draft.trim();
-
-        if trimmed_numeric_draft.is_empty() {
-            return None;
-        }
-
-        if let Some(hex_numeric_draft) = trimmed_numeric_draft
-            .strip_prefix("0x")
-            .or_else(|| trimmed_numeric_draft.strip_prefix("0X"))
-        {
-            u64::from_str_radix(hex_numeric_draft, 16).ok()
-        } else {
-            trimmed_numeric_draft.parse::<u64>().ok()
-        }
-    }
-
-    fn build_symbol_claim_create_request_from_draft(
-        edited_draft: &SymbolClaimCreateDraft,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-    ) -> Option<ProjectSymbolsCreateRequest> {
-        let parsed_address = Self::parse_u64_draft(&edited_draft.address_text);
-        let parsed_offset = Self::parse_u64_draft(&edited_draft.offset_text);
-        let has_valid_type_id = !edited_draft.struct_layout_id.trim().is_empty()
-            && project_symbol_catalog
-                .get_struct_layout_descriptors()
-                .iter()
-                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == edited_draft.struct_layout_id.trim());
-        let has_valid_locator = match edited_draft.locator_mode {
-            SymbolClaimDraftLocatorMode::AbsoluteAddress => parsed_address.is_some(),
-            SymbolClaimDraftLocatorMode::ModuleOffset => !edited_draft.module_name.trim().is_empty() && parsed_offset.is_some(),
-        };
-
-        if edited_draft.display_name.trim().is_empty() || !has_valid_type_id || !has_valid_locator {
-            return None;
-        }
-
-        Some(ProjectSymbolsCreateRequest {
-            display_name: edited_draft.display_name.trim().to_string(),
-            struct_layout_id: edited_draft.struct_layout_id.trim().to_string(),
-            address: match edited_draft.locator_mode {
-                SymbolClaimDraftLocatorMode::AbsoluteAddress => parsed_address,
-                SymbolClaimDraftLocatorMode::ModuleOffset => None,
-            },
-            module_name: match edited_draft.locator_mode {
-                SymbolClaimDraftLocatorMode::AbsoluteAddress => None,
-                SymbolClaimDraftLocatorMode::ModuleOffset => Some(edited_draft.module_name.trim().to_string()),
-            },
-            offset: match edited_draft.locator_mode {
-                SymbolClaimDraftLocatorMode::AbsoluteAddress => None,
-                SymbolClaimDraftLocatorMode::ModuleOffset => parsed_offset,
-            },
-            metadata: Default::default(),
-        })
-    }
-
-    fn create_symbol_claim(
-        &self,
-        project_symbols_create_request: ProjectSymbolsCreateRequest,
-    ) {
-        let symbol_table_view_data = self.symbol_table_view_data.clone();
-
-        project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, move |project_symbols_create_response| {
-            if project_symbols_create_response.success && !project_symbols_create_response.created_symbol_key.is_empty() {
-                SymbolTableViewData::set_selected_symbol_key(symbol_table_view_data.clone(), Some(project_symbols_create_response.created_symbol_key));
-                SymbolTableViewData::cancel_take_over_state(symbol_table_view_data);
-            }
-        });
-    }
-
     fn delete_symbol_claim(
         &self,
-        symbol_key: &str,
+        symbol_locator_key: &str,
     ) {
-        let deleted_symbol_key = symbol_key.to_string();
+        let deleted_symbol_locator_key = symbol_locator_key.to_string();
         let symbol_table_view_data = self.symbol_table_view_data.clone();
         let struct_viewer_view_data = self.struct_viewer_view_data.clone();
 
         ProjectSymbolsDeleteRequest {
-            symbol_keys: vec![deleted_symbol_key.clone()],
+            symbol_locator_keys: vec![deleted_symbol_locator_key.clone()],
         }
         .send(&self.app_context.engine_unprivileged_state, move |_project_symbols_delete_response| {
             SymbolTableViewData::cancel_take_over_state(symbol_table_view_data.clone());
@@ -667,8 +590,8 @@ impl SymbolTableView {
             if matches!(
                 current_focus_target,
                 Some(StructViewerFocusTarget::SymbolTable {
-                    symbol_key: focused_symbol_key,
-                }) if focused_symbol_key == deleted_symbol_key
+                    symbol_locator_key: focused_symbol_locator_key,
+                }) if focused_symbol_locator_key == deleted_symbol_locator_key
             ) {
                 StructViewerViewData::clear_focus(struct_viewer_view_data.clone());
             }
@@ -692,7 +615,7 @@ impl SymbolTableView {
         let search_edit_response = search_user_interface.add_sized(
             vec2(search_rect.width(), 26.0),
             TextEdit::singleline(&mut next_filter_text)
-                .hint_text("Filter symbol claims by name, locator, type, or key.")
+                .hint_text("Filter symbols by name, module, offset, or type.")
                 .background_color(theme.background_control)
                 .text_color(theme.foreground),
         );
@@ -706,7 +629,7 @@ impl SymbolTableView {
         &self,
         user_interface: &mut Ui,
         display_name: &str,
-        symbol_key: &str,
+        symbol_locator_key: &str,
     ) {
         let theme = &self.app_context.theme;
 
@@ -718,7 +641,7 @@ impl SymbolTableView {
                     GroupBox::new_from_theme(theme, "Delete Symbol Claim", |user_interface| {
                         user_interface.label(RichText::new(format!("Delete `{}`?", display_name)).color(theme.foreground));
                         user_interface.add_space(4.0);
-                        user_interface.label(RichText::new(symbol_key).color(theme.foreground_preview));
+                        user_interface.label(RichText::new(symbol_locator_key).color(theme.foreground_preview));
                         user_interface.add_space(12.0);
                         user_interface.horizontal(|user_interface| {
                             let cancel_response = user_interface.add_sized(
@@ -731,7 +654,7 @@ impl SymbolTableView {
                             let delete_response =
                                 user_interface.add_sized(vec2(96.0, 28.0), ThemeButton::new_from_theme(theme).with_tooltip_text("Delete symbol claim."));
                             if delete_response.clicked() {
-                                self.delete_symbol_claim(symbol_key);
+                                self.delete_symbol_claim(symbol_locator_key);
                             }
                         });
                     })
@@ -739,113 +662,6 @@ impl SymbolTableView {
                 );
             },
         );
-    }
-
-    fn render_create_symbol_claim_take_over(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_claim_create_draft: &SymbolClaimCreateDraft,
-    ) {
-        let theme = &self.app_context.theme;
-        let mut edited_draft = symbol_claim_create_draft.clone();
-        let can_create_symbol_claim = Self::build_symbol_claim_create_request_from_draft(&edited_draft, project_symbol_catalog).is_some();
-
-        user_interface.allocate_ui_with_layout(
-            user_interface.available_size(),
-            Layout::centered_and_justified(Direction::TopDown),
-            |user_interface| {
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, "New Symbol Claim", |user_interface| {
-                        user_interface.label(RichText::new("Display Name").color(theme.foreground_preview));
-                        user_interface.add(
-                            TextEdit::singleline(&mut edited_draft.display_name)
-                                .background_color(theme.background_control)
-                                .text_color(theme.foreground),
-                        );
-                        user_interface.add_space(8.0);
-                        user_interface.label(RichText::new("Type").color(theme.foreground_preview));
-                        ComboBox::from_id_salt("symbol_table_create_symbol_claim_type")
-                            .selected_text(if edited_draft.struct_layout_id.is_empty() {
-                                "Select a type"
-                            } else {
-                                &edited_draft.struct_layout_id
-                            })
-                            .show_ui(user_interface, |user_interface| {
-                                for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
-                                    user_interface.selectable_value(
-                                        &mut edited_draft.struct_layout_id,
-                                        struct_layout_descriptor.get_struct_layout_id().to_string(),
-                                        struct_layout_descriptor.get_struct_layout_id(),
-                                    );
-                                }
-                            });
-                        user_interface.add_space(8.0);
-                        user_interface.label(RichText::new("Locator").color(theme.foreground_preview));
-                        user_interface.horizontal(|user_interface| {
-                            user_interface.selectable_value(&mut edited_draft.locator_mode, SymbolClaimDraftLocatorMode::AbsoluteAddress, "Absolute Address");
-                            user_interface.selectable_value(&mut edited_draft.locator_mode, SymbolClaimDraftLocatorMode::ModuleOffset, "Module + Offset");
-                        });
-                        user_interface.add_space(4.0);
-
-                        match edited_draft.locator_mode {
-                            SymbolClaimDraftLocatorMode::AbsoluteAddress => {
-                                user_interface.label(RichText::new("Address").color(theme.foreground_preview));
-                                user_interface.add(
-                                    TextEdit::singleline(&mut edited_draft.address_text)
-                                        .hint_text("0x12345678")
-                                        .background_color(theme.background_control)
-                                        .text_color(theme.foreground),
-                                );
-                            }
-                            SymbolClaimDraftLocatorMode::ModuleOffset => {
-                                user_interface.label(RichText::new("Module Name").color(theme.foreground_preview));
-                                user_interface.add(
-                                    TextEdit::singleline(&mut edited_draft.module_name)
-                                        .background_color(theme.background_control)
-                                        .text_color(theme.foreground),
-                                );
-                                user_interface.add_space(4.0);
-                                user_interface.label(RichText::new("Offset").color(theme.foreground_preview));
-                                user_interface.add(
-                                    TextEdit::singleline(&mut edited_draft.offset_text)
-                                        .hint_text("0x1234")
-                                        .background_color(theme.background_control)
-                                        .text_color(theme.foreground),
-                                );
-                            }
-                        }
-
-                        user_interface.add_space(12.0);
-                        user_interface.horizontal(|user_interface| {
-                            let cancel_response = user_interface.add_sized(
-                                vec2(96.0, 28.0),
-                                ThemeButton::new_from_theme(theme).with_tooltip_text("Cancel symbol-claim creation."),
-                            );
-                            if cancel_response.clicked() {
-                                SymbolTableViewData::cancel_take_over_state(self.symbol_table_view_data.clone());
-                            }
-                            let create_response = user_interface.add_sized(
-                                vec2(96.0, 28.0),
-                                ThemeButton::new_from_theme(theme)
-                                    .with_tooltip_text("Create symbol claim.")
-                                    .disabled(!can_create_symbol_claim),
-                            );
-                            if create_response.clicked() {
-                                if let Some(project_symbols_create_request) =
-                                    Self::build_symbol_claim_create_request_from_draft(&edited_draft, project_symbol_catalog)
-                                {
-                                    self.create_symbol_claim(project_symbols_create_request);
-                                }
-                            }
-                        });
-                    })
-                    .desired_width(420.0),
-                );
-            },
-        );
-
-        SymbolTableViewData::set_symbol_claim_create_draft(self.symbol_table_view_data.clone(), edited_draft);
     }
 
     fn render_table_header(
@@ -860,10 +676,9 @@ impl SymbolTableView {
             .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
 
         let total_width = header_rect.width();
-        let name_width = (total_width * 0.22).max(140.0);
-        let locator_width = (total_width * 0.34).max(200.0);
-        let type_width = (total_width * 0.20).max(140.0);
-        let key_width = (total_width - name_width - locator_width - type_width - 16.0).max(80.0);
+        let name_width = (total_width * 0.30).max(140.0);
+        let locator_width = (total_width * 0.44).max(200.0);
+        let type_width = (total_width - name_width - locator_width - 16.0).max(140.0);
 
         self.draw_column_text(header_rect, 8.0, name_width, "Name", theme.foreground_preview, true, user_interface);
         self.draw_column_text(
@@ -880,15 +695,6 @@ impl SymbolTableView {
             8.0 + name_width + locator_width,
             type_width,
             "Type",
-            theme.foreground_preview,
-            true,
-            user_interface,
-        );
-        self.draw_column_text(
-            header_rect,
-            8.0 + name_width + locator_width + type_width,
-            key_width,
-            "Key",
             theme.foreground_preview,
             true,
             user_interface,
@@ -930,10 +736,9 @@ impl SymbolTableView {
         .ui(user_interface);
 
         let total_width = row_rect.width();
-        let name_width = (total_width * 0.22).max(140.0);
-        let locator_width = (total_width * 0.34).max(200.0);
-        let type_width = (total_width * 0.20).max(140.0);
-        let key_width = (total_width - name_width - locator_width - type_width - 16.0).max(80.0);
+        let name_width = (total_width * 0.30).max(140.0);
+        let locator_width = (total_width * 0.44).max(200.0);
+        let type_width = (total_width - name_width - locator_width - 16.0).max(140.0);
         let primary_text_color = theme.foreground;
         let secondary_text_color = theme.foreground_preview;
 
@@ -964,16 +769,6 @@ impl SymbolTableView {
             false,
             user_interface,
         );
-        self.draw_column_text(
-            row_rect,
-            8.0 + name_width + locator_width + type_width,
-            key_width,
-            symbol_claim_entry.get_symbol_claim_key(),
-            secondary_text_color,
-            false,
-            user_interface,
-        );
-
         row_response
     }
 
@@ -1019,7 +814,6 @@ impl SymbolTableView {
 
         [
             symbol_claim_entry.get_display_name().to_string(),
-            symbol_claim_entry.get_symbol_claim_key().to_string(),
             symbol_claim_entry.get_promoted_symbol_type_id(),
             symbol_claim_entry.get_locator().to_string(),
         ]
@@ -1052,32 +846,28 @@ impl Widget for SymbolTableView {
         };
 
         SymbolTableViewData::synchronize_selection(self.symbol_table_view_data.clone(), &project_symbol_catalog);
-        SymbolTableViewData::synchronize_symbol_claim_create_draft(self.symbol_table_view_data.clone(), &project_symbol_catalog);
         SymbolTableViewData::synchronize_take_over_state(self.symbol_table_view_data.clone(), &project_symbol_catalog);
         let symbol_claim_entries = self.build_symbol_claim_entries(&project_symbol_catalog);
-        let (selected_symbol_key, take_over_state, filter_text, symbol_claim_create_draft) = self
+        let (selected_symbol_locator_key, take_over_state, filter_text) = self
             .symbol_table_view_data
             .read("Symbol table view")
             .map(|symbol_table_view_data| {
                 (
                     symbol_table_view_data
-                        .get_selected_symbol_key()
+                        .get_selected_symbol_locator_key()
                         .map(str::to_string),
                     symbol_table_view_data.get_take_over_state().cloned(),
                     symbol_table_view_data.get_filter_text().to_string(),
-                    symbol_table_view_data.get_symbol_claim_create_draft().clone(),
                 )
             })
-            .unwrap_or((None, None, String::new(), SymbolClaimCreateDraft::default()));
-        let selected_symbol_claim_entry = selected_symbol_key.as_ref().and_then(|selected_symbol_key| {
-            symbol_claim_entries
-                .iter()
-                .find(|symbol_claim_entry| symbol_claim_entry.get_symbol_claim_key() == selected_symbol_key)
-        });
-        let can_create_symbol_claim = !project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .is_empty();
-
+            .unwrap_or((None, None, String::new()));
+        let selected_symbol_claim_entry = selected_symbol_locator_key
+            .as_ref()
+            .and_then(|selected_symbol_locator_key| {
+                symbol_claim_entries
+                    .iter()
+                    .find(|symbol_claim_entry| symbol_claim_entry.get_symbol_claim_locator_key() == selected_symbol_locator_key)
+            });
         if matches!(take_over_state, Some(SymbolTableTakeOverState::DeleteConfirmation { .. }))
             && user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
         {
@@ -1087,8 +877,8 @@ impl Widget for SymbolTableView {
         if matches!(take_over_state, Some(SymbolTableTakeOverState::DeleteConfirmation { .. }))
             && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
         {
-            if let Some(SymbolTableTakeOverState::DeleteConfirmation { symbol_key, .. }) = take_over_state.as_ref() {
-                self.delete_symbol_claim(symbol_key);
+            if let Some(SymbolTableTakeOverState::DeleteConfirmation { symbol_locator_key, .. }) = take_over_state.as_ref() {
+                self.delete_symbol_claim(symbol_locator_key);
             }
         }
 
@@ -1096,7 +886,7 @@ impl Widget for SymbolTableView {
             if let Some(symbol_claim_entry) = selected_symbol_claim_entry {
                 SymbolTableViewData::request_delete_confirmation(
                     self.symbol_table_view_data.clone(),
-                    symbol_claim_entry.get_symbol_claim_key().to_string(),
+                    symbol_claim_entry.get_symbol_claim_locator_key().to_string(),
                     symbol_claim_entry.get_display_name().to_string(),
                 );
             }
@@ -1121,16 +911,12 @@ impl Widget for SymbolTableView {
                 );
 
                 let toolbar_action = SymbolTableToolbarView::new(self.app_context.clone())
-                    .can_create_symbol_claim(can_create_symbol_claim && take_over_state.is_none())
                     .can_delete_symbol_claim(selected_symbol_claim_entry.is_some() && take_over_state.is_none())
                     .can_open_in_code_viewer(selected_symbol_claim_entry.is_some() && take_over_state.is_none())
                     .can_open_in_memory_viewer(selected_symbol_claim_entry.is_some() && take_over_state.is_none())
                     .show(&mut content_user_interface);
 
                 match toolbar_action {
-                    Some(SymbolTableToolbarAction::CreateSymbolClaim) => {
-                        SymbolTableViewData::begin_create_symbol_claim(self.symbol_table_view_data.clone(), &project_symbol_catalog);
-                    }
                     Some(SymbolTableToolbarAction::OpenSelectedInCodeViewer) => {
                         if let Some(symbol_claim_entry) = selected_symbol_claim_entry {
                             self.focus_code_viewer_for_locator(symbol_claim_entry.get_locator());
@@ -1145,7 +931,7 @@ impl Widget for SymbolTableView {
                         if let Some(symbol_claim_entry) = selected_symbol_claim_entry {
                             SymbolTableViewData::request_delete_confirmation(
                                 self.symbol_table_view_data.clone(),
-                                symbol_claim_entry.get_symbol_claim_key().to_string(),
+                                symbol_claim_entry.get_symbol_claim_locator_key().to_string(),
                                 symbol_claim_entry.get_display_name().to_string(),
                             );
                         }
@@ -1158,11 +944,11 @@ impl Widget for SymbolTableView {
                 content_user_interface.add_space(8.0);
 
                 match take_over_state.as_ref() {
-                    Some(SymbolTableTakeOverState::DeleteConfirmation { symbol_key, display_name }) => {
-                        self.render_delete_confirmation_take_over(&mut content_user_interface, display_name, symbol_key);
-                    }
-                    Some(SymbolTableTakeOverState::CreateSymbolClaim) => {
-                        self.render_create_symbol_claim_take_over(&mut content_user_interface, &project_symbol_catalog, &symbol_claim_create_draft);
+                    Some(SymbolTableTakeOverState::DeleteConfirmation {
+                        symbol_locator_key,
+                        display_name,
+                    }) => {
+                        self.render_delete_confirmation_take_over(&mut content_user_interface, display_name, symbol_locator_key);
                     }
                     None => {
                         self.render_table_header(&mut content_user_interface);
@@ -1174,15 +960,17 @@ impl Widget for SymbolTableView {
                                     .iter()
                                     .filter(|symbol_claim_entry| Self::symbol_claim_matches_filter(symbol_claim_entry, &filter_text))
                                 {
-                                    let is_selected = selected_symbol_key
+                                    let is_selected = selected_symbol_locator_key
                                         .as_deref()
-                                        .is_some_and(|selected_symbol_key| symbol_claim_entry.get_symbol_claim_key() == selected_symbol_key);
+                                        .is_some_and(|selected_symbol_locator_key| {
+                                            symbol_claim_entry.get_symbol_claim_locator_key() == selected_symbol_locator_key
+                                        });
                                     let row_response = self.render_symbol_claim_row(user_interface, symbol_claim_entry, is_selected);
 
                                     if row_response.clicked() {
-                                        SymbolTableViewData::set_selected_symbol_key(
+                                        SymbolTableViewData::set_selected_symbol_locator_key(
                                             self.symbol_table_view_data.clone(),
-                                            Some(symbol_claim_entry.get_symbol_claim_key().to_string()),
+                                            Some(symbol_claim_entry.get_symbol_claim_locator_key().to_string()),
                                         );
                                         self.focus_symbol_claim_in_struct_viewer(&project_symbol_catalog, symbol_claim_entry);
                                     }
@@ -1196,65 +984,5 @@ impl Widget for SymbolTableView {
                 }
             })
             .response
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{SymbolClaimCreateDraft, SymbolClaimDraftLocatorMode, SymbolTableView};
-    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
-    use squalr_engine_api::structures::{
-        data_types::data_type_ref::DataTypeRef,
-        data_values::container_type::ContainerType,
-        projects::project_symbol_catalog::ProjectSymbolCatalog,
-        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
-    };
-
-    fn create_project_symbol_catalog() -> ProjectSymbolCatalog {
-        ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
-            String::from("player.stats"),
-            SymbolicStructDefinition::new(
-                String::from("player.stats"),
-                vec![SymbolicFieldDefinition::new(
-                    DataTypeRef::new("u32"),
-                    ContainerType::None,
-                )],
-            ),
-        )])
-    }
-
-    #[test]
-    fn build_symbol_claim_create_request_accepts_hex_absolute_address() {
-        let project_symbol_catalog = create_project_symbol_catalog();
-        let symbol_claim_create_draft = SymbolClaimCreateDraft {
-            display_name: String::from("Player"),
-            struct_layout_id: String::from("player.stats"),
-            locator_mode: SymbolClaimDraftLocatorMode::AbsoluteAddress,
-            address_text: String::from("0x1234"),
-            module_name: String::new(),
-            offset_text: String::new(),
-        };
-
-        let project_symbols_create_request = SymbolTableView::build_symbol_claim_create_request_from_draft(&symbol_claim_create_draft, &project_symbol_catalog)
-            .expect("Expected symbol claim create request for valid absolute-address draft.");
-
-        assert_eq!(project_symbols_create_request.address, Some(0x1234));
-        assert_eq!(project_symbols_create_request.module_name, None);
-        assert_eq!(project_symbols_create_request.offset, None);
-    }
-
-    #[test]
-    fn build_symbol_claim_create_request_rejects_unknown_type_id() {
-        let project_symbol_catalog = create_project_symbol_catalog();
-        let symbol_claim_create_draft = SymbolClaimCreateDraft {
-            display_name: String::from("Player"),
-            struct_layout_id: String::from("missing.type"),
-            locator_mode: SymbolClaimDraftLocatorMode::ModuleOffset,
-            address_text: String::new(),
-            module_name: String::from("game.exe"),
-            offset_text: String::from("0x1234"),
-        };
-
-        assert!(SymbolTableView::build_symbol_claim_create_request_from_draft(&symbol_claim_create_draft, &project_symbol_catalog).is_none());
     }
 }

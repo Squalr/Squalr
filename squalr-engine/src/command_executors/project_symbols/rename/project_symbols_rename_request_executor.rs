@@ -42,9 +42,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsRenameRequest {
             .get_symbol_claims_mut();
         let Some(symbol_claim) = symbol_claims
             .iter_mut()
-            .find(|symbol_claim| symbol_claim.get_symbol_key() == self.symbol_key)
+            .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == self.symbol_locator_key)
         else {
-            log::warn!("Project-symbols rename request could not find symbol key '{}'.", self.symbol_key);
+            log::warn!(
+                "Project-symbols rename request could not find symbol locator key '{}'.",
+                self.symbol_locator_key
+            );
             return ProjectSymbolsRenameResponse::default();
         };
 
@@ -56,7 +59,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsRenameRequest {
 
         ProjectSymbolsRenameResponse {
             success: true,
-            symbol_key: self.symbol_key.clone(),
+            symbol_locator_key: self.symbol_locator_key.clone(),
         }
     }
 }
@@ -79,7 +82,6 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
                 String::from("player"),
@@ -98,13 +100,13 @@ mod tests {
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let project_symbols_rename_response = ProjectSymbolsRenameRequest {
-            symbol_key: String::from("sym.player"),
+            symbol_locator_key: String::from("absolute:1234"),
             display_name: String::from("Player Manager"),
         }
         .execute(&engine_execution_context);
 
         assert!(project_symbols_rename_response.success);
-        assert_eq!(project_symbols_rename_response.symbol_key, "sym.player");
+        assert_eq!(project_symbols_rename_response.symbol_locator_key, "absolute:1234");
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected renamed-symbol project to load from disk.");
         let symbol_claims = loaded_project

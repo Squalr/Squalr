@@ -17,13 +17,13 @@ pub struct ProjectItemTypeSymbolRef {}
 impl ProjectItemTypeSymbolRef {
     pub const PROJECT_ITEM_TYPE_ID: &str = "symbol_ref";
     pub const DEFAULT_PROJECT_ITEM_NAME: &str = "New Symbol Ref";
-    pub const PROPERTY_SYMBOL_KEY: &str = "symbol_key";
+    pub const PROPERTY_SYMBOL_LOCATOR_KEY: &str = "symbol_locator_key";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
     pub const PROPERTY_SYMBOL_LOCATOR_DISPLAY: &str = "symbol_locator_display";
 
     pub fn new_project_item(
         name: &str,
-        symbol_key: &str,
+        symbol_locator_key: &str,
         description: &str,
     ) -> ProjectItem {
         let project_item_type_ref = ProjectItemTypeRef::new(Self::PROJECT_ITEM_TYPE_ID.to_string());
@@ -31,27 +31,27 @@ impl ProjectItemTypeSymbolRef {
         let mut project_item = ProjectItem::new(project_item_type_ref, project_item_name);
 
         project_item.set_field_description(description);
-        Self::set_field_symbol_key(&mut project_item, symbol_key);
+        Self::set_field_symbol_locator_key(&mut project_item, symbol_locator_key);
         Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
         Self::set_field_symbol_locator_display(&mut project_item, "");
 
         project_item
     }
 
-    pub fn get_field_symbol_key(project_item: &ProjectItem) -> String {
-        Self::read_string_field(project_item, Self::PROPERTY_SYMBOL_KEY)
+    pub fn get_field_symbol_locator_key(project_item: &ProjectItem) -> String {
+        Self::read_string_field(project_item, Self::PROPERTY_SYMBOL_LOCATOR_KEY)
     }
 
-    pub fn set_field_symbol_key(
+    pub fn set_field_symbol_locator_key(
         project_item: &mut ProjectItem,
-        symbol_key: &str,
+        symbol_locator_key: &str,
     ) {
-        let symbol_key_data_value = DataTypeStringUtf8::get_value_from_primitive_string(symbol_key);
-        let field_data = ValuedStructFieldData::Value(symbol_key_data_value);
+        let symbol_locator_key_data_value = DataTypeStringUtf8::get_value_from_primitive_string(symbol_locator_key);
+        let field_data = ValuedStructFieldData::Value(symbol_locator_key_data_value);
 
         project_item
             .get_properties_mut()
-            .set_field_data(Self::PROPERTY_SYMBOL_KEY, field_data, false);
+            .set_field_data(Self::PROPERTY_SYMBOL_LOCATOR_KEY, field_data, false);
     }
 
     pub fn get_field_freeze_data_value_interpreter(project_item: &ProjectItem) -> String {
@@ -132,16 +132,16 @@ mod tests {
 
     #[test]
     fn new_project_item_uses_default_name_for_empty_name() {
-        let project_item = ProjectItemTypeSymbolRef::new_project_item("", "sym.gold", "");
+        let project_item = ProjectItemTypeSymbolRef::new_project_item("", "module:game.exe:1234", "");
 
         assert_eq!(project_item.get_field_name(), ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME);
     }
 
     #[test]
-    fn new_project_item_persists_symbol_key() {
-        let project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.gold", "desc");
+    fn new_project_item_persists_symbol_locator_key() {
+        let project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "module:game.exe:1234", "desc");
 
-        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_key(&project_item), "sym.gold");
+        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_key(&project_item), "module:game.exe:1234");
         assert_eq!(ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&project_item), "");
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&project_item), "");
     }

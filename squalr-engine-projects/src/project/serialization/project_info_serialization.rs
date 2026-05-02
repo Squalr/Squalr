@@ -183,15 +183,8 @@ mod tests {
                     ),
                 )],
                 vec![
-                    ProjectSymbolClaim::new_module_offset(
-                        String::from("sym.player.stats"),
-                        String::from("Player Stats"),
-                        String::from("game.exe"),
-                        0x1234,
-                        String::from("player.stats"),
-                    ),
+                    ProjectSymbolClaim::new_module_offset(String::from("Player Stats"), String::from("game.exe"), 0x1234, String::from("player.stats")),
                     ProjectSymbolClaim::new(
-                        String::from("sym.player.absolute"),
                         String::from("Player Absolute"),
                         ProjectSymbolLocator::new_absolute_address(0x8877_6655),
                         String::from("player.stats"),
@@ -210,7 +203,7 @@ mod tests {
             .get_symbol_claims();
 
         assert_eq!(symbol_claims.len(), 2);
-        assert_eq!(symbol_claims[0].get_symbol_key(), "sym.player.stats");
+        assert_eq!(symbol_claims[0].get_symbol_locator_key(), "module:game.exe:1234");
         assert_eq!(symbol_claims[0].get_display_name(), "Player Stats");
         assert_eq!(symbol_claims[0].get_struct_layout_id(), "player.stats");
         assert_eq!(

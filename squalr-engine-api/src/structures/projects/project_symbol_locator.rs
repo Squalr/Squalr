@@ -32,6 +32,13 @@ impl ProjectSymbolLocator {
             Self::ModuleOffset { module_name, .. } => module_name,
         }
     }
+
+    pub fn to_locator_key(&self) -> String {
+        match self {
+            Self::AbsoluteAddress { address } => format!("absolute:{:X}", address),
+            Self::ModuleOffset { module_name, offset } => format!("module:{}:{:X}", module_name, offset),
+        }
+    }
 }
 
 impl fmt::Display for ProjectSymbolLocator {

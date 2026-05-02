@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 pub struct SymbolTreeInlineRenameView<'lifetime> {
     app_context: Arc<AppContext>,
-    symbol_key: &'lifetime str,
+    symbol_locator_key: &'lifetime str,
     symbol_tree_entry: &'lifetime SymbolTreeEntry,
     rename_text: &'lifetime mut String,
     should_highlight_text: &'lifetime mut bool,
@@ -29,7 +29,7 @@ pub struct SymbolTreeInlineRenameViewResponse {
 impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
-        symbol_key: &'lifetime str,
+        symbol_locator_key: &'lifetime str,
         symbol_tree_entry: &'lifetime SymbolTreeEntry,
         rename_text: &'lifetime mut String,
         should_highlight_text: &'lifetime mut bool,
@@ -37,7 +37,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
     ) -> Self {
         Self {
             app_context,
-            symbol_key,
+            symbol_locator_key,
             symbol_tree_entry,
             rename_text,
             should_highlight_text,
@@ -110,7 +110,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
             ),
             pos2(allocated_size_rectangle.max.x - right_preview_padding, allocated_size_rectangle.max.y - 3.0),
         );
-        let text_edit_id = Id::new(("symbol_explorer_inline_rename_editor", self.symbol_key));
+        let text_edit_id = Id::new(("symbol_explorer_inline_rename_editor", self.symbol_locator_key));
         let mut text_edit_user_interface = user_interface.new_child(UiBuilder::new().max_rect(text_rect));
         text_edit_user_interface.set_clip_rect(text_rect);
         let mut output = TextEdit::singleline(self.rename_text)

@@ -1514,7 +1514,7 @@ impl Widget for ProjectHierarchyView {
                                         user_interface.label(
                                             RichText::new(format!(
                                                 "{} -> {} ({})",
-                                                conflict.requested_display_name, conflict.symbol_key, conflict.existing_locator_display
+                                                conflict.requested_display_name, conflict.symbol_locator_key, conflict.existing_locator_display
                                             ))
                                             .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
                                             .color(theme.foreground),
@@ -3509,10 +3509,10 @@ impl ProjectHierarchyView {
             return None;
         }
 
-        let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
+        let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
         let project_symbol_catalog = opened_project_info?.get_project_symbol_catalog();
 
-        project_symbol_catalog.find_symbol_claim(&symbol_key)
+        project_symbol_catalog.find_symbol_claim(&symbol_locator_key)
     }
 
     fn resolve_project_item_symbolic_struct_namespace(

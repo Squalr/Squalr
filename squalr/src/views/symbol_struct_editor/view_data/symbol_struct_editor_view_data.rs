@@ -426,7 +426,6 @@ mod tests {
                 ),
             )],
             vec![ProjectSymbolClaim::new_absolute_address(
-                String::from("sym.player"),
                 String::from("Player"),
                 0x1234,
                 String::from("player.stats"),

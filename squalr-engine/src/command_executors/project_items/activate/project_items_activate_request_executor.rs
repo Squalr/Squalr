@@ -158,8 +158,8 @@ fn create_memory_freeze_target(
     }
 
     if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-        let symbol_key = ProjectItemTypeSymbolRef::get_field_symbol_key(project_item);
-        let symbol_claim = project_symbol_catalog.find_symbol_claim(&symbol_key)?;
+        let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
+        let symbol_claim = project_symbol_catalog.find_symbol_claim(&symbol_locator_key)?;
 
         return Some(MemoryFreezeTarget {
             address: symbol_claim.get_locator().get_focus_address(),
@@ -324,11 +324,10 @@ mod tests {
 
     #[test]
     fn create_memory_freeze_target_uses_symbol_ref_symbol_claim_values() {
-        let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "sym.gold", "");
+        let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "module:game.exe:1234", "");
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
-                String::from("sym.gold"),
                 String::from("Gold"),
                 String::from("game.exe"),
                 0x1234,
