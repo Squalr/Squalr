@@ -1,8 +1,9 @@
 use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
-use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteRequest};
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_response::ProjectSymbolsDeleteResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -13,11 +14,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         &self,
         engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
-        if self.symbol_locator_keys.is_empty() && self.module_names.is_empty() {
+        if self.symbol_locator_keys.is_empty() && self.module_names.is_empty() && self.module_ranges.is_empty() {
             return ProjectSymbolsDeleteResponse {
                 success: true,
                 deleted_symbol_count: 0,
                 deleted_module_count: 0,
+                deleted_module_range_count: 0,
             };
         }
 
@@ -52,6 +54,17 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             .filter(|module_name| !module_name.is_empty())
             .map(str::to_string)
             .collect::<HashSet<String>>();
+        let mut module_ranges = self
+            .module_ranges
+            .iter()
+            .filter_map(normalize_delete_module_range)
+            .collect::<Vec<_>>();
+        module_ranges.sort_by(|left_range, right_range| {
+            right_range
+                .module_name
+                .cmp(&left_range.module_name)
+                .then_with(|| right_range.offset.cmp(&left_range.offset))
+        });
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
@@ -61,6 +74,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         symbol_modules.retain(|symbol_module| !module_name_set.contains(symbol_module.get_module_name()));
 
         let deleted_module_count = symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64;
+        let deleted_module_range_count = apply_module_range_deletes(project_symbol_catalog, &module_ranges, &module_name_set);
         let symbol_claims = project_symbol_catalog.get_symbol_claims_mut();
         let symbol_claim_count_before_delete = symbol_claims.len();
 
@@ -79,11 +93,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
 
         let deleted_symbol_count = symbol_claim_count_before_delete.saturating_sub(symbol_claims.len()) as u64;
 
-        if deleted_symbol_count == 0 && deleted_module_count == 0 {
+        if deleted_symbol_count == 0 && deleted_module_count == 0 && deleted_module_range_count == 0 {
             return ProjectSymbolsDeleteResponse {
                 success: true,
                 deleted_symbol_count: 0,
                 deleted_module_count: 0,
+                deleted_module_range_count: 0,
             };
         }
 
@@ -92,6 +107,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
                 success: false,
                 deleted_symbol_count,
                 deleted_module_count,
+                deleted_module_range_count,
             };
         }
 
@@ -99,8 +115,88 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
             success: true,
             deleted_symbol_count,
             deleted_module_count,
+            deleted_module_range_count,
         }
     }
+}
+
+fn normalize_delete_module_range(project_symbols_delete_module_range: &ProjectSymbolsDeleteModuleRange) -> Option<ProjectSymbolsDeleteModuleRange> {
+    let module_name = project_symbols_delete_module_range.module_name.trim();
+
+    if module_name.is_empty() || project_symbols_delete_module_range.length == 0 {
+        return None;
+    }
+
+    Some(ProjectSymbolsDeleteModuleRange {
+        module_name: module_name.to_string(),
+        offset: project_symbols_delete_module_range.offset,
+        length: project_symbols_delete_module_range.length,
+    })
+}
+
+fn apply_module_range_deletes(
+    project_symbol_catalog: &mut squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog,
+    module_ranges: &[ProjectSymbolsDeleteModuleRange],
+    deleted_module_names: &HashSet<String>,
+) -> u64 {
+    let mut deleted_module_range_count = 0_u64;
+
+    for module_range in module_ranges {
+        if deleted_module_names.contains(&module_range.module_name) {
+            continue;
+        }
+
+        let Some(symbol_module) = project_symbol_catalog.find_symbol_module_mut(&module_range.module_name) else {
+            continue;
+        };
+        let module_size = symbol_module.get_size();
+
+        if module_range.offset >= module_size {
+            continue;
+        }
+
+        let deleted_length = module_range
+            .length
+            .min(module_size.saturating_sub(module_range.offset));
+
+        if deleted_length == 0 {
+            continue;
+        }
+
+        symbol_module.set_size(module_size.saturating_sub(deleted_length));
+        delete_or_shift_module_symbol_claims(project_symbol_catalog.get_symbol_claims_mut(), module_range, deleted_length);
+        deleted_module_range_count = deleted_module_range_count.saturating_add(1);
+    }
+
+    deleted_module_range_count
+}
+
+fn delete_or_shift_module_symbol_claims(
+    symbol_claims: &mut Vec<squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim>,
+    module_range: &ProjectSymbolsDeleteModuleRange,
+    deleted_length: u64,
+) {
+    let deleted_range_end = module_range.offset.saturating_add(deleted_length);
+
+    symbol_claims.retain_mut(|symbol_claim| {
+        let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_claim.get_locator_mut() else {
+            return true;
+        };
+
+        if module_name != &module_range.module_name {
+            return true;
+        }
+
+        if *offset >= module_range.offset && *offset < deleted_range_end {
+            return false;
+        }
+
+        if *offset >= deleted_range_end {
+            *offset = offset.saturating_sub(deleted_length);
+        }
+
+        true
+    });
 }
 
 #[cfg(test)]
@@ -142,6 +238,7 @@ mod tests {
         let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
             symbol_locator_keys: vec![String::from("absolute:1234")],
             module_names: Vec::new(),
+            module_ranges: Vec::new(),
         }
         .execute(&engine_execution_context);
 
@@ -195,6 +292,7 @@ mod tests {
         let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
             symbol_locator_keys: Vec::new(),
             module_names: vec![String::from("game.exe")],
+            module_ranges: Vec::new(),
         }
         .execute(&engine_execution_context);
 
@@ -215,6 +313,64 @@ mod tests {
                 .get_symbol_locator_key()
                 .starts_with("module:game.exe:")
         }));
+
+        let captured_project_symbol_catalogs = captured_project_symbol_catalogs
+            .lock()
+            .expect("Expected captured symbol catalog lock in test.");
+        assert_eq!(captured_project_symbol_catalogs.len(), 1);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_modules(), symbol_modules);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+    }
+
+    #[test]
+    fn delete_project_symbols_request_removes_module_range_and_shifts_later_claims() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)],
+            Vec::new(),
+            vec![
+                ProjectSymbolClaim::new_module_offset(String::from("Health"), String::from("game.exe"), 0x04, String::from("u32")),
+                ProjectSymbolClaim::new_module_offset(String::from("Ammo"), String::from("game.exe"), 0x10, String::from("u32")),
+            ],
+        );
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let mock_project_symbols_bindings = MockProjectSymbolsBindings::new();
+        let captured_project_symbol_catalogs = mock_project_symbols_bindings.captured_project_symbol_catalogs();
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_project_symbols_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
+            symbol_locator_keys: Vec::new(),
+            module_names: Vec::new(),
+            module_ranges: vec![
+                squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRange {
+                    module_name: String::from("game.exe"),
+                    offset: 0x04,
+                    length: 0x04,
+                },
+            ],
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_delete_response.success);
+        assert_eq!(project_symbols_delete_response.deleted_module_range_count, 1);
+        assert_eq!(project_symbols_delete_response.deleted_symbol_count, 0);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected range-deleted project to load from disk.");
+        let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
+        let symbol_modules = project_symbol_catalog.get_symbol_modules();
+        let symbol_claims = project_symbol_catalog.get_symbol_claims();
+
+        assert_eq!(symbol_modules[0].get_size(), 0x1C);
+        assert_eq!(symbol_claims.len(), 1);
+        assert_eq!(symbol_claims[0].get_display_name(), "Ammo");
+        assert_eq!(symbol_claims[0].get_symbol_locator_key(), "module:game.exe:C");
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
             .lock()

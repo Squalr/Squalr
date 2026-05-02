@@ -580,6 +580,7 @@ impl SymbolTableView {
         ProjectSymbolsDeleteRequest {
             symbol_locator_keys: vec![deleted_symbol_locator_key.clone()],
             module_names: Vec::new(),
+            module_ranges: Vec::new(),
         }
         .send(&self.app_context.engine_unprivileged_state, move |_project_symbols_delete_response| {
             SymbolTableViewData::cancel_take_over_state(symbol_table_view_data.clone());

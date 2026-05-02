@@ -109,7 +109,7 @@ impl SymbolExplorerToolbarView {
                 toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_common_delete,
-                "Delete selected module or symbol.",
+                "Delete selected module, symbol, or field.",
                 self.can_delete_selected_entry,
             )
             .clicked()
@@ -121,7 +121,7 @@ impl SymbolExplorerToolbarView {
                 toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_common_edit,
-                "Rename selected module or symbol.",
+                "Rename selected module, symbol, or field.",
                 self.can_rename_selected_entry,
             )
             .clicked()
@@ -133,7 +133,7 @@ impl SymbolExplorerToolbarView {
                 toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_project_cpu_instruction,
-                "Open selected symbol in Code Viewer.",
+                "Open selected symbol or field in Code Viewer.",
                 self.can_open_in_code_viewer,
             )
             .clicked()
@@ -145,7 +145,7 @@ impl SymbolExplorerToolbarView {
                 toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_scan_collect_values,
-                "Open selected symbol in Memory Viewer.",
+                "Open selected symbol or field in Memory Viewer.",
                 self.can_open_in_memory_viewer,
             )
             .clicked()

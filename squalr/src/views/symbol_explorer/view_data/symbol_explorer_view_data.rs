@@ -13,8 +13,19 @@ pub enum SymbolExplorerSelection {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerTakeOverState {
-    DeleteSymbolClaimConfirmation { symbol_locator_key: String, display_name: String },
-    DeleteModuleRootConfirmation { module_name: String },
+    DeleteSymbolClaimConfirmation {
+        symbol_locator_key: String,
+        display_name: String,
+    },
+    DeleteModuleRootConfirmation {
+        module_name: String,
+    },
+    DeleteModuleRangeConfirmation {
+        module_name: String,
+        offset: u64,
+        length: u64,
+        display_name: String,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -129,6 +140,24 @@ impl SymbolExplorerViewData {
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete module confirmation") {
             symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name });
+            symbol_explorer_view_data.inline_rename_tree_node_key = None;
+        }
+    }
+
+    pub fn request_delete_module_range_confirmation(
+        symbol_explorer_view_data: Dependency<Self>,
+        module_name: String,
+        offset: u64,
+        length: u64,
+        display_name: String,
+    ) {
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete module range confirmation") {
+            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation {
+                module_name,
+                offset,
+                length,
+                display_name,
+            });
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
         }
     }
@@ -253,6 +282,9 @@ impl SymbolExplorerViewData {
                 .iter()
                 .any(|symbol_claim| symbol_claim.get_symbol_locator_key() == *symbol_locator_key),
             Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => project_symbol_catalog.find_symbol_module(module_name).is_none(),
+            Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation { module_name, .. }) => {
+                project_symbol_catalog.find_symbol_module(module_name).is_none()
+            }
             None => false,
         };
 

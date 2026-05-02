@@ -6,6 +6,13 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
+#[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProjectSymbolsDeleteModuleRange {
+    pub module_name: String,
+    pub offset: u64,
+    pub length: u64,
+}
+
 #[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
 pub struct ProjectSymbolsDeleteRequest {
     #[structopt(short = "k", long = "key")]
@@ -13,6 +20,10 @@ pub struct ProjectSymbolsDeleteRequest {
 
     #[structopt(short = "m", long = "module")]
     pub module_names: Vec<String>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub module_ranges: Vec<ProjectSymbolsDeleteModuleRange>,
 }
 
 impl UnprivilegedCommandRequest for ProjectSymbolsDeleteRequest {

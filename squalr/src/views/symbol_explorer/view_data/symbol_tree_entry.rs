@@ -257,6 +257,26 @@ where
     symbol_tree_entries
 }
 
+pub fn resolve_symbol_tree_entry_size_in_bytes<ResolvePrimitiveSize>(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbol_tree_entry: &SymbolTreeEntry,
+    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
+) -> u64
+where
+    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
+{
+    let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()) else {
+        return 0;
+    };
+
+    resolve_field_size_in_bytes(
+        project_symbol_catalog,
+        &symbolic_field_definition,
+        resolve_primitive_size_in_bytes,
+        &mut HashSet::new(),
+    )
+}
+
 fn append_u8_segment_entry(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     module_name: &str,
