@@ -1357,9 +1357,15 @@ impl SymbolExplorerView {
         prompt_text: &str,
         display_name: &str,
         description_text: &str,
+        is_description_warning: bool,
     ) -> bool {
         let theme = &self.app_context.theme;
         let mut did_confirm_delete = false;
+        let description_color = if is_description_warning {
+            theme.background_control_warning
+        } else {
+            theme.foreground_preview
+        };
 
         user_interface.allocate_ui_with_layout(
             user_interface.available_size(),
@@ -1382,33 +1388,42 @@ impl SymbolExplorerView {
                                     .color(theme.foreground),
                             );
                             user_interface.add_space(6.0);
-                            user_interface.label(RichText::new(description_text).color(theme.foreground_preview));
+                            user_interface.label(RichText::new(description_text).color(description_color));
                         });
 
                         user_interface.add_space(12.0);
-                        user_interface.horizontal_centered(|user_interface| {
-                            let button_size = [96.0, 30.0];
-                            let button_cancel = user_interface.add_sized(
-                                button_size,
-                                eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                    .fill(theme.background_control_secondary)
-                                    .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                            );
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(120.0, 28.0);
+                            let button_spacing = 12.0;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
 
-                            if button_cancel.clicked() {
-                                SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
-                            }
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
 
-                            let button_confirm_delete = user_interface.add_sized(
-                                button_size,
-                                eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
-                                    .fill(theme.background_control_danger)
-                                    .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
-                            );
+                                let button_cancel = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
 
-                            if button_confirm_delete.clicked() {
-                                did_confirm_delete = true;
-                            }
+                                if button_cancel.clicked() {
+                                    SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+                                }
+
+                                let button_confirm_delete = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
+                                        .fill(theme.background_control_danger)
+                                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                                );
+
+                                if button_confirm_delete.clicked() {
+                                    did_confirm_delete = true;
+                                }
+                            });
                         });
                     })
                     .desired_width(panel_width),
@@ -2041,6 +2056,7 @@ impl Widget for SymbolExplorerView {
                             "Delete this symbol?",
                             display_name,
                             "This removes the authored symbol from the project.",
+                            false,
                         ) {
                             self.delete_symbol_claim(symbol_locator_key);
                         }
@@ -2055,6 +2071,7 @@ impl Widget for SymbolExplorerView {
                             "Delete this module?",
                             module_name,
                             "This removes the module root and all symbol claims inside it.",
+                            false,
                         ) {
                             self.delete_module_root(module_name);
                         }
@@ -2077,6 +2094,7 @@ impl Widget for SymbolExplorerView {
                                 "This shrinks {} by {} byte(s) at +0x{:X}; later module fields shift left.",
                                 module_name, length, offset
                             ),
+                            true,
                         ) {
                             self.delete_module_range(module_name, *offset, *length);
                         }
