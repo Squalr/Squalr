@@ -1354,34 +1354,23 @@ impl SymbolExplorerView {
         &self,
         user_interface: &mut Ui,
         title: &str,
-        prompt_text: &str,
         display_name: &str,
         description_text: &str,
         is_description_warning: bool,
     ) -> bool {
         let theme = &self.app_context.theme;
         let mut did_confirm_delete = false;
-        let description_color = if is_description_warning {
-            theme.background_control_warning
-        } else {
-            theme.foreground_preview
-        };
+        let description_color = if is_description_warning { theme.warning } else { theme.foreground_preview };
 
         user_interface.allocate_ui_with_layout(
             user_interface.available_size(),
             Layout::centered_and_justified(Direction::TopDown),
             |user_interface| {
-                let panel_width = user_interface.available_width().min(420.0).max(260.0);
+                let panel_width = user_interface.available_width();
 
                 user_interface.add(
                     GroupBox::new_from_theme(theme, title, |user_interface| {
                         user_interface.vertical_centered(|user_interface| {
-                            user_interface.label(
-                                RichText::new(prompt_text)
-                                    .font(theme.font_library.font_noto_sans.font_header.clone())
-                                    .color(theme.foreground),
-                            );
-                            user_interface.add_space(8.0);
                             user_interface.label(
                                 RichText::new(display_name)
                                     .font(theme.font_library.font_ubuntu_mono_bold.font_normal.clone())
@@ -2052,8 +2041,7 @@ impl Widget for SymbolExplorerView {
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
-                            "Delete Symbol Claim",
-                            "Delete this symbol?",
+                            "Delete this symbol",
                             display_name,
                             "This removes the authored symbol from the project.",
                             false,
@@ -2067,8 +2055,7 @@ impl Widget for SymbolExplorerView {
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
-                            "Delete Module",
-                            "Delete this module?",
+                            "Delete this module",
                             module_name,
                             "This removes the module root and all symbol claims inside it.",
                             false,
@@ -2087,8 +2074,7 @@ impl Widget for SymbolExplorerView {
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
-                            "Delete Module Field",
-                            "Delete this field?",
+                            "Delete this field",
                             display_name,
                             &format!(
                                 "This shrinks {} by {} byte(s) at +0x{:X}; later module fields shift left.",
