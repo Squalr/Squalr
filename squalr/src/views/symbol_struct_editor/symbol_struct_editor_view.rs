@@ -1099,18 +1099,26 @@ impl Widget for SymbolStructEditorView {
             })
             .unwrap_or((None, String::new(), None, None, None));
         let is_take_over_active = take_over_state.is_some();
+        let is_window_focused = self
+            .app_context
+            .window_focus_manager
+            .is_window_focused(Self::WINDOW_ID);
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
-        if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
+        if is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
             SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
         }
 
-        if !is_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+        if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
                 SymbolStructEditorViewData::begin_edit_struct_layout(self.symbol_struct_editor_view_data.clone(), &project_symbol_catalog, selected_layout_id);
             }
         }
 
-        if !is_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
+        if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
                 let usage_count = SymbolStructEditorViewData::count_symbol_claim_usages(&project_symbol_catalog, selected_layout_id);
                 if usage_count == 0 {

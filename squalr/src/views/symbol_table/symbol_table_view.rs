@@ -870,13 +870,24 @@ impl Widget for SymbolTableView {
                     .iter()
                     .find(|symbol_claim_entry| symbol_claim_entry.get_symbol_claim_locator_key() == selected_symbol_locator_key)
             });
-        if matches!(take_over_state, Some(SymbolTableTakeOverState::DeleteConfirmation { .. }))
+        let is_window_focused = self
+            .app_context
+            .window_focus_manager
+            .is_window_focused(Self::WINDOW_ID);
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+
+        if is_window_focused
+            && matches!(take_over_state, Some(SymbolTableTakeOverState::DeleteConfirmation { .. }))
             && user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
         {
             SymbolTableViewData::cancel_take_over_state(self.symbol_table_view_data.clone());
         }
 
-        if matches!(take_over_state, Some(SymbolTableTakeOverState::DeleteConfirmation { .. }))
+        if is_window_focused
+            && matches!(take_over_state, Some(SymbolTableTakeOverState::DeleteConfirmation { .. }))
             && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
         {
             if let Some(SymbolTableTakeOverState::DeleteConfirmation { symbol_locator_key, .. }) = take_over_state.as_ref() {
@@ -884,7 +895,7 @@ impl Widget for SymbolTableView {
             }
         }
 
-        if take_over_state.is_none() && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
+        if take_over_state.is_none() && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
             if let Some(symbol_claim_entry) = selected_symbol_claim_entry {
                 SymbolTableViewData::request_delete_confirmation(
                     self.symbol_table_view_data.clone(),
@@ -894,7 +905,7 @@ impl Widget for SymbolTableView {
             }
         }
 
-        if take_over_state.is_none() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+        if take_over_state.is_none() && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             if let Some(symbol_claim_entry) = selected_symbol_claim_entry {
                 self.focus_memory_viewer_for_locator(symbol_claim_entry.get_locator());
             }

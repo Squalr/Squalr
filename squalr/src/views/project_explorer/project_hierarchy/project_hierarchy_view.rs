@@ -7,16 +7,19 @@ use crate::{
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     views::pointer_scanner::{pointer_scanner_view::PointerScannerView, view_data::pointer_scanner_view_data::PointerScannerViewData},
-    views::project_explorer::project_hierarchy::{
-        project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
-        project_item_entry_view::ProjectItemEntryView,
-        project_item_inline_rename_view::ProjectItemInlineRenameView,
-        project_item_value_edit_take_over_view::ProjectItemValueEditTakeOverView,
-        view_data::{
-            project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
-            project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
-            project_hierarchy_pending_operation::ProjectHierarchyPendingOperation, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
-            project_hierarchy_tree_entry::ProjectHierarchyTreeEntry, project_hierarchy_view_data::ProjectHierarchyViewData,
+    views::project_explorer::{
+        project_explorer_view::ProjectExplorerView,
+        project_hierarchy::{
+            project_hierarchy_toolbar_view::ProjectHierarchyToolbarView,
+            project_item_entry_view::ProjectItemEntryView,
+            project_item_inline_rename_view::ProjectItemInlineRenameView,
+            project_item_value_edit_take_over_view::ProjectItemValueEditTakeOverView,
+            view_data::{
+                project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind, project_hierarchy_drop_target::ProjectHierarchyDropTarget,
+                project_hierarchy_frame_action::ProjectHierarchyFrameAction, project_hierarchy_menu_target::ProjectHierarchyMenuTarget,
+                project_hierarchy_pending_operation::ProjectHierarchyPendingOperation, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
+                project_hierarchy_tree_entry::ProjectHierarchyTreeEntry, project_hierarchy_view_data::ProjectHierarchyViewData,
+            },
         },
     },
     views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
@@ -1562,7 +1565,16 @@ impl Widget for ProjectHierarchyView {
             })
             .response;
 
-        if is_delete_confirmation_active || is_promote_symbol_conflict_active {
+        let is_window_focused = self
+            .app_context
+            .window_focus_manager
+            .is_window_focused(ProjectExplorerView::WINDOW_ID);
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), ProjectExplorerView::WINDOW_ID);
+
+        if is_window_focused && (is_delete_confirmation_active || is_promote_symbol_conflict_active) {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
                 || user_interface.input(|input_state| input_state.key_pressed(Key::Backspace))
             {
@@ -1570,7 +1582,7 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
-        if is_delete_confirmation_active {
+        if is_window_focused && is_delete_confirmation_active {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
                 delete_confirmation_project_item_paths = self
                     .project_hierarchy_view_data
@@ -1582,7 +1594,7 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
-        if is_promote_symbol_conflict_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+        if is_window_focused && is_promote_symbol_conflict_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             promote_symbol_overwrite_project_item_paths = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy confirm promote overwrite by keyboard")
@@ -1596,6 +1608,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
         {
             ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
@@ -1605,6 +1618,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::X))
         {
             if let Some(project_item_paths) = self
@@ -1621,6 +1635,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::C))
         {
             if let Some(project_item_paths) = self
@@ -1637,6 +1652,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::V))
         {
             if let Some(target_project_item_path) = ProjectHierarchyViewData::get_selected_or_root_directory_path(self.project_hierarchy_view_data.clone()) {
@@ -1648,6 +1664,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::F2))
         {
             ProjectHierarchyViewData::request_rename_for_selected_project_item(self.project_hierarchy_view_data.clone());
@@ -1657,6 +1674,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::Space))
         {
             keyboard_activation_toggle_target = self

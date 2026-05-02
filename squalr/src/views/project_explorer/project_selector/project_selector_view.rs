@@ -1,9 +1,12 @@
 use crate::{
     app_context::AppContext,
-    views::project_explorer::project_selector::{
-        project_entry_view::ProjectEntryView,
-        project_selector_toolbar_view::ProjectSelectorToolbarView,
-        view_data::{project_selector_frame_action::ProjectSelectorFrameAction, project_selector_view_data::ProjectSelectorViewData},
+    views::project_explorer::{
+        project_explorer_view::ProjectExplorerView,
+        project_selector::{
+            project_entry_view::ProjectEntryView,
+            project_selector_toolbar_view::ProjectSelectorToolbarView,
+            view_data::{project_selector_frame_action::ProjectSelectorFrameAction, project_selector_view_data::ProjectSelectorViewData},
+        },
     },
 };
 use eframe::egui::{Align, Key, Layout, Response, ScrollArea, Ui, Widget};
@@ -100,13 +103,22 @@ impl Widget for ProjectSelectorView {
                         }
                     });
 
-                if renaming_project_file_path.is_none() && user_interface.input(|input_state| input_state.key_pressed(Key::F2)) {
+                let is_window_focused = self
+                    .app_context
+                    .window_focus_manager
+                    .is_window_focused(ProjectExplorerView::WINDOW_ID);
+                let can_handle_window_shortcuts = self
+                    .app_context
+                    .window_focus_manager
+                    .can_window_handle_shortcuts(user_interface.ctx(), ProjectExplorerView::WINDOW_ID);
+
+                if renaming_project_file_path.is_none() && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::F2)) {
                     if let Some((project_file_path, project_name)) = selected_project_for_rename {
                         project_selector_frame_action = ProjectSelectorFrameAction::StartRenamingProject(project_file_path, project_name);
                     }
                 }
 
-                if renaming_project_file_path.is_some() && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+                if renaming_project_file_path.is_some() && is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
                     project_selector_frame_action = ProjectSelectorFrameAction::CancelRenamingProject();
                 }
             })

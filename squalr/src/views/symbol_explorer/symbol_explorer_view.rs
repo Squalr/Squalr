@@ -1899,8 +1899,16 @@ impl Widget for SymbolExplorerView {
         let is_inline_rename_active = inline_rename_tree_node_key.is_some();
         let is_create_module_root_active = matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot));
         let can_use_standard_toolbar_actions = !is_delete_confirmation_active && !is_inline_rename_active && !is_create_module_root_active;
+        let is_window_focused = self
+            .app_context
+            .window_focus_manager
+            .is_window_focused(Self::WINDOW_ID);
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
-        if is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+        if is_window_focused && is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             match take_over_state.as_ref() {
                 Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => self.delete_symbol_claim(symbol_locator_key),
                 Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => self.delete_module_root(module_name),
@@ -1911,15 +1919,15 @@ impl Widget for SymbolExplorerView {
             }
         }
 
-        if is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+        if is_window_focused && is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
             SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         }
 
-        if is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+        if is_window_focused && is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
             SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
         }
 
-        if is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+        if is_window_focused && is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             if let Some(project_symbols_create_module_request) = create_module_root_request.clone() {
                 self.create_module_root(project_symbols_create_module_request);
             }
@@ -1928,6 +1936,7 @@ impl Widget for SymbolExplorerView {
         if !is_delete_confirmation_active
             && !is_inline_rename_active
             && !is_create_module_root_active
+            && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
         {
             self.request_delete_for_selection(
@@ -1946,7 +1955,11 @@ impl Widget for SymbolExplorerView {
         let can_open_selected_entry =
             selected_symbol_tree_entry.is_some_and(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }));
 
-        if !is_delete_confirmation_active && !is_inline_rename_active && user_interface.input(|input_state| input_state.key_pressed(Key::F2)) {
+        if !is_delete_confirmation_active
+            && !is_inline_rename_active
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::F2))
+        {
             if can_rename_selected_entry {
                 if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
                     SymbolExplorerViewData::begin_inline_rename(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key().to_string());
@@ -1954,7 +1967,7 @@ impl Widget for SymbolExplorerView {
             }
         }
 
-        if is_inline_rename_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+        if is_window_focused && is_inline_rename_active && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
             if let Some(active_inline_rename_tree_node_key) = inline_rename_tree_node_key.as_deref() {
                 self.clear_inline_rename_state(user_interface, active_inline_rename_tree_node_key);
             }
