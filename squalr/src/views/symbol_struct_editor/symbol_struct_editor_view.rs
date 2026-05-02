@@ -5,10 +5,10 @@ use crate::ui::widgets::controls::data_type_selector::{data_type_selection::Data
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
 };
-use crate::views::struct_editor::view_data::struct_editor_view_data::{
-    StructEditorTakeOverState, StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft,
+use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
+    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructLayoutEditDraft,
 };
-use crate::views::struct_editor::view_data::struct_field_container_edit::{StructFieldContainerEdit, StructFieldContainerKind};
+use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
 use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
@@ -30,7 +30,7 @@ use squalr_engine_api::structures::{
 use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum StructFieldRowAction {
+enum SymbolStructFieldRowAction {
     InsertAfter,
     RemoveField,
     MoveUp,
@@ -38,13 +38,13 @@ enum StructFieldRowAction {
 }
 
 #[derive(Clone)]
-pub struct StructEditorView {
+pub struct SymbolStructEditorView {
     app_context: Arc<AppContext>,
-    struct_editor_view_data: Dependency<StructEditorViewData>,
+    symbol_struct_editor_view_data: Dependency<SymbolStructEditorViewData>,
 }
 
-impl StructEditorView {
-    pub const WINDOW_ID: &'static str = "window_symbol_structs";
+impl SymbolStructEditorView {
+    pub const WINDOW_ID: &'static str = "window_symbol_struct_editor";
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
@@ -59,13 +59,13 @@ impl StructEditorView {
     const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        let struct_editor_view_data = app_context
+        let symbol_struct_editor_view_data = app_context
             .dependency_container
-            .register(StructEditorViewData::new());
+            .register(SymbolStructEditorViewData::new());
 
         Self {
             app_context,
-            struct_editor_view_data,
+            symbol_struct_editor_view_data,
         }
     }
 
@@ -289,11 +289,11 @@ impl StructEditorView {
     fn render_container_kind_selector(
         &self,
         user_interface: &mut Ui,
-        container_edit: &mut StructFieldContainerEdit,
+        container_edit: &mut SymbolStructFieldContainerEdit,
         field_index: usize,
         width: f32,
     ) {
-        let selector_id = format!("struct_editor_container_kind_{}", field_index);
+        let selector_id = format!("symbol_struct_editor_container_kind_{}", field_index);
         let current_label = container_edit.kind.label();
         let mut selected_container_kind = None;
 
@@ -304,7 +304,7 @@ impl StructEditorView {
                 &selector_id,
                 None,
                 |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                    for container_kind in StructFieldContainerKind::ALL {
+                    for container_kind in SymbolStructFieldContainerKind::ALL {
                         let container_kind_response =
                             popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), container_kind.label(), None, width));
 
@@ -327,11 +327,11 @@ impl StructEditorView {
     fn render_pointer_size_selector(
         &self,
         user_interface: &mut Ui,
-        container_edit: &mut StructFieldContainerEdit,
+        container_edit: &mut SymbolStructFieldContainerEdit,
         field_index: usize,
         width: f32,
     ) {
-        let selector_id = format!("struct_editor_pointer_size_{}", field_index);
+        let selector_id = format!("symbol_struct_editor_pointer_size_{}", field_index);
         let current_label = container_edit.pointer_size.to_string();
         let mut selected_pointer_size = None;
 
@@ -468,7 +468,11 @@ impl StructEditorView {
                 is_take_over_active,
             );
             if new_layout_response.clicked() {
-                StructEditorViewData::begin_create_struct_layout(self.struct_editor_view_data.clone(), project_symbol_catalog, self.default_data_type_ref());
+                SymbolStructEditorViewData::begin_create_struct_layout(
+                    self.symbol_struct_editor_view_data.clone(),
+                    project_symbol_catalog,
+                    self.default_data_type_ref(),
+                );
             }
 
             let can_edit_selected_layout = !is_take_over_active && selected_layout_id.is_some();
@@ -480,12 +484,16 @@ impl StructEditorView {
             );
             if edit_layout_response.clicked() {
                 if let Some(selected_layout_id) = selected_layout_id {
-                    StructEditorViewData::begin_edit_struct_layout(self.struct_editor_view_data.clone(), project_symbol_catalog, selected_layout_id);
+                    SymbolStructEditorViewData::begin_edit_struct_layout(
+                        self.symbol_struct_editor_view_data.clone(),
+                        project_symbol_catalog,
+                        selected_layout_id,
+                    );
                 }
             }
 
             let usage_count = selected_layout_id
-                .map(|selected_layout_id| StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
+                .map(|selected_layout_id| SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
                 .unwrap_or(0);
             let can_delete_selected_layout = !is_take_over_active && selected_layout_id.is_some() && usage_count == 0;
             let delete_layout_response = self.render_icon_button(
@@ -496,7 +504,7 @@ impl StructEditorView {
             );
             if delete_layout_response.clicked() {
                 if let Some(selected_layout_id) = selected_layout_id {
-                    StructEditorViewData::request_delete_confirmation(self.struct_editor_view_data.clone(), selected_layout_id.to_string());
+                    SymbolStructEditorViewData::request_delete_confirmation(self.symbol_struct_editor_view_data.clone(), selected_layout_id.to_string());
                 }
             }
         });
@@ -507,27 +515,27 @@ impl StructEditorView {
             user_interface,
             &mut edited_filter_text,
             "Filter struct layouts...",
-            "struct_editor_filter_text",
+            "symbol_struct_editor_filter_text",
             user_interface.available_width(),
             Self::FIELD_ROW_HEIGHT,
         );
         if edited_filter_text != filter_text {
-            StructEditorViewData::set_filter_text(self.struct_editor_view_data.clone(), edited_filter_text);
+            SymbolStructEditorViewData::set_filter_text(self.symbol_struct_editor_view_data.clone(), edited_filter_text);
         }
 
         user_interface.add_space(8.0);
         self.render_list_header(user_interface);
         ScrollArea::vertical()
-            .id_salt("struct_editor_layout_list")
+            .id_salt("symbol_struct_editor_layout_list")
             .auto_shrink([false, false])
             .show(user_interface, |user_interface| {
                 for struct_layout_descriptor in project_symbol_catalog
                     .get_struct_layout_descriptors()
                     .iter()
-                    .filter(|struct_layout_descriptor| StructEditorViewData::layout_matches_filter(struct_layout_descriptor, filter_text))
+                    .filter(|struct_layout_descriptor| SymbolStructEditorViewData::layout_matches_filter(struct_layout_descriptor, filter_text))
                 {
                     let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
-                    let usage_count = StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, struct_layout_id);
+                    let usage_count = SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, struct_layout_id);
                     let field_count = struct_layout_descriptor
                         .get_struct_layout_definition()
                         .get_fields()
@@ -540,11 +548,15 @@ impl StructEditorView {
                         selected_layout_id == Some(struct_layout_id),
                     );
                     if row_response.clicked() {
-                        StructEditorViewData::select_struct_layout(self.struct_editor_view_data.clone(), Some(struct_layout_id.to_string()));
+                        SymbolStructEditorViewData::select_struct_layout(self.symbol_struct_editor_view_data.clone(), Some(struct_layout_id.to_string()));
                     }
 
                     if row_response.double_clicked() && !is_take_over_active {
-                        StructEditorViewData::begin_edit_struct_layout(self.struct_editor_view_data.clone(), project_symbol_catalog, struct_layout_id);
+                        SymbolStructEditorViewData::begin_edit_struct_layout(
+                            self.symbol_struct_editor_view_data.clone(),
+                            project_symbol_catalog,
+                            struct_layout_id,
+                        );
                     }
                 }
 
@@ -628,7 +640,7 @@ impl StructEditorView {
 
         panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
         ScrollArea::vertical()
-            .id_salt(format!("struct_editor_take_over_body_{title}"))
+            .id_salt(format!("symbol_struct_editor_take_over_body_{title}"))
             .auto_shrink([false, false])
             .show(&mut panel_user_interface, |user_interface| {
                 add_contents(user_interface);
@@ -638,13 +650,13 @@ impl StructEditorView {
     fn render_field_editor_section(
         &self,
         user_interface: &mut Ui,
-        field_draft: &mut StructFieldEditDraft,
+        field_draft: &mut SymbolStructFieldEditDraft,
         field_index: usize,
         can_remove_field: bool,
         can_move_up: bool,
         can_move_down: bool,
         available_data_types: &[DataTypeRef],
-    ) -> Option<StructFieldRowAction> {
+    ) -> Option<SymbolStructFieldRowAction> {
         let theme = &self.app_context.theme;
         let mut pending_field_row_action = None;
 
@@ -670,7 +682,7 @@ impl StructEditorView {
                                 false,
                             );
                             if insert_field_response.clicked() {
-                                pending_field_row_action = Some(StructFieldRowAction::InsertAfter);
+                                pending_field_row_action = Some(SymbolStructFieldRowAction::InsertAfter);
                             }
 
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
@@ -682,7 +694,7 @@ impl StructEditorView {
                                 !can_remove_field,
                             );
                             if remove_field_response.clicked() {
-                                pending_field_row_action = Some(StructFieldRowAction::RemoveField);
+                                pending_field_row_action = Some(SymbolStructFieldRowAction::RemoveField);
                             }
 
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
@@ -694,7 +706,7 @@ impl StructEditorView {
                                 !can_move_down,
                             );
                             if move_down_response.clicked() {
-                                pending_field_row_action = Some(StructFieldRowAction::MoveDown);
+                                pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
                             }
 
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
@@ -706,7 +718,7 @@ impl StructEditorView {
                                 !can_move_up,
                             );
                             if move_up_response.clicked() {
-                                pending_field_row_action = Some(StructFieldRowAction::MoveUp);
+                                pending_field_row_action = Some(SymbolStructFieldRowAction::MoveUp);
                             }
                         },
                     );
@@ -718,12 +730,12 @@ impl StructEditorView {
                 user_interface,
                 &mut field_draft.field_name,
                 "field_name",
-                &format!("struct_editor_field_name_{}", field_index),
+                &format!("symbol_struct_editor_field_name_{}", field_index),
                 user_interface.available_width(),
                 Self::FIELD_ROW_HEIGHT,
             );
 
-            let selector_id = format!("struct_editor_data_type_{}", field_index);
+            let selector_id = format!("symbol_struct_editor_data_type_{}", field_index);
             user_interface.add_space(Self::FIELD_INPUT_SPACING);
             user_interface.allocate_ui_with_layout(
                 vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
@@ -749,19 +761,19 @@ impl StructEditorView {
             );
 
             match field_draft.container_edit.kind {
-                StructFieldContainerKind::Element | StructFieldContainerKind::Array => {}
-                StructFieldContainerKind::FixedArray => {
+                SymbolStructFieldContainerKind::Element | SymbolStructFieldContainerKind::Array => {}
+                SymbolStructFieldContainerKind::FixedArray => {
                     user_interface.add_space(Self::FIELD_INPUT_SPACING);
                     self.render_unsigned_integer_value_box(
                         user_interface,
                         &mut field_draft.container_edit.fixed_array_length,
                         "length",
-                        &format!("struct_editor_fixed_array_length_{}", field_index),
+                        &format!("symbol_struct_editor_fixed_array_length_{}", field_index),
                         Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
                         Self::FIELD_ROW_HEIGHT,
                     );
                 }
-                StructFieldContainerKind::Pointer => {
+                SymbolStructFieldContainerKind::Pointer => {
                     user_interface.add_space(Self::FIELD_INPUT_SPACING);
                     self.render_pointer_size_selector(
                         user_interface,
@@ -779,7 +791,7 @@ impl StructEditorView {
     fn render_field_rows(
         &self,
         user_interface: &mut Ui,
-        draft: &mut StructLayoutEditDraft,
+        draft: &mut SymbolStructLayoutEditDraft,
     ) {
         let available_data_types = self.available_data_types();
         let field_count = draft.field_drafts.len();
@@ -811,33 +823,33 @@ impl StructEditorView {
 
         if let Some((field_index, field_row_action)) = pending_field_row_action {
             match field_row_action {
-                StructFieldRowAction::InsertAfter => {
+                SymbolStructFieldRowAction::InsertAfter => {
                     let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
                     draft.field_drafts.insert(
                         insert_index,
-                        StructFieldEditDraft {
+                        SymbolStructFieldEditDraft {
                             field_name: String::new(),
                             data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
-                            container_edit: StructFieldContainerEdit::default(),
+                            container_edit: SymbolStructFieldContainerEdit::default(),
                         },
                     );
                 }
-                StructFieldRowAction::RemoveField => {
+                SymbolStructFieldRowAction::RemoveField => {
                     draft.field_drafts.remove(field_index);
                     if draft.field_drafts.is_empty() {
-                        draft.field_drafts.push(StructFieldEditDraft {
+                        draft.field_drafts.push(SymbolStructFieldEditDraft {
                             field_name: String::new(),
                             data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
-                            container_edit: StructFieldContainerEdit::default(),
+                            container_edit: SymbolStructFieldContainerEdit::default(),
                         });
                     }
                 }
-                StructFieldRowAction::MoveUp => {
+                SymbolStructFieldRowAction::MoveUp => {
                     if field_index > 0 {
                         draft.field_drafts.swap(field_index, field_index - 1);
                     }
                 }
-                StructFieldRowAction::MoveDown => {
+                SymbolStructFieldRowAction::MoveDown => {
                     if field_index + 1 < draft.field_drafts.len() {
                         draft.field_drafts.swap(field_index, field_index + 1);
                     }
@@ -851,8 +863,8 @@ impl StructEditorView {
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
         take_over_title: &str,
-        baseline_draft: Option<&StructLayoutEditDraft>,
-        draft: Option<&StructLayoutEditDraft>,
+        baseline_draft: Option<&SymbolStructLayoutEditDraft>,
+        draft: Option<&SymbolStructLayoutEditDraft>,
     ) {
         let Some(draft) = draft else {
             return;
@@ -860,11 +872,11 @@ impl StructEditorView {
         let baseline_draft = baseline_draft.unwrap_or(draft);
 
         let mut edited_draft = draft.clone();
-        let validation_result = StructEditorViewData::build_struct_layout_descriptor(project_symbol_catalog, &edited_draft);
+        let validation_result = SymbolStructEditorViewData::build_struct_layout_descriptor(project_symbol_catalog, &edited_draft);
         let usage_count = edited_draft
             .original_layout_id
             .as_deref()
-            .map(|selected_layout_id| StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
+            .map(|selected_layout_id| SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
             .unwrap_or(0);
         let has_unsaved_changes = edited_draft != *baseline_draft;
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
@@ -918,7 +930,7 @@ impl StructEditorView {
                             user_interface,
                             &mut edited_draft.layout_id,
                             "module.type",
-                            "struct_editor_layout_id",
+                            "symbol_struct_editor_layout_id",
                             user_interface.available_width(),
                             Self::FIELD_ROW_HEIGHT,
                         );
@@ -955,16 +967,19 @@ impl StructEditorView {
         );
 
         if should_cancel_take_over {
-            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+            SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
             return;
         }
 
         if should_save_draft {
-            match StructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
+            match SymbolStructEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &edited_draft) {
                 Ok(updated_project_symbol_catalog) => {
                     self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
-                    StructEditorViewData::select_struct_layout(self.struct_editor_view_data.clone(), Some(edited_draft.layout_id.trim().to_string()));
-                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                    SymbolStructEditorViewData::select_struct_layout(
+                        self.symbol_struct_editor_view_data.clone(),
+                        Some(edited_draft.layout_id.trim().to_string()),
+                    );
+                    SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
                     return;
                 }
                 Err(error) => {
@@ -973,7 +988,7 @@ impl StructEditorView {
             }
         }
 
-        StructEditorViewData::update_draft(self.struct_editor_view_data.clone(), edited_draft);
+        SymbolStructEditorViewData::update_draft(self.symbol_struct_editor_view_data.clone(), edited_draft);
     }
 
     fn render_delete_confirmation_take_over(
@@ -982,7 +997,7 @@ impl StructEditorView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        let usage_count = StructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, layout_id);
+        let usage_count = SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, layout_id);
 
         let can_delete_layout = usage_count == 0;
         let mut should_cancel_take_over = false;
@@ -1031,15 +1046,15 @@ impl StructEditorView {
         );
 
         if should_cancel_take_over {
-            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+            SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
             return;
         }
 
         if should_delete_layout {
-            match StructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
+            match SymbolStructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
                 Ok(updated_project_symbol_catalog) => {
                     self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                    StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+                    SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
                 }
                 Err(error) => {
                     log::error!("Failed to delete struct layout: {}.", error);
@@ -1049,7 +1064,7 @@ impl StructEditorView {
     }
 }
 
-impl Widget for StructEditorView {
+impl Widget for SymbolStructEditorView {
     fn ui(
         self,
         user_interface: &mut Ui,
@@ -1067,39 +1082,39 @@ impl Widget for StructEditorView {
                 .response;
         };
 
-        StructEditorViewData::synchronize(self.struct_editor_view_data.clone(), &project_symbol_catalog);
+        SymbolStructEditorViewData::synchronize(self.symbol_struct_editor_view_data.clone(), &project_symbol_catalog);
         let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft) = self
-            .struct_editor_view_data
-            .read("Symbol structs view")
-            .map(|struct_editor_view_data| {
+            .symbol_struct_editor_view_data
+            .read("SymbolStructEditor view")
+            .map(|symbol_struct_editor_view_data| {
                 (
-                    struct_editor_view_data
+                    symbol_struct_editor_view_data
                         .get_selected_layout_id()
                         .map(str::to_string),
-                    struct_editor_view_data.get_filter_text().to_string(),
-                    struct_editor_view_data.get_take_over_state().cloned(),
-                    struct_editor_view_data.get_baseline_draft().cloned(),
-                    struct_editor_view_data.get_draft().cloned(),
+                    symbol_struct_editor_view_data.get_filter_text().to_string(),
+                    symbol_struct_editor_view_data.get_take_over_state().cloned(),
+                    symbol_struct_editor_view_data.get_baseline_draft().cloned(),
+                    symbol_struct_editor_view_data.get_draft().cloned(),
                 )
             })
             .unwrap_or((None, String::new(), None, None, None));
         let is_take_over_active = take_over_state.is_some();
 
         if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
-            StructEditorViewData::cancel_take_over_state(self.struct_editor_view_data.clone());
+            SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
         }
 
         if !is_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
-                StructEditorViewData::begin_edit_struct_layout(self.struct_editor_view_data.clone(), &project_symbol_catalog, selected_layout_id);
+                SymbolStructEditorViewData::begin_edit_struct_layout(self.symbol_struct_editor_view_data.clone(), &project_symbol_catalog, selected_layout_id);
             }
         }
 
         if !is_take_over_active && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
-                let usage_count = StructEditorViewData::count_symbol_claim_usages(&project_symbol_catalog, selected_layout_id);
+                let usage_count = SymbolStructEditorViewData::count_symbol_claim_usages(&project_symbol_catalog, selected_layout_id);
                 if usage_count == 0 {
-                    StructEditorViewData::request_delete_confirmation(self.struct_editor_view_data.clone(), selected_layout_id.to_string());
+                    SymbolStructEditorViewData::request_delete_confirmation(self.symbol_struct_editor_view_data.clone(), selected_layout_id.to_string());
                 }
             }
         }
@@ -1113,7 +1128,7 @@ impl Widget for StructEditorView {
                         .layout(Layout::top_down(Align::Min)),
                 );
                 match take_over_state.as_ref() {
-                    Some(StructEditorTakeOverState::CreateStructLayout) => {
+                    Some(SymbolStructEditorTakeOverState::CreateStructLayout) => {
                         self.render_struct_layout_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
@@ -1122,7 +1137,7 @@ impl Widget for StructEditorView {
                             draft.as_ref(),
                         );
                     }
-                    Some(StructEditorTakeOverState::EditStructLayout { .. }) => {
+                    Some(SymbolStructEditorTakeOverState::EditStructLayout { .. }) => {
                         self.render_struct_layout_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
@@ -1131,7 +1146,7 @@ impl Widget for StructEditorView {
                             draft.as_ref(),
                         );
                     }
-                    Some(StructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
+                    Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
                         self.render_delete_confirmation_take_over(&mut content_user_interface, &project_symbol_catalog, layout_id);
                     }
                     None => {

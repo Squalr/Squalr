@@ -8,10 +8,10 @@ This is not a "copy Ghidra exactly" document. The goal is to understand which wo
 The important shift is: the Symbol Tree should not be a flat list of "rooted symbols." It should be a true module tree where module memory is gradually claimed, split, retyped, and expanded.
 
 ## Related Squalr Context
-- `squalr/src/views/main_window/main_window_view.rs` treats `Project Explorer`, `Symbol Tree`, `Symbol Table`, `Symbol Structs`, `Details Viewer`, `Memory Viewer`, and `Code Viewer` as peer docked windows.
+- `squalr/src/views/main_window/main_window_view.rs` treats `Project Explorer`, `Symbol Tree`, `Symbol Table`, `SymbolStructEditor`, `Details Viewer`, `Memory Viewer`, and `Code Viewer` as peer docked windows.
 - `squalr/src/views/symbol_explorer/symbol_explorer_view.rs` is the current Symbol Tree implementation.
 - `squalr/src/views/symbol_table/symbol_table_view.rs` is the current flat symbol maintenance implementation.
-- `squalr/src/views/struct_editor/struct_editor_view.rs` owns reusable struct layout authoring.
+- `squalr/src/views/symbol_struct_editor/symbol_struct_editor_view.rs` owns reusable struct layout authoring.
 - `squalr-engine-api/src/commands/project_symbols/project_symbols_command.rs` gives us a project-symbol command lane.
 - `squalr-engine-api/src/structures/projects/project_root_symbol.rs` is the current persisted symbol-instance shape.
 - `squalr-engine-domain/src/registries/symbols/symbol_registry.rs` acts as both a symbol/type registry and an execution-time resolver.
@@ -62,10 +62,10 @@ Important takeaway:
 - it should also answer "what space is still unknown?"
 - promoted discoveries should reshape the tree, not merely add another row.
 
-### Data Type Manager / Symbol Structs
+### Data Type Manager / SymbolStructEditor
 Ghidra's Data Type Manager owns reusable type definitions.
 
-Squalr currently has a narrower but useful `Symbol Structs` window. That window should remain focused on reusable type authoring:
+Squalr currently has a narrower but useful `SymbolStructEditor` window. That window should remain focused on reusable type authoring:
 - create and edit structures,
 - manage field names, offsets, data types, arrays, and pointers,
 - handle type reuse and conflicts later.
@@ -130,8 +130,8 @@ Responsibilities:
 
 Unknown gaps should usually stay out of this table unless the user explicitly enables a module-map/debug view.
 
-### 3. Symbol Structs
-The Symbol Structs window should own reusable type definitions.
+### 3. SymbolStructEditor
+The SymbolStructEditor window should own reusable type definitions.
 
 Responsibilities:
 - create and edit reusable layouts,
@@ -252,7 +252,7 @@ These actions should route through the same claim engine as the Symbol Tree. The
 - Do treat modules as the visible roots of symbol space.
 - Do make unknown module space visible as `u8[]` chunks.
 - Do make promotion reshape the typed memory map.
-- Do keep reusable type authoring in Symbol Structs.
+- Do keep reusable type authoring in SymbolStructEditor.
 - Do keep Symbol Table flat and maintenance-oriented.
 - Do keep derived children lazy unless explicitly promoted.
 - Do not persist a giant module-sized struct just to render the tree.

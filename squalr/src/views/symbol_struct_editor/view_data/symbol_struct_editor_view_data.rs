@@ -1,5 +1,5 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
-use crate::views::struct_editor::view_data::struct_field_container_edit::StructFieldContainerEdit;
+use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::SymbolStructFieldContainerEdit;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
@@ -9,36 +9,36 @@ use squalr_engine_api::structures::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct StructFieldEditDraft {
+pub struct SymbolStructFieldEditDraft {
     pub field_name: String,
     pub data_type_selection: DataTypeSelection,
-    pub container_edit: StructFieldContainerEdit,
+    pub container_edit: SymbolStructFieldContainerEdit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct StructLayoutEditDraft {
+pub struct SymbolStructLayoutEditDraft {
     pub original_layout_id: Option<String>,
     pub layout_id: String,
-    pub field_drafts: Vec<StructFieldEditDraft>,
+    pub field_drafts: Vec<SymbolStructFieldEditDraft>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum StructEditorTakeOverState {
+pub enum SymbolStructEditorTakeOverState {
     CreateStructLayout,
     EditStructLayout { layout_id: String },
     DeleteConfirmation { layout_id: String },
 }
 
 #[derive(Clone, Default)]
-pub struct StructEditorViewData {
+pub struct SymbolStructEditorViewData {
     selected_layout_id: Option<String>,
     filter_text: String,
-    take_over_state: Option<StructEditorTakeOverState>,
-    baseline_draft: Option<StructLayoutEditDraft>,
-    draft: Option<StructLayoutEditDraft>,
+    take_over_state: Option<SymbolStructEditorTakeOverState>,
+    baseline_draft: Option<SymbolStructLayoutEditDraft>,
+    draft: Option<SymbolStructLayoutEditDraft>,
 }
 
-impl StructEditorViewData {
+impl SymbolStructEditorViewData {
     pub fn new() -> Self {
         Self {
             selected_layout_id: None,
@@ -57,104 +57,104 @@ impl StructEditorViewData {
         &self.filter_text
     }
 
-    pub fn get_take_over_state(&self) -> Option<&StructEditorTakeOverState> {
+    pub fn get_take_over_state(&self) -> Option<&SymbolStructEditorTakeOverState> {
         self.take_over_state.as_ref()
     }
 
-    pub fn get_draft(&self) -> Option<&StructLayoutEditDraft> {
+    pub fn get_draft(&self) -> Option<&SymbolStructLayoutEditDraft> {
         self.draft.as_ref()
     }
 
-    pub fn get_baseline_draft(&self) -> Option<&StructLayoutEditDraft> {
+    pub fn get_baseline_draft(&self) -> Option<&SymbolStructLayoutEditDraft> {
         self.baseline_draft.as_ref()
     }
 
     pub fn set_filter_text(
-        struct_editor_view_data: Dependency<Self>,
+        symbol_struct_editor_view_data: Dependency<Self>,
         filter_text: String,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs set filter text") {
-            struct_editor_view_data.filter_text = filter_text;
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor set filter text") {
+            symbol_struct_editor_view_data.filter_text = filter_text;
         }
     }
 
     pub fn update_draft(
-        struct_editor_view_data: Dependency<Self>,
-        draft: StructLayoutEditDraft,
+        symbol_struct_editor_view_data: Dependency<Self>,
+        draft: SymbolStructLayoutEditDraft,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs update draft") {
-            struct_editor_view_data.draft = Some(draft);
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor update draft") {
+            symbol_struct_editor_view_data.draft = Some(draft);
         }
     }
 
     pub fn select_struct_layout(
-        struct_editor_view_data: Dependency<Self>,
+        symbol_struct_editor_view_data: Dependency<Self>,
         selected_layout_id: Option<String>,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs select struct layout") {
-            struct_editor_view_data.selected_layout_id = selected_layout_id;
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor select struct layout") {
+            symbol_struct_editor_view_data.selected_layout_id = selected_layout_id;
         }
     }
 
     pub fn begin_create_struct_layout(
-        struct_editor_view_data: Dependency<Self>,
+        symbol_struct_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
         default_data_type_ref: DataTypeRef,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs begin create struct layout") {
-            struct_editor_view_data.selected_layout_id = None;
-            struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::CreateStructLayout);
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin create struct layout") {
+            symbol_struct_editor_view_data.selected_layout_id = None;
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::CreateStructLayout);
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
-            struct_editor_view_data.baseline_draft = Some(baseline_draft.clone());
-            struct_editor_view_data.draft = Some(baseline_draft);
+            symbol_struct_editor_view_data.baseline_draft = Some(baseline_draft.clone());
+            symbol_struct_editor_view_data.draft = Some(baseline_draft);
         }
     }
 
     pub fn begin_edit_struct_layout(
-        struct_editor_view_data: Dependency<Self>,
+        symbol_struct_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs begin edit struct layout") {
-            struct_editor_view_data.selected_layout_id = Some(layout_id.to_string());
-            struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::EditStructLayout {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin edit struct layout") {
+            symbol_struct_editor_view_data.selected_layout_id = Some(layout_id.to_string());
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::EditStructLayout {
                 layout_id: layout_id.to_string(),
             });
-            struct_editor_view_data.baseline_draft = project_symbol_catalog
+            symbol_struct_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
                 .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
                 .map(Self::create_draft_from_descriptor);
-            struct_editor_view_data.draft = struct_editor_view_data.baseline_draft.clone();
+            symbol_struct_editor_view_data.draft = symbol_struct_editor_view_data.baseline_draft.clone();
         }
     }
 
     pub fn request_delete_confirmation(
-        struct_editor_view_data: Dependency<Self>,
+        symbol_struct_editor_view_data: Dependency<Self>,
         layout_id: String,
     ) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs request delete confirmation") {
-            struct_editor_view_data.take_over_state = Some(StructEditorTakeOverState::DeleteConfirmation { layout_id });
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor request delete confirmation") {
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id });
         }
     }
 
-    pub fn cancel_take_over_state(struct_editor_view_data: Dependency<Self>) {
-        if let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs cancel take over state") {
-            struct_editor_view_data.take_over_state = None;
-            struct_editor_view_data.baseline_draft = None;
-            struct_editor_view_data.draft = None;
+    pub fn cancel_take_over_state(symbol_struct_editor_view_data: Dependency<Self>) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor cancel take over state") {
+            symbol_struct_editor_view_data.take_over_state = None;
+            symbol_struct_editor_view_data.baseline_draft = None;
+            symbol_struct_editor_view_data.draft = None;
         }
     }
 
     pub fn synchronize(
-        struct_editor_view_data: Dependency<Self>,
+        symbol_struct_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        let Some(mut struct_editor_view_data) = struct_editor_view_data.write("Symbol structs synchronize") else {
+        let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor synchronize") else {
             return;
         };
 
-        let next_selected_layout_id = struct_editor_view_data
+        let next_selected_layout_id = symbol_struct_editor_view_data
             .selected_layout_id
             .as_ref()
             .filter(|selected_layout_id| {
@@ -171,11 +171,11 @@ impl StructEditorViewData {
                     .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
             });
 
-        struct_editor_view_data.selected_layout_id = next_selected_layout_id.clone();
+        symbol_struct_editor_view_data.selected_layout_id = next_selected_layout_id.clone();
 
-        let should_clear_take_over_state = match struct_editor_view_data.take_over_state.as_ref() {
-            Some(StructEditorTakeOverState::CreateStructLayout) => false,
-            Some(StructEditorTakeOverState::EditStructLayout { layout_id }) | Some(StructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
+        let should_clear_take_over_state = match symbol_struct_editor_view_data.take_over_state.as_ref() {
+            Some(SymbolStructEditorTakeOverState::CreateStructLayout) => false,
+            Some(SymbolStructEditorTakeOverState::EditStructLayout { layout_id }) | Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
                 !project_symbol_catalog
                     .get_struct_layout_descriptors()
                     .iter()
@@ -185,9 +185,9 @@ impl StructEditorViewData {
         };
 
         if should_clear_take_over_state {
-            struct_editor_view_data.take_over_state = None;
-            struct_editor_view_data.baseline_draft = None;
-            struct_editor_view_data.draft = None;
+            symbol_struct_editor_view_data.take_over_state = None;
+            symbol_struct_editor_view_data.baseline_draft = None;
+            symbol_struct_editor_view_data.draft = None;
         }
     }
 
@@ -232,18 +232,18 @@ impl StructEditorViewData {
             .count()
     }
 
-    pub fn create_draft_from_descriptor(struct_layout_descriptor: &StructLayoutDescriptor) -> StructLayoutEditDraft {
-        StructLayoutEditDraft {
+    pub fn create_draft_from_descriptor(struct_layout_descriptor: &StructLayoutDescriptor) -> SymbolStructLayoutEditDraft {
+        SymbolStructLayoutEditDraft {
             original_layout_id: Some(struct_layout_descriptor.get_struct_layout_id().to_string()),
             layout_id: struct_layout_descriptor.get_struct_layout_id().to_string(),
             field_drafts: struct_layout_descriptor
                 .get_struct_layout_definition()
                 .get_fields()
                 .iter()
-                .map(|symbolic_field_definition| StructFieldEditDraft {
+                .map(|symbolic_field_definition| SymbolStructFieldEditDraft {
                     field_name: symbolic_field_definition.get_field_name().to_string(),
                     data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
-                    container_edit: StructFieldContainerEdit::from_container_type(symbolic_field_definition.get_container_type()),
+                    container_edit: SymbolStructFieldContainerEdit::from_container_type(symbolic_field_definition.get_container_type()),
                 })
                 .collect(),
         }
@@ -252,7 +252,7 @@ impl StructEditorViewData {
     pub fn create_default_new_draft(
         project_symbol_catalog: &ProjectSymbolCatalog,
         default_data_type_ref: DataTypeRef,
-    ) -> StructLayoutEditDraft {
+    ) -> SymbolStructLayoutEditDraft {
         let mut suffix_index = 1_u64;
         let mut proposed_layout_id = String::from("new.struct");
         while project_symbol_catalog
@@ -264,20 +264,20 @@ impl StructEditorViewData {
             proposed_layout_id = format!("new.struct{}", suffix_index);
         }
 
-        StructLayoutEditDraft {
+        SymbolStructLayoutEditDraft {
             original_layout_id: None,
             layout_id: proposed_layout_id,
-            field_drafts: vec![StructFieldEditDraft {
+            field_drafts: vec![SymbolStructFieldEditDraft {
                 field_name: String::new(),
                 data_type_selection: DataTypeSelection::new(default_data_type_ref),
-                container_edit: StructFieldContainerEdit::default(),
+                container_edit: SymbolStructFieldContainerEdit::default(),
             }],
         }
     }
 
     pub fn build_struct_layout_descriptor(
         project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &StructLayoutEditDraft,
+        draft: &SymbolStructLayoutEditDraft,
     ) -> Result<StructLayoutDescriptor, String> {
         let trimmed_layout_id = draft.layout_id.trim();
         if trimmed_layout_id.is_empty() {
@@ -326,7 +326,7 @@ impl StructEditorViewData {
 
     pub fn apply_draft_to_catalog(
         project_symbol_catalog: &ProjectSymbolCatalog,
-        draft: &StructLayoutEditDraft,
+        draft: &SymbolStructLayoutEditDraft,
     ) -> Result<ProjectSymbolCatalog, String> {
         let resolved_struct_layout_descriptor = Self::build_struct_layout_descriptor(project_symbol_catalog, draft)?;
         let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
@@ -385,15 +385,15 @@ impl StructEditorViewData {
     }
 }
 
-impl Default for StructLayoutEditDraft {
+impl Default for SymbolStructLayoutEditDraft {
     fn default() -> Self {
         Self {
             original_layout_id: None,
             layout_id: String::new(),
-            field_drafts: vec![StructFieldEditDraft {
+            field_drafts: vec![SymbolStructFieldEditDraft {
                 field_name: String::new(),
                 data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
-                container_edit: StructFieldContainerEdit::default(),
+                container_edit: SymbolStructFieldContainerEdit::default(),
             }],
         }
     }
@@ -401,9 +401,9 @@ impl Default for StructLayoutEditDraft {
 
 #[cfg(test)]
 mod tests {
-    use super::{StructEditorViewData, StructFieldEditDraft, StructLayoutEditDraft};
+    use super::{SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructLayoutEditDraft};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
-    use crate::views::struct_editor::view_data::struct_field_container_edit::{StructFieldContainerEdit, StructFieldContainerKind};
+    use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
@@ -438,7 +438,7 @@ mod tests {
     fn create_default_new_draft_picks_unique_layout_id() {
         let project_symbol_catalog = create_project_symbol_catalog();
 
-        let draft = StructEditorViewData::create_default_new_draft(&project_symbol_catalog, DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
+        let draft = SymbolStructEditorViewData::create_default_new_draft(&project_symbol_catalog, DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
 
         assert_eq!(draft.layout_id, "new.struct");
         assert_eq!(
@@ -453,21 +453,22 @@ mod tests {
     #[test]
     fn build_struct_layout_descriptor_parses_container_suffixes() {
         let project_symbol_catalog = ProjectSymbolCatalog::default();
-        let draft = StructLayoutEditDraft {
+        let draft = SymbolStructLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
-            field_drafts: vec![StructFieldEditDraft {
+            field_drafts: vec![SymbolStructFieldEditDraft {
                 field_name: String::from("items"),
                 data_type_selection: DataTypeSelection::new(DataTypeRef::new("u16")),
-                container_edit: StructFieldContainerEdit {
-                    kind: StructFieldContainerKind::FixedArray,
+                container_edit: SymbolStructFieldContainerEdit {
+                    kind: SymbolStructFieldContainerKind::FixedArray,
                     fixed_array_length: String::from("4"),
-                    ..StructFieldContainerEdit::default()
+                    ..SymbolStructFieldContainerEdit::default()
                 },
             }],
         };
 
-        let struct_layout_descriptor = StructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected draft to build.");
+        let struct_layout_descriptor =
+            SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected draft to build.");
 
         assert_eq!(struct_layout_descriptor.get_struct_layout_id(), "inventory.slot");
         assert_eq!(
@@ -483,17 +484,18 @@ mod tests {
     #[test]
     fn apply_draft_to_catalog_renames_symbol_claim_type_usage() {
         let project_symbol_catalog = create_project_symbol_catalog();
-        let draft = StructLayoutEditDraft {
+        let draft = SymbolStructLayoutEditDraft {
             original_layout_id: Some(String::from("player.stats")),
             layout_id: String::from("player.profile"),
-            field_drafts: vec![StructFieldEditDraft {
+            field_drafts: vec![SymbolStructFieldEditDraft {
                 field_name: String::from("health"),
                 data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
-                container_edit: StructFieldContainerEdit::default(),
+                container_edit: SymbolStructFieldContainerEdit::default(),
             }],
         };
 
-        let updated_project_symbol_catalog = StructEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &draft).expect("Expected draft to apply.");
+        let updated_project_symbol_catalog =
+            SymbolStructEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &draft).expect("Expected draft to apply.");
 
         assert!(
             updated_project_symbol_catalog
@@ -514,7 +516,7 @@ mod tests {
     fn remove_struct_layout_from_catalog_rejects_in_use_layouts() {
         let project_symbol_catalog = create_project_symbol_catalog();
 
-        let result = StructEditorViewData::remove_struct_layout_from_catalog(&project_symbol_catalog, "player.stats");
+        let result = SymbolStructEditorViewData::remove_struct_layout_from_catalog(&project_symbol_catalog, "player.stats");
 
         assert!(result.is_err());
     }

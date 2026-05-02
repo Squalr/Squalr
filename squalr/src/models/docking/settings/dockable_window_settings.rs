@@ -11,9 +11,9 @@ use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
-use crate::views::struct_editor::struct_editor_view::StructEditorView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use crate::views::symbol_table::symbol_table_view::SymbolTableView;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
@@ -55,7 +55,7 @@ impl DockSettingsConfig {
                                 0.5,
                                 DockBuilder::tab_node(StructViewerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
-                                    .push_tab(DockBuilder::window(StructEditorView::WINDOW_ID))
+                                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
                                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
                             ),
                     )
@@ -102,7 +102,7 @@ impl DockSettingsConfig {
                 0.25,
                 DockBuilder::tab_node(StructViewerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(StructEditorView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
             )
             .push_child(
@@ -124,7 +124,7 @@ impl DockSettingsConfig {
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolTableView::WINDOW_ID);
-        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, StructEditorView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
@@ -235,8 +235,8 @@ mod tests {
     use crate::views::{
         code_viewer::code_viewer_view::CodeViewerView, element_scanner::scanner::element_scanner_view::ElementScannerView,
         memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView, plugins::plugins_view::PluginsView,
-        pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_editor::struct_editor_view::StructEditorView,
-        struct_viewer::struct_viewer_view::StructViewerView, symbol_explorer::symbol_explorer_view::SymbolExplorerView,
+        pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
+        symbol_explorer::symbol_explorer_view::SymbolExplorerView, symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView,
         symbol_table::symbol_table_view::SymbolTableView,
     };
 
@@ -263,6 +263,6 @@ mod tests {
         let dock_root = DockSettingsConfig::get_default_layout();
 
         assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID));
-        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, StructEditorView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
     }
 }

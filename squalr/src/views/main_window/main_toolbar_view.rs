@@ -12,9 +12,9 @@ use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
-use crate::views::struct_editor::struct_editor_view::StructEditorView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use crate::views::symbol_table::symbol_table_view::SymbolTableView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
@@ -49,7 +49,7 @@ impl MainToolbarView {
         let docking_manager_for_symbol_explorer = app_context.docking_manager.clone();
         let docking_manager_for_symbol_table = app_context.docking_manager.clone();
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
-        let docking_manager_for_struct_editor = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_struct_editor = app_context.docking_manager.clone();
         let docking_manager_for_memory_viewer = app_context.docking_manager.clone();
         let docking_manager_for_code_viewer = app_context.docking_manager.clone();
         let docking_manager_for_output = app_context.docking_manager.clone();
@@ -148,11 +148,11 @@ impl MainToolbarView {
                         })),
                     ),
                     ToolbarMenuItemData::new(
-                        StructEditorView::WINDOW_ID,
-                        "Symbol Structs",
+                        SymbolStructEditorView::WINDOW_ID,
+                        "SymbolStructEditor",
                         Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_struct_editor.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(StructEditorView::WINDOW_ID) {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_struct_editor.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolStructEditorView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -329,7 +329,7 @@ impl Widget for MainToolbarView {
             | SymbolExplorerView::WINDOW_ID
             | SymbolTableView::WINDOW_ID
             | StructViewerView::WINDOW_ID
-            | StructEditorView::WINDOW_ID
+            | SymbolStructEditorView::WINDOW_ID
             | MemoryViewerView::WINDOW_ID
             | CodeViewerView::WINDOW_ID
             | OutputView::WINDOW_ID

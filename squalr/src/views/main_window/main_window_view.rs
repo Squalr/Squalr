@@ -18,9 +18,9 @@ use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
-use crate::views::struct_editor::struct_editor_view::StructEditorView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use crate::views::symbol_table::symbol_table_view::SymbolTableView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
@@ -99,13 +99,13 @@ impl MainWindowView {
             Rc::new(StructViewerView::WINDOW_ID.to_string()),
         );
 
-        let app_context_for_struct_editor = app_context.clone();
-        let struct_editor_view = DockedWindowView::new(
-            app_context_for_struct_editor.clone(),
+        let app_context_for_symbol_struct_editor = app_context.clone();
+        let symbol_struct_editor_view = DockedWindowView::new(
+            app_context_for_symbol_struct_editor.clone(),
             dock_view_data.clone(),
-            StructEditorView::new(app_context_for_struct_editor.clone()),
-            Rc::new("Symbol Structs".to_string()),
-            Rc::new(StructEditorView::WINDOW_ID.to_string()),
+            SymbolStructEditorView::new(app_context_for_symbol_struct_editor.clone()),
+            Rc::new("SymbolStructEditor".to_string()),
+            Rc::new(SymbolStructEditorView::WINDOW_ID.to_string()),
         );
 
         let app_context_for_memory_viewer = app_context.clone();
@@ -193,7 +193,7 @@ impl MainWindowView {
             Box::new(output_view),
             Box::new(settings_view),
             Box::new(struct_viewer_view),
-            Box::new(struct_editor_view),
+            Box::new(symbol_struct_editor_view),
             Box::new(memory_viewer_view),
             Box::new(code_viewer_view),
             Box::new(project_explorer_view),
