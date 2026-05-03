@@ -497,6 +497,9 @@ impl Widget for StructViewerView {
                 StructViewerViewData::set_selected_field(self.struct_viewer_view_data.clone(), field_name);
             }
             StructViewerFrameAction::EditValue(edited_field) => {
+                let mut modified_field_callback = None;
+                let mut modified_field = None;
+
                 if let Some(mut struct_viewer_view_data) = self.struct_viewer_view_data.write("Struct viewer edit value") {
                     let Some(source_edited_field) = struct_viewer_view_data.resolve_source_field_edit(&edited_field) else {
                         return response;
@@ -516,9 +519,12 @@ impl Widget for StructViewerView {
 
                     struct_viewer_view_data.refresh_cached_field_state(&self.app_context.engine_unprivileged_state);
 
-                    if let Some(struct_field_modified_callback) = struct_viewer_view_data.struct_field_modified_callback.clone() {
-                        struct_field_modified_callback(source_edited_field);
-                    }
+                    modified_field_callback = struct_viewer_view_data.struct_field_modified_callback.clone();
+                    modified_field = Some(source_edited_field);
+                }
+
+                if let (Some(struct_field_modified_callback), Some(modified_field)) = (modified_field_callback, modified_field) {
+                    struct_field_modified_callback(modified_field);
                 }
             }
             StructViewerFrameAction::OpenInMemoryViewer(field_name) => {

@@ -682,7 +682,7 @@ mod tests {
             .get_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
             .expect("Expected target field in struct view properties.");
 
-        assert_eq!(StructViewerViewData::read_utf8_field_text(target_field), "None");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(target_field), "Address");
         assert!(!target_field.get_is_read_only());
     }
 
@@ -2525,60 +2525,89 @@ impl ProjectHierarchyView {
             .read("Project hierarchy selected project items for struct viewer focus")
             .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_selected_project_item_paths_in_tree_order())
             .unwrap_or_default();
-        let (selected_project_items, opened_project_info) = self
-            .project_hierarchy_view_data
-            .read("Project hierarchy selected project item data for struct viewer focus")
-            .map(|project_hierarchy_view_data| {
-                (
-                    project_hierarchy_view_data
-                        .project_items
-                        .iter()
-                        .filter(|(project_item_ref, _)| selected_project_item_paths.contains(project_item_ref.get_project_item_path()))
-                        .map(|(_, project_item)| project_item.clone())
-                        .collect::<Vec<ProjectItem>>(),
-                    project_hierarchy_view_data.opened_project_info.clone(),
-                )
-            })
-            .unwrap_or_default();
 
-        if selected_project_item_paths.is_empty() || selected_project_items.is_empty() {
-            StructViewerViewData::clear_focus(self.struct_viewer_view_data.clone());
+        Self::focus_project_item_paths_in_struct_viewer(self.app_context.clone(), self.struct_viewer_view_data.clone(), selected_project_item_paths);
+    }
+
+    fn focus_project_item_paths_in_struct_viewer(
+        app_context: Arc<AppContext>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) {
+        if project_item_paths.is_empty() {
+            StructViewerViewData::clear_focus(struct_viewer_view_data);
+            return;
+        }
+        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let opened_project_guard = match opened_project_lock.read() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while focusing project item details: {}", error);
+                return;
+            }
+        };
+        let Some(opened_project) = opened_project_guard.as_ref() else {
+            StructViewerViewData::clear_focus(struct_viewer_view_data);
+            return;
+        };
+        let opened_project_info = opened_project.get_project_info().clone();
+        let selected_project_items = project_item_paths
+            .iter()
+            .filter_map(|project_item_path| {
+                opened_project
+                    .get_project_items()
+                    .get(&ProjectItemRef::new(project_item_path.clone()))
+                    .cloned()
+            })
+            .collect::<Vec<ProjectItem>>();
+
+        if selected_project_items.is_empty() {
+            StructViewerViewData::clear_focus(struct_viewer_view_data);
             return;
         }
 
-        let app_context = self.app_context.clone();
-        let selected_project_item_paths_for_edit = selected_project_item_paths.clone();
-        let callback = Arc::new(move |edited_field: ValuedStructField| {
-            Self::apply_project_item_edits(app_context.clone(), selected_project_item_paths_for_edit.clone(), edited_field);
-        });
+        let callback = Self::build_project_item_details_edit_callback(app_context.clone(), struct_viewer_view_data.clone(), project_item_paths.clone());
 
         if selected_project_items.len() == 1 {
             if let Some(selected_project_item) = selected_project_items.into_iter().next() {
                 StructViewerViewData::focus_valued_struct_with_focus_target(
-                    self.struct_viewer_view_data.clone(),
-                    self.app_context.engine_unprivileged_state.clone(),
-                    Self::build_struct_view_properties(opened_project_info.as_ref(), &selected_project_item),
+                    struct_viewer_view_data,
+                    app_context.engine_unprivileged_state.clone(),
+                    Self::build_struct_view_properties(Some(&opened_project_info), &selected_project_item),
                     callback,
-                    Some(StructViewerFocusTarget::ProjectHierarchy {
-                        project_item_paths: selected_project_item_paths,
-                    }),
+                    Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
                 );
             }
         } else {
             let selected_project_item_properties = selected_project_items
                 .into_iter()
-                .map(|selected_project_item| Self::build_struct_view_properties(opened_project_info.as_ref(), &selected_project_item))
+                .map(|selected_project_item| Self::build_struct_view_properties(Some(&opened_project_info), &selected_project_item))
                 .collect::<Vec<_>>();
             StructViewerViewData::focus_valued_structs_with_focus_target(
-                self.struct_viewer_view_data.clone(),
-                self.app_context.engine_unprivileged_state.clone(),
+                struct_viewer_view_data,
+                app_context.engine_unprivileged_state.clone(),
                 selected_project_item_properties,
                 callback,
-                Some(StructViewerFocusTarget::ProjectHierarchy {
-                    project_item_paths: selected_project_item_paths,
-                }),
+                Some(StructViewerFocusTarget::ProjectHierarchy { project_item_paths }),
             );
         }
+    }
+
+    fn build_project_item_details_edit_callback(
+        app_context: Arc<AppContext>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
+        Arc::new(move |edited_field: ValuedStructField| {
+            let should_refocus_details = edited_field.get_name() == StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND;
+
+            Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
+
+            if should_refocus_details {
+                Self::focus_project_item_paths_in_struct_viewer(app_context.clone(), struct_viewer_view_data.clone(), project_item_paths.clone());
+            }
+        })
     }
 
     fn apply_project_item_edits(
@@ -2937,6 +2966,14 @@ impl ProjectHierarchyView {
         fields: &mut Vec<ValuedStructField>,
         project_item_target: &ProjectItemTarget,
     ) {
+        let default_project_item_target;
+        let project_item_target = if matches!(project_item_target, ProjectItemTarget::None) {
+            default_project_item_target = Self::default_project_item_target();
+            &default_project_item_target
+        } else {
+            project_item_target
+        };
+
         fields.push(
             DataTypeStringUtf8::get_value_from_primitive_string(Self::project_item_target_kind_label(project_item_target))
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false),
@@ -2989,12 +3026,16 @@ impl ProjectHierarchyView {
 
     fn project_item_target_kind_label(project_item_target: &ProjectItemTarget) -> &'static str {
         match project_item_target {
-            ProjectItemTarget::None => "None",
+            ProjectItemTarget::None => "Address",
             ProjectItemTarget::Address { .. } => "Address",
             ProjectItemTarget::PointerPath { .. } => "Pointer",
             ProjectItemTarget::Symbol { .. } => "Symbol",
             ProjectItemTarget::Plugin { .. } => "Plugin",
         }
+    }
+
+    fn default_project_item_target() -> ProjectItemTarget {
+        ProjectItemTarget::new_address(0, String::new())
     }
 
     fn format_pointer_offsets(pointer_offsets: &[i64]) -> String {
@@ -3129,10 +3170,9 @@ impl ProjectHierarchyView {
         target_kind_text: &str,
     ) -> Option<ProjectItemTarget> {
         match target_kind_text.trim().to_ascii_lowercase().as_str() {
-            "none" => Some(ProjectItemTarget::None),
             "address" => Some(match current_target {
                 ProjectItemTarget::Address { .. } => current_target.clone(),
-                _ => ProjectItemTarget::new_address(0, String::new()),
+                _ => Self::default_project_item_target(),
             }),
             "pointer" => Some(match current_target {
                 ProjectItemTarget::PointerPath { .. } => current_target.clone(),

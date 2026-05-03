@@ -2846,7 +2846,7 @@ mod tests {
     }
 
     #[test]
-    fn build_project_item_create_request_for_item_uses_empty_target() {
+    fn build_project_item_create_request_for_item_uses_generic_item_creation() {
         let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
         let project_items = vec![create_directory_project_item(&parent_directory_path)];
 

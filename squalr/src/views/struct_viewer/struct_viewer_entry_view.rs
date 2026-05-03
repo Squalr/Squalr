@@ -437,7 +437,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 let target_selector_id = format!("struct_viewer_project_item_target_{}_{}", self.row_index, self.valued_struct_field.get_name());
                 let current_target_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
                 let target_kind_label = if current_target_kind.trim().is_empty() {
-                    "None"
+                    "Address"
                 } else {
                     current_target_kind.as_str()
                 };
@@ -455,7 +455,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         &target_selector_id,
                         None,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for target_kind_label in ["None", "Address", "Pointer", "Symbol", "Plugin"] {
+                            for target_kind_label in ["Address", "Pointer", "Symbol", "Plugin"] {
                                 let target_response =
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), target_kind_label, None, target_width));
 
