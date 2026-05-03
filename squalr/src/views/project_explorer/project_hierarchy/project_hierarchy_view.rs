@@ -125,13 +125,11 @@ struct ProjectItemValueEditContext {
 }
 
 impl ProjectHierarchyView {
-    const TARGET_FIELD_ADDRESS: &str = "target.address";
-    const TARGET_FIELD_MODULE: &str = "target.module";
-    const TARGET_FIELD_POINTER_ROOT_ADDRESS: &str = "target.root_address";
-    const TARGET_FIELD_POINTER_ROOT_MODULE: &str = "target.root_module";
-    const TARGET_FIELD_POINTER_OFFSETS: &str = "target.offsets";
-    const TARGET_FIELD_POINTER_SIZE: &str = "target.pointer_size";
-    const TARGET_FIELD_SYMBOL_LOCATOR: &str = "target.symbol";
+    const TARGET_FIELD_POINTER_ROOT_ADDRESS: &str = "__address_target_pointer_root_address";
+    const TARGET_FIELD_POINTER_ROOT_MODULE: &str = "__address_target_pointer_root_module";
+    const TARGET_FIELD_POINTER_OFFSETS: &str = "__address_target_pointer_offsets";
+    const TARGET_FIELD_POINTER_SIZE: &str = "__address_target_pointer_size";
+    const TARGET_FIELD_SYMBOL_LOCATOR: &str = "__address_target_symbol_locator";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
@@ -404,26 +402,25 @@ mod tests {
     }
 
     #[test]
-    fn build_memory_write_request_for_address_item_address_edit_returns_request() {
+    fn apply_project_item_address_target_edit_updates_raw_address() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("player_health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        let expected_module_name = ProjectItemTypeAddress::get_field_module(&mut project_item);
         let edited_field = ValuedStructField::new(
             ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(),
             ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(0xABCD)),
             false,
         );
 
-        let memory_write_request = ProjectHierarchyView::build_memory_write_request_for_project_item_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
-        assert!(memory_write_request.is_some());
-        let memory_write_request = memory_write_request.unwrap_or_else(|| panic!("Expected memory write request for address edit."));
-        assert_eq!(memory_write_request.address, 0x1234);
-        assert_eq!(memory_write_request.module_name, expected_module_name);
-        assert_eq!(memory_write_request.value, 0xABCDu64.to_le_bytes().to_vec());
+        assert!(did_apply_edit);
+        assert_eq!(
+            ProjectItemTypeAddress::get_address_target(&mut project_item),
+            ProjectItemAddressTarget::new_address(0xABCD, String::from("game.exe"))
+        );
     }
 
     #[test]
-    fn build_memory_write_request_for_address_item_non_address_edit_returns_none() {
+    fn apply_project_item_address_target_edit_updates_raw_module() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("player_health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         let edited_field = ValuedStructField::new(
             ProjectItemTypeAddress::PROPERTY_MODULE.to_string(),
@@ -431,24 +428,13 @@ mod tests {
             false,
         );
 
-        let memory_write_request = ProjectHierarchyView::build_memory_write_request_for_project_item_edit(&mut project_item, &edited_field);
+        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
-        assert!(memory_write_request.is_none());
-    }
-
-    #[test]
-    fn build_memory_write_request_for_non_address_item_address_edit_returns_none() {
-        let project_item_ref = ProjectItemRef::new(PathBuf::from("project/folder"));
-        let mut project_item = ProjectItemTypeDirectory::new_project_item(&project_item_ref);
-        let edited_field = ValuedStructField::new(
-            ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(),
-            ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(0xABCD)),
-            false,
+        assert!(did_apply_edit);
+        assert_eq!(
+            ProjectItemTypeAddress::get_address_target(&mut project_item),
+            ProjectItemAddressTarget::new_address(0x1234, String::from("new_module.exe"))
         );
-
-        let memory_write_request = ProjectHierarchyView::build_memory_write_request_for_project_item_edit(&mut project_item, &edited_field);
-
-        assert!(memory_write_request.is_none());
     }
 
     #[test]
@@ -679,15 +665,16 @@ mod tests {
             .get_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
             .expect("Expected target selector field.");
         let address_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_ADDRESS)
-            .expect("Expected address target field.");
+            .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
+            .expect("Expected address field.");
         let module_field = struct_view_properties
-            .get_field(ProjectHierarchyView::TARGET_FIELD_MODULE)
-            .expect("Expected module target field.");
+            .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
+            .expect("Expected module field.");
 
         assert_eq!(StructViewerViewData::read_utf8_field_text(target_field), "Address");
         assert_eq!(address_field.get_bytes(), 0x1234_u64.to_le_bytes());
         assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "game.exe");
+        assert_eq!(struct_view_properties.get_fields().len(), project_item.get_properties().get_fields().len());
     }
 
     #[test]
@@ -2660,9 +2647,7 @@ impl ProjectHierarchyView {
                 }
             }
 
-            if let Some(memory_write_request) = Self::build_memory_write_request_for_project_item_edit(project_item, &edited_field) {
-                memory_write_requests.push(memory_write_request);
-            } else if let Some(memory_write_request) =
+            if let Some(memory_write_request) =
                 Self::build_memory_write_request_for_runtime_value_edit(&engine_execution_context, Some(&opened_project_info), project_item, &edited_field)
             {
                 memory_write_requests.push(memory_write_request);
@@ -2709,29 +2694,6 @@ impl ProjectHierarchyView {
                 }
             });
         }
-    }
-
-    fn build_memory_write_request_for_project_item_edit(
-        project_item: &mut ProjectItem,
-        edited_field: &ValuedStructField,
-    ) -> Option<MemoryWriteRequest> {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return None;
-        }
-
-        if edited_field.get_name() != ProjectItemTypeAddress::PROPERTY_ADDRESS {
-            return None;
-        }
-
-        let edited_data_value = edited_field.get_data_value()?;
-        let address = ProjectItemTypeAddress::get_field_address(project_item);
-        let module_name = ProjectItemTypeAddress::get_field_module(project_item);
-
-        Some(MemoryWriteRequest {
-            address,
-            module_name,
-            value: edited_data_value.get_value_bytes().clone(),
-        })
     }
 
     fn build_memory_write_request_for_runtime_value_edit(
@@ -2973,12 +2935,7 @@ impl ProjectHierarchyView {
         );
 
         match address_target {
-            ProjectItemAddressTarget::Address { address, module_name } => {
-                fields.push(DataTypeU64::get_value_from_primitive(*address).to_named_valued_struct_field(Self::TARGET_FIELD_ADDRESS.to_string(), false));
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(module_name).to_named_valued_struct_field(Self::TARGET_FIELD_MODULE.to_string(), false),
-                );
-            }
+            ProjectItemAddressTarget::Address { .. } => {}
             ProjectItemAddressTarget::PointerPath { pointer } => {
                 fields.push(
                     DataTypeU64::get_value_from_primitive(pointer.get_address())
@@ -3046,7 +3003,7 @@ impl ProjectHierarchyView {
 
         let mut address_target = ProjectItemTypeAddress::get_address_target(project_item);
         let did_update_target = match (&mut address_target, edited_field_name) {
-            (ProjectItemAddressTarget::Address { address, .. }, Self::TARGET_FIELD_ADDRESS) => {
+            (ProjectItemAddressTarget::Address { address, .. }, ProjectItemTypeAddress::PROPERTY_ADDRESS) => {
                 if let Some(edited_address) = Self::extract_u64_value_from_edited_field(edited_field) {
                     *address = edited_address;
                     true
@@ -3054,7 +3011,7 @@ impl ProjectHierarchyView {
                     false
                 }
             }
-            (ProjectItemAddressTarget::Address { module_name, .. }, Self::TARGET_FIELD_MODULE) => {
+            (ProjectItemAddressTarget::Address { module_name, .. }, ProjectItemTypeAddress::PROPERTY_MODULE) => {
                 if let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) {
                     *module_name = edited_module_name;
                     true

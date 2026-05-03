@@ -442,7 +442,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     current_target_kind.as_str()
                 };
                 let mut selected_target_kind = None;
-                let target_width = (row_max_x - value_box_position_x).max(0.0);
+                let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
+                let target_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                 user_interface.put(
                     Rect::from_min_size(

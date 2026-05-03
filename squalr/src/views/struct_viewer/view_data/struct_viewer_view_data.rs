@@ -11,7 +11,10 @@ use squalr_engine_api::{
             data_type_ref::DataTypeRef,
         },
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
+        projects::project_items::{
+            built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
+            project_item::ProjectItem,
+        },
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition,
             valued_struct::ValuedStruct,
@@ -43,7 +46,7 @@ impl StructViewerViewData {
     pub const DEFAULT_NAME_SPLITTER_RATIO: f32 = 0.5;
     pub const VIRTUAL_FIELD_CONTAINER_TYPE: &'static str = "__virtual_container_type";
     pub const VIRTUAL_FIELD_ARRAY_SIZE: &'static str = "__virtual_array_size";
-    pub const VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND: &'static str = "target";
+    pub const VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND: &'static str = "__project_item_address_target_kind";
 
     pub fn new() -> Self {
         Self {
@@ -308,8 +311,7 @@ impl StructViewerViewData {
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> AnonymousValueStringFormat {
         if valued_struct_field.get_name() == ProjectItemTypeAddress::PROPERTY_ADDRESS
-            || valued_struct_field.get_name() == "target.address"
-            || valued_struct_field.get_name() == "target.root_address"
+            || valued_struct_field.get_name() == "__address_target_pointer_root_address"
         {
             return AnonymousValueStringFormat::Hexadecimal;
         }
@@ -404,34 +406,72 @@ impl StructViewerViewData {
         for valued_struct_field in valued_struct.get_fields() {
             let field_presentation = if Self::is_data_type_reference_field(valued_struct_field) {
                 if valued_struct_field.get_is_read_only() {
-                    StructViewerFieldPresentation::new(String::from("type"), StructViewerFieldEditorKind::ValueBox)
+                    StructViewerFieldPresentation::new(String::from("Type"), StructViewerFieldEditorKind::ValueBox)
                 } else {
-                    StructViewerFieldPresentation::new(String::from("data_type"), StructViewerFieldEditorKind::DataTypeSelector)
+                    StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::DataTypeSelector)
                 }
             } else if Self::is_virtual_container_type_field(valued_struct_field) {
                 if valued_struct_field.get_is_read_only() {
-                    StructViewerFieldPresentation::new(String::from("container_type"), StructViewerFieldEditorKind::ValueBox)
+                    StructViewerFieldPresentation::new(String::from("Container Type"), StructViewerFieldEditorKind::ValueBox)
                 } else {
-                    StructViewerFieldPresentation::new(String::from("container_type"), StructViewerFieldEditorKind::ContainerTypeSelector)
+                    StructViewerFieldPresentation::new(String::from("Container Type"), StructViewerFieldEditorKind::ContainerTypeSelector)
                 }
             } else if Self::is_virtual_array_size_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("array_size"), StructViewerFieldEditorKind::ValueBox)
+                StructViewerFieldPresentation::new(String::from("Array Size"), StructViewerFieldEditorKind::ValueBox)
             } else if Self::is_project_item_target_kind_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("target"), StructViewerFieldEditorKind::ProjectItemTargetSelector)
+                StructViewerFieldPresentation::new(String::from("Target"), StructViewerFieldEditorKind::ProjectItemTargetSelector)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
-                StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::CodeViewerButton)
+                StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
-                StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::MemoryViewerButton)
+                StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::MemoryViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::ValueBox)
+                StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::ValueBox)
             } else {
-                StructViewerFieldPresentation::new(valued_struct_field.get_name().to_string(), StructViewerFieldEditorKind::ValueBox)
+                StructViewerFieldPresentation::new(Self::field_display_name(valued_struct_field.get_name()), StructViewerFieldEditorKind::ValueBox)
             };
 
             field_presentations.insert(valued_struct_field.get_name().to_string(), field_presentation);
         }
 
         field_presentations
+    }
+
+    fn field_display_name(field_name: &str) -> String {
+        match field_name {
+            ProjectItem::PROPERTY_NAME => String::from("Name"),
+            ProjectItem::PROPERTY_ICON_ID => String::from("Icon ID"),
+            ProjectItem::PROPERTY_DESCRIPTION => String::from("Description"),
+            ProjectItemTypeAddress::PROPERTY_ADDRESS => String::from("Address"),
+            ProjectItemTypeAddress::PROPERTY_MODULE => String::from("Module"),
+            "__address_target_pointer_root_address" => String::from("Pointer Root Address"),
+            "__address_target_pointer_root_module" => String::from("Pointer Root Module"),
+            "__address_target_pointer_offsets" => String::from("Pointer Offsets"),
+            "__address_target_pointer_size" => String::from("Pointer Size"),
+            "__address_target_symbol_locator" => String::from("Symbol"),
+            _ => Self::humanize_field_key(field_name),
+        }
+    }
+
+    fn humanize_field_key(field_name: &str) -> String {
+        let mut display_name = String::new();
+
+        for word in field_name
+            .trim_matches('_')
+            .split(|character| matches!(character, '_' | '.'))
+            .filter(|word| !word.is_empty())
+        {
+            if !display_name.is_empty() {
+                display_name.push(' ');
+            }
+
+            let mut characters = word.chars();
+            if let Some(first_character) = characters.next() {
+                display_name.extend(first_character.to_uppercase());
+                display_name.push_str(characters.as_str());
+            }
+        }
+
+        if display_name.is_empty() { String::from("Field") } else { display_name }
     }
 
     fn create_field_validation_data_type_refs(
@@ -632,7 +672,7 @@ impl StructViewerViewData {
 mod tests {
     use super::StructViewerViewData;
     use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
-    use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::StructViewerFieldEditorKind;
+    use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::structures::{
         data_types::built_in_types::{
@@ -747,7 +787,7 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .expect("Expected data-type field presentation.");
 
-        assert_eq!(field_presentation.display_name(), "data_type");
+        assert_eq!(field_presentation.display_name(), "Data Type");
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::DataTypeSelector);
     }
 
@@ -763,7 +803,7 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
             .expect("Expected data-type field presentation.");
 
-        assert_eq!(field_presentation.display_name(), "type");
+        assert_eq!(field_presentation.display_name(), "Type");
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
     }
 
@@ -779,7 +819,7 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
             .expect("Expected live value field presentation.");
 
-        assert_eq!(field_presentation.display_name(), "value");
+        assert_eq!(field_presentation.display_name(), "Value");
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
     }
 
@@ -797,7 +837,7 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
             .expect("Expected live value field presentation.");
 
-        assert_eq!(field_presentation.display_name(), "value");
+        assert_eq!(field_presentation.display_name(), "Value");
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::MemoryViewerButton);
     }
 
@@ -815,8 +855,40 @@ mod tests {
             .get(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
             .expect("Expected live value field presentation.");
 
-        assert_eq!(field_presentation.display_name(), "value");
+        assert_eq!(field_presentation.display_name(), "Value");
         assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::CodeViewerButton);
+    }
+
+    #[test]
+    fn create_field_presentations_uses_readable_names_for_internal_fields() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("Pointer")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("0x10, 0x20")
+                .to_named_valued_struct_field("__address_target_pointer_offsets".to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("u64").to_named_valued_struct_field("symbol_locator_key".to_string(), false),
+        ]);
+
+        let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
+
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
+                .map(StructViewerFieldPresentation::display_name),
+            Some("Target")
+        );
+        assert_eq!(
+            field_presentations
+                .get("__address_target_pointer_offsets")
+                .map(StructViewerFieldPresentation::display_name),
+            Some("Pointer Offsets")
+        );
+        assert_eq!(
+            field_presentations
+                .get("symbol_locator_key")
+                .map(StructViewerFieldPresentation::display_name),
+            Some("Symbol Locator Key")
+        );
     }
 
     #[test]
