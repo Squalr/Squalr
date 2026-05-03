@@ -79,6 +79,12 @@ struct ModuleChildRangeTarget {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+struct DeleteConfirmationDescription {
+    text: String,
+    is_warning: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct U8SpanEditTarget {
     module_name: String,
     offset: u64,
@@ -290,6 +296,26 @@ impl SymbolExplorerView {
         };
 
         project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
+    }
+
+    fn build_delete_module_range_confirmation_description(
+        module_name: &str,
+        length: u64,
+        mode: ProjectSymbolsDeleteModuleRangeMode,
+    ) -> DeleteConfirmationDescription {
+        match mode {
+            ProjectSymbolsDeleteModuleRangeMode::ShiftLeft => DeleteConfirmationDescription {
+                text: format!(
+                    "WARNING: {} will be {} byte(s) smaller. Proceeding fields will be shifted left.",
+                    module_name, length
+                ),
+                is_warning: true,
+            },
+            ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8 => DeleteConfirmationDescription {
+                text: String::from("This removes the field definition and preserves the module bytes as u8[]."),
+                is_warning: false,
+            },
+        }
     }
 
     fn delete_module_root(
@@ -2774,22 +2800,15 @@ impl Widget for SymbolExplorerView {
                         display_name,
                         mode,
                     }) => {
-                        let warning_text = if *mode == ProjectSymbolsDeleteModuleRangeMode::ShiftLeft {
-                            format!(
-                                "WARNING: {} will be {} byte(s) smaller. Proceeding fields will be shifted left.",
-                                module_name, length
-                            )
-                        } else {
-                            String::from("This removes the field definition and preserves the module bytes as u8[].")
-                        };
+                        let delete_confirmation_description = Self::build_delete_module_range_confirmation_description(module_name, *length, *mode);
 
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
                             "Delete this field",
                             display_name,
-                            &warning_text,
-                            *mode == ProjectSymbolsDeleteModuleRangeMode::ShiftLeft,
+                            &delete_confirmation_description.text,
+                            delete_confirmation_description.is_warning,
                         ) {
                             self.delete_module_range(module_name, *offset, *length, *mode);
                         }
@@ -3071,6 +3090,30 @@ mod tests {
         assert_eq!(symbol_claim_target.offset, 0x04);
         assert_eq!(symbol_claim_target.length, 4);
         assert_eq!(symbol_claim_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8);
+    }
+
+    #[test]
+    fn build_delete_module_range_confirmation_description_marks_shift_left_as_warning() {
+        let delete_confirmation_description =
+            SymbolExplorerView::build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ShiftLeft);
+
+        assert_eq!(
+            delete_confirmation_description.text,
+            "WARNING: winmine.exe will be 389 byte(s) smaller. Proceeding fields will be shifted left."
+        );
+        assert!(delete_confirmation_description.is_warning);
+    }
+
+    #[test]
+    fn build_delete_module_range_confirmation_description_keeps_replace_with_u8_non_warning() {
+        let delete_confirmation_description =
+            SymbolExplorerView::build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8);
+
+        assert_eq!(
+            delete_confirmation_description.text,
+            "This removes the field definition and preserves the module bytes as u8[]."
+        );
+        assert!(!delete_confirmation_description.is_warning);
     }
 
     #[test]
