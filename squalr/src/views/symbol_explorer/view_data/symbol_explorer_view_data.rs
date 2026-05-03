@@ -513,7 +513,7 @@ impl SymbolExplorerViewData {
 #[cfg(test)]
 mod tests {
     use super::{DefineFieldDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState, SymbolExplorerViewData};
-    use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
+    use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries};
     use epaint::pos2;
     use squalr_engine_api::dependency_injection::dependency::Dependency;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
@@ -527,6 +527,7 @@ mod tests {
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
+    use std::collections::{HashMap, HashSet};
 
     fn create_dependency() -> Dependency<SymbolExplorerViewData> {
         let dependency_container = DependencyContainer::new();
@@ -629,6 +630,45 @@ mod tests {
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
         assert_eq!(selected_entry, Some(SymbolExplorerSelection::SymbolClaim(String::from("module:game.exe:1000"))));
+    }
+
+    #[test]
+    fn synchronize_selection_keeps_tail_split_module_field_visible_in_tree() {
+        let symbol_explorer_view_data = create_dependency();
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x10);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0x00, String::from("u8[8]")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("u8_00000008"), 0x08, String::from("u8[4]")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("u8_0000000C"), 0x0C, String::from("u8[4]")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let mut expanded_tree_node_keys = HashSet::new();
+        expanded_tree_node_keys.insert(String::from("module:game.exe"));
+        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+            (data_type_ref.get_data_type_id() == "u8").then_some(1)
+        });
+
+        SymbolExplorerViewData::set_selected_entry(
+            symbol_explorer_view_data.clone(),
+            Some(SymbolExplorerSelection::SymbolClaim(String::from("module:game.exe:C"))),
+        );
+        SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, false);
+        SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &symbol_tree_entries);
+
+        let selected_entry = symbol_explorer_view_data
+            .read("Symbol explorer tail split module field selection test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
+
+        assert_eq!(selected_entry, Some(SymbolExplorerSelection::SymbolClaim(String::from("module:game.exe:C"))));
+        assert!(
+            symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_node_key() == "claim:module:game.exe:C")
+        );
     }
 
     #[test]

@@ -723,6 +723,46 @@ mod tests {
     }
 
     #[test]
+    fn split_tail_u8_array_field_keeps_module_fields_ordered() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x10);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0x00, String::from("u8[8]")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("u8_00000008"), 0x08, String::from("u8[8]")));
+        let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+
+        ProjectSymbolLayoutMutation::upsert_module_field(
+            &mut project_symbol_catalog,
+            "game.exe",
+            String::from("u8_00000008"),
+            0x08,
+            String::from("u8[4]"),
+            resolve_test_field_size,
+        )
+        .expect("Expected tail split first half mutation to succeed.");
+        ProjectSymbolLayoutMutation::upsert_module_field(
+            &mut project_symbol_catalog,
+            "game.exe",
+            String::from("u8_0000000C"),
+            0x0C,
+            String::from("u8[4]"),
+            resolve_test_field_size,
+        )
+        .expect("Expected tail split second half mutation to succeed.");
+
+        let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].get_offset(), 0x00);
+        assert_eq!(fields[0].get_struct_layout_id(), "u8[8]");
+        assert_eq!(fields[1].get_offset(), 0x08);
+        assert_eq!(fields[1].get_struct_layout_id(), "u8[4]");
+        assert_eq!(fields[2].get_offset(), 0x0C);
+        assert_eq!(fields[2].get_struct_layout_id(), "u8[4]");
+    }
+
+    #[test]
     fn upsert_module_field_rejects_overlap_with_typed_field() {
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         symbol_module
