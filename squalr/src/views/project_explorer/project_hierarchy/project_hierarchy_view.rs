@@ -125,8 +125,6 @@ struct ProjectItemValueEditContext {
 }
 
 impl ProjectHierarchyView {
-    const TARGET_FIELD_POINTER_ROOT_ADDRESS: &str = "__address_target_pointer_root_address";
-    const TARGET_FIELD_POINTER_ROOT_MODULE: &str = "__address_target_pointer_root_module";
     const TARGET_FIELD_POINTER_OFFSETS: &str = "__address_target_pointer_offsets";
     const TARGET_FIELD_POINTER_SIZE: &str = "__address_target_pointer_size";
     const TARGET_FIELD_SYMBOL_LOCATOR: &str = "__address_target_symbol_locator";
@@ -675,6 +673,76 @@ mod tests {
         assert_eq!(address_field.get_bytes(), 0x1234_u64.to_le_bytes());
         assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "game.exe");
         assert_eq!(struct_view_properties.get_fields().len(), project_item.get_properties().get_fields().len());
+    }
+
+    #[test]
+    fn build_struct_view_properties_uses_address_and_module_for_pointer_target_root() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
+                0x4567,
+                vec![0x10, 0x20],
+                String::from("pointer_root.exe"),
+                PointerScanPointerSize::Pointer64,
+            )),
+        );
+
+        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let address_field = struct_view_properties
+            .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
+            .expect("Expected address field.");
+        let module_field = struct_view_properties
+            .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
+            .expect("Expected module field.");
+
+        assert_eq!(address_field.get_bytes(), 0x4567_u64.to_le_bytes());
+        assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "pointer_root.exe");
+        assert!(
+            struct_view_properties
+                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+                .is_some()
+        );
+        assert!(
+            struct_view_properties
+                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn build_struct_view_properties_hides_pointer_item_preview_path() {
+        let pointer = Pointer::new_with_size(0x4567, vec![0x10, 0x20], String::from("game.exe"), PointerScanPointerSize::Pointer64);
+        let mut project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u16");
+        ProjectItemTypePointer::set_field_evaluated_pointer_path(&mut project_item, "game.exe+0x4567 -> 0x5000 -> 0x6000");
+
+        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+
+        assert!(
+            struct_view_properties
+                .get_field(ProjectItemTypePointer::PROPERTY_OFFSET)
+                .is_some()
+        );
+        assert!(
+            struct_view_properties
+                .get_field(ProjectItemTypePointer::PROPERTY_MODULE)
+                .is_some()
+        );
+        assert!(
+            struct_view_properties
+                .get_field(ProjectItemTypePointer::PROPERTY_POINTER_OFFSETS)
+                .is_some()
+        );
+        assert!(
+            struct_view_properties
+                .get_field(ProjectItemTypePointer::PROPERTY_POINTER_SIZE)
+                .is_some()
+        );
+        assert!(
+            struct_view_properties
+                .get_field(ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2878,13 +2946,15 @@ impl ProjectHierarchyView {
             .get_properties()
             .get_fields()
             .iter()
-            .filter(|valued_struct_field| valued_struct_field.get_name() != ProjectItemTypeAddress::PROPERTY_TARGET)
+            .filter(|valued_struct_field| Self::should_show_project_item_detail_field(project_item, valued_struct_field.get_name()))
             .map(|valued_struct_field| {
                 let is_runtime_value_field = Self::is_runtime_value_field(valued_struct_field.get_name());
+                let projected_field_data = Self::project_address_item_target_detail_field_data(project_item, valued_struct_field)
+                    .unwrap_or_else(|| valued_struct_field.get_field_data().clone());
 
                 ValuedStructField::new(
                     valued_struct_field.get_name().to_string(),
-                    valued_struct_field.get_field_data().clone(),
+                    projected_field_data,
                     if is_runtime_value_field {
                         false
                     } else {
@@ -2925,6 +2995,53 @@ impl ProjectHierarchyView {
         ValuedStruct::new_anonymous(fields)
     }
 
+    fn should_show_project_item_detail_field(
+        project_item: &ProjectItem,
+        field_name: &str,
+    ) -> bool {
+        if field_name == ProjectItemTypeAddress::PROPERTY_TARGET {
+            return false;
+        }
+
+        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH;
+        }
+
+        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+            if matches!(
+                ProjectItemTypeAddress::get_address_target(&mut project_item),
+                ProjectItemAddressTarget::Symbol { .. }
+            ) {
+                return field_name != ProjectItemTypeAddress::PROPERTY_ADDRESS && field_name != ProjectItemTypeAddress::PROPERTY_MODULE;
+            }
+        }
+
+        true
+    }
+
+    fn project_address_item_target_detail_field_data(
+        project_item: &ProjectItem,
+        valued_struct_field: &ValuedStructField,
+    ) -> Option<ValuedStructFieldData> {
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            return None;
+        }
+
+        let mut project_item = project_item.clone();
+        let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
+
+        match (address_target, valued_struct_field.get_name()) {
+            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_ADDRESS) => {
+                Some(ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(pointer.get_address())))
+            }
+            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_MODULE) => Some(ValuedStructFieldData::Value(
+                DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_module_name()),
+            )),
+            _ => None,
+        }
+    }
+
     fn append_project_item_address_target_fields(
         fields: &mut Vec<ValuedStructField>,
         address_target: &ProjectItemAddressTarget,
@@ -2937,14 +3054,6 @@ impl ProjectHierarchyView {
         match address_target {
             ProjectItemAddressTarget::Address { .. } => {}
             ProjectItemAddressTarget::PointerPath { pointer } => {
-                fields.push(
-                    DataTypeU64::get_value_from_primitive(pointer.get_address())
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_ROOT_ADDRESS.to_string(), false),
-                );
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_module_name())
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_ROOT_MODULE.to_string(), false),
-                );
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(pointer.get_offsets()))
                         .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), false),
@@ -3019,7 +3128,7 @@ impl ProjectHierarchyView {
                     false
                 }
             }
-            (ProjectItemAddressTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_ROOT_ADDRESS) => {
+            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_ADDRESS) => {
                 if let Some(edited_address) = Self::extract_u64_value_from_edited_field(edited_field) {
                     pointer.set_address(edited_address);
                     true
@@ -3027,7 +3136,7 @@ impl ProjectHierarchyView {
                     false
                 }
             }
-            (ProjectItemAddressTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_ROOT_MODULE) => {
+            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_MODULE) => {
                 if let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) {
                     pointer.set_module_name(edited_module_name);
                     true

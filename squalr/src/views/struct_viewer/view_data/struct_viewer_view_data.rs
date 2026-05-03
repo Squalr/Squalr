@@ -310,9 +310,7 @@ impl StructViewerViewData {
         data_type_ref: &DataTypeRef,
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
     ) -> AnonymousValueStringFormat {
-        if valued_struct_field.get_name() == ProjectItemTypeAddress::PROPERTY_ADDRESS
-            || valued_struct_field.get_name() == "__address_target_pointer_root_address"
-        {
+        if valued_struct_field.get_name() == ProjectItemTypeAddress::PROPERTY_ADDRESS {
             return AnonymousValueStringFormat::Hexadecimal;
         }
 
@@ -443,8 +441,6 @@ impl StructViewerViewData {
             ProjectItem::PROPERTY_DESCRIPTION => String::from("Description"),
             ProjectItemTypeAddress::PROPERTY_ADDRESS => String::from("Address"),
             ProjectItemTypeAddress::PROPERTY_MODULE => String::from("Module"),
-            "__address_target_pointer_root_address" => String::from("Pointer Root Address"),
-            "__address_target_pointer_root_module" => String::from("Pointer Root Module"),
             "__address_target_pointer_offsets" => String::from("Pointer Offsets"),
             "__address_target_pointer_size" => String::from("Pointer Size"),
             "__address_target_symbol_locator" => String::from("Symbol"),
