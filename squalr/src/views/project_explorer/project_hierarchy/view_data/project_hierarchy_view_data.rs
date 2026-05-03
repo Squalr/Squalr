@@ -456,22 +456,33 @@ impl ProjectHierarchyViewData {
         target_project_item: &mut ProjectItem,
     ) {
         let project_item_type_id = target_project_item.get_item_type().get_project_item_type_id();
+        let preview_value = Self::read_project_item_preview_value(source_project_item);
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut source_project_item = source_project_item.clone();
-            let preview_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut source_project_item);
-
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            let preview_value = ProjectItemTypePointer::get_field_freeze_data_value_interpreter(source_project_item);
             let preview_path = ProjectItemTypePointer::get_field_evaluated_pointer_path(source_project_item);
 
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
             ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
         } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let preview_value = ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(source_project_item);
-
             ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
+        }
+    }
+
+    fn read_project_item_preview_value(project_item: &ProjectItem) -> String {
+        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
+
+        if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            let mut project_item = project_item.clone();
+
+            ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut project_item)
+        } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item)
+        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
+            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(project_item)
+        } else {
+            String::new()
         }
     }
 
@@ -2640,7 +2651,7 @@ mod tests {
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer,
+        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
     use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
@@ -2750,6 +2761,20 @@ mod tests {
                 converted_project_item_count: 0,
             }
         ));
+    }
+
+    #[test]
+    fn copy_project_item_preview_fields_preserves_value_across_address_to_symbol_ref_conversion() {
+        let mut address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "module:game.exe:1234", "");
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut address_project_item, "99");
+
+        ProjectHierarchyViewData::copy_project_item_preview_fields(&address_project_item, &mut symbol_ref_project_item);
+
+        assert_eq!(
+            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&symbol_ref_project_item),
+            "99"
+        );
     }
 
     #[test]

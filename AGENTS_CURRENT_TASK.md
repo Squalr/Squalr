@@ -25,6 +25,7 @@ Our current task, from `README.md`, is:
 - `ProjectItemAddressTarget::Symbol` has been removed. Existing symbol refs remain a concrete project item type, but address items should resolve through raw/module roots and pointer/address chains.
 - `ProjectItemTypeSymbolRef` no longer persists `symbol_locator_display`; display strings should be derived at presentation time.
 - Project Explorer promote-to-symbol and convert-symbol-ref now refocus the Details view after the post-command project item refresh when the response changes the item type. This needs human verification in the running UI.
+- Project Explorer Details now overlays transient preview/read values from the hierarchy data when focusing project items, and symbol-ref Details hide raw locator keys while showing derived address/module/type fields in address-like order. This needs human verification in the running UI.
 - Plugin extensibility should live in the registered project item type list, not behind an explicit catch-all plugin target type.
 - Modules are visible Symbol Tree roots and should be treated as root symbols. A newly created module starts as one ordinary `u8[]` field of module size.
 - `ProjectSymbolModule.fields` is the right storage direction for module layouts, but the broader system is still split between module fields, legacy symbol claims, Symbol Tree carving flows, and reusable struct-layout editing.
