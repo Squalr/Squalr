@@ -8,8 +8,8 @@ use squalr_engine_api::commands::project_items::activate::project_items_activate
 use squalr_engine_api::commands::project_items::activate::project_items_activate_response::ProjectItemsActivateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
-    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
+    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::collections::HashSet;
@@ -119,8 +119,7 @@ fn create_memory_freeze_target(
         .to_string();
 
     if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-        let address = ProjectItemTypeAddress::get_field_address(project_item);
-        let module_name = ProjectItemTypeAddress::get_field_module(project_item);
+        let address_target = ProjectItemTypeAddress::get_address_target(project_item);
         let data_type_id = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item)?
             .get_symbolic_struct_namespace()
             .to_string();
@@ -129,13 +128,7 @@ fn create_memory_freeze_target(
             return None;
         }
 
-        return Some(MemoryFreezeTarget {
-            address,
-            module_name,
-            data_type_id,
-            pointer_offsets: Vec::new(),
-            pointer_size: Default::default(),
-        });
+        return build_memory_freeze_target_from_address_target(project_symbol_catalog, &address_target, data_type_id);
     }
 
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -171,6 +164,40 @@ fn create_memory_freeze_target(
     }
 
     None
+}
+
+fn build_memory_freeze_target_from_address_target(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    address_target: &ProjectItemAddressTarget,
+    data_type_id: String,
+) -> Option<MemoryFreezeTarget> {
+    match address_target {
+        ProjectItemAddressTarget::Address { address, module_name } => Some(MemoryFreezeTarget {
+            address: *address,
+            module_name: module_name.clone(),
+            data_type_id,
+            pointer_offsets: Vec::new(),
+            pointer_size: Default::default(),
+        }),
+        ProjectItemAddressTarget::PointerPath { pointer } => Some(MemoryFreezeTarget {
+            address: pointer.get_address(),
+            module_name: pointer.get_module_name().to_string(),
+            data_type_id,
+            pointer_offsets: pointer.get_offsets().to_vec(),
+            pointer_size: pointer.get_pointer_size(),
+        }),
+        ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
+            let symbol_claim = project_symbol_catalog.find_symbol_claim(symbol_locator_key)?;
+
+            Some(MemoryFreezeTarget {
+                address: symbol_claim.get_locator().get_focus_address(),
+                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
+                data_type_id: symbol_claim.get_struct_layout_id().to_string(),
+                pointer_offsets: Vec::new(),
+                pointer_size: Default::default(),
+            })
+        }
+    }
 }
 
 fn dispatch_memory_freeze_request(

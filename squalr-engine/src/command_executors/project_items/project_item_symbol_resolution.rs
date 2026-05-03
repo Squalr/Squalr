@@ -7,8 +7,8 @@ use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
-    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
+    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
@@ -101,10 +101,19 @@ pub fn resolve_project_item_locator(
 
     if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
         let mut project_item = project_item.clone();
-        let address = ProjectItemTypeAddress::get_field_address(&mut project_item);
-        let module_name = ProjectItemTypeAddress::get_field_module(&mut project_item);
+        let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-        return Some(build_locator(address, &module_name));
+        return match address_target {
+            ProjectItemAddressTarget::Address { address, module_name } => Some(build_locator(address, &module_name)),
+            ProjectItemAddressTarget::PointerPath { pointer } => {
+                let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, &pointer)?;
+
+                Some(build_locator(address, &module_name))
+            }
+            ProjectItemAddressTarget::Symbol { symbol_locator_key } => project_symbol_catalog
+                .resolve_symbol_claim(&symbol_locator_key)
+                .map(|symbol_claim| symbol_claim.get_locator().clone()),
+        };
     }
 
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {

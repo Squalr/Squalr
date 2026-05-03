@@ -43,6 +43,7 @@ impl StructViewerViewData {
     pub const DEFAULT_NAME_SPLITTER_RATIO: f32 = 0.5;
     pub const VIRTUAL_FIELD_CONTAINER_TYPE: &'static str = "__virtual_container_type";
     pub const VIRTUAL_FIELD_ARRAY_SIZE: &'static str = "__virtual_array_size";
+    pub const VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND: &'static str = "target";
 
     pub fn new() -> Self {
         Self {
@@ -415,6 +416,8 @@ impl StructViewerViewData {
                 }
             } else if Self::is_virtual_array_size_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("array_size"), StructViewerFieldEditorKind::ValueBox)
+            } else if Self::is_project_item_target_kind_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("target"), StructViewerFieldEditorKind::ProjectItemTargetSelector)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -486,6 +489,10 @@ impl StructViewerViewData {
 
     fn is_virtual_array_size_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_ARRAY_SIZE
+    }
+
+    fn is_project_item_target_kind_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND
     }
 
     fn is_live_value_field(valued_struct_field: &ValuedStructField) -> bool {

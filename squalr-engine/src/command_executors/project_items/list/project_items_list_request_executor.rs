@@ -10,8 +10,8 @@ use squalr_engine_api::structures::data_values::{anonymous_value_string::Anonymo
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
-    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
+    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
@@ -135,7 +135,12 @@ fn refresh_project_item_display_values(
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            refresh_address_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
+            refresh_address_project_item_display_value(
+                engine_unprivileged_state,
+                project_symbol_catalog,
+                project_item,
+                project_item_preview_refresh_session,
+            );
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
@@ -151,11 +156,20 @@ fn refresh_project_item_display_values(
 
 fn refresh_address_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &mut ProjectItem,
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
-    let address = ProjectItemTypeAddress::get_field_address(project_item);
-    let module_name = ProjectItemTypeAddress::get_field_module(project_item);
+    let address_target = ProjectItemTypeAddress::get_address_target(project_item);
+    let Some((address, module_name)) = resolve_address_target_for_preview(
+        engine_unprivileged_state,
+        project_symbol_catalog,
+        &address_target,
+        project_item_preview_refresh_session,
+    ) else {
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
+        return;
+    };
     let Some(symbolic_struct_reference) = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item) else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
@@ -178,6 +192,28 @@ fn refresh_address_project_item_display_value(
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, freeze_display_value);
         },
     );
+}
+
+fn resolve_address_target_for_preview(
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    address_target: &ProjectItemAddressTarget,
+    project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
+) -> Option<(u64, String)> {
+    match address_target {
+        ProjectItemAddressTarget::Address { address, module_name } => Some((*address, module_name.clone())),
+        ProjectItemAddressTarget::PointerPath { pointer } => {
+            evaluate_pointer_for_preview(engine_unprivileged_state, pointer, project_item_preview_refresh_session).resolved_target_address
+        }
+        ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
+            let symbol_claim = project_symbol_catalog.resolve_symbol_claim(symbol_locator_key)?;
+
+            Some((
+                symbol_claim.get_locator().get_focus_address(),
+                symbol_claim.get_locator().get_focus_module_name().to_string(),
+            ))
+        }
+    }
 }
 
 fn refresh_pointer_project_item_display_value(
