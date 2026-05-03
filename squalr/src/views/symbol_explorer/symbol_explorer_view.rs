@@ -606,23 +606,20 @@ impl SymbolExplorerView {
             return Some(pointer_size.get_size_in_bytes());
         }
 
-        let unit_size_in_bytes = if let Some(default_value) = self
-            .app_context
-            .engine_unprivileged_state
-            .get_default_value(symbolic_field_definition.get_data_type_ref())
+        let data_type_id = symbolic_field_definition
+            .get_data_type_ref()
+            .get_data_type_id()
+            .to_string();
+        let unit_size_in_bytes = if let Some(symbolic_struct_definition) = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_id)
+            .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
         {
-            default_value.get_size_in_bytes()
-        } else {
-            let data_type_id = symbolic_field_definition
-                .get_data_type_ref()
-                .get_data_type_id()
-                .to_string();
-
             if !visited_type_ids.insert(data_type_id.clone()) {
                 return None;
             }
 
-            let symbolic_struct_definition = Self::build_symbolic_struct_definition_for_symbol_type_static(project_symbol_catalog, &data_type_id)?;
             let struct_size_in_bytes = symbolic_struct_definition
                 .get_fields()
                 .iter()
@@ -632,6 +629,14 @@ impl SymbolExplorerView {
 
             visited_type_ids.remove(&data_type_id);
             struct_size_in_bytes
+        } else if let Some(default_value) = self
+            .app_context
+            .engine_unprivileged_state
+            .get_default_value(symbolic_field_definition.get_data_type_ref())
+        {
+            default_value.get_size_in_bytes()
+        } else {
+            return None;
         };
 
         Some(
@@ -1088,25 +1093,25 @@ impl SymbolExplorerView {
             return Some(pointer_size.get_size_in_bytes());
         }
 
-        let unit_size_in_bytes = if let Some(default_value) = engine_execution_context.get_default_value(symbolic_field_definition.get_data_type_ref()) {
-            default_value.get_size_in_bytes()
-        } else {
-            let data_type_id = symbolic_field_definition
-                .get_data_type_ref()
-                .get_data_type_id()
-                .to_string();
-
+        let data_type_id = symbolic_field_definition
+            .get_data_type_ref()
+            .get_data_type_id()
+            .to_string();
+        let unit_size_in_bytes = if let Some(nested_symbolic_struct_definition) = engine_execution_context.resolve_struct_layout_definition(&data_type_id) {
             if !visited_type_ids.insert(data_type_id.clone()) {
                 return None;
             }
 
-            let nested_symbolic_struct_definition = engine_execution_context.resolve_struct_layout_definition(&data_type_id)?;
             let nested_size_in_bytes =
                 Self::resolve_symbolic_struct_size_in_bytes(engine_execution_context, &nested_symbolic_struct_definition, visited_type_ids)?;
 
             visited_type_ids.remove(&data_type_id);
 
             nested_size_in_bytes
+        } else if let Some(default_value) = engine_execution_context.get_default_value(symbolic_field_definition.get_data_type_ref()) {
+            default_value.get_size_in_bytes()
+        } else {
+            return None;
         };
 
         Some(
@@ -2162,6 +2167,7 @@ impl SymbolExplorerView {
                         user_interface.add_space(8.0);
 
                         user_interface.horizontal(|user_interface| {
+                            user_interface.spacing_mut().item_spacing.x = 4.0;
                             let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
                             self.render_define_field_container_selector(
                                 user_interface,
