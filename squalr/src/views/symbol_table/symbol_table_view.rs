@@ -581,8 +581,17 @@ impl SymbolTableView {
             symbol_locator_keys: vec![deleted_symbol_locator_key.clone()],
             module_names: Vec::new(),
             module_ranges: Vec::new(),
+            convert_symbol_refs: false,
         }
-        .send(&self.app_context.engine_unprivileged_state, move |_project_symbols_delete_response| {
+        .send(&self.app_context.engine_unprivileged_state, move |project_symbols_delete_response| {
+            if !project_symbols_delete_response.success {
+                log::warn!(
+                    "Symbol Table delete blocked; {} symbol-ref project item(s) still reference the selected symbol.",
+                    project_symbols_delete_response.blocked_symbol_ref_count
+                );
+                return;
+            }
+
             SymbolTableViewData::cancel_take_over_state(symbol_table_view_data.clone());
 
             let current_focus_target = struct_viewer_view_data

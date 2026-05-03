@@ -8,6 +8,10 @@ pub struct ProjectSymbolsDeleteResponse {
     pub deleted_symbol_count: u64,
     pub deleted_module_count: u64,
     pub deleted_module_range_count: u64,
+    #[serde(default)]
+    pub converted_symbol_ref_count: u64,
+    #[serde(default)]
+    pub blocked_symbol_ref_count: u64,
 }
 
 impl TypedUnprivilegedCommandResponse for ProjectSymbolsDeleteResponse {

@@ -75,7 +75,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsConvertSymbolRefRequest 
                 log::warn!("Skipping symbol-ref conversion for non-symbol project item: {:?}", project_item_path);
                 continue;
             };
-            let Some(replacement_project_item) = build_replacement_project_item(&project_item, &symbol_claim, self.target) else {
+            let Some(replacement_project_item) = build_symbol_ref_replacement_project_item(&project_item, &symbol_claim, self.target) else {
                 log::warn!(
                     "Skipping symbol-ref conversion for project item without {:?} conversion data: {:?}",
                     self.target,
@@ -117,7 +117,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsConvertSymbolRefRequest 
     }
 }
 
-fn build_replacement_project_item(
+pub(crate) fn build_symbol_ref_replacement_project_item(
     source_project_item: &ProjectItem,
     symbol_claim: &ProjectSymbolClaim,
     conversion_target: ProjectItemSymbolRefConversionTarget,

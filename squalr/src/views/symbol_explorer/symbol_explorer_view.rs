@@ -49,7 +49,8 @@ use squalr_engine_api::structures::data_values::{
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
-    project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
+    project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_symbol_ref::ProjectItemTypeSymbolRef},
+    project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
 };
 use squalr_engine_api::structures::structs::{
@@ -287,15 +288,24 @@ impl SymbolExplorerView {
     fn delete_symbol_claim(
         &self,
         symbol_locator_key: &str,
+        convert_symbol_refs: bool,
     ) {
         SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
             symbol_locator_keys: vec![symbol_locator_key.to_string()],
             module_names: Vec::new(),
             module_ranges: Vec::new(),
+            convert_symbol_refs,
         };
 
-        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
+        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |project_symbols_delete_response| {
+            if !project_symbols_delete_response.success {
+                log::warn!(
+                    "Symbol delete blocked; {} symbol-ref project item(s) still need conversion.",
+                    project_symbols_delete_response.blocked_symbol_ref_count
+                );
+            }
+        });
     }
 
     fn delete_module_range(
@@ -304,6 +314,7 @@ impl SymbolExplorerView {
         offset: u64,
         length: u64,
         mode: ProjectSymbolsDeleteModuleRangeMode,
+        convert_symbol_refs: bool,
     ) {
         SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
@@ -315,9 +326,14 @@ impl SymbolExplorerView {
                 length,
                 mode,
             }],
+            convert_symbol_refs,
         };
 
-        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
+        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |project_symbols_delete_response| {
+            if !project_symbols_delete_response.success {
+                log::warn!("Module range delete blocked; referenced symbol-ref project items could not be converted.");
+            }
+        });
     }
 
     fn build_delete_module_range_confirmation_description(
@@ -420,15 +436,129 @@ impl SymbolExplorerView {
     fn delete_module_root(
         &self,
         module_name: &str,
+        convert_symbol_refs: bool,
     ) {
         SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
             symbol_locator_keys: Vec::new(),
             module_names: vec![module_name.to_string()],
             module_ranges: Vec::new(),
+            convert_symbol_refs,
         };
 
-        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |_project_symbols_delete_response| {});
+        project_symbols_delete_request.send(&self.app_context.engine_unprivileged_state, |project_symbols_delete_response| {
+            if !project_symbols_delete_response.success {
+                log::warn!(
+                    "Module delete blocked; {} symbol-ref project item(s) still need conversion.",
+                    project_symbols_delete_response.blocked_symbol_ref_count
+                );
+            }
+        });
+    }
+
+    fn count_project_item_symbol_refs_for_symbol_locator_keys(
+        &self,
+        symbol_locator_keys: &HashSet<String>,
+    ) -> usize {
+        if symbol_locator_keys.is_empty() {
+            return 0;
+        }
+
+        let opened_project = self
+            .app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project();
+        let Ok(opened_project_guard) = opened_project.read() else {
+            log::warn!("Failed to acquire opened project lock while checking symbol-ref project item references.");
+            return 0;
+        };
+        let Some(opened_project) = opened_project_guard.as_ref() else {
+            return 0;
+        };
+
+        opened_project
+            .get_project_items()
+            .values()
+            .filter(|project_item| project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID)
+            .filter(|project_item| symbol_locator_keys.contains(ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item).trim()))
+            .count()
+    }
+
+    fn collect_module_symbol_locator_keys(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        module_name: &str,
+    ) -> HashSet<String> {
+        let mut symbol_locator_keys = HashSet::new();
+
+        for symbol_claim in project_symbol_catalog.get_symbol_claims() {
+            let ProjectSymbolLocator::ModuleOffset {
+                module_name: symbol_module_name,
+                ..
+            } = symbol_claim.get_locator()
+            else {
+                continue;
+            };
+
+            if symbol_module_name == module_name {
+                symbol_locator_keys.insert(symbol_claim.get_symbol_locator_key());
+            }
+        }
+
+        if let Some(symbol_module) = project_symbol_catalog.find_symbol_module(module_name) {
+            for module_field in symbol_module.get_fields() {
+                symbol_locator_keys.insert(module_field.get_symbol_locator_key(module_name));
+            }
+        }
+
+        symbol_locator_keys
+    }
+
+    fn collect_module_range_symbol_locator_keys(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        module_name: &str,
+        offset: u64,
+        length: u64,
+        mode: ProjectSymbolsDeleteModuleRangeMode,
+    ) -> HashSet<String> {
+        let mut symbol_locator_keys = HashSet::new();
+        let range_end = offset.saturating_add(length);
+
+        for symbol_claim in project_symbol_catalog.get_symbol_claims() {
+            let ProjectSymbolLocator::ModuleOffset {
+                module_name: symbol_module_name,
+                offset: symbol_offset,
+            } = symbol_claim.get_locator()
+            else {
+                continue;
+            };
+
+            if symbol_module_name == module_name && Self::module_range_affects_symbol_offset(*symbol_offset, offset, range_end, mode) {
+                symbol_locator_keys.insert(symbol_claim.get_symbol_locator_key());
+            }
+        }
+
+        if let Some(symbol_module) = project_symbol_catalog.find_symbol_module(module_name) {
+            for module_field in symbol_module.get_fields() {
+                if Self::module_range_affects_symbol_offset(module_field.get_offset(), offset, range_end, mode) {
+                    symbol_locator_keys.insert(module_field.get_symbol_locator_key(module_name));
+                }
+            }
+        }
+
+        symbol_locator_keys
+    }
+
+    fn module_range_affects_symbol_offset(
+        symbol_offset: u64,
+        range_offset: u64,
+        range_end: u64,
+        mode: ProjectSymbolsDeleteModuleRangeMode,
+    ) -> bool {
+        match mode {
+            ProjectSymbolsDeleteModuleRangeMode::ShiftLeft => symbol_offset >= range_offset,
+            ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8 => symbol_offset >= range_offset && symbol_offset < range_end,
+        }
     }
 
     fn create_module_root(
@@ -2226,6 +2356,7 @@ impl SymbolExplorerView {
         display_name: &str,
         description_text: &str,
         is_description_warning: bool,
+        confirm_button_label: &str,
     ) -> bool {
         let theme = &self.app_context.theme;
         let mut did_confirm_delete = false;
@@ -2275,7 +2406,7 @@ impl SymbolExplorerView {
 
                                 let button_confirm_delete = user_interface.add_sized(
                                     button_size,
-                                    eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
+                                    eframe::egui::Button::new(RichText::new(confirm_button_label).color(theme.foreground))
                                         .fill(theme.background_control_danger)
                                         .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
                                 );
@@ -3253,15 +3384,30 @@ impl Widget for SymbolExplorerView {
 
         if is_window_focused && is_delete_confirmation_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             match take_over_state.as_ref() {
-                Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => self.delete_symbol_claim(symbol_locator_key),
-                Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => self.delete_module_root(module_name),
+                Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => {
+                    let referenced_symbol_ref_count = self.count_project_item_symbol_refs_for_symbol_locator_keys(&HashSet::from([symbol_locator_key.clone()]));
+
+                    self.delete_symbol_claim(symbol_locator_key, referenced_symbol_ref_count > 0)
+                }
+                Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => {
+                    let module_symbol_locator_keys = Self::collect_module_symbol_locator_keys(&project_symbol_catalog, module_name);
+                    let referenced_symbol_ref_count = self.count_project_item_symbol_refs_for_symbol_locator_keys(&module_symbol_locator_keys);
+
+                    self.delete_module_root(module_name, referenced_symbol_ref_count > 0)
+                }
                 Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation {
                     module_name,
                     offset,
                     length,
                     mode,
                     ..
-                }) => self.delete_module_range(module_name, *offset, *length, *mode),
+                }) => {
+                    let module_range_symbol_locator_keys =
+                        Self::collect_module_range_symbol_locator_keys(&project_symbol_catalog, module_name, *offset, *length, *mode);
+                    let referenced_symbol_ref_count = self.count_project_item_symbol_refs_for_symbol_locator_keys(&module_range_symbol_locator_keys);
+
+                    self.delete_module_range(module_name, *offset, *length, *mode, referenced_symbol_ref_count > 0)
+                }
                 Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { .. }) => {}
                 None => {}
             }
@@ -3378,29 +3524,54 @@ impl Widget for SymbolExplorerView {
                         symbol_locator_key,
                         display_name,
                     }) => {
+                        let referenced_symbol_ref_count = self.count_project_item_symbol_refs_for_symbol_locator_keys(&HashSet::from([symbol_locator_key.clone()]));
+                        let has_symbol_ref_references = referenced_symbol_ref_count > 0;
+                        let description_text = if has_symbol_ref_references {
+                            format!(
+                                "WARNING: {} project item(s) reference this symbol. Convert those project items before deleting the symbol.",
+                                referenced_symbol_ref_count
+                            )
+                        } else {
+                            String::from("This removes the authored symbol from the project.")
+                        };
+
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
                             "Delete this symbol",
                             display_name,
-                            "This removes the authored symbol from the project.",
-                            false,
+                            &description_text,
+                            has_symbol_ref_references,
+                            if has_symbol_ref_references { "Convert & Delete" } else { "Delete" },
                         ) {
-                            self.delete_symbol_claim(symbol_locator_key);
+                            self.delete_symbol_claim(symbol_locator_key, has_symbol_ref_references);
                         }
 
                         return;
                     }
                     Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => {
+                        let module_symbol_locator_keys = Self::collect_module_symbol_locator_keys(&project_symbol_catalog, module_name);
+                        let referenced_symbol_ref_count = self.count_project_item_symbol_refs_for_symbol_locator_keys(&module_symbol_locator_keys);
+                        let has_symbol_ref_references = referenced_symbol_ref_count > 0;
+                        let description_text = if has_symbol_ref_references {
+                            format!(
+                                "WARNING: {} project item(s) reference symbols inside this module. Convert those project items before deleting the module.",
+                                referenced_symbol_ref_count
+                            )
+                        } else {
+                            String::from("This removes the module root and all symbol claims inside it.")
+                        };
+
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
                             "Delete this module",
                             module_name,
-                            "This removes the module root and all symbol claims inside it.",
-                            false,
+                            &description_text,
+                            has_symbol_ref_references,
+                            if has_symbol_ref_references { "Convert & Delete" } else { "Delete" },
                         ) {
-                            self.delete_module_root(module_name);
+                            self.delete_module_root(module_name, has_symbol_ref_references);
                         }
 
                         return;
@@ -3413,16 +3584,29 @@ impl Widget for SymbolExplorerView {
                         mode,
                     }) => {
                         let delete_confirmation_description = Self::build_delete_module_range_confirmation_description(module_name, *length, *mode);
+                        let module_range_symbol_locator_keys =
+                            Self::collect_module_range_symbol_locator_keys(&project_symbol_catalog, module_name, *offset, *length, *mode);
+                        let referenced_symbol_ref_count = self.count_project_item_symbol_refs_for_symbol_locator_keys(&module_range_symbol_locator_keys);
+                        let has_symbol_ref_references = referenced_symbol_ref_count > 0;
+                        let description_text = if has_symbol_ref_references {
+                            format!(
+                                "WARNING: {} project item(s) reference symbols affected by this field delete. Convert those project items before deleting the field.",
+                                referenced_symbol_ref_count
+                            )
+                        } else {
+                            delete_confirmation_description.text
+                        };
 
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
                             "Delete this field",
                             display_name,
-                            &delete_confirmation_description.text,
-                            delete_confirmation_description.is_warning,
+                            &description_text,
+                            delete_confirmation_description.is_warning || has_symbol_ref_references,
+                            if has_symbol_ref_references { "Convert & Delete" } else { "Delete" },
                         ) {
-                            self.delete_module_range(module_name, *offset, *length, *mode);
+                            self.delete_module_range(module_name, *offset, *length, *mode, has_symbol_ref_references);
                         }
 
                         return;
