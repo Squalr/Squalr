@@ -6,7 +6,9 @@ use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
     data_values::data_value::DataValue,
-    projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType, project_item_type_ref::ProjectItemTypeRef},
+    projects::project_items::{
+        project_item::ProjectItem, project_item_target::ProjectItemTarget, project_item_type::ProjectItemType, project_item_type_ref::ProjectItemTypeRef,
+    },
     structs::valued_struct_field::ValuedStructFieldData,
 };
 use serde::{Deserialize, Serialize};
@@ -103,6 +105,7 @@ impl ProjectItemTypeAddress {
         let mut project_item = ProjectItem::new(project_item_type_ref, project_item_name);
 
         project_item.set_field_description(description);
+        project_item.set_target(ProjectItemTarget::new_address(address, module.to_string()));
         Self::set_field_module(&mut project_item, module);
         Self::set_field_address(&mut project_item, address);
         // Default to unknown until project-item refresh logic reads live memory.
@@ -221,6 +224,7 @@ impl ProjectItemTypeAddress {
 mod tests {
     use super::ProjectItemTypeAddress;
     use crate::structures::data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u32::data_type_u32::DataTypeU32};
+    use crate::structures::projects::project_items::project_item_target::ProjectItemTarget;
     use crate::structures::structs::valued_struct_field::ValuedStructFieldData;
 
     #[test]
@@ -235,6 +239,7 @@ mod tests {
         let project_item = ProjectItemTypeAddress::new_project_item("Address Name", 0x1234, "module", "", DataTypeU8::get_value_from_primitive(0));
 
         assert_eq!(project_item.get_field_name(), "Address Name");
+        assert_eq!(project_item.get_target(), &ProjectItemTarget::new_address(0x1234, String::from("module")));
     }
 
     #[test]

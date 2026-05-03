@@ -7,7 +7,7 @@ use crate::structures::projects::project_items::project_item_type::ProjectItemTy
 use crate::structures::{
     data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-    projects::project_items::{project_item::ProjectItem, project_item_type_ref::ProjectItemTypeRef},
+    projects::project_items::{project_item::ProjectItem, project_item_target::ProjectItemTarget, project_item_type_ref::ProjectItemTypeRef},
     structs::symbolic_struct_ref::SymbolicStructRef,
     structs::valued_struct_field::ValuedStructFieldData,
 };
@@ -41,6 +41,7 @@ impl ProjectItemTypePointer {
         let mut project_item = ProjectItem::new(project_item_type_ref, project_item_name);
 
         project_item.set_field_description(description);
+        project_item.set_target(ProjectItemTarget::new_pointer_path(pointer.clone()));
         Self::set_field_module(&mut project_item, pointer.get_module_name());
         Self::set_field_offset(&mut project_item, pointer.get_address());
         Self::set_field_pointer_offsets(&mut project_item, pointer.get_offsets());
@@ -314,6 +315,7 @@ mod tests {
     use crate::structures::data_types::built_in_types::u64::data_type_u64::DataTypeU64;
     use crate::structures::memory::pointer::Pointer;
     use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use crate::structures::projects::project_items::project_item_target::ProjectItemTarget;
     use crate::structures::structs::valued_struct_field::ValuedStructFieldData;
 
     #[test]
@@ -340,6 +342,7 @@ mod tests {
         let symbolic_struct_reference =
             ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(&project_item).expect("Expected symbolic struct reference to be persisted.");
 
+        assert_eq!(project_item.get_target(), &ProjectItemTarget::new_pointer_path(pointer.clone()));
         assert_eq!(persisted_pointer, pointer);
         assert_eq!(symbolic_struct_reference.get_symbolic_struct_namespace(), "u16");
         assert_eq!(ProjectItemTypePointer::get_field_freeze_data_value_interpreter(&project_item), "");

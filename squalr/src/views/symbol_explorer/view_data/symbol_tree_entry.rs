@@ -20,6 +20,9 @@ pub enum SymbolTreeEntryKind {
     PointerTarget,
 }
 
+const SYMBOL_TREE_ORIGIN_METADATA_KEY: &str = "symbol_tree.origin";
+const SYMBOL_TREE_MODULE_FIELD_ORIGIN: &str = "module_field";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ResolvedPointerTarget {
     target_locator: ProjectSymbolLocator,
@@ -175,12 +178,16 @@ where
     for (module_name, module_size) in module_sizes_by_name {
         let mut symbol_claims = module_symbol_claims.remove(&module_name).unwrap_or_default();
         for module_field in module_fields_by_name.remove(&module_name).unwrap_or_default() {
-            symbol_claims.push(ProjectSymbolClaim::new_module_offset(
+            let mut module_field_symbol_claim = ProjectSymbolClaim::new_module_offset(
                 module_field.get_display_name().to_string(),
                 module_name.clone(),
                 module_field.get_offset(),
                 module_field.get_struct_layout_id().to_string(),
-            ));
+            );
+            module_field_symbol_claim
+                .get_metadata_mut()
+                .insert(SYMBOL_TREE_ORIGIN_METADATA_KEY.to_string(), SYMBOL_TREE_MODULE_FIELD_ORIGIN.to_string());
+            symbol_claims.push(module_field_symbol_claim);
         }
         symbol_claims.sort_by_key(|symbol_claim| symbol_claim.get_locator().get_focus_address());
         let effective_module_size = module_size.max(
@@ -364,7 +371,15 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize>(
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
-    let root_node_key = format!("claim:{}", symbol_claim.get_symbol_locator_key());
+    let root_node_key = if symbol_claim
+        .get_metadata()
+        .get(SYMBOL_TREE_ORIGIN_METADATA_KEY)
+        .is_some_and(|origin| origin == SYMBOL_TREE_MODULE_FIELD_ORIGIN)
+    {
+        format!("module_field:{}", symbol_claim.get_symbol_locator_key())
+    } else {
+        format!("claim:{}", symbol_claim.get_symbol_locator_key())
+    };
     let symbol_claim_type = resolve_symbol_claim_type(project_symbol_catalog, symbol_claim.get_struct_layout_id());
     let can_expand = symbol_claim_type.can_expand(project_symbol_catalog);
     let is_expanded = can_expand && expanded_tree_node_keys.contains(&root_node_key);

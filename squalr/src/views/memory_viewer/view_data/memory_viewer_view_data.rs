@@ -673,7 +673,6 @@ impl MemoryViewerViewData {
             module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
             symbol_locator_key: None,
-            symbol_locator_display: None,
         })
     }
 

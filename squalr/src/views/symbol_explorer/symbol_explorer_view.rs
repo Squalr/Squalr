@@ -115,7 +115,6 @@ struct U8SpanEditTarget {
 struct AddSymbolToProjectTarget {
     project_item_name: String,
     symbol_locator_key: String,
-    symbol_locator_display: String,
 }
 
 #[derive(Clone, Debug)]
@@ -285,9 +284,10 @@ impl SymbolExplorerView {
 
         project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, move |project_symbols_create_response| {
             if project_symbols_create_response.success {
+                let created_symbol_tree_node_key = format!("module_field:{}", project_symbols_create_response.created_symbol_locator_key);
                 SymbolExplorerViewData::set_selected_entry(
                     symbol_explorer_view_data.clone(),
-                    Some(SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)),
+                    Some(SymbolExplorerSelection::DerivedNode(created_symbol_tree_node_key)),
                 );
                 SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
             }
@@ -632,10 +632,12 @@ impl SymbolExplorerView {
             }
 
             if should_select_created_symbol {
-                SymbolExplorerViewData::set_selected_entry(
-                    symbol_explorer_view_data.clone(),
-                    Some(SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)),
-                );
+                let created_selection = if selection_module_name.is_some() {
+                    SymbolExplorerSelection::DerivedNode(format!("module_field:{}", project_symbols_create_response.created_symbol_locator_key))
+                } else {
+                    SymbolExplorerSelection::SymbolClaim(project_symbols_create_response.created_symbol_locator_key)
+                };
+                SymbolExplorerViewData::set_selected_entry(symbol_explorer_view_data.clone(), Some(created_selection));
 
                 if let Some(module_name) = selection_module_name {
                     SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data.clone(), &format!("module:{}", module_name));
@@ -893,6 +895,10 @@ impl SymbolExplorerView {
                 )
             }),
             Some(SymbolExplorerSelection::SymbolClaim(selected_symbol_locator_key)) => symbol_tree_entries.iter().find(|symbol_tree_entry| {
+                if Self::is_module_field_tree_entry(symbol_tree_entry) {
+                    return false;
+                }
+
                 matches!(
                     symbol_tree_entry.get_kind(),
                     SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
@@ -903,6 +909,10 @@ impl SymbolExplorerView {
                 .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key),
             _ => None,
         }
+    }
+
+    fn is_module_field_tree_entry(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+        symbol_tree_entry.get_node_key().starts_with("module_field:")
     }
 
     fn build_module_child_range_target(
@@ -989,7 +999,6 @@ impl SymbolExplorerView {
                 project_item_name
             },
             symbol_locator_key: symbol_locator_key.to_string(),
-            symbol_locator_display: symbol_tree_entry.get_locator().to_string(),
         })
     }
 
@@ -1003,7 +1012,6 @@ impl SymbolExplorerView {
             module_name: None,
             data_type_id: None,
             symbol_locator_key: Some(add_symbol_to_project_target.symbol_locator_key.clone()),
-            symbol_locator_display: Some(add_symbol_to_project_target.symbol_locator_display.clone()),
         }
     }
 
@@ -2694,7 +2702,8 @@ impl SymbolExplorerView {
             let is_selected = matches!(
                 selected_entry,
                 Some(SymbolExplorerSelection::SymbolClaim(selected_symbol_locator_key))
-                    if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
+                    if !Self::is_module_field_tree_entry(symbol_tree_entry)
+                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
             ) || matches!(
                 selected_entry,
                 Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
@@ -2725,16 +2734,7 @@ impl SymbolExplorerView {
                 let response = user_interface.selectable_label(is_selected, RichText::new(row_label).color(self.app_context.theme.foreground));
 
                 if response.clicked() {
-                    let selection = match symbol_tree_entry.get_kind() {
-                        SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(SymbolExplorerSelection::ModuleRoot(module_name.to_string())),
-                        SymbolTreeEntryKind::U8Segment { .. } => Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())),
-                        SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => Some(SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string())),
-                        SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::PointerTarget => {
-                            Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
-                        }
-                    };
-
-                    if let Some(selection) = selection {
+                    if let Some(selection) = Self::build_selection_for_tree_entry(symbol_tree_entry) {
                         SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
                     }
                 }
@@ -2796,7 +2796,8 @@ impl SymbolExplorerView {
             ) || matches!(
                 selected_entry,
                 Some(SymbolExplorerSelection::SymbolClaim(selected_symbol_locator_key))
-                    if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
+                    if !Self::is_module_field_tree_entry(symbol_tree_entry)
+                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
             ) || matches!(
                 selected_entry,
                 Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
@@ -3211,7 +3212,13 @@ impl SymbolExplorerView {
     fn build_selection_for_tree_entry(symbol_tree_entry: &SymbolTreeEntry) -> Option<SymbolExplorerSelection> {
         match symbol_tree_entry.get_kind() {
             SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(SymbolExplorerSelection::ModuleRoot(module_name.to_string())),
-            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => Some(SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string())),
+            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => {
+                if Self::is_module_field_tree_entry(symbol_tree_entry) {
+                    Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
+                } else {
+                    Some(SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string()))
+                }
+            }
             SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::PointerTarget => {
                 Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
             }
@@ -3925,7 +3932,6 @@ mod tests {
         assert_eq!(project_items_create_request.project_item_name, "Health");
         assert_eq!(project_items_create_request.project_item_type, ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
         assert_eq!(project_items_create_request.symbol_locator_key.as_deref(), Some("module:game.exe:4"));
-        assert_eq!(project_items_create_request.symbol_locator_display.as_deref(), Some("game.exe + 0x4"));
         assert!(
             project_items_create_request
                 .parent_directory_path

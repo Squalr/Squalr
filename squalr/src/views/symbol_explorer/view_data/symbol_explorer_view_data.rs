@@ -118,6 +118,10 @@ impl SymbolExplorerViewData {
         self.selected_entry.as_ref()
     }
 
+    fn is_module_field_node_key(tree_node_key: &str) -> bool {
+        tree_node_key.starts_with("module_field:")
+    }
+
     pub fn get_take_over_state(&self) -> Option<&SymbolExplorerTakeOverState> {
         self.take_over_state.as_ref()
     }
@@ -380,7 +384,8 @@ impl SymbolExplorerViewData {
             project_symbol_catalog.find_symbol_module(module_name).is_some()
         } else {
             let symbol_locator_key = inline_rename_tree_node_key
-                .strip_prefix("claim:")
+                .strip_prefix("module_field:")
+                .or_else(|| inline_rename_tree_node_key.strip_prefix("claim:"))
                 .unwrap_or(inline_rename_tree_node_key);
 
             Self::symbol_locator_exists(project_symbol_catalog, symbol_locator_key)
@@ -490,6 +495,31 @@ impl SymbolExplorerViewData {
             }
         }
 
+        if let Some(SymbolExplorerSelection::SymbolClaim(selected_symbol_locator_key)) = symbol_explorer_view_data.selected_entry.as_ref() {
+            let has_catalog_symbol_claim_entry = symbol_tree_entries.iter().any(|symbol_tree_entry| {
+                !Self::is_module_field_node_key(symbol_tree_entry.get_node_key())
+                    && matches!(
+                        symbol_tree_entry.get_kind(),
+                        SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
+                    )
+            });
+
+            if has_catalog_symbol_claim_entry {
+                return;
+            }
+
+            if let Some(module_field_tree_entry) = symbol_tree_entries.iter().find(|symbol_tree_entry| {
+                Self::is_module_field_node_key(symbol_tree_entry.get_node_key())
+                    && matches!(
+                        symbol_tree_entry.get_kind(),
+                        SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
+                    )
+            }) {
+                symbol_explorer_view_data.selected_entry = Some(SymbolExplorerSelection::DerivedNode(module_field_tree_entry.get_node_key().to_string()));
+                return;
+            }
+        }
+
         let Some(SymbolExplorerSelection::DerivedNode(selected_node_key)) = symbol_explorer_view_data.selected_entry.as_ref() else {
             return;
         };
@@ -506,7 +536,13 @@ impl SymbolExplorerViewData {
             .next()
             .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
                 SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolExplorerSelection::ModuleRoot(module_name.to_string()),
-                SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string()),
+                SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => {
+                    if Self::is_module_field_node_key(symbol_tree_entry.get_node_key()) {
+                        SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
+                    } else {
+                        SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string())
+                    }
+                }
                 SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::PointerTarget => {
                     SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                 }
@@ -667,11 +703,14 @@ mod tests {
             .read("Symbol explorer tail split module field selection test")
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
-        assert_eq!(selected_entry, Some(SymbolExplorerSelection::SymbolClaim(String::from("module:game.exe:C"))));
+        assert_eq!(
+            selected_entry,
+            Some(SymbolExplorerSelection::DerivedNode(String::from("module_field:module:game.exe:C")))
+        );
         assert!(
             symbol_tree_entries
                 .iter()
-                .any(|symbol_tree_entry| symbol_tree_entry.get_node_key() == "claim:module:game.exe:C")
+                .any(|symbol_tree_entry| symbol_tree_entry.get_node_key() == "module_field:module:game.exe:C")
         );
     }
 

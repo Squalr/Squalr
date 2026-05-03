@@ -1122,7 +1122,6 @@ impl PointerScannerViewData {
             module_name: None,
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
             symbol_locator_key: None,
-            symbol_locator_display: None,
         })
     }
 
@@ -1150,7 +1149,6 @@ impl PointerScannerViewData {
             module_name: None,
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
             symbol_locator_key: None,
-            symbol_locator_display: None,
         })
     }
 

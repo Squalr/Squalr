@@ -2299,7 +2299,6 @@ impl ProjectHierarchyViewData {
                 module_name: None,
                 data_type_id: None,
                 symbol_locator_key: None,
-                symbol_locator_display: None,
             },
             ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2310,7 +2309,6 @@ impl ProjectHierarchyViewData {
                 module_name: None,
                 data_type_id: Some(String::from("u8")),
                 symbol_locator_key: None,
-                symbol_locator_display: None,
             },
             ProjectHierarchyCreateItemKind::Pointer => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2321,7 +2319,6 @@ impl ProjectHierarchyViewData {
                 module_name: None,
                 data_type_id: Some(String::from("u8")),
                 symbol_locator_key: None,
-                symbol_locator_display: None,
             },
             ProjectHierarchyCreateItemKind::SymbolRef => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2332,7 +2329,6 @@ impl ProjectHierarchyViewData {
                 module_name: None,
                 data_type_id: None,
                 symbol_locator_key: None,
-                symbol_locator_display: None,
             },
         }
     }

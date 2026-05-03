@@ -467,7 +467,6 @@ impl AppShell {
             pointer: None,
             data_type_id: None,
             symbol_locator_key: None,
-            symbol_locator_display: None,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_create_request.send(engine_unprivileged_state, move |project_items_create_response| {

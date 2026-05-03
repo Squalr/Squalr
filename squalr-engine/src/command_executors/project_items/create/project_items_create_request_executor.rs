@@ -388,16 +388,7 @@ fn create_symbol_ref_item(
         .as_deref()
         .map(str::trim)
         .unwrap_or("");
-    let symbol_locator_display = project_items_create_request
-        .symbol_locator_display
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or("");
-    let mut project_item = ProjectItemTypeSymbolRef::new_project_item(&project_items_create_request.project_item_name, symbol_locator_key, "");
-
-    if !symbol_locator_display.is_empty() {
-        ProjectItemTypeSymbolRef::set_field_symbol_locator_display(&mut project_item, symbol_locator_display);
-    }
+    let project_item = ProjectItemTypeSymbolRef::new_project_item(&project_items_create_request.project_item_name, symbol_locator_key, "");
 
     opened_project
         .get_project_items_mut()
