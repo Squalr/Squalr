@@ -41,9 +41,12 @@ impl<'lifetime> PluginEntryView<'lifetime> {
         let theme = &self.app_context.theme;
         let row_height = 88.0;
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), row_height), Sense::click());
+        let row_clip_rect = row_rect.intersect(user_interface.clip_rect());
+        let mut row_user_interface = user_interface.new_child(UiBuilder::new().max_rect(row_rect));
+        row_user_interface.set_clip_rect(row_clip_rect);
 
         if self.is_selected {
-            user_interface
+            row_user_interface
                 .painter()
                 .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
         }
@@ -70,15 +73,12 @@ impl<'lifetime> PluginEntryView<'lifetime> {
                 theme.background_control_secondary
             },
         }
-        .ui(user_interface);
+        .ui(&mut row_user_interface);
 
         let mut did_toggle_enabled = false;
         let mut toggle_enabled = None;
         let status_text = Self::build_status_text(self.plugin_state);
         let status_color = Self::resolve_status_color(theme, self.plugin_state);
-
-        let mut row_user_interface = user_interface.new_child(UiBuilder::new().max_rect(row_rect));
-        row_user_interface.set_clip_rect(row_rect);
 
         row_user_interface.scope_builder(UiBuilder::new().max_rect(row_rect), |user_interface| {
             user_interface.horizontal(|user_interface| {
