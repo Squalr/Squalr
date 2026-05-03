@@ -52,6 +52,21 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
     pub fn get_height(&self) -> f32 {
         32.0
     }
+
+    fn add_cell_tooltip(
+        user_interface: &mut Ui,
+        cell_rectangle: Rect,
+        tooltip_id_suffix: &str,
+        tooltip_text: &str,
+    ) {
+        if tooltip_text.is_empty() {
+            return;
+        }
+
+        user_interface
+            .interact(cell_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover())
+            .on_hover_text(tooltip_text);
+    }
 }
 
 impl<'a> Widget for ElementScannerResultEntryView<'a> {
@@ -163,6 +178,10 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             ),
         );
         let address_text_position = pos2(self.address_splitter_position_x + text_left_padding, row_center_y);
+        let address_cell_rectangle = Rect::from_min_max(
+            pos2(self.address_splitter_position_x, allocated_size_rectangle.min.y),
+            pos2(self.value_splitter_position_x, allocated_size_rectangle.max.y),
+        );
         let address_text_clip_rectangle = Rect::from_min_max(
             pos2(address_text_position.x, allocated_size_rectangle.min.y),
             pos2(
@@ -196,13 +215,24 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             .text(
                 address_text_position,
                 Align2::LEFT_CENTER,
-                address_string,
+                address_string.as_str(),
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                 theme.hexadecimal_green,
             );
 
+        Self::add_cell_tooltip(
+            user_interface,
+            address_cell_rectangle,
+            &format!("scan_result_address_tooltip_{}", self.index),
+            address_string.as_str(),
+        );
+
         // Value.
         let current_value_text_position = pos2(self.value_splitter_position_x + text_left_padding, row_center_y);
+        let current_value_cell_rectangle = Rect::from_min_max(
+            pos2(self.value_splitter_position_x, allocated_size_rectangle.min.y),
+            pos2(self.previous_value_splitter_position_x, allocated_size_rectangle.max.y),
+        );
         let current_value_text_clip_rectangle = Rect::from_min_max(
             pos2(current_value_text_position.x, allocated_size_rectangle.min.y),
             pos2(
@@ -222,13 +252,24 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
             .text(
                 current_value_text_position,
                 Align2::LEFT_CENTER,
-                current_value_string,
+                current_value_string.as_str(),
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                 theme.foreground,
             );
 
+        Self::add_cell_tooltip(
+            user_interface,
+            current_value_cell_rectangle,
+            &format!("scan_result_current_value_tooltip_{}", self.index),
+            current_value_string.as_str(),
+        );
+
         // Previous value.
         let previous_value_text_position = pos2(self.previous_value_splitter_position_x + text_left_padding, row_center_y);
+        let previous_value_cell_rectangle = Rect::from_min_max(
+            pos2(self.previous_value_splitter_position_x, allocated_size_rectangle.min.y),
+            pos2(allocated_size_rectangle.max.x, allocated_size_rectangle.max.y),
+        );
         let previous_value_text_clip_rectangle = Rect::from_min_max(
             pos2(previous_value_text_position.x, allocated_size_rectangle.min.y),
             pos2(
@@ -254,6 +295,13 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
                 theme.font_library.font_ubuntu_mono_bold.font_normal.clone(),
                 theme.foreground,
             );
+
+        Self::add_cell_tooltip(
+            user_interface,
+            previous_value_cell_rectangle,
+            &format!("scan_result_previous_value_tooltip_{}", self.index),
+            previous_value_string,
+        );
 
         response
     }
