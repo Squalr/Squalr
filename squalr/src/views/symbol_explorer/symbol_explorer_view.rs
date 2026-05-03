@@ -1009,6 +1009,7 @@ impl SymbolExplorerView {
         ProjectItemsCreateRequest {
             parent_directory_path: PathBuf::new(),
             project_item_name: add_symbol_to_project_target.project_item_name.clone(),
+            is_directory: false,
             target: ProjectItemTarget::new_symbol(add_symbol_to_project_target.symbol_locator_key.clone()),
             data_type_id: None,
         }

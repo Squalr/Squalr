@@ -1,6 +1,6 @@
 use crate::structures::projects::project_items::{
     built_in_types::{
-        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_item::ProjectItemTypeItem,
         project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     },
     project_item_type::ProjectItemType,
@@ -34,6 +34,7 @@ impl ProjectItemTypeRegistry {
 
         let built_in_project_item_types: Vec<Arc<dyn ProjectItemType>> = vec![
             Arc::new(ProjectItemTypeDirectory {}),
+            Arc::new(ProjectItemTypeItem {}),
             Arc::new(ProjectItemTypeAddress {}),
             Arc::new(ProjectItemTypePointer {}),
             Arc::new(ProjectItemTypeSymbolRef {}),

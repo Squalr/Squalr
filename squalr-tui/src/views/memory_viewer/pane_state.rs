@@ -537,6 +537,7 @@ impl MemoryViewerPaneState {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
+            is_directory: false,
             target: ProjectItemTarget::new_address(project_item_address, project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
         })

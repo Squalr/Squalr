@@ -55,7 +55,9 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
     project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
-use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::projects::project_items::{
+    project_item::ProjectItem, project_item_ref::ProjectItemRef, project_item_target::ProjectItemTarget,
+};
 use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
@@ -66,7 +68,7 @@ use squalr_engine_session::{
     engine_unprivileged_state::EngineUnprivilegedState,
     virtual_snapshots::{virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_query_result::VirtualSnapshotQueryResult},
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -89,6 +91,7 @@ struct ProjectItemChangeSignature {
     project_item_type_id: String,
     project_item_name: String,
     project_item_description: String,
+    project_item_target: ProjectItemTarget,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,6 +126,16 @@ struct ProjectItemValueEditContext {
 }
 
 impl ProjectHierarchyView {
+    const TARGET_FIELD_ADDRESS: &str = "target.address";
+    const TARGET_FIELD_MODULE: &str = "target.module";
+    const TARGET_FIELD_POINTER_ROOT_ADDRESS: &str = "target.root_address";
+    const TARGET_FIELD_POINTER_ROOT_MODULE: &str = "target.root_module";
+    const TARGET_FIELD_POINTER_OFFSETS: &str = "target.offsets";
+    const TARGET_FIELD_POINTER_SIZE: &str = "target.pointer_size";
+    const TARGET_FIELD_SYMBOL_LOCATOR: &str = "target.symbol";
+    const TARGET_FIELD_PLUGIN_TYPE_ID: &str = "target.plugin_type";
+    const TARGET_FIELD_PLUGIN_PAYLOAD: &str = "target.plugin_payload";
+
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
             .dependency_container
@@ -161,6 +174,7 @@ mod tests {
         app_context::AppContext,
         models::docking::{docking_manager::DockingManager, hierarchy::dock_node::DockNode},
         ui::theme::Theme,
+        views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     };
     use crossbeam_channel::{Receiver, unbounded};
     use eframe::egui::Context;
@@ -183,10 +197,10 @@ mod tests {
     use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, pointer::Pointer};
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
-        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_item::ProjectItemTypeItem,
         project_item_type_pointer::ProjectItemTypePointer,
     };
-    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_api::structures::projects::project_items::{project_item_ref::ProjectItemRef, project_item_target::ProjectItemTarget};
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
@@ -660,6 +674,68 @@ mod tests {
     }
 
     #[test]
+    fn build_struct_view_properties_exposes_target_selector_for_generic_item() {
+        let project_item = ProjectItemTypeItem::new_project_item("Watch");
+
+        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let target_field = struct_view_properties
+            .get_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
+            .expect("Expected target field in struct view properties.");
+
+        assert_eq!(StructViewerViewData::read_utf8_field_text(target_field), "None");
+        assert!(!target_field.get_is_read_only());
+    }
+
+    #[test]
+    fn build_struct_view_properties_exposes_address_target_fields() {
+        let mut project_item = ProjectItemTypeItem::new_project_item("Watch");
+        project_item.set_target(ProjectItemTarget::new_address(0x1234, String::from("game.exe")));
+
+        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
+        let target_field = struct_view_properties
+            .get_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
+            .expect("Expected target field.");
+        let module_field = struct_view_properties
+            .get_field(ProjectHierarchyView::TARGET_FIELD_MODULE)
+            .expect("Expected module target field.");
+        let address_field = struct_view_properties
+            .get_field(ProjectHierarchyView::TARGET_FIELD_ADDRESS)
+            .expect("Expected address target field.");
+
+        assert_eq!(StructViewerViewData::read_utf8_field_text(target_field), "Address");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "game.exe");
+        assert_eq!(address_field.get_bytes(), 0x1234_u64.to_le_bytes());
+    }
+
+    #[test]
+    fn apply_project_item_target_edit_changes_target_kind() {
+        let mut project_item = ProjectItemTypeItem::new_project_item("Watch");
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("Address")
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false);
+
+        let did_apply_edit = ProjectHierarchyView::apply_project_item_target_edit(&mut project_item, &edited_field);
+
+        assert!(did_apply_edit);
+        assert_eq!(project_item.get_target(), &ProjectItemTarget::new_address(0, String::new()));
+    }
+
+    #[test]
+    fn apply_project_item_target_edit_updates_pointer_offsets() {
+        let mut project_item = ProjectItemTypeItem::new_project_item("Watch");
+        project_item.set_target(ProjectItemTarget::new_pointer_path(Pointer::new(0x10, Vec::new(), String::from("game.exe"))));
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("0x20, -0x8")
+            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS.to_string(), false);
+
+        let did_apply_edit = ProjectHierarchyView::apply_project_item_target_edit(&mut project_item, &edited_field);
+
+        assert!(did_apply_edit);
+        assert_eq!(
+            project_item.get_target(),
+            &ProjectItemTarget::new_pointer_path(Pointer::new(0x10, vec![0x20, -0x8], String::from("game.exe")))
+        );
+    }
+
+    #[test]
     fn build_memory_write_request_for_runtime_value_edit_uses_address_target() {
         let engine_execution_context = create_execution_context(MockMemoryReadBindings::new(|_memory_read_request| {
             panic!("Did not expect pointer dereference for address project item runtime value edit.")
@@ -1079,7 +1155,7 @@ impl Widget for ProjectHierarchyView {
                                             project_item_menu_labels.push(convert_project_item_menu_label.as_str());
                                         }
                                         if has_create_actions {
-                                            project_item_menu_labels.push("New Folder");
+                                            project_item_menu_labels.extend(["New Project Item", "New Folder"]);
                                         }
                                         if can_cut_project_item_paths {
                                             project_item_menu_labels.push("Cut");
@@ -2057,7 +2133,7 @@ impl ProjectHierarchyView {
         let Some(menu_position) = menu_position else {
             return;
         };
-        let create_project_item_menu_labels = ["New Folder"];
+        let create_project_item_menu_labels = ["New Project Item", "New Folder"];
         let project_item_menu_width = Self::calculate_project_item_menu_width(self.app_context.as_ref(), user_interface, &create_project_item_menu_labels);
         let mut open = true;
         ContextMenu::new(
@@ -2092,7 +2168,14 @@ impl ProjectHierarchyView {
         project_item_menu_width: f32,
         should_close: &mut bool,
     ) {
-        for (label, item_id, create_item_kind) in [("New Folder", "project_hierarchy_ctx_new_folder", ProjectHierarchyCreateItemKind::Directory)] {
+        for (label, item_id, create_item_kind) in [
+            (
+                "New Project Item",
+                "project_hierarchy_ctx_new_project_item",
+                ProjectHierarchyCreateItemKind::Item,
+            ),
+            ("New Folder", "project_hierarchy_ctx_new_folder", ProjectHierarchyCreateItemKind::Directory),
+        ] {
             if user_interface
                 .add(
                     ToolbarMenuItemView::new(app_context.clone(), label, item_id, &None, project_item_menu_width).icon(match create_item_kind {
@@ -2100,6 +2183,11 @@ impl ProjectHierarchyView {
                             .theme
                             .icon_library
                             .icon_handle_file_system_open_folder
+                            .clone(),
+                        ProjectHierarchyCreateItemKind::Item => app_context
+                            .theme
+                            .icon_library
+                            .icon_handle_data_type_blue_blocks_4
                             .clone(),
                     }),
                 )
@@ -2553,6 +2641,11 @@ impl ProjectHierarchyView {
                 .get_item_type()
                 .get_project_item_type_id()
                 .to_string();
+            if Self::apply_project_item_target_edit(project_item, &edited_field) {
+                has_persisted_property_edits = true;
+                continue;
+            }
+
             let should_apply_field_edit = Self::should_apply_struct_field_edit_to_project_item(&project_item_type_id, &edited_field_name);
 
             if should_apply_field_edit {
@@ -2833,13 +2926,271 @@ impl ProjectHierarchyView {
             }
         }
 
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
+            Self::append_project_item_target_fields(&mut fields, project_item.get_target());
+        }
+
         ValuedStruct::new_anonymous(fields)
+    }
+
+    fn append_project_item_target_fields(
+        fields: &mut Vec<ValuedStructField>,
+        project_item_target: &ProjectItemTarget,
+    ) {
+        fields.push(
+            DataTypeStringUtf8::get_value_from_primitive_string(Self::project_item_target_kind_label(project_item_target))
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false),
+        );
+
+        match project_item_target {
+            ProjectItemTarget::None => {}
+            ProjectItemTarget::Address { address, module_name } => {
+                fields.push(DataTypeU64::get_value_from_primitive(*address).to_named_valued_struct_field(Self::TARGET_FIELD_ADDRESS.to_string(), false));
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(module_name).to_named_valued_struct_field(Self::TARGET_FIELD_MODULE.to_string(), false),
+                );
+            }
+            ProjectItemTarget::PointerPath { pointer } => {
+                fields.push(
+                    DataTypeU64::get_value_from_primitive(pointer.get_address())
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_ROOT_ADDRESS.to_string(), false),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_module_name())
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_ROOT_MODULE.to_string(), false),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(pointer.get_offsets()))
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), false),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&pointer.get_pointer_size().to_string())
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
+                );
+            }
+            ProjectItemTarget::Symbol { symbol_locator_key } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(symbol_locator_key)
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_SYMBOL_LOCATOR.to_string(), false),
+                );
+            }
+            ProjectItemTarget::Plugin { target_type_id, payload } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(target_type_id)
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_PLUGIN_TYPE_ID.to_string(), false),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_plugin_payload(payload))
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_PLUGIN_PAYLOAD.to_string(), true),
+                );
+            }
+        }
+    }
+
+    fn project_item_target_kind_label(project_item_target: &ProjectItemTarget) -> &'static str {
+        match project_item_target {
+            ProjectItemTarget::None => "None",
+            ProjectItemTarget::Address { .. } => "Address",
+            ProjectItemTarget::PointerPath { .. } => "Pointer",
+            ProjectItemTarget::Symbol { .. } => "Symbol",
+            ProjectItemTarget::Plugin { .. } => "Plugin",
+        }
+    }
+
+    fn format_pointer_offsets(pointer_offsets: &[i64]) -> String {
+        pointer_offsets
+            .iter()
+            .map(|pointer_offset| {
+                if *pointer_offset < 0 {
+                    format!("-0x{:X}", pointer_offset.unsigned_abs())
+                } else {
+                    format!("0x{:X}", *pointer_offset as u64)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    fn format_plugin_payload(payload: &std::collections::BTreeMap<String, String>) -> String {
+        payload
+            .iter()
+            .map(|(payload_key, payload_value)| format!("{}={}", payload_key, payload_value))
+            .collect::<Vec<_>>()
+            .join("; ")
     }
 
     fn is_runtime_value_field(field_name: &str) -> bool {
         field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
             || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
             || field_name == ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE
+    }
+
+    fn apply_project_item_target_edit(
+        project_item: &mut ProjectItem,
+        edited_field: &ValuedStructField,
+    ) -> bool {
+        let edited_field_name = edited_field.get_name();
+
+        if edited_field_name == StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND {
+            let Some(target_kind_text) = Self::extract_string_value_from_edited_field(edited_field) else {
+                return false;
+            };
+            let Some(project_item_target) = Self::build_project_item_target_for_kind(project_item.get_target(), &target_kind_text) else {
+                log::warn!("Ignoring unknown project item target kind: {}", target_kind_text);
+                return false;
+            };
+
+            project_item.set_target(project_item_target);
+            return true;
+        }
+
+        let mut project_item_target = project_item.get_target().clone();
+        let did_update_target = match (&mut project_item_target, edited_field_name) {
+            (ProjectItemTarget::Address { address, .. }, Self::TARGET_FIELD_ADDRESS) => {
+                if let Some(edited_address) = Self::extract_u64_value_from_edited_field(edited_field) {
+                    *address = edited_address;
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::Address { module_name, .. }, Self::TARGET_FIELD_MODULE) => {
+                if let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) {
+                    *module_name = edited_module_name;
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_ROOT_ADDRESS) => {
+                if let Some(edited_address) = Self::extract_u64_value_from_edited_field(edited_field) {
+                    pointer.set_address(edited_address);
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_ROOT_MODULE) => {
+                if let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) {
+                    pointer.set_module_name(edited_module_name);
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_OFFSETS) => {
+                if let Some(pointer_offsets) =
+                    Self::extract_string_value_from_edited_field_allow_empty(edited_field).and_then(|text| Self::parse_pointer_offsets(&text))
+                {
+                    pointer.set_offsets(pointer_offsets);
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_SIZE) => {
+                if let Some(pointer_size) =
+                    Self::extract_string_value_from_edited_field(edited_field).and_then(|text| PointerScanPointerSize::from_str(&text).ok())
+                {
+                    pointer.set_pointer_size(pointer_size);
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::Symbol { symbol_locator_key }, Self::TARGET_FIELD_SYMBOL_LOCATOR) => {
+                if let Some(edited_symbol_locator_key) = Self::extract_string_value_from_edited_field(edited_field) {
+                    *symbol_locator_key = edited_symbol_locator_key;
+                    true
+                } else {
+                    false
+                }
+            }
+            (ProjectItemTarget::Plugin { target_type_id, .. }, Self::TARGET_FIELD_PLUGIN_TYPE_ID) => {
+                if let Some(edited_target_type_id) = Self::extract_string_value_from_edited_field(edited_field) {
+                    *target_type_id = edited_target_type_id;
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+
+        if did_update_target {
+            project_item.set_target(project_item_target);
+        }
+
+        did_update_target
+    }
+
+    fn build_project_item_target_for_kind(
+        current_target: &ProjectItemTarget,
+        target_kind_text: &str,
+    ) -> Option<ProjectItemTarget> {
+        match target_kind_text.trim().to_ascii_lowercase().as_str() {
+            "none" => Some(ProjectItemTarget::None),
+            "address" => Some(match current_target {
+                ProjectItemTarget::Address { .. } => current_target.clone(),
+                _ => ProjectItemTarget::new_address(0, String::new()),
+            }),
+            "pointer" => Some(match current_target {
+                ProjectItemTarget::PointerPath { .. } => current_target.clone(),
+                _ => ProjectItemTarget::new_pointer_path(Pointer::new(0, Vec::new(), String::new())),
+            }),
+            "symbol" => Some(match current_target {
+                ProjectItemTarget::Symbol { .. } => current_target.clone(),
+                _ => ProjectItemTarget::new_symbol(String::from("absolute:0")),
+            }),
+            "plugin" => Some(match current_target {
+                ProjectItemTarget::Plugin { .. } => current_target.clone(),
+                _ => ProjectItemTarget::new_plugin(String::new(), BTreeMap::new()),
+            }),
+            _ => None,
+        }
+    }
+
+    fn parse_pointer_offsets(pointer_offsets_text: &str) -> Option<Vec<i64>> {
+        let trimmed_pointer_offsets_text = pointer_offsets_text.trim();
+
+        if trimmed_pointer_offsets_text.is_empty() {
+            return Some(Vec::new());
+        }
+
+        let mut pointer_offsets = Vec::new();
+
+        for pointer_offset_text in trimmed_pointer_offsets_text.split([',', ' ', ';']) {
+            let pointer_offset_text = pointer_offset_text.trim();
+
+            if pointer_offset_text.is_empty() {
+                continue;
+            }
+
+            pointer_offsets.push(Self::parse_signed_integer(pointer_offset_text)?);
+        }
+
+        Some(pointer_offsets)
+    }
+
+    fn parse_signed_integer(integer_text: &str) -> Option<i64> {
+        let trimmed_integer_text = integer_text.trim();
+        let (sign, unsigned_text) = if let Some(unsigned_text) = trimmed_integer_text.strip_prefix('-') {
+            (-1_i64, unsigned_text)
+        } else if let Some(unsigned_text) = trimmed_integer_text.strip_prefix('+') {
+            (1_i64, unsigned_text)
+        } else {
+            (1_i64, trimmed_integer_text)
+        };
+        let parsed_integer = if let Some(hexadecimal_text) = unsigned_text
+            .strip_prefix("0x")
+            .or_else(|| unsigned_text.strip_prefix("0X"))
+        {
+            i64::from_str_radix(hexadecimal_text, 16).ok()?
+        } else {
+            unsigned_text.parse::<i64>().ok()?
+        };
+
+        parsed_integer.checked_mul(sign)
     }
 
     fn resolve_pointer_write_target(
@@ -3228,6 +3579,7 @@ impl ProjectHierarchyView {
                             .to_string(),
                         project_item_name: project_item.get_field_name(),
                         project_item_description: project_item.get_field_description(),
+                        project_item_target: project_item.get_target().clone(),
                     },
                 )
             })
@@ -3235,11 +3587,35 @@ impl ProjectHierarchyView {
     }
 
     fn extract_string_value_from_edited_field(edited_field: &ValuedStructField) -> Option<String> {
-        let data_value = edited_field.get_data_value()?;
-        let edited_name = String::from_utf8(data_value.get_value_bytes().clone()).ok()?;
-        let edited_name = edited_name.trim();
+        let edited_text = Self::extract_string_value_from_edited_field_allow_empty(edited_field)?;
+        let edited_text = edited_text.trim();
 
-        if edited_name.is_empty() { None } else { Some(edited_name.to_string()) }
+        if edited_text.is_empty() { None } else { Some(edited_text.to_string()) }
+    }
+
+    fn extract_string_value_from_edited_field_allow_empty(edited_field: &ValuedStructField) -> Option<String> {
+        let data_value = edited_field.get_data_value()?;
+
+        String::from_utf8(data_value.get_value_bytes().clone()).ok()
+    }
+
+    fn extract_u64_value_from_edited_field(edited_field: &ValuedStructField) -> Option<u64> {
+        let data_value = edited_field.get_data_value()?;
+        let value_bytes = data_value.get_value_bytes();
+
+        match value_bytes.len() {
+            8 => {
+                let byte_array: [u8; 8] = value_bytes.as_slice().try_into().ok()?;
+
+                Some(u64::from_le_bytes(byte_array))
+            }
+            4 => {
+                let byte_array: [u8; 4] = value_bytes.as_slice().try_into().ok()?;
+
+                Some(u32::from_le_bytes(byte_array) as u64)
+            }
+            _ => None,
+        }
     }
 
     fn project_item_rename_text_storage_id(project_item_path: &Path) -> Id {

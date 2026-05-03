@@ -462,6 +462,7 @@ impl AppShell {
         let project_items_create_request = ProjectItemsCreateRequest {
             parent_directory_path,
             project_item_name: project_item_name.clone(),
+            is_directory: true,
             target: ProjectItemTarget::None,
             data_type_id: None,
         };

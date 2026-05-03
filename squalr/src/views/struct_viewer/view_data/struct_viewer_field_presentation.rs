@@ -5,6 +5,7 @@ pub enum StructViewerFieldEditorKind {
     CodeViewerButton,
     DataTypeSelector,
     ContainerTypeSelector,
+    ProjectItemTargetSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -25,7 +25,7 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_item::ProjectItemTypeItem,
     project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::{
@@ -2294,6 +2294,14 @@ impl ProjectHierarchyViewData {
             ProjectHierarchyCreateItemKind::Directory => ProjectItemsCreateRequest {
                 parent_directory_path: parent_directory_path.clone(),
                 project_item_name: Self::build_unique_directory_name(project_items, &parent_directory_path),
+                is_directory: true,
+                target: ProjectItemTarget::None,
+                data_type_id: None,
+            },
+            ProjectHierarchyCreateItemKind::Item => ProjectItemsCreateRequest {
+                parent_directory_path,
+                project_item_name: ProjectItemTypeItem::DEFAULT_PROJECT_ITEM_NAME.to_string(),
+                is_directory: false,
                 target: ProjectItemTarget::None,
                 data_type_id: None,
             },
@@ -2595,7 +2603,7 @@ mod tests {
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
-        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
+        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_item::ProjectItemTypeItem,
         project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::{
@@ -2832,6 +2840,22 @@ mod tests {
 
         assert_eq!(create_request.parent_directory_path, parent_directory_path);
         assert_eq!(create_request.project_item_name, "New Folder");
+        assert!(create_request.is_directory);
+        assert_eq!(create_request.target, ProjectItemTarget::None);
+        assert!(create_request.data_type_id.is_none());
+    }
+
+    #[test]
+    fn build_project_item_create_request_for_item_uses_empty_target() {
+        let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
+        let project_items = vec![create_directory_project_item(&parent_directory_path)];
+
+        let create_request =
+            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::Item);
+
+        assert_eq!(create_request.parent_directory_path, parent_directory_path);
+        assert_eq!(create_request.project_item_name, ProjectItemTypeItem::DEFAULT_PROJECT_ITEM_NAME);
+        assert!(!create_request.is_directory);
         assert_eq!(create_request.target, ProjectItemTarget::None);
         assert!(create_request.data_type_id.is_none());
     }

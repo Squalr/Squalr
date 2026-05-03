@@ -17,6 +17,10 @@ pub struct ProjectItemsCreateRequest {
     pub project_item_name: String,
 
     #[serde(default)]
+    #[structopt(long)]
+    pub is_directory: bool,
+
+    #[serde(default)]
     #[structopt(skip)]
     pub target: ProjectItemTarget,
 

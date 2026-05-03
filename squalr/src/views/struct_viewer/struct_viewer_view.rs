@@ -347,7 +347,7 @@ impl Widget for StructViewerView {
                     pos2(value_splitter_x + BAR_THICKNESS * 0.5, splitter_max_y),
                 );
 
-                // Rows
+                // Rows.
                 ScrollArea::vertical()
                     .id_salt("struct_viewer")
                     .auto_shrink([false, false])
@@ -429,7 +429,7 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::ContainerTypeSelector => {
+                                    StructViewerFieldEditorKind::ContainerTypeSelector | StructViewerFieldEditorKind::ProjectItemTargetSelector => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,

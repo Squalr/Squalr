@@ -1117,6 +1117,7 @@ impl PointerScannerViewData {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name,
+            is_directory: false,
             target: ProjectItemTarget::new_pointer_path(pointer),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
         })
@@ -1140,6 +1141,7 @@ impl PointerScannerViewData {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name,
+            is_directory: false,
             target: ProjectItemTarget::new_pointer_path(pointer),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
         })

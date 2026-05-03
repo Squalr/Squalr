@@ -6,7 +6,7 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_item::ProjectItemTypeItem, project_item_type_pointer::ProjectItemTypePointer,
     project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
@@ -23,8 +23,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsCreateRequest {
         &self,
         engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
+        if self.is_directory {
+            return create_directory_item(self, engine_unprivileged_state);
+        }
+
         match &self.target {
-            ProjectItemTarget::None => create_directory_item(self, engine_unprivileged_state),
+            ProjectItemTarget::None => create_project_item(self, engine_unprivileged_state),
             ProjectItemTarget::Address { .. } => create_address_item(self, engine_unprivileged_state),
             ProjectItemTarget::PointerPath { .. } => create_pointer_item(self, engine_unprivileged_state),
             ProjectItemTarget::Symbol { .. } => create_symbol_ref_item(self, engine_unprivileged_state),
@@ -37,6 +41,83 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsCreateRequest {
                 }
             }
         }
+    }
+}
+
+fn create_project_item(
+    project_items_create_request: &ProjectItemsCreateRequest,
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+) -> ProjectItemsCreateResponse {
+    let project_manager = engine_unprivileged_state.get_project_manager();
+    let opened_project = project_manager.get_opened_project();
+    let mut opened_project_guard = match opened_project.write() {
+        Ok(opened_project_guard) => opened_project_guard,
+        Err(error) => {
+            log::error!("Failed to acquire opened project lock for item create command: {}", error);
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let opened_project = match opened_project_guard.as_mut() {
+        Some(opened_project) => opened_project,
+        None => {
+            log::warn!("Cannot create project items without an opened project.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let project_directory_path = match opened_project.get_project_info().get_project_directory() {
+        Some(project_directory_path) => project_directory_path,
+        None => {
+            log::error!("Failed to resolve opened project directory for item create operation.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
+    let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
+    let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
+    let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
+    let project_item = ProjectItemTypeItem::new_project_item(&project_items_create_request.project_item_name);
+
+    opened_project
+        .get_project_items_mut()
+        .insert(project_item_ref, project_item);
+
+    if let Err(error) = create_placeholder_file(&created_project_item_path) {
+        log::error!("Failed creating project item placeholder file: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    append_project_items_to_sort_order(opened_project, &project_directory_path, &[created_project_item_path.clone()]);
+
+    if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
+        log::error!("Failed to save project after item create operation: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    project_manager.notify_project_items_changed();
+
+    ProjectItemsCreateResponse {
+        success: true,
+        created_project_item_path,
     }
 }
 
@@ -168,13 +249,7 @@ fn create_address_item(
             };
         }
     };
-    let project_root_directory_path = project_directory_path.join(Project::PROJECT_DIR);
-    let requested_parent_directory_path = resolve_project_item_path(&project_directory_path, &project_items_create_request.parent_directory_path);
-    let parent_directory_path = if requested_parent_directory_path.starts_with(&project_root_directory_path) {
-        requested_parent_directory_path
-    } else {
-        project_root_directory_path
-    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
@@ -279,13 +354,7 @@ fn create_pointer_item(
             };
         }
     };
-    let project_root_directory_path = project_directory_path.join(Project::PROJECT_DIR);
-    let requested_parent_directory_path = resolve_project_item_path(&project_directory_path, &project_items_create_request.parent_directory_path);
-    let parent_directory_path = if requested_parent_directory_path.starts_with(&project_root_directory_path) {
-        requested_parent_directory_path
-    } else {
-        project_root_directory_path
-    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
@@ -362,13 +431,7 @@ fn create_symbol_ref_item(
             };
         }
     };
-    let project_root_directory_path = project_directory_path.join(Project::PROJECT_DIR);
-    let requested_parent_directory_path = resolve_project_item_path(&project_directory_path, &project_items_create_request.parent_directory_path);
-    let parent_directory_path = if requested_parent_directory_path.starts_with(&project_root_directory_path) {
-        requested_parent_directory_path
-    } else {
-        project_root_directory_path
-    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
@@ -423,6 +486,20 @@ fn resolve_project_item_path(
         project_item_path.to_path_buf()
     } else {
         project_directory_path.join(project_item_path)
+    }
+}
+
+fn resolve_project_file_parent_directory_path(
+    project_directory_path: &Path,
+    requested_parent_directory_path: &Path,
+) -> PathBuf {
+    let project_root_directory_path = project_directory_path.join(Project::PROJECT_DIR);
+    let resolved_parent_directory_path = resolve_project_item_path(project_directory_path, requested_parent_directory_path);
+
+    if resolved_parent_directory_path.starts_with(&project_root_directory_path) {
+        resolved_parent_directory_path
+    } else {
+        project_root_directory_path
     }
 }
 
