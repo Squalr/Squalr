@@ -6,7 +6,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
-        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
+        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView},
     },
     views::{
         code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -14,8 +14,8 @@ use crate::{
         struct_viewer::view_data::{struct_viewer_take_over_state::StructViewerTakeOverState, struct_viewer_view_data::StructViewerViewData},
     },
 };
-use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, Widget, vec2};
-use epaint::{Rect, pos2};
+use eframe::egui::{Align, Align2, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
+use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -44,8 +44,22 @@ pub struct StructViewerView {
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PointerOffsetRowAction {
+    InsertAfter,
+    RemoveOffset,
+}
+
 impl StructViewerView {
     pub const WINDOW_ID: &'static str = "window_struct_viewer";
+    const POINTER_OFFSET_FIELD_ROW_HEIGHT: f32 = 28.0;
+    const POINTER_OFFSET_ICON_BUTTON_WIDTH: f32 = 36.0;
+    const POINTER_OFFSET_INPUT_SPACING: f32 = 8.0;
+    const POINTER_OFFSET_SECTION_VERTICAL_SPACING: f32 = 10.0;
+    const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
+    const TAKE_OVER_PADDING_X: f32 = 12.0;
+    const TAKE_OVER_PADDING_Y: f32 = 8.0;
+    const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_viewer_view_data = if app_context
@@ -213,6 +227,190 @@ impl StructViewerView {
         DataTypeRef::new(DataTypeI64::DATA_TYPE_ID)
     }
 
+    fn render_take_over_header_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT),
+            Button::new_from_theme(theme)
+                .background_color(epaint::Color32::TRANSPARENT)
+                .with_tooltip_text(tooltip_text),
+        );
+
+        IconDraw::draw(user_interface, button_response.rect, icon_handle);
+
+        button_response
+    }
+
+    fn render_take_over_panel(
+        &self,
+        user_interface: &mut Ui,
+        title: &str,
+        header_action_width: f32,
+        render_header_actions: impl FnOnce(&mut Ui),
+        add_contents: impl FnOnce(&mut Ui),
+    ) {
+        let theme = &self.app_context.theme;
+        let (panel_rect, _) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::hover());
+        user_interface
+            .painter()
+            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_panel);
+
+        let inner_rect = panel_rect.shrink2(vec2(Self::TAKE_OVER_PADDING_X, Self::TAKE_OVER_PADDING_Y));
+        let mut panel_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(inner_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        panel_user_interface.set_clip_rect(inner_rect);
+
+        let (header_rect, _) = panel_user_interface.allocate_exact_size(
+            vec2(panel_user_interface.available_width().max(1.0), Self::TAKE_OVER_HEADER_HEIGHT),
+            Sense::hover(),
+        );
+        panel_user_interface
+            .painter()
+            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
+        panel_user_interface
+            .painter()
+            .rect_stroke(header_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.submenu_border), StrokeKind::Inside);
+        let header_inner_rect = header_rect.shrink2(vec2(8.0, 0.0));
+        let mut header_user_interface = panel_user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(header_inner_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        header_user_interface.set_clip_rect(header_inner_rect);
+
+        let title_width = (header_inner_rect.width() - header_action_width).max(0.0);
+        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
+        header_user_interface.painter().text(
+            title_rect.left_center(),
+            Align2::LEFT_CENTER,
+            title,
+            theme.font_library.font_noto_sans.font_window_title.clone(),
+            theme.foreground,
+        );
+
+        if header_action_width > 0.0 {
+            header_user_interface.allocate_ui_with_layout(
+                vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+                Layout::right_to_left(Align::Center),
+                |user_interface| {
+                    render_header_actions(user_interface);
+                },
+            );
+        }
+
+        panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+        ScrollArea::vertical()
+            .id_salt(format!("struct_viewer_take_over_body_{title}"))
+            .auto_shrink([false, false])
+            .show(&mut panel_user_interface, |user_interface| {
+                add_contents(user_interface);
+            });
+    }
+
+    fn render_pointer_offset_editor_section(
+        &self,
+        user_interface: &mut Ui,
+        pointer_offset_value: &mut AnonymousValueString,
+        pointer_offset_index: usize,
+        pointer_offset_data_type_ref: &DataTypeRef,
+    ) -> Option<PointerOffsetRowAction> {
+        let theme = &self.app_context.theme;
+        let mut pending_row_action = None;
+
+        user_interface.allocate_ui_with_layout(vec2(user_interface.available_width(), 0.0), Layout::top_down(Align::Min), |user_interface| {
+            user_interface.allocate_ui_with_layout(
+                vec2(user_interface.available_width().max(1.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                Layout::left_to_right(Align::Center),
+                |user_interface| {
+                    user_interface.label(
+                        RichText::new(format!("Offset {}", pointer_offset_index + 1))
+                            .strong()
+                            .color(theme.foreground),
+                    );
+
+                    user_interface.allocate_ui_with_layout(
+                        vec2(user_interface.available_width().max(0.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                        Layout::right_to_left(Align::Center),
+                        |user_interface| {
+                            let insert_offset_response = self.render_take_over_header_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_add,
+                                "Insert a new offset after this one.",
+                            );
+                            if insert_offset_response.clicked() {
+                                pending_row_action = Some(PointerOffsetRowAction::InsertAfter);
+                            }
+
+                            user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+
+                            let remove_offset_response =
+                                self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Remove this offset.");
+                            if remove_offset_response.clicked() {
+                                pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
+                            }
+                        },
+                    );
+                },
+            );
+
+            user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+            let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
+            user_interface.add_sized(
+                vec2(user_interface.available_width(), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                DataValueBoxView::new(
+                    self.app_context.clone(),
+                    pointer_offset_value,
+                    pointer_offset_data_type_ref,
+                    false,
+                    true,
+                    "offset",
+                    &data_value_box_id,
+                )
+                .allowed_anonymous_value_string_formats(vec![
+                    AnonymousValueStringFormat::Hexadecimal,
+                    AnonymousValueStringFormat::Decimal,
+                ])
+                .normalize_value_format(false)
+                .use_format_text_colors(false)
+                .width(user_interface.available_width())
+                .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+            );
+        });
+
+        pending_row_action
+    }
+
+    fn apply_pointer_offset_row_action(
+        pointer_offset_values: &mut Vec<AnonymousValueString>,
+        pointer_offset_index: usize,
+        pointer_offset_row_action: PointerOffsetRowAction,
+    ) {
+        match pointer_offset_row_action {
+            PointerOffsetRowAction::InsertAfter => {
+                let insert_index = pointer_offset_index
+                    .saturating_add(1)
+                    .min(pointer_offset_values.len());
+                pointer_offset_values.insert(
+                    insert_index,
+                    AnonymousValueString::new(String::from("0"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
+                );
+            }
+            PointerOffsetRowAction::RemoveOffset => {
+                if pointer_offset_index < pointer_offset_values.len() {
+                    pointer_offset_values.remove(pointer_offset_index);
+                }
+            }
+        }
+    }
+
     fn show_pointer_offsets_editor(
         &self,
         user_interface: &mut Ui,
@@ -228,157 +426,99 @@ impl StructViewerView {
             .data_mut(|data| data.get_temp::<Vec<AnonymousValueString>>(pointer_offsets_storage_id))
             .unwrap_or_else(|| Self::pointer_offset_display_values(initial_pointer_offsets));
         let pointer_offset_data_type_ref = Self::pointer_offset_data_type_ref();
-        let panel_width = safe_clamp_f32(user_interface.available_width(), 320.0, 560.0);
-        let field_row_height: f32 = 28.0;
-        let input_spacing: f32 = 8.0;
-        let icon_button_width: f32 = 36.0;
-        let offset_label_width: f32 = 82.0;
+        let mut should_save_offsets = false;
+        let mut should_add_offset = false;
 
-        user_interface.add_space(12.0);
-        user_interface.horizontal(|user_interface| {
-            let side_spacing = ((user_interface.available_width() - panel_width) * 0.5).max(0.0);
-            user_interface.add_space(side_spacing);
-            user_interface.allocate_ui_with_layout(vec2(panel_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, "Edit pointer offsets", |user_interface| {
-                        ScrollArea::vertical()
-                            .id_salt("struct_viewer_pointer_offsets_editor")
-                            .max_height(220.0)
-                            .auto_shrink([false, false])
-                            .show(user_interface, |user_interface| {
-                                let mut offset_to_delete = None;
-                                let pointer_offset_count = pointer_offset_values.len();
+        self.render_take_over_panel(
+            user_interface,
+            "Edit pointer offsets",
+            Self::POINTER_OFFSET_ICON_BUTTON_WIDTH * 3.0,
+            |user_interface| {
+                let save_response =
+                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_check_mark, "Save offsets.");
+                if save_response.clicked() {
+                    should_save_offsets = true;
+                }
 
-                                for (pointer_offset_index, pointer_offset_value) in pointer_offset_values.iter_mut().enumerate() {
-                                    user_interface.allocate_ui_with_layout(
-                                        vec2(user_interface.available_width().max(1.0), field_row_height),
-                                        Layout::left_to_right(Align::Center),
-                                        |user_interface| {
-                                            user_interface.allocate_ui_with_layout(
-                                                vec2(offset_label_width.min(user_interface.available_width()), field_row_height),
-                                                Layout::left_to_right(Align::Center),
-                                                |user_interface| {
-                                                    user_interface.label(
-                                                        RichText::new(format!("Offset {}", pointer_offset_index + 1))
-                                                            .strong()
-                                                            .color(theme.foreground),
-                                                    );
-                                                },
-                                            );
+                let cancel_response =
+                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_navigation_cancel, "Cancel offset edit.");
+                if cancel_response.clicked() {
+                    *should_cancel_take_over = true;
+                }
 
-                                            let offset_value_width = (user_interface.available_width() - input_spacing - icon_button_width).max(0.0);
-                                            let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
-                                            user_interface.add_sized(
-                                                vec2(offset_value_width, field_row_height),
-                                                DataValueBoxView::new(
-                                                    self.app_context.clone(),
-                                                    pointer_offset_value,
-                                                    &pointer_offset_data_type_ref,
-                                                    false,
-                                                    true,
-                                                    "offset",
-                                                    &data_value_box_id,
-                                                )
-                                                .allowed_anonymous_value_string_formats(vec![
-                                                    AnonymousValueStringFormat::Hexadecimal,
-                                                    AnonymousValueStringFormat::Decimal,
-                                                ])
-                                                .normalize_value_format(false)
-                                                .use_format_text_colors(false)
-                                                .width(offset_value_width)
-                                                .height(field_row_height),
-                                            );
+                let add_response = self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Add offset.");
+                if add_response.clicked() {
+                    should_add_offset = true;
+                }
+            },
+            |user_interface| {
+                let mut pending_pointer_offset_row_action = None;
+                let pointer_offset_count = pointer_offset_values.len();
 
-                                            user_interface.add_space(input_spacing);
+                for pointer_offset_index in 0..pointer_offset_count {
+                    let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
+                        continue;
+                    };
 
-                                            let delete_button_response = user_interface.add_sized(
-                                                vec2(icon_button_width, field_row_height),
-                                                Button::new_from_theme(theme)
-                                                    .background_color(epaint::Color32::TRANSPARENT)
-                                                    .with_tooltip_text("Delete offset."),
-                                            );
-                                            IconDraw::draw(user_interface, delete_button_response.rect, &theme.icon_library.icon_handle_common_delete);
+                    if let Some(pointer_offset_row_action) =
+                        self.render_pointer_offset_editor_section(user_interface, pointer_offset_value, pointer_offset_index, &pointer_offset_data_type_ref)
+                    {
+                        pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
+                    }
 
-                                            if delete_button_response.clicked() {
-                                                offset_to_delete = Some(pointer_offset_index);
-                                            }
-                                        },
-                                    );
+                    if pointer_offset_index + 1 < pointer_offset_count {
+                        user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
+                        user_interface.separator();
+                        user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
+                    }
+                }
 
-                                    if pointer_offset_index + 1 < pointer_offset_count {
-                                        user_interface.add_space(input_spacing);
-                                    }
-                                }
+                if pointer_offset_count == 0 {
+                    let add_response = user_interface.add_sized(
+                        vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                        Button::new_from_theme(theme)
+                            .background_color(epaint::Color32::TRANSPARENT)
+                            .with_tooltip_text("Add offset."),
+                    );
+                    IconDraw::draw(user_interface, add_response.rect, &theme.icon_library.icon_handle_common_add);
 
-                                if let Some(offset_to_delete) = offset_to_delete {
-                                    pointer_offset_values.remove(offset_to_delete);
-                                }
-                            });
+                    if add_response.clicked() {
+                        pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::InsertAfter));
+                    }
+                }
 
-                        user_interface.add_space(8.0);
-                        user_interface.horizontal(|user_interface| {
-                            let add_offset_button_response = user_interface.add_sized(
-                                vec2(icon_button_width, field_row_height),
-                                Button::new_from_theme(theme)
-                                    .background_color(epaint::Color32::TRANSPARENT)
-                                    .with_tooltip_text("Add offset."),
-                            );
-                            IconDraw::draw(user_interface, add_offset_button_response.rect, &theme.icon_library.icon_handle_common_add);
+                if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
+                    Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                }
+            },
+        );
 
-                            if add_offset_button_response.clicked() {
-                                pointer_offset_values.push(AnonymousValueString::new(
-                                    String::from("0"),
-                                    AnonymousValueStringFormat::Hexadecimal,
-                                    ContainerType::None,
-                                ));
-                            }
+        if should_add_offset {
+            pointer_offset_values.push(AnonymousValueString::new(
+                String::from("0"),
+                AnonymousValueStringFormat::Hexadecimal,
+                ContainerType::None,
+            ));
+        }
 
-                            user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
-                                let commit_button_response = user_interface.add_sized(
-                                    vec2(icon_button_width, field_row_height),
-                                    Button::new_from_theme(theme)
-                                        .background_color(epaint::Color32::TRANSPARENT)
-                                        .with_tooltip_text("Save offsets."),
-                                );
-                                IconDraw::draw(user_interface, commit_button_response.rect, &theme.icon_library.icon_handle_common_check_mark);
+        if should_save_offsets {
+            let pointer_offsets = pointer_offset_values
+                .iter()
+                .filter_map(Self::parse_pointer_offset_display_value)
+                .collect::<Vec<i64>>();
 
-                                if commit_button_response.clicked() {
-                                    let pointer_offsets = pointer_offset_values
-                                        .iter()
-                                        .filter_map(Self::parse_pointer_offset_display_value)
-                                        .collect::<Vec<i64>>();
-
-                                    match serde_json::to_string(&pointer_offsets) {
-                                        Ok(pointer_offsets_json) => {
-                                            *pointer_offsets_submission = Some(
-                                                DataTypeStringUtf8::get_value_from_primitive_string(&pointer_offsets_json)
-                                                    .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), true),
-                                            );
-                                        }
-                                        Err(error) => {
-                                            log::warn!("Failed to serialize Struct Viewer pointer offsets edit: {}", error);
-                                        }
-                                    }
-                                }
-
-                                let cancel_button_response = user_interface.add_sized(
-                                    vec2(icon_button_width, field_row_height),
-                                    Button::new_from_theme(theme)
-                                        .background_color(epaint::Color32::TRANSPARENT)
-                                        .with_tooltip_text("Cancel offset edit."),
-                                );
-                                IconDraw::draw(user_interface, cancel_button_response.rect, &theme.icon_library.icon_handle_navigation_cancel);
-
-                                if cancel_button_response.clicked() {
-                                    *should_cancel_take_over = true;
-                                }
-                            });
-                        });
-                    })
-                    .desired_width(panel_width),
-                );
-            });
-        });
+            match serde_json::to_string(&pointer_offsets) {
+                Ok(pointer_offsets_json) => {
+                    *pointer_offsets_submission = Some(
+                        DataTypeStringUtf8::get_value_from_primitive_string(&pointer_offsets_json)
+                            .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), true),
+                    );
+                }
+                Err(error) => {
+                    log::warn!("Failed to serialize Struct Viewer pointer offsets edit: {}", error);
+                }
+            }
+        }
 
         user_interface
             .ctx()
