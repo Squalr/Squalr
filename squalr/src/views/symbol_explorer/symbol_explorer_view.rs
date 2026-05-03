@@ -1,7 +1,8 @@
 use crate::app_context::AppContext;
-use crate::ui::widgets::controls::data_type_selector::data_type_selector_view::DataTypeSelectorView;
+use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
+    button::Button as ThemeButton, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
+    context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::{
@@ -85,6 +86,20 @@ struct DeleteConfirmationDescription {
     is_warning: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ModuleFieldTypeOptionKind {
+    BuiltIn,
+    StructLayout,
+    PointerToStruct,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ModuleFieldTypeOption {
+    data_type_ref: DataTypeRef,
+    label: String,
+    kind: ModuleFieldTypeOptionKind,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct U8SpanEditTarget {
     module_name: String,
@@ -113,6 +128,9 @@ impl SymbolExplorerView {
     const MAX_SYMBOL_PREVIEW_ELEMENT_COUNT: u64 = 4;
     const MAX_SYMBOL_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 3;
     const MAX_SYMBOL_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 24;
+    const MODULE_FIELD_BUILT_IN_TYPE_IDS: [&'static str; 18] = [
+        "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
+    ];
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_explorer_view_data = app_context
@@ -319,8 +337,15 @@ impl SymbolExplorerView {
         }
     }
 
-    fn build_module_field_selectable_data_types(project_symbol_catalog: &ProjectSymbolCatalog) -> Vec<DataTypeRef> {
-        let mut selectable_data_types = DataTypeSelectorView::default_selectable_data_types();
+    fn build_module_field_type_options(project_symbol_catalog: &ProjectSymbolCatalog) -> Vec<ModuleFieldTypeOption> {
+        let mut type_options = Self::MODULE_FIELD_BUILT_IN_TYPE_IDS
+            .iter()
+            .map(|data_type_id| ModuleFieldTypeOption {
+                data_type_ref: DataTypeRef::new(data_type_id),
+                label: DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
+                kind: ModuleFieldTypeOptionKind::BuiltIn,
+            })
+            .collect::<Vec<_>>();
         let pointer_sizes = [
             PointerScanPointerSize::Pointer32,
             PointerScanPointerSize::Pointer64,
@@ -330,20 +355,69 @@ impl SymbolExplorerView {
             let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
             let struct_data_type_ref = DataTypeRef::new(struct_layout_id);
 
-            if !selectable_data_types.contains(&struct_data_type_ref) {
-                selectable_data_types.push(struct_data_type_ref);
+            if !type_options
+                .iter()
+                .any(|type_option| type_option.data_type_ref == struct_data_type_ref)
+            {
+                type_options.push(ModuleFieldTypeOption {
+                    data_type_ref: struct_data_type_ref,
+                    label: struct_layout_id.to_string(),
+                    kind: ModuleFieldTypeOptionKind::StructLayout,
+                });
             }
 
             for pointer_size in pointer_sizes {
                 let pointer_struct_data_type_ref = DataTypeRef::new(&format!("{}*({})", struct_layout_id, pointer_size));
 
-                if !selectable_data_types.contains(&pointer_struct_data_type_ref) {
-                    selectable_data_types.push(pointer_struct_data_type_ref);
+                if !type_options
+                    .iter()
+                    .any(|type_option| type_option.data_type_ref == pointer_struct_data_type_ref)
+                {
+                    type_options.push(ModuleFieldTypeOption {
+                        label: pointer_struct_data_type_ref.get_data_type_id().to_string(),
+                        data_type_ref: pointer_struct_data_type_ref,
+                        kind: ModuleFieldTypeOptionKind::PointerToStruct,
+                    });
                 }
             }
         }
 
-        selectable_data_types
+        type_options
+    }
+
+    fn filter_module_field_type_options(
+        type_options: &[ModuleFieldTypeOption],
+        search_text: &str,
+    ) -> Vec<ModuleFieldTypeOption> {
+        let normalized_search_text = search_text.trim().to_lowercase();
+
+        if normalized_search_text.is_empty() {
+            return type_options.to_vec();
+        }
+
+        type_options
+            .iter()
+            .filter(|type_option| {
+                type_option
+                    .label
+                    .to_lowercase()
+                    .contains(&normalized_search_text)
+                    || type_option
+                        .data_type_ref
+                        .get_data_type_id()
+                        .to_lowercase()
+                        .contains(&normalized_search_text)
+            })
+            .cloned()
+            .collect()
+    }
+
+    fn module_field_type_option_uses_icon(type_option_kind: ModuleFieldTypeOptionKind) -> bool {
+        matches!(type_option_kind, ModuleFieldTypeOptionKind::BuiltIn)
+    }
+
+    fn module_field_type_search_storage_id(menu_id: &str) -> Id {
+        Id::new(("symbol_explorer_module_field_type_search", menu_id))
     }
 
     fn delete_module_root(
@@ -1734,6 +1808,90 @@ impl SymbolExplorerView {
         }
     }
 
+    fn render_module_field_type_combo(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        data_type_selection: &mut crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection,
+        menu_id: &str,
+        width: f32,
+    ) {
+        let type_options = Self::build_module_field_type_options(project_symbol_catalog);
+        let selected_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
+        let selected_type_option = type_options
+            .iter()
+            .find(|type_option| type_option.data_type_ref.get_data_type_id() == selected_data_type_id);
+        let combo_label = selected_type_option
+            .map(|type_option| type_option.label.clone())
+            .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(selected_data_type_id));
+        let combo_icon = selected_type_option.and_then(|type_option| {
+            Self::module_field_type_option_uses_icon(type_option.kind)
+                .then(|| DataTypeToIconConverter::convert_data_type_to_icon(type_option.data_type_ref.get_data_type_id(), &self.app_context.theme.icon_library))
+        });
+        let search_storage_id = Self::module_field_type_search_storage_id(menu_id);
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                combo_label,
+                menu_id,
+                combo_icon,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    let mut search_text = popup_user_interface
+                        .ctx()
+                        .data_mut(|data| data.get_temp::<String>(search_storage_id).unwrap_or_default());
+
+                    popup_user_interface.add_space(4.0);
+                    popup_user_interface.add(
+                        TextEdit::singleline(&mut search_text)
+                            .hint_text("Search types")
+                            .desired_width((popup_user_interface.available_width() - 8.0).max(1.0)),
+                    );
+                    popup_user_interface.add_space(4.0);
+
+                    popup_user_interface
+                        .ctx()
+                        .data_mut(|data| data.insert_temp(search_storage_id, search_text.clone()));
+
+                    let filtered_type_options = Self::filter_module_field_type_options(&type_options, &search_text);
+
+                    if filtered_type_options.is_empty() {
+                        popup_user_interface.label(RichText::new("No matching types").color(self.app_context.theme.foreground_preview));
+                        return;
+                    }
+
+                    ScrollArea::vertical()
+                        .max_height(240.0)
+                        .auto_shrink([false, false])
+                        .show(popup_user_interface, |scroll_user_interface| {
+                            for type_option in filtered_type_options {
+                                let row_icon = if Self::module_field_type_option_uses_icon(type_option.kind) {
+                                    Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                        type_option.data_type_ref.get_data_type_id(),
+                                        &self.app_context.theme.icon_library,
+                                    ))
+                                } else {
+                                    None
+                                };
+                                let item_response =
+                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, row_icon, width));
+
+                                if item_response.clicked() {
+                                    data_type_selection.select_single_data_type(type_option.data_type_ref);
+                                    scroll_user_interface
+                                        .ctx()
+                                        .data_mut(|data| data.insert_temp(search_storage_id, String::new()));
+                                    *should_close = true;
+                                }
+                            }
+                        });
+                },
+            )
+            .width(width)
+            .height(Self::TOOLBAR_HEIGHT),
+        );
+    }
+
     fn render_delete_confirmation_take_over(
         &self,
         user_interface: &mut Ui,
@@ -1854,17 +2012,12 @@ impl SymbolExplorerView {
                         user_interface.add_space(8.0);
 
                         user_interface.label(RichText::new("Type").color(theme.foreground));
-                        let data_type_selector_id = format!("symbol_explorer_define_field_type_{}_{}", module_name, segment_offset);
-                        user_interface.add(
-                            DataTypeSelectorView::new(
-                                self.app_context.clone(),
-                                &mut edited_define_field_draft.data_type_selection,
-                                &data_type_selector_id,
-                            )
-                            .single_select()
-                            .available_data_types(Self::build_module_field_selectable_data_types(project_symbol_catalog))
-                            .width(user_interface.available_width())
-                            .height(Self::TOOLBAR_HEIGHT),
+                        self.render_module_field_type_combo(
+                            user_interface,
+                            project_symbol_catalog,
+                            &mut edited_define_field_draft.data_type_selection,
+                            &format!("symbol_explorer_define_field_type_{}_{}", module_name, segment_offset),
+                            user_interface.available_width(),
                         );
 
                         define_field_plan_result =
@@ -2961,7 +3114,7 @@ impl Widget for SymbolExplorerView {
 
 #[cfg(test)]
 mod tests {
-    use super::SymbolExplorerView;
+    use super::{ModuleFieldTypeOption, ModuleFieldTypeOptionKind, SymbolExplorerView};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
     use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::DefineFieldDraft;
@@ -3214,7 +3367,7 @@ mod tests {
     }
 
     #[test]
-    fn build_module_field_selectable_data_types_includes_struct_layouts_and_pointer_variants() {
+    fn build_module_field_type_options_includes_builtins_struct_layouts_and_pointer_variants() {
         let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
             String::from("player.stats"),
             SymbolicStructDefinition::new(
@@ -3225,12 +3378,51 @@ mod tests {
                 )],
             ),
         )]);
-        let selectable_data_types = SymbolExplorerView::build_module_field_selectable_data_types(&project_symbol_catalog);
+        let type_options = SymbolExplorerView::build_module_field_type_options(&project_symbol_catalog);
 
-        assert!(selectable_data_types.contains(&DataTypeRef::new("i32")));
-        assert!(selectable_data_types.contains(&DataTypeRef::new("player.stats")));
-        assert!(selectable_data_types.contains(&DataTypeRef::new("player.stats*(u32)")));
-        assert!(selectable_data_types.contains(&DataTypeRef::new("player.stats*(u64)")));
+        assert!(
+            type_options
+                .iter()
+                .any(|type_option| { type_option.data_type_ref == DataTypeRef::new("i32") && type_option.kind == ModuleFieldTypeOptionKind::BuiltIn })
+        );
+        assert!(type_options.iter().any(|type_option| {
+            type_option.data_type_ref == DataTypeRef::new("player.stats") && type_option.kind == ModuleFieldTypeOptionKind::StructLayout
+        }));
+        assert!(type_options.iter().any(|type_option| {
+            type_option.data_type_ref == DataTypeRef::new("player.stats*(u32)") && type_option.kind == ModuleFieldTypeOptionKind::PointerToStruct
+        }));
+        assert!(type_options.iter().any(|type_option| {
+            type_option.data_type_ref == DataTypeRef::new("player.stats*(u64)") && type_option.kind == ModuleFieldTypeOptionKind::PointerToStruct
+        }));
+    }
+
+    #[test]
+    fn filter_module_field_type_options_matches_struct_layouts() {
+        let type_options = vec![
+            ModuleFieldTypeOption {
+                data_type_ref: DataTypeRef::new("i32"),
+                label: String::from("i32"),
+                kind: ModuleFieldTypeOptionKind::BuiltIn,
+            },
+            ModuleFieldTypeOption {
+                data_type_ref: DataTypeRef::new("player.stats"),
+                label: String::from("player.stats"),
+                kind: ModuleFieldTypeOptionKind::StructLayout,
+            },
+            ModuleFieldTypeOption {
+                data_type_ref: DataTypeRef::new("player.stats*(u64)"),
+                label: String::from("player.stats*(u64)"),
+                kind: ModuleFieldTypeOptionKind::PointerToStruct,
+            },
+        ];
+        let filtered_type_options = SymbolExplorerView::filter_module_field_type_options(&type_options, "stats");
+
+        assert_eq!(filtered_type_options.len(), 2);
+        assert!(
+            filtered_type_options
+                .iter()
+                .all(|type_option| { !SymbolExplorerView::module_field_type_option_uses_icon(type_option.kind) })
+        );
     }
 
     #[test]

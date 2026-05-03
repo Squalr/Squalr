@@ -264,7 +264,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
         }
     }
 
-    pub fn default_selectable_data_types() -> Vec<DataTypeRef> {
+    fn default_selectable_data_types() -> Vec<DataTypeRef> {
         Self::SELECTABLE_DATA_TYPE_ROWS
             .iter()
             .flatten()
