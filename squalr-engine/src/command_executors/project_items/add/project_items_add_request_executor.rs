@@ -451,7 +451,6 @@ mod tests {
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
     use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
     use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
     use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
     use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
@@ -624,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn add_scan_results_to_project_creates_unified_address_target() {
+    fn add_scan_results_to_project_creates_address_item() {
         let engine_execution_context = create_test_engine_execution_context();
         let project_directory_path = PathBuf::from("C:/Projects/TestProject");
         let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
@@ -643,13 +642,9 @@ mod tests {
             .and_then(|project_item_ref| project.get_project_items().get(&project_item_ref))
             .expect("Expected added project item.");
 
-        assert_eq!(
-            added_project_item.get_target(),
-            &ProjectItemTarget::Address {
-                address: 0x20,
-                module_name: String::from("winmine.exe")
-            }
-        );
+        let mut added_project_item = added_project_item.clone();
+        assert_eq!(ProjectItemTypeAddress::get_field_address(&mut added_project_item), 0x20);
+        assert_eq!(ProjectItemTypeAddress::get_field_module(&mut added_project_item), "winmine.exe");
     }
 
     #[test]

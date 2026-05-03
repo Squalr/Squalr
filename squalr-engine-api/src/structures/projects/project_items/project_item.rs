@@ -3,7 +3,7 @@ use crate::registries::registry_context::RegistryContext;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-    projects::project_items::{project_item_target::ProjectItemTarget, project_item_type_ref::ProjectItemTypeRef},
+    projects::project_items::project_item_type_ref::ProjectItemTypeRef,
     structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructFieldData},
 };
 use serde::{Deserialize, Serialize};
@@ -14,9 +14,6 @@ use std::sync::{Arc, RwLock};
 pub struct ProjectItem {
     // The type of this project item.
     item_type: ProjectItemTypeRef,
-
-    #[serde(default)]
-    target: ProjectItemTarget,
 
     /// The container for all properties on this project item.
     properties: ValuedStruct,
@@ -44,7 +41,6 @@ impl ProjectItem {
     ) -> Self {
         let mut project_item = Self {
             item_type,
-            target: ProjectItemTarget::default(),
             properties: ValuedStruct::new_anonymous(vec![]),
             is_activated: false,
             has_unsaved_changes: true,
@@ -58,18 +54,6 @@ impl ProjectItem {
 
     pub fn get_item_type(&self) -> &ProjectItemTypeRef {
         &self.item_type
-    }
-
-    pub fn get_target(&self) -> &ProjectItemTarget {
-        &self.target
-    }
-
-    pub fn set_target(
-        &mut self,
-        target: ProjectItemTarget,
-    ) {
-        self.target = target;
-        self.has_unsaved_changes = true;
     }
 
     pub fn get_properties(&self) -> &ValuedStruct {

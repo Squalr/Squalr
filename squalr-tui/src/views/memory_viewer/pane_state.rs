@@ -13,7 +13,6 @@ use squalr_engine_api::{
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
-        projects::project_items::project_item_target::ProjectItemTarget,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -538,7 +537,8 @@ impl MemoryViewerPaneState {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
             is_directory: false,
-            target: ProjectItemTarget::new_address(project_item_address, project_item_module_name),
+            address: Some(project_item_address),
+            module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
         })
     }
@@ -1134,10 +1134,7 @@ fn parse_address_text(address_text: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::{MemoryViewerInputMode, MemoryViewerPaneState, MemoryViewerSelectionRange};
-    use squalr_engine_api::structures::{
-        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
-        projects::project_items::project_item_target::ProjectItemTarget,
-    };
+    use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion};
 
     #[test]
     fn build_visible_chunk_queries_aligns_visible_rows_to_prefetched_chunks() {
@@ -1257,13 +1254,8 @@ mod tests {
             .expect("Expected create request.");
 
         assert_eq!(create_request.project_item_name, String::from("game.exe+0x4"));
-        assert_eq!(
-            create_request.target,
-            ProjectItemTarget::Address {
-                address: 0x4,
-                module_name: String::from("game.exe")
-            }
-        );
+        assert_eq!(create_request.address, Some(0x4));
+        assert_eq!(create_request.module_name, Some(String::from("game.exe")));
         assert_eq!(create_request.data_type_id, Some(String::from("u8[4]")));
     }
 

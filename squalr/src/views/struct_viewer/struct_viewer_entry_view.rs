@@ -138,17 +138,6 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
 
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
     }
-
-    fn commit_project_item_target_selection(
-        valued_struct_field: &ValuedStructField,
-        target_kind_label: &str,
-        struct_viewer_frame_action: &mut StructViewerFrameAction,
-    ) {
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(target_kind_label)
-            .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
-
-        *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
-    }
 }
 
 impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
@@ -431,47 +420,6 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_container_mode) = selected_container_mode {
                     Self::commit_container_type_selection(self.valued_struct_field, selected_container_mode, self.struct_viewer_frame_action);
-                }
-            }
-            StructViewerFieldEditorKind::ProjectItemTargetSelector => {
-                let target_selector_id = format!("struct_viewer_project_item_target_{}_{}", self.row_index, self.valued_struct_field.get_name());
-                let current_target_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
-                let target_kind_label = if current_target_kind.trim().is_empty() {
-                    "Address"
-                } else {
-                    current_target_kind.as_str()
-                };
-                let mut selected_target_kind = None;
-                let target_width = (row_max_x - value_box_position_x).max(0.0);
-
-                user_interface.put(
-                    Rect::from_min_size(
-                        pos2(value_box_position_x, available_size_rect.min.y),
-                        vec2(target_width, available_size_rect.height()),
-                    ),
-                    ComboBoxView::new(
-                        self.app_context.clone(),
-                        target_kind_label,
-                        &target_selector_id,
-                        None,
-                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for target_kind_label in ["Address", "Pointer", "Symbol", "Plugin"] {
-                                let target_response =
-                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), target_kind_label, None, target_width));
-
-                                if target_response.clicked() {
-                                    selected_target_kind = Some(target_kind_label);
-                                    *should_close = true;
-                                }
-                            }
-                        },
-                    )
-                    .width(target_width)
-                    .height(available_size_rect.height()),
-                );
-
-                if let Some(selected_target_kind) = selected_target_kind {
-                    Self::commit_project_item_target_selection(self.valued_struct_field, selected_target_kind, self.struct_viewer_frame_action);
                 }
             }
         }

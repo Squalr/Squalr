@@ -28,7 +28,6 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
-use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructField,
@@ -463,7 +462,8 @@ impl AppShell {
             parent_directory_path,
             project_item_name: project_item_name.clone(),
             is_directory: true,
-            target: ProjectItemTarget::None,
+            address: None,
+            module_name: None,
             data_type_id: None,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);

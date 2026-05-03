@@ -18,7 +18,6 @@ use squalr_engine_api::{
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
-        projects::project_items::project_item_target::ProjectItemTarget,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -938,7 +937,8 @@ impl CodeViewerViewData {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
             is_directory: false,
-            target: ProjectItemTarget::new_address(project_item_address, project_item_module_name),
+            address: Some(project_item_address),
+            module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
         })
     }
@@ -1561,7 +1561,6 @@ mod tests {
                 anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
             },
             memory::{bitness::Bitness, normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
-            projects::project_items::project_item_target::ProjectItemTarget,
         },
     };
 
@@ -1822,13 +1821,8 @@ mod tests {
         )
         .expect("Expected instruction project item request.");
 
-        assert_eq!(
-            create_request.target,
-            ProjectItemTarget::Address {
-                address: 0x4,
-                module_name: String::from("winmine.exe")
-            }
-        );
+        assert_eq!(create_request.address, Some(0x4));
+        assert_eq!(create_request.module_name, Some(String::from("winmine.exe")));
         assert_eq!(create_request.data_type_id.as_deref(), Some("i_x86[7]"));
     }
 

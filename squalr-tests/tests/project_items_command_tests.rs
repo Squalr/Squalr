@@ -19,7 +19,6 @@ use squalr_engine_api::commands::unprivileged_command::UnprivilegedCommand;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::commands::unprivileged_command_response::TypedUnprivilegedCommandResponse;
 use squalr_engine_api::structures::projects::project::Project;
-use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_tests::shared_execution_context;
 use std::path::PathBuf;
@@ -376,7 +375,8 @@ fn project_items_create_request_dispatches_unprivileged_command_and_invokes_type
         parent_directory_path: PathBuf::from("Addresses"),
         project_item_name: "New Folder".to_string(),
         is_directory: true,
-        target: ProjectItemTarget::None,
+        address: None,
+        module_name: None,
         data_type_id: None,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
@@ -400,7 +400,8 @@ fn project_items_create_request_dispatches_unprivileged_command_and_invokes_type
             assert_eq!(captured_project_items_create_request.parent_directory_path, PathBuf::from("Addresses"));
             assert_eq!(captured_project_items_create_request.project_item_name, "New Folder".to_string());
             assert!(captured_project_items_create_request.is_directory);
-            assert_eq!(captured_project_items_create_request.target, ProjectItemTarget::None);
+            assert_eq!(captured_project_items_create_request.address, None);
+            assert_eq!(captured_project_items_create_request.module_name, None);
         }
         dispatched_command => panic!("unexpected dispatched command: {dispatched_command:?}"),
     }
@@ -430,7 +431,8 @@ fn unprivileged_command_parser_accepts_project_items_create_with_long_flags() {
             assert_eq!(project_items_create_request.parent_directory_path, PathBuf::from("Addresses"));
             assert_eq!(project_items_create_request.project_item_name, "New Folder".to_string());
             assert!(project_items_create_request.is_directory);
-            assert_eq!(project_items_create_request.target, ProjectItemTarget::None);
+            assert_eq!(project_items_create_request.address, None);
+            assert_eq!(project_items_create_request.module_name, None);
         }
         parsed_command => panic!("unexpected parsed command: {parsed_command:?}"),
     }

@@ -3,7 +3,6 @@ use crate::commands::project_items::project_items_command::ProjectItemsCommand;
 use crate::commands::project_items::project_items_response::ProjectItemsResponse;
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
-use crate::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -22,7 +21,11 @@ pub struct ProjectItemsCreateRequest {
 
     #[serde(default)]
     #[structopt(skip)]
-    pub target: ProjectItemTarget,
+    pub address: Option<u64>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub module_name: Option<String>,
 
     #[serde(default)]
     #[structopt(skip)]
