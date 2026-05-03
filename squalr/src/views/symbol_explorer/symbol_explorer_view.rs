@@ -3486,7 +3486,7 @@ impl Widget for SymbolExplorerView {
 mod tests {
     use super::{ModuleFieldTypeOption, ModuleFieldTypeOptionKind, SymbolExplorerView};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
-    use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
+    use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
     use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::DefineFieldDraft;
     use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
@@ -3596,6 +3596,27 @@ mod tests {
             ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0),
             String::from("u8"),
             ContainerType::ArrayFixed(0x1234),
+            false,
+            false,
+        )
+    }
+
+    fn create_fixed_array_symbol_claim_tree_entry(
+        data_type_id: &str,
+        array_length: u64,
+    ) -> SymbolTreeEntry {
+        SymbolTreeEntry::new(
+            format!("claim:module:game.exe:40:{}", data_type_id),
+            SymbolTreeEntryKind::SymbolClaim {
+                symbol_locator_key: String::from("module:game.exe:40"),
+            },
+            1,
+            format!("{}_array", data_type_id),
+            format!("game.exe.{}_array", data_type_id),
+            String::from("module:game.exe:40"),
+            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x40),
+            data_type_id.to_string(),
+            ContainerType::ArrayFixed(array_length),
             false,
             false,
         )
@@ -4023,6 +4044,27 @@ mod tests {
                 .find(|field| field.get_name() == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
                 .map(|field| field.get_is_read_only()),
             Some(true)
+        );
+    }
+
+    #[test]
+    fn build_external_value_symbol_struct_is_not_limited_to_u8_arrays() {
+        let symbol_tree_entry = create_fixed_array_symbol_claim_tree_entry("u16", 4);
+
+        assert!(SymbolExplorerView::symbol_tree_entry_should_use_external_value_viewer(&symbol_tree_entry));
+
+        let symbol_struct = SymbolExplorerView::build_external_value_symbol_struct(&symbol_tree_entry, true, Some(8));
+
+        assert_eq!(
+            symbol_struct
+                .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+                .map(StructViewerViewData::read_utf8_field_text),
+            Some(String::from("u16[4]"))
+        );
+        assert!(
+            symbol_struct
+                .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+                .is_some()
         );
     }
 }
