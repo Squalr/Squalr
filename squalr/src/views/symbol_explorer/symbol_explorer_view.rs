@@ -1185,10 +1185,7 @@ impl SymbolExplorerView {
             return;
         };
 
-        if matches!(
-            current_focus_target,
-            Some(StructViewerFocusTarget::ProjectHierarchy { .. }) | Some(StructViewerFocusTarget::SymbolTable { .. })
-        ) {
+        if matches!(current_focus_target, Some(StructViewerFocusTarget::ProjectHierarchy { .. })) {
             return;
         }
 
@@ -3396,10 +3393,7 @@ impl Widget for SymbolExplorerView {
             .struct_viewer_view_data
             .read("Symbol explorer shared struct viewer focus target")
             .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
-        let suppress_default_selection = matches!(
-            shared_struct_viewer_focus_target,
-            Some(StructViewerFocusTarget::ProjectHierarchy { .. }) | Some(StructViewerFocusTarget::SymbolTable { .. })
-        );
+        let suppress_default_selection = matches!(shared_struct_viewer_focus_target, Some(StructViewerFocusTarget::ProjectHierarchy { .. }));
 
         SymbolExplorerViewData::synchronize_selection(self.symbol_explorer_view_data.clone(), &project_symbol_catalog, suppress_default_selection);
         SymbolExplorerViewData::synchronize_inline_rename(self.symbol_explorer_view_data.clone(), &project_symbol_catalog);

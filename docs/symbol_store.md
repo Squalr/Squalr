@@ -317,18 +317,6 @@ Responsibilities:
 
 The tree is not just a namespace browser. It is the literal parent struct for each module.
 
-### Symbol Table
-The Symbol Table should be secondary. It can remain a flat maintenance surface for authored fields, but it should not introduce static candidates or a separate import state machine.
-
-Responsibilities:
-- list all user-authored symbol fields,
-- filter by name, module, offset, and type,
-- bulk rename/delete/update where practical,
-- show field size and overlap/conflict status,
-- jump to the corresponding Symbol Tree row.
-
-Unclaimed `u8[]` filler does not need to appear in the table by default.
-
 ### SymbolStructEditor
 The SymbolStructEditor window owns reusable layout authoring.
 
