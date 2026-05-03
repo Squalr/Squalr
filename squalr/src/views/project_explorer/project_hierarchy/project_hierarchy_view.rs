@@ -1853,11 +1853,13 @@ impl Widget for ProjectHierarchyView {
         }
 
         if let Some(project_item_paths) = promote_symbol_overwrite_project_item_paths {
+            let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
             ProjectHierarchyViewData::promote_project_items_to_symbols(
                 self.project_hierarchy_view_data.clone(),
                 self.app_context.clone(),
                 project_item_paths,
                 true,
+                Some(details_refresh_callback),
             );
         }
 
@@ -2079,11 +2081,13 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
+                let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
                 ProjectHierarchyViewData::promote_project_items_to_symbols(
                     self.project_hierarchy_view_data.clone(),
                     self.app_context.clone(),
                     project_item_paths,
                     overwrite_conflicting_symbols,
+                    Some(details_refresh_callback),
                 );
             }
             ProjectHierarchyFrameAction::ConvertSymbolRef {
@@ -2094,10 +2098,12 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
+                let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
                 ProjectHierarchyViewData::convert_symbol_refs_to_project_items(
                     self.project_hierarchy_view_data.clone(),
                     self.app_context.clone(),
                     project_item_paths,
+                    Some(details_refresh_callback),
                 );
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
@@ -2553,6 +2559,18 @@ impl ProjectHierarchyView {
             .unwrap_or_default();
 
         Self::focus_project_item_paths_in_struct_viewer(self.app_context.clone(), self.struct_viewer_view_data.clone(), selected_project_item_paths);
+    }
+
+    fn build_project_item_details_refresh_callback(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Arc<dyn Fn() + Send + Sync> {
+        let app_context = self.app_context.clone();
+        let struct_viewer_view_data = self.struct_viewer_view_data.clone();
+
+        Arc::new(move || {
+            Self::focus_project_item_paths_in_struct_viewer(app_context.clone(), struct_viewer_view_data.clone(), project_item_paths.clone());
+        })
     }
 
     fn focus_project_item_paths_in_struct_viewer(

@@ -24,6 +24,7 @@ Our current task, from `README.md`, is:
 - Desired model: `ProjectItem` stores common item metadata only. `ProjectItemTypeAddress` is the current watch/value item, and its target data defines how to resolve the effective address. Other concrete item concepts, such as script, remain separate project item types.
 - `ProjectItemAddressTarget::Symbol` has been removed. Existing symbol refs remain a concrete project item type, but address items should resolve through raw/module roots and pointer/address chains.
 - `ProjectItemTypeSymbolRef` no longer persists `symbol_locator_display`; display strings should be derived at presentation time.
+- Project Explorer promote-to-symbol and convert-symbol-ref now refocus the Details view after the post-command project item refresh when the response changes the item type. This needs human verification in the running UI.
 - Plugin extensibility should live in the registered project item type list, not behind an explicit catch-all plugin target type.
 - Modules are visible Symbol Tree roots and should be treated as root symbols. A newly created module starts as one ordinary `u8[]` field of module size.
 - `ProjectSymbolModule.fields` is the right storage direction for module layouts, but the broader system is still split between module fields, legacy symbol claims, Symbol Tree carving flows, and reusable struct-layout editing.

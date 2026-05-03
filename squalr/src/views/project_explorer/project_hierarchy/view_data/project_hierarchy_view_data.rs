@@ -13,12 +13,14 @@ use squalr_engine_api::commands::project_items::activate::project_items_activate
 use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::{
     ProjectItemSymbolRefConversionTarget, ProjectItemsConvertSymbolRefRequest,
 };
+use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_response::ProjectItemsConvertSymbolRefResponse;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest;
 use squalr_engine_api::commands::project_items::list::project_items_list_request::ProjectItemsListRequest;
 use squalr_engine_api::commands::project_items::move_item::project_items_move_request::ProjectItemsMoveRequest;
 use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest;
+use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::ProjectItemsPromoteSymbolResponse;
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -108,6 +110,14 @@ impl ProjectHierarchyViewData {
     pub fn refresh_project_items(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
+    ) {
+        Self::refresh_project_items_with_after_refresh(project_hierarchy_view_data, app_context, None);
+    }
+
+    fn refresh_project_items_with_after_refresh(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        app_context: Arc<AppContext>,
+        after_refresh_callback: Option<Arc<dyn Fn() + Send + Sync>>,
     ) {
         let requested_preview_project_item_paths =
             if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data.write("Project hierarchy view data refresh request") {
@@ -202,6 +212,11 @@ impl ProjectHierarchyViewData {
             }
 
             project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
+            drop(project_hierarchy_view_data);
+
+            if let Some(after_refresh_callback) = &after_refresh_callback {
+                after_refresh_callback();
+            }
         });
     }
 
@@ -1602,6 +1617,7 @@ impl ProjectHierarchyViewData {
         app_context: Arc<AppContext>,
         project_item_paths: Vec<PathBuf>,
         overwrite_conflicting_symbols: bool,
+        after_successful_refresh_callback: Option<Arc<dyn Fn() + Send + Sync>>,
     ) {
         let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter promote project items") {
             Some(mut project_hierarchy_view_data) => {
@@ -1646,7 +1662,13 @@ impl ProjectHierarchyViewData {
                 }
             }
 
-            Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+            let after_refresh_callback = if Self::should_refocus_details_after_promote_response(&project_items_promote_symbol_response) {
+                after_successful_refresh_callback.clone()
+            } else {
+                None
+            };
+
+            Self::refresh_project_items_with_after_refresh(project_hierarchy_view_data_clone, app_context_clone, after_refresh_callback);
         });
     }
 
@@ -1654,6 +1676,7 @@ impl ProjectHierarchyViewData {
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
         project_item_paths: Vec<PathBuf>,
+        after_successful_refresh_callback: Option<Arc<dyn Fn() + Send + Sync>>,
     ) {
         let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter symbol-ref conversion paths") {
             Some(mut project_hierarchy_view_data) => {
@@ -1690,8 +1713,27 @@ impl ProjectHierarchyViewData {
                 project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
             }
 
-            Self::refresh_project_items(project_hierarchy_view_data_clone, app_context_clone);
+            let after_refresh_callback = if Self::should_refocus_details_after_convert_response(&project_items_convert_symbol_ref_response) {
+                after_successful_refresh_callback.clone()
+            } else {
+                None
+            };
+
+            Self::refresh_project_items_with_after_refresh(project_hierarchy_view_data_clone, app_context_clone, after_refresh_callback);
         });
+    }
+
+    fn should_refocus_details_after_promote_response(project_items_promote_symbol_response: &ProjectItemsPromoteSymbolResponse) -> bool {
+        project_items_promote_symbol_response.success
+            && project_items_promote_symbol_response.conflicts.is_empty()
+            && project_items_promote_symbol_response
+                .promoted_symbol_count
+                .saturating_add(project_items_promote_symbol_response.reused_symbol_count)
+                > 0
+    }
+
+    fn should_refocus_details_after_convert_response(project_items_convert_symbol_ref_response: &ProjectItemsConvertSymbolRefResponse) -> bool {
+        project_items_convert_symbol_ref_response.success && project_items_convert_symbol_ref_response.converted_project_item_count > 0
     }
 
     pub fn create_project_item(
@@ -2589,6 +2631,10 @@ mod tests {
         project_hierarchy_clipboard::ProjectHierarchyClipboardMode, project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind,
         project_hierarchy_drop_target::ProjectHierarchyDropTarget, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
     };
+    use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_response::ProjectItemsConvertSymbolRefResponse;
+    use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::{
+        ProjectItemsPromoteSymbolConflict, ProjectItemsPromoteSymbolResponse,
+    };
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
     use squalr_engine_api::structures::memory::pointer::Pointer;
@@ -2634,6 +2680,76 @@ mod tests {
 
     fn create_project_info(project_directory_path: &Path) -> ProjectInfo {
         ProjectInfo::new(project_directory_path.join(Project::PROJECT_FILE), None, ProjectManifest::new(vec![]))
+    }
+
+    #[test]
+    fn should_refocus_details_after_promote_response_for_new_or_reused_symbol() {
+        assert!(ProjectHierarchyViewData::should_refocus_details_after_promote_response(
+            &ProjectItemsPromoteSymbolResponse {
+                success: true,
+                promoted_symbol_count: 1,
+                reused_symbol_count: 0,
+                promoted_symbol_locator_keys: vec![String::from("absolute:1234")],
+                conflicts: Vec::new(),
+            }
+        ));
+
+        assert!(ProjectHierarchyViewData::should_refocus_details_after_promote_response(
+            &ProjectItemsPromoteSymbolResponse {
+                success: true,
+                promoted_symbol_count: 0,
+                reused_symbol_count: 1,
+                promoted_symbol_locator_keys: Vec::new(),
+                conflicts: Vec::new(),
+            }
+        ));
+    }
+
+    #[test]
+    fn should_refocus_details_after_promote_response_ignores_failures_and_conflicts() {
+        assert!(!ProjectHierarchyViewData::should_refocus_details_after_promote_response(
+            &ProjectItemsPromoteSymbolResponse {
+                success: true,
+                promoted_symbol_count: 0,
+                reused_symbol_count: 0,
+                promoted_symbol_locator_keys: Vec::new(),
+                conflicts: vec![ProjectItemsPromoteSymbolConflict::default()],
+            }
+        ));
+
+        assert!(!ProjectHierarchyViewData::should_refocus_details_after_promote_response(
+            &ProjectItemsPromoteSymbolResponse {
+                success: false,
+                promoted_symbol_count: 1,
+                reused_symbol_count: 0,
+                promoted_symbol_locator_keys: vec![String::from("absolute:1234")],
+                conflicts: Vec::new(),
+            }
+        ));
+    }
+
+    #[test]
+    fn should_refocus_details_after_convert_response_requires_successful_conversion() {
+        assert!(ProjectHierarchyViewData::should_refocus_details_after_convert_response(
+            &ProjectItemsConvertSymbolRefResponse {
+                success: true,
+                converted_project_item_count: 1,
+            }
+        ));
+
+        assert!(!ProjectHierarchyViewData::should_refocus_details_after_convert_response(
+            &ProjectItemsConvertSymbolRefResponse {
+                success: false,
+                converted_project_item_count: 1,
+            }
+        ));
+
+        assert!(!ProjectHierarchyViewData::should_refocus_details_after_convert_response(
+            &ProjectItemsConvertSymbolRefResponse {
+                success: true,
+                converted_project_item_count: 0,
+            }
+        ));
     }
 
     #[test]
