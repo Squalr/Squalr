@@ -47,6 +47,7 @@ use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
 };
 use squalr_engine_api::structures::memory::pointer::Pointer;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_locator::ProjectSymbolLocator};
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
@@ -318,6 +319,33 @@ impl SymbolExplorerView {
         }
     }
 
+    fn build_module_field_selectable_data_types(project_symbol_catalog: &ProjectSymbolCatalog) -> Vec<DataTypeRef> {
+        let mut selectable_data_types = DataTypeSelectorView::default_selectable_data_types();
+        let pointer_sizes = [
+            PointerScanPointerSize::Pointer32,
+            PointerScanPointerSize::Pointer64,
+        ];
+
+        for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+            let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
+            let struct_data_type_ref = DataTypeRef::new(struct_layout_id);
+
+            if !selectable_data_types.contains(&struct_data_type_ref) {
+                selectable_data_types.push(struct_data_type_ref);
+            }
+
+            for pointer_size in pointer_sizes {
+                let pointer_struct_data_type_ref = DataTypeRef::new(&format!("{}*({})", struct_layout_id, pointer_size));
+
+                if !selectable_data_types.contains(&pointer_struct_data_type_ref) {
+                    selectable_data_types.push(pointer_struct_data_type_ref);
+                }
+            }
+        }
+
+        selectable_data_types
+    }
+
     fn delete_module_root(
         &self,
         module_name: &str,
@@ -479,12 +507,74 @@ impl SymbolExplorerView {
 
     fn resolve_define_field_type_size(
         &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         define_field_draft: &DefineFieldDraft,
     ) -> Option<u64> {
-        self.app_context
+        self.resolve_define_field_struct_layout_id_size(
+            project_symbol_catalog,
+            define_field_draft
+                .data_type_selection
+                .visible_data_type()
+                .get_data_type_id(),
+        )
+    }
+
+    fn resolve_define_field_struct_layout_id_size(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        struct_layout_id: &str,
+    ) -> Option<u64> {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str(struct_layout_id).ok()?;
+
+        self.resolve_define_field_symbolic_size(project_symbol_catalog, &symbolic_field_definition, &mut HashSet::new())
+    }
+
+    fn resolve_define_field_symbolic_size(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbolic_field_definition: &SymbolicFieldDefinition,
+        visited_type_ids: &mut HashSet<String>,
+    ) -> Option<u64> {
+        if let Some(pointer_size) = symbolic_field_definition
+            .get_container_type()
+            .get_pointer_size()
+        {
+            return Some(pointer_size.get_size_in_bytes());
+        }
+
+        let unit_size_in_bytes = if let Some(default_value) = self
+            .app_context
             .engine_unprivileged_state
-            .get_default_value(define_field_draft.data_type_selection.visible_data_type())
-            .map(|default_value| default_value.get_size_in_bytes())
+            .get_default_value(symbolic_field_definition.get_data_type_ref())
+        {
+            default_value.get_size_in_bytes()
+        } else {
+            let data_type_id = symbolic_field_definition
+                .get_data_type_ref()
+                .get_data_type_id()
+                .to_string();
+
+            if !visited_type_ids.insert(data_type_id.clone()) {
+                return None;
+            }
+
+            let symbolic_struct_definition = Self::build_symbolic_struct_definition_for_symbol_type_static(project_symbol_catalog, &data_type_id)?;
+            let struct_size_in_bytes = symbolic_struct_definition
+                .get_fields()
+                .iter()
+                .try_fold(0_u64, |accumulated_size, field_definition| {
+                    accumulated_size.checked_add(self.resolve_define_field_symbolic_size(project_symbol_catalog, field_definition, visited_type_ids)?)
+                })?;
+
+            visited_type_ids.remove(&data_type_id);
+            struct_size_in_bytes
+        };
+
+        Some(
+            symbolic_field_definition
+                .get_container_type()
+                .get_total_size_in_bytes(unit_size_in_bytes),
+        )
     }
 
     fn build_define_field_plan(
@@ -492,7 +582,7 @@ impl SymbolExplorerView {
         module_name: &str,
         segment_offset: u64,
         segment_length: u64,
-        resolve_type_size: impl Fn(&DataTypeRef) -> Option<u64>,
+        resolve_type_size: impl Fn(&str) -> Option<u64>,
     ) -> Result<DefineFieldPlan, String> {
         let display_name = define_field_draft.display_name.trim();
 
@@ -502,7 +592,7 @@ impl SymbolExplorerView {
 
         let relative_offset = Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text)?;
         let data_type_ref = define_field_draft.data_type_selection.visible_data_type();
-        let Some(field_size) = resolve_type_size(data_type_ref) else {
+        let Some(field_size) = resolve_type_size(data_type_ref.get_data_type_id()) else {
             return Err(format!("Cannot resolve byte size for `{}`.", data_type_ref.get_data_type_id()));
         };
 
@@ -1720,6 +1810,7 @@ impl SymbolExplorerView {
     fn render_define_field_take_over(
         &self,
         user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         module_name: &str,
         segment_offset: u64,
         segment_length: u64,
@@ -1771,18 +1862,16 @@ impl SymbolExplorerView {
                                 &data_type_selector_id,
                             )
                             .single_select()
+                            .available_data_types(Self::build_module_field_selectable_data_types(project_symbol_catalog))
                             .width(user_interface.available_width())
                             .height(Self::TOOLBAR_HEIGHT),
                         );
 
                         define_field_plan_result =
-                            Self::build_define_field_plan(&edited_define_field_draft, module_name, segment_offset, segment_length, |data_type_ref| {
-                                self.app_context
-                                    .engine_unprivileged_state
-                                    .get_default_value(data_type_ref)
-                                    .map(|default_value| default_value.get_size_in_bytes())
+                            Self::build_define_field_plan(&edited_define_field_draft, module_name, segment_offset, segment_length, |struct_layout_id| {
+                                self.resolve_define_field_struct_layout_id_size(project_symbol_catalog, struct_layout_id)
                             });
-                        let selected_type_size = self.resolve_define_field_type_size(&edited_define_field_draft);
+                        let selected_type_size = self.resolve_define_field_type_size(project_symbol_catalog, &edited_define_field_draft);
 
                         user_interface.add_space(8.0);
                         if let Some(selected_type_size) = selected_type_size {
@@ -2819,7 +2908,14 @@ impl Widget for SymbolExplorerView {
                         module_name, offset, length, ..
                     }) => {
                         list_user_interface.add_space(8.0);
-                        self.render_define_field_take_over(&mut list_user_interface, module_name, *offset, *length, &current_define_field_draft);
+                        self.render_define_field_take_over(
+                            &mut list_user_interface,
+                            &project_symbol_catalog,
+                            module_name,
+                            *offset,
+                            *length,
+                            &current_define_field_draft,
+                        );
 
                         return;
                     }
@@ -2871,11 +2967,12 @@ mod tests {
     use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::DefineFieldDraft;
     use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
         projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
-        structs::valued_struct::ValuedStruct,
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct},
     };
 
     fn create_symbol_claim_tree_entry(
@@ -3117,14 +3214,34 @@ mod tests {
     }
 
     #[test]
+    fn build_module_field_selectable_data_types_includes_struct_layouts_and_pointer_variants() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("player.stats"),
+            SymbolicStructDefinition::new(
+                String::from("player.stats"),
+                vec![SymbolicFieldDefinition::new(
+                    DataTypeRef::new("u32"),
+                    ContainerType::None,
+                )],
+            ),
+        )]);
+        let selectable_data_types = SymbolExplorerView::build_module_field_selectable_data_types(&project_symbol_catalog);
+
+        assert!(selectable_data_types.contains(&DataTypeRef::new("i32")));
+        assert!(selectable_data_types.contains(&DataTypeRef::new("player.stats")));
+        assert!(selectable_data_types.contains(&DataTypeRef::new("player.stats*(u32)")));
+        assert!(selectable_data_types.contains(&DataTypeRef::new("player.stats*(u64)")));
+    }
+
+    #[test]
     fn build_define_field_plan_offsets_into_u8_segment() {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x10"),
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
-            (data_type_ref.get_data_type_id() == "i32").then_some(4)
+        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+            (struct_layout_id == "i32").then_some(4)
         })
         .expect("Expected valid define-field request.");
 
@@ -3140,14 +3257,35 @@ mod tests {
     }
 
     #[test]
+    fn build_define_field_plan_accepts_pointer_to_struct_selection() {
+        let define_field_draft = DefineFieldDraft {
+            display_name: String::from("player_stats_pointer"),
+            relative_offset_text: String::from("0"),
+            data_type_selection: DataTypeSelection::new(DataTypeRef::new("player.stats*(u64)")),
+        };
+        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+            (struct_layout_id == "player.stats*(u64)").then_some(8)
+        })
+        .expect("Expected pointer-to-struct define-field request.");
+
+        assert_eq!(
+            define_field_plan
+                .project_symbols_create_request
+                .struct_layout_id,
+            "player.stats*(u64)"
+        );
+        assert_eq!(define_field_plan.project_symbols_create_request.offset, Some(0x100));
+    }
+
+    #[test]
     fn build_define_field_plan_rejects_out_of_bounds_type() {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x3E"),
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
-        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |data_type_ref| {
-            (data_type_ref.get_data_type_id() == "i32").then_some(4)
+        let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
+            (struct_layout_id == "i32").then_some(4)
         });
 
         assert!(define_field_plan.is_err());

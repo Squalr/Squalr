@@ -6,6 +6,7 @@ use squalr_engine_api::structures::data_types::built_in_types::{
     u16::data_type_u16::DataTypeU16, u16be::data_type_u16be::DataTypeU16be, u32::data_type_u32::DataTypeU32, u32be::data_type_u32be::DataTypeU32be,
     u64::data_type_u64::DataTypeU64, u64be::data_type_u64be::DataTypeU64be,
 };
+use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use std::str::FromStr;
 
@@ -20,8 +21,9 @@ pub struct DataTypeToStringConverter {}
 
 impl DataTypeToStringConverter {
     pub fn convert_data_type_to_string(data_type_id: &str) -> String {
-        let normalized_data_type_id = SymbolicFieldDefinition::from_str(data_type_id)
-            .ok()
+        let parsed_symbolic_field_definition = SymbolicFieldDefinition::from_str(data_type_id).ok();
+        let normalized_data_type_id = parsed_symbolic_field_definition
+            .as_ref()
             .map(|symbolic_field_definition| {
                 symbolic_field_definition
                     .get_data_type_ref()
@@ -30,7 +32,7 @@ impl DataTypeToStringConverter {
             })
             .unwrap_or_else(|| data_type_id.to_string());
 
-        match normalized_data_type_id.as_str() {
+        let normalized_data_type_label = match normalized_data_type_id.as_str() {
             DataTypeBool8::DATA_TYPE_ID => String::from("bool8"),
             DataTypeBool32::DATA_TYPE_ID => String::from("bool32"),
             DataTypeU8::DATA_TYPE_ID => String::from("u8"),
@@ -59,6 +61,30 @@ impl DataTypeToStringConverter {
             DATA_TYPE_ID_I_X86 => String::from("i_x86"),
             DATA_TYPE_ID_I_X64 => String::from("i_x64"),
             _ => normalized_data_type_id,
+        };
+
+        if let Some(symbolic_field_definition) = parsed_symbolic_field_definition {
+            let container_type = symbolic_field_definition.get_container_type();
+
+            if container_type != ContainerType::None {
+                return format!("{}{}", normalized_data_type_label, container_type);
+            }
         }
+
+        normalized_data_type_label
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataTypeToStringConverter;
+
+    #[test]
+    fn convert_data_type_to_string_preserves_container_suffix() {
+        assert_eq!(DataTypeToStringConverter::convert_data_type_to_string("u8[4]"), "u8[4]");
+        assert_eq!(
+            DataTypeToStringConverter::convert_data_type_to_string("player.stats*(u64)"),
+            "player.stats*(u64)"
+        );
     }
 }
