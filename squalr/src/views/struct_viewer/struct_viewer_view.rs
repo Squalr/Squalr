@@ -213,8 +213,16 @@ impl StructViewerView {
         }
     }
 
+    fn default_pointer_offset_display_value() -> AnonymousValueString {
+        AnonymousValueString::new(
+            Self::pointer_offset_display_text(0),
+            AnonymousValueStringFormat::Hexadecimal,
+            ContainerType::None,
+        )
+    }
+
     fn pointer_offset_display_values(pointer_offsets: Vec<i64>) -> Vec<AnonymousValueString> {
-        pointer_offsets
+        let mut pointer_offset_values = pointer_offsets
             .into_iter()
             .map(|pointer_offset| {
                 AnonymousValueString::new(
@@ -223,7 +231,13 @@ impl StructViewerView {
                     ContainerType::None,
                 )
             })
-            .collect()
+            .collect::<Vec<AnonymousValueString>>();
+
+        if pointer_offset_values.is_empty() {
+            pointer_offset_values.push(Self::default_pointer_offset_display_value());
+        }
+
+        pointer_offset_values
     }
 
     fn pointer_offset_data_type_ref() -> DataTypeRef {
@@ -254,6 +268,7 @@ impl StructViewerView {
         user_interface: &mut Ui,
         icon_handle: &eframe::egui::TextureHandle,
         tooltip_text: &str,
+        is_disabled: bool,
     ) -> Response {
         let theme = &self.app_context.theme;
         let button_response = user_interface.add_sized(
@@ -262,10 +277,16 @@ impl StructViewerView {
                 .with_tooltip_text(tooltip_text)
                 .background_color(theme.background_control_secondary)
                 .border_color(theme.submenu_border)
-                .border_width(1.0),
+                .border_width(1.0)
+                .disabled(is_disabled),
         );
 
-        IconDraw::draw(user_interface, button_response.rect, icon_handle);
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
 
         button_response
     }
@@ -348,6 +369,7 @@ impl StructViewerView {
         pointer_offset_value: &mut AnonymousValueString,
         pointer_offset_index: usize,
         pointer_offset_data_type_ref: &DataTypeRef,
+        can_remove_offset: bool,
     ) -> Option<PointerOffsetRowAction> {
         let theme = &self.app_context.theme;
         let mut pending_row_action = None;
@@ -388,15 +410,19 @@ impl StructViewerView {
                 user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
 
                 let append_offset_response =
-                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
+                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.", false);
                 if append_offset_response.clicked() {
                     pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
                 }
 
                 user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
 
-                let remove_offset_response =
-                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Remove this offset.");
+                let remove_offset_response = self.render_pointer_offset_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_common_delete,
+                    "Remove this offset.",
+                    !can_remove_offset,
+                );
                 if remove_offset_response.clicked() {
                     pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
                 }
@@ -420,7 +446,7 @@ impl StructViewerView {
                 ));
             }
             PointerOffsetRowAction::RemoveOffset => {
-                if pointer_offset_index < pointer_offset_values.len() {
+                if pointer_offset_values.len() > 1 && pointer_offset_index < pointer_offset_values.len() {
                     pointer_offset_values.remove(pointer_offset_index);
                 }
             }
@@ -477,6 +503,7 @@ impl StructViewerView {
                                 pointer_offset_value,
                                 pointer_offset_index,
                                 &pointer_offset_data_type_ref,
+                                pointer_offset_count > 1,
                             ) {
                                 pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
                             }
@@ -487,8 +514,12 @@ impl StructViewerView {
                         }
 
                         if pointer_offset_count == 0 {
-                            let add_response =
-                                self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
+                            let add_response = self.render_pointer_offset_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_add,
+                                "Append a new offset.",
+                                false,
+                            );
 
                             if add_response.clicked() {
                                 pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
@@ -505,10 +536,13 @@ impl StructViewerView {
         );
 
         if should_save_offsets {
-            let pointer_offsets = pointer_offset_values
+            let mut pointer_offsets = pointer_offset_values
                 .iter()
                 .filter_map(Self::parse_pointer_offset_display_value)
                 .collect::<Vec<i64>>();
+            if pointer_offsets.is_empty() {
+                pointer_offsets.push(0);
+            }
 
             match serde_json::to_string(&pointer_offsets) {
                 Ok(pointer_offsets_json) => {

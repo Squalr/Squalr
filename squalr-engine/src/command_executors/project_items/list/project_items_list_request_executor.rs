@@ -190,7 +190,7 @@ fn resolve_address_target_for_preview(
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) -> Option<(u64, String)> {
     match address_target {
-        ProjectItemAddressTarget::Address { address, module_name } => Some((*address, module_name.clone())),
+        ProjectItemAddressTarget::Address { address, module_name, .. } => Some((*address, module_name.clone())),
         ProjectItemAddressTarget::PointerPath { pointer } => {
             evaluate_pointer_for_preview(engine_unprivileged_state, pointer, project_item_preview_refresh_session).resolved_target_address
         }

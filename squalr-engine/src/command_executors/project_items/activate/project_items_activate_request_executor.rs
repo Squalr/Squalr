@@ -171,7 +171,7 @@ fn build_memory_freeze_target_from_address_target(
     data_type_id: String,
 ) -> Option<MemoryFreezeTarget> {
     match address_target {
-        ProjectItemAddressTarget::Address { address, module_name } => Some(MemoryFreezeTarget {
+        ProjectItemAddressTarget::Address { address, module_name, .. } => Some(MemoryFreezeTarget {
             address: *address,
             module_name: module_name.clone(),
             data_type_id,

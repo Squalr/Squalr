@@ -104,7 +104,7 @@ pub fn resolve_project_item_locator(
         let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
         return match address_target {
-            ProjectItemAddressTarget::Address { address, module_name } => Some(build_locator(address, &module_name)),
+            ProjectItemAddressTarget::Address { address, module_name, .. } => Some(build_locator(address, &module_name)),
             ProjectItemAddressTarget::PointerPath { pointer } => {
                 let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, &pointer)?;
 

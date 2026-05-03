@@ -150,8 +150,14 @@ impl ProjectItemTypeAddress {
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_ADDRESS, field_data, false);
 
-        if let ProjectItemAddressTarget::Address { module_name, .. } = Self::get_address_target(project_item) {
-            Self::set_address_target(project_item, ProjectItemAddressTarget::new_address(address, module_name));
+        if let ProjectItemAddressTarget::Address {
+            module_name, pointer_offsets, ..
+        } = Self::get_address_target(project_item)
+        {
+            Self::set_address_target(
+                project_item,
+                ProjectItemAddressTarget::new_address_with_pointer_offsets(address, module_name, pointer_offsets),
+            );
         }
     }
 
@@ -174,8 +180,11 @@ impl ProjectItemTypeAddress {
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_MODULE, field_data, false);
 
-        if let ProjectItemAddressTarget::Address { address, .. } = Self::get_address_target(project_item) {
-            Self::set_address_target(project_item, ProjectItemAddressTarget::new_address(address, module.to_string()));
+        if let ProjectItemAddressTarget::Address { address, pointer_offsets, .. } = Self::get_address_target(project_item) {
+            Self::set_address_target(
+                project_item,
+                ProjectItemAddressTarget::new_address_with_pointer_offsets(address, module.to_string(), pointer_offsets),
+            );
         }
     }
 
@@ -196,7 +205,7 @@ impl ProjectItemTypeAddress {
         project_item: &mut ProjectItem,
         address_target: ProjectItemAddressTarget,
     ) {
-        if let ProjectItemAddressTarget::Address { address, module_name } = &address_target {
+        if let ProjectItemAddressTarget::Address { address, module_name, .. } = &address_target {
             Self::set_legacy_address_field(project_item, *address);
             Self::set_legacy_module_field(project_item, module_name);
         }

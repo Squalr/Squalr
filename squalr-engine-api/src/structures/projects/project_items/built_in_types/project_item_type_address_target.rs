@@ -8,6 +8,8 @@ pub enum ProjectItemAddressTarget {
         address: u64,
         #[serde(default)]
         module_name: String,
+        #[serde(default)]
+        pointer_offsets: Vec<i64>,
     },
     PointerPath {
         pointer: Pointer,
@@ -19,7 +21,23 @@ impl ProjectItemAddressTarget {
         address: u64,
         module_name: String,
     ) -> Self {
-        Self::Address { address, module_name }
+        Self::Address {
+            address,
+            module_name,
+            pointer_offsets: Vec::new(),
+        }
+    }
+
+    pub fn new_address_with_pointer_offsets(
+        address: u64,
+        module_name: String,
+        pointer_offsets: Vec<i64>,
+    ) -> Self {
+        Self::Address {
+            address,
+            module_name,
+            pointer_offsets,
+        }
     }
 
     pub fn new_pointer_path(pointer: Pointer) -> Self {
