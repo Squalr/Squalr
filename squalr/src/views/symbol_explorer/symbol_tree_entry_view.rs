@@ -87,14 +87,13 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             allocated_size_rectangle.min.x + row_left_padding + indentation + expand_arrow_size.x * 0.5,
             allocated_size_rectangle.center().y,
         );
-        let arrow_hit_box_rect = Rect::from_center_size(arrow_center, vec2(14.0, 14.0));
-        let arrow_response = user_interface.interact(
-            arrow_hit_box_rect,
-            user_interface.make_persistent_id(("symbol_tree_entry_arrow", self.symbol_tree_entry.get_node_key())),
-            Sense::click(),
-        );
-
-        if self.symbol_tree_entry.can_expand() {
+        let arrow_response = if self.symbol_tree_entry.can_expand() {
+            let arrow_hit_box_rect = Rect::from_center_size(arrow_center, vec2(14.0, 14.0));
+            let arrow_response = user_interface.interact(
+                arrow_hit_box_rect,
+                user_interface.make_persistent_id(("symbol_tree_entry_arrow", self.symbol_tree_entry.get_node_key())),
+                Sense::click(),
+            );
             let expand_icon = if self.symbol_tree_entry.is_expanded() {
                 &theme.icon_library.icon_handle_navigation_down_arrow_small
             } else {
@@ -102,7 +101,10 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             };
 
             IconDraw::draw_sized(user_interface, arrow_center, expand_arrow_size, expand_icon);
-        }
+            Some(arrow_response)
+        } else {
+            None
+        };
 
         let data_type_icon_center = pos2(
             allocated_size_rectangle.min.x + row_left_padding + indentation + expand_arrow_size.x + text_left_padding + data_type_icon_size.x * 0.5,
@@ -184,7 +186,9 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             theme.foreground_preview,
         );
 
-        let did_click_expand_arrow = self.symbol_tree_entry.can_expand() && arrow_response.clicked();
+        let did_click_expand_arrow = arrow_response
+            .as_ref()
+            .is_some_and(|arrow_response| arrow_response.clicked());
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
         let hover_text = match self.symbol_tree_entry.get_kind() {
             SymbolTreeEntryKind::ModuleSpace { .. } => {

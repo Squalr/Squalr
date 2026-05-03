@@ -42,7 +42,7 @@ use squalr_engine_api::commands::{
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
+use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
@@ -555,11 +555,26 @@ impl SymbolExplorerView {
         format!("u8[{}]", length)
     }
 
-    fn parse_define_field_relative_offset(relative_offset_text: &str) -> Result<u64, String> {
+    fn parse_define_field_relative_offset(
+        relative_offset_text: &str,
+        relative_offset_format: AnonymousValueStringFormat,
+    ) -> Result<u64, String> {
         let trimmed_relative_offset_text = relative_offset_text.trim();
 
         if trimmed_relative_offset_text.is_empty() {
             return Err(String::from("Offset is required."));
+        }
+
+        let normalized_binary_text = trimmed_relative_offset_text
+            .strip_prefix("0b")
+            .or_else(|| trimmed_relative_offset_text.strip_prefix("0B"));
+
+        if let Some(binary_text) = normalized_binary_text {
+            if binary_text.is_empty() {
+                return Err(String::from("Binary offset is missing digits."));
+            }
+
+            return u64::from_str_radix(binary_text, 2).map_err(|_| format!("Invalid binary offset: {}.", trimmed_relative_offset_text));
         }
 
         let normalized_hex_text = trimmed_relative_offset_text
@@ -574,23 +589,17 @@ impl SymbolExplorerView {
             return u64::from_str_radix(hex_text, 16).map_err(|_| format!("Invalid hex offset: {}.", trimmed_relative_offset_text));
         }
 
-        trimmed_relative_offset_text
-            .parse::<u64>()
-            .map_err(|_| format!("Invalid decimal offset: {}.", trimmed_relative_offset_text))
-    }
-
-    fn resolve_define_field_type_size(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        define_field_draft: &DefineFieldDraft,
-    ) -> Option<u64> {
-        self.resolve_define_field_struct_layout_id_size(
-            project_symbol_catalog,
-            define_field_draft
-                .data_type_selection
-                .visible_data_type()
-                .get_data_type_id(),
-        )
+        match relative_offset_format {
+            AnonymousValueStringFormat::Binary => {
+                u64::from_str_radix(trimmed_relative_offset_text, 2).map_err(|_| format!("Invalid binary offset: {}.", trimmed_relative_offset_text))
+            }
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
+                u64::from_str_radix(trimmed_relative_offset_text, 16).map_err(|_| format!("Invalid hex offset: {}.", trimmed_relative_offset_text))
+            }
+            _ => trimmed_relative_offset_text
+                .parse::<u64>()
+                .map_err(|_| format!("Invalid decimal offset: {}.", trimmed_relative_offset_text)),
+        }
     }
 
     fn resolve_define_field_struct_layout_id_size(
@@ -664,7 +673,7 @@ impl SymbolExplorerView {
             return Err(String::from("Field name is required."));
         }
 
-        let relative_offset = Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text)?;
+        let relative_offset = Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format)?;
         let data_type_ref = define_field_draft.data_type_selection.visible_data_type();
         let Some(field_size) = resolve_type_size(data_type_ref.get_data_type_id()) else {
             return Err(format!("Cannot resolve byte size for `{}`.", data_type_ref.get_data_type_id()));
@@ -1808,6 +1817,94 @@ impl SymbolExplorerView {
         }
     }
 
+    fn render_offset_data_value_box(
+        &self,
+        user_interface: &mut Ui,
+        value_text: &mut String,
+        value_format: &mut AnonymousValueStringFormat,
+        preview_text: &str,
+        id: &str,
+        width: f32,
+    ) {
+        let mut anonymous_value_string = AnonymousValueString::new(value_text.clone(), *value_format, ContainerType::None);
+        let unsigned_integer_data_type = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
+
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut anonymous_value_string,
+                &unsigned_integer_data_type,
+                false,
+                true,
+                preview_text,
+                id,
+            )
+            .width(width.max(1.0))
+            .height(Self::TOOLBAR_HEIGHT)
+            .allowed_anonymous_value_string_formats(vec![
+                AnonymousValueStringFormat::Binary,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
+            ])
+            .use_format_text_colors(true),
+        );
+
+        let next_value_text = anonymous_value_string.get_anonymous_value_string().to_string();
+        if *value_text != next_value_text {
+            *value_text = next_value_text;
+        }
+
+        let next_value_format = anonymous_value_string.get_anonymous_value_string_format();
+        if *value_format != next_value_format {
+            *value_format = next_value_format;
+        }
+    }
+
+    fn build_define_field_offset_warning(
+        define_field_draft: &DefineFieldDraft,
+        segment_length: u64,
+        resolve_type_size: impl Fn(&str) -> Option<u64>,
+    ) -> Option<String> {
+        let relative_offset =
+            match Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format) {
+                Ok(relative_offset) => relative_offset,
+                Err(parse_error) => return Some(parse_error),
+            };
+        let data_type_ref = define_field_draft.data_type_selection.visible_data_type();
+        let Some(field_size) = resolve_type_size(data_type_ref.get_data_type_id()) else {
+            return Some(format!("Cannot resolve byte size for `{}`.", data_type_ref.get_data_type_id()));
+        };
+
+        if field_size == 0 {
+            return Some(format!("`{}` has no byte size.", data_type_ref.get_data_type_id()));
+        }
+
+        let relative_field_end = match relative_offset.checked_add(field_size) {
+            Some(relative_field_end) => relative_field_end,
+            None => return Some(String::from("Field range is too large.")),
+        };
+
+        if relative_field_end > segment_length {
+            if field_size > segment_length {
+                return Some(format!(
+                    "`{}` uses {} byte(s); selected span has {}.",
+                    data_type_ref.get_data_type_id(),
+                    field_size,
+                    segment_length
+                ));
+            }
+
+            return Some(format!(
+                "`{}` uses {} byte(s); choose 0 to {}.",
+                data_type_ref.get_data_type_id(),
+                field_size,
+                segment_length.saturating_sub(field_size)
+            ));
+        }
+
+        None
+    }
+
     fn render_module_field_type_combo(
         &self,
         user_interface: &mut Ui,
@@ -1842,10 +1939,12 @@ impl SymbolExplorerView {
                         .data_mut(|data| data.get_temp::<String>(search_storage_id).unwrap_or_default());
 
                     popup_user_interface.add_space(4.0);
-                    popup_user_interface.add(
-                        TextEdit::singleline(&mut search_text)
-                            .hint_text("Search types")
-                            .desired_width((popup_user_interface.available_width() - 8.0).max(1.0)),
+                    self.render_string_data_value_box(
+                        popup_user_interface,
+                        &mut search_text,
+                        "Search types",
+                        &format!("symbol_explorer_module_field_type_search_{}", menu_id),
+                        (popup_user_interface.available_width() - 8.0).max(1.0),
                     );
                     popup_user_interface.add_space(4.0);
 
@@ -1992,6 +2091,7 @@ impl SymbolExplorerView {
                         user_interface.add_space(8.0);
 
                         user_interface.label(RichText::new("Name").color(theme.foreground));
+                        user_interface.add_space(2.0);
                         self.render_string_data_value_box(
                             user_interface,
                             &mut edited_define_field_draft.display_name,
@@ -2001,14 +2101,24 @@ impl SymbolExplorerView {
                         );
                         user_interface.add_space(8.0);
 
-                        user_interface.label(RichText::new("Offset in u8[]").color(theme.foreground));
-                        self.render_string_data_value_box(
+                        let max_relative_offset = segment_length.saturating_sub(1);
+                        user_interface.label(RichText::new(format!("Offset in u8[] (0 to {})", max_relative_offset)).color(theme.foreground));
+                        user_interface.add_space(2.0);
+                        self.render_offset_data_value_box(
                             user_interface,
                             &mut edited_define_field_draft.relative_offset_text,
-                            "0x0",
+                            &mut edited_define_field_draft.relative_offset_format,
+                            "0",
                             "symbol_explorer_define_field_offset",
                             user_interface.available_width(),
                         );
+
+                        if let Some(offset_warning) = Self::build_define_field_offset_warning(&edited_define_field_draft, segment_length, |struct_layout_id| {
+                            self.resolve_define_field_struct_layout_id_size(project_symbol_catalog, struct_layout_id)
+                        }) {
+                            user_interface.add_space(4.0);
+                            user_interface.label(RichText::new(offset_warning).color(theme.warning));
+                        }
                         user_interface.add_space(8.0);
 
                         user_interface.label(RichText::new("Type").color(theme.foreground));
@@ -2024,22 +2134,12 @@ impl SymbolExplorerView {
                             Self::build_define_field_plan(&edited_define_field_draft, module_name, segment_offset, segment_length, |struct_layout_id| {
                                 self.resolve_define_field_struct_layout_id_size(project_symbol_catalog, struct_layout_id)
                             });
-                        let selected_type_size = self.resolve_define_field_type_size(project_symbol_catalog, &edited_define_field_draft);
-
-                        user_interface.add_space(8.0);
-                        if let Some(selected_type_size) = selected_type_size {
-                            user_interface.label(
-                                RichText::new(format!(
-                                    "This carves {} byte(s) from the selected {} byte u8[] span. No module bytes move.",
-                                    selected_type_size, segment_length
-                                ))
-                                .color(theme.foreground_preview),
-                            );
-                        }
 
                         if let Err(validation_error) = define_field_plan_result.as_ref() {
-                            user_interface.add_space(6.0);
-                            user_interface.label(RichText::new(validation_error).color(theme.error_red));
+                            if validation_error == "Field name is required." {
+                                user_interface.add_space(6.0);
+                                user_interface.label(RichText::new(validation_error).color(theme.error_red));
+                            }
                         }
 
                         user_interface.add_space(12.0);
@@ -2065,6 +2165,16 @@ impl SymbolExplorerView {
                                 }
 
                                 let can_create_field = define_field_plan_result.is_ok();
+                                let create_fill = if can_create_field {
+                                    theme.background_control_primary
+                                } else {
+                                    theme.background_control_secondary
+                                };
+                                let create_stroke = if can_create_field {
+                                    theme.background_control_primary_dark
+                                } else {
+                                    theme.background_control_secondary_dark
+                                };
                                 let button_create = user_interface.add_sized(
                                     button_size,
                                     eframe::egui::Button::new(RichText::new("Create").color(if can_create_field {
@@ -2072,8 +2182,8 @@ impl SymbolExplorerView {
                                     } else {
                                         theme.foreground_preview
                                     }))
-                                    .fill(theme.background_control_secondary)
-                                    .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                    .fill(create_fill)
+                                    .stroke(Stroke::new(1.0, create_stroke)),
                                 );
 
                                 if can_create_field && button_create.clicked() {
@@ -2951,11 +3061,7 @@ impl Widget for SymbolExplorerView {
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
                 let mut list_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(
-                            user_interface
-                                .available_rect_before_wrap()
-                                .shrink2(vec2(10.0, 8.0)),
-                        )
+                        .max_rect(user_interface.available_rect_before_wrap())
                         .layout(Layout::top_down(Align::Min)),
                 );
                 let toolbar_action = SymbolExplorerToolbarView::new(self.app_context.clone())
@@ -3123,7 +3229,7 @@ mod tests {
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
-        data_values::container_type::ContainerType,
+        data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct},
     };
@@ -3430,6 +3536,7 @@ mod tests {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x10"),
+            relative_offset_format: AnonymousValueStringFormat::Hexadecimal,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
         let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
@@ -3453,6 +3560,7 @@ mod tests {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("player_stats_pointer"),
             relative_offset_text: String::from("0"),
+            relative_offset_format: AnonymousValueStringFormat::Decimal,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("player.stats*(u64)")),
         };
         let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
@@ -3474,6 +3582,7 @@ mod tests {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x3E"),
+            relative_offset_format: AnonymousValueStringFormat::Hexadecimal,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         };
         let define_field_plan = SymbolExplorerView::build_define_field_plan(&define_field_draft, "game.exe", 0x100, 0x40, |struct_layout_id| {
@@ -3485,8 +3594,22 @@ mod tests {
 
     #[test]
     fn parse_define_field_relative_offset_accepts_hex_and_decimal() {
-        assert_eq!(SymbolExplorerView::parse_define_field_relative_offset("0x10"), Ok(16));
-        assert_eq!(SymbolExplorerView::parse_define_field_relative_offset("16"), Ok(16));
+        assert_eq!(
+            SymbolExplorerView::parse_define_field_relative_offset("0x10", AnonymousValueStringFormat::Decimal),
+            Ok(16)
+        );
+        assert_eq!(
+            SymbolExplorerView::parse_define_field_relative_offset("10", AnonymousValueStringFormat::Hexadecimal),
+            Ok(16)
+        );
+        assert_eq!(
+            SymbolExplorerView::parse_define_field_relative_offset("16", AnonymousValueStringFormat::Decimal),
+            Ok(16)
+        );
+        assert_eq!(
+            SymbolExplorerView::parse_define_field_relative_offset("10000", AnonymousValueStringFormat::Binary),
+            Ok(16)
+        );
     }
 
     #[test]

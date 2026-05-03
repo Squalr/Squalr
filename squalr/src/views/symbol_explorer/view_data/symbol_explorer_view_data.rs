@@ -4,7 +4,7 @@ use epaint::Pos2;
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::container_type::ContainerType;
+use squalr_engine_api::structures::data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType};
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use std::collections::HashSet;
@@ -50,6 +50,7 @@ pub struct ModuleRootCreateDraft {
 pub struct DefineFieldDraft {
     pub display_name: String,
     pub relative_offset_text: String,
+    pub relative_offset_format: AnonymousValueStringFormat,
     pub data_type_selection: DataTypeSelection,
 }
 
@@ -57,7 +58,8 @@ impl Default for DefineFieldDraft {
     fn default() -> Self {
         Self {
             display_name: String::new(),
-            relative_offset_text: String::from("0x0"),
+            relative_offset_text: String::from("0"),
+            relative_offset_format: AnonymousValueStringFormat::Decimal,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         }
     }
