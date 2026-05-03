@@ -5,7 +5,7 @@ use crate::structures::projects::project_items::project_item_ref::ProjectItemRef
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
 use crate::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-    projects::project_items::{project_item::ProjectItem, project_item_target::ProjectItemTarget, project_item_type_ref::ProjectItemTypeRef},
+    projects::project_items::{project_item::ProjectItem, project_item_type_ref::ProjectItemTypeRef},
     structs::valued_struct_field::ValuedStructFieldData,
 };
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,6 @@ impl ProjectItemTypeSymbolRef {
         let mut project_item = ProjectItem::new(project_item_type_ref, project_item_name);
 
         project_item.set_field_description(description);
-        project_item.set_target(ProjectItemTarget::new_symbol(symbol_locator_key.to_string()));
         Self::set_field_symbol_locator_key(&mut project_item, symbol_locator_key);
         Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
         Self::set_field_symbol_locator_display(&mut project_item, "");
@@ -130,7 +129,6 @@ impl ProjectItemType for ProjectItemTypeSymbolRef {
 #[cfg(test)]
 mod tests {
     use super::ProjectItemTypeSymbolRef;
-    use crate::structures::projects::project_items::project_item_target::ProjectItemTarget;
 
     #[test]
     fn new_project_item_uses_default_name_for_empty_name() {
@@ -143,7 +141,6 @@ mod tests {
     fn new_project_item_persists_symbol_locator_key() {
         let project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "module:game.exe:1234", "desc");
 
-        assert_eq!(project_item.get_target(), &ProjectItemTarget::new_symbol(String::from("module:game.exe:1234")));
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_key(&project_item), "module:game.exe:1234");
         assert_eq!(ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&project_item), "");
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&project_item), "");

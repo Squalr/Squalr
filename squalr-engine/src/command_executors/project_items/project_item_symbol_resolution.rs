@@ -19,10 +19,7 @@ use squalr_engine_api::structures::structs::{symbolic_field_definition::Symbolic
 use std::sync::{Arc, mpsc};
 
 pub fn is_promotable_project_item(project_item: &ProjectItem) -> bool {
-    if matches!(
-        project_item.get_target(),
-        ProjectItemTarget::Address { .. } | ProjectItemTarget::PointerPath { .. }
-    ) {
+    if matches!(project_item.get_target(), ProjectItemTarget::Address { .. }) {
         return true;
     }
 
@@ -33,14 +30,6 @@ pub fn is_promotable_project_item(project_item: &ProjectItem) -> bool {
 }
 
 pub fn resolve_project_item_symbol_ref_locator_key(project_item: &ProjectItem) -> Option<String> {
-    if let ProjectItemTarget::Symbol { symbol_locator_key } = project_item.get_target() {
-        if symbol_locator_key.trim().is_empty() {
-            return None;
-        }
-
-        return Some(symbol_locator_key.to_string());
-    }
-
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
     if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
@@ -76,14 +65,7 @@ pub fn resolve_project_item_struct_layout_id(
             return ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut project_item)
                 .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string());
         }
-        ProjectItemTarget::PointerPath { .. } => {
-            return ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(project_item)
-                .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string());
-        }
-        ProjectItemTarget::Symbol { .. } => {
-            return resolve_project_item_symbol_claim(project_symbol_catalog, project_item).map(|symbol_claim| symbol_claim.get_struct_layout_id().to_string());
-        }
-        ProjectItemTarget::None | ProjectItemTarget::Plugin { .. } => {}
+        ProjectItemTarget::None => {}
     }
 
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -132,15 +114,7 @@ pub fn resolve_project_item_locator(
 ) -> Option<ProjectSymbolLocator> {
     match project_item.get_target() {
         ProjectItemTarget::Address { address, module_name } => return Some(build_locator(*address, module_name)),
-        ProjectItemTarget::PointerPath { pointer } => {
-            let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, pointer)?;
-
-            return Some(build_locator(address, &module_name));
-        }
-        ProjectItemTarget::Symbol { .. } => {
-            return resolve_project_item_symbol_claim(project_symbol_catalog, project_item).map(|symbol_claim| symbol_claim.get_locator().clone());
-        }
-        ProjectItemTarget::None | ProjectItemTarget::Plugin { .. } => {}
+        ProjectItemTarget::None => {}
     }
 
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();

@@ -997,7 +997,7 @@ impl SymbolExplorerView {
 
         Some(AddSymbolToProjectTarget {
             project_item_name: if project_item_name.is_empty() {
-                ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME.to_string()
+                ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME.to_string()
             } else {
                 project_item_name
             },
@@ -1006,13 +1006,30 @@ impl SymbolExplorerView {
     }
 
     fn build_symbol_ref_project_item_create_request(add_symbol_to_project_target: &AddSymbolToProjectTarget) -> ProjectItemsCreateRequest {
+        let (address, module_name) =
+            Self::parse_symbol_locator_key_as_project_item_address(&add_symbol_to_project_target.symbol_locator_key).unwrap_or((0, String::new()));
+
         ProjectItemsCreateRequest {
             parent_directory_path: PathBuf::new(),
             project_item_name: add_symbol_to_project_target.project_item_name.clone(),
             is_directory: false,
-            target: ProjectItemTarget::new_symbol(add_symbol_to_project_target.symbol_locator_key.clone()),
+            target: ProjectItemTarget::new_address(address, module_name),
             data_type_id: None,
         }
+    }
+
+    fn parse_symbol_locator_key_as_project_item_address(symbol_locator_key: &str) -> Option<(u64, String)> {
+        if let Some(address_text) = symbol_locator_key.strip_prefix("absolute:") {
+            let address = u64::from_str_radix(address_text, 16).ok()?;
+
+            return Some((address, String::new()));
+        }
+
+        let module_locator_text = symbol_locator_key.strip_prefix("module:")?;
+        let (module_name, offset_text) = module_locator_text.rsplit_once(':')?;
+        let offset = u64::from_str_radix(offset_text, 16).ok()?;
+
+        Some((offset, module_name.to_string()))
     }
 
     fn add_symbol_to_project(
@@ -3923,19 +3940,14 @@ mod tests {
     }
 
     #[test]
-    fn build_add_symbol_to_project_request_targets_symbol_ref() {
+    fn build_add_symbol_to_project_request_targets_address_item() {
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
         let add_symbol_to_project_target =
             SymbolExplorerView::build_add_symbol_to_project_target(&module_symbol_claim_entry).expect("Expected symbol ref add-to-project target.");
         let project_items_create_request = SymbolExplorerView::build_symbol_ref_project_item_create_request(&add_symbol_to_project_target);
 
         assert_eq!(project_items_create_request.project_item_name, "Health");
-        assert_eq!(
-            project_items_create_request.target,
-            ProjectItemTarget::Symbol {
-                symbol_locator_key: String::from("module:game.exe:4")
-            }
-        );
+        assert_eq!(project_items_create_request.target, ProjectItemTarget::new_address(4, String::from("game.exe")));
         assert!(
             project_items_create_request
                 .parent_directory_path
