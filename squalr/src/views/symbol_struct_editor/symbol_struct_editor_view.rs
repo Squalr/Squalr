@@ -342,14 +342,7 @@ impl SymbolStructEditorView {
                 &selector_id,
                 None,
                 |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                    for pointer_size in [
-                        PointerScanPointerSize::Pointer24,
-                        PointerScanPointerSize::Pointer24be,
-                        PointerScanPointerSize::Pointer32,
-                        PointerScanPointerSize::Pointer32be,
-                        PointerScanPointerSize::Pointer64,
-                        PointerScanPointerSize::Pointer64be,
-                    ] {
+                    for pointer_size in PointerScanPointerSize::ALL {
                         let pointer_size_label = pointer_size.to_string();
                         let pointer_size_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &pointer_size_label, None, width));
 

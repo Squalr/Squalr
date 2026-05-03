@@ -51,6 +51,7 @@ pub struct DefineFieldDraft {
     pub display_name: String,
     pub relative_offset_text: String,
     pub relative_offset_format: AnonymousValueStringFormat,
+    pub container_type: ContainerType,
     pub data_type_selection: DataTypeSelection,
 }
 
@@ -60,6 +61,7 @@ impl Default for DefineFieldDraft {
             display_name: String::new(),
             relative_offset_text: String::from("0"),
             relative_offset_format: AnonymousValueStringFormat::Decimal,
+            container_type: ContainerType::None,
             data_type_selection: DataTypeSelection::new(DataTypeRef::new("i32")),
         }
     }

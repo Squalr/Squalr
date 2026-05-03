@@ -37,6 +37,15 @@ pub enum PointerScanPointerSize {
 }
 
 impl PointerScanPointerSize {
+    pub const ALL: [Self; 6] = [
+        Self::Pointer24,
+        Self::Pointer24be,
+        Self::Pointer32,
+        Self::Pointer32be,
+        Self::Pointer64,
+        Self::Pointer64be,
+    ];
+
     pub fn get_size_in_bytes(&self) -> u64 {
         match self {
             Self::Pointer24 | Self::Pointer24be => 3,
