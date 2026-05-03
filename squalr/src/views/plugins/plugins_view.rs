@@ -153,19 +153,20 @@ impl Widget for PluginsView {
                     }
                 });
 
-                let full_rectangle = user_interface.available_rect_before_wrap();
-                let content_rectangle = Rect::from_min_max(full_rectangle.min, full_rectangle.max - vec2(0.0, Self::DETAILS_HEIGHT));
-                let content_response = user_interface.allocate_rect(content_rectangle, Sense::empty());
+                let content_height = (user_interface.available_height() - Self::DETAILS_HEIGHT).max(0.0);
+                let (content_rectangle, _content_response) =
+                    user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), content_height), Sense::empty());
                 let mut content_user_interface = user_interface.new_child(
                     UiBuilder::new()
-                        .max_rect(content_response.rect)
+                        .max_rect(content_rectangle)
                         .layout(Layout::top_down(Align::Min)),
                 );
-                content_user_interface.set_clip_rect(content_response.rect);
+                content_user_interface.set_clip_rect(content_rectangle);
 
                 ScrollArea::vertical()
                     .id_salt("plugins_list")
                     .auto_shrink([false, false])
+                    .max_height(content_height)
                     .show(&mut content_user_interface, |user_interface| {
                         for plugin_state in &plugin_states {
                             let plugin_id = plugin_state.get_metadata().get_plugin_id().to_string();

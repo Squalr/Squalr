@@ -401,6 +401,19 @@ impl SymbolExplorerView {
         Id::new(("symbol_explorer_module_field_type_search", menu_id))
     }
 
+    fn filter_registered_pointer_sizes(registered_data_type_refs: &[DataTypeRef]) -> Vec<PointerScanPointerSize> {
+        let registered_data_type_ids = registered_data_type_refs
+            .iter()
+            .map(|data_type_ref| data_type_ref.get_data_type_id().to_string())
+            .collect::<HashSet<_>>();
+
+        PointerScanPointerSize::ALL
+            .iter()
+            .copied()
+            .filter(|pointer_size| registered_data_type_ids.contains(pointer_size.to_data_type_ref().get_data_type_id()))
+            .collect()
+    }
+
     fn delete_module_root(
         &self,
         module_name: &str,
@@ -1908,10 +1921,16 @@ impl SymbolExplorerView {
         &self,
         user_interface: &mut Ui,
         container_type: &mut ContainerType,
+        pointer_sizes: &[PointerScanPointerSize],
         menu_id: &str,
         width: f32,
     ) {
         let mut selected_container_type = None;
+        if let Some(selected_pointer_size) = container_type.get_pointer_size() {
+            if !pointer_sizes.contains(&selected_pointer_size) {
+                *container_type = ContainerType::None;
+            }
+        }
         let current_label = Self::define_field_container_label(*container_type);
 
         user_interface.add(
@@ -1930,12 +1949,12 @@ impl SymbolExplorerView {
 
                     popup_user_interface.separator();
 
-                    for pointer_size in PointerScanPointerSize::ALL {
+                    for pointer_size in pointer_sizes {
                         let pointer_label = format!("Ptr {}", pointer_size);
                         let pointer_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &pointer_label, None, width));
 
                         if pointer_response.clicked() {
-                            selected_container_type = Some(ContainerType::Pointer(pointer_size));
+                            selected_container_type = Some(ContainerType::Pointer(*pointer_size));
                             *should_close = true;
                         }
                     }
@@ -2168,10 +2187,17 @@ impl SymbolExplorerView {
 
                         user_interface.horizontal(|user_interface| {
                             user_interface.spacing_mut().item_spacing.x = 4.0;
+                            let pointer_sizes = Self::filter_registered_pointer_sizes(
+                                &self
+                                    .app_context
+                                    .engine_unprivileged_state
+                                    .get_registered_data_type_refs(),
+                            );
                             let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
                             self.render_define_field_container_selector(
                                 user_interface,
                                 &mut edited_define_field_draft.container_type,
+                                &pointer_sizes,
                                 &format!("symbol_explorer_define_field_container_{}_{}", module_name, segment_offset),
                                 selector_width,
                             );
@@ -3579,6 +3605,46 @@ mod tests {
             filtered_type_options
                 .iter()
                 .all(|type_option| { !SymbolExplorerView::module_field_type_option_uses_icon(type_option.kind) })
+        );
+    }
+
+    #[test]
+    fn filter_registered_pointer_sizes_omits_plugin_backed_sizes_when_unregistered() {
+        let pointer_sizes = SymbolExplorerView::filter_registered_pointer_sizes(&[
+            DataTypeRef::new("u32"),
+            DataTypeRef::new("u32be"),
+            DataTypeRef::new("u64"),
+            DataTypeRef::new("u64be"),
+        ]);
+
+        assert_eq!(
+            pointer_sizes,
+            vec![
+                PointerScanPointerSize::Pointer32,
+                PointerScanPointerSize::Pointer32be,
+                PointerScanPointerSize::Pointer64,
+                PointerScanPointerSize::Pointer64be,
+            ]
+        );
+    }
+
+    #[test]
+    fn filter_registered_pointer_sizes_includes_plugin_backed_sizes_when_registered() {
+        let pointer_sizes = SymbolExplorerView::filter_registered_pointer_sizes(&[
+            DataTypeRef::new("u24"),
+            DataTypeRef::new("u24be"),
+            DataTypeRef::new("u32"),
+            DataTypeRef::new("u64"),
+        ]);
+
+        assert_eq!(
+            pointer_sizes,
+            vec![
+                PointerScanPointerSize::Pointer24,
+                PointerScanPointerSize::Pointer24be,
+                PointerScanPointerSize::Pointer32,
+                PointerScanPointerSize::Pointer64,
+            ]
         );
     }
 
