@@ -71,7 +71,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsConvertSymbolRefRequest 
                 continue;
             };
 
-            let Some(symbol_claim) = resolve_project_item_symbol_claim(&project_symbol_catalog, &project_item).cloned() else {
+            let Some(symbol_claim) = resolve_project_item_symbol_claim(&project_symbol_catalog, &project_item) else {
                 log::warn!("Skipping symbol-ref conversion for non-symbol project item: {:?}", project_item_path);
                 continue;
             };

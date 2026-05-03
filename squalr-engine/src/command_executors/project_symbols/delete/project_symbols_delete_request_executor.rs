@@ -276,18 +276,7 @@ fn resolve_symbol_ref_conversion_claim(
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_locator_key: &str,
 ) -> Option<ProjectSymbolClaim> {
-    if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(symbol_locator_key) {
-        return Some(symbol_claim.clone());
-    }
-
-    let (symbol_module, module_field) = project_symbol_catalog.find_module_field(symbol_locator_key)?;
-
-    Some(ProjectSymbolClaim::new_module_offset(
-        module_field.get_display_name().to_string(),
-        symbol_module.get_module_name().to_string(),
-        module_field.get_offset(),
-        module_field.get_struct_layout_id().to_string(),
-    ))
+    project_symbol_catalog.resolve_symbol_claim(symbol_locator_key)
 }
 
 fn symbol_claim_matches_module_range(

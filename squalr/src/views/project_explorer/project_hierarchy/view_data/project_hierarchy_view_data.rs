@@ -550,10 +550,10 @@ impl ProjectHierarchyViewData {
                 || (symbol_claim_metadata.contains_key("source.pointer_root_module") && symbol_claim_metadata.contains_key("source.pointer_root_offset")))
     }
 
-    fn resolve_project_symbol_claim<'a>(
-        opened_project_info: Option<&'a ProjectInfo>,
+    fn resolve_project_symbol_claim(
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
-    ) -> Option<&'a squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim> {
+    ) -> Option<squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim> {
         if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
             return None;
         }
@@ -562,7 +562,7 @@ impl ProjectHierarchyViewData {
 
         opened_project_info?
             .get_project_symbol_catalog()
-            .find_symbol_claim(&symbol_locator_key)
+            .resolve_symbol_claim(&symbol_locator_key)
     }
 
     fn resolve_convertible_symbol_ref_action_label(
@@ -600,7 +600,7 @@ impl ProjectHierarchyViewData {
             .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)?;
         let symbol_claim = Self::resolve_project_symbol_claim(self.opened_project_info.as_ref(), project_item)?;
 
-        if Self::has_pointer_origin_metadata(symbol_claim) {
+        if Self::has_pointer_origin_metadata(&symbol_claim) {
             Some(ProjectItemSymbolRefConversionTarget::Pointer)
         } else {
             Some(ProjectItemSymbolRefConversionTarget::Address)
@@ -2298,6 +2298,8 @@ impl ProjectHierarchyViewData {
                 address: None,
                 module_name: None,
                 data_type_id: None,
+                symbol_locator_key: None,
+                symbol_locator_display: None,
             },
             ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2307,6 +2309,8 @@ impl ProjectHierarchyViewData {
                 address: None,
                 module_name: None,
                 data_type_id: Some(String::from("u8")),
+                symbol_locator_key: None,
+                symbol_locator_display: None,
             },
             ProjectHierarchyCreateItemKind::Pointer => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2316,6 +2320,8 @@ impl ProjectHierarchyViewData {
                 address: None,
                 module_name: None,
                 data_type_id: Some(String::from("u8")),
+                symbol_locator_key: None,
+                symbol_locator_display: None,
             },
             ProjectHierarchyCreateItemKind::SymbolRef => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2325,6 +2331,8 @@ impl ProjectHierarchyViewData {
                 address: None,
                 module_name: None,
                 data_type_id: None,
+                symbol_locator_key: None,
+                symbol_locator_display: None,
             },
         }
     }

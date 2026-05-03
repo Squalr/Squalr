@@ -34,6 +34,14 @@ pub struct ProjectItemsCreateRequest {
     #[serde(default)]
     #[structopt(skip)]
     pub data_type_id: Option<String>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub symbol_locator_key: Option<String>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub symbol_locator_display: Option<String>,
 }
 
 impl UnprivilegedCommandRequest for ProjectItemsCreateRequest {

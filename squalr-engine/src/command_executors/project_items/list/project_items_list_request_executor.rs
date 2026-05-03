@@ -225,7 +225,7 @@ fn refresh_symbol_ref_project_item_display_value(
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
-    let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(&symbol_locator_key) else {
+    let Some(symbol_claim) = project_symbol_catalog.resolve_symbol_claim(&symbol_locator_key) else {
         ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
         ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, "");
         return;
@@ -664,7 +664,10 @@ mod tests {
         project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
+    use squalr_engine_api::structures::projects::{
+        project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
+        project_symbol_module_field::ProjectSymbolModuleField,
+    };
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::path::PathBuf;
@@ -1219,6 +1222,43 @@ mod tests {
         assert_eq!(
             ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&opened_project_items[0].1),
             "game.exe + 0x1234"
+        );
+    }
+
+    #[test]
+    fn refresh_project_item_display_values_reads_module_field_symbol_ref_target() {
+        let mock_memory_read_bindings = MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x20);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0x2222), true)
+        });
+        let engine_execution_context = create_execution_context(mock_memory_read_bindings);
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x100);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Ammo"), 0x20, String::from("u16")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let mut opened_project_items = vec![(
+            ProjectItemRef::new(PathBuf::from("project/ammo.json")),
+            ProjectItemTypeSymbolRef::new_project_item("Ammo", "module:game.exe:20", ""),
+        )];
+        let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
+
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &project_symbol_catalog,
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
+
+        assert_eq!(
+            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&opened_project_items[0].1),
+            "8738"
+        );
+        assert_eq!(
+            ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&opened_project_items[0].1),
+            "game.exe + 0x20"
         );
     }
 

@@ -40,13 +40,13 @@ pub fn resolve_project_item_symbol_ref_locator_key(project_item: &ProjectItem) -
     }
 }
 
-pub fn resolve_project_item_symbol_claim<'a>(
-    project_symbol_catalog: &'a ProjectSymbolCatalog,
+pub fn resolve_project_item_symbol_claim(
+    project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &ProjectItem,
-) -> Option<&'a ProjectSymbolClaim> {
+) -> Option<ProjectSymbolClaim> {
     let symbol_locator_key = resolve_project_item_symbol_ref_locator_key(project_item)?;
 
-    project_symbol_catalog.find_symbol_claim(&symbol_locator_key)
+    project_symbol_catalog.resolve_symbol_claim(&symbol_locator_key)
 }
 
 pub fn resolve_project_item_struct_layout_id(

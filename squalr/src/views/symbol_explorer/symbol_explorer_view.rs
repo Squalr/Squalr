@@ -30,6 +30,7 @@ use squalr_engine_api::commands::{
     },
     privileged_command_request::PrivilegedCommandRequest,
     privileged_command_response::TypedPrivilegedCommandResponse,
+    project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     project_symbols::{
         create::project_symbols_create_request::ProjectSymbolsCreateRequest,
         create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
@@ -60,6 +61,7 @@ use squalr_engine_api::structures::structs::{
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -107,6 +109,13 @@ struct U8SpanEditTarget {
     module_name: String,
     offset: u64,
     length: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AddSymbolToProjectTarget {
+    project_item_name: String,
+    symbol_locator_key: String,
+    symbol_locator_display: String,
 }
 
 #[derive(Clone, Debug)]
@@ -965,6 +974,50 @@ impl SymbolExplorerView {
             }
             _ => None,
         }
+    }
+
+    fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<AddSymbolToProjectTarget> {
+        let SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } = symbol_tree_entry.get_kind() else {
+            return None;
+        };
+        let project_item_name = symbol_tree_entry.get_display_name().trim().to_string();
+
+        Some(AddSymbolToProjectTarget {
+            project_item_name: if project_item_name.is_empty() {
+                ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME.to_string()
+            } else {
+                project_item_name
+            },
+            symbol_locator_key: symbol_locator_key.to_string(),
+            symbol_locator_display: symbol_tree_entry.get_locator().to_string(),
+        })
+    }
+
+    fn build_symbol_ref_project_item_create_request(add_symbol_to_project_target: &AddSymbolToProjectTarget) -> ProjectItemsCreateRequest {
+        ProjectItemsCreateRequest {
+            parent_directory_path: PathBuf::new(),
+            project_item_name: add_symbol_to_project_target.project_item_name.clone(),
+            project_item_type: ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID.to_string(),
+            pointer: None,
+            address: None,
+            module_name: None,
+            data_type_id: None,
+            symbol_locator_key: Some(add_symbol_to_project_target.symbol_locator_key.clone()),
+            symbol_locator_display: Some(add_symbol_to_project_target.symbol_locator_display.clone()),
+        }
+    }
+
+    fn add_symbol_to_project(
+        &self,
+        add_symbol_to_project_target: &AddSymbolToProjectTarget,
+    ) {
+        let project_items_create_request = Self::build_symbol_ref_project_item_create_request(add_symbol_to_project_target);
+
+        project_items_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
+            if !project_items_create_response.success {
+                log::warn!("Symbol Tree add-to-project command failed.");
+            }
+        });
     }
 
     fn create_define_field_from_u8_span_edit_target(
@@ -2914,11 +2967,15 @@ impl SymbolExplorerView {
                             .map(|default_value| default_value.get_size_in_bytes())
                     });
                 let context_menu_u8_span_edit_target = Self::build_u8_span_edit_target(symbol_tree_entry);
+                let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
                 let can_delete_symbol_tree_entry =
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
                 if can_open_symbol_tree_entry {
                     context_menu_labels.extend(["Open in Memory Viewer", "Open in Code Viewer"]);
+                }
+                if context_menu_add_symbol_to_project_target.is_some() {
+                    context_menu_labels.push("Add to Project");
                 }
                 if context_menu_u8_span_edit_target.is_some() {
                     context_menu_labels.push("Define Field...");
@@ -2990,7 +3047,34 @@ impl SymbolExplorerView {
                             }
                         }
 
-                        if can_open_symbol_tree_entry && can_rename_symbol_tree_entry {
+                        if let Some(add_symbol_to_project_target) = context_menu_add_symbol_to_project_target.as_ref() {
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Add to Project",
+                                        "symbol_tree_ctx_add_to_project",
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_common_add
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.add_symbol_to_project(add_symbol_to_project_target);
+                                *should_close = true;
+                            }
+                        }
+
+                        if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some())
+                            && (context_menu_u8_span_edit_target.is_some() || can_rename_symbol_tree_entry)
+                        {
                             user_interface.separator();
                         }
 
@@ -3683,8 +3767,10 @@ mod tests {
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
-            project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
-            project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
+            project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_symbol_ref::ProjectItemTypeSymbolRef},
+            project_symbol_catalog::ProjectSymbolCatalog,
+            project_symbol_claim::ProjectSymbolClaim,
+            project_symbol_locator::ProjectSymbolLocator,
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct},
     };
@@ -3827,6 +3913,32 @@ mod tests {
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
 
         assert_eq!(SymbolExplorerView::build_u8_span_edit_target(&module_symbol_claim_entry), None);
+    }
+
+    #[test]
+    fn build_add_symbol_to_project_request_targets_symbol_ref() {
+        let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
+        let add_symbol_to_project_target =
+            SymbolExplorerView::build_add_symbol_to_project_target(&module_symbol_claim_entry).expect("Expected symbol ref add-to-project target.");
+        let project_items_create_request = SymbolExplorerView::build_symbol_ref_project_item_create_request(&add_symbol_to_project_target);
+
+        assert_eq!(project_items_create_request.project_item_name, "Health");
+        assert_eq!(project_items_create_request.project_item_type, ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
+        assert_eq!(project_items_create_request.symbol_locator_key.as_deref(), Some("module:game.exe:4"));
+        assert_eq!(project_items_create_request.symbol_locator_display.as_deref(), Some("game.exe + 0x4"));
+        assert!(
+            project_items_create_request
+                .parent_directory_path
+                .as_os_str()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn build_add_symbol_to_project_target_ignores_derived_rows() {
+        let u8_segment_entry = create_u8_segment_tree_entry();
+
+        assert_eq!(SymbolExplorerView::build_add_symbol_to_project_target(&u8_segment_entry), None);
     }
 
     #[test]

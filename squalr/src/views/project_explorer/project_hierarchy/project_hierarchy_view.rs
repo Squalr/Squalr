@@ -3549,10 +3549,10 @@ impl ProjectHierarchyView {
             .unwrap_or_default()
     }
 
-    fn resolve_project_symbol_claim<'a>(
-        opened_project_info: Option<&'a ProjectInfo>,
+    fn resolve_project_symbol_claim(
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
-    ) -> Option<&'a ProjectSymbolClaim> {
+    ) -> Option<ProjectSymbolClaim> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
@@ -3562,7 +3562,7 @@ impl ProjectHierarchyView {
         let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
         let project_symbol_catalog = opened_project_info?.get_project_symbol_catalog();
 
-        project_symbol_catalog.find_symbol_claim(&symbol_locator_key)
+        project_symbol_catalog.resolve_symbol_claim(&symbol_locator_key)
     }
 
     fn resolve_project_item_symbolic_struct_namespace(

@@ -383,7 +383,21 @@ fn create_symbol_ref_item(
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
-    let project_item = ProjectItemTypeSymbolRef::new_project_item(&project_items_create_request.project_item_name, "", "");
+    let symbol_locator_key = project_items_create_request
+        .symbol_locator_key
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("");
+    let symbol_locator_display = project_items_create_request
+        .symbol_locator_display
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or("");
+    let mut project_item = ProjectItemTypeSymbolRef::new_project_item(&project_items_create_request.project_item_name, symbol_locator_key, "");
+
+    if !symbol_locator_display.is_empty() {
+        ProjectItemTypeSymbolRef::set_field_symbol_locator_display(&mut project_item, symbol_locator_display);
+    }
 
     opened_project
         .get_project_items_mut()

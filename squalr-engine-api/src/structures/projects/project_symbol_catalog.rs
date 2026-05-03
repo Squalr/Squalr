@@ -135,6 +135,24 @@ impl ProjectSymbolCatalog {
             .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_locator_key)
     }
 
+    pub fn resolve_symbol_claim(
+        &self,
+        symbol_locator_key: &str,
+    ) -> Option<ProjectSymbolClaim> {
+        if let Some(symbol_claim) = self.find_symbol_claim(symbol_locator_key) {
+            return Some(symbol_claim.clone());
+        }
+
+        let (symbol_module, module_field) = self.find_module_field(symbol_locator_key)?;
+
+        Some(ProjectSymbolClaim::new_module_offset(
+            module_field.get_display_name().to_string(),
+            symbol_module.get_module_name().to_string(),
+            module_field.get_offset(),
+            module_field.get_struct_layout_id().to_string(),
+        ))
+    }
+
     pub fn find_symbol_claim_mut(
         &mut self,
         symbol_locator_key: &str,
