@@ -1,6 +1,7 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
 use epaint::Pos2;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
@@ -30,6 +31,7 @@ pub enum SymbolExplorerTakeOverState {
         offset: u64,
         length: u64,
         display_name: String,
+        mode: ProjectSymbolsDeleteModuleRangeMode,
     },
     DefineFieldFromU8Segment {
         module_name: String,
@@ -228,6 +230,7 @@ impl SymbolExplorerViewData {
         offset: u64,
         length: u64,
         display_name: String,
+        mode: ProjectSymbolsDeleteModuleRangeMode,
     ) {
         if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer request delete module range confirmation") {
             symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation {
@@ -235,6 +238,7 @@ impl SymbolExplorerViewData {
                 offset,
                 length,
                 display_name,
+                mode,
             });
             symbol_explorer_view_data.inline_rename_tree_node_key = None;
             symbol_explorer_view_data.context_menu_target = None;

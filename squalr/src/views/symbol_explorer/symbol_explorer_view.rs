@@ -32,7 +32,7 @@ use squalr_engine_api::commands::{
     project_symbols::{
         create::project_symbols_create_request::ProjectSymbolsCreateRequest,
         create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
-        delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteRequest},
+        delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode, ProjectSymbolsDeleteRequest},
         rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
         rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
         update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
@@ -75,6 +75,7 @@ struct ModuleChildRangeTarget {
     offset: u64,
     length: u64,
     display_name: String,
+    delete_mode: ProjectSymbolsDeleteModuleRangeMode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -274,6 +275,7 @@ impl SymbolExplorerView {
         module_name: &str,
         offset: u64,
         length: u64,
+        mode: ProjectSymbolsDeleteModuleRangeMode,
     ) {
         SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
         let project_symbols_delete_request = ProjectSymbolsDeleteRequest {
@@ -283,6 +285,7 @@ impl SymbolExplorerView {
                 module_name: module_name.to_string(),
                 offset,
                 length,
+                mode,
             }],
         };
 
@@ -568,6 +571,7 @@ impl SymbolExplorerView {
                 offset: *offset,
                 length: *length,
                 display_name: symbol_tree_entry.get_display_name().to_string(),
+                delete_mode: ProjectSymbolsDeleteModuleRangeMode::ShiftLeft,
             }),
             SymbolTreeEntryKind::SymbolClaim { .. } if symbol_tree_entry.get_depth() == 1 => {
                 let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_tree_entry.get_locator() else {
@@ -580,6 +584,13 @@ impl SymbolExplorerView {
                     offset: *offset,
                     length,
                     display_name: symbol_tree_entry.get_display_name().to_string(),
+                    delete_mode: if symbol_tree_entry.get_symbol_type_id() == "u8"
+                        && matches!(symbol_tree_entry.get_container_type(), ContainerType::ArrayFixed(_))
+                    {
+                        ProjectSymbolsDeleteModuleRangeMode::ShiftLeft
+                    } else {
+                        ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8
+                    },
                 })
             }
             _ => None,
@@ -648,6 +659,7 @@ impl SymbolExplorerView {
                 module_child_range_target.offset,
                 module_child_range_target.length,
                 module_child_range_target.display_name.clone(),
+                module_child_range_target.delete_mode,
             );
         } else if let Some(symbol_claim) = selected_symbol_claim {
             SymbolExplorerViewData::request_delete_symbol_claim_confirmation(
@@ -2602,8 +2614,12 @@ impl Widget for SymbolExplorerView {
                 Some(SymbolExplorerTakeOverState::DeleteSymbolClaimConfirmation { symbol_locator_key, .. }) => self.delete_symbol_claim(symbol_locator_key),
                 Some(SymbolExplorerTakeOverState::DeleteModuleRootConfirmation { module_name }) => self.delete_module_root(module_name),
                 Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation {
-                    module_name, offset, length, ..
-                }) => self.delete_module_range(module_name, *offset, *length),
+                    module_name,
+                    offset,
+                    length,
+                    mode,
+                    ..
+                }) => self.delete_module_range(module_name, *offset, *length, *mode),
                 Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { .. }) => {}
                 None => {}
             }
@@ -2756,19 +2772,26 @@ impl Widget for SymbolExplorerView {
                         offset,
                         length,
                         display_name,
+                        mode,
                     }) => {
+                        let warning_text = if *mode == ProjectSymbolsDeleteModuleRangeMode::ShiftLeft {
+                            format!(
+                                "WARNING: {} will be {} byte(s) smaller. Proceeding fields will be shifted left.",
+                                module_name, length
+                            )
+                        } else {
+                            String::from("This removes the field definition and preserves the module bytes as u8[].")
+                        };
+
                         list_user_interface.add_space(8.0);
                         if self.render_delete_confirmation_take_over(
                             &mut list_user_interface,
                             "Delete this field",
                             display_name,
-                            &format!(
-                                "WARNING: {} will be {} byte(s) smaller. Proceeding fields will be shifted left.",
-                                module_name, length
-                            ),
-                            true,
+                            &warning_text,
+                            *mode == ProjectSymbolsDeleteModuleRangeMode::ShiftLeft,
                         ) {
-                            self.delete_module_range(module_name, *offset, *length);
+                            self.delete_module_range(module_name, *offset, *length, *mode);
                         }
 
                         return;
@@ -2828,6 +2851,7 @@ mod tests {
     use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
     use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::DefineFieldDraft;
     use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
+    use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
@@ -3042,9 +3066,11 @@ mod tests {
         assert_eq!(u8_segment_target.module_name, "game.exe");
         assert_eq!(u8_segment_target.offset, 0);
         assert_eq!(u8_segment_target.length, 0x1234);
+        assert_eq!(u8_segment_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ShiftLeft);
         assert_eq!(symbol_claim_target.module_name, "game.exe");
         assert_eq!(symbol_claim_target.offset, 0x04);
         assert_eq!(symbol_claim_target.length, 4);
+        assert_eq!(symbol_claim_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8);
     }
 
     #[test]

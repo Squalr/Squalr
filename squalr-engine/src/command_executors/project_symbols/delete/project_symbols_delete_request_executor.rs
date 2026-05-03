@@ -76,7 +76,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
 
         let deleted_module_count = symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64;
         let delete_module_field_summary = ProjectSymbolLayoutMutation::delete_module_fields_by_locator_key(project_symbol_catalog, &symbol_locator_key_set);
-        let delete_module_range_summary = ProjectSymbolLayoutMutation::delete_module_ranges_and_shift(project_symbol_catalog, &module_ranges, &module_name_set);
+        let delete_module_range_summary = ProjectSymbolLayoutMutation::delete_module_ranges(project_symbol_catalog, &module_ranges, &module_name_set);
         let symbol_claims = project_symbol_catalog.get_symbol_claims_mut();
         let symbol_claim_count_before_delete = symbol_claims.len();
 
@@ -135,6 +135,7 @@ fn normalize_delete_module_range(project_symbols_delete_module_range: &ProjectSy
         module_name: module_name.to_string(),
         offset: project_symbols_delete_module_range.offset,
         length: project_symbols_delete_module_range.length,
+        mode: project_symbols_delete_module_range.mode,
     })
 }
 
@@ -145,6 +146,9 @@ mod tests {
         MockProjectSymbolsBindings, create_engine_unprivileged_state, create_project_with_symbol_catalog,
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
+    use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{
+        ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode,
+    };
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
     use squalr_engine_api::structures::projects::{
         project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
@@ -334,6 +338,7 @@ mod tests {
                     module_name: String::from("game.exe"),
                     offset: 0x04,
                     length: 0x04,
+                    mode: ProjectSymbolsDeleteModuleRangeMode::ShiftLeft,
                 },
             ],
         }
@@ -359,5 +364,57 @@ mod tests {
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_modules(), symbol_modules);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+    }
+
+    #[test]
+    fn delete_project_symbols_request_replaces_module_range_with_merged_u8_field() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("prefix"), 0x00, String::from("u8[4]")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x04, String::from("u32")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("suffix"), 0x08, String::from("u8[8]")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
+            symbol_locator_keys: Vec::new(),
+            module_names: Vec::new(),
+            module_ranges: vec![ProjectSymbolsDeleteModuleRange {
+                module_name: String::from("game.exe"),
+                offset: 0x04,
+                length: 0x04,
+                mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8,
+            }],
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_delete_response.success);
+        assert_eq!(project_symbols_delete_response.deleted_module_range_count, 1);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected replaced-field project to load from disk.");
+        let symbol_modules = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules();
+        let module_fields = symbol_modules[0].get_fields();
+
+        assert_eq!(symbol_modules[0].get_size(), 0x20);
+        assert_eq!(module_fields.len(), 1);
+        assert_eq!(module_fields[0].get_offset(), 0x00);
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[16]");
     }
 }

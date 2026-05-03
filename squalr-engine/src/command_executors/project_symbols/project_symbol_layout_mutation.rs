@@ -1,4 +1,6 @@
-use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRange;
+use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::{
+    ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode,
+};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::projects::{
@@ -148,6 +150,108 @@ impl ProjectSymbolLayoutMutation {
             changed: deleted_module_range_count > 0,
             deleted_module_field_count: 0,
             deleted_module_range_count,
+        }
+    }
+
+    pub fn delete_module_ranges_to_u8_fields(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        module_ranges: &[ProjectSymbolsDeleteModuleRange],
+        deleted_module_names: &HashSet<String>,
+    ) -> ProjectSymbolLayoutMutationSummary {
+        let mut deleted_module_range_count = 0_u64;
+
+        for module_range in module_ranges {
+            if deleted_module_names.contains(&module_range.module_name) {
+                continue;
+            }
+
+            let Some((replacement_length, did_replace_range)) = Self::replace_module_range_with_u8_field(project_symbol_catalog, module_range) else {
+                continue;
+            };
+
+            Self::delete_module_symbol_claims_in_range(project_symbol_catalog.get_symbol_claims_mut(), module_range, replacement_length);
+
+            if did_replace_range {
+                deleted_module_range_count = deleted_module_range_count.saturating_add(1);
+            }
+        }
+
+        ProjectSymbolLayoutMutationSummary {
+            changed: deleted_module_range_count > 0,
+            deleted_module_field_count: 0,
+            deleted_module_range_count,
+        }
+    }
+
+    fn replace_module_range_with_u8_field(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        module_range: &ProjectSymbolsDeleteModuleRange,
+    ) -> Option<(u64, bool)> {
+        let symbol_module = project_symbol_catalog.find_symbol_module_mut(&module_range.module_name)?;
+        let module_size = symbol_module.get_size();
+
+        if module_range.offset >= module_size {
+            return None;
+        }
+
+        let replacement_length = module_range
+            .length
+            .min(module_size.saturating_sub(module_range.offset));
+
+        if replacement_length == 0 {
+            return None;
+        }
+
+        let deleted_range_end = module_range.offset.saturating_add(replacement_length);
+        let module_field_count_before_delete = symbol_module.get_fields().len();
+
+        symbol_module.get_fields_mut().retain(|module_field| {
+            let field_offset = module_field.get_offset();
+
+            field_offset < module_range.offset || field_offset >= deleted_range_end
+        });
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(
+                format!("u8_{:08X}", module_range.offset),
+                module_range.offset,
+                Self::u8_array_type_id(replacement_length),
+            ));
+        Self::sort_module_fields(symbol_module.get_fields_mut());
+        Self::merge_adjacent_u8_array_fields(symbol_module.get_fields_mut());
+
+        Some((
+            replacement_length,
+            symbol_module.get_fields().len() != module_field_count_before_delete || replacement_length > 0,
+        ))
+    }
+
+    pub fn delete_module_ranges(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        module_ranges: &[ProjectSymbolsDeleteModuleRange],
+        deleted_module_names: &HashSet<String>,
+    ) -> ProjectSymbolLayoutMutationSummary {
+        let mut shift_left_ranges = Vec::new();
+        let mut replace_with_u8_ranges = Vec::new();
+
+        for module_range in module_ranges {
+            match module_range.mode {
+                ProjectSymbolsDeleteModuleRangeMode::ShiftLeft => shift_left_ranges.push(module_range.clone()),
+                ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8 => replace_with_u8_ranges.push(module_range.clone()),
+            }
+        }
+
+        let shift_left_summary = Self::delete_module_ranges_and_shift(project_symbol_catalog, &shift_left_ranges, deleted_module_names);
+        let replace_with_u8_summary = Self::delete_module_ranges_to_u8_fields(project_symbol_catalog, &replace_with_u8_ranges, deleted_module_names);
+
+        ProjectSymbolLayoutMutationSummary {
+            changed: shift_left_summary.get_changed() || replace_with_u8_summary.get_changed(),
+            deleted_module_field_count: shift_left_summary
+                .get_deleted_module_field_count()
+                .saturating_add(replace_with_u8_summary.get_deleted_module_field_count()),
+            deleted_module_range_count: shift_left_summary
+                .get_deleted_module_range_count()
+                .saturating_add(replace_with_u8_summary.get_deleted_module_range_count()),
         }
     }
 
@@ -428,6 +532,63 @@ impl ProjectSymbolLayoutMutation {
 
             true
         });
+    }
+
+    fn delete_module_symbol_claims_in_range(
+        symbol_claims: &mut Vec<ProjectSymbolClaim>,
+        module_range: &ProjectSymbolsDeleteModuleRange,
+        deleted_length: u64,
+    ) {
+        let deleted_range_end = module_range.offset.saturating_add(deleted_length);
+
+        symbol_claims.retain(|symbol_claim| {
+            let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_claim.get_locator() else {
+                return true;
+            };
+
+            if module_name != &module_range.module_name {
+                return true;
+            }
+
+            !(*offset >= module_range.offset && *offset < deleted_range_end)
+        });
+    }
+
+    fn merge_adjacent_u8_array_fields(module_fields: &mut Vec<ProjectSymbolModuleField>) {
+        Self::sort_module_fields(module_fields);
+
+        let mut merged_fields = Vec::new();
+
+        for module_field in module_fields.drain(..) {
+            let Some(module_field_length) = Self::resolve_u8_array_length(module_field.get_struct_layout_id()) else {
+                merged_fields.push(module_field);
+                continue;
+            };
+
+            let Some(previous_field) = merged_fields.last_mut() else {
+                merged_fields.push(module_field);
+                continue;
+            };
+            let Some(previous_field_length) = Self::resolve_u8_array_length(previous_field.get_struct_layout_id()) else {
+                merged_fields.push(module_field);
+                continue;
+            };
+            let Some(previous_field_end_offset) = previous_field.get_offset().checked_add(previous_field_length) else {
+                merged_fields.push(module_field);
+                continue;
+            };
+
+            if previous_field_end_offset != module_field.get_offset() {
+                merged_fields.push(module_field);
+                continue;
+            }
+
+            let merged_length = previous_field_length.saturating_add(module_field_length);
+            previous_field.set_struct_layout_id(Self::u8_array_type_id(merged_length));
+            previous_field.set_display_name(format!("u8_{:08X}", previous_field.get_offset()));
+        }
+
+        *module_fields = merged_fields;
     }
 
     fn sort_module_fields(module_fields: &mut [ProjectSymbolModuleField]) {

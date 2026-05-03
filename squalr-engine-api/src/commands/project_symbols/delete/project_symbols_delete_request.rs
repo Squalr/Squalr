@@ -6,11 +6,20 @@ use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProjectSymbolsDeleteModuleRangeMode {
+    #[default]
+    ShiftLeft,
+    ReplaceWithU8,
+}
+
 #[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectSymbolsDeleteModuleRange {
     pub module_name: String,
     pub offset: u64,
     pub length: u64,
+    #[serde(default)]
+    pub mode: ProjectSymbolsDeleteModuleRangeMode,
 }
 
 #[derive(Clone, Default, StructOpt, Debug, Serialize, Deserialize)]
