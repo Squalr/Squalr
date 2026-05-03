@@ -613,9 +613,11 @@ impl ProjectSymbolLayoutMutation {
 mod tests {
     use super::ProjectSymbolLayoutMutation;
     use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
     use squalr_engine_api::structures::projects::{
         project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
     };
+    use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
 
     fn resolve_test_field_size(struct_layout_id: &str) -> Option<u64> {
         ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
@@ -627,6 +629,29 @@ mod tests {
                 _ => None,
             },
             |_struct_layout_id| None,
+        )
+    }
+
+    fn resolve_test_field_size_with_structs(struct_layout_id: &str) -> Option<u64> {
+        ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
+            struct_layout_id,
+            |data_type_ref: &DataTypeRef| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u16" => Some(2),
+                "u32" => Some(4),
+                _ => None,
+            },
+            |resolved_struct_layout_id| {
+                (resolved_struct_layout_id == "player.stats").then(|| {
+                    SymbolicStructDefinition::new(
+                        String::from("player.stats"),
+                        vec![
+                            SymbolicFieldDefinition::new_named(String::from("health"), DataTypeRef::new("u32"), ContainerType::None),
+                            SymbolicFieldDefinition::new_named(String::from("team"), DataTypeRef::new("u16"), ContainerType::None),
+                        ],
+                    )
+                })
+            },
         )
     }
 
@@ -715,5 +740,43 @@ mod tests {
         );
 
         assert!(mutation_result.is_err());
+    }
+
+    #[test]
+    fn resolve_struct_layout_id_size_uses_nested_struct_layout_size() {
+        assert_eq!(resolve_test_field_size_with_structs("player.stats"), Some(6));
+    }
+
+    #[test]
+    fn resolve_struct_layout_id_size_uses_pointer_slot_size_for_pointer_to_struct() {
+        assert_eq!(resolve_test_field_size_with_structs("player.stats*(u64)"), Some(8));
+        assert_eq!(resolve_test_field_size_with_structs("player.stats*(u32)"), Some(4));
+    }
+
+    #[test]
+    fn upsert_module_field_carves_struct_layout_field_by_struct_size() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("buffer"), 0x00, String::from("u8[32]")));
+        let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+
+        ProjectSymbolLayoutMutation::upsert_module_field(
+            &mut project_symbol_catalog,
+            "game.exe",
+            String::from("PlayerStats"),
+            0x08,
+            String::from("player.stats"),
+            resolve_test_field_size_with_structs,
+        )
+        .expect("Expected struct layout carve mutation to succeed.");
+
+        let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].get_struct_layout_id(), "u8[8]");
+        assert_eq!(fields[1].get_offset(), 0x08);
+        assert_eq!(fields[1].get_struct_layout_id(), "player.stats");
+        assert_eq!(fields[2].get_offset(), 0x0E);
+        assert_eq!(fields[2].get_struct_layout_id(), "u8[18]");
     }
 }

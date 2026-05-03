@@ -53,6 +53,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
+        let local_struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
         let resolve_field_size_in_bytes = |struct_layout_id: &str| {
             ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
                 struct_layout_id,
@@ -61,7 +62,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsUpdateRequest {
                         .get_default_value(data_type_ref)
                         .map(|default_value| default_value.get_size_in_bytes())
                 },
-                |resolved_struct_layout_id| engine_unprivileged_state.resolve_struct_layout_definition(resolved_struct_layout_id),
+                |resolved_struct_layout_id| {
+                    local_struct_layout_descriptors
+                        .iter()
+                        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == resolved_struct_layout_id)
+                        .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+                },
             )
         };
         let did_update = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {

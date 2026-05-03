@@ -47,6 +47,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
+        let local_struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
         let resolve_field_size_in_bytes = |struct_layout_id: &str| {
             ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
                 struct_layout_id,
@@ -55,7 +56,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
                         .get_default_value(data_type_ref)
                         .map(|default_value| default_value.get_size_in_bytes())
                 },
-                |resolved_struct_layout_id| engine_unprivileged_state.resolve_struct_layout_definition(resolved_struct_layout_id),
+                |resolved_struct_layout_id| {
+                    local_struct_layout_descriptors
+                        .iter()
+                        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == resolved_struct_layout_id)
+                        .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_definition().clone())
+                },
             )
         };
 
@@ -117,9 +123,26 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+    use squalr_engine_api::structures::data_values::container_type::ContainerType;
     use squalr_engine_api::structures::projects::{project::Project, project_symbol_catalog::ProjectSymbolCatalog};
+    use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
+
+    fn create_player_stats_struct_layout_descriptor() -> StructLayoutDescriptor {
+        StructLayoutDescriptor::new(
+            String::from("player.stats"),
+            SymbolicStructDefinition::new(
+                String::from("player.stats"),
+                vec![
+                    SymbolicFieldDefinition::new_named(String::from("health"), DataTypeRef::new("u32"), ContainerType::None),
+                    SymbolicFieldDefinition::new_named(String::from("team"), DataTypeRef::new("u16"), ContainerType::None),
+                ],
+            ),
+        )
+    }
 
     #[test]
     fn create_project_symbol_request_persists_module_field_and_syncs_catalog() {
@@ -218,5 +241,77 @@ mod tests {
         assert_eq!(module_fields[1].get_struct_layout_id(), "u32");
         assert_eq!(module_fields[2].get_offset(), 0x0C);
         assert_eq!(module_fields[2].get_struct_layout_id(), "u8[20]");
+    }
+
+    #[test]
+    fn create_project_symbol_request_persists_struct_layout_module_field_by_struct_size() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![create_player_stats_struct_layout_descriptor()]);
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_create_response = ProjectSymbolsCreateRequest {
+            display_name: String::from("Player Stats"),
+            struct_layout_id: String::from("player.stats"),
+            address: None,
+            module_name: Some(String::from("game.exe")),
+            offset: Some(0x10),
+            metadata: std::collections::BTreeMap::default(),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_create_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected struct-backed project to load from disk.");
+        let symbol_modules = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules();
+
+        assert_eq!(symbol_modules[0].get_size(), 0x16);
+        assert_eq!(symbol_modules[0].get_fields()[0].get_struct_layout_id(), "player.stats");
+    }
+
+    #[test]
+    fn create_project_symbol_request_persists_pointer_to_struct_module_field_by_pointer_size() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![create_player_stats_struct_layout_descriptor()]);
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_create_response = ProjectSymbolsCreateRequest {
+            display_name: String::from("Player Stats Pointer"),
+            struct_layout_id: String::from("player.stats*(u64)"),
+            address: None,
+            module_name: Some(String::from("game.exe")),
+            offset: Some(0x10),
+            metadata: std::collections::BTreeMap::default(),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_create_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected pointer-backed project to load from disk.");
+        let symbol_modules = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules();
+
+        assert_eq!(symbol_modules[0].get_size(), 0x18);
+        assert_eq!(symbol_modules[0].get_fields()[0].get_struct_layout_id(), "player.stats*(u64)");
     }
 }
