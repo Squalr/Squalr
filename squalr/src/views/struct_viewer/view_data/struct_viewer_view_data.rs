@@ -10,7 +10,7 @@ use squalr_engine_api::{
             built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
             data_type_ref::DataTypeRef,
         },
-        data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType},
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition,
@@ -290,7 +290,7 @@ impl StructViewerViewData {
                 continue;
             };
             let data_type_ref = data_value.get_data_type_ref();
-            let default_format = engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref);
+            let default_format = Self::resolve_default_anonymous_value_string_format(valued_struct_field, data_type_ref, engine_unprivileged_state);
             let anonymous_value_string = engine_unprivileged_state
                 .anonymize_value(data_value, default_format)
                 .unwrap_or_else(|_| AnonymousValueString::new(String::new(), default_format, ContainerType::None));
@@ -299,6 +299,18 @@ impl StructViewerViewData {
         }
 
         field_edit_values
+    }
+
+    fn resolve_default_anonymous_value_string_format(
+        valued_struct_field: &ValuedStructField,
+        data_type_ref: &DataTypeRef,
+        engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
+    ) -> AnonymousValueStringFormat {
+        if valued_struct_field.get_name() == ProjectItemTypeAddress::PROPERTY_ADDRESS {
+            return AnonymousValueStringFormat::Hexadecimal;
+        }
+
+        engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref)
     }
 
     fn create_field_display_values(
@@ -615,6 +627,7 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::built_in_types::{
             string::utf8::data_type_string_utf8::DataTypeStringUtf8, u16::data_type_u16::DataTypeU16, u32::data_type_u32::DataTypeU32,
+            u64::data_type_u64::DataTypeU64,
         },
         data_types::data_type_ref::DataTypeRef,
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat},
@@ -693,6 +706,23 @@ mod tests {
                 .unwrap_or_default(),
             "module.exe"
         );
+    }
+
+    #[test]
+    fn create_field_edit_values_defaults_address_field_to_hexadecimal() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeU64::get_value_from_primitive(0x1234).to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(), false),
+        ]);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let field_validation_data_type_refs = StructViewerViewData::create_field_validation_data_type_refs(&valued_struct, &engine_unprivileged_state);
+        let field_edit_values = StructViewerViewData::create_field_edit_values(&valued_struct, &field_validation_data_type_refs, &engine_unprivileged_state);
+        let address_edit_value = field_edit_values.get(ProjectItemTypeAddress::PROPERTY_ADDRESS);
+
+        assert_eq!(
+            address_edit_value.map(AnonymousValueString::get_anonymous_value_string_format),
+            Some(AnonymousValueStringFormat::Hexadecimal)
+        );
+        assert_eq!(address_edit_value.map(AnonymousValueString::get_anonymous_value_string), Some("1234"));
     }
 
     #[test]
