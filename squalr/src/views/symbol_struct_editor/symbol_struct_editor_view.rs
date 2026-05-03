@@ -53,8 +53,8 @@ impl SymbolStructEditorView {
     const FIELD_CONTAINER_MODE_WIDTH: f32 = 160.0;
     const FIELD_CONTAINER_DETAIL_WIDTH: f32 = 140.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
-    const TAKE_OVER_PADDING_X: f32 = 12.0;
-    const TAKE_OVER_PADDING_Y: f32 = 8.0;
+    const TAKE_OVER_PADDING_X: f32 = 0.0;
+    const TAKE_OVER_PADDING_Y: f32 = 0.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
     const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
 
@@ -600,10 +600,7 @@ impl SymbolStructEditorView {
         panel_user_interface
             .painter()
             .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
-        panel_user_interface
-            .painter()
-            .rect_stroke(header_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.submenu_border), StrokeKind::Inside);
-        let header_inner_rect = header_rect.shrink2(vec2(8.0, 0.0));
+        let header_inner_rect = header_rect;
         let mut header_user_interface = panel_user_interface.new_child(
             UiBuilder::new()
                 .max_rect(header_inner_rect)
@@ -809,7 +806,6 @@ impl SymbolStructEditorView {
             }
             if field_index + 1 < draft.field_drafts.len() {
                 user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
-                user_interface.separator();
                 user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
             }
         }

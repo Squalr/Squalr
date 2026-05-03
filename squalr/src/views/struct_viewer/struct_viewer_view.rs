@@ -15,7 +15,7 @@ use crate::{
     },
 };
 use eframe::egui::{Align, Align2, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
-use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
+use epaint::{CornerRadius, Rect, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -46,7 +46,7 @@ pub struct StructViewerView {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PointerOffsetRowAction {
-    InsertAfter,
+    AppendOffset,
     RemoveOffset,
 }
 
@@ -57,8 +57,8 @@ impl StructViewerView {
     const POINTER_OFFSET_INPUT_SPACING: f32 = 8.0;
     const POINTER_OFFSET_SECTION_VERTICAL_SPACING: f32 = 10.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
-    const TAKE_OVER_PADDING_X: f32 = 12.0;
-    const TAKE_OVER_PADDING_Y: f32 = 8.0;
+    const TAKE_OVER_PADDING_X: f32 = 0.0;
+    const TAKE_OVER_PADDING_Y: f32 = 0.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -246,6 +246,27 @@ impl StructViewerView {
         button_response
     }
 
+    fn render_pointer_offset_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+            Button::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .background_color(theme.background_control_secondary)
+                .border_color(theme.submenu_border)
+                .border_width(1.0),
+        );
+
+        IconDraw::draw(user_interface, button_response.rect, icon_handle);
+
+        button_response
+    }
+
     fn render_take_over_panel(
         &self,
         user_interface: &mut Ui,
@@ -275,10 +296,7 @@ impl StructViewerView {
         panel_user_interface
             .painter()
             .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
-        panel_user_interface
-            .painter()
-            .rect_stroke(header_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.submenu_border), StrokeKind::Inside);
-        let header_inner_rect = header_rect.shrink2(vec2(8.0, 0.0));
+        let header_inner_rect = header_rect;
         let mut header_user_interface = panel_user_interface.new_child(
             UiBuilder::new()
                 .max_rect(header_inner_rect)
@@ -340,19 +358,16 @@ impl StructViewerView {
                         vec2(user_interface.available_width().max(0.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
                         Layout::right_to_left(Align::Center),
                         |user_interface| {
-                            let insert_offset_response = self.render_take_over_header_icon_button(
-                                user_interface,
-                                &theme.icon_library.icon_handle_common_add,
-                                "Insert a new offset after this one.",
-                            );
+                            let insert_offset_response =
+                                self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
                             if insert_offset_response.clicked() {
-                                pending_row_action = Some(PointerOffsetRowAction::InsertAfter);
+                                pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
                             }
 
                             user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
 
                             let remove_offset_response =
-                                self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Remove this offset.");
+                                self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Remove this offset.");
                             if remove_offset_response.clicked() {
                                 pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
                             }
@@ -394,14 +409,12 @@ impl StructViewerView {
         pointer_offset_row_action: PointerOffsetRowAction,
     ) {
         match pointer_offset_row_action {
-            PointerOffsetRowAction::InsertAfter => {
-                let insert_index = pointer_offset_index
-                    .saturating_add(1)
-                    .min(pointer_offset_values.len());
-                pointer_offset_values.insert(
-                    insert_index,
-                    AnonymousValueString::new(String::from("0"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None),
-                );
+            PointerOffsetRowAction::AppendOffset => {
+                pointer_offset_values.push(AnonymousValueString::new(
+                    String::from("0"),
+                    AnonymousValueStringFormat::Hexadecimal,
+                    ContainerType::None,
+                ));
             }
             PointerOffsetRowAction::RemoveOffset => {
                 if pointer_offset_index < pointer_offset_values.len() {
@@ -427,12 +440,11 @@ impl StructViewerView {
             .unwrap_or_else(|| Self::pointer_offset_display_values(initial_pointer_offsets));
         let pointer_offset_data_type_ref = Self::pointer_offset_data_type_ref();
         let mut should_save_offsets = false;
-        let mut should_add_offset = false;
 
         self.render_take_over_panel(
             user_interface,
             "Edit pointer offsets",
-            Self::POINTER_OFFSET_ICON_BUTTON_WIDTH * 3.0,
+            Self::POINTER_OFFSET_ICON_BUTTON_WIDTH * 2.0,
             |user_interface| {
                 let save_response =
                     self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_check_mark, "Save offsets.");
@@ -444,11 +456,6 @@ impl StructViewerView {
                     self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_navigation_cancel, "Cancel offset edit.");
                 if cancel_response.clicked() {
                     *should_cancel_take_over = true;
-                }
-
-                let add_response = self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Add offset.");
-                if add_response.clicked() {
-                    should_add_offset = true;
                 }
             },
             |user_interface| {
@@ -468,22 +475,16 @@ impl StructViewerView {
 
                     if pointer_offset_index + 1 < pointer_offset_count {
                         user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
-                        user_interface.separator();
                         user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
                     }
                 }
 
                 if pointer_offset_count == 0 {
-                    let add_response = user_interface.add_sized(
-                        vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
-                        Button::new_from_theme(theme)
-                            .background_color(epaint::Color32::TRANSPARENT)
-                            .with_tooltip_text("Add offset."),
-                    );
-                    IconDraw::draw(user_interface, add_response.rect, &theme.icon_library.icon_handle_common_add);
+                    let add_response =
+                        self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
 
                     if add_response.clicked() {
-                        pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::InsertAfter));
+                        pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
                     }
                 }
 
@@ -492,14 +493,6 @@ impl StructViewerView {
                 }
             },
         );
-
-        if should_add_offset {
-            pointer_offset_values.push(AnonymousValueString::new(
-                String::from("0"),
-                AnonymousValueStringFormat::Hexadecimal,
-                ContainerType::None,
-            ));
-        }
 
         if should_save_offsets {
             let pointer_offsets = pointer_offset_values
