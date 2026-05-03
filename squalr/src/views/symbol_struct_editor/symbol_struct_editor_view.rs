@@ -55,6 +55,8 @@ impl SymbolStructEditorView {
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
+    const TAKE_OVER_CONTENT_PADDING_X: f32 = 12.0;
+    const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
     const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
 
@@ -608,10 +610,10 @@ impl SymbolStructEditorView {
         );
         header_user_interface.set_clip_rect(header_inner_rect);
 
-        let title_width = (header_inner_rect.width() - header_action_width).max(0.0);
+        let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
-            title_rect.left_center(),
+            pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
             Align2::LEFT_CENTER,
             title,
             theme.font_library.font_noto_sans.font_window_title.clone(),
@@ -633,7 +635,13 @@ impl SymbolStructEditorView {
             .id_salt(format!("symbol_struct_editor_take_over_body_{title}"))
             .auto_shrink([false, false])
             .show(&mut panel_user_interface, |user_interface| {
-                add_contents(user_interface);
+                let content_width = (user_interface.available_width() - Self::TAKE_OVER_CONTENT_PADDING_X * 2.0).max(0.0);
+                user_interface.horizontal(|user_interface| {
+                    user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
+                    user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
+                        add_contents(user_interface);
+                    });
+                });
             });
     }
 

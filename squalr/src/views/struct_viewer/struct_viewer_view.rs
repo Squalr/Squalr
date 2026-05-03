@@ -6,7 +6,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
-        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView},
+        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
     },
     views::{
         code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -56,9 +56,12 @@ impl StructViewerView {
     const POINTER_OFFSET_ICON_BUTTON_WIDTH: f32 = 36.0;
     const POINTER_OFFSET_INPUT_SPACING: f32 = 8.0;
     const POINTER_OFFSET_SECTION_VERTICAL_SPACING: f32 = 10.0;
+    const POINTER_OFFSET_VALUE_BOX_WIDTH: f32 = 120.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
+    const TAKE_OVER_CONTENT_PADDING_X: f32 = 12.0;
+    const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -304,10 +307,10 @@ impl StructViewerView {
         );
         header_user_interface.set_clip_rect(header_inner_rect);
 
-        let title_width = (header_inner_rect.width() - header_action_width).max(0.0);
+        let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
-            title_rect.left_center(),
+            pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
             Align2::LEFT_CENTER,
             title,
             theme.font_library.font_noto_sans.font_window_title.clone(),
@@ -329,7 +332,13 @@ impl StructViewerView {
             .id_salt(format!("struct_viewer_take_over_body_{title}"))
             .auto_shrink([false, false])
             .show(&mut panel_user_interface, |user_interface| {
-                add_contents(user_interface);
+                let content_width = (user_interface.available_width() - Self::TAKE_OVER_CONTENT_PADDING_X * 2.0).max(0.0);
+                user_interface.horizontal(|user_interface| {
+                    user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
+                    user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
+                        add_contents(user_interface);
+                    });
+                });
             });
     }
 
@@ -343,62 +352,56 @@ impl StructViewerView {
         let theme = &self.app_context.theme;
         let mut pending_row_action = None;
 
-        user_interface.allocate_ui_with_layout(vec2(user_interface.available_width(), 0.0), Layout::top_down(Align::Min), |user_interface| {
-            user_interface.allocate_ui_with_layout(
-                vec2(user_interface.available_width().max(1.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
-                Layout::left_to_right(Align::Center),
-                |user_interface| {
-                    user_interface.label(
-                        RichText::new(format!("Offset {}", pointer_offset_index + 1))
-                            .strong()
-                            .color(theme.foreground),
-                    );
+        user_interface.allocate_ui_with_layout(
+            vec2(user_interface.available_width().max(1.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+            Layout::left_to_right(Align::Center),
+            |user_interface| {
+                user_interface.label(
+                    RichText::new(format!("Offset {}", pointer_offset_index + 1))
+                        .strong()
+                        .color(theme.foreground),
+                );
 
-                    user_interface.allocate_ui_with_layout(
-                        vec2(user_interface.available_width().max(0.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
-                        Layout::right_to_left(Align::Center),
-                        |user_interface| {
-                            let insert_offset_response =
-                                self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
-                            if insert_offset_response.clicked() {
-                                pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
-                            }
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+                let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
+                user_interface.add_sized(
+                    vec2(Self::POINTER_OFFSET_VALUE_BOX_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                    DataValueBoxView::new(
+                        self.app_context.clone(),
+                        pointer_offset_value,
+                        pointer_offset_data_type_ref,
+                        false,
+                        true,
+                        "offset",
+                        &data_value_box_id,
+                    )
+                    .allowed_anonymous_value_string_formats(vec![
+                        AnonymousValueStringFormat::Hexadecimal,
+                        AnonymousValueStringFormat::Decimal,
+                    ])
+                    .normalize_value_format(false)
+                    .use_format_text_colors(false)
+                    .width(Self::POINTER_OFFSET_VALUE_BOX_WIDTH)
+                    .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                );
 
-                            user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
 
-                            let remove_offset_response =
-                                self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Remove this offset.");
-                            if remove_offset_response.clicked() {
-                                pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
-                            }
-                        },
-                    );
-                },
-            );
+                let append_offset_response =
+                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
+                if append_offset_response.clicked() {
+                    pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
+                }
 
-            user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
-            let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
-            user_interface.add_sized(
-                vec2(user_interface.available_width(), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
-                DataValueBoxView::new(
-                    self.app_context.clone(),
-                    pointer_offset_value,
-                    pointer_offset_data_type_ref,
-                    false,
-                    true,
-                    "offset",
-                    &data_value_box_id,
-                )
-                .allowed_anonymous_value_string_formats(vec![
-                    AnonymousValueStringFormat::Hexadecimal,
-                    AnonymousValueStringFormat::Decimal,
-                ])
-                .normalize_value_format(false)
-                .use_format_text_colors(false)
-                .width(user_interface.available_width())
-                .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
-            );
-        });
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+
+                let remove_offset_response =
+                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Remove this offset.");
+                if remove_offset_response.clicked() {
+                    pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
+                }
+            },
+        );
 
         pending_row_action
     }
@@ -459,38 +462,45 @@ impl StructViewerView {
                 }
             },
             |user_interface| {
-                let mut pending_pointer_offset_row_action = None;
-                let pointer_offset_count = pointer_offset_values.len();
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Offsets", |user_interface| {
+                        let mut pending_pointer_offset_row_action = None;
+                        let pointer_offset_count = pointer_offset_values.len();
 
-                for pointer_offset_index in 0..pointer_offset_count {
-                    let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
-                        continue;
-                    };
+                        for pointer_offset_index in 0..pointer_offset_count {
+                            let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
+                                continue;
+                            };
 
-                    if let Some(pointer_offset_row_action) =
-                        self.render_pointer_offset_editor_section(user_interface, pointer_offset_value, pointer_offset_index, &pointer_offset_data_type_ref)
-                    {
-                        pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
-                    }
+                            if let Some(pointer_offset_row_action) = self.render_pointer_offset_editor_section(
+                                user_interface,
+                                pointer_offset_value,
+                                pointer_offset_index,
+                                &pointer_offset_data_type_ref,
+                            ) {
+                                pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
+                            }
 
-                    if pointer_offset_index + 1 < pointer_offset_count {
-                        user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
-                        user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
-                    }
-                }
+                            if pointer_offset_index + 1 < pointer_offset_count {
+                                user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
+                            }
+                        }
 
-                if pointer_offset_count == 0 {
-                    let add_response =
-                        self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
+                        if pointer_offset_count == 0 {
+                            let add_response =
+                                self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.");
 
-                    if add_response.clicked() {
-                        pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
-                    }
-                }
+                            if add_response.clicked() {
+                                pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
+                            }
+                        }
 
-                if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
-                    Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
-                }
+                        if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
+                            Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                        }
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
             },
         );
 
