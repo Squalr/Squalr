@@ -883,7 +883,7 @@ mod tests {
     }
 
     #[test]
-    fn synchronize_selection_to_tree_entries_keeps_materialized_u8_define_field_target() {
+    fn synchronize_selection_to_tree_entries_keeps_module_u8_field_define_field_target() {
         let symbol_explorer_view_data = create_dependency();
         let symbol_tree_entries = vec![SymbolTreeEntry::new(
             String::from("claim:module:game.exe:40"),
@@ -905,7 +905,7 @@ mod tests {
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &symbol_tree_entries);
 
         let take_over_state = symbol_explorer_view_data
-            .read("Symbol explorer materialized define field target test")
+            .read("Symbol explorer module u8 field define target test")
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_take_over_state().cloned());
 
         assert_eq!(
