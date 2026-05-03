@@ -10,7 +10,8 @@ use std::sync::Arc;
 pub struct SymbolTreeEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     symbol_tree_entry: &'lifetime SymbolTreeEntry,
-    secondary_identity_text: &'lifetime str,
+    size_preview_text: &'lifetime str,
+    size_tooltip_text: &'lifetime str,
     preview_value: &'lifetime str,
     is_selected: bool,
 }
@@ -25,14 +26,16 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         symbol_tree_entry: &'lifetime SymbolTreeEntry,
-        secondary_identity_text: &'lifetime str,
+        size_preview_text: &'lifetime str,
+        size_tooltip_text: &'lifetime str,
         preview_value: &'lifetime str,
         is_selected: bool,
     ) -> Self {
         Self {
             app_context,
             symbol_tree_entry,
-            secondary_identity_text,
+            size_preview_text,
+            size_tooltip_text,
             preview_value,
             is_selected,
         }
@@ -117,7 +120,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let text_position = pos2(text_position_x, allocated_size_rectangle.center().y);
         let preview_position = pos2(allocated_size_rectangle.max.x - right_preview_padding, allocated_size_rectangle.center().y);
         let display_name_font = theme.font_library.font_noto_sans.font_normal.clone();
-        let secondary_identity_font = theme.font_library.font_noto_sans.font_small.clone();
+        let size_preview_font = theme.font_library.font_noto_sans.font_small.clone();
         let preview_value_font = theme.font_library.font_noto_sans.font_small.clone();
         let max_preview_text_width = (allocated_size_rectangle.max.x - text_position.x - 24.0).max(0.0);
         let preview_value_text = Self::truncate_text_to_width(
@@ -132,7 +135,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         let max_left_text_width = (left_text_max_x - text_position.x).max(0.0);
         let display_name_width = Self::measure_text_width(user_interface, self.symbol_tree_entry.get_display_name(), &display_name_font, theme.foreground);
 
-        let display_name_text = if self.secondary_identity_text.is_empty() || display_name_width >= max_left_text_width {
+        let display_name_text = if self.size_preview_text.is_empty() || display_name_width >= max_left_text_width {
             Self::truncate_text_to_width(
                 user_interface,
                 self.symbol_tree_entry.get_display_name(),
@@ -152,27 +155,27 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             theme.foreground,
         );
 
-        if !self.secondary_identity_text.is_empty() && display_name_text_width < max_left_text_width {
-            let secondary_identity_gap = 10.0;
-            let secondary_identity_position = pos2(
-                text_position.x + display_name_text_width + secondary_identity_gap,
+        if !self.size_preview_text.is_empty() && display_name_text_width < max_left_text_width {
+            let size_preview_gap = 10.0;
+            let size_preview_position = pos2(
+                text_position.x + display_name_text_width + size_preview_gap,
                 allocated_size_rectangle.center().y,
             );
-            let max_secondary_identity_width = (max_left_text_width - display_name_text_width - secondary_identity_gap).max(0.0);
-            let secondary_identity_text = Self::truncate_text_to_width(
+            let max_size_preview_width = (max_left_text_width - display_name_text_width - size_preview_gap).max(0.0);
+            let size_preview_text = Self::truncate_text_to_width(
                 user_interface,
-                self.secondary_identity_text,
-                &secondary_identity_font,
+                self.size_preview_text,
+                &size_preview_font,
                 theme.foreground_preview,
-                max_secondary_identity_width,
+                max_size_preview_width,
             );
 
-            if !secondary_identity_text.is_empty() {
+            if !size_preview_text.is_empty() {
                 user_interface.painter().text(
-                    secondary_identity_position,
+                    size_preview_position,
                     Align2::LEFT_CENTER,
-                    secondary_identity_text,
-                    secondary_identity_font,
+                    size_preview_text,
+                    size_preview_font,
                     theme.foreground_preview,
                 );
             }
@@ -190,7 +193,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             .as_ref()
             .is_some_and(|arrow_response| arrow_response.clicked());
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
-        let hover_text = match self.symbol_tree_entry.get_kind() {
+        let base_hover_text = match self.symbol_tree_entry.get_kind() {
             SymbolTreeEntryKind::ModuleSpace { .. } => {
                 format!("{}\n{}", self.symbol_tree_entry.get_full_path(), self.symbol_tree_entry.get_display_type_id())
             }
@@ -200,6 +203,11 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
                 self.symbol_tree_entry.get_display_type_id(),
                 self.symbol_tree_entry.get_locator()
             ),
+        };
+        let hover_text = if self.size_tooltip_text.is_empty() {
+            base_hover_text
+        } else {
+            format!("{}\nSize: {}", base_hover_text, self.size_tooltip_text)
         };
 
         SymbolTreeEntryViewResponse {

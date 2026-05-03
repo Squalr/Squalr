@@ -1756,6 +1756,45 @@ impl SymbolExplorerView {
             .collect::<Vec<_>>()
     }
 
+    fn format_symbol_tree_size_preview(size_in_bytes: u64) -> String {
+        const KIB: f64 = 1024.0;
+        const SIZE_UNITS: [&str; 6] = ["B", "KB", "MB", "GB", "TB", "PB"];
+
+        if size_in_bytes < 1024 {
+            return format!("{} B", size_in_bytes);
+        }
+
+        let mut unit_index = 0_usize;
+        let mut size_value = size_in_bytes as f64;
+
+        while size_value >= KIB && unit_index + 1 < SIZE_UNITS.len() {
+            size_value /= KIB;
+            unit_index += 1;
+        }
+
+        let formatted_value = if size_value >= 100.0 {
+            format!("{:.0}", size_value)
+        } else if size_value >= 10.0 {
+            format!("{:.1}", size_value)
+        } else {
+            format!("{:.2}", size_value)
+        };
+        let formatted_value = formatted_value
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string();
+
+        format!("{} {}", formatted_value, SIZE_UNITS[unit_index])
+    }
+
+    fn format_symbol_tree_size_tooltip(size_in_bytes: u64) -> String {
+        if size_in_bytes < 1024 {
+            String::new()
+        } else {
+            format!("{} bytes", size_in_bytes)
+        }
+    }
+
     fn draw_text_button(
         &self,
         user_interface: &mut Ui,
@@ -2549,8 +2588,23 @@ impl SymbolExplorerView {
                 .get(symbol_tree_entry.get_node_key())
                 .map(String::as_str)
                 .unwrap_or("");
-            let symbol_tree_entry_view_response =
-                SymbolTreeEntryView::new(self.app_context.clone(), symbol_tree_entry, "", preview_value, is_selected).show(user_interface);
+            let size_in_bytes = resolve_symbol_tree_entry_size_in_bytes(project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
+                self.app_context
+                    .engine_unprivileged_state
+                    .get_default_value(data_type_ref)
+                    .map(|default_value| default_value.get_size_in_bytes())
+            });
+            let size_preview_text = Self::format_symbol_tree_size_preview(size_in_bytes);
+            let size_tooltip_text = Self::format_symbol_tree_size_tooltip(size_in_bytes);
+            let symbol_tree_entry_view_response = SymbolTreeEntryView::new(
+                self.app_context.clone(),
+                symbol_tree_entry,
+                &size_preview_text,
+                &size_tooltip_text,
+                preview_value,
+                is_selected,
+            )
+            .show(user_interface);
 
             if allow_interaction && symbol_tree_entry_view_response.did_click_expand_arrow {
                 if let Some(selection) = Self::build_selection_for_tree_entry(symbol_tree_entry) {
@@ -2590,14 +2644,17 @@ impl SymbolExplorerView {
                 );
             }
 
-            if allow_interaction
-                && symbol_tree_entry_view_response.row_response.double_clicked()
-                && matches!(
-                    symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. } | SymbolTreeEntryKind::U8Segment { .. }
-                )
-            {
-                SymbolExplorerViewData::begin_inline_rename(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key().to_string());
+            if allow_interaction && symbol_tree_entry_view_response.row_response.double_clicked() {
+                if let Some(u8_span_edit_target) = Self::build_u8_span_edit_target(symbol_tree_entry) {
+                    SymbolExplorerViewData::begin_define_field_from_u8_segment(
+                        self.symbol_explorer_view_data.clone(),
+                        u8_span_edit_target.module_name,
+                        u8_span_edit_target.offset,
+                        u8_span_edit_target.length,
+                    );
+                } else if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                    self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
+                }
             }
 
             if allow_interaction
@@ -3521,6 +3578,20 @@ mod tests {
 
         assert!(!SymbolExplorerView::symbol_tree_entry_should_query_preview(&module_entry));
         assert!(SymbolExplorerView::symbol_tree_entry_should_query_preview(&u8_segment_entry));
+    }
+
+    #[test]
+    fn format_symbol_tree_size_preview_uses_scaled_byte_units() {
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_preview(4), "4 B");
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_preview(1024), "1 KB");
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_preview(1536), "1.5 KB");
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_preview(1024 * 1024), "1 MB");
+    }
+
+    #[test]
+    fn format_symbol_tree_size_tooltip_keeps_raw_bytes_for_kb_and_larger() {
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_tooltip(512), "");
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_tooltip(1536), "1536 bytes");
     }
 
     #[test]
