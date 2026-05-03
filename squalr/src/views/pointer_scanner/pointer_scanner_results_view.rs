@@ -382,11 +382,18 @@ impl Widget for PointerScannerResultsView {
                 .painter()
                 .rect_filled(header_separator_rectangle, CornerRadius::ZERO, theme.background_control);
 
+            let mut content_user_interface = user_interface.new_child(
+                UiBuilder::new()
+                    .max_rect(content_clip_rectangle)
+                    .layout(Layout::top_down(Align::Min)),
+            );
+            content_user_interface.set_clip_rect(content_clip_rectangle);
+
             ScrollArea::vertical()
                 .id_salt("pointer_scanner_rows")
                 .max_height(content_height)
                 .auto_shrink([false, false])
-                .show_rows(user_interface, Self::ROW_HEIGHT, visible_row_count, |user_interface, row_range| {
+                .show_rows(&mut content_user_interface, Self::ROW_HEIGHT, visible_row_count, |user_interface, row_range| {
                     user_interface.spacing_mut().item_spacing = vec2(0.0, 0.0);
                     let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows_in_range(self.pointer_scanner_view_data.clone(), row_range);
 

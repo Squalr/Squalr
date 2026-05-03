@@ -63,9 +63,22 @@ impl<'lifetime> ElementScannerResultEntryView<'lifetime> {
             return;
         }
 
+        let tooltip_rectangle = cell_rectangle.intersect(user_interface.clip_rect());
+
+        if tooltip_rectangle.is_negative() {
+            return;
+        }
+
         user_interface
-            .interact(cell_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover())
+            .interact(tooltip_rectangle, user_interface.id().with(tooltip_id_suffix), Sense::hover())
             .on_hover_text(tooltip_text);
+    }
+
+    fn text_clip_rectangle(
+        user_interface: &Ui,
+        text_rectangle: Rect,
+    ) -> Rect {
+        text_rectangle.intersect(user_interface.clip_rect())
     }
 }
 
@@ -200,7 +213,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         user_interface
             .painter()
-            .with_clip_rect(data_type_text_clip_rectangle)
+            .with_clip_rect(Self::text_clip_rectangle(user_interface, data_type_text_clip_rectangle))
             .text(
                 data_type_text_position,
                 Align2::LEFT_CENTER,
@@ -211,7 +224,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         user_interface
             .painter()
-            .with_clip_rect(address_text_clip_rectangle)
+            .with_clip_rect(Self::text_clip_rectangle(user_interface, address_text_clip_rectangle))
             .text(
                 address_text_position,
                 Align2::LEFT_CENTER,
@@ -248,7 +261,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         user_interface
             .painter()
-            .with_clip_rect(current_value_text_clip_rectangle)
+            .with_clip_rect(Self::text_clip_rectangle(user_interface, current_value_text_clip_rectangle))
             .text(
                 current_value_text_position,
                 Align2::LEFT_CENTER,
@@ -287,7 +300,7 @@ impl<'a> Widget for ElementScannerResultEntryView<'a> {
 
         user_interface
             .painter()
-            .with_clip_rect(previous_value_text_clip_rectangle)
+            .with_clip_rect(Self::text_clip_rectangle(user_interface, previous_value_text_clip_rectangle))
             .text(
                 previous_value_text_position,
                 Align2::LEFT_CENTER,

@@ -22,7 +22,7 @@ use crate::{
         struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, Widget};
+use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget};
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -464,12 +464,19 @@ impl Widget for ElementScannerResultsView {
                 theme.foreground,
             );
 
+            let mut content_user_interface = user_interface.new_child(
+                UiBuilder::new()
+                    .max_rect(content_clip_rectangle)
+                    .layout(Layout::top_down(Align::Min)),
+            );
+            content_user_interface.set_clip_rect(content_clip_rectangle);
+
             // Result entries.
             ScrollArea::vertical()
                 .id_salt("element_scanner_result_entries")
                 .max_height(content_height)
                 .auto_shrink([false, false])
-                .show(&mut user_interface, |user_interface| {
+                .show(&mut content_user_interface, |user_interface| {
                     let element_scanner_results_view_data = match self
                         .element_scanner_results_view_data
                         .read("Element scanner results view element scanner results view data")
