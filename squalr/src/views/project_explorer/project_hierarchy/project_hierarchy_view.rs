@@ -2,8 +2,11 @@ use crate::{
     app_context::AppContext,
     ui::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
+        draw::icon_draw::IconDraw,
         geometry::{safe_clamp_f32, safe_clamp_ord},
-        widgets::controls::{context_menu::context_menu::ContextMenu, groupbox::GroupBox, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
+        widgets::controls::{
+            button::Button, context_menu::context_menu::ContextMenu, groupbox::GroupBox, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+        },
     },
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     views::memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
@@ -25,7 +28,7 @@ use crate::{
     },
     views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
 };
-use eframe::egui::{Align, CursorIcon, Direction, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
+use eframe::egui::{Align, CursorIcon, Direction, DragValue, Id, Key, Layout, Pos2, Rect, Response, RichText, ScrollArea, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
 use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
@@ -125,8 +128,9 @@ struct ProjectItemValueEditContext {
 }
 
 impl ProjectHierarchyView {
-    const TARGET_FIELD_POINTER_OFFSETS: &str = "__address_target_pointer_offsets";
-    const TARGET_FIELD_POINTER_SIZE: &str = "__address_target_pointer_size";
+    const TARGET_FIELD_POINTER_OFFSETS: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS;
+    const TARGET_FIELD_POINTER_SIZE: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE;
+    const TARGET_FIELD_POINTER_SIZE_NONE: &str = "None";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
@@ -658,13 +662,13 @@ mod tests {
     }
 
     #[test]
-    fn build_struct_view_properties_exposes_address_item_target_editor() {
+    fn build_struct_view_properties_exposes_address_item_pointer_size_none_editor() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
         let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
-        let target_field = struct_view_properties
-            .get_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
-            .expect("Expected target selector field.");
+        let pointer_size_field = struct_view_properties
+            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE)
+            .expect("Expected pointer size field.");
         let address_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
             .expect("Expected address field.");
@@ -672,7 +676,12 @@ mod tests {
             .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
             .expect("Expected module field.");
 
-        assert_eq!(StructViewerViewData::read_utf8_field_text(target_field), "Address");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_size_field), "None");
+        assert!(
+            struct_view_properties
+                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+                .is_none()
+        );
         assert_eq!(address_field.get_bytes(), 0x1234_u64.to_le_bytes());
         assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "game.exe");
         assert_eq!(struct_view_properties.get_fields().len(), project_item.get_properties().get_fields().len());
@@ -807,17 +816,75 @@ mod tests {
     }
 
     #[test]
-    fn apply_project_item_address_target_edit_changes_target_kind() {
+    fn apply_project_item_address_target_edit_pointer_size_converts_address_to_pointer_path() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("Pointer")
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false);
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("u64")
+            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE.to_string(), false);
 
         let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
         assert!(did_apply_edit);
         assert_eq!(
             ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new(0, Vec::new(), String::new()))
+            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
+                0x1234,
+                Vec::new(),
+                String::from("game.exe"),
+                PointerScanPointerSize::Pointer64,
+            ))
+        );
+    }
+
+    #[test]
+    fn apply_project_item_address_target_edit_pointer_size_none_converts_pointer_path_to_address() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
+                0x4567,
+                vec![0x10, 0x20],
+                String::from("pointer_root.exe"),
+                PointerScanPointerSize::Pointer64,
+            )),
+        );
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("None")
+            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE.to_string(), false);
+
+        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+
+        assert!(did_apply_edit);
+        assert_eq!(
+            ProjectItemTypeAddress::get_address_target(&mut project_item),
+            ProjectItemAddressTarget::new_address(0x4567, String::from("pointer_root.exe"))
+        );
+    }
+
+    #[test]
+    fn apply_project_item_address_target_edit_updates_pointer_offsets() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
+                0x4567,
+                vec![0x10],
+                String::from("pointer_root.exe"),
+                PointerScanPointerSize::Pointer64,
+            )),
+        );
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("[32,-16]")
+            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
+
+        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
+
+        assert!(did_apply_edit);
+        assert_eq!(
+            ProjectItemTypeAddress::get_address_target(&mut project_item),
+            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
+                0x4567,
+                vec![0x20, -0x10],
+                String::from("pointer_root.exe"),
+                PointerScanPointerSize::Pointer64,
+            ))
         );
     }
 
@@ -971,11 +1038,13 @@ impl Widget for ProjectHierarchyView {
         let mut promote_symbol_overwrite_project_item_paths: Option<Vec<std::path::PathBuf>> = None;
         let mut rename_project_item_submission: Option<(PathBuf, String, String)> = None;
         let mut value_edit_project_item_submission: Option<(PathBuf, String, DataTypeRef, AnonymousValueString)> = None;
+        let mut pointer_offsets_submission: Option<(PathBuf, Vec<i64>)> = None;
         let mut keyboard_activation_toggle_target: Option<(Vec<PathBuf>, bool)> = None;
         let mut is_delete_confirmation_active = false;
         let mut is_promote_symbol_conflict_active = false;
         let mut is_rename_take_over_active = false;
         let mut is_value_edit_take_over_active = false;
+        let mut is_pointer_offsets_edit_take_over_active = false;
         let mut visible_preview_project_item_paths = Vec::new();
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
@@ -1040,6 +1109,11 @@ impl Widget for ProjectHierarchyView {
                     _ => None,
                 };
                 is_value_edit_take_over_active = active_value_edit_project_item_path.is_some();
+                let active_pointer_offsets_edit_project_item_path = match &take_over_state {
+                    ProjectHierarchyTakeOverState::EditPointerOffsets { project_item_path } => Some(project_item_path.clone()),
+                    _ => None,
+                };
+                is_pointer_offsets_edit_take_over_active = active_pointer_offsets_edit_project_item_path.is_some();
 
                 match take_over_state {
                     ProjectHierarchyTakeOverState::None | ProjectHierarchyTakeOverState::RenameProjectItem { .. } => {
@@ -1594,6 +1668,146 @@ impl Widget for ProjectHierarchyView {
                             .ctx()
                             .data_mut(|data| data.insert_temp(value_edit_storage_id, value_edit));
                     }
+                    ProjectHierarchyTakeOverState::EditPointerOffsets { project_item_path } => {
+                        is_pointer_offsets_edit_take_over_active = true;
+
+                        let project_item = tree_entries
+                            .iter()
+                            .find(|tree_entry| tree_entry.project_item_path == project_item_path)
+                            .map(|tree_entry| tree_entry.project_item.clone());
+                        let Some(project_item) = project_item else {
+                            should_cancel_take_over = true;
+                            return;
+                        };
+                        let Some(initial_pointer_offsets) = Self::resolve_address_item_pointer_offsets(&project_item) else {
+                            should_cancel_take_over = true;
+                            return;
+                        };
+                        let pointer_offsets_storage_id = Self::project_item_pointer_offsets_edit_storage_id(&project_item_path);
+                        let mut pointer_offsets = user_interface
+                            .ctx()
+                            .data_mut(|data| data.get_temp::<Vec<i64>>(pointer_offsets_storage_id))
+                            .unwrap_or(initial_pointer_offsets);
+                        let theme = &self.app_context.theme;
+                        let panel_width = safe_clamp_f32(user_interface.available_width(), 320.0, 560.0);
+
+                        user_interface.add_space(12.0);
+                        user_interface.horizontal(|user_interface| {
+                            let side_spacing = ((user_interface.available_width() - panel_width) * 0.5).max(0.0);
+                            user_interface.add_space(side_spacing);
+                            user_interface.allocate_ui_with_layout(vec2(panel_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
+                                user_interface.add(
+                                    GroupBox::new_from_theme(theme, "Edit pointer offsets", |user_interface| {
+                                        ScrollArea::vertical()
+                                            .id_salt("project_hierarchy_pointer_offsets_editor")
+                                            .max_height(220.0)
+                                            .auto_shrink([false, false])
+                                            .show(user_interface, |user_interface| {
+                                                let mut offset_to_delete = None;
+
+                                                for (pointer_offset_index, pointer_offset) in pointer_offsets.iter_mut().enumerate() {
+                                                    user_interface.horizontal(|user_interface| {
+                                                        let label = format!("Offset {}", pointer_offset_index + 1);
+                                                        let drag_value_width = (user_interface.available_width() - 36.0).max(0.0);
+
+                                                        user_interface.label(
+                                                            RichText::new(label)
+                                                                .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                                                .color(theme.foreground),
+                                                        );
+                                                        user_interface.add_sized(
+                                                            vec2(drag_value_width, 24.0),
+                                                            DragValue::new(pointer_offset)
+                                                                .hexadecimal(1, false, true)
+                                                                .speed(1.0),
+                                                        );
+
+                                                        let delete_button_response = user_interface.add_sized(
+                                                            vec2(24.0, 24.0),
+                                                            Button::new_from_theme(theme)
+                                                                .background_color(epaint::Color32::TRANSPARENT)
+                                                                .with_tooltip_text("Delete offset."),
+                                                        );
+
+                                                        IconDraw::draw(
+                                                            user_interface,
+                                                            delete_button_response.rect,
+                                                            &theme.icon_library.icon_handle_common_delete,
+                                                        );
+
+                                                        if delete_button_response.clicked() {
+                                                            offset_to_delete = Some(pointer_offset_index);
+                                                        }
+                                                    });
+                                                }
+
+                                                if let Some(offset_to_delete) = offset_to_delete {
+                                                    pointer_offsets.remove(offset_to_delete);
+                                                }
+                                            });
+
+                                        user_interface.add_space(8.0);
+                                        user_interface.horizontal(|user_interface| {
+                                            let add_offset_button_response = user_interface.add_sized(
+                                                vec2(28.0, 28.0),
+                                                Button::new_from_theme(theme)
+                                                    .background_color(epaint::Color32::TRANSPARENT)
+                                                    .with_tooltip_text("Add offset."),
+                                            );
+                                            IconDraw::draw(
+                                                user_interface,
+                                                add_offset_button_response.rect,
+                                                &theme.icon_library.icon_handle_common_add,
+                                            );
+
+                                            if add_offset_button_response.clicked() {
+                                                pointer_offsets.push(0);
+                                            }
+
+                                            user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
+                                                let commit_button_response = user_interface.add_sized(
+                                                    vec2(28.0, 28.0),
+                                                    Button::new_from_theme(theme)
+                                                        .background_color(epaint::Color32::TRANSPARENT)
+                                                        .with_tooltip_text("Save offsets."),
+                                                );
+                                                IconDraw::draw(
+                                                    user_interface,
+                                                    commit_button_response.rect,
+                                                    &theme.icon_library.icon_handle_common_check_mark,
+                                                );
+
+                                                if commit_button_response.clicked() {
+                                                    pointer_offsets_submission = Some((project_item_path.clone(), pointer_offsets.clone()));
+                                                }
+
+                                                let cancel_button_response = user_interface.add_sized(
+                                                    vec2(28.0, 28.0),
+                                                    Button::new_from_theme(theme)
+                                                        .background_color(epaint::Color32::TRANSPARENT)
+                                                        .with_tooltip_text("Cancel offset edit."),
+                                                );
+                                                IconDraw::draw(
+                                                    user_interface,
+                                                    cancel_button_response.rect,
+                                                    &theme.icon_library.icon_handle_navigation_cancel,
+                                                );
+
+                                                if cancel_button_response.clicked() {
+                                                    should_cancel_take_over = true;
+                                                }
+                                            });
+                                        });
+                                    })
+                                    .desired_width(panel_width),
+                                );
+                            });
+                        });
+
+                        user_interface
+                            .ctx()
+                            .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offsets));
+                    }
                     ProjectHierarchyTakeOverState::DeleteConfirmation { project_item_paths } => {
                         is_delete_confirmation_active = true;
                         let theme = &self.app_context.theme;
@@ -1747,7 +1961,7 @@ impl Widget for ProjectHierarchyView {
             .window_focus_manager
             .can_window_handle_shortcuts(user_interface.ctx(), ProjectExplorerView::WINDOW_ID);
 
-        if is_window_focused && (is_delete_confirmation_active || is_promote_symbol_conflict_active) {
+        if is_window_focused && (is_delete_confirmation_active || is_promote_symbol_conflict_active || is_pointer_offsets_edit_take_over_active) {
             if user_interface.input(|input_state| input_state.key_pressed(Key::Escape))
                 || user_interface.input(|input_state| input_state.key_pressed(Key::Backspace))
             {
@@ -1781,6 +1995,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
         {
@@ -1791,6 +2006,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && can_handle_window_shortcuts
             && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::X))
         {
@@ -1808,6 +2024,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && can_handle_window_shortcuts
             && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::C))
         {
@@ -1825,6 +2042,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && can_handle_window_shortcuts
             && user_interface.input(|input_state| (input_state.modifiers.command || input_state.modifiers.ctrl) && input_state.key_pressed(Key::V))
         {
@@ -1837,6 +2055,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::F2))
         {
@@ -1847,6 +2066,7 @@ impl Widget for ProjectHierarchyView {
             && !is_promote_symbol_conflict_active
             && !is_rename_take_over_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::Space))
         {
@@ -1875,6 +2095,7 @@ impl Widget for ProjectHierarchyView {
 
         if !is_delete_confirmation_active
             && !is_value_edit_take_over_active
+            && !is_pointer_offsets_edit_take_over_active
             && ProjectHierarchyViewData::set_visible_preview_project_item_paths(self.project_hierarchy_view_data.clone(), visible_preview_project_item_paths)
         {
             self.sync_project_item_virtual_snapshot(project_read_interval);
@@ -1900,6 +2121,16 @@ impl Widget for ProjectHierarchyView {
                 })
             {
                 Self::clear_project_item_value_edit_state(user_interface, &project_item_path);
+            }
+            if let Some(project_item_path) = self
+                .project_hierarchy_view_data
+                .read("Project hierarchy clear pointer offsets edit state on cancel")
+                .and_then(|project_hierarchy_view_data| match &project_hierarchy_view_data.take_over_state {
+                    ProjectHierarchyTakeOverState::EditPointerOffsets { project_item_path } => Some(project_item_path.clone()),
+                    _ => None,
+                })
+            {
+                Self::clear_project_item_pointer_offsets_edit_state(user_interface, &project_item_path);
             }
             ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
         }
@@ -1964,6 +2195,23 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
+        if let Some((project_item_path, pointer_offsets)) = pointer_offsets_submission {
+            match serde_json::to_string(&pointer_offsets) {
+                Ok(pointer_offsets_json) => {
+                    let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(&pointer_offsets_json)
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
+
+                    Self::apply_project_item_edits(self.app_context.clone(), vec![project_item_path.clone()], edited_field);
+                    Self::clear_project_item_pointer_offsets_edit_state(user_interface, &project_item_path);
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                    self.focus_selected_project_items_in_struct_viewer();
+                }
+                Err(error) => {
+                    log::warn!("Failed to serialize project hierarchy pointer offsets edit: {}", error);
+                }
+            }
+        }
+
         if let Some((project_item_paths, is_activated)) = keyboard_activation_toggle_target {
             ProjectHierarchyViewData::set_project_item_activation(
                 self.project_hierarchy_view_data.clone(),
@@ -2005,6 +2253,9 @@ impl Widget for ProjectHierarchyView {
             }
         }
 
+        let has_blocking_take_over =
+            is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active || is_pointer_offsets_edit_take_over_active;
+
         match project_hierarchy_frame_action {
             ProjectHierarchyFrameAction::None => {}
             ProjectHierarchyFrameAction::SelectProjectItem {
@@ -2019,6 +2270,9 @@ impl Widget for ProjectHierarchyView {
                 if is_value_edit_take_over_active {
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
+                if is_pointer_offsets_edit_take_over_active {
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                }
 
                 ProjectHierarchyViewData::select_project_item(self.project_hierarchy_view_data.clone(), project_item_path, additive_selection, range_selection);
                 self.focus_selected_project_items_in_struct_viewer();
@@ -2031,11 +2285,14 @@ impl Widget for ProjectHierarchyView {
                 if is_value_edit_take_over_active {
                     ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
                 }
+                if is_pointer_offsets_edit_take_over_active {
+                    ProjectHierarchyViewData::cancel_take_over(self.project_hierarchy_view_data.clone());
+                }
 
                 ProjectHierarchyViewData::toggle_directory_expansion(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::SetProjectItemActivation(project_item_path, is_activated) => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2064,7 +2321,7 @@ impl Widget for ProjectHierarchyView {
                 target_project_item_path,
                 create_item_kind,
             } => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2076,21 +2333,21 @@ impl Widget for ProjectHierarchyView {
                 );
             }
             ProjectHierarchyFrameAction::CopyProjectItems(project_item_paths) => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
                 ProjectHierarchyViewData::copy_project_items(self.project_hierarchy_view_data.clone(), project_item_paths);
             }
             ProjectHierarchyFrameAction::CutProjectItems(project_item_paths) => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
                 ProjectHierarchyViewData::cut_project_items(self.project_hierarchy_view_data.clone(), project_item_paths);
             }
             ProjectHierarchyFrameAction::PasteProjectItems { target_project_item_path } => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2105,7 +2362,7 @@ impl Widget for ProjectHierarchyView {
                 module_name,
                 data_type_id,
             } => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2116,14 +2373,14 @@ impl Widget for ProjectHierarchyView {
                 module_name,
                 selection_byte_count,
             } => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
                 self.focus_memory_viewer_for_address(address, &module_name, selection_byte_count);
             }
             ProjectHierarchyFrameAction::OpenCodeViewerForAddress { address, module_name } => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2133,7 +2390,7 @@ impl Widget for ProjectHierarchyView {
                 project_item_paths,
                 overwrite_conflicting_symbols,
             } => {
-                if is_rename_take_over_active || is_value_edit_take_over_active {
+                if is_rename_take_over_active || is_value_edit_take_over_active || is_pointer_offsets_edit_take_over_active {
                     return response;
                 }
 
@@ -2150,7 +2407,7 @@ impl Widget for ProjectHierarchyView {
                 project_item_paths,
                 conversion_target: _conversion_target,
             } => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2163,7 +2420,7 @@ impl Widget for ProjectHierarchyView {
                 );
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
-                if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
+                if is_promote_symbol_conflict_active || is_value_edit_take_over_active || is_pointer_offsets_edit_take_over_active {
                     return response;
                 }
 
@@ -2186,7 +2443,7 @@ impl Widget for ProjectHierarchyView {
                 ProjectHierarchyViewData::request_value_edit_for_project_item(self.project_hierarchy_view_data.clone(), project_item_path);
             }
             ProjectHierarchyFrameAction::RequestDeleteConfirmation(project_item_paths) => {
-                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                if has_blocking_take_over {
                     return response;
                 }
 
@@ -2768,7 +3025,15 @@ impl ProjectHierarchyView {
         project_item_paths: Vec<PathBuf>,
     ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
         Arc::new(move |edited_field: ValuedStructField| {
-            let should_refocus_details = edited_field.get_name() == StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND;
+            if edited_field.get_name() == Self::TARGET_FIELD_POINTER_OFFSETS {
+                if let Some(project_item_path) = project_item_paths.first().cloned() {
+                    ProjectHierarchyViewData::request_pointer_offsets_edit(project_hierarchy_view_data.clone(), project_item_path);
+                }
+
+                return;
+            }
+
+            let should_refocus_details = edited_field.get_name() == Self::TARGET_FIELD_POINTER_SIZE;
 
             Self::apply_project_item_edits(app_context.clone(), project_item_paths.clone(), edited_field);
 
@@ -3189,30 +3454,23 @@ impl ProjectHierarchyView {
         fields: &mut Vec<ValuedStructField>,
         address_target: &ProjectItemAddressTarget,
     ) {
-        fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(Self::project_item_address_target_kind_label(address_target))
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false),
-        );
-
         match address_target {
-            ProjectItemAddressTarget::Address { .. } => {}
-            ProjectItemAddressTarget::PointerPath { pointer } => {
+            ProjectItemAddressTarget::Address { .. } => {
                 fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(pointer.get_offsets()))
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
+                    DataTypeStringUtf8::get_value_from_primitive_string(Self::TARGET_FIELD_POINTER_SIZE_NONE)
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
                 );
+            }
+            ProjectItemAddressTarget::PointerPath { pointer } => {
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_pointer_size().to_data_type_ref().get_data_type_id())
                         .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
                 );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(pointer.get_offsets()))
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
+                );
             }
-        }
-    }
-
-    fn project_item_address_target_kind_label(address_target: &ProjectItemAddressTarget) -> &'static str {
-        match address_target {
-            ProjectItemAddressTarget::Address { .. } => "Address",
-            ProjectItemAddressTarget::PointerPath { .. } => "Pointer",
         }
     }
 
@@ -3264,89 +3522,87 @@ impl ProjectHierarchyView {
 
         let edited_field_name = edited_field.get_name();
 
-        if edited_field_name == StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND {
-            let Some(target_kind_text) = Self::extract_string_value_from_edited_field(edited_field) else {
-                return false;
-            };
-            let current_address_target = ProjectItemTypeAddress::get_address_target(project_item);
-            let Some(address_target) = Self::build_project_item_address_target_for_kind(&current_address_target, &target_kind_text) else {
-                log::warn!("Ignoring unknown project address target kind: {}", target_kind_text);
-                return false;
-            };
+        let address_target = ProjectItemTypeAddress::get_address_target(project_item);
+        let updated_address_target = match address_target {
+            ProjectItemAddressTarget::Address { address, module_name } => match edited_field_name {
+                Self::TARGET_FIELD_POINTER_SIZE => {
+                    let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
+                        return false;
+                    };
 
-            ProjectItemTypeAddress::set_address_target(project_item, address_target);
-            return true;
-        }
-
-        let mut address_target = ProjectItemTypeAddress::get_address_target(project_item);
-        let did_update_target = match (&mut address_target, edited_field_name) {
-            (ProjectItemAddressTarget::Address { address, .. }, ProjectItemTypeAddress::PROPERTY_ADDRESS) => {
-                if let Some(edited_address) = Self::extract_u64_value_from_edited_field(edited_field) {
-                    *address = edited_address;
-                    true
-                } else {
-                    false
+                    if Self::is_pointer_size_none(&pointer_size_text) {
+                        None
+                    } else if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
+                        Some(ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
+                            address,
+                            Vec::new(),
+                            module_name,
+                            pointer_size,
+                        )))
+                    } else {
+                        log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
+                        None
+                    }
                 }
-            }
-            (ProjectItemAddressTarget::Address { module_name, .. }, ProjectItemTypeAddress::PROPERTY_MODULE) => {
-                if let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) {
-                    *module_name = edited_module_name;
-                    true
-                } else {
-                    false
-                }
-            }
-            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_ADDRESS) => {
-                if let Some(edited_address) = Self::extract_u64_value_from_edited_field(edited_field) {
+                ProjectItemTypeAddress::PROPERTY_ADDRESS => Self::extract_u64_value_from_edited_field(edited_field)
+                    .map(|edited_address| ProjectItemAddressTarget::new_address(edited_address, module_name)),
+                ProjectItemTypeAddress::PROPERTY_MODULE => Self::extract_string_value_from_edited_field_allow_empty(edited_field)
+                    .map(|edited_module_name| ProjectItemAddressTarget::new_address(address, edited_module_name)),
+                _ => None,
+            },
+            ProjectItemAddressTarget::PointerPath { mut pointer } => match edited_field_name {
+                ProjectItemTypeAddress::PROPERTY_ADDRESS => Self::extract_u64_value_from_edited_field(edited_field).map(|edited_address| {
                     pointer.set_address(edited_address);
-                    true
-                } else {
-                    false
-                }
-            }
-            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_MODULE) => {
-                if let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) {
+                    ProjectItemAddressTarget::new_pointer_path(pointer)
+                }),
+                ProjectItemTypeAddress::PROPERTY_MODULE => Self::extract_string_value_from_edited_field_allow_empty(edited_field).map(|edited_module_name| {
                     pointer.set_module_name(edited_module_name);
-                    true
-                } else {
-                    false
+                    ProjectItemAddressTarget::new_pointer_path(pointer)
+                }),
+                Self::TARGET_FIELD_POINTER_SIZE => {
+                    let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
+                        return false;
+                    };
+
+                    if Self::is_pointer_size_none(&pointer_size_text) {
+                        Some(ProjectItemAddressTarget::new_address(
+                            pointer.get_address(),
+                            pointer.get_module_name().to_string(),
+                        ))
+                    } else if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
+                        pointer.set_pointer_size(pointer_size);
+                        Some(ProjectItemAddressTarget::new_pointer_path(pointer))
+                    } else {
+                        log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
+                        None
+                    }
                 }
-            }
-            (ProjectItemAddressTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_SIZE) => {
-                if let Some(pointer_size) =
-                    Self::extract_string_value_from_edited_field(edited_field).and_then(|text| PointerScanPointerSize::from_str(&text).ok())
-                {
-                    pointer.set_pointer_size(pointer_size);
-                    true
-                } else {
-                    false
-                }
-            }
-            _ => false,
+                Self::TARGET_FIELD_POINTER_OFFSETS => Self::extract_pointer_offsets_from_edited_field(edited_field).map(|pointer_offsets| {
+                    pointer.set_offsets(pointer_offsets);
+                    ProjectItemAddressTarget::new_pointer_path(pointer)
+                }),
+                _ => None,
+            },
         };
 
-        if did_update_target {
-            ProjectItemTypeAddress::set_address_target(project_item, address_target);
+        if let Some(updated_address_target) = updated_address_target {
+            ProjectItemTypeAddress::set_address_target(project_item, updated_address_target);
+            true
+        } else {
+            false
         }
-
-        did_update_target
     }
 
-    fn build_project_item_address_target_for_kind(
-        current_target: &ProjectItemAddressTarget,
-        target_kind_text: &str,
-    ) -> Option<ProjectItemAddressTarget> {
-        match target_kind_text.trim().to_ascii_lowercase().as_str() {
-            "address" => Some(match current_target {
-                ProjectItemAddressTarget::Address { .. } => current_target.clone(),
-                _ => ProjectItemAddressTarget::new_address(0, String::new()),
-            }),
-            "pointer" => Some(match current_target {
-                ProjectItemAddressTarget::PointerPath { .. } => current_target.clone(),
-                _ => ProjectItemAddressTarget::new_pointer_path(Pointer::new(0, Vec::new(), String::new())),
-            }),
-            _ => None,
-        }
+    fn is_pointer_size_none(pointer_size_text: &str) -> bool {
+        pointer_size_text
+            .trim()
+            .eq_ignore_ascii_case(Self::TARGET_FIELD_POINTER_SIZE_NONE)
+    }
+
+    fn extract_pointer_offsets_from_edited_field(edited_field: &ValuedStructField) -> Option<Vec<i64>> {
+        let offsets_text = Self::extract_string_value_from_edited_field(edited_field)?;
+
+        serde_json::from_str::<Vec<i64>>(&offsets_text).ok()
     }
 
     fn format_pointer_offsets(pointer_offsets: &[i64]) -> String {
@@ -3843,6 +4099,34 @@ impl ProjectHierarchyView {
         user_interface.ctx().data_mut(|data| {
             data.remove::<AnonymousValueString>(value_edit_storage_id);
         });
+    }
+
+    fn project_item_pointer_offsets_edit_storage_id(project_item_path: &Path) -> Id {
+        Id::new(("project_hierarchy_pointer_offsets_edit", project_item_path.to_path_buf()))
+    }
+
+    fn clear_project_item_pointer_offsets_edit_state(
+        user_interface: &Ui,
+        project_item_path: &Path,
+    ) {
+        let pointer_offsets_storage_id = Self::project_item_pointer_offsets_edit_storage_id(project_item_path);
+
+        user_interface.ctx().data_mut(|data| {
+            data.remove::<Vec<i64>>(pointer_offsets_storage_id);
+        });
+    }
+
+    fn resolve_address_item_pointer_offsets(project_item: &ProjectItem) -> Option<Vec<i64>> {
+        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+            return None;
+        }
+
+        let mut project_item = project_item.clone();
+
+        match ProjectItemTypeAddress::get_address_target(&mut project_item) {
+            ProjectItemAddressTarget::PointerPath { pointer } => Some(pointer.get_offsets().to_vec()),
+            ProjectItemAddressTarget::Address { .. } => None,
+        }
     }
 
     fn build_project_item_value_edit_context(

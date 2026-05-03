@@ -429,7 +429,9 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::ContainerTypeSelector | StructViewerFieldEditorKind::ProjectItemTargetSelector => {
+                                    StructViewerFieldEditorKind::ContainerTypeSelector
+                                    | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector
+                                    | StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,
@@ -525,6 +527,16 @@ impl Widget for StructViewerView {
 
                 if let (Some(struct_field_modified_callback), Some(modified_field)) = (modified_field_callback, modified_field) {
                     struct_field_modified_callback(modified_field);
+                }
+            }
+            StructViewerFrameAction::RequestFieldEditor(requested_field) => {
+                let modified_field_callback = self
+                    .struct_viewer_view_data
+                    .read("Struct viewer request field editor")
+                    .and_then(|struct_viewer_view_data| struct_viewer_view_data.struct_field_modified_callback.clone());
+
+                if let Some(struct_field_modified_callback) = modified_field_callback {
+                    struct_field_modified_callback(requested_field);
                 }
             }
             StructViewerFrameAction::OpenInMemoryViewer(field_name) => {

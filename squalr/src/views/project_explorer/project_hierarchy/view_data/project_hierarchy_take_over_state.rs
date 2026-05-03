@@ -18,4 +18,7 @@ pub enum ProjectHierarchyTakeOverState {
     EditProjectItemValue {
         project_item_path: PathBuf,
     },
+    EditPointerOffsets {
+        project_item_path: PathBuf,
+    },
 }

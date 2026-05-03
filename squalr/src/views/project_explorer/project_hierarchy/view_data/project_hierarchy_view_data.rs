@@ -323,7 +323,8 @@ impl ProjectHierarchyViewData {
         match &mut self.take_over_state {
             ProjectHierarchyTakeOverState::None => {}
             ProjectHierarchyTakeOverState::RenameProjectItem { project_item_path, .. }
-            | ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } => {
+            | ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path }
+            | ProjectHierarchyTakeOverState::EditPointerOffsets { project_item_path } => {
                 if !visible_project_item_paths.contains(project_item_path) {
                     self.take_over_state = ProjectHierarchyTakeOverState::None;
                 }
@@ -353,7 +354,9 @@ impl ProjectHierarchyViewData {
             requested_preview_project_item_paths.push(selected_project_item_path.clone());
         }
 
-        if let ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path } = &self.take_over_state {
+        if let ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path }
+        | ProjectHierarchyTakeOverState::EditPointerOffsets { project_item_path } = &self.take_over_state
+        {
             requested_preview_project_item_paths.push(project_item_path.clone());
         }
 
@@ -835,6 +838,41 @@ impl ProjectHierarchyViewData {
         project_hierarchy_view_data.selection_anchor_project_item_path = Some(project_item_path.clone());
         project_hierarchy_view_data.selected_project_item_path = Some(project_item_path.clone());
         project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::EditProjectItemValue { project_item_path };
+    }
+
+    pub fn request_pointer_offsets_edit(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_path: PathBuf,
+    ) {
+        let mut project_hierarchy_view_data = match project_hierarchy_view_data.write("Project hierarchy request pointer offsets edit") {
+            Some(project_hierarchy_view_data) => project_hierarchy_view_data,
+            None => return,
+        };
+
+        if project_hierarchy_view_data.pending_operation != ProjectHierarchyPendingOperation::None {
+            return;
+        }
+
+        let is_pointer_offsets_project_item = project_hierarchy_view_data
+            .project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == &project_item_path)
+            .map(|(_, project_item)| project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID)
+            .unwrap_or(false);
+
+        if !is_pointer_offsets_project_item {
+            return;
+        }
+
+        project_hierarchy_view_data.menu_target = None;
+        project_hierarchy_view_data.menu_position = None;
+        project_hierarchy_view_data.selected_project_item_paths.clear();
+        project_hierarchy_view_data
+            .selected_project_item_paths
+            .insert(project_item_path.clone());
+        project_hierarchy_view_data.selection_anchor_project_item_path = Some(project_item_path.clone());
+        project_hierarchy_view_data.selected_project_item_path = Some(project_item_path.clone());
+        project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::EditPointerOffsets { project_item_path };
     }
 
     pub fn request_delete_confirmation(

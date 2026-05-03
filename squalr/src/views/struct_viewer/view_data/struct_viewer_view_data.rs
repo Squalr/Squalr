@@ -46,7 +46,8 @@ impl StructViewerViewData {
     pub const DEFAULT_NAME_SPLITTER_RATIO: f32 = 0.5;
     pub const VIRTUAL_FIELD_CONTAINER_TYPE: &'static str = "__virtual_container_type";
     pub const VIRTUAL_FIELD_ARRAY_SIZE: &'static str = "__virtual_array_size";
-    pub const VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND: &'static str = "__project_item_address_target_kind";
+    pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS: &'static str = "__address_target_pointer_offsets";
+    pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE: &'static str = "__address_target_pointer_size";
 
     pub fn new() -> Self {
         Self {
@@ -416,8 +417,10 @@ impl StructViewerViewData {
                 }
             } else if Self::is_virtual_array_size_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Array Size"), StructViewerFieldEditorKind::ValueBox)
-            } else if Self::is_project_item_target_kind_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Target"), StructViewerFieldEditorKind::ProjectItemTargetSelector)
+            } else if Self::is_project_item_pointer_size_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::ProjectItemPointerSizeSelector)
+            } else if Self::is_project_item_pointer_offsets_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Offsets"), StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -526,8 +529,12 @@ impl StructViewerViewData {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_ARRAY_SIZE
     }
 
-    fn is_project_item_target_kind_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND
+    fn is_project_item_pointer_offsets_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS
+    }
+
+    fn is_project_item_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE
     }
 
     fn is_live_value_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -857,10 +864,10 @@ mod tests {
     #[test]
     fn create_field_presentations_uses_readable_names_for_internal_fields() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
-            DataTypeStringUtf8::get_value_from_primitive_string("Pointer")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("0x10, 0x20")
-                .to_named_valued_struct_field("__address_target_pointer_offsets".to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("u64")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("u64").to_named_valued_struct_field("symbol_locator_key".to_string(), false),
         ]);
 
@@ -868,15 +875,27 @@ mod tests {
 
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_TARGET_KIND)
+                .get(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS)
                 .map(StructViewerFieldPresentation::display_name),
-            Some("Target")
+            Some("Offsets")
         );
         assert_eq!(
             field_presentations
-                .get("__address_target_pointer_offsets")
+                .get(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor)
+        );
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE)
                 .map(StructViewerFieldPresentation::display_name),
-            Some("Pointer Offsets")
+            Some("Pointer Size")
+        );
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::ProjectItemPointerSizeSelector)
         );
         assert_eq!(
             field_presentations
