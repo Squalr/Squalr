@@ -921,6 +921,37 @@ impl SymbolExplorerView {
         );
     }
 
+    fn focus_symbol_tree_entry_for_edit(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        selected_symbol_tree_entry: &SymbolTreeEntry,
+    ) {
+        let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
+        let selected_field_name = Self::resolve_first_editable_struct_viewer_field_name(&symbol_struct);
+        let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
+        let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
+
+        StructViewerViewData::focus_valued_struct_with_focus_target(
+            self.struct_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            symbol_struct,
+            struct_viewer_edit_callback,
+            focus_target,
+        );
+
+        if let Some(selected_field_name) = selected_field_name {
+            StructViewerViewData::set_selected_field(self.struct_viewer_view_data.clone(), selected_field_name);
+        }
+    }
+
+    fn resolve_first_editable_struct_viewer_field_name(symbol_struct: &ValuedStruct) -> Option<String> {
+        symbol_struct
+            .get_fields()
+            .iter()
+            .find(|valued_struct_field| !valued_struct_field.get_is_read_only())
+            .map(|valued_struct_field| valued_struct_field.get_name().to_string())
+    }
+
     fn sync_selected_symbol_into_struct_viewer(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -2614,6 +2645,25 @@ impl SymbolExplorerView {
                 SymbolExplorerViewData::toggle_tree_node_expansion(self.symbol_explorer_view_data.clone(), symbol_tree_entry.get_node_key());
             }
 
+            if allow_interaction && symbol_tree_entry_view_response.row_response.double_clicked() && !symbol_tree_entry_view_response.did_click_expand_arrow {
+                if let Some(selection) = Self::build_selection_for_tree_entry(symbol_tree_entry) {
+                    SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+                }
+
+                if let Some(u8_span_edit_target) = Self::build_u8_span_edit_target(symbol_tree_entry) {
+                    SymbolExplorerViewData::begin_define_field_from_u8_segment(
+                        self.symbol_explorer_view_data.clone(),
+                        u8_span_edit_target.module_name,
+                        u8_span_edit_target.offset,
+                        u8_span_edit_target.length,
+                    );
+                } else if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                    self.focus_symbol_tree_entry_for_edit(project_symbol_catalog, symbol_tree_entry);
+                }
+
+                continue;
+            }
+
             if allow_interaction && symbol_tree_entry_view_response.did_click_row {
                 let Some(selection) = Self::build_selection_for_tree_entry(symbol_tree_entry) else {
                     continue;
@@ -2642,19 +2692,6 @@ impl SymbolExplorerView {
                     self.symbol_explorer_view_data.clone(),
                     SymbolExplorerContextMenuTarget::new(symbol_tree_entry.get_node_key().to_string(), context_menu_position),
                 );
-            }
-
-            if allow_interaction && symbol_tree_entry_view_response.row_response.double_clicked() {
-                if let Some(u8_span_edit_target) = Self::build_u8_span_edit_target(symbol_tree_entry) {
-                    SymbolExplorerViewData::begin_define_field_from_u8_segment(
-                        self.symbol_explorer_view_data.clone(),
-                        u8_span_edit_target.module_name,
-                        u8_span_edit_target.offset,
-                        u8_span_edit_target.length,
-                    );
-                } else if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
-                    self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
-                }
             }
 
             if allow_interaction
@@ -3395,7 +3432,10 @@ mod tests {
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
-        data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
+        data_types::{
+            built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u32::data_type_u32::DataTypeU32},
+            data_type_ref::DataTypeRef,
+        },
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
@@ -3554,6 +3594,19 @@ mod tests {
             &player_entry,
             Some(&focus_target),
         ));
+    }
+
+    #[test]
+    fn resolve_first_editable_struct_viewer_field_name_skips_read_only_fields() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("u32").to_named_valued_struct_field(String::from("type"), true),
+            DataTypeStringUtf8::get_value_from_primitive_string("123").to_named_valued_struct_field(String::from("value"), false),
+        ]);
+
+        assert_eq!(
+            SymbolExplorerView::resolve_first_editable_struct_viewer_field_name(&valued_struct),
+            Some(String::from("value"))
+        );
     }
 
     #[test]
