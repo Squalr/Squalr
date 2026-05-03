@@ -525,6 +525,7 @@ mod tests {
         privileged_command::PrivilegedCommand,
         privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse},
         project_items::promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest,
+        project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest,
         registry::{registry_command::RegistryCommand, set_project_symbols::registry_set_project_symbols_response::RegistrySetProjectSymbolsResponse},
         unprivileged_command::UnprivilegedCommand,
         unprivileged_command_response::UnprivilegedCommandResponse,
@@ -779,6 +780,75 @@ mod tests {
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+    }
+
+    #[test]
+    fn promote_symbol_then_delete_with_conversion_restores_absolute_address_item() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "", "", DataTypeU8::get_value_from_primitive(0));
+        let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default());
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 1);
+        assert_eq!(promote_symbol_response.promoted_symbol_locator_keys, vec![String::from("absolute:1234")]);
+
+        let project_symbols_delete_response = ProjectSymbolsDeleteRequest {
+            symbol_locator_keys: vec![String::from("absolute:1234")],
+            module_names: Vec::new(),
+            module_ranges: Vec::new(),
+            convert_symbol_refs: true,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_delete_response.success);
+        assert_eq!(project_symbols_delete_response.deleted_symbol_count, 1);
+        assert_eq!(project_symbols_delete_response.converted_symbol_ref_count, 1);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected converted project to load from disk.");
+        assert!(
+            loaded_project
+                .get_project_info()
+                .get_project_symbol_catalog()
+                .get_symbol_claims()
+                .is_empty()
+        );
+
+        let converted_project_item = loaded_project
+            .get_project_items()
+            .get(&ProjectItemRef::new(project_item_path))
+            .expect("Expected converted project item to remain in the project.");
+
+        assert_eq!(
+            converted_project_item
+                .get_item_type()
+                .get_project_item_type_id(),
+            ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
+        );
+
+        let mut converted_project_item = converted_project_item.clone();
+
+        assert_eq!(ProjectItemTypeAddress::get_field_address(&mut converted_project_item), 0x1234);
+        assert_eq!(ProjectItemTypeAddress::get_field_module(&mut converted_project_item), "");
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut converted_project_item)
+                .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string()),
+            Some(String::from("u8"))
+        );
     }
 
     #[test]
