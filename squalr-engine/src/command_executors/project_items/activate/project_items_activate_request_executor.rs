@@ -128,7 +128,7 @@ fn create_memory_freeze_target(
             return None;
         }
 
-        return build_memory_freeze_target_from_address_target(project_symbol_catalog, &address_target, data_type_id);
+        return build_memory_freeze_target_from_address_target(&address_target, data_type_id);
     }
 
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -167,7 +167,6 @@ fn create_memory_freeze_target(
 }
 
 fn build_memory_freeze_target_from_address_target(
-    project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
     data_type_id: String,
 ) -> Option<MemoryFreezeTarget> {
@@ -186,17 +185,6 @@ fn build_memory_freeze_target_from_address_target(
             pointer_offsets: pointer.get_offsets().to_vec(),
             pointer_size: pointer.get_pointer_size(),
         }),
-        ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
-            let symbol_claim = project_symbol_catalog.find_symbol_claim(symbol_locator_key)?;
-
-            Some(MemoryFreezeTarget {
-                address: symbol_claim.get_locator().get_focus_address(),
-                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
-                data_type_id: symbol_claim.get_struct_layout_id().to_string(),
-                pointer_offsets: Vec::new(),
-                pointer_size: Default::default(),
-            })
-        }
     }
 }
 

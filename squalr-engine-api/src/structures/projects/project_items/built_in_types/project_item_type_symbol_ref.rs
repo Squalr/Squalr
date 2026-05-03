@@ -19,7 +19,6 @@ impl ProjectItemTypeSymbolRef {
     pub const DEFAULT_PROJECT_ITEM_NAME: &str = "New Symbol Ref";
     pub const PROPERTY_SYMBOL_LOCATOR_KEY: &str = "symbol_locator_key";
     pub const PROPERTY_FREEZE_DISPLAY_VALUE: &str = "freeze_data_value_interpreter";
-    pub const PROPERTY_SYMBOL_LOCATOR_DISPLAY: &str = "symbol_locator_display";
 
     pub fn new_project_item(
         name: &str,
@@ -33,7 +32,6 @@ impl ProjectItemTypeSymbolRef {
         project_item.set_field_description(description);
         Self::set_field_symbol_locator_key(&mut project_item, symbol_locator_key);
         Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
-        Self::set_field_symbol_locator_display(&mut project_item, "");
 
         project_item
     }
@@ -68,22 +66,6 @@ impl ProjectItemTypeSymbolRef {
         project_item
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_FREEZE_DISPLAY_VALUE, field_data, true);
-    }
-
-    pub fn get_field_symbol_locator_display(project_item: &ProjectItem) -> String {
-        Self::read_string_field(project_item, Self::PROPERTY_SYMBOL_LOCATOR_DISPLAY)
-    }
-
-    pub fn set_field_symbol_locator_display(
-        project_item: &mut ProjectItem,
-        symbol_locator_display: &str,
-    ) {
-        let symbol_locator_display_data_value = DataTypeStringUtf8::get_value_from_primitive_string(symbol_locator_display);
-        let field_data = ValuedStructFieldData::Value(symbol_locator_display_data_value);
-
-        project_item
-            .get_properties_mut()
-            .set_field_data(Self::PROPERTY_SYMBOL_LOCATOR_DISPLAY, field_data, true);
     }
 
     fn read_string_field(
@@ -143,6 +125,5 @@ mod tests {
 
         assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_key(&project_item), "module:game.exe:1234");
         assert_eq!(ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&project_item), "");
-        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&project_item), "");
     }
 }

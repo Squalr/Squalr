@@ -135,12 +135,7 @@ fn refresh_project_item_display_values(
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            refresh_address_project_item_display_value(
-                engine_unprivileged_state,
-                project_symbol_catalog,
-                project_item,
-                project_item_preview_refresh_session,
-            );
+            refresh_address_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
@@ -156,17 +151,12 @@ fn refresh_project_item_display_values(
 
 fn refresh_address_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
-    project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &mut ProjectItem,
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let address_target = ProjectItemTypeAddress::get_address_target(project_item);
-    let Some((address, module_name)) = resolve_address_target_for_preview(
-        engine_unprivileged_state,
-        project_symbol_catalog,
-        &address_target,
-        project_item_preview_refresh_session,
-    ) else {
+    let Some((address, module_name)) = resolve_address_target_for_preview(engine_unprivileged_state, &address_target, project_item_preview_refresh_session)
+    else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -196,7 +186,6 @@ fn refresh_address_project_item_display_value(
 
 fn resolve_address_target_for_preview(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
-    project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) -> Option<(u64, String)> {
@@ -204,14 +193,6 @@ fn resolve_address_target_for_preview(
         ProjectItemAddressTarget::Address { address, module_name } => Some((*address, module_name.clone())),
         ProjectItemAddressTarget::PointerPath { pointer } => {
             evaluate_pointer_for_preview(engine_unprivileged_state, pointer, project_item_preview_refresh_session).resolved_target_address
-        }
-        ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
-            let symbol_claim = project_symbol_catalog.resolve_symbol_claim(symbol_locator_key)?;
-
-            Some((
-                symbol_claim.get_locator().get_focus_address(),
-                symbol_claim.get_locator().get_focus_module_name().to_string(),
-            ))
         }
     }
 }
@@ -263,13 +244,11 @@ fn refresh_symbol_ref_project_item_display_value(
     let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
     let Some(symbol_claim) = project_symbol_catalog.resolve_symbol_claim(&symbol_locator_key) else {
         ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, "");
-        ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, "");
         return;
     };
 
     let address = symbol_claim.get_locator().get_focus_address();
     let module_name = symbol_claim.get_locator().get_focus_module_name().to_string();
-    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, &symbol_claim.get_locator().to_string());
 
     let Some(project_item_preview_read_definition) = build_project_item_preview_read_definition(engine_unprivileged_state, symbol_claim.get_struct_layout_id())
     else {
@@ -1255,10 +1234,6 @@ mod tests {
             ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&opened_project_items[0].1),
             "4660"
         );
-        assert_eq!(
-            ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&opened_project_items[0].1),
-            "game.exe + 0x1234"
-        );
     }
 
     #[test]
@@ -1291,10 +1266,6 @@ mod tests {
         assert_eq!(
             ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&opened_project_items[0].1),
             "8738"
-        );
-        assert_eq!(
-            ProjectItemTypeSymbolRef::get_field_symbol_locator_display(&opened_project_items[0].1),
-            "game.exe + 0x20"
         );
     }
 

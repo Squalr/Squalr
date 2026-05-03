@@ -455,7 +455,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         &target_selector_id,
                         None,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            for target_kind_label in ["Address", "Pointer", "Symbol"] {
+                            for target_kind_label in ["Address", "Pointer"] {
                                 let target_response =
                                     popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), target_kind_label, None, target_width));
 

@@ -387,15 +387,9 @@ impl ProjectHierarchyViewData {
                 }
             } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
                 let existing_preview_value = ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(project_item);
-                let existing_preview_path = ProjectItemTypeSymbolRef::get_field_symbol_locator_display(project_item);
 
                 if existing_preview_value != *preview_value {
                     ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, preview_value);
-                    did_change = true;
-                }
-
-                if existing_preview_path != *preview_path {
-                    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(project_item, preview_path);
                     did_change = true;
                 }
             }
@@ -461,10 +455,8 @@ impl ProjectHierarchyViewData {
             ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
         } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
             let preview_value = ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(source_project_item);
-            let preview_path = ProjectItemTypeSymbolRef::get_field_symbol_locator_display(source_project_item);
 
             ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
-            ProjectItemTypeSymbolRef::set_field_symbol_locator_display(target_project_item, &preview_path);
         }
     }
 
@@ -2206,8 +2198,6 @@ impl ProjectHierarchyViewData {
 
         if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH)
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            Self::read_string_field(project_item, ProjectItemTypeSymbolRef::PROPERTY_SYMBOL_LOCATOR_DISPLAY)
         } else {
             String::new()
         }

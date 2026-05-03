@@ -138,6 +138,17 @@ They are discovery tools. Promotion is the bridge from discovery into the typed 
 
 After promotion, project items can reference the symbol field instead of continuing to own long-term layout identity.
 
+Address items should not have a separate `Symbol` target mode. A symbol is a named field inside a module layout, so it should resolve as part of an address chain rather than as a third target modality beside raw address and pointer path.
+
+The intended address-chain spelling is module-root plus segments:
+
+```text
+winmine.exe+game+timer
+winmine.exe+059C+2C
+```
+
+Those examples are the same kind of chain. Some segments are raw literal offsets, and some are symbolic offsets resolved through the module/struct layout. Pointer dereference semantics should come from the chain segment or the referenced field container, not from a special symbol target string.
+
 ### 7. Modules stay name-backed for now
 Do not introduce a new `ModuleId` abstraction.
 
@@ -198,6 +209,8 @@ In the current code this is represented by `ProjectSymbolClaim`, but the product
 The normal field locator is module name + offset.
 
 Module-relative fields are the normal case. Absolute-address symbols can render under an `Absolute / Unmapped` group, but they should not drive the main UX.
+
+Locator keys are internal lookup plumbing only. They should not become the user-facing address language, and they should not be used as generic project-item target data when an address chain can represent the same thing directly.
 
 ### Field size policy
 Most field sizes come from the referenced type:

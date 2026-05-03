@@ -12,9 +12,6 @@ pub enum ProjectItemAddressTarget {
     PointerPath {
         pointer: Pointer,
     },
-    Symbol {
-        symbol_locator_key: String,
-    },
 }
 
 impl ProjectItemAddressTarget {
@@ -27,9 +24,5 @@ impl ProjectItemAddressTarget {
 
     pub fn new_pointer_path(pointer: Pointer) -> Self {
         Self::PointerPath { pointer }
-    }
-
-    pub fn new_symbol(symbol_locator_key: String) -> Self {
-        Self::Symbol { symbol_locator_key }
     }
 }

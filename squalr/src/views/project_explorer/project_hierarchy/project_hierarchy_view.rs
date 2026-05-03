@@ -127,7 +127,6 @@ struct ProjectItemValueEditContext {
 impl ProjectHierarchyView {
     const TARGET_FIELD_POINTER_OFFSETS: &str = "__address_target_pointer_offsets";
     const TARGET_FIELD_POINTER_SIZE: &str = "__address_target_pointer_size";
-    const TARGET_FIELD_SYMBOL_LOCATOR: &str = "__address_target_symbol_locator";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
@@ -702,6 +701,12 @@ mod tests {
             struct_view_properties
                 .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
                 .is_some()
+        );
+        assert!(
+            struct_view_properties
+                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+                .map(|pointer_offsets_field| pointer_offsets_field.get_is_read_only())
+                .unwrap_or(false)
         );
         assert!(
             struct_view_properties
@@ -2847,22 +2852,6 @@ impl ProjectHierarchyView {
                         data_type_id,
                     },
                 ],
-                ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
-                    let Some(symbol_claim) = opened_project_info.and_then(|project_info| {
-                        project_info
-                            .get_project_symbol_catalog()
-                            .resolve_symbol_claim(&symbol_locator_key)
-                    }) else {
-                        return Vec::new();
-                    };
-
-                    vec![PointerScannerContextAction::Address {
-                        label: "Open in Pointer Scan",
-                        address: symbol_claim.get_locator().get_focus_address(),
-                        module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
-                        data_type_id,
-                    }]
-                }
             };
         }
 
@@ -3007,16 +2996,6 @@ impl ProjectHierarchyView {
             return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH;
         }
 
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            let mut project_item = project_item.clone();
-            if matches!(
-                ProjectItemTypeAddress::get_address_target(&mut project_item),
-                ProjectItemAddressTarget::Symbol { .. }
-            ) {
-                return field_name != ProjectItemTypeAddress::PROPERTY_ADDRESS && field_name != ProjectItemTypeAddress::PROPERTY_MODULE;
-            }
-        }
-
         true
     }
 
@@ -3056,17 +3035,11 @@ impl ProjectHierarchyView {
             ProjectItemAddressTarget::PointerPath { pointer } => {
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(pointer.get_offsets()))
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), false),
+                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
                 );
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_pointer_size().to_data_type_ref().get_data_type_id())
                         .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
-                );
-            }
-            ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(symbol_locator_key)
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_SYMBOL_LOCATOR.to_string(), false),
                 );
             }
         }
@@ -3076,7 +3049,6 @@ impl ProjectHierarchyView {
         match address_target {
             ProjectItemAddressTarget::Address { .. } => "Address",
             ProjectItemAddressTarget::PointerPath { .. } => "Pointer",
-            ProjectItemAddressTarget::Symbol { .. } => "Symbol",
         }
     }
 
@@ -3144,29 +3116,11 @@ impl ProjectHierarchyView {
                     false
                 }
             }
-            (ProjectItemAddressTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_OFFSETS) => {
-                if let Some(pointer_offsets) =
-                    Self::extract_string_value_from_edited_field_allow_empty(edited_field).and_then(|text| Self::parse_pointer_offsets(&text))
-                {
-                    pointer.set_offsets(pointer_offsets);
-                    true
-                } else {
-                    false
-                }
-            }
             (ProjectItemAddressTarget::PointerPath { pointer }, Self::TARGET_FIELD_POINTER_SIZE) => {
                 if let Some(pointer_size) =
                     Self::extract_string_value_from_edited_field(edited_field).and_then(|text| PointerScanPointerSize::from_str(&text).ok())
                 {
                     pointer.set_pointer_size(pointer_size);
-                    true
-                } else {
-                    false
-                }
-            }
-            (ProjectItemAddressTarget::Symbol { symbol_locator_key }, Self::TARGET_FIELD_SYMBOL_LOCATOR) => {
-                if let Some(edited_symbol_locator_key) = Self::extract_string_value_from_edited_field(edited_field) {
-                    *symbol_locator_key = edited_symbol_locator_key;
                     true
                 } else {
                     false
@@ -3195,10 +3149,6 @@ impl ProjectHierarchyView {
                 ProjectItemAddressTarget::PointerPath { .. } => current_target.clone(),
                 _ => ProjectItemAddressTarget::new_pointer_path(Pointer::new(0, Vec::new(), String::new())),
             }),
-            "symbol" => Some(match current_target {
-                ProjectItemAddressTarget::Symbol { .. } => current_target.clone(),
-                _ => ProjectItemAddressTarget::new_symbol(String::from("absolute:0")),
-            }),
             _ => None,
         }
     }
@@ -3215,40 +3165,6 @@ impl ProjectHierarchyView {
             })
             .collect::<Vec<_>>()
             .join(", ")
-    }
-
-    fn parse_pointer_offsets(offsets_text: &str) -> Option<Vec<i64>> {
-        let trimmed_offsets_text = offsets_text.trim();
-
-        if trimmed_offsets_text.is_empty() {
-            return Some(Vec::new());
-        }
-
-        trimmed_offsets_text
-            .split(',')
-            .map(|offset_text| Self::parse_signed_integer(offset_text.trim()))
-            .collect()
-    }
-
-    fn parse_signed_integer(value_text: &str) -> Option<i64> {
-        let trimmed_value_text = value_text.trim();
-        let (sign, unsigned_value_text) = if let Some(unsigned_value_text) = trimmed_value_text.strip_prefix('-') {
-            (-1_i64, unsigned_value_text)
-        } else if let Some(unsigned_value_text) = trimmed_value_text.strip_prefix('+') {
-            (1_i64, unsigned_value_text)
-        } else {
-            (1_i64, trimmed_value_text)
-        };
-        let parsed_integer = if let Some(hexadecimal_value_text) = unsigned_value_text
-            .strip_prefix("0x")
-            .or_else(|| unsigned_value_text.strip_prefix("0X"))
-        {
-            i64::from_str_radix(hexadecimal_value_text, 16).ok()?
-        } else {
-            unsigned_value_text.parse::<i64>().ok()?
-        };
-
-        parsed_integer.checked_mul(sign)
     }
 
     fn resolve_pointer_write_target(
@@ -3819,7 +3735,7 @@ impl ProjectHierarchyView {
             let mut project_item = project_item.clone();
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-            return Self::resolve_project_item_address_target(engine_execution_context, opened_project_info, &address_target);
+            return Self::resolve_project_item_address_target(engine_execution_context, &address_target);
         }
 
         if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -3842,22 +3758,11 @@ impl ProjectHierarchyView {
 
     fn resolve_project_item_address_target(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
         address_target: &ProjectItemAddressTarget,
     ) -> Option<(u64, String)> {
         match address_target {
             ProjectItemAddressTarget::Address { address, module_name } => Some((*address, module_name.clone())),
             ProjectItemAddressTarget::PointerPath { pointer } => Self::resolve_pointer_write_target(engine_execution_context, pointer),
-            ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
-                let symbol_claim = opened_project_info?
-                    .get_project_symbol_catalog()
-                    .resolve_symbol_claim(symbol_locator_key)?;
-
-                Some((
-                    symbol_claim.get_locator().get_focus_address(),
-                    symbol_claim.get_locator().get_focus_module_name().to_string(),
-                ))
-            }
         }
     }
 
@@ -3902,18 +3807,6 @@ impl ProjectHierarchyView {
                     pointer,
                     symbolic_struct_definition,
                 }),
-                ProjectItemAddressTarget::Symbol { symbol_locator_key } => {
-                    let symbol_claim = opened_project_info?
-                        .get_project_symbol_catalog()
-                        .resolve_symbol_claim(&symbol_locator_key)?;
-
-                    Some(VirtualSnapshotQuery::Address {
-                        query_id,
-                        address: symbol_claim.get_locator().get_focus_address(),
-                        module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
-                        symbolic_struct_definition,
-                    })
-                }
             };
         }
 

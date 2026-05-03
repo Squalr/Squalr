@@ -443,7 +443,6 @@ impl StructViewerViewData {
             ProjectItemTypeAddress::PROPERTY_MODULE => String::from("Module"),
             "__address_target_pointer_offsets" => String::from("Pointer Offsets"),
             "__address_target_pointer_size" => String::from("Pointer Size"),
-            "__address_target_symbol_locator" => String::from("Symbol"),
             _ => Self::humanize_field_key(field_name),
         }
     }

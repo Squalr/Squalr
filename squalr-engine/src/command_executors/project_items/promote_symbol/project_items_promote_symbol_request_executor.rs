@@ -442,7 +442,6 @@ fn build_symbol_ref_project_item(
     };
 
     ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(&mut symbol_ref_project_item, &freeze_display_value);
-    ProjectItemTypeSymbolRef::set_field_symbol_locator_display(&mut symbol_ref_project_item, &promoted_symbol.get_locator().to_string());
 
     symbol_ref_project_item
 }

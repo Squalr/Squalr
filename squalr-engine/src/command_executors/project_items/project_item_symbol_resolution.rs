@@ -110,9 +110,6 @@ pub fn resolve_project_item_locator(
 
                 Some(build_locator(address, &module_name))
             }
-            ProjectItemAddressTarget::Symbol { symbol_locator_key } => project_symbol_catalog
-                .resolve_symbol_claim(&symbol_locator_key)
-                .map(|symbol_claim| symbol_claim.get_locator().clone()),
         };
     }
 
