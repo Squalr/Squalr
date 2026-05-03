@@ -387,9 +387,17 @@ impl StructViewerViewData {
 
         for valued_struct_field in valued_struct.get_fields() {
             let field_presentation = if Self::is_data_type_reference_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("data_type"), StructViewerFieldEditorKind::DataTypeSelector)
+                if valued_struct_field.get_is_read_only() {
+                    StructViewerFieldPresentation::new(String::from("type"), StructViewerFieldEditorKind::ValueBox)
+                } else {
+                    StructViewerFieldPresentation::new(String::from("data_type"), StructViewerFieldEditorKind::DataTypeSelector)
+                }
             } else if Self::is_virtual_container_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("container_type"), StructViewerFieldEditorKind::ContainerTypeSelector)
+                if valued_struct_field.get_is_read_only() {
+                    StructViewerFieldPresentation::new(String::from("container_type"), StructViewerFieldEditorKind::ValueBox)
+                } else {
+                    StructViewerFieldPresentation::new(String::from("container_type"), StructViewerFieldEditorKind::ContainerTypeSelector)
+                }
             } else if Self::is_virtual_array_size_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("array_size"), StructViewerFieldEditorKind::ValueBox)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
@@ -539,13 +547,13 @@ impl StructViewerViewData {
 
             presented_fields.push(
                 DataTypeStringUtf8::get_value_from_primitive_string(container_mode.label())
-                    .to_named_valued_struct_field(Self::VIRTUAL_FIELD_CONTAINER_TYPE.to_string(), false),
+                    .to_named_valued_struct_field(Self::VIRTUAL_FIELD_CONTAINER_TYPE.to_string(), source_field.get_is_read_only()),
             );
 
             if container_mode == StructViewerContainerMode::Array {
                 presented_fields.push(
                     DataTypeU64::get_value_from_primitive(Self::fixed_array_length_from_symbolic_definition(&symbolic_field_definition))
-                        .to_named_valued_struct_field(Self::VIRTUAL_FIELD_ARRAY_SIZE.to_string(), false),
+                        .to_named_valued_struct_field(Self::VIRTUAL_FIELD_ARRAY_SIZE.to_string(), source_field.get_is_read_only()),
                 );
             }
         }
@@ -704,6 +712,22 @@ mod tests {
     }
 
     #[test]
+    fn create_field_presentations_maps_read_only_symbolic_struct_reference_to_value_box() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("u8[16]")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
+        ]);
+
+        let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
+        let field_presentation = field_presentations
+            .get(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+            .expect("Expected data-type field presentation.");
+
+        assert_eq!(field_presentation.display_name(), "type");
+        assert_eq!(field_presentation.editor_kind(), &StructViewerFieldEditorKind::ValueBox);
+    }
+
+    #[test]
     fn create_field_presentations_maps_live_value_field_to_value_editor() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string("1234")
@@ -830,6 +854,29 @@ mod tests {
             presented_struct
                 .get_field(StructViewerViewData::VIRTUAL_FIELD_ARRAY_SIZE)
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn create_presented_struct_keeps_virtual_container_rows_read_only_for_read_only_type() {
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("u16[4]")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
+        ]);
+
+        let presented_struct = StructViewerViewData::create_presented_struct(&valued_struct);
+
+        assert_eq!(
+            presented_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_CONTAINER_TYPE)
+                .map(|field| field.get_is_read_only()),
+            Some(true)
+        );
+        assert_eq!(
+            presented_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_ARRAY_SIZE)
+                .map(|field| field.get_is_read_only()),
+            Some(true)
         );
     }
 

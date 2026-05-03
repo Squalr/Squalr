@@ -36,7 +36,6 @@ use squalr_engine_api::commands::{
         delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode, ProjectSymbolsDeleteRequest},
         rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
         rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
-        update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
     },
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
@@ -49,7 +48,10 @@ use squalr_engine_api::structures::data_values::{
 };
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
-use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_locator::ProjectSymbolLocator};
+use squalr_engine_api::structures::projects::{
+    project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
+    project_symbol_locator::ProjectSymbolLocator,
+};
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
     valued_struct_field::ValuedStructField,
@@ -120,7 +122,8 @@ impl SymbolExplorerView {
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
     const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
-    const STRUCT_VIEWER_SYMBOL_TYPE_FIELD: &'static str = "type";
+    const STRUCT_VIEWER_SYMBOL_SIZE_FIELD: &'static str = "size";
+    const STRUCT_VIEWER_SYMBOL_PATH_FIELD: &'static str = "path";
     const STRING_DATA_TYPE_ID: &'static str = "string_utf8";
     const INLINE_RENAME_TEXT_STORAGE_ID_PREFIX: &'static str = "symbol_explorer_inline_rename_text";
     const INLINE_RENAME_HIGHLIGHT_STORAGE_ID_PREFIX: &'static str = "symbol_explorer_inline_rename_highlight";
@@ -1020,26 +1023,6 @@ impl SymbolExplorerView {
                 return;
             }
 
-            if edited_field.get_name() == Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD {
-                let Some(symbol_locator_key) = symbol_claim_locator_key.as_ref() else {
-                    return;
-                };
-                let next_struct_layout_id = StructViewerViewData::read_utf8_field_text(&edited_field)
-                    .trim()
-                    .to_string();
-                if next_struct_layout_id.is_empty() || next_struct_layout_id == selected_symbol_tree_entry.get_display_type_id() {
-                    return;
-                }
-
-                ProjectSymbolsUpdateRequest {
-                    symbol_locator_key: symbol_locator_key.clone(),
-                    display_name: None,
-                    struct_layout_id: Some(next_struct_layout_id),
-                }
-                .send(&engine_unprivileged_state, |_project_symbols_update_response| {});
-                return;
-            }
-
             let Some(memory_write_request) = Self::build_memory_write_request_for_symbol_value_edit(
                 &engine_execution_context,
                 &project_symbol_catalog,
@@ -1268,6 +1251,12 @@ impl SymbolExplorerView {
         symbol_tree_entry: &SymbolTreeEntry,
     ) -> ValuedStruct {
         let include_symbol_claim_metadata = matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { .. });
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
+        let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
+
+        if Self::symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry) {
+            return Self::build_external_value_symbol_struct(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+        }
 
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
         else {
@@ -1275,10 +1264,10 @@ impl SymbolExplorerView {
                 symbol_tree_entry,
                 "Unable to resolve a struct definition for the selected symbol.",
                 include_symbol_claim_metadata,
+                symbol_size_in_bytes,
             );
         };
 
-        let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
         let memory_read_response = Self::dispatch_memory_read_request(
             &engine_execution_context,
             symbol_tree_entry.get_locator().get_focus_address(),
@@ -1290,6 +1279,7 @@ impl SymbolExplorerView {
                 symbol_tree_entry,
                 "Timed out while reading the selected symbol from memory.",
                 include_symbol_claim_metadata,
+                symbol_size_in_bytes,
             );
         };
 
@@ -1298,10 +1288,16 @@ impl SymbolExplorerView {
                 symbol_tree_entry,
                 "The selected symbol could not be read from memory.",
                 include_symbol_claim_metadata,
+                symbol_size_in_bytes,
             );
         }
 
-        Self::normalize_symbol_memory_struct(memory_read_response.valued_struct, symbol_tree_entry, include_symbol_claim_metadata)
+        Self::normalize_symbol_memory_struct(
+            memory_read_response.valued_struct,
+            symbol_tree_entry,
+            include_symbol_claim_metadata,
+            symbol_size_in_bytes,
+        )
     }
 
     fn build_named_symbolic_struct_definition_for_symbol_tree_entry(
@@ -1326,20 +1322,9 @@ impl SymbolExplorerView {
         valued_struct: ValuedStruct,
         symbol_tree_entry: &SymbolTreeEntry,
         include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
-        let mut normalized_fields = Vec::new();
-
-        if include_symbol_claim_metadata {
-            normalized_fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_display_name())
-                    .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
-            );
-        }
-
-        normalized_fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_display_type_id())
-                .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), !include_symbol_claim_metadata),
-        );
+        let mut normalized_fields = Self::build_symbol_struct_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
 
         normalized_fields.extend(
             valued_struct
@@ -1362,20 +1347,9 @@ impl SymbolExplorerView {
         symbol_tree_entry: &SymbolTreeEntry,
         status_text: &str,
         include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
-        let mut fallback_fields = Vec::new();
-
-        if include_symbol_claim_metadata {
-            fallback_fields.push(
-                DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_display_name())
-                    .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
-            );
-        }
-
-        fallback_fields.push(
-            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_display_type_id())
-                .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_TYPE_FIELD.to_string(), !include_symbol_claim_metadata),
-        );
+        let mut fallback_fields = Self::build_symbol_struct_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
 
         fallback_fields.extend([
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_locator().to_string())
@@ -1384,6 +1358,92 @@ impl SymbolExplorerView {
         ]);
 
         ValuedStruct::new_anonymous(fallback_fields)
+    }
+
+    fn build_external_value_symbol_struct(
+        symbol_tree_entry: &SymbolTreeEntry,
+        include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
+    ) -> ValuedStruct {
+        let mut fields = Self::build_symbol_struct_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+
+        fields.push(
+            DataTypeStringUtf8::get_value_from_primitive_string("")
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE.to_string(), true),
+        );
+
+        ValuedStruct::new_anonymous(fields)
+    }
+
+    fn build_symbol_struct_metadata_fields(
+        symbol_tree_entry: &SymbolTreeEntry,
+        include_symbol_claim_metadata: bool,
+        symbol_size_in_bytes: Option<u64>,
+    ) -> Vec<ValuedStructField> {
+        let mut metadata_fields = Vec::new();
+
+        if include_symbol_claim_metadata {
+            metadata_fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_display_name())
+                    .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_NAME_FIELD.to_string(), false),
+            );
+        }
+
+        metadata_fields.push(
+            DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_display_type_id())
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
+        );
+
+        metadata_fields.extend(Self::build_symbol_struct_location_fields(symbol_tree_entry, symbol_size_in_bytes));
+
+        metadata_fields
+    }
+
+    fn build_symbol_struct_location_fields(
+        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_size_in_bytes: Option<u64>,
+    ) -> Vec<ValuedStructField> {
+        let mut location_fields = Vec::new();
+        let locator = symbol_tree_entry.get_locator();
+
+        location_fields.push(
+            DataTypeU64::get_value_from_primitive(locator.get_focus_address())
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(), true),
+        );
+
+        location_fields.push(
+            DataTypeStringUtf8::get_value_from_primitive_string(locator.get_focus_module_name())
+                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_MODULE.to_string(), true),
+        );
+
+        if let Some(symbol_size_in_bytes) = symbol_size_in_bytes {
+            location_fields.push(
+                DataTypeU64::get_value_from_primitive(symbol_size_in_bytes)
+                    .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_SIZE_FIELD.to_string(), true),
+            );
+        }
+
+        if !symbol_tree_entry.get_full_path().is_empty() {
+            location_fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(symbol_tree_entry.get_full_path())
+                    .to_named_valued_struct_field(Self::STRUCT_VIEWER_SYMBOL_PATH_FIELD.to_string(), true),
+            );
+        }
+
+        location_fields
+    }
+
+    fn resolve_symbol_tree_entry_size_for_struct_viewer(
+        engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        symbol_tree_entry: &SymbolTreeEntry,
+    ) -> Option<u64> {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()).ok()?;
+
+        Self::resolve_symbolic_field_size_in_bytes(engine_execution_context, &symbolic_field_definition, &mut HashSet::new())
+    }
+
+    fn symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+        matches!(symbol_tree_entry.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_))
     }
 
     fn dispatch_memory_read_request(
@@ -3438,7 +3498,10 @@ mod tests {
         },
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
+        projects::{
+            project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
+            project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
+        },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct},
     };
 
@@ -3914,12 +3977,52 @@ mod tests {
             DataTypeU32::get_value_from_primitive(100).to_named_valued_struct_field(String::from("health"), false),
         ]);
 
-        let normalized_struct = SymbolExplorerView::normalize_symbol_memory_struct(valued_struct, &symbol_claim_tree_entry, true);
+        let normalized_struct = SymbolExplorerView::normalize_symbol_memory_struct(valued_struct, &symbol_claim_tree_entry, true, Some(4));
         let normalized_fields = normalized_struct.get_fields();
 
         assert_eq!(normalized_fields[0].get_name(), SymbolExplorerView::STRUCT_VIEWER_SYMBOL_NAME_FIELD);
-        assert_eq!(normalized_fields[1].get_name(), SymbolExplorerView::STRUCT_VIEWER_SYMBOL_TYPE_FIELD);
-        assert_eq!(normalized_fields[2].get_name(), "health");
-        assert!(!normalized_fields[2].get_is_read_only());
+        assert_eq!(
+            normalized_fields[1].get_name(),
+            ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE
+        );
+        assert!(normalized_fields[1].get_is_read_only());
+        assert_eq!(normalized_fields[2].get_name(), ProjectItemTypeAddress::PROPERTY_ADDRESS);
+        assert_eq!(normalized_fields[3].get_name(), ProjectItemTypeAddress::PROPERTY_MODULE);
+        assert_eq!(normalized_fields[4].get_name(), SymbolExplorerView::STRUCT_VIEWER_SYMBOL_SIZE_FIELD);
+        assert_eq!(normalized_fields[5].get_name(), SymbolExplorerView::STRUCT_VIEWER_SYMBOL_PATH_FIELD);
+        assert_eq!(normalized_fields[6].get_name(), "health");
+        assert!(!normalized_fields[6].get_is_read_only());
+    }
+
+    #[test]
+    fn build_external_value_symbol_struct_routes_arrays_through_memory_viewer_value_field() {
+        let symbol_tree_entry = create_u8_segment_tree_entry();
+        let symbol_struct = SymbolExplorerView::build_external_value_symbol_struct(&symbol_tree_entry, false, Some(0x1234));
+        let fields = symbol_struct.get_fields();
+
+        assert!(
+            symbol_struct
+                .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+                .is_some()
+        );
+        assert!(
+            symbol_struct
+                .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+                .is_some()
+        );
+        assert_eq!(
+            fields
+                .iter()
+                .find(|field| field.get_name() == ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
+                .map(|field| field.get_is_read_only()),
+            Some(true)
+        );
+        assert_eq!(
+            fields
+                .iter()
+                .find(|field| field.get_name() == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
+                .map(|field| field.get_is_read_only()),
+            Some(true)
+        );
     }
 }
