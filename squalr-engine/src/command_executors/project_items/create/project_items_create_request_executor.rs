@@ -5,7 +5,10 @@ use squalr_engine_api::commands::project_items::create::project_items_create_res
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use squalr_engine_api::structures::projects::project::Project;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
+use squalr_engine_api::structures::projects::project_items::built_in_types::{
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_item::ProjectItemTypeItem, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+};
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
@@ -24,7 +27,97 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsCreateRequest {
             return create_directory_item(self, engine_unprivileged_state);
         }
 
-        create_address_item(self, engine_unprivileged_state)
+        match &self.target {
+            ProjectItemTarget::None => create_project_item(self, engine_unprivileged_state),
+            ProjectItemTarget::Address { .. } => create_address_item(self, engine_unprivileged_state),
+            ProjectItemTarget::PointerPath { .. } => create_pointer_item(self, engine_unprivileged_state),
+            ProjectItemTarget::Symbol { .. } => create_symbol_ref_item(self, engine_unprivileged_state),
+            ProjectItemTarget::Plugin { .. } => {
+                log::error!("Plugin project item target creation is not yet supported by the built-in create command.");
+
+                ProjectItemsCreateResponse {
+                    success: false,
+                    created_project_item_path: PathBuf::new(),
+                }
+            }
+        }
+    }
+}
+
+fn create_project_item(
+    project_items_create_request: &ProjectItemsCreateRequest,
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+) -> ProjectItemsCreateResponse {
+    let project_manager = engine_unprivileged_state.get_project_manager();
+    let opened_project = project_manager.get_opened_project();
+    let mut opened_project_guard = match opened_project.write() {
+        Ok(opened_project_guard) => opened_project_guard,
+        Err(error) => {
+            log::error!("Failed to acquire opened project lock for item create command: {}", error);
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let opened_project = match opened_project_guard.as_mut() {
+        Some(opened_project) => opened_project,
+        None => {
+            log::warn!("Cannot create project items without an opened project.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let project_directory_path = match opened_project.get_project_info().get_project_directory() {
+        Some(project_directory_path) => project_directory_path,
+        None => {
+            log::error!("Failed to resolve opened project directory for item create operation.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
+    let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
+    let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
+    let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
+    let project_item = ProjectItemTypeItem::new_project_item(&project_items_create_request.project_item_name);
+
+    opened_project
+        .get_project_items_mut()
+        .insert(project_item_ref, project_item);
+
+    if let Err(error) = create_placeholder_file(&created_project_item_path) {
+        log::error!("Failed creating project item placeholder file: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    append_project_items_to_sort_order(opened_project, &project_directory_path, &[created_project_item_path.clone()]);
+
+    if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
+        log::error!("Failed to save project after item create operation: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    project_manager.notify_project_items_changed();
+
+    ProjectItemsCreateResponse {
+        success: true,
+        created_project_item_path,
     }
 }
 
@@ -160,9 +253,13 @@ fn create_address_item(
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
-    let (address, module_name) = match project_items_create_request.target.clone() {
-        ProjectItemTarget::None => (0, String::new()),
-        ProjectItemTarget::Address { address, module_name } => (address, module_name),
+    let ProjectItemTarget::Address { address, module_name } = project_items_create_request.target.clone() else {
+        log::error!("Address project item creation requires an address target.");
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
     };
     let mut project_item = ProjectItemTypeAddress::new_project_item(
         &project_items_create_request.project_item_name,
@@ -190,6 +287,182 @@ fn create_address_item(
 
     if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
         log::error!("Failed to save project after address create operation: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    project_manager.notify_project_items_changed();
+
+    ProjectItemsCreateResponse {
+        success: true,
+        created_project_item_path,
+    }
+}
+
+fn create_pointer_item(
+    project_items_create_request: &ProjectItemsCreateRequest,
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+) -> ProjectItemsCreateResponse {
+    let ProjectItemTarget::PointerPath { pointer } = project_items_create_request.target.clone() else {
+        log::error!("Pointer project item creation requires pointer-chain data.");
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    };
+    let data_type_id = project_items_create_request
+        .data_type_id
+        .clone()
+        .filter(|data_type_id| !data_type_id.trim().is_empty())
+        .unwrap_or_else(|| String::from("u8"));
+    let project_manager = engine_unprivileged_state.get_project_manager();
+    let opened_project = project_manager.get_opened_project();
+    let mut opened_project_guard = match opened_project.write() {
+        Ok(opened_project_guard) => opened_project_guard,
+        Err(error) => {
+            log::error!("Failed to acquire opened project lock for pointer create command: {}", error);
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let opened_project = match opened_project_guard.as_mut() {
+        Some(opened_project) => opened_project,
+        None => {
+            log::warn!("Cannot create pointer project items without an opened project.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let project_directory_path = match opened_project.get_project_info().get_project_directory() {
+        Some(project_directory_path) => project_directory_path,
+        None => {
+            log::error!("Failed to resolve opened project directory for pointer create operation.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
+    let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
+    let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
+    let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
+    let project_item = ProjectItemTypePointer::new_project_item(&project_items_create_request.project_item_name, &pointer, "", &data_type_id);
+
+    opened_project
+        .get_project_items_mut()
+        .insert(project_item_ref, project_item);
+
+    if let Err(error) = create_placeholder_file(&created_project_item_path) {
+        log::error!("Failed creating pointer project item placeholder file: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    append_project_items_to_sort_order(opened_project, &project_directory_path, &[created_project_item_path.clone()]);
+
+    if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
+        log::error!("Failed to save project after pointer create operation: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    project_manager.notify_project_items_changed();
+
+    ProjectItemsCreateResponse {
+        success: true,
+        created_project_item_path,
+    }
+}
+
+fn create_symbol_ref_item(
+    project_items_create_request: &ProjectItemsCreateRequest,
+    engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+) -> ProjectItemsCreateResponse {
+    let project_manager = engine_unprivileged_state.get_project_manager();
+    let opened_project = project_manager.get_opened_project();
+    let mut opened_project_guard = match opened_project.write() {
+        Ok(opened_project_guard) => opened_project_guard,
+        Err(error) => {
+            log::error!("Failed to acquire opened project lock for symbol-ref create command: {}", error);
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let opened_project = match opened_project_guard.as_mut() {
+        Some(opened_project) => opened_project,
+        None => {
+            log::warn!("Cannot create symbol-ref project items without an opened project.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let project_directory_path = match opened_project.get_project_info().get_project_directory() {
+        Some(project_directory_path) => project_directory_path,
+        None => {
+            log::error!("Failed to resolve opened project directory for symbol-ref create operation.");
+
+            return ProjectItemsCreateResponse {
+                success: false,
+                created_project_item_path: PathBuf::new(),
+            };
+        }
+    };
+    let parent_directory_path = resolve_project_file_parent_directory_path(&project_directory_path, &project_items_create_request.parent_directory_path);
+    let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
+    let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
+    let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
+    let ProjectItemTarget::Symbol { symbol_locator_key } = project_items_create_request.target.clone() else {
+        log::error!("Symbol-ref project item creation requires a symbol target.");
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    };
+    let symbol_locator_key = symbol_locator_key.trim();
+    let project_item = ProjectItemTypeSymbolRef::new_project_item(&project_items_create_request.project_item_name, symbol_locator_key, "");
+
+    opened_project
+        .get_project_items_mut()
+        .insert(project_item_ref, project_item);
+
+    if let Err(error) = create_placeholder_file(&created_project_item_path) {
+        log::error!("Failed creating symbol-ref project item placeholder file: {}", error);
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    }
+
+    append_project_items_to_sort_order(opened_project, &project_directory_path, &[created_project_item_path.clone()]);
+
+    if let Err(error) = opened_project.save_to_path(&project_directory_path, false) {
+        log::error!("Failed to save project after symbol-ref create operation: {}", error);
 
         return ProjectItemsCreateResponse {
             success: false,
