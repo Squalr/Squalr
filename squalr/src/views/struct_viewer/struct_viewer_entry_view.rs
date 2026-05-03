@@ -329,14 +329,14 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             }
             StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor => {
                 let edit_button_width = 28.0;
-                let edit_button_space = edit_button_width + value_column_padding;
-                let offsets_preview_width = (value_box_width - edit_button_space).max(0.0);
+                let edit_button_position_x = row_max_x - edit_button_width;
+                let offsets_preview_width = (edit_button_position_x - value_position_x).max(0.0);
 
                 if let (Some(field_edit_value), Some(validation_data_type_ref)) = (self.field_edit_value, self.validation_data_type_ref) {
                     let data_value_box_id = format!("struct_viewer_pointer_offsets_{}_{}", self.row_index, self.valued_struct_field.get_name());
                     user_interface.put(
                         Rect::from_min_size(
-                            pos2(value_box_position_x, available_size_rect.min.y),
+                            pos2(value_position_x, available_size_rect.min.y),
                             vec2(offsets_preview_width, available_size_rect.height()),
                         ),
                         DataValueBoxView::new(
@@ -356,11 +356,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 let edit_response = user_interface.put(
                     Rect::from_min_size(
-                        pos2(
-                            row_max_x - edit_button_width - value_column_padding,
-                            available_size_rect.min.y + value_column_padding,
-                        ),
-                        vec2(edit_button_width, available_size_rect.height() - value_column_padding * 2.0),
+                        pos2(edit_button_position_x, available_size_rect.min.y),
+                        vec2(edit_button_width, available_size_rect.height()),
                     ),
                     Button::new_from_theme(theme)
                         .background_color(epaint::Color32::TRANSPARENT)

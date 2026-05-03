@@ -6,7 +6,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
-        widgets::controls::{button::Button, groupbox::GroupBox},
+        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
     },
     views::{
         code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -14,7 +14,7 @@ use crate::{
         struct_viewer::view_data::{struct_viewer_take_over_state::StructViewerTakeOverState, struct_viewer_view_data::StructViewerViewData},
     },
 };
-use eframe::egui::{Align, CursorIcon, DragValue, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, Widget, vec2};
+use eframe::egui::{Align, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, Widget, vec2};
 use epaint::{Rect, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
@@ -22,8 +22,11 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
-        data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-        data_values::container_type::ContainerType,
+        data_types::{
+            built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
+            data_type_ref::DataTypeRef,
+        },
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         memory::pointer::Pointer,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
@@ -118,7 +121,7 @@ impl StructViewerView {
         let pointer_offsets_storage_id = Self::pointer_offsets_edit_storage_id(field_name);
 
         user_interface.ctx().data_mut(|data| {
-            data.remove::<Vec<i64>>(pointer_offsets_storage_id);
+            data.remove::<Vec<AnonymousValueString>>(pointer_offsets_storage_id);
         });
     }
 
@@ -160,6 +163,56 @@ impl StructViewerView {
         }
     }
 
+    fn parse_pointer_offset_display_value(pointer_offset_value: &AnonymousValueString) -> Option<i64> {
+        let pointer_offset_text = pointer_offset_value.get_anonymous_value_string().trim();
+
+        if pointer_offset_text.is_empty() {
+            return None;
+        }
+
+        if pointer_offset_value.get_anonymous_value_string_format() != AnonymousValueStringFormat::Hexadecimal {
+            return Self::parse_pointer_offset_text(pointer_offset_text);
+        }
+
+        let (sign, pointer_offset_text) = pointer_offset_text
+            .strip_prefix('-')
+            .map(|pointer_offset_text| (-1_i64, pointer_offset_text.trim()))
+            .unwrap_or((1_i64, pointer_offset_text));
+        let pointer_offset_hex_text = pointer_offset_text
+            .strip_prefix("0x")
+            .or_else(|| pointer_offset_text.strip_prefix("0X"))
+            .unwrap_or(pointer_offset_text);
+
+        i64::from_str_radix(pointer_offset_hex_text, 16)
+            .ok()
+            .and_then(|pointer_offset| pointer_offset.checked_mul(sign))
+    }
+
+    fn pointer_offset_display_text(pointer_offset: i64) -> String {
+        if pointer_offset < 0 {
+            format!("-{:X}", pointer_offset.saturating_abs())
+        } else {
+            format!("{:X}", pointer_offset)
+        }
+    }
+
+    fn pointer_offset_display_values(pointer_offsets: Vec<i64>) -> Vec<AnonymousValueString> {
+        pointer_offsets
+            .into_iter()
+            .map(|pointer_offset| {
+                AnonymousValueString::new(
+                    Self::pointer_offset_display_text(pointer_offset),
+                    AnonymousValueStringFormat::Hexadecimal,
+                    ContainerType::None,
+                )
+            })
+            .collect()
+    }
+
+    fn pointer_offset_data_type_ref() -> DataTypeRef {
+        DataTypeRef::new(DataTypeI64::DATA_TYPE_ID)
+    }
+
     fn show_pointer_offsets_editor(
         &self,
         user_interface: &mut Ui,
@@ -170,11 +223,16 @@ impl StructViewerView {
         let theme = &self.app_context.theme;
         let pointer_offsets_storage_id = Self::pointer_offsets_edit_storage_id(valued_struct_field.get_name());
         let initial_pointer_offsets = Self::parse_pointer_offsets_text(&StructViewerViewData::read_utf8_field_text(valued_struct_field));
-        let mut pointer_offsets = user_interface
+        let mut pointer_offset_values = user_interface
             .ctx()
-            .data_mut(|data| data.get_temp::<Vec<i64>>(pointer_offsets_storage_id))
-            .unwrap_or(initial_pointer_offsets);
+            .data_mut(|data| data.get_temp::<Vec<AnonymousValueString>>(pointer_offsets_storage_id))
+            .unwrap_or_else(|| Self::pointer_offset_display_values(initial_pointer_offsets));
+        let pointer_offset_data_type_ref = Self::pointer_offset_data_type_ref();
         let panel_width = safe_clamp_f32(user_interface.available_width(), 320.0, 560.0);
+        let field_row_height: f32 = 28.0;
+        let input_spacing: f32 = 8.0;
+        let icon_button_width: f32 = 36.0;
+        let offset_label_width: f32 = 82.0;
 
         user_interface.add_space(12.0);
         user_interface.horizontal(|user_interface| {
@@ -189,47 +247,78 @@ impl StructViewerView {
                             .auto_shrink([false, false])
                             .show(user_interface, |user_interface| {
                                 let mut offset_to_delete = None;
+                                let pointer_offset_count = pointer_offset_values.len();
 
-                                for (pointer_offset_index, pointer_offset) in pointer_offsets.iter_mut().enumerate() {
-                                    user_interface.horizontal(|user_interface| {
-                                        let label = format!("Offset {}", pointer_offset_index + 1);
-                                        let drag_value_width = (user_interface.available_width() - 36.0).max(0.0);
+                                for (pointer_offset_index, pointer_offset_value) in pointer_offset_values.iter_mut().enumerate() {
+                                    user_interface.allocate_ui_with_layout(
+                                        vec2(user_interface.available_width().max(1.0), field_row_height),
+                                        Layout::left_to_right(Align::Center),
+                                        |user_interface| {
+                                            user_interface.allocate_ui_with_layout(
+                                                vec2(offset_label_width.min(user_interface.available_width()), field_row_height),
+                                                Layout::left_to_right(Align::Center),
+                                                |user_interface| {
+                                                    user_interface.label(
+                                                        RichText::new(format!("Offset {}", pointer_offset_index + 1))
+                                                            .strong()
+                                                            .color(theme.foreground),
+                                                    );
+                                                },
+                                            );
 
-                                        user_interface.label(
-                                            RichText::new(label)
-                                                .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                                .color(theme.foreground),
-                                        );
-                                        user_interface.add_sized(
-                                            vec2(drag_value_width, 24.0),
-                                            DragValue::new(pointer_offset)
-                                                .hexadecimal(1, false, true)
-                                                .speed(1.0),
-                                        );
+                                            let offset_value_width = (user_interface.available_width() - input_spacing - icon_button_width).max(0.0);
+                                            let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
+                                            user_interface.add_sized(
+                                                vec2(offset_value_width, field_row_height),
+                                                DataValueBoxView::new(
+                                                    self.app_context.clone(),
+                                                    pointer_offset_value,
+                                                    &pointer_offset_data_type_ref,
+                                                    false,
+                                                    true,
+                                                    "offset",
+                                                    &data_value_box_id,
+                                                )
+                                                .allowed_anonymous_value_string_formats(vec![
+                                                    AnonymousValueStringFormat::Hexadecimal,
+                                                    AnonymousValueStringFormat::Decimal,
+                                                ])
+                                                .normalize_value_format(false)
+                                                .use_format_text_colors(false)
+                                                .width(offset_value_width)
+                                                .height(field_row_height),
+                                            );
 
-                                        let delete_button_response = user_interface.add_sized(
-                                            vec2(24.0, 24.0),
-                                            Button::new_from_theme(theme)
-                                                .background_color(epaint::Color32::TRANSPARENT)
-                                                .with_tooltip_text("Delete offset."),
-                                        );
-                                        IconDraw::draw(user_interface, delete_button_response.rect, &theme.icon_library.icon_handle_common_delete);
+                                            user_interface.add_space(input_spacing);
 
-                                        if delete_button_response.clicked() {
-                                            offset_to_delete = Some(pointer_offset_index);
-                                        }
-                                    });
+                                            let delete_button_response = user_interface.add_sized(
+                                                vec2(icon_button_width, field_row_height),
+                                                Button::new_from_theme(theme)
+                                                    .background_color(epaint::Color32::TRANSPARENT)
+                                                    .with_tooltip_text("Delete offset."),
+                                            );
+                                            IconDraw::draw(user_interface, delete_button_response.rect, &theme.icon_library.icon_handle_common_delete);
+
+                                            if delete_button_response.clicked() {
+                                                offset_to_delete = Some(pointer_offset_index);
+                                            }
+                                        },
+                                    );
+
+                                    if pointer_offset_index + 1 < pointer_offset_count {
+                                        user_interface.add_space(input_spacing);
+                                    }
                                 }
 
                                 if let Some(offset_to_delete) = offset_to_delete {
-                                    pointer_offsets.remove(offset_to_delete);
+                                    pointer_offset_values.remove(offset_to_delete);
                                 }
                             });
 
                         user_interface.add_space(8.0);
                         user_interface.horizontal(|user_interface| {
                             let add_offset_button_response = user_interface.add_sized(
-                                vec2(28.0, 28.0),
+                                vec2(icon_button_width, field_row_height),
                                 Button::new_from_theme(theme)
                                     .background_color(epaint::Color32::TRANSPARENT)
                                     .with_tooltip_text("Add offset."),
@@ -237,12 +326,16 @@ impl StructViewerView {
                             IconDraw::draw(user_interface, add_offset_button_response.rect, &theme.icon_library.icon_handle_common_add);
 
                             if add_offset_button_response.clicked() {
-                                pointer_offsets.push(0);
+                                pointer_offset_values.push(AnonymousValueString::new(
+                                    String::from("0"),
+                                    AnonymousValueStringFormat::Hexadecimal,
+                                    ContainerType::None,
+                                ));
                             }
 
                             user_interface.with_layout(Layout::right_to_left(Align::Center), |user_interface| {
                                 let commit_button_response = user_interface.add_sized(
-                                    vec2(28.0, 28.0),
+                                    vec2(icon_button_width, field_row_height),
                                     Button::new_from_theme(theme)
                                         .background_color(epaint::Color32::TRANSPARENT)
                                         .with_tooltip_text("Save offsets."),
@@ -250,6 +343,11 @@ impl StructViewerView {
                                 IconDraw::draw(user_interface, commit_button_response.rect, &theme.icon_library.icon_handle_common_check_mark);
 
                                 if commit_button_response.clicked() {
+                                    let pointer_offsets = pointer_offset_values
+                                        .iter()
+                                        .filter_map(Self::parse_pointer_offset_display_value)
+                                        .collect::<Vec<i64>>();
+
                                     match serde_json::to_string(&pointer_offsets) {
                                         Ok(pointer_offsets_json) => {
                                             *pointer_offsets_submission = Some(
@@ -264,7 +362,7 @@ impl StructViewerView {
                                 }
 
                                 let cancel_button_response = user_interface.add_sized(
-                                    vec2(28.0, 28.0),
+                                    vec2(icon_button_width, field_row_height),
                                     Button::new_from_theme(theme)
                                         .background_color(epaint::Color32::TRANSPARENT)
                                         .with_tooltip_text("Cancel offset edit."),
@@ -284,7 +382,7 @@ impl StructViewerView {
 
         user_interface
             .ctx()
-            .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offsets));
+            .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offset_values));
     }
 
     fn resolve_struct_runtime_value_target(
