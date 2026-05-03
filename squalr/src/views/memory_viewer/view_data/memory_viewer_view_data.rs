@@ -18,7 +18,7 @@ use squalr_engine_api::{
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
-        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
+        projects::project_items::project_item_target::ProjectItemTarget,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -667,12 +667,8 @@ impl MemoryViewerViewData {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
-            project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
-            pointer: None,
-            address: Some(project_item_address),
-            module_name: Some(project_item_module_name),
+            target: ProjectItemTarget::new_address(project_item_address, project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
-            symbol_locator_key: None,
         })
     }
 
@@ -1607,7 +1603,10 @@ mod tests {
     use super::{MemoryViewerEditCursorLane, MemoryViewerEditState, MemoryViewerViewData};
     use squalr_engine_api::{
         dependency_injection::dependency_container::DependencyContainer,
-        structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        structures::{
+            memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+            projects::project_items::project_item_target::ProjectItemTarget,
+        },
     };
 
     #[test]
@@ -1963,7 +1962,13 @@ mod tests {
         let create_request =
             MemoryViewerViewData::build_address_project_item_create_request(memory_viewer_view_data.clone(), 0x5005, None).expect("Expected create request.");
 
-        assert_eq!(create_request.address, Some(0x5004));
+        assert!(matches!(
+            create_request.target,
+            ProjectItemTarget::Address {
+                address: 0x5004,
+                module_name: _
+            }
+        ));
         assert_eq!(create_request.data_type_id, Some(String::from("u8[3]")));
     }
 
@@ -1981,7 +1986,13 @@ mod tests {
         let create_request =
             MemoryViewerViewData::build_address_project_item_create_request(memory_viewer_view_data.clone(), 0x6004, None).expect("Expected create request.");
 
-        assert_eq!(create_request.address, Some(0x6004));
+        assert!(matches!(
+            create_request.target,
+            ProjectItemTarget::Address {
+                address: 0x6004,
+                module_name: _
+            }
+        ));
         assert_eq!(create_request.data_type_id, Some(String::from("u8")));
     }
 
@@ -2005,7 +2016,13 @@ mod tests {
         )
         .expect("Expected create request.");
 
-        assert_eq!(create_request.address, Some(0x7004));
+        assert!(matches!(
+            create_request.target,
+            ProjectItemTarget::Address {
+                address: 0x7004,
+                module_name: _
+            }
+        ));
         assert_eq!(create_request.data_type_id, Some(String::from("u16[2]")));
     }
 

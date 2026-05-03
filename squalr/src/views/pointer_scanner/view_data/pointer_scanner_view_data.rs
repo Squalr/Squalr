@@ -23,6 +23,7 @@ use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::Poi
 use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_target_request::PointerScanTargetRequest;
+use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
@@ -1116,12 +1117,8 @@ impl PointerScannerViewData {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name,
-            project_item_type: String::from("pointer"),
-            pointer: Some(pointer),
-            address: None,
-            module_name: None,
+            target: ProjectItemTarget::new_pointer_path(pointer),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
-            symbol_locator_key: None,
         })
     }
 
@@ -1143,12 +1140,8 @@ impl PointerScannerViewData {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name,
-            project_item_type: String::from("pointer"),
-            pointer: Some(pointer),
-            address: None,
-            module_name: None,
+            target: ProjectItemTarget::new_pointer_path(pointer),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
-            symbol_locator_key: None,
         })
     }
 
@@ -2110,6 +2103,7 @@ mod tests {
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_summary::PointerScanSummary;
     use squalr_engine_api::structures::pointer_scans::pointer_scan_target_descriptor::PointerScanTargetDescriptor;
+    use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
     use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
@@ -2316,11 +2310,10 @@ mod tests {
         let project_item_create_request =
             PointerScannerViewData::build_project_item_create_request(pointer_scanner_view_data, Some("project_items/Pointers".into()))
                 .expect("Expected leaf chain request.");
-        let pointer = project_item_create_request
-            .pointer
-            .expect("Expected pointer payload.");
+        let ProjectItemTarget::PointerPath { pointer } = project_item_create_request.target else {
+            panic!("Expected pointer target.");
+        };
 
-        assert_eq!(project_item_create_request.project_item_type, "pointer");
         assert_eq!(project_item_create_request.project_item_name, "game.exe+0x10 [2]");
         assert_eq!(pointer.get_address(), 0x10);
         assert_eq!(pointer.get_module_name(), "game.exe");

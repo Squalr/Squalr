@@ -6,10 +6,11 @@ use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -22,34 +23,19 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsCreateRequest {
         &self,
         engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
     ) -> <Self as UnprivilegedCommandRequestExecutor>::ResponseType {
-        if self.project_item_type == ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID {
-            return create_directory_item(self, engine_unprivileged_state);
-        }
+        match &self.target {
+            ProjectItemTarget::None => create_directory_item(self, engine_unprivileged_state),
+            ProjectItemTarget::Address { .. } => create_address_item(self, engine_unprivileged_state),
+            ProjectItemTarget::PointerPath { .. } => create_pointer_item(self, engine_unprivileged_state),
+            ProjectItemTarget::Symbol { .. } => create_symbol_ref_item(self, engine_unprivileged_state),
+            ProjectItemTarget::Plugin { .. } => {
+                log::error!("Plugin project item target creation is not yet supported by the built-in create command.");
 
-        if self.project_item_type == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-            return create_pointer_item(self, engine_unprivileged_state);
-        }
-
-        if self.project_item_type == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            return create_address_item(self, engine_unprivileged_state);
-        }
-
-        if self.project_item_type == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return create_symbol_ref_item(self, engine_unprivileged_state);
-        }
-
-        log::error!(
-            "Unsupported project item type for create command: {}. Supported types: '{}', '{}', '{}', '{}'.",
-            self.project_item_type,
-            ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID,
-            ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID,
-            ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID,
-            ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID,
-        );
-
-        ProjectItemsCreateResponse {
-            success: false,
-            created_project_item_path: PathBuf::new(),
+                ProjectItemsCreateResponse {
+                    success: false,
+                    created_project_item_path: PathBuf::new(),
+                }
+            }
         }
     }
 }
@@ -192,15 +178,18 @@ fn create_address_item(
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
-    let requested_address = project_items_create_request.address.unwrap_or(0);
-    let requested_module_name = project_items_create_request
-        .module_name
-        .as_deref()
-        .unwrap_or("");
+    let ProjectItemTarget::Address { address, module_name } = project_items_create_request.target.clone() else {
+        log::error!("Address project item creation requires an address target.");
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    };
     let mut project_item = ProjectItemTypeAddress::new_project_item(
         &project_items_create_request.project_item_name,
-        requested_address,
-        requested_module_name,
+        address,
+        &module_name,
         "",
         DataTypeU8::get_value_from_primitive(0),
     );
@@ -242,7 +231,7 @@ fn create_pointer_item(
     project_items_create_request: &ProjectItemsCreateRequest,
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
 ) -> ProjectItemsCreateResponse {
-    let Some(pointer) = project_items_create_request.pointer.as_ref() else {
+    let ProjectItemTarget::PointerPath { pointer } = project_items_create_request.target.clone() else {
         log::error!("Pointer project item creation requires pointer-chain data.");
 
         return ProjectItemsCreateResponse {
@@ -300,7 +289,7 @@ fn create_pointer_item(
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
-    let project_item = ProjectItemTypePointer::new_project_item(&project_items_create_request.project_item_name, pointer, "", &data_type_id);
+    let project_item = ProjectItemTypePointer::new_project_item(&project_items_create_request.project_item_name, &pointer, "", &data_type_id);
 
     opened_project
         .get_project_items_mut()
@@ -383,11 +372,15 @@ fn create_symbol_ref_item(
     let project_item_file_stem = sanitize_file_name_component(&project_items_create_request.project_item_name);
     let created_project_item_path = generate_unique_project_item_file_path(&parent_directory_path, opened_project.get_project_items(), &project_item_file_stem);
     let project_item_ref = ProjectItemRef::new(created_project_item_path.clone());
-    let symbol_locator_key = project_items_create_request
-        .symbol_locator_key
-        .as_deref()
-        .map(str::trim)
-        .unwrap_or("");
+    let ProjectItemTarget::Symbol { symbol_locator_key } = project_items_create_request.target.clone() else {
+        log::error!("Symbol-ref project item creation requires a symbol target.");
+
+        return ProjectItemsCreateResponse {
+            success: false,
+            created_project_item_path: PathBuf::new(),
+        };
+    };
+    let symbol_locator_key = symbol_locator_key.trim();
     let project_item = ProjectItemTypeSymbolRef::new_project_item(&project_items_create_request.project_item_name, symbol_locator_key, "");
 
     opened_project

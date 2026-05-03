@@ -50,7 +50,10 @@ use squalr_engine_api::structures::data_values::{
 use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
-    project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_symbol_ref::ProjectItemTypeSymbolRef},
+    project_items::{
+        built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_symbol_ref::ProjectItemTypeSymbolRef},
+        project_item_target::ProjectItemTarget,
+    },
     project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
 };
@@ -1006,12 +1009,8 @@ impl SymbolExplorerView {
         ProjectItemsCreateRequest {
             parent_directory_path: PathBuf::new(),
             project_item_name: add_symbol_to_project_target.project_item_name.clone(),
-            project_item_type: ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID.to_string(),
-            pointer: None,
-            address: None,
-            module_name: None,
+            target: ProjectItemTarget::new_symbol(add_symbol_to_project_target.symbol_locator_key.clone()),
             data_type_id: None,
-            symbol_locator_key: Some(add_symbol_to_project_target.symbol_locator_key.clone()),
         }
     }
 
@@ -3774,7 +3773,7 @@ mod tests {
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
-            project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_symbol_ref::ProjectItemTypeSymbolRef},
+            project_items::{built_in_types::project_item_type_address::ProjectItemTypeAddress, project_item_target::ProjectItemTarget},
             project_symbol_catalog::ProjectSymbolCatalog,
             project_symbol_claim::ProjectSymbolClaim,
             project_symbol_locator::ProjectSymbolLocator,
@@ -3930,8 +3929,12 @@ mod tests {
         let project_items_create_request = SymbolExplorerView::build_symbol_ref_project_item_create_request(&add_symbol_to_project_target);
 
         assert_eq!(project_items_create_request.project_item_name, "Health");
-        assert_eq!(project_items_create_request.project_item_type, ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
-        assert_eq!(project_items_create_request.symbol_locator_key.as_deref(), Some("module:game.exe:4"));
+        assert_eq!(
+            project_items_create_request.target,
+            ProjectItemTarget::Symbol {
+                symbol_locator_key: String::from("module:game.exe:4")
+            }
+        );
         assert!(
             project_items_create_request
                 .parent_directory_path

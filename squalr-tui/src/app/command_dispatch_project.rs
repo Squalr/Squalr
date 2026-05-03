@@ -28,6 +28,7 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
+use squalr_engine_api::structures::projects::project_items::project_item_target::ProjectItemTarget;
 use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructField,
@@ -461,12 +462,8 @@ impl AppShell {
         let project_items_create_request = ProjectItemsCreateRequest {
             parent_directory_path,
             project_item_name: project_item_name.clone(),
-            project_item_type: "directory".to_string(),
-            address: None,
-            module_name: None,
-            pointer: None,
+            target: ProjectItemTarget::None,
             data_type_id: None,
-            symbol_locator_key: None,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_items_create_request.send(engine_unprivileged_state, move |project_items_create_response| {

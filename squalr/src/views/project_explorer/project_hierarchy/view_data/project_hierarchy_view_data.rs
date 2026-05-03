@@ -22,14 +22,15 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 use squalr_engine_api::commands::project_items::reorder::project_items_reorder_request::ProjectItemsReorderRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
-use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
     project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
-use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+use squalr_engine_api::structures::projects::project_items::{
+    project_item::ProjectItem, project_item_ref::ProjectItemRef, project_item_target::ProjectItemTarget,
+};
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -2293,42 +2294,8 @@ impl ProjectHierarchyViewData {
             ProjectHierarchyCreateItemKind::Directory => ProjectItemsCreateRequest {
                 parent_directory_path: parent_directory_path.clone(),
                 project_item_name: Self::build_unique_directory_name(project_items, &parent_directory_path),
-                project_item_type: ProjectItemTypeDirectory::PROJECT_ITEM_TYPE_ID.to_string(),
-                pointer: None,
-                address: None,
-                module_name: None,
+                target: ProjectItemTarget::None,
                 data_type_id: None,
-                symbol_locator_key: None,
-            },
-            ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
-                parent_directory_path,
-                project_item_name: ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME.to_string(),
-                project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
-                pointer: None,
-                address: None,
-                module_name: None,
-                data_type_id: Some(String::from("u8")),
-                symbol_locator_key: None,
-            },
-            ProjectHierarchyCreateItemKind::Pointer => ProjectItemsCreateRequest {
-                parent_directory_path,
-                project_item_name: ProjectItemTypePointer::DEFAULT_PROJECT_ITEM_NAME.to_string(),
-                project_item_type: ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID.to_string(),
-                pointer: Some(Pointer::new(0, Vec::new(), String::new())),
-                address: None,
-                module_name: None,
-                data_type_id: Some(String::from("u8")),
-                symbol_locator_key: None,
-            },
-            ProjectHierarchyCreateItemKind::SymbolRef => ProjectItemsCreateRequest {
-                parent_directory_path,
-                project_item_name: ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME.to_string(),
-                project_item_type: ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID.to_string(),
-                pointer: None,
-                address: None,
-                module_name: None,
-                data_type_id: None,
-                symbol_locator_key: None,
             },
         }
     }
@@ -2629,9 +2596,11 @@ mod tests {
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+        project_item_type_pointer::ProjectItemTypePointer,
     };
-    use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
+    use squalr_engine_api::structures::projects::project_items::{
+        project_item::ProjectItem, project_item_ref::ProjectItemRef, project_item_target::ProjectItemTarget,
+    };
     use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
     use std::path::{Path, PathBuf};
 
@@ -2854,47 +2823,16 @@ mod tests {
     }
 
     #[test]
-    fn build_project_item_create_request_for_address_uses_address_defaults() {
+    fn build_project_item_create_request_for_directory_uses_directory_target() {
         let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
         let project_items = vec![create_directory_project_item(&parent_directory_path)];
 
         let create_request =
-            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::Address);
+            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::Directory);
 
         assert_eq!(create_request.parent_directory_path, parent_directory_path);
-        assert_eq!(create_request.project_item_name, ProjectItemTypeAddress::DEFAULT_PROJECT_ITEM_NAME);
-        assert_eq!(create_request.project_item_type, ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID);
-        assert_eq!(create_request.data_type_id.as_deref(), Some("u8"));
-        assert!(create_request.pointer.is_none());
-    }
-
-    #[test]
-    fn build_project_item_create_request_for_pointer_uses_pointer_defaults() {
-        let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
-        let project_items = vec![create_directory_project_item(&parent_directory_path)];
-
-        let create_request =
-            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::Pointer);
-
-        assert_eq!(create_request.parent_directory_path, parent_directory_path);
-        assert_eq!(create_request.project_item_name, ProjectItemTypePointer::DEFAULT_PROJECT_ITEM_NAME);
-        assert_eq!(create_request.project_item_type, ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID);
-        assert_eq!(create_request.data_type_id.as_deref(), Some("u8"));
-        assert_eq!(create_request.pointer, Some(Pointer::new(0, Vec::new(), String::new())));
-    }
-
-    #[test]
-    fn build_project_item_create_request_for_symbol_ref_uses_symbol_ref_defaults() {
-        let parent_directory_path = PathBuf::from("C:/Projects/TestProject/project_items");
-        let project_items = vec![create_directory_project_item(&parent_directory_path)];
-
-        let create_request =
-            ProjectHierarchyViewData::build_project_item_create_request(&project_items, &parent_directory_path, ProjectHierarchyCreateItemKind::SymbolRef);
-
-        assert_eq!(create_request.parent_directory_path, parent_directory_path);
-        assert_eq!(create_request.project_item_name, ProjectItemTypeSymbolRef::DEFAULT_PROJECT_ITEM_NAME);
-        assert_eq!(create_request.project_item_type, ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID);
-        assert!(create_request.pointer.is_none());
+        assert_eq!(create_request.project_item_name, "New Folder");
+        assert_eq!(create_request.target, ProjectItemTarget::None);
         assert!(create_request.data_type_id.is_none());
     }
 

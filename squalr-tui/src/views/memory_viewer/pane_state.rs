@@ -13,7 +13,7 @@ use squalr_engine_api::{
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
-        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
+        projects::project_items::project_item_target::ProjectItemTarget,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -537,12 +537,8 @@ impl MemoryViewerPaneState {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
-            project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
-            pointer: None,
-            address: Some(project_item_address),
-            module_name: Some(project_item_module_name),
+            target: ProjectItemTarget::new_address(project_item_address, project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
-            symbol_locator_key: None,
         })
     }
 
@@ -1137,7 +1133,10 @@ fn parse_address_text(address_text: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::{MemoryViewerInputMode, MemoryViewerPaneState, MemoryViewerSelectionRange};
-    use squalr_engine_api::structures::memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion};
+    use squalr_engine_api::structures::{
+        memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        projects::project_items::project_item_target::ProjectItemTarget,
+    };
 
     #[test]
     fn build_visible_chunk_queries_aligns_visible_rows_to_prefetched_chunks() {
@@ -1257,8 +1256,13 @@ mod tests {
             .expect("Expected create request.");
 
         assert_eq!(create_request.project_item_name, String::from("game.exe+0x4"));
-        assert_eq!(create_request.module_name, Some(String::from("game.exe")));
-        assert_eq!(create_request.address, Some(0x4));
+        assert_eq!(
+            create_request.target,
+            ProjectItemTarget::Address {
+                address: 0x4,
+                module_name: String::from("game.exe")
+            }
+        );
         assert_eq!(create_request.data_type_id, Some(String::from("u8[4]")));
     }
 
