@@ -1788,6 +1788,40 @@ impl SymbolExplorerView {
         button_response
     }
 
+    fn draw_sized_action_button(
+        &self,
+        user_interface: &mut Ui,
+        label: &str,
+        button_size: eframe::egui::Vec2,
+        fill_color: Color32,
+        border_color: Color32,
+        click_enabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let text_color = theme.foreground;
+        let label_galley = user_interface
+            .painter()
+            .layout_no_wrap(label.to_string(), theme.font_library.font_noto_sans.font_normal.clone(), text_color);
+        let button_response = user_interface.add_sized(
+            button_size,
+            ThemeButton::new_from_theme(theme)
+                .disabled(!click_enabled)
+                .background_color(fill_color)
+                .border_width(1.0)
+                .border_color(border_color),
+        );
+        let text_position = pos2(
+            button_response.rect.center().x - label_galley.size().x * 0.5,
+            button_response.rect.center().y - label_galley.size().y * 0.5,
+        );
+
+        user_interface
+            .painter()
+            .galley(text_position, label_galley, text_color);
+
+        button_response
+    }
+
     fn render_string_data_value_box(
         &self,
         user_interface: &mut Ui,
@@ -2096,11 +2130,13 @@ impl SymbolExplorerView {
                                 user_interface.add_space(side_spacing);
                                 user_interface.spacing_mut().item_spacing.x = button_spacing;
 
-                                let button_cancel = user_interface.add_sized(
+                                let button_cancel = self.draw_sized_action_button(
+                                    user_interface,
+                                    "Cancel",
                                     button_size,
-                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                        .fill(theme.background_control_secondary)
-                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                    theme.background_control_secondary,
+                                    theme.background_control_secondary_dark,
+                                    true,
                                 );
 
                                 if button_cancel.clicked() {
@@ -2257,14 +2293,10 @@ impl SymbolExplorerView {
                                 } else {
                                     theme.background_control_secondary_dark
                                 };
-                                let button_create = user_interface.add_sized(
-                                    button_size,
-                                    eframe::egui::Button::new(RichText::new("Create").color(theme.foreground))
-                                        .fill(create_fill)
-                                        .stroke(Stroke::new(1.0, create_stroke)),
-                                );
+                                let button_create =
+                                    self.draw_sized_action_button(user_interface, "Create", button_size, create_fill, create_stroke, can_create_field);
 
-                                if can_create_field && button_create.clicked() {
+                                if button_create.clicked() {
                                     should_create_field = true;
                                 }
                             });
