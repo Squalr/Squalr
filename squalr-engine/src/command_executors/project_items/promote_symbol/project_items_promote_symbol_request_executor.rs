@@ -278,7 +278,8 @@ fn query_loaded_module_size(
         .find(|normalized_module| normalized_module.get_module_name() == module_name)?;
     let module_base_address = loaded_module.get_base_address();
 
-    memory_query_response
+    let loaded_module_size = loaded_module.get_region_size();
+    let containing_virtual_page_size = memory_query_response
         .virtual_pages
         .iter()
         .find(|virtual_page| virtual_page.contains_address(module_base_address))
@@ -286,8 +287,13 @@ fn query_loaded_module_size(
             virtual_page
                 .get_end_address()
                 .saturating_sub(module_base_address)
-        })
-        .or_else(|| Some(loaded_module.get_region_size()))
+        });
+
+    Some(
+        containing_virtual_page_size
+            .unwrap_or(0)
+            .max(loaded_module_size),
+    )
 }
 
 fn estimate_symbol_claim_size_in_bytes(
@@ -780,6 +786,42 @@ mod tests {
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+    }
+
+    #[test]
+    fn promote_symbol_request_uses_loaded_module_size_when_base_page_is_smaller() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default())
+            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x5000)])
+            .with_memory_query_virtual_pages(vec![NormalizedRegion::new(0x10000000, 0x1000)]);
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
+        let symbol_modules = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules();
+
+        assert_eq!(symbol_modules.len(), 1);
+        assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
+        assert_eq!(symbol_modules[0].get_size(), 0x5000);
     }
 
     #[test]
