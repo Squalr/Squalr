@@ -2259,13 +2259,9 @@ impl SymbolExplorerView {
                                 };
                                 let button_create = user_interface.add_sized(
                                     button_size,
-                                    eframe::egui::Button::new(RichText::new("Create").color(if can_create_field {
-                                        theme.foreground
-                                    } else {
-                                        theme.foreground_preview
-                                    }))
-                                    .fill(create_fill)
-                                    .stroke(Stroke::new(1.0, create_stroke)),
+                                    eframe::egui::Button::new(RichText::new("Create").color(theme.foreground))
+                                        .fill(create_fill)
+                                        .stroke(Stroke::new(1.0, create_stroke)),
                                 );
 
                                 if can_create_field && button_create.clicked() {
