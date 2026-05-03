@@ -2,6 +2,7 @@ use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataT
 use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
 use crate::views::struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget;
+use crate::views::struct_viewer::view_data::struct_viewer_take_over_state::StructViewerTakeOverState;
 use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -39,6 +40,7 @@ pub struct StructViewerViewData {
     pub field_presentations: HashMap<String, StructViewerFieldPresentation>,
     pub field_validation_data_type_refs: HashMap<String, DataTypeRef>,
     pub field_data_type_selections: HashMap<String, DataTypeSelection>,
+    pub take_over_state: Option<StructViewerTakeOverState>,
     pub value_splitter_ratio: f32,
 }
 
@@ -61,6 +63,7 @@ impl StructViewerViewData {
             field_presentations: HashMap::new(),
             field_validation_data_type_refs: HashMap::new(),
             field_data_type_selections: HashMap::new(),
+            take_over_state: None,
             value_splitter_ratio: Self::DEFAULT_NAME_SPLITTER_RATIO,
         }
     }
@@ -171,6 +174,29 @@ impl StructViewerViewData {
         struct_viewer_view_data.struct_under_view = Arc::new(None);
         struct_viewer_view_data.struct_field_modified_callback = None;
         struct_viewer_view_data.focus_target = Arc::new(None);
+        struct_viewer_view_data.take_over_state = None;
+    }
+
+    pub fn request_pointer_offsets_editor(
+        struct_viewer_view_data: Dependency<Self>,
+        valued_struct_field: ValuedStructField,
+    ) {
+        let mut struct_viewer_view_data = match struct_viewer_view_data.write("Request pointer offsets editor") {
+            Some(struct_viewer_view_data) => struct_viewer_view_data,
+            None => return,
+        };
+
+        if valued_struct_field.get_name() != Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS {
+            return;
+        }
+
+        struct_viewer_view_data.take_over_state = Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field });
+    }
+
+    pub fn cancel_take_over_state(struct_viewer_view_data: Dependency<Self>) {
+        if let Some(mut struct_viewer_view_data) = struct_viewer_view_data.write("Cancel Struct Viewer takeover state") {
+            struct_viewer_view_data.take_over_state = None;
+        }
     }
 
     pub fn get_focus_target(&self) -> Option<&StructViewerFocusTarget> {
@@ -197,6 +223,7 @@ impl StructViewerViewData {
         focus_target: Option<StructViewerFocusTarget>,
     ) {
         self.selected_field_name = Arc::new(None);
+        self.take_over_state = None;
         self.source_struct_under_view = Arc::new(valued_struct);
         self.struct_field_modified_callback = valued_struct_field_edited_callback;
         self.focus_target = Arc::new(focus_target);
