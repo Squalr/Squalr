@@ -5,7 +5,7 @@ use crate::structures::projects::project_items::built_in_types::project_item_typ
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::structs::symbolic_struct_ref::SymbolicStructRef;
 use crate::structures::{
-    data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64},
+    data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_values::data_value::DataValue,
     projects::project_items::{project_item::ProjectItem, project_item_type::ProjectItemType, project_item_type_ref::ProjectItemTypeRef},
     structs::valued_struct_field::ValuedStructFieldData,
@@ -114,59 +114,31 @@ impl ProjectItemTypeAddress {
     }
 
     pub fn get_field_address(project_item: &mut ProjectItem) -> u64 {
-        if let ProjectItemAddressTarget::Address { address, .. } = Self::get_address_target(project_item) {
-            return address;
-        }
-
-        if let Some(name_field) = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_ADDRESS)
-        {
-            let bytes = name_field.get_bytes();
-            match bytes.len() {
-                8 => return u64::from_le_bytes(bytes.try_into().unwrap_or([0u8; 8])),
-                4 => {
-                    let arr: [u8; 4] = bytes.try_into().unwrap_or([0u8; 4]);
-
-                    return u32::from_le_bytes(arr) as u64;
-                }
-                _ => {}
-            }
-        }
-
-        0
+        Self::get_address_target(project_item)
+            .get_root_offset()
+            .and_then(|root_offset| u64::try_from(root_offset).ok())
+            .unwrap_or(0)
     }
 
     pub fn set_field_address(
         project_item: &mut ProjectItem,
         address: u64,
     ) {
-        let description_address = DataTypeU64::get_value_from_primitive(address);
-        let field_data = ValuedStructFieldData::Value(description_address);
+        let mut address_target = Self::get_address_target(project_item);
+        let mut pointer_offsets = address_target.get_pointer_offsets().to_vec();
 
-        project_item
-            .get_properties_mut()
-            .set_field_data(Self::PROPERTY_ADDRESS, field_data, false);
-
-        if let ProjectItemAddressTarget::Address {
-            module_name, pointer_offsets, ..
-        } = Self::get_address_target(project_item)
-        {
-            Self::set_address_target(
-                project_item,
-                ProjectItemAddressTarget::new_address_with_pointer_offsets(address, module_name, pointer_offsets),
-            );
+        if let Some(first_pointer_offset) = pointer_offsets.first_mut() {
+            *first_pointer_offset = crate::structures::memory::pointer_chain_segment::PointerChainSegment::new_offset(address as i64);
         }
+
+        address_target.set_pointer_offsets(pointer_offsets);
+        Self::set_address_target(project_item, address_target);
     }
 
     pub fn get_field_module(project_item: &mut ProjectItem) -> String {
-        if let ProjectItemAddressTarget::Address { module_name, .. } = Self::get_address_target(project_item) {
-            return module_name;
-        }
-
-        Self::read_string_field(project_item, Self::PROPERTY_MODULE)
+        Self::get_address_target(project_item)
+            .get_module_name()
+            .to_string()
     }
 
     pub fn set_field_module(
@@ -180,12 +152,9 @@ impl ProjectItemTypeAddress {
             .get_properties_mut()
             .set_field_data(Self::PROPERTY_MODULE, field_data, false);
 
-        if let ProjectItemAddressTarget::Address { address, pointer_offsets, .. } = Self::get_address_target(project_item) {
-            Self::set_address_target(
-                project_item,
-                ProjectItemAddressTarget::new_address_with_pointer_offsets(address, module.to_string(), pointer_offsets),
-            );
-        }
+        let mut address_target = Self::get_address_target(project_item);
+        address_target.set_module_name(module.to_string());
+        Self::set_address_target(project_item, address_target);
     }
 
     pub fn get_address_target(project_item: &mut ProjectItem) -> ProjectItemAddressTarget {
@@ -195,20 +164,17 @@ impl ProjectItemTypeAddress {
             return address_target;
         }
 
-        let address = Self::read_legacy_address_field(project_item);
-        let module_name = Self::read_string_field(project_item, Self::PROPERTY_MODULE);
-
-        ProjectItemAddressTarget::new_address(address, module_name)
+        ProjectItemAddressTarget::new_address(0, String::new())
     }
 
     pub fn set_address_target(
         project_item: &mut ProjectItem,
         address_target: ProjectItemAddressTarget,
     ) {
-        if let ProjectItemAddressTarget::Address { address, module_name, .. } = &address_target {
-            Self::set_legacy_address_field(project_item, *address);
-            Self::set_legacy_module_field(project_item, module_name);
-        }
+        Self::set_module_property(project_item, address_target.get_module_name());
+        project_item
+            .get_properties_mut()
+            .remove_field(Self::PROPERTY_ADDRESS);
 
         let serialized_address_target = match serde_json::to_string(&address_target) {
             Ok(serialized_address_target) => serialized_address_target,
@@ -279,41 +245,7 @@ impl ProjectItemTypeAddress {
         String::from_utf8(data_value.get_value_bytes().clone()).unwrap_or_default()
     }
 
-    fn read_legacy_address_field(project_item: &ProjectItem) -> u64 {
-        if let Some(name_field) = project_item
-            .get_properties()
-            .get_fields()
-            .iter()
-            .find(|field| field.get_name() == Self::PROPERTY_ADDRESS)
-        {
-            let bytes = name_field.get_bytes();
-            match bytes.len() {
-                8 => return u64::from_le_bytes(bytes.try_into().unwrap_or([0u8; 8])),
-                4 => {
-                    let byte_array: [u8; 4] = bytes.try_into().unwrap_or([0u8; 4]);
-
-                    return u32::from_le_bytes(byte_array) as u64;
-                }
-                _ => {}
-            }
-        }
-
-        0
-    }
-
-    fn set_legacy_address_field(
-        project_item: &mut ProjectItem,
-        address: u64,
-    ) {
-        let description_address = DataTypeU64::get_value_from_primitive(address);
-        let field_data = ValuedStructFieldData::Value(description_address);
-
-        project_item
-            .get_properties_mut()
-            .set_field_data(Self::PROPERTY_ADDRESS, field_data, false);
-    }
-
-    fn set_legacy_module_field(
+    fn set_module_property(
         project_item: &mut ProjectItem,
         module: &str,
     ) {
@@ -329,9 +261,8 @@ impl ProjectItemTypeAddress {
 #[cfg(test)]
 mod tests {
     use super::ProjectItemTypeAddress;
-    use crate::structures::data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u32::data_type_u32::DataTypeU32};
-    use crate::structures::projects::project_items::{project_item::ProjectItem, project_item_type_ref::ProjectItemTypeRef};
-    use crate::structures::structs::valued_struct_field::ValuedStructFieldData;
+    use crate::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
+    use crate::structures::memory::pointer_chain_segment::PointerChainSegment;
 
     #[test]
     fn new_project_item_uses_new_address_for_empty_name() {
@@ -355,14 +286,12 @@ mod tests {
     }
 
     #[test]
-    fn get_field_address_reads_u32_bytes() {
-        let mut project_item = ProjectItem::new(ProjectItemTypeRef::new(ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string()), "Health");
-        let address_field_data = ValuedStructFieldData::Value(DataTypeU32::get_value_from_primitive(0x89ABCDEF));
+    fn new_project_item_stores_address_as_first_chain_segment() {
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x579C, "winmine.exe", "", DataTypeU8::get_value_from_primitive(7));
+        let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-        project_item
-            .get_properties_mut()
-            .set_field_data(ProjectItemTypeAddress::PROPERTY_ADDRESS, address_field_data, false);
-
-        assert_eq!(ProjectItemTypeAddress::get_field_address(&mut project_item), 0x89ABCDEF);
+        assert_eq!(ProjectItemTypeAddress::get_field_address(&mut project_item), 0x579C);
+        assert_eq!(address_target.get_module_name(), "winmine.exe");
+        assert_eq!(address_target.get_pointer_offsets(), &[PointerChainSegment::Offset(0x579C)]);
     }
 }

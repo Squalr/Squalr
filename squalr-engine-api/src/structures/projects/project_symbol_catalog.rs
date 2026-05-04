@@ -78,6 +78,46 @@ impl ProjectSymbolCatalog {
         Some((symbol_module, module_field))
     }
 
+    pub fn find_module_field_offset_by_display_name(
+        &self,
+        module_name: &str,
+        display_name: &str,
+    ) -> Option<u64> {
+        let symbol_module = self.find_symbol_module(module_name)?;
+
+        symbol_module
+            .get_fields()
+            .iter()
+            .find(|module_field| module_field.get_display_name() == display_name)
+            .map(ProjectSymbolModuleField::get_offset)
+    }
+
+    pub fn find_module_symbol_offset_by_display_name(
+        &self,
+        module_name: &str,
+        display_name: &str,
+    ) -> Option<u64> {
+        if let Some(module_field_offset) = self.find_module_field_offset_by_display_name(module_name, display_name) {
+            return Some(module_field_offset);
+        }
+
+        self.symbol_claims.iter().find_map(|symbol_claim| {
+            if symbol_claim.get_display_name() != display_name {
+                return None;
+            }
+
+            let ProjectSymbolLocator::ModuleOffset {
+                module_name: claim_module_name,
+                offset,
+            } = symbol_claim.get_locator()
+            else {
+                return None;
+            };
+
+            (claim_module_name == module_name).then_some(*offset)
+        })
+    }
+
     pub fn find_module_field_mut(
         &mut self,
         symbol_locator_key: &str,

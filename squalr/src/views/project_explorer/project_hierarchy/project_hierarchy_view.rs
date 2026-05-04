@@ -41,7 +41,7 @@ use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedComma
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::plugins::instruction_set::normalize_instruction_data_type_id;
-use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
+use squalr_engine_api::structures::data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string::AnonymousValueString, container_type::ContainerType};
 use squalr_engine_api::structures::memory::address_display::try_resolve_virtual_module_address;
@@ -123,7 +123,6 @@ struct ProjectItemValueEditContext {
 impl ProjectHierarchyView {
     const TARGET_FIELD_POINTER_OFFSETS: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS;
     const TARGET_FIELD_POINTER_SIZE: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE;
-    const TARGET_FIELD_POINTER_SIZE_NONE: &str = "None";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let project_hierarchy_view_data = app_context
@@ -396,13 +395,10 @@ mod tests {
     }
 
     #[test]
-    fn apply_project_item_address_target_edit_updates_raw_address() {
+    fn apply_project_item_address_target_edit_updates_root_offset() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("player_health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        let edited_field = ValuedStructField::new(
-            ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(),
-            ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(0xABCD)),
-            false,
-        );
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("0xABCD")
+            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS.to_string(), true);
 
         let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
 
@@ -651,33 +647,32 @@ mod tests {
     }
 
     #[test]
-    fn build_struct_view_properties_exposes_address_item_pointer_size_none_editor() {
+    fn build_struct_view_properties_exposes_address_item_pointer_chain_editor() {
         let project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
 
         let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
         let pointer_size_field = struct_view_properties
             .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE)
             .expect("Expected pointer size field.");
-        let address_field = struct_view_properties
-            .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
-            .expect("Expected address field.");
+        let pointer_offsets_field = struct_view_properties
+            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+            .expect("Expected pointer offsets field.");
         let module_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
             .expect("Expected module field.");
 
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_size_field), "None");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_size_field), "u64");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x1234");
         assert!(
             struct_view_properties
-                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+                .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
                 .is_none()
         );
-        assert_eq!(address_field.get_bytes(), 0x1234_u64.to_le_bytes());
         assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "game.exe");
-        assert_eq!(struct_view_properties.get_fields().len(), project_item.get_properties().get_fields().len());
     }
 
     #[test]
-    fn build_struct_view_properties_uses_address_and_module_for_pointer_target_root() {
+    fn build_struct_view_properties_uses_module_and_offsets_for_pointer_target_root() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_address_target(
             &mut project_item,
@@ -690,20 +685,15 @@ mod tests {
         );
 
         let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(None, &project_item);
-        let address_field = struct_view_properties
-            .get_field(ProjectItemTypeAddress::PROPERTY_ADDRESS)
-            .expect("Expected address field.");
         let module_field = struct_view_properties
             .get_field(ProjectItemTypeAddress::PROPERTY_MODULE)
             .expect("Expected module field.");
+        let pointer_offsets_field = struct_view_properties
+            .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
+            .expect("Expected pointer offsets field.");
 
-        assert_eq!(address_field.get_bytes(), 0x4567_u64.to_le_bytes());
         assert_eq!(StructViewerViewData::read_utf8_field_text(module_field), "pointer_root.exe");
-        assert!(
-            struct_view_properties
-                .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
-                .is_some()
-        );
+        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567, 0x10, 0x20");
         assert!(
             struct_view_properties
                 .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
@@ -735,7 +725,7 @@ mod tests {
             .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
             .expect("Expected pointer offsets field.");
 
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x0");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567");
     }
 
     #[test]
@@ -774,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn apply_project_item_address_target_edit_pointer_size_converts_address_to_pointer_path() {
+    fn apply_project_item_address_target_edit_pointer_size_updates_chain_pointer_size() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("u64")
             .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE.to_string(), false);
@@ -784,41 +774,12 @@ mod tests {
         assert!(did_apply_edit);
         assert_eq!(
             ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x1234,
-                vec![0],
-                String::from("game.exe"),
-                PointerScanPointerSize::Pointer64,
-            ))
+            ProjectItemAddressTarget::new(String::from("game.exe"), vec![0x1234], PointerScanPointerSize::Pointer64)
         );
     }
 
     #[test]
-    fn apply_project_item_address_target_edit_pointer_size_none_converts_pointer_path_to_address() {
-        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
-        ProjectItemTypeAddress::set_address_target(
-            &mut project_item,
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                vec![0x10, 0x20],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            )),
-        );
-        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string("None")
-            .to_named_valued_struct_field(ProjectHierarchyView::TARGET_FIELD_POINTER_SIZE.to_string(), false);
-
-        let did_apply_edit = ProjectHierarchyView::apply_project_item_address_target_edit(&mut project_item, &edited_field);
-
-        assert!(did_apply_edit);
-        assert_eq!(
-            ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_address_with_pointer_offsets(0x4567, String::from("pointer_root.exe"), vec![0x10, 0x20])
-        );
-    }
-
-    #[test]
-    fn apply_project_item_address_target_edit_pointer_size_restores_dormant_pointer_offsets() {
+    fn apply_project_item_address_target_edit_pointer_size_preserves_offsets() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_address_target(
             &mut project_item,
@@ -832,12 +793,7 @@ mod tests {
         assert!(did_apply_edit);
         assert_eq!(
             ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                vec![0x10, 0x20],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            ))
+            ProjectItemAddressTarget::new(String::from("pointer_root.exe"), vec![0x4567, 0x10, 0x20], PointerScanPointerSize::Pointer64,)
         );
     }
 
@@ -861,12 +817,7 @@ mod tests {
         assert!(did_apply_edit);
         assert_eq!(
             ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size(
-                0x4567,
-                vec![0x20, -0x10],
-                String::from("pointer_root.exe"),
-                PointerScanPointerSize::Pointer64,
-            ))
+            ProjectItemAddressTarget::new(String::from("pointer_root.exe"), vec![0x20, -0x10], PointerScanPointerSize::Pointer64)
         );
     }
 
@@ -891,7 +842,7 @@ mod tests {
             .get_field(ProjectHierarchyView::TARGET_FIELD_POINTER_OFFSETS)
             .expect("Expected pointer offsets field.");
 
-        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x20, health");
+        assert_eq!(StructViewerViewData::read_utf8_field_text(pointer_offsets_field), "0x4567, 0x20, health");
     }
 
     #[test]
@@ -914,15 +865,14 @@ mod tests {
         assert!(did_apply_edit);
         assert_eq!(
             ProjectItemTypeAddress::get_address_target(&mut project_item),
-            ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size_and_segments(
-                0x4567,
+            ProjectItemAddressTarget::new(
+                String::from("pointer_root.exe"),
                 vec![
                     PointerChainSegment::new_offset(0x20),
                     PointerChainSegment::Symbol(String::from("health"))
                 ],
-                String::from("pointer_root.exe"),
                 PointerScanPointerSize::Pointer64,
-            ))
+            )
         );
     }
 
@@ -3018,27 +2968,33 @@ impl ProjectHierarchyView {
                 })
                 .unwrap_or_default();
 
-            return match ProjectItemTypeAddress::get_address_target(&mut project_item) {
-                ProjectItemAddressTarget::Address { address, module_name, .. } => vec![PointerScannerContextAction::Address {
-                    label: "Open in Pointer Scan",
-                    address,
-                    module_name,
-                    data_type_id,
-                }],
-                ProjectItemAddressTarget::PointerPath { pointer } => vec![
-                    PointerScannerContextAction::Address {
-                        label: "Open Base Address in Pointer Scan",
-                        address: pointer.get_address(),
-                        module_name: pointer.get_module_name().to_string(),
-                        data_type_id: data_type_id.clone(),
-                    },
-                    PointerScannerContextAction::ResolvedPointer {
-                        label: "Open Resolved Address in Pointer Scan",
-                        pointer,
-                        data_type_id,
-                    },
-                ],
+            let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
+            let Some(runtime_pointer) = address_target.to_runtime_pointer() else {
+                return Vec::new();
             };
+
+            if runtime_pointer.get_offset_segments().is_empty() {
+                return vec![PointerScannerContextAction::Address {
+                    label: "Open in Pointer Scan",
+                    address: runtime_pointer.get_address(),
+                    module_name: runtime_pointer.get_module_name().to_string(),
+                    data_type_id,
+                }];
+            }
+
+            return vec![
+                PointerScannerContextAction::Address {
+                    label: "Open Base Address in Pointer Scan",
+                    address: runtime_pointer.get_address(),
+                    module_name: runtime_pointer.get_module_name().to_string(),
+                    data_type_id: data_type_id.clone(),
+                },
+                PointerScannerContextAction::ResolvedPointer {
+                    label: "Open Resolved Address in Pointer Scan",
+                    pointer: runtime_pointer,
+                    data_type_id,
+                },
+            ];
         }
 
         if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -3141,6 +3097,12 @@ impl ProjectHierarchyView {
             return false;
         }
 
+        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
+            && field_name == ProjectItemTypeAddress::PROPERTY_ADDRESS
+        {
+            return false;
+        }
+
         if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             return field_name != ProjectItemTypePointer::PROPERTY_EVALUATED_POINTER_PATH;
         }
@@ -3159,13 +3121,10 @@ impl ProjectHierarchyView {
         let mut project_item = project_item.clone();
         let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-        match (address_target, valued_struct_field.get_name()) {
-            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_ADDRESS) => {
-                Some(ValuedStructFieldData::Value(DataTypeU64::get_value_from_primitive(pointer.get_address())))
-            }
-            (ProjectItemAddressTarget::PointerPath { pointer }, ProjectItemTypeAddress::PROPERTY_MODULE) => Some(ValuedStructFieldData::Value(
-                DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_module_name()),
-            )),
+        match valued_struct_field.get_name() {
+            ProjectItemTypeAddress::PROPERTY_MODULE => Some(ValuedStructFieldData::Value(DataTypeStringUtf8::get_value_from_primitive_string(
+                address_target.get_module_name(),
+            ))),
             _ => None,
         }
     }
@@ -3174,26 +3133,21 @@ impl ProjectHierarchyView {
         fields: &mut Vec<ValuedStructField>,
         address_target: &ProjectItemAddressTarget,
     ) {
-        match address_target {
-            ProjectItemAddressTarget::Address { .. } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(Self::TARGET_FIELD_POINTER_SIZE_NONE)
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
-                );
-            }
-            ProjectItemAddressTarget::PointerPath { pointer } => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(pointer.get_pointer_size().to_data_type_ref().get_data_type_id())
-                        .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
-                );
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(&Self::ensure_minimum_pointer_offsets(
-                        pointer.get_offset_segments().to_vec(),
-                    )))
-                    .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
-                );
-            }
-        }
+        fields.push(
+            DataTypeStringUtf8::get_value_from_primitive_string(
+                address_target
+                    .get_pointer_size()
+                    .to_data_type_ref()
+                    .get_data_type_id(),
+            )
+            .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_SIZE.to_string(), false),
+        );
+        fields.push(
+            DataTypeStringUtf8::get_value_from_primitive_string(&Self::format_pointer_offsets(&Self::ensure_minimum_pointer_offsets(
+                address_target.get_pointer_offsets().to_vec(),
+            )))
+            .to_named_valued_struct_field(Self::TARGET_FIELD_POINTER_OFFSETS.to_string(), true),
+        );
     }
 
     fn is_runtime_value_field(field_name: &str) -> bool {
@@ -3238,86 +3192,46 @@ impl ProjectHierarchyView {
 
         let edited_field_name = edited_field.get_name();
 
-        let address_target = ProjectItemTypeAddress::get_address_target(project_item);
-        let updated_address_target = match address_target {
-            ProjectItemAddressTarget::Address {
-                address,
-                module_name,
-                pointer_offsets,
-            } => match edited_field_name {
-                Self::TARGET_FIELD_POINTER_SIZE => {
-                    let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
-                        return false;
-                    };
+        let mut updated_address_target = ProjectItemTypeAddress::get_address_target(project_item);
+        let did_update_address_target = match edited_field_name {
+            ProjectItemTypeAddress::PROPERTY_MODULE => {
+                let Some(edited_module_name) = Self::extract_string_value_from_edited_field_allow_empty(edited_field) else {
+                    return false;
+                };
 
-                    if Self::is_pointer_size_none(&pointer_size_text) {
-                        None
-                    } else if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
-                        Some(ProjectItemAddressTarget::new_pointer_path(Pointer::new_with_size_and_segments(
-                            address,
-                            Self::ensure_minimum_pointer_offsets(pointer_offsets),
-                            module_name,
-                            pointer_size,
-                        )))
-                    } else {
-                        log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
-                        None
-                    }
-                }
-                ProjectItemTypeAddress::PROPERTY_ADDRESS => Self::extract_u64_value_from_edited_field(edited_field)
-                    .map(|edited_address| ProjectItemAddressTarget::new_address_with_pointer_offsets(edited_address, module_name, pointer_offsets)),
-                ProjectItemTypeAddress::PROPERTY_MODULE => Self::extract_string_value_from_edited_field_allow_empty(edited_field)
-                    .map(|edited_module_name| ProjectItemAddressTarget::new_address_with_pointer_offsets(address, edited_module_name, pointer_offsets)),
-                _ => None,
-            },
-            ProjectItemAddressTarget::PointerPath { mut pointer } => match edited_field_name {
-                ProjectItemTypeAddress::PROPERTY_ADDRESS => Self::extract_u64_value_from_edited_field(edited_field).map(|edited_address| {
-                    pointer.set_address(edited_address);
-                    ProjectItemAddressTarget::new_pointer_path(pointer)
-                }),
-                ProjectItemTypeAddress::PROPERTY_MODULE => Self::extract_string_value_from_edited_field_allow_empty(edited_field).map(|edited_module_name| {
-                    pointer.set_module_name(edited_module_name);
-                    ProjectItemAddressTarget::new_pointer_path(pointer)
-                }),
-                Self::TARGET_FIELD_POINTER_SIZE => {
-                    let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
-                        return false;
-                    };
+                updated_address_target.set_module_name(edited_module_name);
+                true
+            }
+            Self::TARGET_FIELD_POINTER_SIZE => {
+                let Some(pointer_size_text) = Self::extract_string_value_from_edited_field(edited_field) else {
+                    return false;
+                };
 
-                    if Self::is_pointer_size_none(&pointer_size_text) {
-                        Some(ProjectItemAddressTarget::new_address_with_pointer_offsets(
-                            pointer.get_address(),
-                            pointer.get_module_name().to_string(),
-                            Self::ensure_minimum_pointer_offsets(pointer.get_offset_segments().to_vec()),
-                        ))
-                    } else if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
-                        pointer.set_pointer_size(pointer_size);
-                        Some(ProjectItemAddressTarget::new_pointer_path(pointer))
-                    } else {
-                        log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
-                        None
-                    }
+                if let Ok(pointer_size) = PointerScanPointerSize::from_str(&pointer_size_text) {
+                    updated_address_target.set_pointer_size(pointer_size);
+                    true
+                } else {
+                    log::warn!("Ignoring unknown project address pointer size: {}", pointer_size_text);
+                    false
                 }
-                Self::TARGET_FIELD_POINTER_OFFSETS => Self::extract_pointer_offsets_from_edited_field(edited_field).map(|pointer_offsets| {
-                    pointer.set_offset_segments(Self::ensure_minimum_pointer_offsets(pointer_offsets));
-                    ProjectItemAddressTarget::new_pointer_path(pointer)
-                }),
-                _ => None,
-            },
+            }
+            Self::TARGET_FIELD_POINTER_OFFSETS => {
+                let Some(pointer_offsets) = Self::extract_pointer_offsets_from_edited_field(edited_field) else {
+                    return false;
+                };
+
+                updated_address_target.set_pointer_offsets(Self::ensure_minimum_pointer_offsets(pointer_offsets));
+                true
+            }
+            _ => false,
         };
 
-        if let Some(updated_address_target) = updated_address_target {
+        if did_update_address_target {
             ProjectItemTypeAddress::set_address_target(project_item, updated_address_target);
             true
         } else {
             false
         }
-    }
-
-    fn is_pointer_size_none(pointer_size_text: &str) -> bool {
-        pointer_size_text
-            .trim()
-            .eq_ignore_ascii_case(Self::TARGET_FIELD_POINTER_SIZE_NONE)
     }
 
     fn ensure_minimum_pointer_offsets(mut pointer_offsets: Vec<PointerChainSegment>) -> Vec<PointerChainSegment> {
@@ -3747,25 +3661,6 @@ impl ProjectHierarchyView {
         String::from_utf8(data_value.get_value_bytes().clone()).ok()
     }
 
-    fn extract_u64_value_from_edited_field(edited_field: &ValuedStructField) -> Option<u64> {
-        let data_value = edited_field.get_data_value()?;
-        let value_bytes = data_value.get_value_bytes();
-
-        match value_bytes.len() {
-            8 => {
-                let byte_array: [u8; 8] = value_bytes.as_slice().try_into().ok()?;
-
-                Some(u64::from_le_bytes(byte_array))
-            }
-            4 => {
-                let byte_array: [u8; 4] = value_bytes.as_slice().try_into().ok()?;
-
-                Some(u32::from_le_bytes(byte_array) as u64)
-            }
-            _ => None,
-        }
-    }
-
     fn project_item_rename_text_storage_id(project_item_path: &Path) -> Id {
         Id::new(("project_hierarchy_rename_text", project_item_path.to_path_buf()))
     }
@@ -3918,9 +3813,12 @@ impl ProjectHierarchyView {
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         address_target: &ProjectItemAddressTarget,
     ) -> Option<(u64, String)> {
-        match address_target {
-            ProjectItemAddressTarget::Address { address, module_name, .. } => Some((*address, module_name.clone())),
-            ProjectItemAddressTarget::PointerPath { pointer } => Self::resolve_pointer_write_target(engine_execution_context, pointer),
+        let runtime_pointer = address_target.to_runtime_pointer()?;
+
+        if runtime_pointer.get_offset_segments().is_empty() {
+            Some((runtime_pointer.get_address(), runtime_pointer.get_module_name().to_string()))
+        } else {
+            Self::resolve_pointer_write_target(engine_execution_context, &runtime_pointer)
         }
     }
 
@@ -3953,18 +3851,21 @@ impl ProjectHierarchyView {
             let mut project_item = project_item.clone();
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-            return match address_target {
-                ProjectItemAddressTarget::Address { address, module_name, .. } => Some(VirtualSnapshotQuery::Address {
+            let runtime_pointer = address_target.to_runtime_pointer()?;
+
+            return if runtime_pointer.get_offset_segments().is_empty() {
+                Some(VirtualSnapshotQuery::Address {
                     query_id,
-                    address,
-                    module_name,
+                    address: runtime_pointer.get_address(),
+                    module_name: runtime_pointer.get_module_name().to_string(),
                     symbolic_struct_definition,
-                }),
-                ProjectItemAddressTarget::PointerPath { pointer } => Some(VirtualSnapshotQuery::Pointer {
+                })
+            } else {
+                Some(VirtualSnapshotQuery::Pointer {
                     query_id,
-                    pointer,
+                    pointer: runtime_pointer,
                     symbolic_struct_definition,
-                }),
+                })
             };
         }
 

@@ -161,7 +161,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     fn project_item_pointer_size_data_type_ref(pointer_size_label: &str) -> Option<DataTypeRef> {
         let pointer_size_label = pointer_size_label.trim();
 
-        if pointer_size_label.is_empty() || pointer_size_label.eq_ignore_ascii_case("None") {
+        if pointer_size_label.is_empty() {
             return None;
         }
 
@@ -511,7 +511,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 );
                 let current_pointer_size = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
                 let pointer_size_label = if current_pointer_size.trim().is_empty() {
-                    "None"
+                    "u64"
                 } else {
                     current_pointer_size.as_str()
                 };
@@ -531,13 +531,6 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         &pointer_size_selector_id,
                         pointer_size_icon,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                            let none_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), "None", None, pointer_size_width));
-
-                            if none_response.clicked() {
-                                selected_pointer_size_label = Some("None".to_string());
-                                *should_close = true;
-                            }
-
                             for pointer_size in Self::NATIVE_POINTER_SIZES {
                                 let pointer_size_label = pointer_size.to_string();
                                 let pointer_size_icon = Self::project_item_pointer_size_icon(&self.app_context, &pointer_size_label);

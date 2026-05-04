@@ -60,7 +60,7 @@ pub fn resolve_project_item_type_id(project_item: &ProjectItem) -> Option<&'stat
 
 pub fn resolve_project_item_locator(
     engine_execution_context: &Arc<dyn EngineExecutionContext>,
-    _project_symbol_catalog: &ProjectSymbolCatalog,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &ProjectItem,
 ) -> Option<ProjectSymbolLocator> {
     let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -69,14 +69,9 @@ pub fn resolve_project_item_locator(
         let mut project_item = project_item.clone();
         let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-        return match address_target {
-            ProjectItemAddressTarget::Address { address, module_name, .. } => Some(build_locator(address, &module_name)),
-            ProjectItemAddressTarget::PointerPath { pointer } => {
-                let (address, module_name) = resolve_pointer_runtime_target(engine_execution_context, &pointer)?;
+        let (address, module_name) = resolve_address_target_runtime_target(engine_execution_context, project_symbol_catalog, &address_target)?;
 
-                Some(build_locator(address, &module_name))
-            }
-        };
+        return Some(build_locator(address, &module_name));
     }
 
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -87,6 +82,51 @@ pub fn resolve_project_item_locator(
     }
 
     None
+}
+
+pub fn resolve_address_target_runtime_target(
+    engine_execution_context: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    address_target: &ProjectItemAddressTarget,
+) -> Option<(u64, String)> {
+    let runtime_pointer = resolve_address_target_runtime_pointer(project_symbol_catalog, address_target)?;
+
+    if runtime_pointer.get_offset_segments().is_empty() {
+        Some((runtime_pointer.get_address(), runtime_pointer.get_module_name().to_string()))
+    } else {
+        resolve_pointer_runtime_target(engine_execution_context, &runtime_pointer)
+    }
+}
+
+pub fn resolve_address_target_runtime_pointer(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    address_target: &ProjectItemAddressTarget,
+) -> Option<Pointer> {
+    if address_target
+        .get_pointer_offsets()
+        .first()
+        .and_then(|pointer_chain_segment| pointer_chain_segment.symbol_name())
+        .is_some()
+    {
+        return resolve_address_target_runtime_pointer_with_symbolic_root(project_symbol_catalog, address_target);
+    }
+
+    address_target.to_runtime_pointer()
+}
+
+fn resolve_address_target_runtime_pointer_with_symbolic_root(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    address_target: &ProjectItemAddressTarget,
+) -> Option<Pointer> {
+    let symbol_name = address_target
+        .get_pointer_offsets()
+        .first()
+        .and_then(|pointer_chain_segment| pointer_chain_segment.symbol_name())?;
+    let symbol_offset = project_symbol_catalog.find_module_symbol_offset_by_display_name(address_target.get_module_name(), symbol_name)?;
+    let mut pointer_offsets = address_target.get_pointer_offsets().to_vec();
+
+    pointer_offsets[0] = squalr_engine_api::structures::memory::pointer_chain_segment::PointerChainSegment::new_offset(symbol_offset as i64);
+    ProjectItemAddressTarget::new(address_target.get_module_name().to_string(), pointer_offsets, address_target.get_pointer_size()).to_runtime_pointer()
 }
 
 pub fn resolve_pointer_runtime_target(

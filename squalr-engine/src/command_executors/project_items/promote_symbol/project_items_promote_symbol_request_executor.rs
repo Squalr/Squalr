@@ -13,7 +13,7 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
-use squalr_engine_api::structures::memory::pointer::Pointer;
+use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
 };
@@ -427,6 +427,7 @@ fn build_promoted_project_item(
 
     if source_project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
         ProjectItemTypeAddress::set_field_symbolic_struct_definition_reference(&mut promoted_project_item, promoted_symbol.get_struct_layout_id());
+        apply_promoted_symbol_chain_segment(&mut promoted_project_item, promoted_symbol);
     } else if source_project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
         ProjectItemTypePointer::set_field_symbolic_struct_definition_reference(&mut promoted_project_item, promoted_symbol.get_struct_layout_id());
     }
@@ -444,6 +445,38 @@ fn build_promoted_project_item(
     }
 
     promoted_project_item
+}
+
+fn apply_promoted_symbol_chain_segment(
+    promoted_project_item: &mut ProjectItem,
+    promoted_symbol: &ProjectSymbolClaim,
+) {
+    let ProjectSymbolLocator::ModuleOffset { module_name, offset } = promoted_symbol.get_locator() else {
+        return;
+    };
+
+    if !PointerChainSegment::is_valid_symbol_name(promoted_symbol.get_display_name()) {
+        return;
+    }
+
+    let mut address_target = ProjectItemTypeAddress::get_address_target(promoted_project_item);
+
+    if address_target.get_module_name() != module_name {
+        return;
+    }
+
+    let mut pointer_offsets = address_target.get_pointer_offsets().to_vec();
+    let Some(first_pointer_offset) = pointer_offsets.first_mut() else {
+        return;
+    };
+
+    if first_pointer_offset.as_offset() != Some(*offset as i64) {
+        return;
+    }
+
+    *first_pointer_offset = PointerChainSegment::Symbol(promoted_symbol.get_display_name().to_string());
+    address_target.set_pointer_offsets(pointer_offsets);
+    ProjectItemTypeAddress::set_address_target(promoted_project_item, address_target);
 }
 
 fn build_display_name(
@@ -541,8 +574,8 @@ mod tests {
     };
     use squalr_engine_api::structures::{
         data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
-        memory::pointer::Pointer,
         memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
+        memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project::Project, project_info::ProjectInfo, project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
@@ -779,6 +812,10 @@ mod tests {
             ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut promoted_project_item)
                 .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string()),
             Some(String::from("u8"))
+        );
+        assert_eq!(
+            ProjectItemTypeAddress::get_address_target(&mut promoted_project_item).get_pointer_offsets(),
+            &[PointerChainSegment::Symbol(String::from("Health"))]
         );
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs

@@ -15,6 +15,7 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use std::collections::{HashMap, HashSet};
@@ -99,7 +100,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
                     .collect::<Vec<(ProjectItemRef, ProjectItem)>>();
                 let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(self.preview_project_item_paths.clone());
 
-                refresh_project_item_display_values(engine_unprivileged_state, &mut opened_project_items, &mut project_item_preview_refresh_session);
+                refresh_project_item_display_values(
+                    engine_unprivileged_state,
+                    opened_project.get_project_info().get_project_symbol_catalog(),
+                    &mut opened_project_items,
+                    &mut project_item_preview_refresh_session,
+                );
 
                 ProjectItemsListResponse {
                     opened_project_info: Some(opened_project.get_project_info().clone()),
@@ -117,6 +123,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsListRequest {
 
 fn refresh_project_item_display_values(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     opened_project_items: &mut [(ProjectItemRef, ProjectItem)],
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
@@ -128,7 +135,12 @@ fn refresh_project_item_display_values(
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
         if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-            refresh_address_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
+            refresh_address_project_item_display_value(
+                engine_unprivileged_state,
+                project_symbol_catalog,
+                project_item,
+                project_item_preview_refresh_session,
+            );
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             refresh_pointer_project_item_display_value(engine_unprivileged_state, project_item, project_item_preview_refresh_session);
         }
@@ -137,12 +149,17 @@ fn refresh_project_item_display_values(
 
 fn refresh_address_project_item_display_value(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     project_item: &mut ProjectItem,
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) {
     let address_target = ProjectItemTypeAddress::get_address_target(project_item);
-    let Some((address, module_name)) = resolve_address_target_for_preview(engine_unprivileged_state, &address_target, project_item_preview_refresh_session)
-    else {
+    let Some((address, module_name)) = resolve_address_target_for_preview(
+        engine_unprivileged_state,
+        project_symbol_catalog,
+        &address_target,
+        project_item_preview_refresh_session,
+    ) else {
         ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(project_item, "");
         return;
     };
@@ -172,14 +189,19 @@ fn refresh_address_project_item_display_value(
 
 fn resolve_address_target_for_preview(
     engine_unprivileged_state: &Arc<dyn EngineExecutionContext>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
     project_item_preview_refresh_session: &mut ProjectItemPreviewRefreshSession,
 ) -> Option<(u64, String)> {
-    match address_target {
-        ProjectItemAddressTarget::Address { address, module_name, .. } => Some((*address, module_name.clone())),
-        ProjectItemAddressTarget::PointerPath { pointer } => {
-            evaluate_pointer_for_preview(engine_unprivileged_state, pointer, project_item_preview_refresh_session).resolved_target_address
-        }
+    let runtime_pointer = crate::command_executors::project_items::project_item_symbol_resolution::resolve_address_target_runtime_pointer(
+        project_symbol_catalog,
+        address_target,
+    )?;
+
+    if runtime_pointer.get_offset_segments().is_empty() {
+        Some((runtime_pointer.get_address(), runtime_pointer.get_module_name().to_string()))
+    } else {
+        evaluate_pointer_for_preview(engine_unprivileged_state, &runtime_pointer, project_item_preview_refresh_session).resolved_target_address
     }
 }
 
@@ -1026,7 +1048,12 @@ mod tests {
         )];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(Some(Vec::new()));
 
-        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog::default(),
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -1057,7 +1084,12 @@ mod tests {
         ];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 
-        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog::default(),
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
@@ -1104,7 +1136,12 @@ mod tests {
         ];
         let mut project_item_preview_refresh_session = ProjectItemPreviewRefreshSession::new(None);
 
-        refresh_project_item_display_values(&engine_execution_context, &mut opened_project_items, &mut project_item_preview_refresh_session);
+        refresh_project_item_display_values(
+            &engine_execution_context,
+            &squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog::default(),
+            &mut opened_project_items,
+            &mut project_item_preview_refresh_session,
+        );
 
         let captured_memory_read_requests = captured_memory_read_requests
             .lock()
