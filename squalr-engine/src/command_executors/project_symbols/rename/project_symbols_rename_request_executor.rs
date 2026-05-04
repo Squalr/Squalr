@@ -1,8 +1,11 @@
-use crate::command_executors::project_symbols::project_symbol_store_mutation::save_and_sync_project_symbol_catalog;
+use crate::command_executors::project_symbols::{
+    project_symbol_name_scope::ProjectSymbolNameScope, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
+};
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_symbols::rename::project_symbols_rename_request::ProjectSymbolsRenameRequest;
 use squalr_engine_api::commands::project_symbols::rename::project_symbols_rename_response::ProjectSymbolsRenameResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsRenameRequest {
@@ -39,12 +42,36 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsRenameRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        let did_rename = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {
-            symbol_claim.set_display_name(trimmed_display_name.to_string());
-            true
-        } else if let Some(module_field) = project_symbol_catalog.find_module_field_mut(&self.symbol_locator_key) {
-            module_field.set_display_name(trimmed_display_name.to_string());
-            true
+        let did_rename = if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim(&self.symbol_locator_key) {
+            let display_name = ProjectSymbolNameScope::deduplicate_display_name(
+                project_symbol_catalog,
+                project_symbol_catalog.get_symbol_claims(),
+                symbol_claim.get_locator(),
+                trimmed_display_name,
+                Some(&self.symbol_locator_key),
+            );
+
+            if let Some(symbol_claim) = project_symbol_catalog.find_symbol_claim_mut(&self.symbol_locator_key) {
+                symbol_claim.set_display_name(display_name);
+                true
+            } else {
+                false
+            }
+        } else if let Some((symbol_module, module_field)) = project_symbol_catalog.find_module_field(&self.symbol_locator_key) {
+            let locator = ProjectSymbolLocator::new_module_offset(symbol_module.get_module_name().to_string(), module_field.get_offset());
+            let display_name = ProjectSymbolNameScope::deduplicate_display_name(
+                project_symbol_catalog,
+                project_symbol_catalog.get_symbol_claims(),
+                &locator,
+                trimmed_display_name,
+                Some(&self.symbol_locator_key),
+            );
+            if let Some(module_field) = project_symbol_catalog.find_module_field_mut(&self.symbol_locator_key) {
+                module_field.set_display_name(display_name);
+                true
+            } else {
+                false
+            }
         } else {
             false
         };
@@ -76,7 +103,10 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-    use squalr_engine_api::structures::projects::{project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
+    use squalr_engine_api::structures::projects::{
+        project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
+        project_symbol_module_field::ProjectSymbolModuleField,
+    };
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
@@ -126,5 +156,45 @@ mod tests {
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+    }
+
+    #[test]
+    fn rename_project_symbol_request_deduplicates_module_field_display_name_in_scope() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Timer"), 0x00, String::from("u32")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Clock"), 0x04, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let project = create_project_with_symbol_catalog(temp_directory.path(), project_symbol_catalog);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_rename_response = ProjectSymbolsRenameRequest {
+            symbol_locator_key: String::from("module:game.exe:4"),
+            display_name: String::from("Timer"),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_rename_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected deduplicated-module-field project to load from disk.");
+        let module_fields = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules()[0]
+            .get_fields();
+
+        assert_eq!(module_fields[0].get_display_name(), "Timer");
+        assert_eq!(module_fields[1].get_display_name(), "Timer_0");
     }
 }

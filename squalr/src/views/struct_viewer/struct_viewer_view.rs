@@ -334,22 +334,22 @@ impl StructViewerView {
 
                 user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
 
-                let append_offset_response =
-                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.", false);
-                if append_offset_response.clicked() {
-                    pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
-                }
-
-                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
-
                 let remove_offset_response = self.render_pointer_offset_icon_button(
                     user_interface,
-                    &theme.icon_library.icon_handle_common_delete,
+                    &theme.icon_library.icon_handle_common_remove,
                     "Remove this offset.",
                     !can_remove_offset,
                 );
                 if remove_offset_response.clicked() {
                     pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
+                }
+
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+
+                let append_offset_response =
+                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.", false);
+                if append_offset_response.clicked() {
+                    pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
                 }
             },
         );

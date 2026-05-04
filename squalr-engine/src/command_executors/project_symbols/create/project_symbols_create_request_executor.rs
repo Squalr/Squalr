@@ -1,5 +1,6 @@
 use crate::command_executors::project_symbols::{
-    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
+    project_symbol_layout_mutation::ProjectSymbolLayoutMutation, project_symbol_name_scope::ProjectSymbolNameScope,
+    project_symbol_store_mutation::save_and_sync_project_symbol_catalog,
 };
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::project_symbols::create::project_symbols_create_request::ProjectSymbolsCreateRequest;
@@ -47,6 +48,14 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
+        let created_symbol_locator_key = locator.to_locator_key();
+        let display_name = ProjectSymbolNameScope::deduplicate_display_name(
+            project_symbol_catalog,
+            project_symbol_catalog.get_symbol_claims(),
+            &locator,
+            trimmed_display_name,
+            None,
+        );
         let local_struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
         let resolve_field_size_in_bytes = |struct_layout_id: &str| {
             ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
@@ -65,13 +74,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
             )
         };
 
-        let created_symbol_locator_key = locator.to_locator_key();
         match locator {
             ProjectSymbolLocator::ModuleOffset { module_name, offset } => {
                 if let Err(error) = ProjectSymbolLayoutMutation::upsert_module_field(
                     project_symbol_catalog,
                     &module_name,
-                    trimmed_display_name.to_string(),
+                    display_name,
                     offset,
                     struct_layout_id,
                     resolve_field_size_in_bytes,
@@ -81,7 +89,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateRequest {
                 }
             }
             ProjectSymbolLocator::AbsoluteAddress { .. } => {
-                let mut created_symbol = ProjectSymbolClaim::new(trimmed_display_name.to_string(), locator, struct_layout_id);
+                let mut created_symbol = ProjectSymbolClaim::new(display_name, locator, struct_layout_id);
                 *created_symbol.get_metadata_mut() = self.metadata.clone();
                 project_symbol_catalog
                     .get_symbol_claims_mut()
@@ -277,6 +285,51 @@ mod tests {
 
         assert_eq!(symbol_modules[0].get_size(), 0x16);
         assert_eq!(symbol_modules[0].get_fields()[0].get_struct_layout_id(), "player.stats");
+    }
+
+    #[test]
+    fn create_project_symbol_request_deduplicates_module_field_display_name_in_scope() {
+        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Timer"), 0x00, String::from("u32")));
+        let project = create_project_with_symbol_catalog(
+            temp_directory.path(),
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new()),
+        );
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockProjectSymbolsBindings::new());
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let project_symbols_create_response = ProjectSymbolsCreateRequest {
+            display_name: String::from("Timer"),
+            struct_layout_id: String::from("u32"),
+            address: None,
+            module_name: Some(String::from("game.exe")),
+            offset: Some(0x04),
+            metadata: std::collections::BTreeMap::default(),
+        }
+        .execute(&engine_execution_context);
+
+        assert!(project_symbols_create_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected deduplicated-symbol project to load from disk.");
+        let module_fields = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_modules()[0]
+            .get_fields();
+
+        assert_eq!(module_fields[0].get_display_name(), "Timer");
+        assert_eq!(module_fields[1].get_display_name(), "Timer_0");
     }
 
     #[test]

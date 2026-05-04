@@ -7,6 +7,7 @@ use squalr_engine_api::structures::{
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
 };
+use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolStructFieldEditDraft {
@@ -295,6 +296,7 @@ impl SymbolStructEditorViewData {
         }
 
         let mut symbolic_field_definitions = Vec::with_capacity(draft.field_drafts.len());
+        let mut field_names = HashSet::new();
         for field_draft in &draft.field_drafts {
             let trimmed_data_type_id = field_draft
                 .data_type_selection
@@ -308,6 +310,10 @@ impl SymbolStructEditorViewData {
 
             let container_type = field_draft.container_edit.to_container_type()?;
             let trimmed_field_name = field_draft.field_name.trim().to_string();
+            if !trimmed_field_name.is_empty() && !field_names.insert(trimmed_field_name.clone()) {
+                return Err(format!("Field name `{}` is already used in this struct.", trimmed_field_name));
+            }
+
             let data_type_ref = DataTypeRef::new(&trimmed_data_type_id);
             let symbolic_field_definition = if trimmed_field_name.is_empty() {
                 SymbolicFieldDefinition::new(data_type_ref, container_type)
@@ -478,6 +484,31 @@ mod tests {
                 .map(SymbolicFieldDefinition::to_string),
             Some(String::from("items:u16[4]"))
         );
+    }
+
+    #[test]
+    fn build_struct_layout_descriptor_rejects_duplicate_field_names() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolStructLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("timer.state"),
+            field_drafts: vec![
+                SymbolStructFieldEditDraft {
+                    field_name: String::from("Timer"),
+                    data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
+                    container_edit: SymbolStructFieldContainerEdit::default(),
+                },
+                SymbolStructFieldEditDraft {
+                    field_name: String::from("Timer"),
+                    data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
+                    container_edit: SymbolStructFieldContainerEdit::default(),
+                },
+            ],
+        };
+
+        let result = SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft);
+
+        assert!(result.is_err());
     }
 
     #[test]

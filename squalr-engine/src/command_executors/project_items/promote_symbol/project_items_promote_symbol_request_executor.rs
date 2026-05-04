@@ -2,6 +2,7 @@ use crate::command_executors::project::project_symbol_sync::sync_project_symbol_
 use crate::command_executors::project_items::project_item_symbol_resolution::{
     is_promotable_project_item, resolve_project_item_locator, resolve_project_item_struct_layout_id, resolve_project_item_type_id,
 };
+use crate::command_executors::project_symbols::project_symbol_name_scope::ProjectSymbolNameScope;
 use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
 use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
 use squalr_engine_api::commands::memory::query::memory_query_response::MemoryQueryResponse;
@@ -94,7 +95,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 continue;
             };
 
-            let Some(promoted_symbol_candidate) = build_promoted_symbol(
+            let Some(mut promoted_symbol_candidate) = build_promoted_symbol(
                 engine_unprivileged_state,
                 opened_project.get_project_info().get_project_symbol_catalog(),
                 &project_item_path,
@@ -120,13 +121,12 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 continue;
             }
 
-            if let Some(conflicting_symbol_index) =
-                find_symbol_claim_index_by_locator_key(&existing_symbol_claims, &promoted_symbol_candidate.get_symbol_locator_key())
-            {
+            let symbol_locator_key = promoted_symbol_candidate.get_symbol_locator_key();
+            if let Some(conflicting_symbol_index) = find_symbol_claim_index_by_locator_key(&existing_symbol_claims, &symbol_locator_key) {
                 if !self.overwrite_conflicting_symbols {
                     conflicts.push(ProjectItemsPromoteSymbolConflict {
                         project_item_path: project_item_path.clone(),
-                        symbol_locator_key: promoted_symbol_candidate.get_symbol_locator_key().to_string(),
+                        symbol_locator_key: symbol_locator_key.clone(),
                         existing_display_name: existing_symbol_claims[conflicting_symbol_index]
                             .get_display_name()
                             .to_string(),
@@ -138,8 +138,24 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                     continue;
                 }
 
+                let deduplicated_display_name = ProjectSymbolNameScope::deduplicate_display_name(
+                    opened_project.get_project_info().get_project_symbol_catalog(),
+                    &existing_symbol_claims,
+                    promoted_symbol_candidate.get_locator(),
+                    promoted_symbol_candidate.get_display_name(),
+                    Some(&symbol_locator_key),
+                );
+                promoted_symbol_candidate.set_display_name(deduplicated_display_name);
                 existing_symbol_claims[conflicting_symbol_index] = promoted_symbol_candidate.clone();
             } else {
+                let deduplicated_display_name = ProjectSymbolNameScope::deduplicate_display_name(
+                    opened_project.get_project_info().get_project_symbol_catalog(),
+                    &existing_symbol_claims,
+                    promoted_symbol_candidate.get_locator(),
+                    promoted_symbol_candidate.get_display_name(),
+                    None,
+                );
+                promoted_symbol_candidate.set_display_name(deduplicated_display_name);
                 existing_symbol_claims.push(promoted_symbol_candidate.clone());
             }
 
@@ -859,6 +875,66 @@ mod tests {
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
         assert_eq!(symbol_modules[0].get_size(), 0x5000);
+    }
+
+    #[test]
+    fn promote_symbol_request_deduplicates_display_name_within_module_scope() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Timer", 0x1240, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (mut project, project_item_path) = create_project_with_item(temp_directory.path(), "timer.json", address_project_item);
+        project
+            .get_project_info_mut()
+            .get_project_symbol_catalog_mut()
+            .set_symbol_claims(vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Timer"),
+                String::from("game.exe"),
+                0x1234,
+                String::from("u8"),
+            )]);
+        project
+            .save_to_path(temp_directory.path(), true)
+            .expect("Expected test project to save after seeding same-scope symbol.");
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default())
+            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x2000)])
+            .with_memory_query_virtual_pages(vec![NormalizedRegion::new(0x10000000, 0x5000)]);
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path.clone()],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 1);
+        assert!(promote_symbol_response.conflicts.is_empty());
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
+        let symbol_claims = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_symbol_claims();
+
+        assert_eq!(symbol_claims.len(), 2);
+        assert_eq!(symbol_claims[0].get_display_name(), "Timer");
+        assert_eq!(symbol_claims[1].get_display_name(), "Timer_0");
+
+        let promoted_project_item = loaded_project
+            .get_project_items()
+            .get(&ProjectItemRef::new(project_item_path))
+            .expect("Expected promoted project item to remain in the project.");
+        let mut promoted_project_item = promoted_project_item.clone();
+        assert_eq!(
+            ProjectItemTypeAddress::get_address_target(&mut promoted_project_item).get_pointer_offsets(),
+            &[PointerChainSegment::Symbol(String::from("Timer_0"))]
+        );
     }
 
     #[test]
