@@ -18,7 +18,7 @@ use crate::{
         struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
+use eframe::egui::{Align2, Response, Sense, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
 use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
@@ -28,7 +28,7 @@ use squalr_engine_api::structures::{
     structs::symbolic_field_definition::SymbolicFieldDefinition,
     structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
 };
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 pub struct StructViewerEntryView<'lifetime> {
     app_context: Arc<AppContext>,
@@ -156,6 +156,26 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
 
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
+    }
+
+    fn project_item_pointer_size_data_type_ref(pointer_size_label: &str) -> Option<DataTypeRef> {
+        let pointer_size_label = pointer_size_label.trim();
+
+        if pointer_size_label.is_empty() || pointer_size_label.eq_ignore_ascii_case("None") {
+            return None;
+        }
+
+        PointerScanPointerSize::from_str(pointer_size_label)
+            .ok()
+            .map(|pointer_size| pointer_size.to_data_type_ref())
+    }
+
+    fn project_item_pointer_size_icon(
+        app_context: &Arc<AppContext>,
+        pointer_size_label: &str,
+    ) -> Option<TextureHandle> {
+        Self::project_item_pointer_size_data_type_ref(pointer_size_label)
+            .map(|data_type_ref| DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &app_context.theme.icon_library))
     }
 }
 
@@ -495,6 +515,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 } else {
                     current_pointer_size.as_str()
                 };
+                let pointer_size_icon = Self::project_item_pointer_size_icon(&self.app_context, pointer_size_label);
                 let mut selected_pointer_size_label = None;
                 let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
                 let pointer_size_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
@@ -508,7 +529,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         self.app_context.clone(),
                         pointer_size_label,
                         &pointer_size_selector_id,
-                        None,
+                        pointer_size_icon,
                         |popup_user_interface: &mut Ui, should_close: &mut bool| {
                             let none_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), "None", None, pointer_size_width));
 
@@ -519,8 +540,13 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                             for pointer_size in Self::NATIVE_POINTER_SIZES {
                                 let pointer_size_label = pointer_size.to_string();
-                                let pointer_size_response =
-                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &pointer_size_label, None, pointer_size_width));
+                                let pointer_size_icon = Self::project_item_pointer_size_icon(&self.app_context, &pointer_size_label);
+                                let pointer_size_response = popup_user_interface.add(ComboBoxItemView::new(
+                                    self.app_context.clone(),
+                                    &pointer_size_label,
+                                    pointer_size_icon,
+                                    pointer_size_width,
+                                ));
 
                                 if pointer_size_response.clicked() {
                                     selected_pointer_size_label = Some(pointer_size_label);
@@ -540,5 +566,33 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerEntryView;
+    use squalr_engine_api::structures::data_types::{
+        built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64},
+        data_type_ref::DataTypeRef,
+    };
+
+    #[test]
+    fn project_item_pointer_size_data_type_ref_maps_pointer_sizes() {
+        assert_eq!(
+            StructViewerEntryView::project_item_pointer_size_data_type_ref("u32"),
+            Some(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID))
+        );
+        assert_eq!(
+            StructViewerEntryView::project_item_pointer_size_data_type_ref("u64"),
+            Some(DataTypeRef::new(DataTypeU64::DATA_TYPE_ID))
+        );
+    }
+
+    #[test]
+    fn project_item_pointer_size_data_type_ref_omits_none_and_unknown() {
+        assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref("None"), None);
+        assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref(""), None);
+        assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref("nope"), None);
     }
 }
