@@ -9,9 +9,8 @@ use squalr_engine_api::commands::project_items::activate::project_items_activate
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
-    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+    project_item_type_pointer::ProjectItemTypePointer,
 };
-use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,10 +51,6 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsActivateRequest {
                 .as_slice(),
             &self.project_item_paths,
         );
-        let project_symbol_catalog = opened_project
-            .get_project_info()
-            .get_project_symbol_catalog()
-            .clone();
         let mut has_activation_changes = false;
         let mut freeze_targets = Vec::new();
 
@@ -67,7 +62,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsActivateRequest {
             if project_item.get_is_activated() != self.is_activated {
                 project_item.toggle_activated();
                 has_activation_changes = true;
-                if let Some(freeze_target) = create_memory_freeze_target(&project_symbol_catalog, project_item) {
+                if let Some(freeze_target) = create_memory_freeze_target(project_item) {
                     freeze_targets.push(freeze_target);
                 }
             }
@@ -110,8 +105,7 @@ fn collect_project_item_paths_for_activation(
 }
 
 fn create_memory_freeze_target(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    project_item: &mut squalr_engine_api::structures::projects::project_items::project_item::ProjectItem,
+    project_item: &mut squalr_engine_api::structures::projects::project_items::project_item::ProjectItem
 ) -> Option<MemoryFreezeTarget> {
     let project_item_type_id = project_item
         .get_item_type()
@@ -151,19 +145,6 @@ fn create_memory_freeze_target(
             data_type_id,
             pointer_offsets: pointer.get_offsets(),
             pointer_size: pointer.get_pointer_size(),
-        });
-    }
-
-    if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-        let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
-        let symbol_claim = project_symbol_catalog.find_symbol_claim(&symbol_locator_key)?;
-
-        return Some(MemoryFreezeTarget {
-            address: symbol_claim.get_locator().get_focus_address(),
-            module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
-            data_type_id: symbol_claim.get_struct_layout_id().to_string(),
-            pointer_offsets: Vec::new(),
-            pointer_size: Default::default(),
         });
     }
 
@@ -260,10 +241,9 @@ mod tests {
     use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+        project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim};
     use std::path::PathBuf;
 
     #[test]
@@ -305,10 +285,8 @@ mod tests {
     #[test]
     fn create_memory_freeze_target_uses_address_project_item_values() {
         let mut address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x579C, "winmine.exe", "", DataTypeU8::get_value_from_primitive(0));
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
 
-        let freeze_target =
-            create_memory_freeze_target(&project_symbol_catalog, &mut address_project_item).expect("Expected address project item to produce a freeze target.");
+        let freeze_target = create_memory_freeze_target(&mut address_project_item).expect("Expected address project item to produce a freeze target.");
 
         assert_eq!(freeze_target.address, 0x579C);
         assert_eq!(freeze_target.module_name, "winmine.exe");
@@ -319,9 +297,8 @@ mod tests {
     fn create_memory_freeze_target_skips_non_address_project_items() {
         let directory_project_item_ref = ProjectItemRef::new(PathBuf::from(r"C:\Project\Items\Folder"));
         let mut directory_project_item = ProjectItemTypeDirectory::new_project_item(&directory_project_item_ref);
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
 
-        let freeze_target = create_memory_freeze_target(&project_symbol_catalog, &mut directory_project_item);
+        let freeze_target = create_memory_freeze_target(&mut directory_project_item);
 
         assert!(freeze_target.is_none());
     }
@@ -330,37 +307,13 @@ mod tests {
     fn create_memory_freeze_target_uses_pointer_project_item_values() {
         let pointer = Pointer::new_with_size(0x44, vec![0x10, -0x8], "game.exe".to_string(), PointerScanPointerSize::Pointer64);
         let mut pointer_project_item = ProjectItemTypePointer::new_project_item("Ammo Pointer", &pointer, "", "u8");
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
 
-        let freeze_target =
-            create_memory_freeze_target(&project_symbol_catalog, &mut pointer_project_item).expect("Expected pointer project item to produce a freeze target.");
+        let freeze_target = create_memory_freeze_target(&mut pointer_project_item).expect("Expected pointer project item to produce a freeze target.");
 
         assert_eq!(freeze_target.address, 0x44);
         assert_eq!(freeze_target.module_name, "game.exe");
         assert_eq!(freeze_target.data_type_id, "u8");
         assert_eq!(freeze_target.pointer_offsets, vec![0x10, -0x8]);
         assert_eq!(freeze_target.pointer_size, PointerScanPointerSize::Pointer64);
-    }
-
-    #[test]
-    fn create_memory_freeze_target_uses_symbol_ref_symbol_claim_values() {
-        let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Gold", "module:game.exe:1234", "");
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
-            Vec::new(),
-            vec![ProjectSymbolClaim::new_module_offset(
-                String::from("Gold"),
-                String::from("game.exe"),
-                0x1234,
-                String::from("u32"),
-            )],
-        );
-
-        let freeze_target = create_memory_freeze_target(&project_symbol_catalog, &mut symbol_ref_project_item)
-            .expect("Expected symbol-ref project item to produce a freeze target.");
-
-        assert_eq!(freeze_target.address, 0x1234);
-        assert_eq!(freeze_target.module_name, "game.exe");
-        assert_eq!(freeze_target.data_type_id, "u32");
-        assert!(freeze_target.pointer_offsets.is_empty());
     }
 }

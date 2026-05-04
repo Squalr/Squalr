@@ -1,6 +1,5 @@
 use crate::commands::project_items::{
     activate::project_items_activate_request::ProjectItemsActivateRequest, add::project_items_add_request::ProjectItemsAddRequest,
-    convert_symbol_ref::project_items_convert_symbol_ref_request::ProjectItemsConvertSymbolRefRequest,
     create::project_items_create_request::ProjectItemsCreateRequest, delete::project_items_delete_request::ProjectItemsDeleteRequest,
     duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest, list::project_items_list_request::ProjectItemsListRequest,
     move_item::project_items_move_request::ProjectItemsMoveRequest, promote_symbol::project_items_promote_symbol_request::ProjectItemsPromoteSymbolRequest,
@@ -25,11 +24,6 @@ pub enum ProjectItemsCommand {
     Create {
         #[structopt(flatten)]
         project_items_create_request: ProjectItemsCreateRequest,
-    },
-    /// Converts symbol-ref project items back to concrete item types.
-    ConvertSymbolRef {
-        #[structopt(flatten)]
-        project_items_convert_symbol_ref_request: ProjectItemsConvertSymbolRefRequest,
     },
     /// Deletes project items.
     Delete {

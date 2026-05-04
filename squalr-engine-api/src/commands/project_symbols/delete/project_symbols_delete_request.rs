@@ -33,10 +33,6 @@ pub struct ProjectSymbolsDeleteRequest {
     #[serde(default)]
     #[structopt(skip)]
     pub module_ranges: Vec<ProjectSymbolsDeleteModuleRange>,
-
-    #[serde(default)]
-    #[structopt(skip)]
-    pub convert_symbol_refs: bool,
 }
 
 impl UnprivilegedCommandRequest for ProjectSymbolsDeleteRequest {

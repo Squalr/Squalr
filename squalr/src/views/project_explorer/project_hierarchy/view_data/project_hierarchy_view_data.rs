@@ -10,10 +10,6 @@ use crate::views::project_explorer::project_hierarchy::view_data::{
 };
 use eframe::egui::Pos2;
 use squalr_engine_api::commands::project_items::activate::project_items_activate_request::ProjectItemsActivateRequest;
-use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::{
-    ProjectItemSymbolRefConversionTarget, ProjectItemsConvertSymbolRefRequest,
-};
-use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_response::ProjectItemsConvertSymbolRefResponse;
 use squalr_engine_api::commands::project_items::create::project_items_create_request::ProjectItemsCreateRequest;
 use squalr_engine_api::commands::project_items::delete::project_items_delete_request::ProjectItemsDeleteRequest;
 use squalr_engine_api::commands::project_items::duplicate::project_items_duplicate_request::ProjectItemsDuplicateRequest;
@@ -27,8 +23,7 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::projects::project::Project;
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-    project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
 use squalr_engine_api::structures::settings::scan_settings::ScanSettings;
@@ -400,13 +395,6 @@ impl ProjectHierarchyViewData {
                     ProjectItemTypePointer::set_field_evaluated_pointer_path(project_item, preview_path);
                     did_change = true;
                 }
-            } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-                let existing_preview_value = ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(project_item);
-
-                if existing_preview_value != *preview_value {
-                    ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(project_item, preview_value);
-                    did_change = true;
-                }
             }
         }
 
@@ -465,8 +453,6 @@ impl ProjectHierarchyViewData {
 
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
             ProjectItemTypePointer::set_field_evaluated_pointer_path(target_project_item, &preview_path);
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
         }
     }
 
@@ -479,8 +465,6 @@ impl ProjectHierarchyViewData {
             ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut project_item)
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item)
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(project_item)
         } else {
             String::new()
         }
@@ -518,110 +502,6 @@ impl ProjectHierarchyViewData {
                 project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
             })
             .unwrap_or(false)
-    }
-
-    fn contains_convertible_symbol_ref_project_item_paths(
-        &self,
-        project_item_paths: &[PathBuf],
-    ) -> bool {
-        !project_item_paths.is_empty()
-            && project_item_paths
-                .iter()
-                .all(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path))
-    }
-
-    fn filter_convertible_symbol_ref_project_item_paths(
-        &self,
-        project_item_paths: Vec<PathBuf>,
-    ) -> Vec<PathBuf> {
-        project_item_paths
-            .into_iter()
-            .filter(|project_item_path| self.is_convertible_symbol_ref_project_item_path(project_item_path))
-            .collect()
-    }
-
-    fn is_convertible_symbol_ref_project_item_path(
-        &self,
-        project_item_path: &Path,
-    ) -> bool {
-        let Some((_, project_item)) = self
-            .project_items
-            .iter()
-            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
-        else {
-            return false;
-        };
-
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return false;
-        }
-
-        Self::resolve_project_symbol_claim(self.opened_project_info.as_ref(), project_item).is_some()
-    }
-
-    fn has_pointer_origin_metadata(symbol_claim: &squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim) -> bool {
-        let symbol_claim_metadata = symbol_claim.get_metadata();
-
-        symbol_claim_metadata.contains_key("source.pointer_offsets")
-            && (symbol_claim_metadata.contains_key("source.pointer_root")
-                || (symbol_claim_metadata.contains_key("source.pointer_root_module") && symbol_claim_metadata.contains_key("source.pointer_root_offset")))
-    }
-
-    fn resolve_project_symbol_claim(
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim> {
-        if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return None;
-        }
-
-        let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
-
-        opened_project_info?
-            .get_project_symbol_catalog()
-            .resolve_symbol_claim(&symbol_locator_key)
-    }
-
-    fn resolve_convertible_symbol_ref_action_label(
-        &self,
-        project_item_paths: &[PathBuf],
-    ) -> Option<String> {
-        let mut resolved_conversion_target: Option<ProjectItemSymbolRefConversionTarget> = None;
-
-        for project_item_path in project_item_paths {
-            let preferred_conversion_target = self.resolve_preferred_symbol_ref_conversion_target(project_item_path)?;
-
-            if let Some(existing_conversion_target) = resolved_conversion_target {
-                if existing_conversion_target != preferred_conversion_target {
-                    return Some(String::from("Convert to Source Item Type"));
-                }
-            } else {
-                resolved_conversion_target = Some(preferred_conversion_target);
-            }
-        }
-
-        match resolved_conversion_target? {
-            ProjectItemSymbolRefConversionTarget::Address => Some(String::from("Convert to Address Item")),
-            ProjectItemSymbolRefConversionTarget::Pointer => Some(String::from("Convert to Pointer Item")),
-            ProjectItemSymbolRefConversionTarget::Inferred => Some(String::from("Convert to Source Item Type")),
-        }
-    }
-
-    fn resolve_preferred_symbol_ref_conversion_target(
-        &self,
-        project_item_path: &Path,
-    ) -> Option<ProjectItemSymbolRefConversionTarget> {
-        let (_, project_item) = self
-            .project_items
-            .iter()
-            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)?;
-        let symbol_claim = Self::resolve_project_symbol_claim(self.opened_project_info.as_ref(), project_item)?;
-
-        if Self::has_pointer_origin_metadata(&symbol_claim) {
-            Some(ProjectItemSymbolRefConversionTarget::Pointer)
-        } else {
-            Some(ProjectItemSymbolRefConversionTarget::Address)
-        }
     }
 
     pub fn get_selected_directory_path(project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>) -> Option<PathBuf> {
@@ -816,9 +696,7 @@ impl ProjectHierarchyViewData {
             .map(|(_, project_item)| {
                 let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
-                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
-                    || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
-                    || project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
+                project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
             })
             .unwrap_or(false);
 
@@ -1604,25 +1482,6 @@ impl ProjectHierarchyViewData {
             .unwrap_or(false)
     }
 
-    pub fn has_convertible_symbol_ref_project_item_paths(
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        project_item_paths: &[PathBuf],
-    ) -> bool {
-        project_hierarchy_view_data
-            .read("Project hierarchy has convertible symbol-ref project item paths")
-            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_convertible_symbol_ref_project_item_paths(project_item_paths))
-            .unwrap_or(false)
-    }
-
-    pub fn get_convertible_symbol_ref_action_label(
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        project_item_paths: &[PathBuf],
-    ) -> Option<String> {
-        project_hierarchy_view_data
-            .read("Project hierarchy get symbol-ref conversion action label")
-            .and_then(|project_hierarchy_view_data| project_hierarchy_view_data.resolve_convertible_symbol_ref_action_label(project_item_paths))
-    }
-
     pub fn promote_project_items_to_symbols(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
@@ -1683,57 +1542,6 @@ impl ProjectHierarchyViewData {
         });
     }
 
-    pub fn convert_symbol_refs_to_project_items(
-        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
-        app_context: Arc<AppContext>,
-        project_item_paths: Vec<PathBuf>,
-        after_successful_refresh_callback: Option<Arc<dyn Fn() + Send + Sync>>,
-    ) {
-        let filtered_project_item_paths = match project_hierarchy_view_data.write("Project hierarchy filter symbol-ref conversion paths") {
-            Some(mut project_hierarchy_view_data) => {
-                let filtered_project_item_paths = project_hierarchy_view_data.filter_convertible_symbol_ref_project_item_paths(project_item_paths);
-
-                if filtered_project_item_paths.is_empty() {
-                    return;
-                }
-
-                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::ConvertingSymbolRefs;
-                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
-
-                filtered_project_item_paths
-            }
-            None => return,
-        };
-        let project_items_convert_symbol_ref_request = ProjectItemsConvertSymbolRefRequest {
-            project_item_paths: filtered_project_item_paths,
-            target: ProjectItemSymbolRefConversionTarget::Inferred,
-        };
-        let app_context_clone = app_context.clone();
-        let project_hierarchy_view_data_clone = project_hierarchy_view_data.clone();
-
-        project_items_convert_symbol_ref_request.send(&app_context.engine_unprivileged_state, move |project_items_convert_symbol_ref_response| {
-            if !project_items_convert_symbol_ref_response.success {
-                log::error!(
-                    "Failed to convert one or more symbol-ref project items. Converted count before failure: {}.",
-                    project_items_convert_symbol_ref_response.converted_project_item_count
-                );
-            }
-
-            if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy convert symbol refs response") {
-                project_hierarchy_view_data.pending_operation = ProjectHierarchyPendingOperation::None;
-                project_hierarchy_view_data.take_over_state = ProjectHierarchyTakeOverState::None;
-            }
-
-            let after_refresh_callback = if Self::should_refocus_details_after_convert_response(&project_items_convert_symbol_ref_response) {
-                after_successful_refresh_callback.clone()
-            } else {
-                None
-            };
-
-            Self::refresh_project_items_with_after_refresh(project_hierarchy_view_data_clone, app_context_clone, after_refresh_callback);
-        });
-    }
-
     fn should_refocus_details_after_promote_response(project_items_promote_symbol_response: &ProjectItemsPromoteSymbolResponse) -> bool {
         project_items_promote_symbol_response.success
             && project_items_promote_symbol_response.conflicts.is_empty()
@@ -1741,10 +1549,6 @@ impl ProjectHierarchyViewData {
                 .promoted_symbol_count
                 .saturating_add(project_items_promote_symbol_response.reused_symbol_count)
                 > 0
-    }
-
-    fn should_refocus_details_after_convert_response(project_items_convert_symbol_ref_response: &ProjectItemsConvertSymbolRefResponse) -> bool {
-        project_items_convert_symbol_ref_response.success && project_items_convert_symbol_ref_response.converted_project_item_count > 0
     }
 
     pub fn create_project_item(
@@ -2237,10 +2041,6 @@ impl ProjectHierarchyViewData {
             let preview_value = Self::read_string_field(project_item, ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE);
 
             if preview_value.is_empty() { "??".to_string() } else { preview_value }
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let preview_value = Self::read_string_field(project_item, ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE);
-
-            if preview_value.is_empty() { "??".to_string() } else { preview_value }
         } else {
             String::new()
         }
@@ -2642,7 +2442,6 @@ mod tests {
         project_hierarchy_clipboard::ProjectHierarchyClipboardMode, project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind,
         project_hierarchy_drop_target::ProjectHierarchyDropTarget, project_hierarchy_take_over_state::ProjectHierarchyTakeOverState,
     };
-    use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_response::ProjectItemsConvertSymbolRefResponse;
     use squalr_engine_api::commands::project_items::promote_symbol::project_items_promote_symbol_response::{
         ProjectItemsPromoteSymbolConflict, ProjectItemsPromoteSymbolResponse,
     };
@@ -2651,7 +2450,7 @@ mod tests {
     use squalr_engine_api::structures::memory::pointer::Pointer;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer, project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
+        project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
     use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
@@ -2737,44 +2536,6 @@ mod tests {
                 conflicts: Vec::new(),
             }
         ));
-    }
-
-    #[test]
-    fn should_refocus_details_after_convert_response_requires_successful_conversion() {
-        assert!(ProjectHierarchyViewData::should_refocus_details_after_convert_response(
-            &ProjectItemsConvertSymbolRefResponse {
-                success: true,
-                converted_project_item_count: 1,
-            }
-        ));
-
-        assert!(!ProjectHierarchyViewData::should_refocus_details_after_convert_response(
-            &ProjectItemsConvertSymbolRefResponse {
-                success: false,
-                converted_project_item_count: 1,
-            }
-        ));
-
-        assert!(!ProjectHierarchyViewData::should_refocus_details_after_convert_response(
-            &ProjectItemsConvertSymbolRefResponse {
-                success: true,
-                converted_project_item_count: 0,
-            }
-        ));
-    }
-
-    #[test]
-    fn copy_project_item_preview_fields_preserves_value_across_address_to_symbol_ref_conversion() {
-        let mut address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
-        let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "module:game.exe:1234", "");
-        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut address_project_item, "99");
-
-        ProjectHierarchyViewData::copy_project_item_preview_fields(&address_project_item, &mut symbol_ref_project_item);
-
-        assert_eq!(
-            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(&symbol_ref_project_item),
-            "99"
-        );
     }
 
     #[test]

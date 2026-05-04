@@ -36,14 +36,6 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
                     .join(", ")
             );
         }
-        ProjectItemsResponse::ConvertSymbolRef {
-            project_items_convert_symbol_ref_response,
-        } => {
-            log::info!(
-                "converted {} symbol-ref project item(s)",
-                project_items_convert_symbol_ref_response.converted_project_item_count
-            );
-        }
         ProjectItemsResponse::Add { project_items_add_response } => {
             log::debug!("Unhandled project items add response: {:?}", project_items_add_response);
         }

@@ -35,7 +35,6 @@ use squalr_engine_api::commands::memory::write::memory_write_request::MemoryWrit
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::commands::project::save::project_save_request::ProjectSaveRequest;
-use squalr_engine_api::commands::project_items::convert_symbol_ref::project_items_convert_symbol_ref_request::ProjectItemSymbolRefConversionTarget;
 use squalr_engine_api::commands::project_items::rename::project_items_rename_request::ProjectItemsRenameRequest;
 use squalr_engine_api::commands::settings::scan::list::scan_settings_list_request::ScanSettingsListRequest;
 use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
@@ -54,11 +53,8 @@ use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
     project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
-    project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
 };
 use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
-use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
-use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
@@ -192,12 +188,8 @@ mod tests {
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
         project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
         project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
-        project_item_type_symbol_ref::ProjectItemTypeSymbolRef,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
-    use squalr_engine_api::structures::projects::{
-        project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim,
-    };
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
@@ -685,58 +677,6 @@ mod tests {
     }
 
     #[test]
-    fn build_struct_view_properties_orders_symbol_ref_address_fields_like_address_item() {
-        let project_info = ProjectInfo::new_with_symbol_catalog(
-            PathBuf::from("C:/Projects/TestProject/project.json"),
-            None,
-            ProjectManifest::new(vec![]),
-            ProjectSymbolCatalog::new_with_symbol_claims(
-                Vec::new(),
-                vec![ProjectSymbolClaim::new_module_offset(
-                    String::from("Health"),
-                    String::from("game.exe"),
-                    0x1234,
-                    String::from("u64"),
-                )],
-            ),
-        );
-        let mut project_item = ProjectItemTypeSymbolRef::new_project_item("Health", "module:game.exe:1234", "");
-        ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(&mut project_item, "99");
-
-        let struct_view_properties = ProjectHierarchyView::build_struct_view_properties(Some(&project_info), &project_item);
-        let field_names = struct_view_properties
-            .get_fields()
-            .iter()
-            .map(|field| field.get_name())
-            .collect::<Vec<&str>>();
-        let address_field_position = field_names
-            .iter()
-            .position(|field_name| *field_name == ProjectItemTypeAddress::PROPERTY_ADDRESS)
-            .expect("Expected symbol ref address field.");
-        let module_field_position = field_names
-            .iter()
-            .position(|field_name| *field_name == ProjectItemTypeAddress::PROPERTY_MODULE)
-            .expect("Expected symbol ref module field.");
-        let value_field_position = field_names
-            .iter()
-            .position(|field_name| *field_name == ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE)
-            .expect("Expected symbol ref runtime value field.");
-        let struct_field_position = field_names
-            .iter()
-            .position(|field_name| *field_name == ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
-            .expect("Expected symbol ref data type field.");
-
-        assert!(
-            struct_view_properties
-                .get_field(ProjectItemTypeSymbolRef::PROPERTY_SYMBOL_LOCATOR_KEY)
-                .is_none()
-        );
-        assert_eq!(address_field_position + 1, module_field_position);
-        assert_eq!(module_field_position + 1, value_field_position);
-        assert_eq!(value_field_position + 1, struct_field_position);
-    }
-
-    #[test]
     fn build_struct_view_properties_uses_address_and_module_for_pointer_target_root() {
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
         ProjectItemTypeAddress::set_address_target(
@@ -1177,9 +1117,6 @@ impl Widget for ProjectHierarchyView {
                 );
 
                 match pending_operation {
-                    ProjectHierarchyPendingOperation::ConvertingSymbolRefs => {
-                        user_interface.label("Converting symbol refs...");
-                    }
                     ProjectHierarchyPendingOperation::Deleting => {
                         user_interface.label("Deleting project item(s)...");
                     }
@@ -1366,17 +1303,6 @@ impl Widget for ProjectHierarchyView {
                                             self.project_hierarchy_view_data.clone(),
                                             &tree_entry_project_item_path,
                                         );
-                                        let can_convert_project_item_paths =
-                                            ProjectHierarchyViewData::has_convertible_symbol_ref_project_item_paths(
-                                                self.project_hierarchy_view_data.clone(),
-                                                &project_item_paths_for_delete,
-                                            );
-                                        let convert_project_item_menu_label =
-                                            ProjectHierarchyViewData::get_convertible_symbol_ref_action_label(
-                                                self.project_hierarchy_view_data.clone(),
-                                                &project_item_paths_for_delete,
-                                            )
-                                            .unwrap_or_else(|| "Convert to Source Item Type".to_string());
                                         let runtime_viewer_label = if Self::should_open_project_item_in_code_viewer(
                                             project_hierarchy_view_data.opened_project_info.as_ref(),
                                             &tree_entry.project_item,
@@ -1389,8 +1315,7 @@ impl Widget for ProjectHierarchyView {
                                             pointer_scanner_context_actions.iter().map(PointerScannerContextAction::label).collect::<Vec<_>>();
                                         let has_runtime_actions = !pointer_scanner_context_actions.is_empty()
                                             || can_open_in_memory_viewer
-                                            || can_promote_project_item_paths
-                                            || can_convert_project_item_paths;
+                                            || can_promote_project_item_paths;
                                         let has_create_actions = true;
                                         let has_clipboard_actions =
                                             can_cut_project_item_paths || can_copy_project_item_paths || can_paste_project_items;
@@ -1400,9 +1325,6 @@ impl Widget for ProjectHierarchyView {
                                         }
                                         if can_promote_project_item_paths {
                                             project_item_menu_labels.push("Promote to Symbol");
-                                        }
-                                        if can_convert_project_item_paths {
-                                            project_item_menu_labels.push(convert_project_item_menu_label.as_str());
                                         }
                                         if has_create_actions {
                                             project_item_menu_labels.extend(["New Address", "New Folder"]);
@@ -1538,25 +1460,6 @@ impl Widget for ProjectHierarchyView {
                                                         project_hierarchy_frame_action = ProjectHierarchyFrameAction::PromoteToSymbol {
                                                             project_item_paths: project_item_paths_for_delete.clone(),
                                                             overwrite_conflicting_symbols: false,
-                                                        };
-                                                        *should_close = true;
-                                                    }
-                                                }
-
-                                                if can_convert_project_item_paths {
-                                                    if user_interface
-                                                        .add(ToolbarMenuItemView::new(
-                                                            self.app_context.clone(),
-                                                            convert_project_item_menu_label.as_str(),
-                                                            "project_hierarchy_ctx_convert_to_address_item",
-                                                            &None,
-                                                            project_item_menu_width,
-                                                        ))
-                                                        .clicked()
-                                                    {
-                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::ConvertSymbolRef {
-                                                            project_item_paths: project_item_paths_for_delete.clone(),
-                                                            conversion_target: ProjectItemSymbolRefConversionTarget::Inferred,
                                                         };
                                                         *should_close = true;
                                                     }
@@ -2312,22 +2215,6 @@ impl Widget for ProjectHierarchyView {
                     Some(details_refresh_callback),
                 );
             }
-            ProjectHierarchyFrameAction::ConvertSymbolRef {
-                project_item_paths,
-                conversion_target: _conversion_target,
-            } => {
-                if has_blocking_take_over {
-                    return response;
-                }
-
-                let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
-                ProjectHierarchyViewData::convert_symbol_refs_to_project_items(
-                    self.project_hierarchy_view_data.clone(),
-                    self.app_context.clone(),
-                    project_item_paths,
-                    Some(details_refresh_callback),
-                );
-            }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
                     return response;
@@ -2754,10 +2641,6 @@ impl ProjectHierarchyView {
                         );
                         let preview_path = if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
                             query_result.evaluated_pointer_path.clone()
-                        } else if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-                            Self::resolve_project_symbol_claim(project_hierarchy_view_data.opened_project_info.as_ref(), project_item)
-                                .map(|symbol_claim| symbol_claim.get_locator().to_string())
-                                .unwrap_or_default()
                         } else {
                             String::new()
                         };
@@ -3116,21 +2999,11 @@ impl ProjectHierarchyView {
             });
         }
 
-        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let symbol_claim = Self::resolve_project_symbol_claim(opened_project_info, project_item)?;
-
-            return Some(MemoryWriteRequest {
-                address: symbol_claim.get_locator().get_focus_address(),
-                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
-                value: edited_data_value.get_value_bytes().clone(),
-            });
-        }
-
         None
     }
 
     fn build_pointer_scanner_context_actions(
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Vec<PointerScannerContextAction> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -3193,32 +3066,16 @@ impl ProjectHierarchyView {
             ];
         }
 
-        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let Some(symbol_claim) = Self::resolve_project_symbol_claim(opened_project_info, project_item) else {
-                return Vec::new();
-            };
-
-            return vec![PointerScannerContextAction::Address {
-                label: "Open in Pointer Scan",
-                address: symbol_claim.get_locator().get_focus_address(),
-                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
-                data_type_id: symbol_claim.get_struct_layout_id().to_string(),
-            }];
-        }
-
         Vec::new()
     }
 
     fn can_open_project_item_in_memory_viewer(
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> bool {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
-        project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
-            || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
-            || (project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
-                && Self::resolve_project_symbol_claim(opened_project_info, project_item).is_some())
+        project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
     }
 
     fn resolve_pointer_scanner_context_action(
@@ -3241,7 +3098,7 @@ impl ProjectHierarchyView {
     }
 
     fn build_struct_view_properties(
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> ValuedStruct {
         let mut fields = project_item
@@ -3273,45 +3130,7 @@ impl ProjectHierarchyView {
             Self::append_project_item_address_target_fields(&mut fields, &address_target);
         }
 
-        if project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            if let Some(symbol_claim) = Self::resolve_project_symbol_claim(opened_project_info, project_item) {
-                Self::apply_symbol_ref_address_detail_fields(&mut fields, &symbol_claim);
-            }
-        }
-
         ValuedStruct::new_anonymous(fields)
-    }
-
-    fn apply_symbol_ref_address_detail_fields(
-        fields: &mut Vec<ValuedStructField>,
-        symbol_claim: &ProjectSymbolClaim,
-    ) {
-        fields.retain(|field| field.get_name() != ProjectItemTypeSymbolRef::PROPERTY_SYMBOL_LOCATOR_KEY);
-        let (address, module_name) = match symbol_claim.get_locator() {
-            ProjectSymbolLocator::AbsoluteAddress { address } => (*address, String::new()),
-            ProjectSymbolLocator::ModuleOffset { module_name, offset } => (*offset, module_name.clone()),
-        };
-        let address_fields = vec![
-            DataTypeU64::get_value_from_primitive(address).to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_ADDRESS.to_string(), true),
-            DataTypeStringUtf8::get_value_from_primitive_string(&module_name)
-                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_MODULE.to_string(), true),
-        ];
-        let insert_position = fields
-            .iter()
-            .position(|field| field.get_name() == ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE)
-            .unwrap_or(fields.len());
-
-        fields.splice(insert_position..insert_position, address_fields);
-        let struct_layout_insert_position = fields
-            .iter()
-            .position(|field| field.get_name() == ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE)
-            .map(|freeze_field_position| freeze_field_position.saturating_add(1))
-            .unwrap_or(fields.len());
-        fields.insert(
-            struct_layout_insert_position,
-            DataTypeStringUtf8::get_value_from_primitive_string(symbol_claim.get_struct_layout_id())
-                .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
-        );
     }
 
     fn should_show_project_item_detail_field(
@@ -3378,9 +3197,7 @@ impl ProjectHierarchyView {
     }
 
     fn is_runtime_value_field(field_name: &str) -> bool {
-        field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
-            || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
-            || field_name == ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE
+        field_name == ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE || field_name == ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
     }
 
     fn copy_project_item_preview_fields(
@@ -3394,8 +3211,6 @@ impl ProjectHierarchyView {
             ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(target_project_item, &preview_value);
         }
     }
 
@@ -3408,8 +3223,6 @@ impl ProjectHierarchyView {
             ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut project_item)
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::get_field_freeze_data_value_interpreter(project_item)
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeSymbolRef::get_field_freeze_data_value_interpreter(project_item)
         } else {
             String::new()
         }
@@ -3798,7 +3611,7 @@ impl ProjectHierarchyView {
     }
 
     fn resolve_project_item_icon_data_type_id(
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<String> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -3819,10 +3632,6 @@ impl ProjectHierarchyView {
                     .get_symbolic_struct_namespace()
                     .to_string()
             });
-        }
-
-        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return Self::resolve_project_symbol_claim(opened_project_info, project_item).map(|symbol_claim| symbol_claim.get_struct_layout_id().to_string());
         }
 
         None
@@ -4019,8 +3828,6 @@ impl ProjectHierarchyView {
             ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE
         } else if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
             ProjectItemTypePointer::PROPERTY_FREEZE_DISPLAY_VALUE
-        } else if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            ProjectItemTypeSymbolRef::PROPERTY_FREEZE_DISPLAY_VALUE
         } else {
             return None;
         };
@@ -4086,7 +3893,7 @@ impl ProjectHierarchyView {
 
     fn resolve_project_item_runtime_value_target(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<(u64, String)> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -4102,15 +3909,6 @@ impl ProjectHierarchyView {
             let pointer = ProjectItemTypePointer::get_field_pointer(project_item);
 
             return Self::resolve_pointer_write_target(engine_execution_context, &pointer);
-        }
-
-        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let symbol_claim = Self::resolve_project_symbol_claim(opened_project_info, project_item)?;
-
-            return Some((
-                symbol_claim.get_locator().get_focus_address(),
-                symbol_claim.get_locator().get_focus_module_name().to_string(),
-            ));
         }
 
         None
@@ -4174,17 +3972,6 @@ impl ProjectHierarchyView {
             return Some(VirtualSnapshotQuery::Pointer {
                 query_id,
                 pointer: ProjectItemTypePointer::get_field_pointer(project_item),
-                symbolic_struct_definition,
-            });
-        }
-
-        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            let symbol_claim = Self::resolve_project_symbol_claim(opened_project_info, project_item)?;
-
-            return Some(VirtualSnapshotQuery::Address {
-                query_id,
-                address: symbol_claim.get_locator().get_focus_address(),
-                module_name: symbol_claim.get_locator().get_focus_module_name().to_string(),
                 symbolic_struct_definition,
             });
         }
@@ -4256,24 +4043,8 @@ impl ProjectHierarchyView {
             .unwrap_or_default()
     }
 
-    fn resolve_project_symbol_claim(
-        opened_project_info: Option<&ProjectInfo>,
-        project_item: &ProjectItem,
-    ) -> Option<ProjectSymbolClaim> {
-        let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
-
-        if project_item_type_id != ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return None;
-        }
-
-        let symbol_locator_key = ProjectItemTypeSymbolRef::get_field_symbol_locator_key(project_item);
-        let project_symbol_catalog = opened_project_info?.get_project_symbol_catalog();
-
-        project_symbol_catalog.resolve_symbol_claim(&symbol_locator_key)
-    }
-
     fn resolve_project_item_symbolic_struct_namespace(
-        opened_project_info: Option<&ProjectInfo>,
+        _opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<String> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -4294,10 +4065,6 @@ impl ProjectHierarchyView {
                     .get_symbolic_struct_namespace()
                     .to_string()
             });
-        }
-
-        if project_item_type_id == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID {
-            return Self::resolve_project_symbol_claim(opened_project_info, project_item).map(|symbol_claim| symbol_claim.get_struct_layout_id().to_string());
         }
 
         None

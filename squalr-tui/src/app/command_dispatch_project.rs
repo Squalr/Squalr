@@ -865,7 +865,6 @@ impl AppShell {
             symbol_locator_keys: vec![selected_symbol_claim.get_symbol_locator_key().to_string()],
             module_names: Vec::new(),
             module_ranges: Vec::new(),
-            convert_symbol_refs: false,
         };
         let (response_sender, response_receiver) = mpsc::sync_channel(1);
         project_symbols_delete_request.send(engine_unprivileged_state, move |project_symbols_delete_response| {
@@ -879,14 +878,7 @@ impl AppShell {
                         format!("Deleted {} symbol claim(s).", project_symbols_delete_response.deleted_symbol_count);
                     self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
                 } else {
-                    self.app_state.project_explorer_pane_state.status_message = if project_symbols_delete_response.blocked_symbol_ref_count > 0 {
-                        format!(
-                            "Symbol claim delete blocked by {} symbol-ref project item(s).",
-                            project_symbols_delete_response.blocked_symbol_ref_count
-                        )
-                    } else {
-                        "Symbol claim delete request failed.".to_string()
-                    };
+                    self.app_state.project_explorer_pane_state.status_message = "Symbol claim delete request failed.".to_string();
                 }
             }
             Err(receive_error) => {

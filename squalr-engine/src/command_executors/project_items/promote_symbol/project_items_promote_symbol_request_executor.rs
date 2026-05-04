@@ -853,13 +853,11 @@ mod tests {
             symbol_locator_keys: vec![String::from("absolute:1234")],
             module_names: Vec::new(),
             module_ranges: Vec::new(),
-            convert_symbol_refs: true,
         }
         .execute(&engine_execution_context);
 
         assert!(project_symbols_delete_response.success);
         assert_eq!(project_symbols_delete_response.deleted_symbol_count, 1);
-        assert_eq!(project_symbols_delete_response.converted_symbol_ref_count, 0);
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected converted project to load from disk.");
         assert!(

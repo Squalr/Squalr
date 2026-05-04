@@ -24,11 +24,6 @@ impl UnprivilegedCommandExecutor for ProjectItemsCommand {
             ProjectItemsCommand::Create { project_items_create_request } => project_items_create_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
-            ProjectItemsCommand::ConvertSymbolRef {
-                project_items_convert_symbol_ref_request,
-            } => project_items_convert_symbol_ref_request
-                .execute(engine_unprivileged_state)
-                .to_engine_response(),
             ProjectItemsCommand::Delete { project_items_delete_request } => project_items_delete_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
