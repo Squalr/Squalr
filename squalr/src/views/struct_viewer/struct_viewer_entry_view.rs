@@ -53,11 +53,29 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer64be,
     ];
 
-    fn trailing_commit_slot_width(
-        commit_button_width: f32,
+    fn value_box_position_x(
+        value_position_x: f32,
         value_column_padding: f32,
     ) -> f32 {
-        commit_button_width + value_column_padding
+        value_position_x + value_column_padding
+    }
+
+    fn trailing_action_slot_width(
+        action_button_width: f32,
+        value_column_padding: f32,
+    ) -> f32 {
+        action_button_width + value_column_padding
+    }
+
+    fn value_box_width(
+        row_max_x: f32,
+        value_box_position_x: f32,
+        action_button_width: f32,
+        value_column_padding: f32,
+    ) -> f32 {
+        let trailing_action_space = Self::trailing_action_slot_width(action_button_width, value_column_padding);
+
+        (row_max_x - value_box_position_x - trailing_action_space).max(0.0)
     }
 
     pub fn new(
@@ -240,9 +258,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         let icon_position_x = row_min_x;
         let name_position_x = row_min_x + self.name_splitter_x;
         let value_position_x = self.value_splitter_x.min(row_max_x);
-        let value_box_position_x = value_position_x + value_column_padding;
-        let commit_button_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
-        let value_box_width = (row_max_x - value_box_position_x - commit_button_space).max(0.0);
+        let value_box_position_x = Self::value_box_position_x(value_position_x, value_column_padding);
+        let value_box_width = Self::value_box_width(row_max_x, value_box_position_x, commit_button_width, value_column_padding);
         let available_data_type_refs = self
             .app_context
             .engine_unprivileged_state
@@ -349,14 +366,14 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
             }
             StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor => {
                 let edit_button_width = 28.0;
-                let edit_button_position_x = row_max_x - edit_button_width;
-                let offsets_preview_width = (edit_button_position_x - value_position_x).max(0.0);
+                let edit_button_position_x = row_max_x - edit_button_width - value_column_padding;
+                let offsets_preview_width = Self::value_box_width(row_max_x, value_box_position_x, edit_button_width, value_column_padding);
 
                 if let (Some(field_edit_value), Some(validation_data_type_ref)) = (self.field_edit_value, self.validation_data_type_ref) {
                     let data_value_box_id = format!("struct_viewer_pointer_offsets_{}_{}", self.row_index, self.valued_struct_field.get_name());
                     user_interface.put(
                         Rect::from_min_size(
-                            pos2(value_position_x, available_size_rect.min.y),
+                            pos2(value_box_position_x, available_size_rect.min.y),
                             vec2(offsets_preview_width, available_size_rect.height()),
                         ),
                         DataValueBoxView::new(
@@ -376,8 +393,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 let edit_response = user_interface.put(
                     Rect::from_min_size(
-                        pos2(edit_button_position_x, available_size_rect.min.y),
-                        vec2(edit_button_width, available_size_rect.height()),
+                        pos2(edit_button_position_x, available_size_rect.min.y + value_column_padding),
+                        vec2(edit_button_width, available_size_rect.height() - value_column_padding * 2.0),
                     ),
                     Button::new_from_theme(theme)
                         .background_color(epaint::Color32::TRANSPARENT)
@@ -440,7 +457,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
 
                     // Reserve space for checkbox (fixed 28px), data type selector takes natural width.
-                    let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
+                    let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                     let available_for_selectors = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                     user_interface.put(
@@ -470,7 +487,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 let mut selected_container_mode = None;
 
                 // Reserve space for checkbox, container selector takes natural width.
-                let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let container_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                 user_interface.put(
@@ -517,7 +534,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 };
                 let pointer_size_icon = Self::project_item_pointer_size_icon(&self.app_context, pointer_size_label);
                 let mut selected_pointer_size_label = None;
-                let trailing_checkbox_space = Self::trailing_commit_slot_width(commit_button_width, value_column_padding);
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let pointer_size_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                 user_interface.put(
@@ -587,5 +604,19 @@ mod tests {
         assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref("None"), None);
         assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref(""), None);
         assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref("nope"), None);
+    }
+
+    #[test]
+    fn value_box_width_reserves_matching_left_and_right_padding() {
+        let value_position_x = 100.0;
+        let row_max_x = 300.0;
+        let action_button_width = 28.0;
+        let value_column_padding = 2.0;
+        let value_box_position_x = StructViewerEntryView::value_box_position_x(value_position_x, value_column_padding);
+        let value_box_width = StructViewerEntryView::value_box_width(row_max_x, value_box_position_x, action_button_width, value_column_padding);
+
+        assert_eq!(value_box_position_x, 102.0);
+        assert_eq!(value_box_width, 168.0);
+        assert_eq!(value_box_position_x + value_box_width, row_max_x - action_button_width - value_column_padding);
     }
 }
