@@ -336,8 +336,3 @@ Additionally, conversions should be architecturally audited for robustness.
 Branch: `pr/engine-event-hooks`
 
 When the engine emits events, it would be nice for listeners and plugins to hook into these.
-
-### Symbol authoring
-Branch: `pr/symbol-authoring`
-
-Allow user to assign symbols via symbolic_struct_definitions and assign them to statics (with nesting automatic).
