@@ -427,7 +427,10 @@ fn sanitize_file_name_component(file_name_component: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_project_item_file_stem, build_project_item_name, generate_unique_project_item_file_path, resolve_selected_directory_path};
+    use super::{
+        add_scan_results_to_project, build_project_item_file_stem, build_project_item_name, generate_unique_project_item_file_path,
+        resolve_selected_directory_path,
+    };
     use crate::command_executors::project_items::add::project_items_add_request_executor::build_symbolic_field_definition_string;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::{privileged_command::PrivilegedCommand, privileged_command_response::PrivilegedCommandResponse};
@@ -443,10 +446,12 @@ mod tests {
     use squalr_engine_api::structures::data_values::data_value::DataValue;
     use squalr_engine_api::structures::memory::normalized_module::ModuleAddressDisplay;
     use squalr_engine_api::structures::projects::project::Project;
+    use squalr_engine_api::structures::projects::project_info::ProjectInfo;
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
     use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
     use squalr_engine_api::structures::scan_results::scan_result::ScanResult;
     use squalr_engine_api::structures::scan_results::scan_result_ref::ScanResultRef;
     use squalr_engine_api::structures::scan_results::scan_result_valued::ScanResultValued;
@@ -615,6 +620,31 @@ mod tests {
         let project_item_name = build_project_item_name(&scan_result);
 
         assert_eq!(project_item_name, String::from("0x401020"));
+    }
+
+    #[test]
+    fn add_scan_results_to_project_creates_address_item() {
+        let engine_execution_context = create_test_engine_execution_context();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let project_root_ref = ProjectItemRef::new(project_root_path.clone());
+        let mut project_items = HashMap::new();
+        let root_directory_project_item = ProjectItemTypeDirectory::new_project_item(&project_root_ref);
+        project_items.insert(project_root_ref, root_directory_project_item);
+        let project_info = ProjectInfo::new(project_directory_path.join(Project::PROJECT_FILE), None, ProjectManifest::default());
+        let mut project = Project::new(project_info, project_items, ProjectItemRef::new(project_root_path));
+        let scan_result = create_scan_result("winmine.exe", 0x20, 0x401020, 5);
+
+        let added_file_paths = add_scan_results_to_project(&engine_execution_context, &mut project, &project_directory_path, &[scan_result], &None);
+        let added_project_item = added_file_paths
+            .first()
+            .map(|added_file_path| ProjectItemRef::new(added_file_path.clone()))
+            .and_then(|project_item_ref| project.get_project_items().get(&project_item_ref))
+            .expect("Expected added project item.");
+
+        let mut added_project_item = added_project_item.clone();
+        assert_eq!(ProjectItemTypeAddress::get_field_address(&mut added_project_item), 0x20);
+        assert_eq!(ProjectItemTypeAddress::get_field_module(&mut added_project_item), "winmine.exe");
     }
 
     #[test]

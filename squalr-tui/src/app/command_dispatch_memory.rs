@@ -1,8 +1,9 @@
 use super::app_shell::AppShell;
 use anyhow::Result;
 use squalr_engine::squalr_engine::SqualrEngine;
-use squalr_engine_api::commands::memory::query::memory_query_request::MemoryQueryRequest;
+use squalr_engine_api::commands::memory::{query::memory_query_request::MemoryQueryRequest, write::memory_write_request::MemoryWriteRequest};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
+use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
 use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress;
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
 use std::sync::{Arc, mpsc};
@@ -71,6 +72,7 @@ impl AppShell {
                     .refresh_pages_from_response(memory_query_response.virtual_pages, memory_query_response.modules, selected_page_base_address);
                 self.app_state.memory_viewer_pane_state.status_message = format!("Loaded {} memory pages.", page_count);
                 self.sync_memory_viewer_virtual_snapshot(engine_unprivileged_state.clone());
+                self.sync_memory_interpretation_from_memory_selection();
             }
             Err(receive_error) => {
                 self.app_state.memory_viewer_pane_state.is_querying_memory_pages = false;
@@ -101,6 +103,7 @@ impl AppShell {
                 .memory_viewer_pane_state
                 .apply_virtual_snapshot_results(&virtual_snapshot);
         }
+        self.sync_memory_interpretation_from_memory_selection();
     }
 
     pub(super) fn clear_memory_viewer_for_process_change(
@@ -110,6 +113,7 @@ impl AppShell {
         self.app_state
             .memory_viewer_pane_state
             .clear_for_process_change(engine_unprivileged_state);
+        self.sync_memory_interpretation_from_memory_selection();
     }
 
     pub(super) fn sync_memory_viewer_on_tick(
@@ -189,6 +193,174 @@ impl AppShell {
                 .app_state
                 .memory_viewer_pane_state
                 .focus_address(address, &module_name);
+        }
+        self.sync_memory_viewer_virtual_snapshot_from_engine(squalr_engine);
+        self.sync_memory_interpretation_from_memory_selection();
+    }
+
+    pub(super) fn open_memory_viewer_for_selected_symbol_claim(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(selected_symbol_claim) = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_symbol_claim()
+            .cloned()
+        else {
+            self.app_state.project_explorer_pane_state.status_message = String::from("No symbol claim is selected for memory viewer focus.");
+            return;
+        };
+        let address = selected_symbol_claim.get_locator().get_focus_address();
+        let module_name = selected_symbol_claim
+            .get_locator()
+            .get_focus_module_name()
+            .to_string();
+
+        self.app_state
+            .set_active_workspace_page(crate::state::workspace_page::TuiWorkspacePage::MemoryWorkspace);
+        self.app_state
+            .set_focused_pane(crate::state::pane::TuiPane::MemoryViewer);
+        if !self
+            .app_state
+            .memory_viewer_pane_state
+            .focus_address(address, &module_name)
+        {
+            self.refresh_memory_viewer_pages_with_feedback(squalr_engine, false);
+            let _ = self
+                .app_state
+                .memory_viewer_pane_state
+                .focus_address(address, &module_name);
+        }
+        self.sync_memory_viewer_virtual_snapshot_from_engine(squalr_engine);
+        self.sync_memory_interpretation_from_memory_selection();
+    }
+
+    pub(super) fn sync_memory_viewer_virtual_snapshot_from_engine(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().clone() else {
+            self.app_state.memory_viewer_pane_state.status_message = "No unprivileged engine state is available for memory snapshot refresh.".to_string();
+            return;
+        };
+
+        self.sync_memory_viewer_virtual_snapshot(engine_unprivileged_state);
+    }
+
+    pub(super) fn sync_memory_interpretation_from_memory_selection(&mut self) {
+        let selection_summary = self.app_state.memory_viewer_pane_state.selection_summary();
+        self.app_state
+            .memory_interpretation_pane_state
+            .apply_selection_summary(selection_summary.as_ref());
+    }
+
+    pub(super) fn dispatch_memory_viewer_write(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+        write_start_address: u64,
+        written_bytes: Vec<u8>,
+    ) {
+        let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+            self.app_state.memory_viewer_pane_state.status_message = "No unprivileged engine state is available for memory writes.".to_string();
+            return;
+        };
+
+        let written_bytes_for_response = written_bytes.clone();
+        let memory_write_request = MemoryWriteRequest {
+            address: write_start_address,
+            module_name: String::new(),
+            value: written_bytes,
+        };
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        let request_dispatched = memory_write_request.send(engine_unprivileged_state, move |memory_write_response| {
+            let _ = response_sender.send(memory_write_response);
+        });
+        if !request_dispatched {
+            self.app_state.memory_viewer_pane_state.status_message = "Failed to dispatch memory write request.".to_string();
+            return;
+        }
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(memory_write_response) => {
+                if !memory_write_response.success {
+                    self.app_state.memory_viewer_pane_state.status_message = "Memory write request failed.".to_string();
+                    return;
+                }
+
+                self.app_state
+                    .memory_viewer_pane_state
+                    .apply_memory_write(write_start_address, &written_bytes_for_response);
+                self.app_state.memory_viewer_pane_state.status_message = format!(
+                    "Wrote {} byte{} at 0x{:X}.",
+                    written_bytes_for_response.len(),
+                    if written_bytes_for_response.len() == 1 { "" } else { "s" },
+                    write_start_address
+                );
+                self.sync_memory_viewer_virtual_snapshot_from_engine(squalr_engine);
+                self.sync_memory_interpretation_from_memory_selection();
+            }
+            Err(receive_error) => {
+                self.app_state.memory_viewer_pane_state.status_message = format!("Timed out waiting for memory write response: {}", receive_error);
+            }
+        }
+    }
+
+    pub(super) fn add_selected_memory_interpretation_to_project(
+        &mut self,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let Some(explicit_data_type_id) = self
+            .app_state
+            .memory_interpretation_pane_state
+            .selected_add_data_type_id()
+        else {
+            self.app_state.memory_interpretation_pane_state.status_message = "The selected interpretation cannot be added to the project.".to_string();
+            return;
+        };
+        let Some(engine_unprivileged_state) = squalr_engine.get_engine_unprivileged_state().as_ref() else {
+            self.app_state.memory_interpretation_pane_state.status_message = "No unprivileged engine state is available for project item creation.".to_string();
+            return;
+        };
+        if self
+            .app_state
+            .project_explorer_pane_state
+            .active_project_directory_path
+            .is_none()
+        {
+            self.app_state.memory_interpretation_pane_state.status_message = "Open a project before adding interpreted values.".to_string();
+            return;
+        }
+        let target_directory_path = self
+            .app_state
+            .project_explorer_pane_state
+            .selected_project_item_directory_target_path();
+        let Some(project_items_create_request) = self
+            .app_state
+            .memory_viewer_pane_state
+            .build_address_project_item_create_request_with_data_type(target_directory_path, Some(explicit_data_type_id.clone()))
+        else {
+            self.app_state.memory_interpretation_pane_state.status_message = "No selected memory range is available to add to the project.".to_string();
+            return;
+        };
+        let (response_sender, response_receiver) = mpsc::sync_channel(1);
+        project_items_create_request.send(engine_unprivileged_state, move |project_items_create_response| {
+            let _ = response_sender.send(project_items_create_response);
+        });
+
+        match response_receiver.recv_timeout(Duration::from_secs(3)) {
+            Ok(project_items_create_response) => {
+                if !project_items_create_response.success {
+                    self.app_state.memory_interpretation_pane_state.status_message = "Add-to-project request failed.".to_string();
+                    return;
+                }
+
+                self.app_state.memory_interpretation_pane_state.status_message = format!("Added selection to project as `{}`.", explicit_data_type_id);
+                self.refresh_project_items_list_with_feedback(squalr_engine, false);
+            }
+            Err(receive_error) => {
+                self.app_state.memory_interpretation_pane_state.status_message = format!("Timed out waiting for add-to-project response: {}", receive_error);
+            }
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::ui::geometry::safe_clamp_ord;
 use crate::ui::widgets::controls::check_state::CheckState;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
@@ -161,8 +162,11 @@ impl ElementScannerResultsViewData {
             .read("Element scanner results read interval")
             .map(|element_scanner_results_view_data| element_scanner_results_view_data.results_read_interval_ms)
             .unwrap_or(ScanSettings::default().results_read_interval_ms);
-        let bounded_results_read_interval_ms =
-            configured_results_read_interval_ms.clamp(Self::MIN_RESULTS_READ_INTERVAL_MS, Self::MAX_RESULTS_READ_INTERVAL_MS);
+        let bounded_results_read_interval_ms = safe_clamp_ord(
+            configured_results_read_interval_ms,
+            Self::MIN_RESULTS_READ_INTERVAL_MS,
+            Self::MAX_RESULTS_READ_INTERVAL_MS,
+        );
 
         Duration::from_millis(bounded_results_read_interval_ms)
     }
@@ -316,15 +320,19 @@ impl ElementScannerResultsViewData {
     }
 
     fn load_current_page_index(element_scanner_results_view_data: &Guard<Arc<ElementScannerResultsViewData>>) -> u64 {
-        element_scanner_results_view_data
-            .current_page_index
-            .clamp(0, element_scanner_results_view_data.cached_last_page_index)
+        safe_clamp_ord(
+            element_scanner_results_view_data.current_page_index,
+            0,
+            element_scanner_results_view_data.cached_last_page_index,
+        )
     }
 
     fn load_current_page_index_write(element_scanner_results_view_data: &WriteGuard<'_, ElementScannerResultsViewData>) -> u64 {
-        element_scanner_results_view_data
-            .current_page_index
-            .clamp(0, element_scanner_results_view_data.cached_last_page_index)
+        safe_clamp_ord(
+            element_scanner_results_view_data.current_page_index,
+            0,
+            element_scanner_results_view_data.cached_last_page_index,
+        )
     }
 
     fn query_scan_results(
@@ -714,6 +722,13 @@ impl ElementScannerResultsViewData {
         self.active_refresh_request_revision == refresh_request_revision
     }
 
+    fn clear_selection(element_scanner_results_view_data: Dependency<Self>) {
+        if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Clear scan result selection") {
+            element_scanner_results_view_data.selection_index_start = None;
+            element_scanner_results_view_data.selection_index_end = None;
+        }
+    }
+
     fn set_page_index(
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
@@ -732,7 +747,7 @@ impl ElementScannerResultsViewData {
             Some(element_scanner_results_view_data) => element_scanner_results_view_data,
             None => return,
         };
-        let new_page_index = new_page_index.clamp(0, element_scanner_results_view_data.cached_last_page_index);
+        let new_page_index = safe_clamp_ord(new_page_index, 0, element_scanner_results_view_data.cached_last_page_index);
 
         // If the new index is the same as the current one, do nothing.
         if new_page_index == element_scanner_results_view_data.current_page_index {
@@ -905,9 +920,10 @@ impl ElementScannerResultsViewData {
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
     ) {
-        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data);
+        let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
 
         if !scan_result_refs.is_empty() {
+            Self::clear_selection(element_scanner_results_view_data);
             let engine_unprivileged_state = &engine_unprivileged_state;
             let scan_results_delete_request = ScanResultsDeleteRequest { scan_result_refs };
 
@@ -1237,6 +1253,29 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(selected_scan_result_global_indices, vec![12]);
+    }
+
+    #[test]
+    fn clear_selection_resets_selected_scan_result_bounds() {
+        let dependency_container = DependencyContainer::new();
+        let element_scanner_results_view_data = dependency_container.register(create_view_data_with_scan_results(&[10, 11, 12, 13]));
+
+        {
+            let mut element_scanner_results_view_data = element_scanner_results_view_data
+                .write("Seed scan result selection")
+                .expect("Expected scan results view data write guard.");
+            element_scanner_results_view_data.selection_index_start = Some(1);
+            element_scanner_results_view_data.selection_index_end = Some(3);
+        }
+
+        ElementScannerResultsViewData::clear_selection(element_scanner_results_view_data.clone());
+
+        let element_scanner_results_view_data = element_scanner_results_view_data
+            .read("Verify scan result selection cleared")
+            .expect("Expected scan results view data read guard.");
+
+        assert_eq!(element_scanner_results_view_data.selection_index_start, None);
+        assert_eq!(element_scanner_results_view_data.selection_index_end, None);
     }
 
     #[test]

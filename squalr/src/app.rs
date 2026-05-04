@@ -24,6 +24,9 @@ impl App {
         app_title: String,
     ) -> Self {
         let theme = Arc::new(Theme::new(context));
+        context.style_mut(|style| {
+            style.interaction.tooltip_grace_time = 0.0;
+        });
         // Create built in docked windows.
         let main_dock_root = DockableWindowSettings::get_dock_layout_settings();
         let docking_manager = Arc::new(RwLock::new(DockingManager::new(main_dock_root)));

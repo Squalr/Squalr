@@ -11,22 +11,22 @@ impl PrivilegedCommandRequestExecutor for PointerScanSummaryRequest {
         &self,
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
-        let pointer_scan_summary = match engine_privileged_state.get_pointer_scan_session().read() {
-            Ok(pointer_scan_session_guard) => pointer_scan_session_guard
+        let pointer_scan_summary = match engine_privileged_state.get_pointer_scan_results().read() {
+            Ok(pointer_scan_results_guard) => pointer_scan_results_guard
                 .as_ref()
-                .and_then(|pointer_scan_session| {
+                .and_then(|pointer_scan_results| {
                     if self
                         .session_id
-                        .map(|requested_session_id| requested_session_id == pointer_scan_session.get_session_id())
+                        .map(|requested_session_id| requested_session_id == pointer_scan_results.get_session_id())
                         .unwrap_or(true)
                     {
-                        Some(pointer_scan_session.summarize())
+                        Some(pointer_scan_results.summarize())
                     } else {
                         None
                     }
                 }),
             Err(error) => {
-                log::error!("Failed to acquire read lock on pointer scan session store: {}", error);
+                log::error!("Failed to acquire read lock on pointer scan results store: {}", error);
 
                 None
             }

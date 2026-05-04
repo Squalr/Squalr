@@ -4,6 +4,7 @@ use crate::models::toolbar::toolbar_menu_item_data::ToolbarMenuItemData;
 use crate::ui::widgets::controls::toolbar_menu::toolbar_view::ToolbarView;
 use crate::views::code_viewer::code_viewer_view::CodeViewerView;
 use crate::views::element_scanner::scanner::element_scanner_view::ElementScannerView;
+use crate::views::main_window::main_window_take_over_state::MainWindowTakeOverState;
 use crate::views::memory_viewer::memory_viewer_view::MemoryViewerView;
 use crate::views::output::output_view::OutputView;
 use crate::views::plugins::plugins_view::PluginsView;
@@ -12,15 +13,22 @@ use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
+use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Response, Ui, Widget};
+use squalr_engine_api::commands::project::export::project_export_request::ProjectExportRequest;
+use squalr_engine_api::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::structures::projects::project_manager::ProjectManager;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct MainToolbarView {
     app_context: Arc<AppContext>,
     menu_toolbar_data: Arc<RwLock<ToolbarData>>,
+    main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
 }
 
 impl MainToolbarView {
@@ -28,11 +36,18 @@ impl MainToolbarView {
     pub const ACTION_ID_SELECT_PROJECT: &'static str = "select_project";
     pub const ACTION_ID_EXPORT_PROJECT: &'static str = "export_project";
     pub const ACTION_ID_RESET_LAYOUT: &'static str = "layout_reset";
+    pub const ACTION_ID_SHOW_ABOUT: &'static str = "show_about";
 
-    pub fn new(app_context: Arc<AppContext>) -> Self {
+    pub fn new(
+        app_context: Arc<AppContext>,
+        main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
+    ) -> Self {
+        let app_context_for_project_export = app_context.clone();
         let docking_manager_for_process_selector = app_context.docking_manager.clone();
         let docking_manager_for_project_explorer = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_explorer = app_context.docking_manager.clone();
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_struct_editor = app_context.docking_manager.clone();
         let docking_manager_for_memory_viewer = app_context.docking_manager.clone();
         let docking_manager_for_code_viewer = app_context.docking_manager.clone();
         let docking_manager_for_output = app_context.docking_manager.clone();
@@ -46,7 +61,8 @@ impl MainToolbarView {
                 header: "File".into(),
                 items: vec![
                     ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_SELECT_PROJECT, "Select Project", None),
-                    ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_EXPORT_PROJECT, "Export Project as Table...", None),
+                    ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_EXPORT_PROJECT, "Export Project as Table...", None)
+                        .with_enabled_state(Box::new(move || MainToolbarView::has_opened_project(app_context_for_project_export.as_ref()))),
                     ToolbarMenuItemData::new(MainToolbarView::ACTION_ID_EXIT, "Exit Squalr", None).with_separator(),
                 ]
                 .into(),
@@ -91,10 +107,37 @@ impl MainToolbarView {
                     ),
                     ToolbarMenuItemData::new(
                         StructViewerView::WINDOW_ID,
-                        "Struct Viewer",
+                        "Details Viewer",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_struct_viewer.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(StructViewerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        SymbolExplorerView::WINDOW_ID,
+                        "Symbol Tree",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_explorer.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolExplorerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    )
+                    .with_separator(),
+                    ToolbarMenuItemData::new(
+                        SymbolStructEditorView::WINDOW_ID,
+                        "Symbol Struct Editor",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_struct_editor.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolStructEditorView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -114,13 +157,41 @@ impl MainToolbarView {
 
                             None
                         })),
-                    ),
+                    )
+                    .with_separator(),
                     ToolbarMenuItemData::new(
                         CodeViewerView::WINDOW_ID,
                         "Code Viewer",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_code_viewer.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(CodeViewerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        ElementScannerView::WINDOW_ID,
+                        "Element Scanner",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_element_scanner.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(ElementScannerView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    )
+                    .with_separator(),
+                    ToolbarMenuItemData::new(
+                        PointerScannerView::WINDOW_ID,
+                        "Pointer Scanner",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_pointer_scanner.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(PointerScannerView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -140,39 +211,14 @@ impl MainToolbarView {
 
                             None
                         })),
-                    ),
-                    ToolbarMenuItemData::new(
-                        PointerScannerView::WINDOW_ID,
-                        "Pointer Scanner",
-                        Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_pointer_scanner.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(PointerScannerView::WINDOW_ID) {
-                                    return Some(docked_node.is_visible());
-                                }
-                            }
-
-                            None
-                        })),
-                    ),
+                    )
+                    .with_separator(),
                     ToolbarMenuItemData::new(
                         PluginsView::WINDOW_ID,
                         "Plugins",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_plugins.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(PluginsView::WINDOW_ID) {
-                                    return Some(docked_node.is_visible());
-                                }
-                            }
-
-                            None
-                        })),
-                    ),
-                    ToolbarMenuItemData::new(
-                        ElementScannerView::WINDOW_ID,
-                        "Element Scanner",
-                        Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_element_scanner.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(ElementScannerView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -197,10 +243,10 @@ impl MainToolbarView {
                 .into(),
             },
             ToolbarHeaderItemData {
-                header: "Scans".into(),
+                header: "Help".into(),
                 items: vec![ToolbarMenuItemData::new(
-                    PointerScannerView::WINDOW_ID,
-                    "Pointer Scan",
+                    MainToolbarView::ACTION_ID_SHOW_ABOUT,
+                    "About",
                     None,
                 )]
                 .into(),
@@ -225,6 +271,7 @@ impl MainToolbarView {
         Self {
             app_context,
             menu_toolbar_data,
+            main_window_take_over_state,
         }
     }
 }
@@ -239,9 +286,34 @@ impl Widget for MainToolbarView {
             MainToolbarView::ACTION_ID_EXIT => {
                 app_context.context.send_viewport_cmd(ViewportCommand::Close);
             }
+            MainToolbarView::ACTION_ID_EXPORT_PROJECT => {
+                let project_export_request = ProjectExportRequest {
+                    project_directory_path: None,
+                    project_name: None,
+                    open_export_folder: true,
+                };
+
+                project_export_request.send(&app_context.engine_unprivileged_state, |project_export_response| {
+                    if project_export_response.success {
+                        log::info!("Exported opened project as a JSON table.");
+                    } else {
+                        log::error!("Failed to export opened project as a JSON table.");
+                    }
+                });
+            }
+            MainToolbarView::ACTION_ID_SHOW_ABOUT => match self.main_window_take_over_state.write() {
+                Ok(mut main_window_take_over_state) => {
+                    *main_window_take_over_state = MainWindowTakeOverState::About;
+                }
+                Err(error) => {
+                    log::error!("Failed to acquire main window take over state while opening About: {}", error);
+                }
+            },
             ProcessSelectorView::WINDOW_ID
             | ProjectExplorerView::WINDOW_ID
+            | SymbolExplorerView::WINDOW_ID
             | StructViewerView::WINDOW_ID
+            | SymbolStructEditorView::WINDOW_ID
             | MemoryViewerView::WINDOW_ID
             | CodeViewerView::WINDOW_ID
             | OutputView::WINDOW_ID
@@ -281,5 +353,71 @@ impl Widget for MainToolbarView {
                 user_interface.response()
             }
         }
+    }
+}
+
+impl MainToolbarView {
+    fn has_opened_project(app_context: &AppContext) -> bool {
+        Self::project_manager_has_opened_project(
+            app_context
+                .engine_unprivileged_state
+                .get_project_manager()
+                .as_ref(),
+        )
+    }
+
+    fn project_manager_has_opened_project(project_manager: &ProjectManager) -> bool {
+        let opened_project = project_manager.get_opened_project();
+
+        match opened_project.read() {
+            Ok(opened_project) => opened_project.is_some(),
+            Err(error) => {
+                log::error!("Failed to acquire opened project lock while checking toolbar project availability: {}", error);
+                false
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MainToolbarView;
+    use squalr_engine_api::structures::projects::project::Project;
+    use squalr_engine_api::structures::projects::project_info::ProjectInfo;
+    use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
+    use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_api::structures::projects::project_manager::ProjectManager;
+    use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    fn create_opened_project() -> Project {
+        let project_file_path = PathBuf::from("C:/Projects/TestProject/project.json");
+        let project_info = ProjectInfo::new(project_file_path, None, ProjectManifest::default());
+        let project_root_ref = ProjectItemRef::new(PathBuf::from("C:/Projects/TestProject/project_items"));
+        let mut project_items = HashMap::new();
+
+        project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
+
+        Project::new(project_info, project_items, project_root_ref)
+    }
+
+    #[test]
+    fn project_manager_has_opened_project_returns_false_without_open_project() {
+        let project_manager = ProjectManager::new();
+
+        assert!(!MainToolbarView::project_manager_has_opened_project(&project_manager));
+    }
+
+    #[test]
+    fn project_manager_has_opened_project_returns_true_with_open_project() {
+        let project_manager = ProjectManager::new();
+        let opened_project = project_manager.get_opened_project();
+
+        *opened_project
+            .write()
+            .expect("Expected to acquire opened project write lock for test.") = Some(create_opened_project());
+
+        assert!(MainToolbarView::project_manager_has_opened_project(&project_manager));
     }
 }

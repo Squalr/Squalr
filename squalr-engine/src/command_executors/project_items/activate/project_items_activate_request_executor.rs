@@ -8,7 +8,8 @@ use squalr_engine_api::commands::project_items::activate::project_items_activate
 use squalr_engine_api::commands::project_items::activate::project_items_activate_response::ProjectItemsActivateResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
-    project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
+    project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
+    project_item_type_pointer::ProjectItemTypePointer,
 };
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -112,8 +113,7 @@ fn create_memory_freeze_target(
         .to_string();
 
     if project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
-        let address = ProjectItemTypeAddress::get_field_address(project_item);
-        let module_name = ProjectItemTypeAddress::get_field_module(project_item);
+        let address_target = ProjectItemTypeAddress::get_address_target(project_item);
         let data_type_id = ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(project_item)?
             .get_symbolic_struct_namespace()
             .to_string();
@@ -122,13 +122,7 @@ fn create_memory_freeze_target(
             return None;
         }
 
-        return Some(MemoryFreezeTarget {
-            address,
-            module_name,
-            data_type_id,
-            pointer_offsets: Vec::new(),
-            pointer_size: Default::default(),
-        });
+        return build_memory_freeze_target_from_address_target(&address_target, data_type_id);
     }
 
     if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -141,16 +135,39 @@ fn create_memory_freeze_target(
             return None;
         }
 
+        if pointer.has_symbolic_offsets() {
+            return None;
+        }
+
         return Some(MemoryFreezeTarget {
             address: pointer.get_address(),
             module_name: pointer.get_module_name().to_string(),
             data_type_id,
-            pointer_offsets: pointer.get_offsets().to_vec(),
+            pointer_offsets: pointer.get_offsets(),
             pointer_size: pointer.get_pointer_size(),
         });
     }
 
     None
+}
+
+fn build_memory_freeze_target_from_address_target(
+    address_target: &ProjectItemAddressTarget,
+    data_type_id: String,
+) -> Option<MemoryFreezeTarget> {
+    let runtime_pointer = address_target.to_runtime_pointer()?;
+
+    if runtime_pointer.has_symbolic_offsets() {
+        return None;
+    }
+
+    Some(MemoryFreezeTarget {
+        address: runtime_pointer.get_address(),
+        module_name: runtime_pointer.get_module_name().to_string(),
+        data_type_id,
+        pointer_offsets: runtime_pointer.get_offsets(),
+        pointer_size: runtime_pointer.get_pointer_size(),
+    })
 }
 
 fn dispatch_memory_freeze_request(

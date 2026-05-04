@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
+use crate::ui::geometry::safe_clamp_f32;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
 use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
@@ -330,18 +331,27 @@ impl Widget for PointerScannerResultsView {
             let minimum_column_width = Self::resolve_minimum_column_width(content_width);
             let minimum_primary_splitter_position_x = content_min_x + minimum_column_width;
             let maximum_primary_splitter_position_x = content_min_x + content_width - minimum_column_width * 3.0;
-            let primary_splitter_position_x =
-                (content_min_x + content_width * primary_splitter_ratio).clamp(minimum_primary_splitter_position_x, maximum_primary_splitter_position_x);
+            let primary_splitter_position_x = safe_clamp_f32(
+                content_min_x + content_width * primary_splitter_ratio,
+                minimum_primary_splitter_position_x,
+                maximum_primary_splitter_position_x,
+            );
 
             let minimum_value_splitter_position_x = primary_splitter_position_x + minimum_column_width;
             let maximum_value_splitter_position_x = content_min_x + content_width - minimum_column_width * 2.0;
-            let value_splitter_position_x =
-                (content_min_x + content_width * value_splitter_ratio).clamp(minimum_value_splitter_position_x, maximum_value_splitter_position_x);
+            let value_splitter_position_x = safe_clamp_f32(
+                content_min_x + content_width * value_splitter_ratio,
+                minimum_value_splitter_position_x,
+                maximum_value_splitter_position_x,
+            );
 
             let minimum_resolved_splitter_position_x = value_splitter_position_x + minimum_column_width;
             let maximum_resolved_splitter_position_x = content_min_x + content_width - minimum_column_width;
-            let resolved_splitter_position_x =
-                (content_min_x + content_width * resolved_splitter_ratio).clamp(minimum_resolved_splitter_position_x, maximum_resolved_splitter_position_x);
+            let resolved_splitter_position_x = safe_clamp_f32(
+                content_min_x + content_width * resolved_splitter_ratio,
+                minimum_resolved_splitter_position_x,
+                maximum_resolved_splitter_position_x,
+            );
 
             let normalized_primary_splitter_ratio = (primary_splitter_position_x - content_min_x) / content_width;
             let normalized_value_splitter_ratio = (value_splitter_position_x - content_min_x) / content_width;
@@ -372,11 +382,18 @@ impl Widget for PointerScannerResultsView {
                 .painter()
                 .rect_filled(header_separator_rectangle, CornerRadius::ZERO, theme.background_control);
 
+            let mut content_user_interface = user_interface.new_child(
+                UiBuilder::new()
+                    .max_rect(content_clip_rectangle)
+                    .layout(Layout::top_down(Align::Min)),
+            );
+            content_user_interface.set_clip_rect(content_clip_rectangle);
+
             ScrollArea::vertical()
                 .id_salt("pointer_scanner_rows")
                 .max_height(content_height)
                 .auto_shrink([false, false])
-                .show_rows(user_interface, Self::ROW_HEIGHT, visible_row_count, |user_interface, row_range| {
+                .show_rows(&mut content_user_interface, Self::ROW_HEIGHT, visible_row_count, |user_interface, row_range| {
                     user_interface.spacing_mut().item_spacing = vec2(0.0, 0.0);
                     let pointer_scanner_tree_rows = PointerScannerViewData::build_visible_rows_in_range(self.pointer_scanner_view_data.clone(), row_range);
 
@@ -435,8 +452,11 @@ impl Widget for PointerScannerResultsView {
                 let maximum_cascaded_primary_splitter_position_x =
                     primary_splitter_position_x + (maximum_resolved_splitter_position_x - resolved_splitter_position_x);
 
-                new_primary_splitter_position_x =
-                    new_primary_splitter_position_x.clamp(minimum_primary_splitter_position_x, maximum_cascaded_primary_splitter_position_x);
+                new_primary_splitter_position_x = safe_clamp_f32(
+                    new_primary_splitter_position_x,
+                    minimum_primary_splitter_position_x,
+                    maximum_cascaded_primary_splitter_position_x,
+                );
 
                 let applied_drag_delta = new_primary_splitter_position_x - primary_splitter_position_x;
                 let new_value_splitter_position_x = value_splitter_position_x + applied_drag_delta;
@@ -456,8 +476,11 @@ impl Widget for PointerScannerResultsView {
                 let maximum_cascaded_value_splitter_position_x =
                     value_splitter_position_x + (maximum_resolved_splitter_position_x - resolved_splitter_position_x);
 
-                new_value_splitter_position_x =
-                    new_value_splitter_position_x.clamp(minimum_value_splitter_position_x, maximum_cascaded_value_splitter_position_x);
+                new_value_splitter_position_x = safe_clamp_f32(
+                    new_value_splitter_position_x,
+                    minimum_value_splitter_position_x,
+                    maximum_cascaded_value_splitter_position_x,
+                );
 
                 let applied_drag_delta = new_value_splitter_position_x - value_splitter_position_x;
                 let new_resolved_splitter_position_x = resolved_splitter_position_x + applied_drag_delta;
@@ -473,8 +496,11 @@ impl Widget for PointerScannerResultsView {
                 let drag_delta = resolved_splitter_response.drag_delta();
                 let mut new_resolved_splitter_position_x = resolved_splitter_position_x + drag_delta.x;
 
-                new_resolved_splitter_position_x =
-                    new_resolved_splitter_position_x.clamp(minimum_resolved_splitter_position_x, maximum_resolved_splitter_position_x);
+                new_resolved_splitter_position_x = safe_clamp_f32(
+                    new_resolved_splitter_position_x,
+                    minimum_resolved_splitter_position_x,
+                    maximum_resolved_splitter_position_x,
+                );
 
                 new_resolved_splitter_ratio = Some((new_resolved_splitter_position_x - content_min_x) / content_width);
             }

@@ -3,5 +3,7 @@ pub enum ProjectHierarchyPendingOperation {
     None,
     Refreshing,
     Deleting,
+    Pasting,
+    Promoting,
     Reordering,
 }

@@ -78,6 +78,18 @@ impl<W: Widget> Widget for DockedWindowView<W> {
                 let outer_rectangle = user_interface.available_rect_before_wrap();
                 let theme = &self.app_context.theme;
                 let docking_manager = &self.app_context.docking_manager;
+                let did_press_inside_window = user_interface.input(|input_state| {
+                    input_state
+                        .pointer
+                        .interact_pos()
+                        .is_some_and(|pointer_position| input_state.pointer.any_pressed() && outer_rectangle.contains(pointer_position))
+                });
+
+                if did_press_inside_window {
+                    self.app_context
+                        .window_focus_manager
+                        .focus_window(&self.identifier);
+                }
                 let allocate_resize_bar = |resize_rectangle: Rect, id_suffix: &str| -> Response {
                     let id = user_interface.id().with(&self.identifier).with(id_suffix);
                     let response = user_interface.interact(resize_rectangle, id, Sense::drag());

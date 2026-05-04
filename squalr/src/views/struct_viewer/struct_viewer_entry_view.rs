@@ -18,16 +18,17 @@ use crate::{
         struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align2, Response, Sense, Ui, Widget, vec2};
+use eframe::egui::{Align2, Response, Sense, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
 use squalr_engine_api::structures::{
     data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
     data_types::data_type_ref::DataTypeRef,
     data_values::anonymous_value_string::AnonymousValueString,
+    pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     structs::symbolic_field_definition::SymbolicFieldDefinition,
     structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
 };
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 pub struct StructViewerEntryView<'lifetime> {
     app_context: Arc<AppContext>,
@@ -45,6 +46,38 @@ pub struct StructViewerEntryView<'lifetime> {
 }
 
 impl<'lifetime> StructViewerEntryView<'lifetime> {
+    const NATIVE_POINTER_SIZES: [PointerScanPointerSize; 4] = [
+        PointerScanPointerSize::Pointer32,
+        PointerScanPointerSize::Pointer32be,
+        PointerScanPointerSize::Pointer64,
+        PointerScanPointerSize::Pointer64be,
+    ];
+
+    fn value_box_position_x(
+        value_position_x: f32,
+        value_column_padding: f32,
+    ) -> f32 {
+        value_position_x + value_column_padding
+    }
+
+    fn trailing_action_slot_width(
+        action_button_width: f32,
+        value_column_padding: f32,
+    ) -> f32 {
+        action_button_width + value_column_padding
+    }
+
+    fn value_box_width(
+        row_max_x: f32,
+        value_box_position_x: f32,
+        action_button_width: f32,
+        value_column_padding: f32,
+    ) -> f32 {
+        let trailing_action_space = Self::trailing_action_slot_width(action_button_width, value_column_padding);
+
+        (row_max_x - value_box_position_x - trailing_action_space).max(0.0)
+    }
+
     pub fn new(
         app_context: Arc<AppContext>,
         valued_struct_field: &'lifetime ValuedStructField,
@@ -131,6 +164,37 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
 
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
     }
+
+    fn commit_project_item_pointer_size_selection(
+        valued_struct_field: &ValuedStructField,
+        pointer_size_label: &str,
+        struct_viewer_frame_action: &mut StructViewerFrameAction,
+    ) {
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(pointer_size_label)
+            .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
+
+        *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
+    }
+
+    fn project_item_pointer_size_data_type_ref(pointer_size_label: &str) -> Option<DataTypeRef> {
+        let pointer_size_label = pointer_size_label.trim();
+
+        if pointer_size_label.is_empty() {
+            return None;
+        }
+
+        PointerScanPointerSize::from_str(pointer_size_label)
+            .ok()
+            .map(|pointer_size| pointer_size.to_data_type_ref())
+    }
+
+    fn project_item_pointer_size_icon(
+        app_context: &Arc<AppContext>,
+        pointer_size_label: &str,
+    ) -> Option<TextureHandle> {
+        Self::project_item_pointer_size_data_type_ref(pointer_size_label)
+            .map(|data_type_ref| DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &app_context.theme.icon_library))
+    }
 }
 
 impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
@@ -180,7 +244,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         }
         .ui(user_interface);
 
-        // Click handling
+        // Click handling.
         if response.double_clicked() {
             *self.struct_viewer_frame_action = StructViewerFrameAction::None;
         } else if response.clicked() {
@@ -194,13 +258,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         let icon_position_x = row_min_x;
         let name_position_x = row_min_x + self.name_splitter_x;
         let value_position_x = self.value_splitter_x.min(row_max_x);
-        let value_box_position_x = value_position_x + value_column_padding;
-        let commit_button_space = if show_commit_button {
-            commit_button_width + value_column_padding
-        } else {
-            0.0
-        };
-        let value_box_width = (row_max_x - value_box_position_x - commit_button_space).max(0.0);
+        let value_box_position_x = Self::value_box_position_x(value_position_x, value_column_padding);
+        let value_box_width = Self::value_box_width(row_max_x, value_box_position_x, commit_button_width, value_column_padding);
         let available_data_type_refs = self
             .app_context
             .engine_unprivileged_state
@@ -305,6 +364,49 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     }
                 }
             }
+            StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor => {
+                let edit_button_width = 28.0;
+                let edit_button_position_x = row_max_x - edit_button_width - value_column_padding;
+                let offsets_preview_width = Self::value_box_width(row_max_x, value_box_position_x, edit_button_width, value_column_padding);
+
+                if let (Some(field_edit_value), Some(validation_data_type_ref)) = (self.field_edit_value, self.validation_data_type_ref) {
+                    let data_value_box_id = format!("struct_viewer_pointer_offsets_{}_{}", self.row_index, self.valued_struct_field.get_name());
+                    user_interface.put(
+                        Rect::from_min_size(
+                            pos2(value_box_position_x, available_size_rect.min.y),
+                            vec2(offsets_preview_width, available_size_rect.height()),
+                        ),
+                        DataValueBoxView::new(
+                            self.app_context.clone(),
+                            field_edit_value,
+                            validation_data_type_ref,
+                            true,
+                            false,
+                            "",
+                            &data_value_box_id,
+                        )
+                        .allow_read_only_interpretation(true)
+                        .use_preview_foreground(true)
+                        .width(offsets_preview_width),
+                    );
+                }
+
+                let edit_response = user_interface.put(
+                    Rect::from_min_size(
+                        pos2(edit_button_position_x, available_size_rect.min.y + value_column_padding),
+                        vec2(edit_button_width, available_size_rect.height() - value_column_padding * 2.0),
+                    ),
+                    Button::new_from_theme(theme)
+                        .background_color(epaint::Color32::TRANSPARENT)
+                        .with_tooltip_text("Edit offsets."),
+                );
+
+                IconDraw::draw(user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
+
+                if edit_response.clicked() {
+                    *self.struct_viewer_frame_action = StructViewerFrameAction::RequestFieldEditor(self.valued_struct_field.clone());
+                }
+            }
             StructViewerFieldEditorKind::MemoryViewerButton => {
                 let button_rect = Rect::from_min_size(
                     pos2(value_box_position_x, available_size_rect.min.y + value_column_padding),
@@ -354,8 +456,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     let previous_data_type_ref = field_data_type_selection.visible_data_type().clone();
                     let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
 
-                    // Reserve space for checkbox (fixed 28px), data type selector takes natural width
-                    let trailing_checkbox_space = commit_button_width + value_column_padding;
+                    // Reserve space for checkbox (fixed 28px), data type selector takes natural width.
+                    let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                     let available_for_selectors = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                     user_interface.put(
@@ -365,7 +467,6 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                         ),
                         DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
                             .available_data_types(available_data_type_refs.clone())
-                            .stacked_list()
                             .width(available_for_selectors)
                             .height(available_size_rect.height()),
                     );
@@ -385,8 +486,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     .unwrap_or(StructViewerContainerMode::Element);
                 let mut selected_container_mode = None;
 
-                // Reserve space for checkbox, container selector takes natural width
-                let trailing_checkbox_space = commit_button_width + value_column_padding;
+                // Reserve space for checkbox, container selector takes natural width.
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
                 let container_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
 
                 user_interface.put(
@@ -419,8 +520,103 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     Self::commit_container_type_selection(self.valued_struct_field, selected_container_mode, self.struct_viewer_frame_action);
                 }
             }
+            StructViewerFieldEditorKind::ProjectItemPointerSizeSelector => {
+                let pointer_size_selector_id = format!(
+                    "struct_viewer_project_item_pointer_size_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_pointer_size = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let pointer_size_label = if current_pointer_size.trim().is_empty() {
+                    "u64"
+                } else {
+                    current_pointer_size.as_str()
+                };
+                let pointer_size_icon = Self::project_item_pointer_size_icon(&self.app_context, pointer_size_label);
+                let mut selected_pointer_size_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let pointer_size_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(pointer_size_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        pointer_size_label,
+                        &pointer_size_selector_id,
+                        pointer_size_icon,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for pointer_size in Self::NATIVE_POINTER_SIZES {
+                                let pointer_size_label = pointer_size.to_string();
+                                let pointer_size_icon = Self::project_item_pointer_size_icon(&self.app_context, &pointer_size_label);
+                                let pointer_size_response = popup_user_interface.add(ComboBoxItemView::new(
+                                    self.app_context.clone(),
+                                    &pointer_size_label,
+                                    pointer_size_icon,
+                                    pointer_size_width,
+                                ));
+
+                                if pointer_size_response.clicked() {
+                                    selected_pointer_size_label = Some(pointer_size_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(pointer_size_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_pointer_size_label) = selected_pointer_size_label {
+                    Self::commit_project_item_pointer_size_selection(self.valued_struct_field, &selected_pointer_size_label, self.struct_viewer_frame_action);
+                }
+            }
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerEntryView;
+    use squalr_engine_api::structures::data_types::{
+        built_in_types::{u32::data_type_u32::DataTypeU32, u64::data_type_u64::DataTypeU64},
+        data_type_ref::DataTypeRef,
+    };
+
+    #[test]
+    fn project_item_pointer_size_data_type_ref_maps_pointer_sizes() {
+        assert_eq!(
+            StructViewerEntryView::project_item_pointer_size_data_type_ref("u32"),
+            Some(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID))
+        );
+        assert_eq!(
+            StructViewerEntryView::project_item_pointer_size_data_type_ref("u64"),
+            Some(DataTypeRef::new(DataTypeU64::DATA_TYPE_ID))
+        );
+    }
+
+    #[test]
+    fn project_item_pointer_size_data_type_ref_omits_none_and_unknown() {
+        assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref("None"), None);
+        assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref(""), None);
+        assert_eq!(StructViewerEntryView::project_item_pointer_size_data_type_ref("nope"), None);
+    }
+
+    #[test]
+    fn value_box_width_reserves_matching_left_and_right_padding() {
+        let value_position_x = 100.0;
+        let row_max_x = 300.0;
+        let action_button_width = 28.0;
+        let value_column_padding = 2.0;
+        let value_box_position_x = StructViewerEntryView::value_box_position_x(value_position_x, value_column_padding);
+        let value_box_width = StructViewerEntryView::value_box_width(row_max_x, value_box_position_x, action_button_width, value_column_padding);
+
+        assert_eq!(value_box_position_x, 102.0);
+        assert_eq!(value_box_width, 168.0);
+        assert_eq!(value_box_position_x + value_box_width, row_max_x - action_button_width - value_column_padding);
     }
 }

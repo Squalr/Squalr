@@ -13,6 +13,10 @@ impl FileSystemUtils {
         }
 
         let path_string = path.to_string_lossy();
+        if path_string.starts_with('/') || path_string.starts_with('\\') {
+            return true;
+        }
+
         let path_bytes = path_string.as_bytes();
 
         path_bytes.len() >= 3 && path_bytes[0].is_ascii_alphabetic() && path_bytes[1] == b':' && (path_bytes[2] == b'/' || path_bytes[2] == b'\\')

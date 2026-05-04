@@ -22,6 +22,7 @@ pub struct DataValueBoxView<'lifetime> {
     id: &'lifetime str,
     allow_read_only_interpretation: bool,
     validation_use_hex_pattern_matching: bool,
+    skip_validation: bool,
     use_preview_foreground: bool,
     use_format_text_colors: bool,
     normalize_value_format: bool,
@@ -35,6 +36,15 @@ pub struct DataValueBoxView<'lifetime> {
     border_width: f32,
     divider_width: f32,
     corner_radius: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DataValueBoxDisplayFormatIconKind {
+    Binary,
+    Decimal,
+    Hexadecimal,
+    Bool,
+    String,
 }
 
 impl<'lifetime> DataValueBoxView<'lifetime> {
@@ -63,6 +73,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             id,
             allow_read_only_interpretation: false,
             validation_use_hex_pattern_matching: false,
+            skip_validation: false,
             use_preview_foreground: false,
             use_format_text_colors: true,
             normalize_value_format: true,
@@ -102,6 +113,11 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         validation_use_hex_pattern_matching: bool,
     ) -> Self {
         self.validation_use_hex_pattern_matching = validation_use_hex_pattern_matching;
+        self
+    }
+
+    pub fn skip_validation(mut self) -> Self {
+        self.skip_validation = true;
         self
     }
 
@@ -219,15 +235,32 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
     fn display_format_icon(&self) -> &eframe::egui::TextureHandle {
         let icon_library = &self.app_context.theme.icon_library;
 
-        match self.anonymous_value_string.get_anonymous_value_string_format() {
-            AnonymousValueStringFormat::Binary => &icon_library.icon_handle_display_type_binary,
-            AnonymousValueStringFormat::Decimal => &icon_library.icon_handle_display_type_decimal,
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => &icon_library.icon_handle_display_type_hexadecimal,
-            AnonymousValueStringFormat::String
-            | AnonymousValueStringFormat::Bool
-            | AnonymousValueStringFormat::DataTypeRef
-            | AnonymousValueStringFormat::Enumeration => &icon_library.icon_handle_display_type_string,
+        match Self::resolve_display_format_icon_kind(self.anonymous_value_string.get_anonymous_value_string_format()) {
+            DataValueBoxDisplayFormatIconKind::Binary => &icon_library.icon_handle_display_type_binary,
+            DataValueBoxDisplayFormatIconKind::Decimal => &icon_library.icon_handle_display_type_decimal,
+            DataValueBoxDisplayFormatIconKind::Hexadecimal => &icon_library.icon_handle_display_type_hexadecimal,
+            DataValueBoxDisplayFormatIconKind::Bool => &icon_library.icon_handle_data_type_bool,
+            DataValueBoxDisplayFormatIconKind::String => &icon_library.icon_handle_display_type_string,
         }
+    }
+
+    fn resolve_display_format_icon_kind(anonymous_value_string_format: AnonymousValueStringFormat) -> DataValueBoxDisplayFormatIconKind {
+        match anonymous_value_string_format {
+            AnonymousValueStringFormat::Binary => DataValueBoxDisplayFormatIconKind::Binary,
+            AnonymousValueStringFormat::Decimal => DataValueBoxDisplayFormatIconKind::Decimal,
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => DataValueBoxDisplayFormatIconKind::Hexadecimal,
+            AnonymousValueStringFormat::Bool => DataValueBoxDisplayFormatIconKind::Bool,
+            AnonymousValueStringFormat::String | AnonymousValueStringFormat::DataTypeRef | AnonymousValueStringFormat::Enumeration => {
+                DataValueBoxDisplayFormatIconKind::String
+            }
+        }
+    }
+
+    fn resolve_text_edit_clip_rect(
+        parent_clip_rect: Rect,
+        text_edit_rectangle_inner: Rect,
+    ) -> Rect {
+        text_edit_rectangle_inner.intersect(parent_clip_rect)
     }
 }
 
@@ -243,20 +276,24 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         }
 
         let theme = &self.app_context.theme;
-        let is_valid = match self.validation_scan_compare_type {
-            Some(scan_compare_type) => self
-                .app_context
-                .engine_unprivileged_state
-                .validate_scan_constraint_with_hex_pattern_matching(
-                    &self.validation_data_type,
-                    scan_compare_type,
-                    &self.anonymous_value_string,
-                    self.validation_use_hex_pattern_matching,
-                ),
-            None => self
-                .app_context
-                .engine_unprivileged_state
-                .validate_value_string(&self.validation_data_type, &self.anonymous_value_string),
+        let is_valid = if self.skip_validation {
+            true
+        } else {
+            match self.validation_scan_compare_type {
+                Some(scan_compare_type) => self
+                    .app_context
+                    .engine_unprivileged_state
+                    .validate_scan_constraint_with_hex_pattern_matching(
+                        &self.validation_data_type,
+                        scan_compare_type,
+                        &self.anonymous_value_string,
+                        self.validation_use_hex_pattern_matching,
+                    ),
+                None => self
+                    .app_context
+                    .engine_unprivileged_state
+                    .validate_value_string(&self.validation_data_type, &self.anonymous_value_string),
+            }
         };
         let foreground_color = match self.use_preview_foreground {
             true => theme.foreground_preview,
@@ -366,6 +403,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                 .max_rect(text_edit_rectangle_inner)
                 .layout(Layout::right_to_left(Align::Center)),
         );
+        text_edit_user_interface.set_clip_rect(Self::resolve_text_edit_clip_rect(user_interface.clip_rect(), text_edit_rectangle_inner));
 
         let font_id = if text_value.len() > 0 {
             theme.font_library.font_ubuntu_mono_bold.font_normal.clone()
@@ -394,6 +432,7 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
                     .text_color(text_color)
                     .hint_text(self.preview_text)
                     .interactive(!self.is_read_only)
+                    .desired_width(text_edit_rectangle_inner.width())
                     .frame(false),
             )
         };
@@ -549,5 +588,29 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         }
 
         response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DataValueBoxDisplayFormatIconKind, DataValueBoxView};
+    use epaint::{Rect, pos2};
+    use squalr_engine_api::structures::data_values::anonymous_value_string_format::AnonymousValueStringFormat;
+
+    #[test]
+    fn resolve_display_format_icon_kind_uses_bool_icon_for_bool_values() {
+        assert_eq!(
+            DataValueBoxView::resolve_display_format_icon_kind(AnonymousValueStringFormat::Bool),
+            DataValueBoxDisplayFormatIconKind::Bool
+        );
+    }
+
+    #[test]
+    fn resolve_text_edit_clip_rect_clamps_to_parent_clip() {
+        let parent_clip_rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(80.0, 40.0));
+        let text_edit_rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(60.0, 30.0));
+        let clipped_rect = DataValueBoxView::resolve_text_edit_clip_rect(parent_clip_rect, text_edit_rect);
+
+        assert_eq!(clipped_rect, Rect::from_min_max(pos2(10.0, 10.0), pos2(60.0, 30.0)));
     }
 }

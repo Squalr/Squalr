@@ -124,7 +124,21 @@ fn evaluate_pointer_query(
     let mut current_address = pointer.get_address();
     let mut current_module_name = pointer.get_module_name().to_string();
 
-    for pointer_offset in pointer.get_offsets() {
+    for pointer_chain_segment in pointer.get_offset_segments() {
+        let Some(pointer_offset) = pointer_chain_segment.as_offset() else {
+            evaluated_path_segments.push(String::from("??"));
+
+            let pointer_query_evaluation = PointerQueryEvaluation {
+                resolved_target_address: None,
+                evaluated_path: evaluated_path_segments.join(" -> "),
+            };
+
+            virtual_snapshot_refresh_session
+                .cached_pointer_query_evaluations
+                .insert(pointer.clone(), pointer_query_evaluation.clone());
+
+            return pointer_query_evaluation;
+        };
         let Some(pointer_value) = read_pointer_value(
             engine_execution_context,
             virtual_snapshot_refresh_session,
@@ -145,7 +159,7 @@ fn evaluate_pointer_query(
 
             return pointer_query_evaluation;
         };
-        let Some(next_address) = Pointer::apply_pointer_offset(pointer_value, *pointer_offset) else {
+        let Some(next_address) = Pointer::apply_pointer_offset(pointer_value, pointer_offset) else {
             evaluated_path_segments.push(String::from("??"));
 
             let pointer_query_evaluation = PointerQueryEvaluation {

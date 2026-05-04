@@ -2,5 +2,4 @@
 pub enum ProjectHierarchyCreateItemKind {
     Directory,
     Address,
-    Pointer,
 }

@@ -3,22 +3,28 @@ use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{S
 use crate::views::struct_viewer::view_data::struct_viewer_frame_action::StructViewerFrameAction;
 use crate::{
     app_context::AppContext,
+    ui::{
+        draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
+        widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
+    },
     views::{
         code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
         memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
-        struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
+        struct_viewer::view_data::{struct_viewer_take_over_state::StructViewerTakeOverState, struct_viewer_view_data::StructViewerViewData},
     },
 };
-use eframe::egui::{Align, CursorIcon, Layout, Response, ScrollArea, Sense, Ui, Widget};
-use epaint::{Rect, pos2};
+use eframe::egui::{Align, Align2, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
+use epaint::{CornerRadius, Rect, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
-        data_values::container_type::ContainerType,
-        memory::pointer::Pointer,
+        data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
@@ -35,13 +41,40 @@ pub struct StructViewerView {
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PointerOffsetRowAction {
+    AppendOffset,
+    RemoveOffset,
+}
+
 impl StructViewerView {
     pub const WINDOW_ID: &'static str = "window_struct_viewer";
+    const POINTER_OFFSET_FIELD_ROW_HEIGHT: f32 = 28.0;
+    const POINTER_OFFSET_ICON_BUTTON_WIDTH: f32 = 36.0;
+    const POINTER_OFFSET_INPUT_SPACING: f32 = 8.0;
+    const POINTER_OFFSET_SECTION_VERTICAL_SPACING: f32 = 10.0;
+    const POINTER_OFFSET_VALUE_BOX_WIDTH: f32 = 120.0;
+    const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
+    const TAKE_OVER_PADDING_X: f32 = 0.0;
+    const TAKE_OVER_PADDING_Y: f32 = 0.0;
+    const TAKE_OVER_CONTENT_PADDING_X: f32 = 12.0;
+    const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
+    const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
-        let struct_viewer_view_data = app_context
+        let struct_viewer_view_data = if app_context
             .dependency_container
-            .register(StructViewerViewData::new());
+            .get_existing::<StructViewerViewData>()
+            .is_ok()
+        {
+            app_context
+                .dependency_container
+                .get_dependency::<StructViewerViewData>()
+        } else {
+            app_context
+                .dependency_container
+                .register(StructViewerViewData::new())
+        };
         let code_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<CodeViewerViewData>();
@@ -91,6 +124,411 @@ impl StructViewerView {
             .map(|(address, module_name)| (address, module_name, selection_byte_count.max(1)))
     }
 
+    fn pointer_offsets_edit_storage_id(field_name: &str) -> Id {
+        Id::new(("struct_viewer_pointer_offsets_edit", field_name.to_string()))
+    }
+
+    fn clear_pointer_offsets_edit_state(
+        user_interface: &Ui,
+        field_name: &str,
+    ) {
+        let pointer_offsets_storage_id = Self::pointer_offsets_edit_storage_id(field_name);
+
+        user_interface.ctx().data_mut(|data| {
+            data.remove::<Vec<AnonymousValueString>>(pointer_offsets_storage_id);
+        });
+    }
+
+    fn parse_pointer_offsets_text(pointer_offsets_text: &str) -> Vec<PointerChainSegment> {
+        PointerChainSegment::parse_text_list(pointer_offsets_text)
+    }
+
+    fn parse_pointer_offset_display_value(pointer_offset_value: &AnonymousValueString) -> Option<PointerChainSegment> {
+        let pointer_offset_text = pointer_offset_value.get_anonymous_value_string().trim();
+
+        match pointer_offset_value.get_anonymous_value_string_format() {
+            AnonymousValueStringFormat::String => PointerChainSegment::from_str(pointer_offset_text).ok(),
+            AnonymousValueStringFormat::Binary => {
+                Self::parse_pointer_offset_with_radix(pointer_offset_text, 2, Some("0b")).map(PointerChainSegment::new_offset)
+            }
+            AnonymousValueStringFormat::Decimal => Self::parse_pointer_offset_with_radix(pointer_offset_text, 10, None).map(PointerChainSegment::new_offset),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
+                Self::parse_pointer_offset_with_radix(pointer_offset_text, 16, Some("0x")).map(PointerChainSegment::new_offset)
+            }
+            AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::DataTypeRef | AnonymousValueStringFormat::Enumeration => None,
+        }
+    }
+
+    fn parse_pointer_offset_with_radix(
+        pointer_offset_text: &str,
+        radix: u32,
+        radix_prefix: Option<&str>,
+    ) -> Option<i64> {
+        let (sign, pointer_offset_text) = pointer_offset_text
+            .strip_prefix('-')
+            .map(|pointer_offset_text| (-1_i64, pointer_offset_text.trim()))
+            .unwrap_or((1_i64, pointer_offset_text));
+        let pointer_offset_text = radix_prefix
+            .and_then(|radix_prefix| {
+                pointer_offset_text
+                    .strip_prefix(radix_prefix)
+                    .or_else(|| pointer_offset_text.strip_prefix(&radix_prefix.to_ascii_uppercase()))
+            })
+            .unwrap_or(pointer_offset_text);
+
+        i64::from_str_radix(pointer_offset_text, radix)
+            .ok()
+            .and_then(|pointer_offset| pointer_offset.checked_mul(sign))
+    }
+
+    fn default_pointer_offset_display_value() -> AnonymousValueString {
+        AnonymousValueString::new(
+            PointerChainSegment::new_offset(0).display_text(),
+            AnonymousValueStringFormat::Hexadecimal,
+            ContainerType::None,
+        )
+    }
+
+    fn pointer_offset_display_values(pointer_offsets: Vec<PointerChainSegment>) -> Vec<AnonymousValueString> {
+        let mut pointer_offset_values = pointer_offsets
+            .into_iter()
+            .map(|pointer_offset| match pointer_offset {
+                PointerChainSegment::Offset(_) => {
+                    AnonymousValueString::new(pointer_offset.display_text(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None)
+                }
+                PointerChainSegment::Symbol(_) => {
+                    AnonymousValueString::new(pointer_offset.display_text(), AnonymousValueStringFormat::String, ContainerType::None)
+                }
+            })
+            .collect::<Vec<AnonymousValueString>>();
+
+        if pointer_offset_values.is_empty() {
+            pointer_offset_values.push(Self::default_pointer_offset_display_value());
+        }
+
+        pointer_offset_values
+    }
+
+    fn pointer_offset_data_type_ref() -> DataTypeRef {
+        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
+    }
+
+    fn render_take_over_header_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT),
+            Button::new_from_theme(theme)
+                .background_color(epaint::Color32::TRANSPARENT)
+                .with_tooltip_text(tooltip_text),
+        );
+
+        IconDraw::draw(user_interface, button_response.rect, icon_handle);
+
+        button_response
+    }
+
+    fn render_pointer_offset_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+            Button::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .background_color(theme.background_control_secondary)
+                .border_color(theme.submenu_border)
+                .border_width(1.0)
+                .disabled(is_disabled),
+        );
+
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
+
+        button_response
+    }
+
+    fn render_take_over_panel(
+        &self,
+        user_interface: &mut Ui,
+        title: &str,
+        header_action_width: f32,
+        render_header_actions: impl FnOnce(&mut Ui),
+        add_contents: impl FnOnce(&mut Ui),
+    ) {
+        let theme = &self.app_context.theme;
+        let (panel_rect, _) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::hover());
+        user_interface
+            .painter()
+            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_panel);
+
+        let inner_rect = panel_rect.shrink2(vec2(Self::TAKE_OVER_PADDING_X, Self::TAKE_OVER_PADDING_Y));
+        let mut panel_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(inner_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        panel_user_interface.set_clip_rect(inner_rect);
+
+        let (header_rect, _) = panel_user_interface.allocate_exact_size(
+            vec2(panel_user_interface.available_width().max(1.0), Self::TAKE_OVER_HEADER_HEIGHT),
+            Sense::hover(),
+        );
+        panel_user_interface
+            .painter()
+            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
+        let header_inner_rect = header_rect;
+        let mut header_user_interface = panel_user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(header_inner_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        header_user_interface.set_clip_rect(header_inner_rect);
+
+        let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
+        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
+        header_user_interface.painter().text(
+            pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
+            Align2::LEFT_CENTER,
+            title,
+            theme.font_library.font_noto_sans.font_window_title.clone(),
+            theme.foreground,
+        );
+
+        if header_action_width > 0.0 {
+            header_user_interface.allocate_ui_with_layout(
+                vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+                Layout::right_to_left(Align::Center),
+                |user_interface| {
+                    render_header_actions(user_interface);
+                },
+            );
+        }
+
+        panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+        ScrollArea::vertical()
+            .id_salt(format!("struct_viewer_take_over_body_{title}"))
+            .auto_shrink([false, false])
+            .show(&mut panel_user_interface, |user_interface| {
+                let content_width = (user_interface.available_width() - Self::TAKE_OVER_CONTENT_PADDING_X * 2.0).max(0.0);
+                user_interface.horizontal(|user_interface| {
+                    user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
+                    user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
+                        add_contents(user_interface);
+                    });
+                });
+            });
+    }
+
+    fn render_pointer_offset_editor_section(
+        &self,
+        user_interface: &mut Ui,
+        pointer_offset_value: &mut AnonymousValueString,
+        pointer_offset_index: usize,
+        pointer_offset_data_type_ref: &DataTypeRef,
+        can_remove_offset: bool,
+    ) -> Option<PointerOffsetRowAction> {
+        let theme = &self.app_context.theme;
+        let mut pending_row_action = None;
+
+        user_interface.allocate_ui_with_layout(
+            vec2(user_interface.available_width().max(1.0), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+            Layout::left_to_right(Align::Center),
+            |user_interface| {
+                user_interface.label(
+                    RichText::new(format!("Offset {}", pointer_offset_index + 1))
+                        .strong()
+                        .color(theme.foreground),
+                );
+
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+                let data_value_box_id = format!("struct_viewer_pointer_offset_value_{}", pointer_offset_index);
+                user_interface.add_sized(
+                    vec2(Self::POINTER_OFFSET_VALUE_BOX_WIDTH, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                    DataValueBoxView::new(
+                        self.app_context.clone(),
+                        pointer_offset_value,
+                        pointer_offset_data_type_ref,
+                        false,
+                        true,
+                        "offset",
+                        &data_value_box_id,
+                    )
+                    .allowed_anonymous_value_string_formats(vec![
+                        AnonymousValueStringFormat::String,
+                        AnonymousValueStringFormat::Binary,
+                        AnonymousValueStringFormat::Decimal,
+                        AnonymousValueStringFormat::Hexadecimal,
+                        AnonymousValueStringFormat::Address,
+                    ])
+                    .normalize_value_format(false)
+                    .skip_validation()
+                    .use_format_text_colors(false)
+                    .width(Self::POINTER_OFFSET_VALUE_BOX_WIDTH)
+                    .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                );
+
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+
+                let remove_offset_response = self.render_pointer_offset_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_common_remove,
+                    "Remove this offset.",
+                    !can_remove_offset,
+                );
+                if remove_offset_response.clicked() {
+                    pending_row_action = Some(PointerOffsetRowAction::RemoveOffset);
+                }
+
+                user_interface.add_space(Self::POINTER_OFFSET_INPUT_SPACING);
+
+                let append_offset_response =
+                    self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.", false);
+                if append_offset_response.clicked() {
+                    pending_row_action = Some(PointerOffsetRowAction::AppendOffset);
+                }
+            },
+        );
+
+        pending_row_action
+    }
+
+    fn apply_pointer_offset_row_action(
+        pointer_offset_values: &mut Vec<AnonymousValueString>,
+        pointer_offset_index: usize,
+        pointer_offset_row_action: PointerOffsetRowAction,
+    ) {
+        match pointer_offset_row_action {
+            PointerOffsetRowAction::AppendOffset => {
+                pointer_offset_values.push(AnonymousValueString::new(
+                    PointerChainSegment::new_offset(0).display_text(),
+                    AnonymousValueStringFormat::Hexadecimal,
+                    ContainerType::None,
+                ));
+            }
+            PointerOffsetRowAction::RemoveOffset => {
+                if pointer_offset_values.len() > 1 && pointer_offset_index < pointer_offset_values.len() {
+                    pointer_offset_values.remove(pointer_offset_index);
+                }
+            }
+        }
+    }
+
+    fn show_pointer_offsets_editor(
+        &self,
+        user_interface: &mut Ui,
+        valued_struct_field: &ValuedStructField,
+        pointer_offsets_submission: &mut Option<ValuedStructField>,
+        should_cancel_take_over: &mut bool,
+    ) {
+        let theme = &self.app_context.theme;
+        let pointer_offsets_storage_id = Self::pointer_offsets_edit_storage_id(valued_struct_field.get_name());
+        let initial_pointer_offsets = Self::parse_pointer_offsets_text(&StructViewerViewData::read_utf8_field_text(valued_struct_field));
+        let mut pointer_offset_values = user_interface
+            .ctx()
+            .data_mut(|data| data.get_temp::<Vec<AnonymousValueString>>(pointer_offsets_storage_id))
+            .unwrap_or_else(|| Self::pointer_offset_display_values(initial_pointer_offsets));
+        let pointer_offset_data_type_ref = Self::pointer_offset_data_type_ref();
+        let mut should_save_offsets = false;
+
+        self.render_take_over_panel(
+            user_interface,
+            "Edit pointer offsets",
+            Self::POINTER_OFFSET_ICON_BUTTON_WIDTH * 2.0,
+            |user_interface| {
+                let save_response =
+                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_check_mark, "Save offsets.");
+                if save_response.clicked() {
+                    should_save_offsets = true;
+                }
+
+                let cancel_response =
+                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_navigation_cancel, "Cancel offset edit.");
+                if cancel_response.clicked() {
+                    *should_cancel_take_over = true;
+                }
+            },
+            |user_interface| {
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Offsets", |user_interface| {
+                        let mut pending_pointer_offset_row_action = None;
+                        let pointer_offset_count = pointer_offset_values.len();
+
+                        for pointer_offset_index in 0..pointer_offset_count {
+                            let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
+                                continue;
+                            };
+
+                            if let Some(pointer_offset_row_action) = self.render_pointer_offset_editor_section(
+                                user_interface,
+                                pointer_offset_value,
+                                pointer_offset_index,
+                                &pointer_offset_data_type_ref,
+                                pointer_offset_count > 1,
+                            ) {
+                                pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
+                            }
+
+                            if pointer_offset_index + 1 < pointer_offset_count {
+                                user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
+                            }
+                        }
+
+                        if pointer_offset_count == 0 {
+                            let add_response = self.render_pointer_offset_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_add,
+                                "Append a new offset.",
+                                false,
+                            );
+
+                            if add_response.clicked() {
+                                pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
+                            }
+                        }
+
+                        if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
+                            Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                        }
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+            },
+        );
+
+        if should_save_offsets {
+            let mut pointer_offsets = pointer_offset_values
+                .iter()
+                .filter_map(Self::parse_pointer_offset_display_value)
+                .collect::<Vec<PointerChainSegment>>();
+            if pointer_offsets.is_empty() {
+                pointer_offsets.push(PointerChainSegment::new_offset(0));
+            }
+
+            let pointer_offsets_text = PointerChainSegment::display_text_list(&pointer_offsets);
+            *pointer_offsets_submission = Some(
+                DataTypeStringUtf8::get_value_from_primitive_string(&pointer_offsets_text)
+                    .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), true),
+            );
+        }
+
+        user_interface
+            .ctx()
+            .data_mut(|data| data.insert_temp(pointer_offsets_storage_id, pointer_offset_values));
+    }
+
     fn resolve_struct_runtime_value_target(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         source_struct_under_view: &ValuedStruct,
@@ -110,10 +548,10 @@ impl StructViewerView {
         let pointer_offsets_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_POINTER_OFFSETS)?;
         let pointer_size_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_POINTER_SIZE)?;
         let pointer_offsets_json = StructViewerViewData::read_utf8_field_text(pointer_offsets_field);
-        let pointer_offsets = serde_json::from_str::<Vec<i64>>(&pointer_offsets_json).ok()?;
+        let pointer_offsets = PointerChainSegment::parse_text_list(&pointer_offsets_json);
         let pointer_size_text = StructViewerViewData::read_utf8_field_text(pointer_size_field);
         let pointer_size = PointerScanPointerSize::from_str(&pointer_size_text).ok()?;
-        let pointer = Pointer::new_with_size(
+        let pointer = Pointer::new_with_size_and_segments(
             Self::read_u64_field_value(pointer_offset_field)?,
             pointer_offsets,
             StructViewerViewData::read_utf8_field_text(pointer_module_field),
@@ -130,9 +568,10 @@ impl StructViewerView {
         let mut current_address = pointer.get_address();
         let mut current_module_name = pointer.get_module_name().to_string();
 
-        for pointer_offset in pointer.get_offsets() {
+        for pointer_chain_segment in pointer.get_offset_segments() {
+            let pointer_offset = pointer_chain_segment.as_offset()?;
             let pointer_value = Self::read_pointer_value(engine_execution_context, current_address, &current_module_name, pointer.get_pointer_size())?;
-            current_address = Pointer::apply_pointer_offset(pointer_value, *pointer_offset)?;
+            current_address = Pointer::apply_pointer_offset(pointer_value, pointer_offset)?;
             current_module_name.clear();
         }
 
@@ -224,21 +663,16 @@ impl StructViewerView {
         engine_unprivileged_state: &Arc<squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState>,
         symbolic_field_definition: &SymbolicFieldDefinition,
     ) -> Option<u64> {
-        let unit_size_in_bytes = match symbolic_field_definition.get_container_type() {
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            _ => engine_unprivileged_state
-                .get_default_value(symbolic_field_definition.get_data_type_ref())?
-                .get_size_in_bytes(),
-        };
+        let unit_size_in_bytes = engine_unprivileged_state
+            .get_default_value(symbolic_field_definition.get_data_type_ref())
+            .map(|default_value| default_value.get_size_in_bytes())
+            .unwrap_or(1);
 
-        Some(match symbolic_field_definition.get_container_type() {
-            ContainerType::None => unit_size_in_bytes,
-            ContainerType::Pointer32 => 4,
-            ContainerType::Pointer64 => 8,
-            ContainerType::Array => unit_size_in_bytes,
-            ContainerType::ArrayFixed(length) => unit_size_in_bytes.saturating_mul(length.max(1)),
-        })
+        Some(
+            symbolic_field_definition
+                .get_container_type()
+                .get_total_size_in_bytes(unit_size_in_bytes),
+        )
     }
 
     fn focus_memory_viewer_for_address_range(
@@ -296,6 +730,52 @@ impl StructViewerView {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::StructViewerView;
+    use squalr_engine_api::structures::{
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        memory::pointer_chain_segment::PointerChainSegment,
+    };
+
+    #[test]
+    fn pointer_offset_display_values_use_hex_for_offsets_and_string_for_symbols() {
+        let pointer_offset_display_values = StructViewerView::pointer_offset_display_values(vec![
+            PointerChainSegment::Offset(0x20),
+            PointerChainSegment::Symbol(String::from("Timer")),
+        ]);
+
+        assert_eq!(
+            pointer_offset_display_values[0].get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+        assert_eq!(
+            pointer_offset_display_values[1].get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::String
+        );
+    }
+
+    #[test]
+    fn parse_pointer_offset_display_value_respects_numeric_display_format() {
+        let hex_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None);
+        let decimal_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Decimal, ContainerType::None);
+        let symbol_offset = AnonymousValueString::new(String::from("Timer"), AnonymousValueStringFormat::String, ContainerType::None);
+
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&hex_offset),
+            Some(PointerChainSegment::Offset(0x10))
+        );
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&decimal_offset),
+            Some(PointerChainSegment::Offset(10))
+        );
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&symbol_offset),
+            Some(PointerChainSegment::Symbol(String::from("Timer")))
+        );
+    }
+}
+
 impl Widget for StructViewerView {
     fn ui(
         self,
@@ -309,6 +789,8 @@ impl Widget for StructViewerView {
         let mut frame_action = StructViewerFrameAction::None;
 
         let mut new_value_splitter_ratio: Option<f32> = None;
+        let mut pointer_offsets_submission: Option<ValuedStructField> = None;
+        let mut should_cancel_take_over = false;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |mut user_interface| {
@@ -316,12 +798,24 @@ impl Widget for StructViewerView {
                     Some(data) => data,
                     None => return,
                 };
+                let take_over_state = struct_viewer_view_data.take_over_state.clone();
                 let mut value_splitter_ratio = struct_viewer_view_data.value_splitter_ratio;
                 let content_rect = user_interface.available_rect_before_wrap();
                 let content_width = content_rect.width();
                 let content_min_x = content_rect.min.x;
 
                 if content_width <= 0.0 {
+                    return;
+                }
+
+                if let Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field }) = take_over_state {
+                    drop(struct_viewer_view_data);
+                    self.show_pointer_offsets_editor(
+                        &mut user_interface,
+                        &valued_struct_field,
+                        &mut pointer_offsets_submission,
+                        &mut should_cancel_take_over,
+                    );
                     return;
                 }
 
@@ -341,7 +835,7 @@ impl Widget for StructViewerView {
                     pos2(value_splitter_x + BAR_THICKNESS * 0.5, splitter_max_y),
                 );
 
-                // Rows
+                // Rows.
                 ScrollArea::vertical()
                     .id_salt("struct_viewer")
                     .auto_shrink([false, false])
@@ -423,7 +917,7 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::ContainerTypeSelector => {
+                                    StructViewerFieldEditorKind::ContainerTypeSelector | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,
@@ -432,6 +926,26 @@ impl Widget for StructViewerView {
                                             is_selected,
                                             &mut frame_action,
                                             None,
+                                            field_display_values,
+                                            None,
+                                            validation_data_type_ref.as_ref(),
+                                            ICON_COLUMN_WIDTH + BAR_THICKNESS,
+                                            value_splitter_x + BAR_THICKNESS,
+                                        ));
+                                    }
+                                    StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor => {
+                                        let field_edit_value = struct_viewer_view_data
+                                            .field_edit_values
+                                            .get_mut(field.get_name());
+
+                                        inner_ui.add(StructViewerEntryView::new(
+                                            self.app_context.clone(),
+                                            &field,
+                                            &field_presentation,
+                                            field_row_index,
+                                            is_selected,
+                                            &mut frame_action,
+                                            field_edit_value,
                                             field_display_values,
                                             None,
                                             validation_data_type_ref.as_ref(),
@@ -470,7 +984,7 @@ impl Widget for StructViewerView {
                     let min_x = content_min_x + ICON_COLUMN_WIDTH + MINIMUM_COLUMN_PIXEL_WIDTH;
                     let max_x = content_min_x + content_width - MINIMUM_COLUMN_PIXEL_WIDTH;
 
-                    new_x = new_x.clamp(min_x, max_x);
+                    new_x = safe_clamp_f32(new_x, min_x, max_x);
                     new_value_splitter_ratio = Some((new_x - content_min_x) / content_width);
                 }
             })
@@ -485,12 +999,47 @@ impl Widget for StructViewerView {
             }
         }
 
+        let active_pointer_offsets_field_name = self
+            .struct_viewer_view_data
+            .read("Struct Viewer active pointer offsets editor")
+            .and_then(|struct_viewer_view_data| match struct_viewer_view_data.take_over_state.as_ref() {
+                Some(StructViewerTakeOverState::EditPointerOffsets { valued_struct_field }) => Some(valued_struct_field.get_name().to_string()),
+                None => None,
+            });
+
+        if active_pointer_offsets_field_name.is_some()
+            && self
+                .app_context
+                .window_focus_manager
+                .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID)
+            && user_interface.input(|input_state| input_state.key_pressed(Key::Escape) || input_state.key_pressed(Key::Backspace))
+        {
+            should_cancel_take_over = true;
+        }
+
+        if should_cancel_take_over {
+            if let Some(active_pointer_offsets_field_name) = active_pointer_offsets_field_name.as_deref() {
+                Self::clear_pointer_offsets_edit_state(user_interface, active_pointer_offsets_field_name);
+            }
+
+            StructViewerViewData::cancel_take_over_state(self.struct_viewer_view_data.clone());
+        }
+
+        if let Some(edited_field) = pointer_offsets_submission {
+            Self::clear_pointer_offsets_edit_state(user_interface, edited_field.get_name());
+            StructViewerViewData::cancel_take_over_state(self.struct_viewer_view_data.clone());
+            frame_action = StructViewerFrameAction::EditValue(edited_field);
+        }
+
         match frame_action {
             StructViewerFrameAction::None => {}
             StructViewerFrameAction::SelectField(field_name) => {
                 StructViewerViewData::set_selected_field(self.struct_viewer_view_data.clone(), field_name);
             }
             StructViewerFrameAction::EditValue(edited_field) => {
+                let mut modified_field_callback = None;
+                let mut modified_field = None;
+
                 if let Some(mut struct_viewer_view_data) = self.struct_viewer_view_data.write("Struct viewer edit value") {
                     let Some(source_edited_field) = struct_viewer_view_data.resolve_source_field_edit(&edited_field) else {
                         return response;
@@ -510,10 +1059,16 @@ impl Widget for StructViewerView {
 
                     struct_viewer_view_data.refresh_cached_field_state(&self.app_context.engine_unprivileged_state);
 
-                    if let Some(struct_field_modified_callback) = struct_viewer_view_data.struct_field_modified_callback.clone() {
-                        struct_field_modified_callback(source_edited_field);
-                    }
+                    modified_field_callback = struct_viewer_view_data.struct_field_modified_callback.clone();
+                    modified_field = Some(source_edited_field);
                 }
+
+                if let (Some(struct_field_modified_callback), Some(modified_field)) = (modified_field_callback, modified_field) {
+                    struct_field_modified_callback(modified_field);
+                }
+            }
+            StructViewerFrameAction::RequestFieldEditor(requested_field) => {
+                StructViewerViewData::request_pointer_offsets_editor(self.struct_viewer_view_data.clone(), requested_field);
             }
             StructViewerFrameAction::OpenInMemoryViewer(field_name) => {
                 if let Some((address, module_name, selection_byte_count)) = self.resolve_memory_viewer_target_for_field(&field_name) {

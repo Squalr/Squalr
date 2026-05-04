@@ -391,6 +391,13 @@ impl MemoryViewerInterpretationPanelView {
         interpretation_entry: &MemoryViewerInterpretationEntry,
     ) {
         let theme = &self.app_context.theme;
+        let has_open_project = self
+            .project_hierarchy_view_data
+            .read("Memory interpretation panel has opened project")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.opened_project_info.is_some())
+            .unwrap_or(false);
+        let enabled_icon_tint = theme.foreground;
+        let disabled_icon_tint = theme.foreground_preview;
 
         user_interface.horizontal(|user_interface| {
             user_interface.label(
@@ -404,13 +411,19 @@ impl MemoryViewerInterpretationPanelView {
                     let add_button = user_interface.add_sized(
                         vec2(Self::ACTION_BUTTON_WIDTH, Self::ACTION_BUTTON_HEIGHT),
                         Button::new_from_theme(theme)
+                            .disabled(!has_open_project)
                             .background_color(theme.background_control_secondary)
                             .with_tooltip_text(&format!("Create a project item from the current selection as `{}`.", add_data_type_id)),
                     );
 
-                    IconDraw::draw(user_interface, add_button.rect, &theme.icon_library.icon_handle_common_add);
+                    IconDraw::draw_tinted(
+                        user_interface,
+                        add_button.rect,
+                        &theme.icon_library.icon_handle_common_add,
+                        if has_open_project { enabled_icon_tint } else { disabled_icon_tint },
+                    );
 
-                    if add_button.clicked() {
+                    if has_open_project && add_button.clicked() {
                         self.dispatch_add_selection_to_project(selection_summary, add_data_type_id);
                     }
                 }

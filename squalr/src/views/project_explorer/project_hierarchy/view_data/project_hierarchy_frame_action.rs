@@ -15,6 +15,11 @@ pub enum ProjectHierarchyFrameAction {
         target_project_item_path: PathBuf,
         create_item_kind: ProjectHierarchyCreateItemKind,
     },
+    CopyProjectItems(Vec<PathBuf>),
+    CutProjectItems(Vec<PathBuf>),
+    PasteProjectItems {
+        target_project_item_path: PathBuf,
+    },
     OpenPointerScannerForAddress {
         address: u64,
         module_name: String,
@@ -28,6 +33,13 @@ pub enum ProjectHierarchyFrameAction {
     OpenCodeViewerForAddress {
         address: u64,
         module_name: String,
+    },
+    PromoteToSymbol {
+        project_item_paths: Vec<PathBuf>,
+        overwrite_conflicting_symbols: bool,
+    },
+    StripSymbolInformation {
+        project_item_paths: Vec<PathBuf>,
     },
     RequestRename(PathBuf),
     RequestValueEdit(PathBuf),

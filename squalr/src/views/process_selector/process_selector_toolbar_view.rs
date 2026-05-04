@@ -6,7 +6,7 @@ use crate::{
     },
     views::process_selector::view_data::process_selector_view_data::ProcessSelectorViewData,
 };
-use eframe::egui::{Align, Layout, Response, Sense, Ui, UiBuilder, Widget};
+use eframe::egui::{Align, Layout, Response, RichText, Sense, Ui, UiBuilder, Widget};
 use epaint::{Color32, CornerRadius, vec2};
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use std::sync::Arc;
@@ -67,7 +67,8 @@ impl Widget for ProcessSelectorToolbarView {
             }
 
             let button_windowed_only = user_interface.add(Checkbox::new_from_theme(theme).with_check_state_bool(show_windowed_processes_only));
-            user_interface.label("Windowed");
+            user_interface.add_space(4.0);
+            user_interface.label(RichText::new("Windowed").color(theme.foreground));
 
             if button_windowed_only.clicked() {
                 ProcessSelectorViewData::set_show_windowed_processes_only(

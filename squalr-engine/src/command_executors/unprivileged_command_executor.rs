@@ -23,6 +23,7 @@ impl ExecutableCommandUnprivleged for UnprivilegedCommand {
         match self {
             UnprivilegedCommand::Project(command) => command.execute(engine_unprivileged_state),
             UnprivilegedCommand::ProjectItems(command) => command.execute(engine_unprivileged_state),
+            UnprivilegedCommand::ProjectSymbols(command) => command.execute(engine_unprivileged_state),
         }
     }
 }

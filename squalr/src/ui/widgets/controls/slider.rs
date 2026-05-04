@@ -1,5 +1,5 @@
-use crate::ui::theme::Theme;
 use crate::ui::widgets::controls::state_layer::StateLayer;
+use crate::ui::{geometry::safe_clamp_f32, theme::Theme};
 use eframe::egui::{Color32, Response, Sense, Ui, Widget};
 use epaint::{CornerRadius, Rect, TextureHandle, pos2, vec2};
 
@@ -124,7 +124,7 @@ impl<'lifetime> Widget for Slider<'lifetime> {
 
         // Create circular handle.
         let range = (self.maximum_value - self.minimum_value).max(1);
-        let progress = ((*effective_value - self.minimum_value) as f32 / range as f32).clamp(0.0, 1.0);
+        let progress = safe_clamp_f32((*effective_value - self.minimum_value) as f32 / range as f32, 0.0, 1.0);
 
         let handle_radius = self.handle_size / 2;
         let handle_radius_float = handle_radius as f32;
@@ -156,7 +156,7 @@ impl<'lifetime> Widget for Slider<'lifetime> {
         // Interaction.
         if response.dragged() {
             if let Some(mouse_x) = user_interface.input(|input_state| input_state.pointer.hover_pos().map(|position| position.x)) {
-                let normalized = ((mouse_x - allocated_size_rectangle.left()) / allocated_size_rectangle.width()).clamp(0.0, 1.0);
+                let normalized = safe_clamp_f32((mouse_x - allocated_size_rectangle.left()) / allocated_size_rectangle.width(), 0.0, 1.0);
                 let new_value = self.minimum_value + (normalized * range as f32).round() as i64;
 
                 if new_value != *effective_value {

@@ -5,3 +5,7 @@ pub mod project_manager;
 pub mod project_manifest;
 pub mod project_ref;
 pub mod project_symbol_catalog;
+pub mod project_symbol_claim;
+pub mod project_symbol_locator;
+pub mod project_symbol_module;
+pub mod project_symbol_module_field;

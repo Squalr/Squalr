@@ -12,6 +12,8 @@ use squalr_engine_api::structures::projects::project_items::built_in_types::{
 };
 use squalr_engine_api::structures::projects::project_items::project_item::ProjectItem;
 use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -32,6 +34,7 @@ pub enum ProjectExplorerFocusTarget {
     #[default]
     ProjectList,
     ProjectHierarchy,
+    ProjectSymbols,
 }
 
 /// Stores a visible hierarchy entry for a project item.
@@ -76,8 +79,11 @@ pub struct ProjectExplorerPaneState {
     pub is_moving_project_item: bool,
     pub is_reordering_project_item: bool,
     pub is_toggling_project_item_activation: bool,
+    pub is_awaiting_project_symbol_list_response: bool,
+    pub symbol_claims: Vec<ProjectSymbolClaim>,
     pub project_item_visible_entries: Vec<ProjectHierarchyEntry>,
     pub selected_project_item_visible_index: Option<usize>,
+    pub selected_symbol_claim_index: Option<usize>,
     pub pending_move_source_paths: Vec<PathBuf>,
     pub pending_delete_confirmation_paths: Vec<PathBuf>,
     pub project_item_viewport_capacity: usize,
@@ -174,6 +180,26 @@ impl ProjectExplorerPaneState {
         self.has_loaded_project_item_list_once = true;
     }
 
+    pub fn apply_project_symbols_list(
+        &mut self,
+        project_symbol_catalog: Option<ProjectSymbolCatalog>,
+    ) {
+        let selected_symbol_locator_key_before_refresh = self
+            .selected_symbol_claim()
+            .map(|symbol_claim| symbol_claim.get_symbol_locator_key().to_string());
+        self.symbol_claims = project_symbol_catalog
+            .map(|project_symbol_catalog| project_symbol_catalog.get_symbol_claims().to_vec())
+            .unwrap_or_default();
+        self.selected_symbol_claim_index = selected_symbol_locator_key_before_refresh
+            .as_ref()
+            .and_then(|selected_symbol_locator_key| {
+                self.symbol_claims
+                    .iter()
+                    .position(|symbol_claim| symbol_claim.get_symbol_locator_key().as_str() == selected_symbol_locator_key)
+            })
+            .or_else(|| (!self.symbol_claims.is_empty()).then_some(0));
+    }
+
     pub fn clear_project_items(&mut self) {
         self.opened_project_item_map.clear();
         self.child_paths_by_parent_path.clear();
@@ -184,6 +210,11 @@ impl ProjectExplorerPaneState {
         self.pending_delete_confirmation_paths.clear();
         self.selected_item_path = None;
         self.has_loaded_project_item_list_once = false;
+    }
+
+    pub fn clear_project_symbols(&mut self) {
+        self.symbol_claims.clear();
+        self.selected_symbol_claim_index = None;
     }
 
     pub fn select_next_project_item(&mut self) {
@@ -222,6 +253,11 @@ impl ProjectExplorerPaneState {
         self.project_item_visible_entries
             .get(selected_project_item_visible_index)
             .map(|project_item_entry| project_item_entry.project_item_path.clone())
+    }
+
+    pub fn selected_symbol_claim(&self) -> Option<&ProjectSymbolClaim> {
+        let selected_symbol_claim_index = self.selected_symbol_claim_index?;
+        self.symbol_claims.get(selected_symbol_claim_index)
     }
 
     pub fn selected_project_items_for_struct_viewer(&self) -> Vec<(PathBuf, ProjectItem)> {
@@ -629,6 +665,13 @@ impl ProjectExplorerPaneState {
         build_visible_project_item_entry_rows(self, viewport_capacity)
     }
 
+    pub fn visible_project_symbol_entry_rows(
+        &self,
+        viewport_capacity: usize,
+    ) -> Vec<PaneEntryRow> {
+        crate::views::project_explorer::entry_rows::build_visible_project_symbol_entry_rows(self, viewport_capacity)
+    }
+
     pub fn selected_project_item_preview_value(&self) -> Option<&str> {
         self.selected_project_item_visible_index
             .and_then(|selected_project_item_visible_index| {
@@ -730,6 +773,60 @@ impl ProjectExplorerPaneState {
         let last_visible_project_item_position = self.project_item_visible_entries.len() - 1;
         self.selected_project_item_visible_index = Some(last_visible_project_item_position);
         self.update_selected_item_path();
+    }
+
+    pub fn select_next_symbol_claim(&mut self) {
+        if self.symbol_claims.is_empty() {
+            self.selected_symbol_claim_index = None;
+            return;
+        }
+
+        let selected_symbol_claim_index = self.selected_symbol_claim_index.unwrap_or(0);
+        self.selected_symbol_claim_index = Some((selected_symbol_claim_index + 1) % self.symbol_claims.len());
+    }
+
+    pub fn select_previous_symbol_claim(&mut self) {
+        if self.symbol_claims.is_empty() {
+            self.selected_symbol_claim_index = None;
+            return;
+        }
+
+        let selected_symbol_claim_index = self.selected_symbol_claim_index.unwrap_or(0);
+        self.selected_symbol_claim_index = Some(if selected_symbol_claim_index == 0 {
+            self.symbol_claims.len() - 1
+        } else {
+            selected_symbol_claim_index - 1
+        });
+    }
+
+    pub fn select_first_symbol_claim(&mut self) {
+        self.selected_symbol_claim_index = (!self.symbol_claims.is_empty()).then_some(0);
+    }
+
+    pub fn select_last_symbol_claim(&mut self) {
+        self.selected_symbol_claim_index = (!self.symbol_claims.is_empty()).then_some(self.symbol_claims.len().saturating_sub(1));
+    }
+
+    pub fn switch_to_project_symbols(&mut self) -> bool {
+        if self.active_project_directory_path.is_none() {
+            return false;
+        }
+
+        self.focus_target = ProjectExplorerFocusTarget::ProjectSymbols;
+        if self.selected_symbol_claim_index.is_none() && !self.symbol_claims.is_empty() {
+            self.selected_symbol_claim_index = Some(0);
+        }
+
+        true
+    }
+
+    pub fn switch_to_project_hierarchy(&mut self) -> bool {
+        if self.active_project_directory_path.is_none() {
+            return false;
+        }
+
+        self.focus_target = ProjectExplorerFocusTarget::ProjectHierarchy;
+        true
     }
 
     fn update_selected_project_fields(&mut self) {
@@ -901,8 +998,11 @@ impl Default for ProjectExplorerPaneState {
             is_moving_project_item: false,
             is_reordering_project_item: false,
             is_toggling_project_item_activation: false,
+            is_awaiting_project_symbol_list_response: false,
+            symbol_claims: Vec::new(),
             project_item_visible_entries: Vec::new(),
             selected_project_item_visible_index: None,
+            selected_symbol_claim_index: None,
             pending_move_source_paths: Vec::new(),
             pending_delete_confirmation_paths: Vec::new(),
             project_item_viewport_capacity: 0,
@@ -980,6 +1080,8 @@ mod tests {
     use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory;
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::projects::project_manifest::ProjectManifest;
+    use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+    use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
     use std::path::PathBuf;
 
     #[test]
@@ -1100,5 +1202,37 @@ mod tests {
         project_explorer_pane_state.select_first_project_item();
 
         assert_eq!(project_explorer_pane_state.selected_item_path.as_deref(), Some("Addresses/Health.json"));
+    }
+
+    #[test]
+    fn apply_project_symbols_list_selects_first_symbol_claim_when_present() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        project_explorer_pane_state.apply_project_symbols_list(Some(ProjectSymbolCatalog::new_with_symbol_claims(
+            Vec::new(),
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x100,
+                String::from("player"),
+            )],
+        )));
+
+        assert_eq!(project_explorer_pane_state.symbol_claims.len(), 1);
+        assert_eq!(project_explorer_pane_state.selected_symbol_claim_index, Some(0));
+        assert_eq!(
+            project_explorer_pane_state
+                .selected_symbol_claim()
+                .map(|symbol_claim| symbol_claim.get_symbol_locator_key()),
+            Some(String::from("absolute:100"))
+        );
+    }
+
+    #[test]
+    fn switch_to_project_symbols_requires_active_project() {
+        let mut project_explorer_pane_state = ProjectExplorerPaneState::default();
+        assert!(!project_explorer_pane_state.switch_to_project_symbols());
+
+        project_explorer_pane_state.set_active_project(Some(String::from("TestProject")), Some(PathBuf::from("C:/tmp/test_project")));
+        assert!(project_explorer_pane_state.switch_to_project_symbols());
+        assert_eq!(project_explorer_pane_state.focus_target, ProjectExplorerFocusTarget::ProjectSymbols);
     }
 }

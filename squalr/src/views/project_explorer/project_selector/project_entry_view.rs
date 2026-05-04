@@ -2,7 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button, context_menu::context_menu::ContextMenu, state_layer::StateLayer},
+        widgets::controls::{button::Button, state_layer::StateLayer},
     },
     views::project_explorer::project_selector::view_data::project_selector_frame_action::ProjectSelectorFrameAction,
 };
@@ -11,7 +11,7 @@ use eframe::egui::{
     text::{CCursor, CCursorRange},
     vec2,
 };
-use epaint::{Color32, CornerRadius, Pos2, Stroke, StrokeKind};
+use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::structures::projects::project_info::ProjectInfo;
 use std::sync::{Arc, RwLock};
 
@@ -19,8 +19,6 @@ pub struct ProjectEntryView<'lifetime> {
     app_context: Arc<AppContext>,
     project_info: &'lifetime ProjectInfo,
     icon: Option<TextureHandle>,
-    is_context_menu_visible: bool,
-    context_menu_position: &'lifetime Option<Pos2>,
     is_selected: bool,
     is_renaming: bool,
     rename_project_text: &'lifetime Arc<RwLock<(String, bool)>>,
@@ -32,8 +30,6 @@ impl<'lifetime> ProjectEntryView<'lifetime> {
         app_context: Arc<AppContext>,
         project_info: &'lifetime ProjectInfo,
         icon: Option<TextureHandle>,
-        is_context_menu_visible: bool,
-        context_menu_position: &'lifetime Option<Pos2>,
         is_selected: bool,
         is_renaming: bool,
         rename_project_text: &'lifetime Arc<RwLock<(String, bool)>>,
@@ -43,8 +39,6 @@ impl<'lifetime> ProjectEntryView<'lifetime> {
             app_context: app_context,
             project_info,
             icon,
-            is_context_menu_visible,
-            context_menu_position,
             is_selected,
             is_renaming,
             rename_project_text,
@@ -66,7 +60,6 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         let desired_size = vec2(user_interface.available_width(), row_height);
         let (available_size_id, available_size_rect) = user_interface.allocate_space(desired_size);
         let response = user_interface.interact(available_size_rect, available_size_id, Sense::click());
-        let default_context_menu_position = available_size_rect.min + vec2(0.0, row_height);
 
         // Draw selected background and border if applicable.
         if self.is_selected {
@@ -106,19 +99,6 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
             );
         } else if !self.is_renaming && response.clicked() {
             *self.project_selector_frame_action = ProjectSelectorFrameAction::SelectProject(self.project_info.get_project_file_path().to_path_buf());
-        } else if !self.is_renaming && response.secondary_clicked() {
-            // Only allow overriding other context menu actions.
-            match self.project_selector_frame_action {
-                ProjectSelectorFrameAction::None | ProjectSelectorFrameAction::HideContextMenu() | ProjectSelectorFrameAction::SelectProject(_) => {
-                    *self.project_selector_frame_action = ProjectSelectorFrameAction::ShowContextMenu(
-                        self.project_info.get_project_file_path().to_path_buf(),
-                        response
-                            .interact_pointer_pos()
-                            .unwrap_or(default_context_menu_position),
-                    );
-                }
-                _ => {}
-            }
         }
 
         // Add contents using a bounded UI scope.
@@ -127,21 +107,6 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
         user_interface.scope_builder(builder, |user_interface| {
             user_interface.horizontal(|user_interface| {
                 user_interface.set_height(row_height);
-                // Show context menu button.
-                let button_show_context_menu = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
-                let response_show_context_menu = user_interface.add_sized(button_size, button_show_context_menu);
-
-                IconDraw::draw(
-                    user_interface,
-                    response_show_context_menu.rect,
-                    &theme.icon_library.icon_handle_navigation_down_arrow_small,
-                );
-
-                if response_show_context_menu.clicked() {
-                    *self.project_selector_frame_action =
-                        ProjectSelectorFrameAction::ShowContextMenu(self.project_info.get_project_file_path().to_path_buf(), default_context_menu_position);
-                }
-
                 // Rename or cancel button.
                 if self.is_renaming {
                     let button_cancel_rename = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
@@ -176,141 +141,82 @@ impl<'lifetime> Widget for ProjectEntryView<'lifetime> {
                 }
 
                 // Icon + text/label.
-                user_interface.allocate_ui_with_layout(
-                    vec2(user_interface.available_width(), row_height),
-                    Layout::left_to_right(Align::Center),
-                    |user_interface| {
-                        // Draw icon if present.
-                        if let Some(icon) = &self.icon {
-                            let (_allocated_rect, icon_resp) = user_interface.allocate_exact_size(icon_size, Sense::hover());
-                            IconDraw::draw_sized(user_interface, icon_resp.rect.center(), icon_size, icon);
-                        }
-                        user_interface.add_space(text_left_padding);
-
-                        if self.is_renaming {
-                            let mut rename_project_guard = match self.rename_project_text.write() {
-                                Ok(rename_project_text) => rename_project_text,
-                                Err(error) => {
-                                    log::error!("Failed to acquire rename project text: {}", error);
-                                    return;
-                                }
-                            };
-                            let (rename_project_text, should_highlight_text) = &mut *rename_project_guard;
-                            let text_edit = TextEdit::singleline(rename_project_text)
-                                .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                .background_color(theme.background_control)
-                                .text_color(theme.foreground)
-                                .desired_width(f32::INFINITY);
-                            let mut output = text_edit.show(user_interface);
-                            let text_edit_response = output.response;
-
-                            if *should_highlight_text {
-                                let len_chars = rename_project_text.chars().count();
-
-                                text_edit_response.request_focus();
-                                output
-                                    .state
-                                    .cursor
-                                    .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(len_chars))));
-                                output.state.store(user_interface.ctx(), text_edit_response.id);
-                                *should_highlight_text = false;
-                            }
-
-                            if text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
-                                *self.project_selector_frame_action = ProjectSelectorFrameAction::CommitRename(
-                                    self.project_info.get_project_file_path().to_path_buf(),
-                                    std::mem::take(rename_project_text),
-                                );
-                            }
-                        } else {
-                            user_interface.add(
-                                Label::new(
-                                    RichText::new(self.project_info.get_name())
-                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                        .color(theme.foreground),
-                                )
-                                .selectable(false),
-                            );
-                            user_interface.add_space(user_interface.available_width());
-                        }
-                    },
-                );
-            });
-        });
-
-        let mut open = self.is_context_menu_visible;
-        let context_menu_position = self
-            .context_menu_position
-            .unwrap_or(default_context_menu_position);
-
-        if self.is_context_menu_visible {
-            ContextMenu::new(self.app_context.clone(), "file_ctx", context_menu_position, |user_interface, should_close| {
-                user_interface.horizontal(|user_interface| {
-                    user_interface.set_height(row_height);
-                    // Close context menu button.
-                    let button_close = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
-                    let response_close = user_interface.add_sized(button_size, button_close);
-
-                    IconDraw::draw(user_interface, response_close.rect, &theme.icon_library.icon_handle_close);
-
-                    if response_close.clicked() {
-                        *should_close = true;
+                let trailing_edit_button_width = if self.is_renaming { 0.0 } else { button_size.x };
+                let project_name_width = (user_interface.available_width() - trailing_edit_button_width).max(0.0);
+                user_interface.allocate_ui_with_layout(vec2(project_name_width, row_height), Layout::left_to_right(Align::Center), |user_interface| {
+                    // Draw icon if present.
+                    if let Some(icon) = &self.icon {
+                        let (_allocated_rect, icon_resp) = user_interface.allocate_exact_size(icon_size, Sense::hover());
+                        IconDraw::draw_sized(user_interface, icon_resp.rect.center(), icon_size, icon);
                     }
+                    user_interface.add_space(text_left_padding);
 
-                    // Open project button.
-                    let button_open = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
-                    let response_open = user_interface.add_sized(button_size, button_open);
+                    if self.is_renaming {
+                        let mut rename_project_guard = match self.rename_project_text.write() {
+                            Ok(rename_project_text) => rename_project_text,
+                            Err(error) => {
+                                log::error!("Failed to acquire rename project text: {}", error);
+                                return;
+                            }
+                        };
+                        let (rename_project_text, should_highlight_text) = &mut *rename_project_guard;
+                        let text_edit = TextEdit::singleline(rename_project_text)
+                            .font(theme.font_library.font_noto_sans.font_normal.clone())
+                            .background_color(theme.background_control)
+                            .text_color(theme.foreground)
+                            .desired_width(f32::INFINITY);
+                        let mut output = text_edit.show(user_interface);
+                        let text_edit_response = output.response;
 
-                    IconDraw::draw(user_interface, response_open.rect, &theme.icon_library.icon_handle_file_system_open_folder);
+                        if *should_highlight_text {
+                            let len_chars = rename_project_text.chars().count();
 
-                    if response_open.clicked() {
-                        *self.project_selector_frame_action = ProjectSelectorFrameAction::OpenProject(
-                            self.project_info.get_project_directory().unwrap_or_default(),
-                            self.project_info.get_name().to_string(),
-                        );
-                    }
+                            text_edit_response.request_focus();
+                            output
+                                .state
+                                .cursor
+                                .set_char_range(Some(CCursorRange::two(CCursor::new(0), CCursor::new(len_chars))));
+                            output.state.store(user_interface.ctx(), text_edit_response.id);
+                            *should_highlight_text = false;
+                        }
 
-                    // Rename or cancel button.
-                    if !self.is_renaming {
-                        let button_rename = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
-                        let response_rename = user_interface.add_sized(button_size, button_rename);
-
-                        IconDraw::draw(user_interface, response_rename.rect, &theme.icon_library.icon_handle_common_edit);
-
-                        if response_rename.clicked() {
-                            *self.project_selector_frame_action = ProjectSelectorFrameAction::StartRenamingProject(
+                        if text_edit_response.lost_focus() && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+                            *self.project_selector_frame_action = ProjectSelectorFrameAction::CommitRename(
                                 self.project_info.get_project_file_path().to_path_buf(),
-                                self.project_info.get_name().to_string(),
+                                std::mem::take(rename_project_text),
                             );
                         }
-                    }
-
-                    // Delete project button.
-                    let button_delete = Button::new_from_theme(theme).background_color(Color32::TRANSPARENT);
-                    let response_delete = user_interface.add_sized(button_size, button_delete);
-
-                    IconDraw::draw(user_interface, response_delete.rect, &theme.icon_library.icon_handle_common_delete);
-
-                    if response_delete.clicked() {
-                        *self.project_selector_frame_action = ProjectSelectorFrameAction::DeleteProject(
-                            self.project_info.get_project_directory().unwrap_or_default(),
-                            self.project_info.get_name().to_string(),
+                    } else {
+                        user_interface.add(
+                            Label::new(
+                                RichText::new(self.project_info.get_name())
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                    .color(theme.foreground),
+                            )
+                            .selectable(false),
                         );
+                        user_interface.add_space(user_interface.available_width());
                     }
                 });
-            })
-            .width(220.0)
-            .corner_radius(8)
-            .show(user_interface, &mut open);
-        }
 
-        if self.is_context_menu_visible && !open {
-            // Only accept the hide action if not already doing a show or select action.
-            match self.project_selector_frame_action {
-                ProjectSelectorFrameAction::SelectProject(_) | ProjectSelectorFrameAction::ShowContextMenu(_, _) => {}
-                _ => *self.project_selector_frame_action = ProjectSelectorFrameAction::HideContextMenu(),
-            }
-        }
+                if !self.is_renaming {
+                    let edit_response = user_interface.add_sized(
+                        button_size,
+                        Button::new_from_theme(theme)
+                            .background_color(Color32::TRANSPARENT)
+                            .with_tooltip_text("Edit project."),
+                    );
+                    IconDraw::draw(user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
+
+                    if edit_response.clicked() {
+                        *self.project_selector_frame_action = ProjectSelectorFrameAction::StartEditingProject(
+                            self.project_info.get_project_file_path().to_path_buf(),
+                            self.project_info.get_name().to_string(),
+                        );
+                    }
+                }
+            });
+        });
 
         response
     }

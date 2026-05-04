@@ -20,7 +20,7 @@ use squalr_engine_api::registries::scan_rules::element_scan_rule_registry::Eleme
 use squalr_engine_api::registries::symbols::privileged_registry_catalog::PrivilegedRegistryCatalog;
 use squalr_engine_api::registries::symbols::symbol_registry::SymbolRegistry;
 use squalr_engine_api::registries::symbols::{data_type_descriptor::DataTypeDescriptor, struct_layout_descriptor::StructLayoutDescriptor};
-use squalr_engine_api::structures::pointer_scans::pointer_scan_session::PointerScanSession;
+use squalr_engine_api::structures::pointer_scans::pointer_scan_results::PointerScanResults;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::snapshots::snapshot::Snapshot;
 use squalr_engine_operating_system::process_query::process_query_error::ProcessQueryError;
@@ -38,11 +38,11 @@ pub struct EnginePrivilegedState {
     /// The current snapshot of process memory, including any scan results.
     snapshot: Arc<RwLock<Snapshot>>,
 
-    /// The active pointer scan session and tree state.
-    pointer_scan_session: Arc<RwLock<Option<PointerScanSession>>>,
+    /// The active pointer scan results and tree state.
+    pointer_scan_results: Arc<RwLock<Option<PointerScanResults>>>,
 
-    /// Monotonically increasing identifier for new pointer scan sessions.
-    next_pointer_scan_session_id: AtomicU64,
+    /// Monotonically increasing identifier for new pointer scan results.
+    next_pointer_scan_results_id: AtomicU64,
 
     /// Monotonically increasing generation for privileged registry catalog exports.
     symbol_registry_generation: AtomicU64,
@@ -93,7 +93,7 @@ impl EnginePrivilegedState {
         let process_manager = ProcessManager::new(event_emitter.clone());
         let task_manager = TrackableTaskManager::new();
         let snapshot = Arc::new(RwLock::new(Snapshot::new()));
-        let pointer_scan_session = Arc::new(RwLock::new(None));
+        let pointer_scan_results = Arc::new(RwLock::new(None));
         let registries = Arc::new(Registries::new());
         let plugin_registry = Arc::new(PluginRegistry::new());
         Self::register_plugin_data_types(registries.get_symbol_registry().as_ref(), plugin_registry.get_plugin_packages());
@@ -109,8 +109,8 @@ impl EnginePrivilegedState {
             process_manager,
             task_manager,
             snapshot,
-            pointer_scan_session,
-            next_pointer_scan_session_id: AtomicU64::new(0),
+            pointer_scan_results,
+            next_pointer_scan_results_id: AtomicU64::new(0),
             symbol_registry_generation: AtomicU64::new(1),
             symbol_registry_mutation_guard: Mutex::new(()),
             engine_bindings,
@@ -143,14 +143,14 @@ impl EnginePrivilegedState {
         self.snapshot.clone()
     }
 
-    /// Gets the active pointer scan session, if any.
-    pub fn get_pointer_scan_session(&self) -> Arc<RwLock<Option<PointerScanSession>>> {
-        self.pointer_scan_session.clone()
+    /// Gets the active pointer scan results, if any.
+    pub fn get_pointer_scan_results(&self) -> Arc<RwLock<Option<PointerScanResults>>> {
+        self.pointer_scan_results.clone()
     }
 
-    /// Allocates a stable identifier for a new pointer scan session.
-    pub fn allocate_pointer_scan_session_id(&self) -> u64 {
-        self.next_pointer_scan_session_id.fetch_add(1, Ordering::SeqCst) + 1
+    /// Allocates a stable identifier for new pointer scan results.
+    pub fn allocate_pointer_scan_results_id(&self) -> u64 {
+        self.next_pointer_scan_results_id.fetch_add(1, Ordering::SeqCst) + 1
     }
 
     pub fn get_privileged_registry_catalog(&self) -> PrivilegedRegistryCatalog {

@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        geometry::safe_clamp_f32,
         widgets::controls::{checkbox::Checkbox, state_layer::StateLayer},
     },
     views::project_explorer::project_hierarchy::view_data::project_hierarchy_frame_action::ProjectHierarchyFrameAction,
@@ -20,6 +21,7 @@ pub struct ProjectItemEntryView<'lifetime> {
     depth: usize,
     icon: Option<TextureHandle>,
     is_selected: bool,
+    is_cut: bool,
     is_directory: bool,
     has_children: bool,
     is_expanded: bool,
@@ -43,6 +45,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
         depth: usize,
         icon: Option<TextureHandle>,
         is_selected: bool,
+        is_cut: bool,
         is_directory: bool,
         has_children: bool,
         is_expanded: bool,
@@ -58,6 +61,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
             depth,
             icon,
             is_selected,
+            is_cut,
             is_directory,
             has_children,
             is_expanded,
@@ -72,6 +76,13 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
         user_interface: &mut Ui,
     ) -> ProjectItemEntryViewResponse {
         let theme = &self.app_context.theme;
+        let row_foreground = if self.is_cut { theme.foreground_preview } else { theme.foreground };
+        let row_foreground_preview = if self.is_cut {
+            theme.foreground_preview.gamma_multiply(0.85)
+        } else {
+            theme.foreground_preview
+        };
+        let row_icon_tint = if self.is_cut { theme.foreground_preview } else { Color32::WHITE };
         let icon_size = vec2(16.0, 16.0);
         let expand_arrow_size = vec2(10.0, 10.0);
         let row_left_padding = 8.0;
@@ -168,10 +179,10 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
         let display_name_font = theme.font_library.font_noto_sans.font_normal.clone();
         let preview_path_font = theme.font_library.font_noto_sans.font_small.clone();
         let preview_value_font = theme.font_library.font_noto_sans.font_small.clone();
-        let preview_value_width = Self::measure_text_width(user_interface, self.preview_value, &preview_value_font, theme.foreground_preview);
+        let preview_value_width = Self::measure_text_width(user_interface, self.preview_value, &preview_value_font, row_foreground_preview);
         let left_text_max_x = preview_pos.x - preview_value_width - 12.0;
         let max_left_text_width = (left_text_max_x - text_pos.x).max(0.0);
-        let value_hit_box_left = left_text_max_x.clamp(text_pos.x, allocated_size_rectangle.max.x);
+        let value_hit_box_left = safe_clamp_f32(left_text_max_x, text_pos.x, allocated_size_rectangle.max.x);
         let name_hit_box_rect = Rect::from_min_max(
             pos2(text_pos.x, allocated_size_rectangle.min.y),
             pos2(value_hit_box_left, allocated_size_rectangle.max.y),
@@ -179,20 +190,20 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
         let value_hit_box_rect = Rect::from_min_max(pos2(value_hit_box_left, allocated_size_rectangle.min.y), allocated_size_rectangle.max);
 
         if let Some(icon) = &self.icon {
-            IconDraw::draw_sized(user_interface, icon_rect.center(), icon_size, icon);
+            IconDraw::draw_sized_tinted(user_interface, icon_rect.center(), icon_size, icon, row_icon_tint);
         }
 
-        let full_display_name_width = Self::measure_text_width(user_interface, self.display_name, &display_name_font, theme.foreground);
+        let full_display_name_width = Self::measure_text_width(user_interface, self.display_name, &display_name_font, row_foreground);
         let display_name_text = if self.preview_path.is_empty() || full_display_name_width >= max_left_text_width {
-            Self::truncate_text_to_width(user_interface, self.display_name, &display_name_font, theme.foreground, max_left_text_width)
+            Self::truncate_text_to_width(user_interface, self.display_name, &display_name_font, row_foreground, max_left_text_width)
         } else {
             self.display_name.to_string()
         };
-        let display_name_width = Self::measure_text_width(user_interface, &display_name_text, &display_name_font, theme.foreground);
+        let display_name_width = Self::measure_text_width(user_interface, &display_name_text, &display_name_font, row_foreground);
 
         user_interface
             .painter()
-            .text(text_pos, Align2::LEFT_CENTER, display_name_text, display_name_font.clone(), theme.foreground);
+            .text(text_pos, Align2::LEFT_CENTER, display_name_text, display_name_font.clone(), row_foreground);
 
         if !self.preview_path.is_empty() && display_name_width < max_left_text_width {
             let preview_path_gap = 10.0;
@@ -202,7 +213,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
                 user_interface,
                 self.preview_path,
                 &preview_path_font,
-                theme.foreground_preview,
+                row_foreground_preview,
                 max_preview_path_width,
             );
 
@@ -212,7 +223,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
                     Align2::LEFT_CENTER,
                     preview_path_text,
                     preview_path_font,
-                    theme.foreground_preview,
+                    row_foreground_preview,
                 );
             }
         }
@@ -222,7 +233,7 @@ impl<'lifetime> ProjectItemEntryView<'lifetime> {
             Align2::RIGHT_CENTER,
             self.preview_value,
             preview_value_font,
-            theme.foreground_preview,
+            row_foreground_preview,
         );
 
         let click_position = response

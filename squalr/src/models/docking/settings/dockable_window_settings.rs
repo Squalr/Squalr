@@ -12,6 +12,8 @@ use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
+use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use serde::{Deserialize, Serialize};
 use serde_json::to_string_pretty;
 use std::fs;
@@ -46,18 +48,23 @@ impl DockSettingsConfig {
                                 0.5,
                                 DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
-                                    .visible(false)
                                     .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
                             )
-                            .push_child(0.5, DockBuilder::window(StructViewerView::WINDOW_ID)),
+                            .push_child(
+                                0.5,
+                                DockBuilder::tab_node(StructViewerView::WINDOW_ID)
+                                    .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
+                                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
+                                    .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+                            ),
                     )
                     .push_child(
                         0.5,
                         DockBuilder::tab_node(OutputView::WINDOW_ID)
                             .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false)),
+                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(PluginsView::WINDOW_ID)),
                     ),
             )
             .push_child(
@@ -65,7 +72,7 @@ impl DockSettingsConfig {
                 DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+                    .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
             )
             .build();
 
@@ -77,25 +84,31 @@ impl DockSettingsConfig {
                     .push_child(
                         0.5,
                         DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
-                            .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID).visible(false))
+                            .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
                             .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
                     )
                     .push_child(
                         0.5,
                         DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                            .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+                            .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID)),
                     ),
             )
-            .push_child(0.25, DockBuilder::window(StructViewerView::WINDOW_ID))
+            .push_child(
+                0.25,
+                DockBuilder::tab_node(StructViewerView::WINDOW_ID)
+                    .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
+            )
             .push_child(
                 0.2,
                 DockBuilder::tab_node(OutputView::WINDOW_ID)
                     .push_tab(DockBuilder::window(OutputView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID).visible(false))
-                    .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID).visible(false))
-                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID).visible(false)),
+                    .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(CodeViewerView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(PluginsView::WINDOW_ID)),
             )
             .build();
 
@@ -103,12 +116,25 @@ impl DockSettingsConfig {
     }
 
     fn ensure_required_windows_present(&mut self) {
-        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
-        Self::ensure_hidden_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
+        Self::remove_obsolete_window(&mut self.dock_root, "window_symbol_table");
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, PluginsView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
-    fn ensure_hidden_tab_window(
+    fn remove_obsolete_window(
+        dock_root: &mut DockNode,
+        obsolete_window_id: &str,
+    ) {
+        while let Some(obsolete_window_path) = dock_root.find_path_to_window_id(obsolete_window_id) {
+            dock_root.remove_window_by_path(&obsolete_window_path);
+        }
+    }
+
+    fn ensure_tab_window(
         dock_root: &mut DockNode,
         anchor_window_id: &str,
         missing_window_id: &str,
@@ -127,7 +153,7 @@ impl DockSettingsConfig {
         if let DockNode::Tab { tabs, .. } = anchor_container_node {
             tabs.push(DockNode::Window {
                 window_identifier: missing_window_id.to_string(),
-                is_visible: false,
+                is_visible: true,
             });
         }
     }
@@ -212,9 +238,12 @@ impl DockableWindowSettings {
 #[cfg(test)]
 mod tests {
     use super::DockSettingsConfig;
+    use crate::models::docking::builder::dock_builder::DockBuilder;
     use crate::views::{
-        code_viewer::code_viewer_view::CodeViewerView, memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView,
-        plugins::plugins_view::PluginsView,
+        code_viewer::code_viewer_view::CodeViewerView, element_scanner::scanner::element_scanner_view::ElementScannerView,
+        memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView, plugins::plugins_view::PluginsView,
+        pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
+        symbol_explorer::symbol_explorer_view::SymbolExplorerView, symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView,
     };
 
     #[test]
@@ -224,5 +253,46 @@ mod tests {
         assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, PluginsView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, MemoryViewerView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID));
+    }
+
+    #[test]
+    fn default_layout_places_symbol_explorer_with_scan_windows() {
+        let dock_root = DockSettingsConfig::get_default_layout();
+
+        assert!(dock_root.are_windows_in_same_tab_group(ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(PointerScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+    }
+
+    #[test]
+    fn ensure_required_windows_present_removes_obsolete_symbol_table_window() {
+        let mut dock_settings_config = DockSettingsConfig {
+            dock_root: DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
+                .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
+                .push_tab(DockBuilder::window("window_symbol_table"))
+                .build(),
+        };
+
+        dock_settings_config.ensure_required_windows_present();
+
+        assert!(
+            dock_settings_config
+                .dock_root
+                .find_path_to_window_id("window_symbol_table")
+                .is_none()
+        );
+        assert!(
+            dock_settings_config
+                .dock_root
+                .find_path_to_window_id(SymbolExplorerView::WINDOW_ID)
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn default_layout_places_settings_with_struct_viewer() {
+        let dock_root = DockSettingsConfig::get_default_layout();
+
+        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
     }
 }

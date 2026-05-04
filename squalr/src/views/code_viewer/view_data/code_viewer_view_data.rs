@@ -1,3 +1,4 @@
+use crate::ui::geometry::safe_clamp_ord;
 use eframe::egui::Pos2;
 use squalr_engine_api::{
     commands::{
@@ -17,7 +18,6 @@ use squalr_engine_api::{
             normalized_module::NormalizedModule,
             normalized_region::NormalizedRegion,
         },
-        projects::project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     },
 };
@@ -936,11 +936,11 @@ impl CodeViewerViewData {
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name: Self::format_project_item_name(project_item_address, &project_item_module_name),
-            project_item_type: ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID.to_string(),
-            pointer: None,
+            is_directory: false,
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
+            pointer_offsets: None,
         })
     }
 
@@ -1228,55 +1228,54 @@ impl CodeViewerViewData {
         selected_page_base_address: Option<u64>,
         memory_query_response: MemoryQueryResponse,
     ) {
-        let has_pages = match code_viewer_view_data.write("Code viewer apply memory query response") {
-            Some(mut code_viewer_view_data) => {
-                if !code_viewer_view_data.should_apply_memory_pages_request(request_revision) {
-                    return;
-                }
+        let has_pages =
+            match code_viewer_view_data.write("Code viewer apply memory query response") {
+                Some(mut code_viewer_view_data) => {
+                    if !code_viewer_view_data.should_apply_memory_pages_request(request_revision) {
+                        return;
+                    }
 
-                code_viewer_view_data.complete_memory_pages_request();
+                    code_viewer_view_data.complete_memory_pages_request();
 
-                if !memory_query_response.success {
-                    return;
-                }
+                    if !memory_query_response.success {
+                        return;
+                    }
 
-                code_viewer_view_data.virtual_pages = memory_query_response.virtual_pages;
-                code_viewer_view_data.modules = memory_query_response.modules;
-                code_viewer_view_data.cached_last_page_index = code_viewer_view_data.virtual_pages.len().saturating_sub(1) as u64;
+                    code_viewer_view_data.virtual_pages = memory_query_response.virtual_pages;
+                    code_viewer_view_data.modules = memory_query_response.modules;
+                    code_viewer_view_data.cached_last_page_index = code_viewer_view_data.virtual_pages.len().saturating_sub(1) as u64;
 
-                if !code_viewer_view_data.try_apply_pending_focus_request() {
-                    code_viewer_view_data.current_page_index =
-                        Self::resolve_page_index_after_refresh(&code_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
-                            Self::resolve_initial_page_index(&code_viewer_view_data.virtual_pages, &code_viewer_view_data.modules).unwrap_or(
-                                code_viewer_view_data
-                                    .current_page_index
-                                    .clamp(0, code_viewer_view_data.cached_last_page_index),
-                            )
-                        });
+                    if !code_viewer_view_data.try_apply_pending_focus_request() {
+                        code_viewer_view_data.current_page_index =
+                            Self::resolve_page_index_after_refresh(&code_viewer_view_data.virtual_pages, selected_page_base_address).unwrap_or_else(|| {
+                                Self::resolve_initial_page_index(&code_viewer_view_data.virtual_pages, &code_viewer_view_data.modules).unwrap_or(
+                                    safe_clamp_ord(code_viewer_view_data.current_page_index, 0, code_viewer_view_data.cached_last_page_index),
+                                )
+                            });
 
-                    if let Some(current_page) = code_viewer_view_data
+                        if let Some(current_page) = code_viewer_view_data
+                            .virtual_pages
+                            .get(code_viewer_view_data.current_page_index as usize)
+                        {
+                            code_viewer_view_data.viewport_start_address = Some(current_page.get_base_address());
+                        }
+                    }
+
+                    let current_page = code_viewer_view_data
                         .virtual_pages
                         .get(code_viewer_view_data.current_page_index as usize)
-                    {
-                        code_viewer_view_data.viewport_start_address = Some(current_page.get_base_address());
-                    }
+                        .cloned();
+                    code_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
+                        &code_viewer_view_data.modules,
+                        &code_viewer_view_data.unreadable_page_base_addresses,
+                        current_page.as_ref(),
+                        code_viewer_view_data.viewport_start_address,
+                    );
+
+                    !code_viewer_view_data.virtual_pages.is_empty()
                 }
-
-                let current_page = code_viewer_view_data
-                    .virtual_pages
-                    .get(code_viewer_view_data.current_page_index as usize)
-                    .cloned();
-                code_viewer_view_data.stats_string = Self::format_stats_for_page_from_modules(
-                    &code_viewer_view_data.modules,
-                    &code_viewer_view_data.unreadable_page_base_addresses,
-                    current_page.as_ref(),
-                    code_viewer_view_data.viewport_start_address,
-                );
-
-                !code_viewer_view_data.virtual_pages.is_empty()
-            }
-            None => false,
-        };
+                None => false,
+            };
 
         if has_pages {
             engine_unprivileged_state.request_virtual_snapshot_refresh(Self::WINDOW_VIRTUAL_SNAPSHOT_ID);
@@ -1416,7 +1415,7 @@ impl CodeViewerViewData {
                     return None;
                 }
 
-                let clamped_address = target_address.clamp(page_base_address, page_end_address.saturating_sub(1));
+                let clamped_address = safe_clamp_ord(target_address, page_base_address, page_end_address.saturating_sub(1));
 
                 Some((page_index as u64, clamped_address, clamped_address.abs_diff(target_address)))
             })
@@ -1426,12 +1425,15 @@ impl CodeViewerViewData {
 
     fn resolve_viewport_start_address(&self) -> Option<u64> {
         let current_page = self.virtual_pages.get(self.current_page_index as usize)?;
+        let viewport_start_address = self
+            .viewport_start_address
+            .unwrap_or_else(|| current_page.get_base_address());
 
-        Some(
-            self.viewport_start_address
-                .unwrap_or_else(|| current_page.get_base_address())
-                .clamp(current_page.get_base_address(), Self::max_viewport_start_address(current_page)),
-        )
+        Some(safe_clamp_ord(
+            viewport_start_address,
+            current_page.get_base_address(),
+            Self::max_viewport_start_address(current_page),
+        ))
     }
 
     fn derive_viewport_start_for_focus_address(
@@ -1447,7 +1449,11 @@ impl CodeViewerViewData {
         normalized_region: &NormalizedRegion,
         viewport_start_address: u64,
     ) -> u64 {
-        viewport_start_address.clamp(normalized_region.get_base_address(), Self::max_viewport_start_address(normalized_region))
+        safe_clamp_ord(
+            viewport_start_address,
+            normalized_region.get_base_address(),
+            Self::max_viewport_start_address(normalized_region),
+        )
     }
 
     fn max_viewport_start_address(normalized_region: &NormalizedRegion) -> u64 {
@@ -1817,7 +1823,7 @@ mod tests {
         .expect("Expected instruction project item request.");
 
         assert_eq!(create_request.address, Some(0x4));
-        assert_eq!(create_request.module_name.as_deref(), Some("winmine.exe"));
+        assert_eq!(create_request.module_name, Some(String::from("winmine.exe")));
         assert_eq!(create_request.data_type_id.as_deref(), Some("i_x86[7]"));
     }
 

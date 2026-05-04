@@ -1,3 +1,4 @@
+use crate::ui::geometry::safe_clamp_ord;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
@@ -14,7 +15,6 @@ use squalr_engine_api::structures::data_values::anonymous_value_string_format::A
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::address_display::{is_virtual_module_address, try_resolve_virtual_module_address};
 use squalr_engine_api::structures::memory::bitness::Bitness;
-use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_address_space::PointerScanAddressSpace;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node::PointerScanNode;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_node_type::PointerScanNodeType;
@@ -365,6 +365,10 @@ impl PointerScannerViewData {
                                 page_index: 0,
                             });
                         }
+
+                        if let Some(pointer_scan_summary) = pointer_scan_summary.as_ref() {
+                            pointer_scanner_view_data_guard.status_message = Self::format_start_completed_status(pointer_scan_summary);
+                        }
                     } else if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
                         pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
                     }
@@ -460,6 +464,10 @@ impl PointerScannerViewData {
                                 parent_node_id: None,
                                 page_index: 0,
                             });
+                        }
+
+                        if let Some(pointer_scan_summary) = pointer_scan_summary.as_ref() {
+                            pointer_scanner_view_data_guard.status_message = Self::format_start_completed_status(pointer_scan_summary);
                         }
                     } else if pointer_scanner_view_data_guard.should_apply_session_request(session_request_revision) {
                         pointer_scanner_view_data_guard.status_message = String::from("Cannot start pointer scan without an opened process.");
@@ -1101,17 +1109,24 @@ impl PointerScannerViewData {
         target_directory_path: Option<PathBuf>,
     ) -> Option<ProjectItemsCreateRequest> {
         let pointer_scanner_view_data_guard = pointer_scanner_view_data.read("Pointer scanner build project item create request")?;
-        let pointer = pointer_scanner_view_data_guard.build_selected_leaf_pointer()?;
+        let selected_node_id = pointer_scanner_view_data_guard.selected_node_id?;
+        let selected_pointer_scan_node = pointer_scanner_view_data_guard
+            .nodes_by_id
+            .get(&selected_node_id)?;
+        if selected_pointer_scan_node.has_children() {
+            log::warn!("Select a leaf pointer node before adding it to the project.");
+            return None;
+        }
         let project_item_name = pointer_scanner_view_data_guard.build_selected_project_item_name()?;
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name,
-            project_item_type: String::from("pointer"),
-            pointer: Some(pointer),
-            address: None,
-            module_name: None,
+            is_directory: false,
+            address: Some(selected_pointer_scan_node.get_resolved_target_address()),
+            module_name: Some(String::new()),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
+            pointer_offsets: None,
         })
     }
 
@@ -1127,17 +1142,16 @@ impl PointerScannerViewData {
             return None;
         }
 
-        let pointer = pointer_scanner_view_data_guard.build_pointer_for_node(node_id)?;
         let project_item_name = pointer_scanner_view_data_guard.build_project_item_name(node_id)?;
 
         Some(ProjectItemsCreateRequest {
             parent_directory_path: target_directory_path.unwrap_or_default(),
             project_item_name,
-            project_item_type: String::from("pointer"),
-            pointer: Some(pointer),
-            address: None,
-            module_name: None,
+            is_directory: false,
+            address: Some(pointer_scan_node.get_resolved_target_address()),
+            module_name: Some(String::new()),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
+            pointer_offsets: None,
         })
     }
 
@@ -1419,7 +1433,7 @@ impl PointerScannerViewData {
             Some(pointer_scanner_view_data_guard) => pointer_scanner_view_data_guard,
             None => return,
         };
-        let bounded_page_index = new_page_index.clamp(0, pointer_scanner_view_data_guard.cached_last_page_index);
+        let bounded_page_index = safe_clamp_ord(new_page_index, 0, pointer_scanner_view_data_guard.cached_last_page_index);
 
         if bounded_page_index == pointer_scanner_view_data_guard.current_page_index {
             return;
@@ -1626,45 +1640,6 @@ impl PointerScannerViewData {
         self.is_starting_scan || self.is_validating_scan || self.is_resetting_scan
     }
 
-    fn build_selected_leaf_pointer(&self) -> Option<Pointer> {
-        let selected_node_id = self.selected_node_id?;
-        let selected_pointer_scan_node = self.nodes_by_id.get(&selected_node_id)?;
-
-        if selected_pointer_scan_node.has_children() {
-            log::warn!("Select a leaf pointer node before copying, exporting, or adding it to the project.");
-            return None;
-        }
-
-        self.build_pointer_for_node(selected_node_id)
-    }
-
-    fn build_pointer_for_node(
-        &self,
-        node_id: u64,
-    ) -> Option<Pointer> {
-        let pointer_scan_summary = self.pointer_scan_summary.as_ref()?;
-        let pointer_chain = self.collect_node_path(node_id)?;
-        let root_pointer_scan_node = pointer_chain.first()?;
-        let pointer_offsets = pointer_chain
-            .iter()
-            .filter(|pointer_scan_node| Self::should_include_node_offset_in_chain(pointer_scan_node))
-            .map(PointerScanNode::get_pointer_offset)
-            .collect::<Vec<_>>();
-
-        let (root_address, module_name) = if root_pointer_scan_node.get_pointer_scan_node_type() == PointerScanNodeType::Static {
-            (root_pointer_scan_node.get_module_offset(), root_pointer_scan_node.get_module_name().to_string())
-        } else {
-            (root_pointer_scan_node.get_pointer_address(), String::new())
-        };
-
-        Some(Pointer::new_with_size(
-            root_address,
-            pointer_offsets,
-            module_name,
-            pointer_scan_summary.get_pointer_size(),
-        ))
-    }
-
     fn collect_node_path(
         &self,
         node_id: u64,
@@ -1782,6 +1757,10 @@ impl PointerScannerViewData {
             pointer_scan_summary.get_total_static_node_count(),
             pointer_scan_summary.get_total_heap_node_count(),
         )
+    }
+
+    fn format_start_completed_status(pointer_scan_summary: &PointerScanSummary) -> String {
+        format!("Pointer scan complete | {}", Self::format_summary_status(pointer_scan_summary))
     }
 
     fn format_refreshing_summary_status(session_id: Option<u64>) -> String {
@@ -2294,23 +2273,17 @@ mod tests {
     }
 
     #[test]
-    fn build_project_item_create_request_uses_leaf_chain_pointer() {
+    fn build_project_item_create_request_uses_leaf_chain_resolved_address() {
         let dependency_container = DependencyContainer::new();
         let pointer_scanner_view_data = dependency_container.register(create_pointer_scanner_view_data());
 
         let project_item_create_request =
             PointerScannerViewData::build_project_item_create_request(pointer_scanner_view_data, Some("project_items/Pointers".into()))
                 .expect("Expected leaf chain request.");
-        let pointer = project_item_create_request
-            .pointer
-            .expect("Expected pointer payload.");
 
-        assert_eq!(project_item_create_request.project_item_type, "pointer");
         assert_eq!(project_item_create_request.project_item_name, "game.exe+0x10 [2]");
-        assert_eq!(pointer.get_address(), 0x10);
-        assert_eq!(pointer.get_module_name(), "game.exe");
-        assert_eq!(pointer.get_offsets(), &[0x10, -0x10]);
-        assert_eq!(pointer.get_pointer_size(), PointerScanPointerSize::Pointer64);
+        assert_eq!(project_item_create_request.address, Some(0x3010));
+        assert_eq!(project_item_create_request.module_name, Some(String::new()));
         assert_eq!(project_item_create_request.data_type_id, Some(String::from("i32")));
     }
 
@@ -3226,6 +3199,14 @@ mod tests {
         wait_for_condition("pointer scanner start response repaint request", || {
             repaint_request_count.load(Ordering::Relaxed) > repaint_request_count_before_start_response
         });
+
+        let pointer_scanner_view_data_guard = pointer_scanner_view_data
+            .read("Pointer scanner start completed status test")
+            .expect("Expected the pointer scanner view data read guard after the start response.");
+        assert_eq!(
+            pointer_scanner_view_data_guard.status_message,
+            "Pointer scan complete | Session 11 | Target 0x3010 | Space host | Roots 1 | Nodes 2 (Static 1 / Heap 1)"
+        );
     }
 
     #[test]

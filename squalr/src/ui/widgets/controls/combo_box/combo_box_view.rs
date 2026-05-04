@@ -1,7 +1,7 @@
 use crate::app_context::AppContext;
 use crate::ui::widgets::controls::state_layer::StateLayer;
 use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Response, Sense, Ui, Widget};
-use epaint::{Color32, CornerRadius, Margin, Rect, TextureHandle, Vec2, pos2, vec2};
+use epaint::{Color32, CornerRadius, Margin, Rect, Stroke, TextureHandle, Vec2, pos2, vec2};
 use std::{borrow::Cow, sync::Arc};
 
 /// A combo box that allows arbitrary custom content (ie not a normalized dropdown entry list).
@@ -236,17 +236,23 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let area_response = Area::new(popup_id_area)
             .order(Order::Foreground)
             .fixed_pos(popup_pos)
+            .constrain_to(user_interface.ctx().content_rect())
             .show(user_interface.ctx(), |popup_user_interface| {
-                Frame::popup(user_interface.style())
+                Frame::new()
                     .fill(theme.background_primary)
+                    .stroke(Stroke::new(self.border_width, theme.submenu_border))
                     .inner_margin(Margin::ZERO)
+                    .outer_margin(0)
                     .corner_radius(self.corner_radius)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.spacing_mut().menu_margin = Margin::ZERO;
                         popup_user_interface.spacing_mut().window_margin = Margin::ZERO;
                         popup_user_interface.spacing_mut().menu_spacing = 0.0;
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
+                        // ScrollArea expands its clip rect by `visuals.clip_rect_margin`; keep combo rows inside the popup border.
+                        popup_user_interface.visuals_mut().clip_rect_margin = 0.0;
                         popup_user_interface.set_min_width(self.width);
+                        popup_user_interface.set_max_width(self.width);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             (self.add_contents)(inner_user_interface, &mut should_close);
                         });

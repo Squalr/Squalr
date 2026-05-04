@@ -6,7 +6,7 @@ pub mod pointer_scan_level_summary;
 pub mod pointer_scan_node;
 pub mod pointer_scan_node_type;
 pub mod pointer_scan_pointer_size;
-pub mod pointer_scan_session;
+pub mod pointer_scan_results;
 pub mod pointer_scan_summary;
 pub mod pointer_scan_target_descriptor;
 pub mod pointer_scan_target_request;

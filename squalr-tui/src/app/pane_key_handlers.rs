@@ -1,6 +1,7 @@
 use super::app_shell::AppShell;
 use crate::state::pane::TuiPane;
 use crate::views::element_scanner::pane_state::ElementScannerFocusTarget;
+use crate::views::memory_viewer::pane_state::MemoryViewerInputMode;
 use crate::views::process_selector::pane_state::ProcessSelectorInputMode;
 use crate::views::project_explorer::pane_state::{ProjectExplorerFocusTarget, ProjectSelectorInputMode};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -19,6 +20,8 @@ impl AppShell {
             TuiPane::ProjectExplorer => self.handle_project_explorer_key_event(key_event, squalr_engine),
             TuiPane::StructViewer => self.handle_struct_viewer_key_event(key_event, squalr_engine),
             TuiPane::MemoryViewer => self.handle_memory_viewer_key_event(key_event, squalr_engine),
+            TuiPane::MemoryInterpretation => self.handle_memory_interpretation_key_event(key_event, squalr_engine),
+            TuiPane::CodeViewer => self.handle_code_viewer_key_event(key_event, squalr_engine),
             TuiPane::Output => self.handle_output_key_event(key_event.code, squalr_engine),
             TuiPane::Settings => self.handle_settings_key_event(key_event, squalr_engine),
             TuiPane::Plugins => self.handle_plugins_key_event(key_event, squalr_engine),
@@ -468,6 +471,7 @@ impl AppShell {
         match self.app_state.project_explorer_pane_state.focus_target {
             ProjectExplorerFocusTarget::ProjectList => self.handle_project_list_key_event(key_event.code, squalr_engine),
             ProjectExplorerFocusTarget::ProjectHierarchy => self.handle_project_hierarchy_key_event(key_event.code, squalr_engine),
+            ProjectExplorerFocusTarget::ProjectSymbols => self.handle_project_symbols_key_event(key_event.code, squalr_engine),
         }
     }
 
@@ -565,6 +569,8 @@ impl AppShell {
                 self.sync_struct_viewer_focus_from_project_items(squalr_engine);
             }
             KeyCode::Char('o') => self.open_memory_viewer_for_selected_project_item(squalr_engine),
+            KeyCode::Char('v') => self.open_code_viewer_for_selected_project_item(squalr_engine),
+            KeyCode::Char('p') => self.promote_selected_project_item_to_symbol(squalr_engine),
             KeyCode::Char('n') => {
                 if !self
                     .app_state
@@ -587,6 +593,17 @@ impl AppShell {
                 }
             }
             KeyCode::Char('b') => self.move_staged_project_items_to_selected_directory(squalr_engine),
+            KeyCode::Char('s') => {
+                if self
+                    .app_state
+                    .project_explorer_pane_state
+                    .switch_to_project_symbols()
+                {
+                    self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
+                } else {
+                    self.app_state.project_explorer_pane_state.status_message = "No active project is available for symbol claim browsing.".to_string();
+                }
+            }
             KeyCode::Char('u') => {
                 self.app_state
                     .project_explorer_pane_state
@@ -596,6 +613,43 @@ impl AppShell {
             KeyCode::Char('[') => self.reorder_selected_project_item(squalr_engine, true),
             KeyCode::Char(']') => self.reorder_selected_project_item(squalr_engine, false),
             KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_project_item_with_confirmation(squalr_engine),
+            KeyCode::Char('c') => self.close_active_project(squalr_engine),
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_project_symbols_key_event(
+        &mut self,
+        key_code: KeyCode,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        match key_code {
+            KeyCode::Char('r') => self.refresh_project_symbols_list(squalr_engine),
+            KeyCode::Down => self
+                .app_state
+                .project_explorer_pane_state
+                .select_next_symbol_claim(),
+            KeyCode::Up => self
+                .app_state
+                .project_explorer_pane_state
+                .select_previous_symbol_claim(),
+            KeyCode::Home => self
+                .app_state
+                .project_explorer_pane_state
+                .select_first_symbol_claim(),
+            KeyCode::End => self
+                .app_state
+                .project_explorer_pane_state
+                .select_last_symbol_claim(),
+            KeyCode::Char('o') => self.open_memory_viewer_for_selected_symbol_claim(squalr_engine),
+            KeyCode::Char('v') => self.open_code_viewer_for_selected_symbol_claim(squalr_engine),
+            KeyCode::Char('x') | KeyCode::Delete => self.delete_selected_symbol_claim(squalr_engine),
+            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('s') => {
+                let _ = self
+                    .app_state
+                    .project_explorer_pane_state
+                    .switch_to_project_hierarchy();
+            }
             KeyCode::Char('c') => self.close_active_project(squalr_engine),
             _ => {}
         }
@@ -715,16 +769,169 @@ impl AppShell {
         key_event: KeyEvent,
         squalr_engine: &mut SqualrEngine,
     ) {
+        if self.app_state.memory_viewer_pane_state.input_mode == MemoryViewerInputMode::SeekInput {
+            match key_event.code {
+                KeyCode::Esc => self.app_state.memory_viewer_pane_state.cancel_seek_input(),
+                KeyCode::Enter => {
+                    if self.app_state.memory_viewer_pane_state.commit_seek_input() {
+                        self.sync_memory_viewer_virtual_snapshot_from_engine(squalr_engine);
+                    }
+                }
+                KeyCode::Backspace => self
+                    .app_state
+                    .memory_viewer_pane_state
+                    .backspace_pending_seek_input(),
+                KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                    self.app_state
+                        .memory_viewer_pane_state
+                        .clear_pending_seek_input();
+                }
+                KeyCode::Char(pending_character) => {
+                    self.app_state
+                        .memory_viewer_pane_state
+                        .append_pending_seek_character(pending_character);
+                }
+                _ => {}
+            }
+            self.sync_memory_interpretation_from_memory_selection();
+
+            return;
+        }
+
+        let extend_selection = key_event.modifiers.contains(KeyModifiers::SHIFT);
+
         match key_event.code {
             KeyCode::Char('r') => self.refresh_memory_viewer_pages(squalr_engine),
+            KeyCode::Char('g') | KeyCode::Char('/') => self.app_state.memory_viewer_pane_state.begin_seek_input(),
             KeyCode::Char('[') => self.app_state.memory_viewer_pane_state.navigate_previous_page(),
             KeyCode::Char(']') => self.app_state.memory_viewer_pane_state.navigate_next_page(),
             KeyCode::Home => self.app_state.memory_viewer_pane_state.navigate_first_page(),
             KeyCode::End => self.app_state.memory_viewer_pane_state.navigate_last_page(),
-            KeyCode::Up => self.app_state.memory_viewer_pane_state.select_previous_row(),
-            KeyCode::Down => self.app_state.memory_viewer_pane_state.select_next_row(),
-            KeyCode::PageUp => self.app_state.memory_viewer_pane_state.page_up_rows(),
-            KeyCode::PageDown => self.app_state.memory_viewer_pane_state.page_down_rows(),
+            KeyCode::Left => self
+                .app_state
+                .memory_viewer_pane_state
+                .move_cursor_horizontal(-1, extend_selection),
+            KeyCode::Right => self
+                .app_state
+                .memory_viewer_pane_state
+                .move_cursor_horizontal(1, extend_selection),
+            KeyCode::Up => self
+                .app_state
+                .memory_viewer_pane_state
+                .move_cursor_vertical(-1, extend_selection),
+            KeyCode::Down => self
+                .app_state
+                .memory_viewer_pane_state
+                .move_cursor_vertical(1, extend_selection),
+            KeyCode::PageUp => {
+                let page_jump = self
+                    .app_state
+                    .memory_viewer_pane_state
+                    .last_visible_row_capacity
+                    .max(1) as i64;
+                self.app_state
+                    .memory_viewer_pane_state
+                    .move_cursor_vertical(-page_jump, extend_selection);
+            }
+            KeyCode::PageDown => {
+                let page_jump = self
+                    .app_state
+                    .memory_viewer_pane_state
+                    .last_visible_row_capacity
+                    .max(1) as i64;
+                self.app_state
+                    .memory_viewer_pane_state
+                    .move_cursor_vertical(page_jump, extend_selection);
+            }
+            KeyCode::Char('a') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.app_state
+                    .memory_viewer_pane_state
+                    .select_all_bytes_on_current_page();
+            }
+            KeyCode::Esc => self.app_state.memory_viewer_pane_state.clear_selection(),
+            KeyCode::Backspace => {
+                self.app_state
+                    .memory_viewer_pane_state
+                    .handle_hex_edit_backspace();
+            }
+            KeyCode::Char(hex_character) => {
+                if let Some((write_start_address, written_bytes)) = self
+                    .app_state
+                    .memory_viewer_pane_state
+                    .append_hex_edit_character(hex_character)
+                {
+                    self.dispatch_memory_viewer_write(squalr_engine, write_start_address, written_bytes);
+                }
+            }
+            _ => {}
+        }
+
+        if !matches!(key_event.code, KeyCode::Char('r')) {
+            self.sync_memory_viewer_virtual_snapshot_from_engine(squalr_engine);
+        }
+        self.sync_memory_interpretation_from_memory_selection();
+    }
+
+    pub(super) fn handle_memory_interpretation_key_event(
+        &mut self,
+        key_event: KeyEvent,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        match key_event.code {
+            KeyCode::Up => self
+                .app_state
+                .memory_interpretation_pane_state
+                .select_previous_entry(),
+            KeyCode::Down => self
+                .app_state
+                .memory_interpretation_pane_state
+                .select_next_entry(),
+            KeyCode::Home => self
+                .app_state
+                .memory_interpretation_pane_state
+                .select_first_entry(),
+            KeyCode::End => self
+                .app_state
+                .memory_interpretation_pane_state
+                .select_last_entry(),
+            KeyCode::Char('r') => self.sync_memory_interpretation_from_memory_selection(),
+            KeyCode::Enter | KeyCode::Char('a') => self.add_selected_memory_interpretation_to_project(squalr_engine),
+            _ => {}
+        }
+    }
+
+    pub(super) fn handle_code_viewer_key_event(
+        &mut self,
+        key_event: KeyEvent,
+        squalr_engine: &mut SqualrEngine,
+    ) {
+        let process_bitness = self
+            .app_state
+            .process_selector_pane_state
+            .opened_process_bitness;
+
+        match key_event.code {
+            KeyCode::Char('r') => self.refresh_code_viewer_pages(squalr_engine),
+            KeyCode::Char('[') => self.app_state.code_viewer_pane_state.navigate_previous_page(),
+            KeyCode::Char(']') => self.app_state.code_viewer_pane_state.navigate_next_page(),
+            KeyCode::Home => self.app_state.code_viewer_pane_state.navigate_first_page(),
+            KeyCode::End => self.app_state.code_viewer_pane_state.navigate_last_page(),
+            KeyCode::Up => self
+                .app_state
+                .code_viewer_pane_state
+                .select_previous_instruction(process_bitness),
+            KeyCode::Down => self
+                .app_state
+                .code_viewer_pane_state
+                .select_next_instruction(process_bitness),
+            KeyCode::PageUp => self
+                .app_state
+                .code_viewer_pane_state
+                .page_up_instructions(process_bitness),
+            KeyCode::PageDown => self
+                .app_state
+                .code_viewer_pane_state
+                .page_down_instructions(process_bitness),
             _ => {}
         }
     }

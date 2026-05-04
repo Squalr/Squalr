@@ -1,4 +1,5 @@
 use crate::models::docking::hierarchy::types::dock_reparent_direction::DockReparentDirection;
+use crate::ui::geometry::safe_clamp_f32;
 use epaint::{Pos2, Rect, pos2, vec2};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,8 +74,12 @@ impl DockDropZone {
     where
         F: FnMut(DockReparentDirection) -> bool,
     {
-        let button_side_px = (target_window_rect.size().min_elem() * Self::BUTTON_SCALE_FACTOR).clamp(Self::MIN_BUTTON_SIDE_PX, Self::DEFAULT_BUTTON_SIDE_PX);
-        let button_spacing_px = (button_side_px * Self::BUTTON_SPACING_FACTOR).clamp(4.0, 8.0);
+        let button_side_px = safe_clamp_f32(
+            target_window_rect.size().min_elem() * Self::BUTTON_SCALE_FACTOR,
+            Self::MIN_BUTTON_SIDE_PX,
+            Self::DEFAULT_BUTTON_SIDE_PX,
+        );
+        let button_spacing_px = safe_clamp_f32(button_side_px * Self::BUTTON_SPACING_FACTOR, 4.0, 8.0);
         let target_center = target_window_rect.center();
 
         [
@@ -118,8 +123,11 @@ impl DockDropZone {
         target_window_rect: Rect,
         direction: DockReparentDirection,
     ) -> Rect {
-        let preview_margin_px =
-            (target_window_rect.size().min_elem() * Self::PREVIEW_MARGIN_FACTOR).clamp(Self::MIN_PREVIEW_MARGIN_PX, Self::MAX_PREVIEW_MARGIN_PX);
+        let preview_margin_px = safe_clamp_f32(
+            target_window_rect.size().min_elem() * Self::PREVIEW_MARGIN_FACTOR,
+            Self::MIN_PREVIEW_MARGIN_PX,
+            Self::MAX_PREVIEW_MARGIN_PX,
+        );
         let preview_rect = match direction {
             DockReparentDirection::Tab => target_window_rect,
             DockReparentDirection::Left => Rect::from_min_max(target_window_rect.min, pos2(target_window_rect.center().x, target_window_rect.max.y)),

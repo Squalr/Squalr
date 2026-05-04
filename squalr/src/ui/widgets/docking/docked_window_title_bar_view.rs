@@ -44,17 +44,21 @@ impl Widget for DockedWindowTitleBarView {
         let is_window_maximized = self
             .dock_view_data
             .is_window_maximized(self.identifier.as_ref());
+        let is_window_focused = self
+            .app_context
+            .window_focus_manager
+            .is_window_focused(&self.identifier);
 
         // Background highlight if this is the actively dragged window.
         let background = if let Ok(docking_manager) = docking_manager.read() {
             if docking_manager.active_dragged_window_id() == Some(self.identifier.as_ref()) {
                 theme.selected_background
-            } else if is_window_maximized {
+            } else if is_window_maximized || is_window_focused {
                 theme.background_control_primary
             } else {
                 theme.background_primary
             }
-        } else if is_window_maximized {
+        } else if is_window_maximized || is_window_focused {
             theme.background_control_primary
         } else {
             theme.background_primary

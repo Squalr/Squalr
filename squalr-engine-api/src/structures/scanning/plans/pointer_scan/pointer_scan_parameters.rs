@@ -1,6 +1,6 @@
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 
-/// Represents the scan arguments for an element-wise scan.
+/// Represents the scan arguments for a pointer scan.
 #[derive(Debug, Clone)]
 pub struct PointerScanParameters {
     pointer_size: PointerScanPointerSize,
