@@ -144,13 +144,47 @@ impl StructViewerView {
     }
 
     fn parse_pointer_offset_display_value(pointer_offset_value: &AnonymousValueString) -> Option<PointerChainSegment> {
-        PointerChainSegment::from_str(pointer_offset_value.get_anonymous_value_string().trim()).ok()
+        let pointer_offset_text = pointer_offset_value.get_anonymous_value_string().trim();
+
+        match pointer_offset_value.get_anonymous_value_string_format() {
+            AnonymousValueStringFormat::String => PointerChainSegment::from_str(pointer_offset_text).ok(),
+            AnonymousValueStringFormat::Binary => {
+                Self::parse_pointer_offset_with_radix(pointer_offset_text, 2, Some("0b")).map(PointerChainSegment::new_offset)
+            }
+            AnonymousValueStringFormat::Decimal => Self::parse_pointer_offset_with_radix(pointer_offset_text, 10, None).map(PointerChainSegment::new_offset),
+            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
+                Self::parse_pointer_offset_with_radix(pointer_offset_text, 16, Some("0x")).map(PointerChainSegment::new_offset)
+            }
+            AnonymousValueStringFormat::Bool | AnonymousValueStringFormat::DataTypeRef | AnonymousValueStringFormat::Enumeration => None,
+        }
+    }
+
+    fn parse_pointer_offset_with_radix(
+        pointer_offset_text: &str,
+        radix: u32,
+        radix_prefix: Option<&str>,
+    ) -> Option<i64> {
+        let (sign, pointer_offset_text) = pointer_offset_text
+            .strip_prefix('-')
+            .map(|pointer_offset_text| (-1_i64, pointer_offset_text.trim()))
+            .unwrap_or((1_i64, pointer_offset_text));
+        let pointer_offset_text = radix_prefix
+            .and_then(|radix_prefix| {
+                pointer_offset_text
+                    .strip_prefix(radix_prefix)
+                    .or_else(|| pointer_offset_text.strip_prefix(&radix_prefix.to_ascii_uppercase()))
+            })
+            .unwrap_or(pointer_offset_text);
+
+        i64::from_str_radix(pointer_offset_text, radix)
+            .ok()
+            .and_then(|pointer_offset| pointer_offset.checked_mul(sign))
     }
 
     fn default_pointer_offset_display_value() -> AnonymousValueString {
         AnonymousValueString::new(
             PointerChainSegment::new_offset(0).display_text(),
-            AnonymousValueStringFormat::String,
+            AnonymousValueStringFormat::Hexadecimal,
             ContainerType::None,
         )
     }
@@ -158,7 +192,14 @@ impl StructViewerView {
     fn pointer_offset_display_values(pointer_offsets: Vec<PointerChainSegment>) -> Vec<AnonymousValueString> {
         let mut pointer_offset_values = pointer_offsets
             .into_iter()
-            .map(|pointer_offset| AnonymousValueString::new(pointer_offset.display_text(), AnonymousValueStringFormat::String, ContainerType::None))
+            .map(|pointer_offset| match pointer_offset {
+                PointerChainSegment::Offset(_) => {
+                    AnonymousValueString::new(pointer_offset.display_text(), AnonymousValueStringFormat::Hexadecimal, ContainerType::None)
+                }
+                PointerChainSegment::Symbol(_) => {
+                    AnonymousValueString::new(pointer_offset.display_text(), AnonymousValueStringFormat::String, ContainerType::None)
+                }
+            })
             .collect::<Vec<AnonymousValueString>>();
 
         if pointer_offset_values.is_empty() {
@@ -325,8 +366,15 @@ impl StructViewerView {
                         "offset",
                         &data_value_box_id,
                     )
-                    .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
+                    .allowed_anonymous_value_string_formats(vec![
+                        AnonymousValueStringFormat::String,
+                        AnonymousValueStringFormat::Binary,
+                        AnonymousValueStringFormat::Decimal,
+                        AnonymousValueStringFormat::Hexadecimal,
+                        AnonymousValueStringFormat::Address,
+                    ])
                     .normalize_value_format(false)
+                    .skip_validation()
                     .use_format_text_colors(false)
                     .width(Self::POINTER_OFFSET_VALUE_BOX_WIDTH)
                     .height(Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
@@ -366,7 +414,7 @@ impl StructViewerView {
             PointerOffsetRowAction::AppendOffset => {
                 pointer_offset_values.push(AnonymousValueString::new(
                     PointerChainSegment::new_offset(0).display_text(),
-                    AnonymousValueStringFormat::String,
+                    AnonymousValueStringFormat::Hexadecimal,
                     ContainerType::None,
                 ));
             }
@@ -469,17 +517,11 @@ impl StructViewerView {
                 pointer_offsets.push(PointerChainSegment::new_offset(0));
             }
 
-            match serde_json::to_string(&pointer_offsets) {
-                Ok(pointer_offsets_json) => {
-                    *pointer_offsets_submission = Some(
-                        DataTypeStringUtf8::get_value_from_primitive_string(&pointer_offsets_json)
-                            .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), true),
-                    );
-                }
-                Err(error) => {
-                    log::warn!("Failed to serialize Struct Viewer pointer offsets edit: {}", error);
-                }
-            }
+            let pointer_offsets_text = PointerChainSegment::display_text_list(&pointer_offsets);
+            *pointer_offsets_submission = Some(
+                DataTypeStringUtf8::get_value_from_primitive_string(&pointer_offsets_text)
+                    .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), true),
+            );
         }
 
         user_interface
@@ -685,6 +727,52 @@ impl StructViewerView {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::StructViewerView;
+    use squalr_engine_api::structures::{
+        data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        memory::pointer_chain_segment::PointerChainSegment,
+    };
+
+    #[test]
+    fn pointer_offset_display_values_use_hex_for_offsets_and_string_for_symbols() {
+        let pointer_offset_display_values = StructViewerView::pointer_offset_display_values(vec![
+            PointerChainSegment::Offset(0x20),
+            PointerChainSegment::Symbol(String::from("Timer")),
+        ]);
+
+        assert_eq!(
+            pointer_offset_display_values[0].get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::Hexadecimal
+        );
+        assert_eq!(
+            pointer_offset_display_values[1].get_anonymous_value_string_format(),
+            AnonymousValueStringFormat::String
+        );
+    }
+
+    #[test]
+    fn parse_pointer_offset_display_value_respects_numeric_display_format() {
+        let hex_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Hexadecimal, ContainerType::None);
+        let decimal_offset = AnonymousValueString::new(String::from("10"), AnonymousValueStringFormat::Decimal, ContainerType::None);
+        let symbol_offset = AnonymousValueString::new(String::from("Timer"), AnonymousValueStringFormat::String, ContainerType::None);
+
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&hex_offset),
+            Some(PointerChainSegment::Offset(0x10))
+        );
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&decimal_offset),
+            Some(PointerChainSegment::Offset(10))
+        );
+        assert_eq!(
+            StructViewerView::parse_pointer_offset_display_value(&symbol_offset),
+            Some(PointerChainSegment::Symbol(String::from("Timer")))
+        );
     }
 }
 

@@ -22,6 +22,7 @@ pub struct DataValueBoxView<'lifetime> {
     id: &'lifetime str,
     allow_read_only_interpretation: bool,
     validation_use_hex_pattern_matching: bool,
+    skip_validation: bool,
     use_preview_foreground: bool,
     use_format_text_colors: bool,
     normalize_value_format: bool,
@@ -72,6 +73,7 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
             id,
             allow_read_only_interpretation: false,
             validation_use_hex_pattern_matching: false,
+            skip_validation: false,
             use_preview_foreground: false,
             use_format_text_colors: true,
             normalize_value_format: true,
@@ -111,6 +113,11 @@ impl<'lifetime> DataValueBoxView<'lifetime> {
         validation_use_hex_pattern_matching: bool,
     ) -> Self {
         self.validation_use_hex_pattern_matching = validation_use_hex_pattern_matching;
+        self
+    }
+
+    pub fn skip_validation(mut self) -> Self {
+        self.skip_validation = true;
         self
     }
 
@@ -269,20 +276,24 @@ impl<'lifetime> Widget for DataValueBoxView<'lifetime> {
         }
 
         let theme = &self.app_context.theme;
-        let is_valid = match self.validation_scan_compare_type {
-            Some(scan_compare_type) => self
-                .app_context
-                .engine_unprivileged_state
-                .validate_scan_constraint_with_hex_pattern_matching(
-                    &self.validation_data_type,
-                    scan_compare_type,
-                    &self.anonymous_value_string,
-                    self.validation_use_hex_pattern_matching,
-                ),
-            None => self
-                .app_context
-                .engine_unprivileged_state
-                .validate_value_string(&self.validation_data_type, &self.anonymous_value_string),
+        let is_valid = if self.skip_validation {
+            true
+        } else {
+            match self.validation_scan_compare_type {
+                Some(scan_compare_type) => self
+                    .app_context
+                    .engine_unprivileged_state
+                    .validate_scan_constraint_with_hex_pattern_matching(
+                        &self.validation_data_type,
+                        scan_compare_type,
+                        &self.anonymous_value_string,
+                        self.validation_use_hex_pattern_matching,
+                    ),
+                None => self
+                    .app_context
+                    .engine_unprivileged_state
+                    .validate_value_string(&self.validation_data_type, &self.anonymous_value_string),
+            }
         };
         let foreground_color = match self.use_preview_foreground {
             true => theme.foreground_preview,

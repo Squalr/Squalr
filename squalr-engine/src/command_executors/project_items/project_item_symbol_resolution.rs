@@ -4,7 +4,7 @@ use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRe
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
-use squalr_engine_api::structures::memory::pointer::Pointer;
+use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
@@ -102,31 +102,27 @@ pub fn resolve_address_target_runtime_pointer(
     project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
 ) -> Option<Pointer> {
-    if address_target
+    let pointer_offsets = address_target
         .get_pointer_offsets()
-        .first()
-        .and_then(|pointer_chain_segment| pointer_chain_segment.symbol_name())
-        .is_some()
-    {
-        return resolve_address_target_runtime_pointer_with_symbolic_root(project_symbol_catalog, address_target);
-    }
+        .iter()
+        .map(|pointer_chain_segment| resolve_module_symbol_chain_segment(project_symbol_catalog, address_target.get_module_name(), pointer_chain_segment))
+        .collect::<Option<Vec<PointerChainSegment>>>()?;
 
-    address_target.to_runtime_pointer()
+    ProjectItemAddressTarget::new(address_target.get_module_name().to_string(), pointer_offsets, address_target.get_pointer_size()).to_runtime_pointer()
 }
 
-fn resolve_address_target_runtime_pointer_with_symbolic_root(
+fn resolve_module_symbol_chain_segment(
     project_symbol_catalog: &ProjectSymbolCatalog,
-    address_target: &ProjectItemAddressTarget,
-) -> Option<Pointer> {
-    let symbol_name = address_target
-        .get_pointer_offsets()
-        .first()
-        .and_then(|pointer_chain_segment| pointer_chain_segment.symbol_name())?;
-    let symbol_offset = project_symbol_catalog.find_module_symbol_offset_by_display_name(address_target.get_module_name(), symbol_name)?;
-    let mut pointer_offsets = address_target.get_pointer_offsets().to_vec();
+    module_name: &str,
+    pointer_chain_segment: &PointerChainSegment,
+) -> Option<PointerChainSegment> {
+    let Some(symbol_name) = pointer_chain_segment.symbol_name() else {
+        return Some(pointer_chain_segment.clone());
+    };
 
-    pointer_offsets[0] = squalr_engine_api::structures::memory::pointer_chain_segment::PointerChainSegment::new_offset(symbol_offset as i64);
-    ProjectItemAddressTarget::new(address_target.get_module_name().to_string(), pointer_offsets, address_target.get_pointer_size()).to_runtime_pointer()
+    let symbol_offset = project_symbol_catalog.find_module_symbol_offset_by_display_name(module_name, symbol_name)?;
+
+    Some(PointerChainSegment::new_offset(symbol_offset as i64))
 }
 
 pub fn resolve_pointer_runtime_target(
@@ -232,5 +228,64 @@ fn dispatch_memory_read_request(
             log::error!("Timed out waiting for project-item symbol resolution memory read response: {}", error);
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_address_target_runtime_pointer;
+    use squalr_engine_api::structures::{
+        memory::pointer_chain_segment::PointerChainSegment,
+        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+        projects::{
+            project_items::built_in_types::project_item_type_address_target::ProjectItemAddressTarget, project_symbol_catalog::ProjectSymbolCatalog,
+            project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+        },
+    };
+
+    #[test]
+    fn resolve_address_target_runtime_pointer_resolves_symbolic_root_after_reload() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            Vec::new(),
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Timer"),
+                String::from("winmine.exe"),
+                0x579C,
+                String::from("u32"),
+            )],
+        );
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("winmine.exe"),
+            vec![PointerChainSegment::Symbol(String::from("Timer"))],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let runtime_pointer = resolve_address_target_runtime_pointer(&project_symbol_catalog, &address_target).expect("Expected symbol root to resolve.");
+
+        assert_eq!(runtime_pointer.get_address(), 0x579C);
+        assert_eq!(runtime_pointer.get_module_name(), "winmine.exe");
+        assert!(runtime_pointer.get_offset_segments().is_empty());
+    }
+
+    #[test]
+    fn resolve_address_target_runtime_pointer_resolves_symbolic_module_tail_segments() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x240, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("game.exe"),
+            vec![
+                PointerChainSegment::Offset(0x59C),
+                PointerChainSegment::Symbol(String::from("Health")),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let runtime_pointer = resolve_address_target_runtime_pointer(&project_symbol_catalog, &address_target).expect("Expected symbol tail to resolve.");
+
+        assert_eq!(runtime_pointer.get_address(), 0x59C);
+        assert_eq!(runtime_pointer.get_offset_segments(), &[PointerChainSegment::Offset(0x240)]);
     }
 }

@@ -540,6 +540,7 @@ impl MemoryViewerPaneState {
             address: Some(project_item_address),
             module_name: Some(project_item_module_name),
             data_type_id: Some(resolved_data_type_id),
+            pointer_offsets: None,
         })
     }
 

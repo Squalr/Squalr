@@ -2139,6 +2139,7 @@ impl ProjectHierarchyViewData {
                 address: None,
                 module_name: None,
                 data_type_id: None,
+                pointer_offsets: None,
             },
             ProjectHierarchyCreateItemKind::Address => ProjectItemsCreateRequest {
                 parent_directory_path,
@@ -2147,6 +2148,7 @@ impl ProjectHierarchyViewData {
                 address: Some(0),
                 module_name: Some(String::new()),
                 data_type_id: None,
+                pointer_offsets: None,
             },
         }
     }

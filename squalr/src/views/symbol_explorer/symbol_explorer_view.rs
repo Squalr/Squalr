@@ -47,7 +47,7 @@ use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
 };
-use squalr_engine_api::structures::memory::pointer::Pointer;
+use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
     project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
@@ -116,6 +116,7 @@ struct AddSymbolToProjectTarget {
     address: u64,
     module_name: String,
     data_type_id: String,
+    pointer_offsets: Option<Vec<PointerChainSegment>>,
 }
 
 #[derive(Clone, Debug)]
@@ -876,6 +877,7 @@ impl SymbolExplorerView {
         };
         let project_item_name = symbol_tree_entry.get_display_name().trim().to_string();
         let (address, module_name) = Self::parse_symbol_locator_key_as_project_item_address(symbol_locator_key)?;
+        let pointer_offsets = Self::build_add_symbol_pointer_offsets(symbol_tree_entry, address, &module_name);
 
         Some(AddSymbolToProjectTarget {
             project_item_name: if project_item_name.is_empty() {
@@ -886,6 +888,7 @@ impl SymbolExplorerView {
             address,
             module_name,
             data_type_id: symbol_tree_entry.get_symbol_type_id().to_string(),
+            pointer_offsets,
         })
     }
 
@@ -897,7 +900,23 @@ impl SymbolExplorerView {
             address: Some(add_symbol_to_project_target.address),
             module_name: Some(add_symbol_to_project_target.module_name.clone()),
             data_type_id: Some(add_symbol_to_project_target.data_type_id.clone()),
+            pointer_offsets: add_symbol_to_project_target.pointer_offsets.clone(),
         }
+    }
+
+    fn build_add_symbol_pointer_offsets(
+        symbol_tree_entry: &SymbolTreeEntry,
+        address: u64,
+        module_name: &str,
+    ) -> Option<Vec<PointerChainSegment>> {
+        if module_name.trim().is_empty() || !PointerChainSegment::is_valid_symbol_name(symbol_tree_entry.get_display_name()) {
+            return None;
+        }
+
+        Some(vec![
+            PointerChainSegment::new_symbol(symbol_tree_entry.get_display_name().to_string())
+                .unwrap_or_else(|| PointerChainSegment::new_offset(address as i64)),
+        ])
     }
 
     fn parse_symbol_locator_key_as_project_item_address(symbol_locator_key: &str) -> Option<(u64, String)> {
@@ -3620,6 +3639,7 @@ mod tests {
             data_type_ref::DataTypeRef,
         },
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+        memory::pointer_chain_segment::PointerChainSegment,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
@@ -3779,6 +3799,10 @@ mod tests {
         assert_eq!(project_items_create_request.address, Some(4));
         assert_eq!(project_items_create_request.module_name, Some(String::from("game.exe")));
         assert_eq!(project_items_create_request.data_type_id, Some(String::from("u32")));
+        assert_eq!(
+            project_items_create_request.pointer_offsets,
+            Some(vec![PointerChainSegment::Symbol(String::from("Health"))])
+        );
         assert!(
             project_items_create_request
                 .parent_directory_path

@@ -378,6 +378,7 @@ fn project_items_create_request_dispatches_unprivileged_command_and_invokes_type
         address: None,
         module_name: None,
         data_type_id: None,
+        pointer_offsets: None,
     };
     let callback_invoked = Arc::new(AtomicBool::new(false));
     let callback_invoked_clone = callback_invoked.clone();

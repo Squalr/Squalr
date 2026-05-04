@@ -3,6 +3,7 @@ use crate::commands::project_items::project_items_command::ProjectItemsCommand;
 use crate::commands::project_items::project_items_response::ProjectItemsResponse;
 use crate::commands::unprivileged_command::UnprivilegedCommand;
 use crate::commands::unprivileged_command_request::UnprivilegedCommandRequest;
+use crate::structures::memory::pointer_chain_segment::PointerChainSegment;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -30,6 +31,10 @@ pub struct ProjectItemsCreateRequest {
     #[serde(default)]
     #[structopt(skip)]
     pub data_type_id: Option<String>,
+
+    #[serde(default)]
+    #[structopt(skip)]
+    pub pointer_offsets: Option<Vec<PointerChainSegment>>,
 }
 
 impl UnprivilegedCommandRequest for ProjectItemsCreateRequest {

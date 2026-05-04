@@ -1126,6 +1126,7 @@ impl PointerScannerViewData {
             address: Some(selected_pointer_scan_node.get_resolved_target_address()),
             module_name: Some(String::new()),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
+            pointer_offsets: None,
         })
     }
 
@@ -1150,6 +1151,7 @@ impl PointerScannerViewData {
             address: Some(pointer_scan_node.get_resolved_target_address()),
             module_name: Some(String::new()),
             data_type_id: Some(pointer_scanner_view_data_guard.get_target_data_type_id()),
+            pointer_offsets: None,
         })
     }
 
