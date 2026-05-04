@@ -141,11 +141,15 @@ fn create_memory_freeze_target(
             return None;
         }
 
+        if pointer.has_symbolic_offsets() {
+            return None;
+        }
+
         return Some(MemoryFreezeTarget {
             address: pointer.get_address(),
             module_name: pointer.get_module_name().to_string(),
             data_type_id,
-            pointer_offsets: pointer.get_offsets().to_vec(),
+            pointer_offsets: pointer.get_offsets(),
             pointer_size: pointer.get_pointer_size(),
         });
     }
@@ -178,13 +182,14 @@ fn build_memory_freeze_target_from_address_target(
             pointer_offsets: Vec::new(),
             pointer_size: Default::default(),
         }),
-        ProjectItemAddressTarget::PointerPath { pointer } => Some(MemoryFreezeTarget {
+        ProjectItemAddressTarget::PointerPath { pointer } if !pointer.has_symbolic_offsets() => Some(MemoryFreezeTarget {
             address: pointer.get_address(),
             module_name: pointer.get_module_name().to_string(),
             data_type_id,
-            pointer_offsets: pointer.get_offsets().to_vec(),
+            pointer_offsets: pointer.get_offsets(),
             pointer_size: pointer.get_pointer_size(),
         }),
+        ProjectItemAddressTarget::PointerPath { .. } => None,
     }
 }
 

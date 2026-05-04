@@ -1,6 +1,9 @@
 use crate::engine::engine_api_priviliged_bindings::EngineApiPrivilegedBindings;
 use crate::registries::registry_context::RegistryContext;
-use crate::structures::memory::pointer::Pointer;
+use crate::structures::memory::{
+    pointer::Pointer,
+    pointer_chain_segment::{IntoPointerChainSegments, PointerChainSegment},
+};
 use crate::structures::processes::opened_process_info::OpenedProcessInfo;
 use crate::structures::projects::project_items::project_item_ref::ProjectItemRef;
 use crate::structures::projects::project_items::project_item_type::ProjectItemType;
@@ -43,7 +46,7 @@ impl ProjectItemTypePointer {
         project_item.set_field_description(description);
         Self::set_field_module(&mut project_item, pointer.get_module_name());
         Self::set_field_offset(&mut project_item, pointer.get_address());
-        Self::set_field_pointer_offsets(&mut project_item, pointer.get_offsets());
+        Self::set_field_pointer_chain_segments(&mut project_item, pointer.get_offset_segments());
         Self::set_field_pointer_size(&mut project_item, pointer.get_pointer_size());
         Self::set_field_freeze_data_value_interpreter(&mut project_item, "");
         Self::set_field_symbolic_struct_definition_reference(&mut project_item, data_type_id);
@@ -152,26 +155,45 @@ impl ProjectItemTypePointer {
     }
 
     pub fn get_field_pointer_offsets(project_item: &ProjectItem) -> Vec<i64> {
+        Self::get_field_pointer_chain_segments(project_item)
+            .into_iter()
+            .filter_map(|pointer_chain_segment| pointer_chain_segment.as_offset())
+            .collect()
+    }
+
+    pub fn get_field_pointer_chain_segments(project_item: &ProjectItem) -> Vec<PointerChainSegment> {
         let serialized_offsets = Self::read_string_field(project_item, Self::PROPERTY_POINTER_OFFSETS);
 
         if serialized_offsets.trim().is_empty() {
             return Vec::new();
         }
 
-        match serde_json::from_str::<Vec<i64>>(&serialized_offsets) {
+        match serde_json::from_str::<Vec<PointerChainSegment>>(&serialized_offsets) {
             Ok(pointer_offsets) => pointer_offsets,
             Err(error) => {
                 log::warn!("Failed to deserialize pointer offsets for project item: {}", error);
-                Vec::new()
+                PointerChainSegment::parse_text_list(&serialized_offsets)
             }
         }
     }
 
-    pub fn set_field_pointer_offsets(
+    pub fn set_field_pointer_offsets<Offsets>(
         project_item: &mut ProjectItem,
-        pointer_offsets: &[i64],
-    ) {
-        let serialized_pointer_offsets = match serde_json::to_string(pointer_offsets) {
+        pointer_offsets: Offsets,
+    ) where
+        Offsets: IntoPointerChainSegments,
+    {
+        Self::set_field_pointer_chain_segments(project_item, pointer_offsets);
+    }
+
+    pub fn set_field_pointer_chain_segments<Offsets>(
+        project_item: &mut ProjectItem,
+        pointer_offsets: Offsets,
+    ) where
+        Offsets: IntoPointerChainSegments,
+    {
+        let pointer_chain_segments = pointer_offsets.into_pointer_chain_segments();
+        let serialized_pointer_offsets = match serde_json::to_string(&pointer_chain_segments) {
             Ok(serialized_pointer_offsets) => serialized_pointer_offsets,
             Err(error) => {
                 log::warn!("Failed to serialize pointer offsets for project item: {}", error);
@@ -205,9 +227,9 @@ impl ProjectItemTypePointer {
     }
 
     pub fn get_field_pointer(project_item: &ProjectItem) -> Pointer {
-        Pointer::new_with_size(
+        Pointer::new_with_size_and_segments(
             Self::get_field_offset(project_item),
-            Self::get_field_pointer_offsets(project_item),
+            Self::get_field_pointer_chain_segments(project_item),
             Self::get_field_module(project_item),
             Self::get_field_pointer_size(project_item),
         )

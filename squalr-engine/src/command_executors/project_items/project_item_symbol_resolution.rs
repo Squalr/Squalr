@@ -134,9 +134,10 @@ pub fn resolve_pointer_runtime_target(
     let mut current_address = pointer.get_address();
     let mut current_module_name = pointer.get_module_name().to_string();
 
-    for pointer_offset in pointer.get_offsets() {
+    for pointer_chain_segment in pointer.get_offset_segments() {
+        let pointer_offset = pointer_chain_segment.as_offset()?;
         let pointer_value = read_pointer_value(engine_execution_context, current_address, &current_module_name, pointer.get_pointer_size())?;
-        current_address = Pointer::apply_pointer_offset(pointer_value, *pointer_offset)?;
+        current_address = Pointer::apply_pointer_offset(pointer_value, pointer_offset)?;
         current_module_name.clear();
     }
 

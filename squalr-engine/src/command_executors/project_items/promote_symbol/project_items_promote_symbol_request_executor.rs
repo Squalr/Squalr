@@ -14,7 +14,6 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::pointer::Pointer;
-use squalr_engine_api::structures::projects::project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer,
 };
@@ -116,7 +115,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             }
 
             if let Some(existing_exact_symbol) = find_exact_symbol_claim(&existing_symbol_claims, &promoted_symbol_candidate).cloned() {
-                project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &existing_exact_symbol)));
+                project_item_replacements.push((project_item_ref, build_promoted_project_item(&project_item, &existing_exact_symbol)));
                 reused_symbol_count = reused_symbol_count.saturating_add(1);
                 continue;
             }
@@ -147,7 +146,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             did_mutate_symbol_catalog = true;
             promoted_symbol_count = promoted_symbol_count.saturating_add(1);
             promoted_symbol_locator_keys.push(promoted_symbol_candidate.get_symbol_locator_key().to_string());
-            project_item_replacements.push((project_item_ref, build_symbol_ref_project_item(&project_item, &promoted_symbol_candidate)));
+            project_item_replacements.push((project_item_ref, build_promoted_project_item(&project_item, &promoted_symbol_candidate)));
         }
 
         if project_item_replacements.is_empty() && !did_mutate_symbol_catalog {
@@ -419,31 +418,32 @@ fn build_promoted_symbol(
     Some(promoted_symbol)
 }
 
-fn build_symbol_ref_project_item(
+fn build_promoted_project_item(
     source_project_item: &ProjectItem,
     promoted_symbol: &ProjectSymbolClaim,
 ) -> ProjectItem {
-    let mut symbol_ref_project_item = ProjectItemTypeSymbolRef::new_project_item(
-        source_project_item.get_field_name().as_str(),
-        &promoted_symbol.get_symbol_locator_key(),
-        &source_project_item.get_field_description(),
-    );
+    let source_project_item_type_id = source_project_item.get_item_type().get_project_item_type_id();
+    let mut promoted_project_item = source_project_item.clone();
 
-    if source_project_item.get_is_activated() {
-        symbol_ref_project_item.toggle_activated();
+    if source_project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+        ProjectItemTypeAddress::set_field_symbolic_struct_definition_reference(&mut promoted_project_item, promoted_symbol.get_struct_layout_id());
+    } else if source_project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+        ProjectItemTypePointer::set_field_symbolic_struct_definition_reference(&mut promoted_project_item, promoted_symbol.get_struct_layout_id());
     }
 
-    let freeze_display_value = if source_project_item.get_item_type().get_project_item_type_id() == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
-        ProjectItemTypePointer::get_field_freeze_data_value_interpreter(source_project_item)
-    } else {
+    if source_project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
         let mut address_project_item = source_project_item.clone();
+        let freeze_display_value = ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item);
 
-        ProjectItemTypeAddress::get_field_freeze_data_value_interpreter(&mut address_project_item)
-    };
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut promoted_project_item, &freeze_display_value);
+    } else if source_project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
+        ProjectItemTypePointer::set_field_freeze_data_value_interpreter(
+            &mut promoted_project_item,
+            &ProjectItemTypePointer::get_field_freeze_data_value_interpreter(source_project_item),
+        );
+    }
 
-    ProjectItemTypeSymbolRef::set_field_freeze_data_value_interpreter(&mut symbol_ref_project_item, &freeze_display_value);
-
-    symbol_ref_project_item
+    promoted_project_item
 }
 
 fn build_display_name(
@@ -476,7 +476,7 @@ fn append_pointer_metadata(
     metadata.insert(String::from("source.pointer_root_offset"), format!("0x{:X}", pointer.get_address()));
     metadata.insert(
         String::from("source.pointer_offsets"),
-        serde_json::to_string(pointer.get_offsets()).unwrap_or_else(|_| String::from("[]")),
+        serde_json::to_string(pointer.get_offset_segments()).unwrap_or_else(|_| String::from("[]")),
     );
     metadata.insert(String::from("source.pointer_size"), pointer.get_pointer_size().to_string());
 
@@ -547,8 +547,7 @@ mod tests {
         projects::{
             project::Project, project_info::ProjectInfo, project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
             project_items::built_in_types::project_item_type_directory::ProjectItemTypeDirectory,
-            project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer,
-            project_items::built_in_types::project_item_type_symbol_ref::ProjectItemTypeSymbolRef, project_items::project_item::ProjectItem,
+            project_items::built_in_types::project_item_type_pointer::ProjectItemTypePointer, project_items::project_item::ProjectItem,
             project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog,
             project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
         },
@@ -773,11 +772,13 @@ mod tests {
 
         assert_eq!(
             promoted_project_item.get_item_type().get_project_item_type_id(),
-            ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID
+            ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
         );
+        let mut promoted_project_item = promoted_project_item.clone();
         assert_eq!(
-            ProjectItemTypeSymbolRef::get_field_symbol_locator_key(promoted_project_item),
-            "module:game.exe:1234"
+            ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut promoted_project_item)
+                .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string()),
+            Some(String::from("u8"))
         );
 
         let captured_project_symbol_catalogs = captured_project_symbol_catalogs
@@ -805,7 +806,7 @@ mod tests {
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
-            project_item_paths: vec![project_item_path],
+            project_item_paths: vec![project_item_path.clone()],
             overwrite_conflicting_symbols: false,
         }
         .execute(&engine_execution_context);
@@ -824,7 +825,7 @@ mod tests {
     }
 
     #[test]
-    fn promote_symbol_then_delete_with_conversion_restores_absolute_address_item() {
+    fn promote_symbol_then_delete_removes_symbol_without_converting_project_item() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "", "", DataTypeU8::get_value_from_primitive(0));
         let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
@@ -858,7 +859,7 @@ mod tests {
 
         assert!(project_symbols_delete_response.success);
         assert_eq!(project_symbols_delete_response.deleted_symbol_count, 1);
-        assert_eq!(project_symbols_delete_response.converted_symbol_ref_count, 1);
+        assert_eq!(project_symbols_delete_response.converted_symbol_ref_count, 0);
 
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected converted project to load from disk.");
         assert!(
@@ -915,7 +916,7 @@ mod tests {
 
         let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
         let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
-            project_item_paths: vec![project_item_path],
+            project_item_paths: vec![project_item_path.clone()],
             overwrite_conflicting_symbols: false,
         }
         .execute(&engine_execution_context);
@@ -953,11 +954,18 @@ mod tests {
         );
         let promoted_project_item = loaded_project
             .get_project_items()
-            .values()
-            .find(|project_item| project_item.get_item_type().get_project_item_type_id() == ProjectItemTypeSymbolRef::PROJECT_ITEM_TYPE_ID)
-            .expect("Expected pointer promotion to replace the project item with a symbol ref.");
+            .get(&ProjectItemRef::new(project_item_path))
+            .expect("Expected pointer project item to remain in the project after promotion.");
 
-        assert_eq!(ProjectItemTypeSymbolRef::get_field_symbol_locator_key(promoted_project_item), "absolute:2020");
+        assert_eq!(
+            promoted_project_item.get_item_type().get_project_item_type_id(),
+            ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+        );
+        assert_eq!(
+            ProjectItemTypePointer::get_field_symbolic_struct_definition_reference(promoted_project_item)
+                .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string()),
+            Some(String::from("u32"))
+        );
         assert_eq!(
             symbol_claims[0]
                 .get_metadata()
@@ -973,7 +981,7 @@ mod tests {
     }
 
     #[test]
-    fn promote_symbol_request_reuses_exact_existing_symbol_and_replaces_project_item() {
+    fn promote_symbol_request_reuses_exact_existing_symbol_and_preserves_project_item() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
         let (mut project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
@@ -1024,8 +1032,14 @@ mod tests {
 
         assert_eq!(symbol_claims.len(), 1);
         assert_eq!(
-            ProjectItemTypeSymbolRef::get_field_symbol_locator_key(promoted_project_item),
-            "module:game.exe:1234"
+            promoted_project_item.get_item_type().get_project_item_type_id(),
+            ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID
+        );
+        let mut promoted_project_item = promoted_project_item.clone();
+        assert_eq!(
+            ProjectItemTypeAddress::get_field_symbolic_struct_definition_reference(&mut promoted_project_item)
+                .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string()),
+            Some(String::from("u8"))
         );
         assert!(
             captured_project_symbol_catalogs
@@ -1132,8 +1146,11 @@ mod tests {
             loaded_project
                 .get_project_items()
                 .get(&ProjectItemRef::new(project_item_path))
-                .map(ProjectItemTypeSymbolRef::get_field_symbol_locator_key),
-            Some(String::from("module:game.exe:1234"))
+                .map(|project_item| project_item
+                    .get_item_type()
+                    .get_project_item_type_id()
+                    .to_string()),
+            Some(String::from(ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID))
         );
         assert_eq!(
             captured_project_symbol_catalogs

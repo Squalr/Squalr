@@ -22,12 +22,9 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
     structures::{
-        data_types::{
-            built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
-            data_type_ref::DataTypeRef,
-        },
+        data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
         data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        memory::pointer::Pointer,
+        memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_items::built_in_types::{project_item_type_address::ProjectItemTypeAddress, project_item_type_pointer::ProjectItemTypePointer},
         structs::{symbolic_field_definition::SymbolicFieldDefinition, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
@@ -142,95 +139,26 @@ impl StructViewerView {
         });
     }
 
-    fn parse_pointer_offsets_text(pointer_offsets_text: &str) -> Vec<i64> {
-        if let Ok(pointer_offsets) = serde_json::from_str::<Vec<i64>>(pointer_offsets_text) {
-            return pointer_offsets;
-        }
-
-        pointer_offsets_text
-            .split(',')
-            .filter_map(|pointer_offset_text| Self::parse_pointer_offset_text(pointer_offset_text))
-            .collect()
+    fn parse_pointer_offsets_text(pointer_offsets_text: &str) -> Vec<PointerChainSegment> {
+        PointerChainSegment::parse_text_list(pointer_offsets_text)
     }
 
-    fn parse_pointer_offset_text(pointer_offset_text: &str) -> Option<i64> {
-        let pointer_offset_text = pointer_offset_text.trim();
-
-        if pointer_offset_text.is_empty() {
-            return None;
-        }
-
-        let (sign, pointer_offset_text) = pointer_offset_text
-            .strip_prefix('-')
-            .map(|pointer_offset_text| (-1_i64, pointer_offset_text.trim()))
-            .unwrap_or((1_i64, pointer_offset_text));
-        let pointer_offset_hex_text = pointer_offset_text
-            .strip_prefix("0x")
-            .or_else(|| pointer_offset_text.strip_prefix("0X"));
-
-        if let Some(pointer_offset_hex_text) = pointer_offset_hex_text {
-            i64::from_str_radix(pointer_offset_hex_text, 16)
-                .ok()
-                .and_then(|pointer_offset| pointer_offset.checked_mul(sign))
-        } else {
-            pointer_offset_text
-                .parse::<i64>()
-                .ok()
-                .and_then(|pointer_offset| pointer_offset.checked_mul(sign))
-        }
-    }
-
-    fn parse_pointer_offset_display_value(pointer_offset_value: &AnonymousValueString) -> Option<i64> {
-        let pointer_offset_text = pointer_offset_value.get_anonymous_value_string().trim();
-
-        if pointer_offset_text.is_empty() {
-            return None;
-        }
-
-        if pointer_offset_value.get_anonymous_value_string_format() != AnonymousValueStringFormat::Hexadecimal {
-            return Self::parse_pointer_offset_text(pointer_offset_text);
-        }
-
-        let (sign, pointer_offset_text) = pointer_offset_text
-            .strip_prefix('-')
-            .map(|pointer_offset_text| (-1_i64, pointer_offset_text.trim()))
-            .unwrap_or((1_i64, pointer_offset_text));
-        let pointer_offset_hex_text = pointer_offset_text
-            .strip_prefix("0x")
-            .or_else(|| pointer_offset_text.strip_prefix("0X"))
-            .unwrap_or(pointer_offset_text);
-
-        i64::from_str_radix(pointer_offset_hex_text, 16)
-            .ok()
-            .and_then(|pointer_offset| pointer_offset.checked_mul(sign))
-    }
-
-    fn pointer_offset_display_text(pointer_offset: i64) -> String {
-        if pointer_offset < 0 {
-            format!("-{:X}", pointer_offset.saturating_abs())
-        } else {
-            format!("{:X}", pointer_offset)
-        }
+    fn parse_pointer_offset_display_value(pointer_offset_value: &AnonymousValueString) -> Option<PointerChainSegment> {
+        PointerChainSegment::from_str(pointer_offset_value.get_anonymous_value_string().trim()).ok()
     }
 
     fn default_pointer_offset_display_value() -> AnonymousValueString {
         AnonymousValueString::new(
-            Self::pointer_offset_display_text(0),
-            AnonymousValueStringFormat::Hexadecimal,
+            PointerChainSegment::new_offset(0).display_text(),
+            AnonymousValueStringFormat::String,
             ContainerType::None,
         )
     }
 
-    fn pointer_offset_display_values(pointer_offsets: Vec<i64>) -> Vec<AnonymousValueString> {
+    fn pointer_offset_display_values(pointer_offsets: Vec<PointerChainSegment>) -> Vec<AnonymousValueString> {
         let mut pointer_offset_values = pointer_offsets
             .into_iter()
-            .map(|pointer_offset| {
-                AnonymousValueString::new(
-                    Self::pointer_offset_display_text(pointer_offset),
-                    AnonymousValueStringFormat::Hexadecimal,
-                    ContainerType::None,
-                )
-            })
+            .map(|pointer_offset| AnonymousValueString::new(pointer_offset.display_text(), AnonymousValueStringFormat::String, ContainerType::None))
             .collect::<Vec<AnonymousValueString>>();
 
         if pointer_offset_values.is_empty() {
@@ -241,7 +169,7 @@ impl StructViewerView {
     }
 
     fn pointer_offset_data_type_ref() -> DataTypeRef {
-        DataTypeRef::new(DataTypeI64::DATA_TYPE_ID)
+        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
     fn render_take_over_header_icon_button(
@@ -397,10 +325,7 @@ impl StructViewerView {
                         "offset",
                         &data_value_box_id,
                     )
-                    .allowed_anonymous_value_string_formats(vec![
-                        AnonymousValueStringFormat::Hexadecimal,
-                        AnonymousValueStringFormat::Decimal,
-                    ])
+                    .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
                     .normalize_value_format(false)
                     .use_format_text_colors(false)
                     .width(Self::POINTER_OFFSET_VALUE_BOX_WIDTH)
@@ -440,8 +365,8 @@ impl StructViewerView {
         match pointer_offset_row_action {
             PointerOffsetRowAction::AppendOffset => {
                 pointer_offset_values.push(AnonymousValueString::new(
-                    String::from("0"),
-                    AnonymousValueStringFormat::Hexadecimal,
+                    PointerChainSegment::new_offset(0).display_text(),
+                    AnonymousValueStringFormat::String,
                     ContainerType::None,
                 ));
             }
@@ -539,9 +464,9 @@ impl StructViewerView {
             let mut pointer_offsets = pointer_offset_values
                 .iter()
                 .filter_map(Self::parse_pointer_offset_display_value)
-                .collect::<Vec<i64>>();
+                .collect::<Vec<PointerChainSegment>>();
             if pointer_offsets.is_empty() {
-                pointer_offsets.push(0);
+                pointer_offsets.push(PointerChainSegment::new_offset(0));
             }
 
             match serde_json::to_string(&pointer_offsets) {
@@ -581,10 +506,10 @@ impl StructViewerView {
         let pointer_offsets_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_POINTER_OFFSETS)?;
         let pointer_size_field = source_struct_under_view.get_field(ProjectItemTypePointer::PROPERTY_POINTER_SIZE)?;
         let pointer_offsets_json = StructViewerViewData::read_utf8_field_text(pointer_offsets_field);
-        let pointer_offsets = serde_json::from_str::<Vec<i64>>(&pointer_offsets_json).ok()?;
+        let pointer_offsets = PointerChainSegment::parse_text_list(&pointer_offsets_json);
         let pointer_size_text = StructViewerViewData::read_utf8_field_text(pointer_size_field);
         let pointer_size = PointerScanPointerSize::from_str(&pointer_size_text).ok()?;
-        let pointer = Pointer::new_with_size(
+        let pointer = Pointer::new_with_size_and_segments(
             Self::read_u64_field_value(pointer_offset_field)?,
             pointer_offsets,
             StructViewerViewData::read_utf8_field_text(pointer_module_field),
@@ -601,9 +526,10 @@ impl StructViewerView {
         let mut current_address = pointer.get_address();
         let mut current_module_name = pointer.get_module_name().to_string();
 
-        for pointer_offset in pointer.get_offsets() {
+        for pointer_chain_segment in pointer.get_offset_segments() {
+            let pointer_offset = pointer_chain_segment.as_offset()?;
             let pointer_value = Self::read_pointer_value(engine_execution_context, current_address, &current_module_name, pointer.get_pointer_size())?;
-            current_address = Pointer::apply_pointer_offset(pointer_value, *pointer_offset)?;
+            current_address = Pointer::apply_pointer_offset(pointer_value, pointer_offset)?;
             current_module_name.clear();
         }
 
