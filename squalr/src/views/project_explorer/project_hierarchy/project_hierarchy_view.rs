@@ -189,6 +189,10 @@ mod tests {
         project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
+    use squalr_engine_api::structures::projects::{
+        project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule,
+        project_symbol_module_field::ProjectSymbolModuleField,
+    };
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
@@ -361,6 +365,25 @@ mod tests {
         }))
     }
 
+    fn create_project_info_with_symbol(
+        module_name: &str,
+        symbol_name: &str,
+        symbol_offset: u64,
+    ) -> ProjectInfo {
+        let mut symbol_module = ProjectSymbolModule::new(module_name.to_string(), symbol_offset.saturating_add(0x100));
+
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(symbol_name.to_string(), symbol_offset, String::from("u16")));
+
+        ProjectInfo::new_with_symbol_catalog(
+            PathBuf::from(r"C:\Project\project.json"),
+            None,
+            ProjectManifest::default(),
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new()),
+        )
+    }
+
     fn create_test_app_context() -> Arc<AppContext> {
         let egui_context = Context::default();
         let theme = Arc::new(Theme::new(&egui_context));
@@ -517,6 +540,33 @@ mod tests {
             vec![super::PointerScannerContextAction::Address {
                 label: "Open in Pointer Scan",
                 address: 0x1234,
+                module_name: "game.exe".to_string(),
+                data_type_id: "u64".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn build_pointer_scanner_context_actions_resolves_symbolic_address_root() {
+        let project_info = create_project_info_with_symbol("game.exe", "Health", 0x240);
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "game.exe", "", DataTypeU64::get_value_from_primitive(0));
+
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new(
+                String::from("game.exe"),
+                vec![PointerChainSegment::Symbol(String::from("Health"))],
+                PointerScanPointerSize::Pointer64,
+            ),
+        );
+
+        let pointer_scanner_context_actions = ProjectHierarchyView::build_pointer_scanner_context_actions(Some(&project_info), &project_item);
+
+        assert_eq!(
+            pointer_scanner_context_actions,
+            vec![super::PointerScannerContextAction::Address {
+                label: "Open in Pointer Scan",
+                address: 0x240,
                 module_name: "game.exe".to_string(),
                 data_type_id: "u64".to_string(),
             }]
@@ -951,6 +1001,70 @@ mod tests {
                 .get_anonymous_value_string(),
             "48879"
         );
+    }
+
+    #[test]
+    fn build_project_item_value_edit_context_resolves_symbolic_address_root() {
+        let project_info = create_project_info_with_symbol("game.exe", "Health", 0x240);
+        let engine_unprivileged_state = create_engine_unprivileged_state(MockMemoryReadBindings::new(|memory_read_request| {
+            assert_eq!(memory_read_request.address, 0x240);
+            assert_eq!(memory_read_request.module_name, "game.exe");
+
+            create_value_memory_read_response(DataTypeU16::get_value_from_primitive(0xBEEF), true)
+        }));
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
+
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new(
+                String::from("game.exe"),
+                vec![PointerChainSegment::Symbol(String::from("Health"))],
+                PointerScanPointerSize::Pointer64,
+            ),
+        );
+        ProjectItemTypeAddress::set_field_freeze_data_value_interpreter(&mut project_item, "");
+
+        let value_edit_context = ProjectHierarchyView::build_project_item_value_edit_context(&engine_unprivileged_state, Some(&project_info), &project_item)
+            .expect("Expected value edit context for symbolic address project item.");
+
+        assert_eq!(
+            value_edit_context
+                .initial_value_edit
+                .get_anonymous_value_string(),
+            "48879"
+        );
+    }
+
+    #[test]
+    fn build_project_item_virtual_snapshot_query_resolves_symbolic_address_root() {
+        let project_info = create_project_info_with_symbol("game.exe", "Health", 0x240);
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
+
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new(
+                String::from("game.exe"),
+                vec![PointerChainSegment::Symbol(String::from("Health"))],
+                PointerScanPointerSize::Pointer64,
+            ),
+        );
+
+        let virtual_snapshot_query = ProjectHierarchyView::build_project_item_virtual_snapshot_query(
+            Some(&project_info),
+            Path::new(r"C:\Project\project_items\Health.json"),
+            &project_item,
+            &engine_unprivileged_state,
+        )
+        .expect("Expected virtual snapshot query for symbolic address project item.");
+
+        match virtual_snapshot_query {
+            squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery::Address { address, module_name, .. } => {
+                assert_eq!(address, 0x240);
+                assert_eq!(module_name, "game.exe");
+            }
+            unexpected_query => panic!("Expected symbolic address root to build an address query, got {unexpected_query:?}."),
+        }
     }
 
     #[test]
@@ -2953,7 +3067,7 @@ impl ProjectHierarchyView {
     }
 
     fn build_pointer_scanner_context_actions(
-        _opened_project_info: Option<&ProjectInfo>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Vec<PointerScannerContextAction> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -2969,7 +3083,7 @@ impl ProjectHierarchyView {
                 .unwrap_or_default();
 
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
-            let Some(runtime_pointer) = address_target.to_runtime_pointer() else {
+            let Some(runtime_pointer) = Self::resolve_address_target_runtime_pointer(opened_project_info, &address_target) else {
                 return Vec::new();
             };
 
@@ -3788,7 +3902,7 @@ impl ProjectHierarchyView {
 
     fn resolve_project_item_runtime_value_target(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        _opened_project_info: Option<&ProjectInfo>,
+        opened_project_info: Option<&ProjectInfo>,
         project_item: &ProjectItem,
     ) -> Option<(u64, String)> {
         let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
@@ -3797,7 +3911,7 @@ impl ProjectHierarchyView {
             let mut project_item = project_item.clone();
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-            return Self::resolve_project_item_address_target(engine_execution_context, &address_target);
+            return Self::resolve_project_item_address_target(engine_execution_context, opened_project_info, &address_target);
         }
 
         if project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID {
@@ -3811,14 +3925,26 @@ impl ProjectHierarchyView {
 
     fn resolve_project_item_address_target(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
+        opened_project_info: Option<&ProjectInfo>,
         address_target: &ProjectItemAddressTarget,
     ) -> Option<(u64, String)> {
-        let runtime_pointer = address_target.to_runtime_pointer()?;
+        let runtime_pointer = Self::resolve_address_target_runtime_pointer(opened_project_info, address_target)?;
 
         if runtime_pointer.get_offset_segments().is_empty() {
             Some((runtime_pointer.get_address(), runtime_pointer.get_module_name().to_string()))
         } else {
             Self::resolve_pointer_write_target(engine_execution_context, &runtime_pointer)
+        }
+    }
+
+    fn resolve_address_target_runtime_pointer(
+        opened_project_info: Option<&ProjectInfo>,
+        address_target: &ProjectItemAddressTarget,
+    ) -> Option<Pointer> {
+        if let Some(opened_project_info) = opened_project_info {
+            address_target.to_runtime_pointer_resolving_symbols(opened_project_info.get_project_symbol_catalog())
+        } else {
+            address_target.to_runtime_pointer()
         }
     }
 
@@ -3851,7 +3977,7 @@ impl ProjectHierarchyView {
             let mut project_item = project_item.clone();
             let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
 
-            let runtime_pointer = address_target.to_runtime_pointer()?;
+            let runtime_pointer = Self::resolve_address_target_runtime_pointer(opened_project_info, &address_target)?;
 
             return if runtime_pointer.get_offset_segments().is_empty() {
                 Some(VirtualSnapshotQuery::Address {

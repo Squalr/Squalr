@@ -4,7 +4,7 @@ use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRe
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
-use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
+use squalr_engine_api::structures::memory::pointer::Pointer;
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
     project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
@@ -102,27 +102,7 @@ pub fn resolve_address_target_runtime_pointer(
     project_symbol_catalog: &ProjectSymbolCatalog,
     address_target: &ProjectItemAddressTarget,
 ) -> Option<Pointer> {
-    let pointer_offsets = address_target
-        .get_pointer_offsets()
-        .iter()
-        .map(|pointer_chain_segment| resolve_module_symbol_chain_segment(project_symbol_catalog, address_target.get_module_name(), pointer_chain_segment))
-        .collect::<Option<Vec<PointerChainSegment>>>()?;
-
-    ProjectItemAddressTarget::new(address_target.get_module_name().to_string(), pointer_offsets, address_target.get_pointer_size()).to_runtime_pointer()
-}
-
-fn resolve_module_symbol_chain_segment(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    module_name: &str,
-    pointer_chain_segment: &PointerChainSegment,
-) -> Option<PointerChainSegment> {
-    let Some(symbol_name) = pointer_chain_segment.symbol_name() else {
-        return Some(pointer_chain_segment.clone());
-    };
-
-    let symbol_offset = project_symbol_catalog.find_module_symbol_offset_by_display_name(module_name, symbol_name)?;
-
-    Some(PointerChainSegment::new_offset(symbol_offset as i64))
+    address_target.to_runtime_pointer_resolving_symbols(project_symbol_catalog)
 }
 
 pub fn resolve_pointer_runtime_target(

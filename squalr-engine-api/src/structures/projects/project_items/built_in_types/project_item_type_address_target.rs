@@ -3,6 +3,7 @@ use crate::structures::memory::{
     pointer_chain_segment::{IntoPointerChainSegments, PointerChainSegment},
 };
 use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,6 +141,33 @@ impl ProjectItemAddressTarget {
         ))
     }
 
+    pub fn to_runtime_pointer_resolving_symbols(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) -> Option<Pointer> {
+        let pointer_offsets = self
+            .pointer_offsets
+            .iter()
+            .map(|pointer_chain_segment| self.resolve_symbolic_pointer_chain_segment(project_symbol_catalog, pointer_chain_segment))
+            .collect::<Option<Vec<PointerChainSegment>>>()?;
+
+        Self::new(self.module_name.clone(), pointer_offsets, self.pointer_size).to_runtime_pointer()
+    }
+
+    fn resolve_symbolic_pointer_chain_segment(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        pointer_chain_segment: &PointerChainSegment,
+    ) -> Option<PointerChainSegment> {
+        let Some(symbol_name) = pointer_chain_segment.symbol_name() else {
+            return Some(pointer_chain_segment.clone());
+        };
+
+        let symbol_offset = project_symbol_catalog.find_module_symbol_offset_by_display_name(&self.module_name, symbol_name)?;
+
+        Some(PointerChainSegment::new_offset(symbol_offset as i64))
+    }
+
     fn default_pointer_offsets() -> Vec<PointerChainSegment> {
         vec![PointerChainSegment::new_offset(0)]
     }
@@ -150,5 +178,88 @@ impl ProjectItemAddressTarget {
         }
 
         pointer_offsets
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectItemAddressTarget;
+    use crate::structures::memory::pointer_chain_segment::PointerChainSegment;
+    use crate::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
+    use crate::structures::projects::{
+        project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
+        project_symbol_module_field::ProjectSymbolModuleField,
+    };
+
+    #[test]
+    fn to_runtime_pointer_resolving_symbols_resolves_symbolic_root_from_module_field() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x240, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("game.exe"),
+            vec![PointerChainSegment::Symbol(String::from("Health"))],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let runtime_pointer = address_target
+            .to_runtime_pointer_resolving_symbols(&project_symbol_catalog)
+            .expect("Expected symbolic root to resolve.");
+
+        assert_eq!(runtime_pointer.get_address(), 0x240);
+        assert_eq!(runtime_pointer.get_module_name(), "game.exe");
+        assert!(runtime_pointer.get_offset_segments().is_empty());
+    }
+
+    #[test]
+    fn to_runtime_pointer_resolving_symbols_resolves_symbolic_root_from_module_claim() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            Vec::new(),
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Timer"),
+                String::from("winmine.exe"),
+                0x579C,
+                String::from("u32"),
+            )],
+        );
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("winmine.exe"),
+            vec![PointerChainSegment::Symbol(String::from("Timer"))],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let runtime_pointer = address_target
+            .to_runtime_pointer_resolving_symbols(&project_symbol_catalog)
+            .expect("Expected symbolic root to resolve.");
+
+        assert_eq!(runtime_pointer.get_address(), 0x579C);
+        assert_eq!(runtime_pointer.get_module_name(), "winmine.exe");
+        assert!(runtime_pointer.get_offset_segments().is_empty());
+    }
+
+    #[test]
+    fn to_runtime_pointer_resolving_symbols_resolves_symbolic_tail_segments() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x240, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("game.exe"),
+            vec![
+                PointerChainSegment::Offset(0x59C),
+                PointerChainSegment::Symbol(String::from("Health")),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let runtime_pointer = address_target
+            .to_runtime_pointer_resolving_symbols(&project_symbol_catalog)
+            .expect("Expected symbolic tail to resolve.");
+
+        assert_eq!(runtime_pointer.get_address(), 0x59C);
+        assert_eq!(runtime_pointer.get_offset_segments(), &[PointerChainSegment::Offset(0x240)]);
     }
 }
