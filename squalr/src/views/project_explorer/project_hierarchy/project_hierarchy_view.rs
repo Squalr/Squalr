@@ -121,6 +121,7 @@ struct ProjectItemValueEditContext {
 }
 
 impl ProjectHierarchyView {
+    const STRIP_SYMBOL_INFORMATION_LABEL: &str = "Strip Symbol Information";
     const TARGET_FIELD_POINTER_OFFSETS: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS;
     const TARGET_FIELD_POINTER_SIZE: &str = StructViewerViewData::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE;
 
@@ -158,6 +159,7 @@ impl ProjectHierarchyView {
 #[cfg(test)]
 mod tests {
     use super::ProjectHierarchyView;
+    use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
     use crate::{
         app_context::AppContext,
         models::docking::{docking_manager::DockingManager, hierarchy::dock_node::DockNode},
@@ -190,12 +192,13 @@ mod tests {
     };
     use squalr_engine_api::structures::projects::project_items::project_item_ref::ProjectItemRef;
     use squalr_engine_api::structures::projects::{
-        project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule,
-        project_symbol_module_field::ProjectSymbolModuleField,
+        project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog,
+        project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
     };
     use squalr_engine_api::structures::structs::valued_struct::ValuedStruct;
     use squalr_engine_api::structures::structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData};
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
+    use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
 
@@ -1068,6 +1071,80 @@ mod tests {
     }
 
     #[test]
+    fn strip_symbol_information_from_project_items_persists_numeric_offsets() {
+        let app_context = create_test_app_context();
+        let project_hierarchy_view_data = app_context
+            .dependency_container
+            .register(ProjectHierarchyViewData::new());
+        let project_info = create_project_info_with_symbol("game.exe", "Health", 0x240);
+        let project_root_path = PathBuf::from(r"C:\Project\project_items");
+        let project_item_path = project_root_path.join("Health.json");
+        let project_root_ref = ProjectItemRef::new(project_root_path.clone());
+        let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
+
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new(
+                String::from("game.exe"),
+                vec![
+                    PointerChainSegment::Symbol(String::from("Health")),
+                    PointerChainSegment::Offset(0x10),
+                ],
+                PointerScanPointerSize::Pointer64,
+            ),
+        );
+
+        let mut project_items = HashMap::new();
+        project_items.insert(project_root_ref.clone(), ProjectItemTypeDirectory::new_project_item(&project_root_ref));
+        project_items.insert(project_item_ref.clone(), project_item.clone());
+        let project = Project::new(project_info.clone(), project_items, project_root_ref);
+
+        *app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock.") = Some(project);
+
+        {
+            let mut project_hierarchy_view_data = project_hierarchy_view_data
+                .write("Project hierarchy strip symbol information test setup")
+                .expect("Expected project hierarchy view data write lock.");
+
+            project_hierarchy_view_data.opened_project_info = Some(project_info);
+            project_hierarchy_view_data.project_items = vec![(project_item_ref.clone(), project_item)];
+        }
+
+        ProjectHierarchyView::strip_symbol_information_from_project_items(app_context.clone(), project_hierarchy_view_data, vec![project_item_path]);
+
+        let opened_project_lock = app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project();
+        let opened_project_guard = opened_project_lock
+            .read()
+            .expect("Expected opened project read lock.");
+        let opened_project = opened_project_guard
+            .as_ref()
+            .expect("Expected opened project after strip.");
+        let mut stripped_project_item = opened_project
+            .get_project_items()
+            .get(&project_item_ref)
+            .expect("Expected stripped project item.")
+            .clone();
+        let stripped_address_target = ProjectItemTypeAddress::get_address_target(&mut stripped_project_item);
+
+        assert_eq!(
+            stripped_address_target.get_pointer_offsets(),
+            &[
+                PointerChainSegment::Offset(0x240),
+                PointerChainSegment::Offset(0x10)
+            ]
+        );
+    }
+
+    #[test]
     fn build_project_item_value_edit_context_falls_back_to_preview_when_live_read_fails() {
         let engine_unprivileged_state = create_test_engine_unprivileged_state();
         let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU16::get_value_from_primitive(0));
@@ -1363,6 +1440,15 @@ impl Widget for ProjectHierarchyView {
                                             self.project_hierarchy_view_data.clone(),
                                             &project_item_paths_for_delete,
                                         );
+                                        let can_strip_symbol_project_item_paths = ProjectHierarchyViewData::has_strippable_symbol_project_item_paths(
+                                            self.project_hierarchy_view_data.clone(),
+                                            &project_item_paths_for_delete,
+                                        );
+                                        let has_symbolic_address_project_item_paths = ProjectHierarchyViewData::has_symbolic_address_project_item_paths(
+                                            self.project_hierarchy_view_data.clone(),
+                                            &project_item_paths_for_delete,
+                                        );
+                                        let can_promote_project_item_paths = can_promote_project_item_paths && !has_symbolic_address_project_item_paths;
                                         let can_paste_project_items = ProjectHierarchyViewData::can_paste_project_item_clipboard(
                                             self.project_hierarchy_view_data.clone(),
                                             &tree_entry_project_item_path,
@@ -1379,6 +1465,7 @@ impl Widget for ProjectHierarchyView {
                                             pointer_scanner_context_actions.iter().map(PointerScannerContextAction::label).collect::<Vec<_>>();
                                         let has_runtime_actions = !pointer_scanner_context_actions.is_empty()
                                             || can_open_in_memory_viewer
+                                            || can_strip_symbol_project_item_paths
                                             || can_promote_project_item_paths;
                                         let has_create_actions = true;
                                         let has_clipboard_actions =
@@ -1389,6 +1476,9 @@ impl Widget for ProjectHierarchyView {
                                         }
                                         if can_promote_project_item_paths {
                                             project_item_menu_labels.push("Promote to Symbol");
+                                        }
+                                        if can_strip_symbol_project_item_paths {
+                                            project_item_menu_labels.push(Self::STRIP_SYMBOL_INFORMATION_LABEL);
                                         }
                                         if has_create_actions {
                                             project_item_menu_labels.extend(["New Address", "New Folder"]);
@@ -1524,6 +1614,24 @@ impl Widget for ProjectHierarchyView {
                                                         project_hierarchy_frame_action = ProjectHierarchyFrameAction::PromoteToSymbol {
                                                             project_item_paths: project_item_paths_for_delete.clone(),
                                                             overwrite_conflicting_symbols: false,
+                                                        };
+                                                        *should_close = true;
+                                                    }
+                                                }
+
+                                                if can_strip_symbol_project_item_paths {
+                                                    if user_interface
+                                                        .add(ToolbarMenuItemView::new(
+                                                            self.app_context.clone(),
+                                                            Self::STRIP_SYMBOL_INFORMATION_LABEL,
+                                                            "project_hierarchy_ctx_strip_symbol_information",
+                                                            &None,
+                                                            project_item_menu_width,
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        project_hierarchy_frame_action = ProjectHierarchyFrameAction::StripSymbolInformation {
+                                                            project_item_paths: project_item_paths_for_delete.clone(),
                                                         };
                                                         *should_close = true;
                                                     }
@@ -2279,6 +2387,13 @@ impl Widget for ProjectHierarchyView {
                     Some(details_refresh_callback),
                 );
             }
+            ProjectHierarchyFrameAction::StripSymbolInformation { project_item_paths } => {
+                if is_promote_symbol_conflict_active || is_rename_take_over_active || is_value_edit_take_over_active {
+                    return response;
+                }
+
+                Self::strip_symbol_information_from_project_items(self.app_context.clone(), self.project_hierarchy_view_data.clone(), project_item_paths);
+            }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
                     return response;
@@ -2894,6 +3009,87 @@ impl ProjectHierarchyView {
                 );
             }
         })
+    }
+
+    fn strip_symbol_information_from_project_items(
+        app_context: Arc<AppContext>,
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) {
+        let project_item_paths = ProjectHierarchyViewData::filter_strippable_symbol_project_item_paths(project_hierarchy_view_data, project_item_paths);
+
+        if project_item_paths.is_empty() {
+            return;
+        }
+
+        let project_manager = app_context.engine_unprivileged_state.get_project_manager();
+        let opened_project_lock = project_manager.get_opened_project();
+        let mut opened_project_guard = match opened_project_lock.write() {
+            Ok(opened_project_guard) => opened_project_guard,
+            Err(error) => {
+                log::error!(
+                    "Failed to acquire opened project lock while stripping project item symbol information: {}",
+                    error
+                );
+                return;
+            }
+        };
+        let Some(opened_project) = opened_project_guard.as_mut() else {
+            log::warn!("Cannot strip project item symbol information without an opened project.");
+            return;
+        };
+        let project_symbol_catalog = opened_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .clone();
+        let mut has_persisted_property_edits = false;
+
+        for project_item_path in &project_item_paths {
+            let project_item_ref = ProjectItemRef::new(project_item_path.clone());
+            let Some(project_item) = opened_project.get_project_item_mut(&project_item_ref) else {
+                log::warn!("Cannot strip symbol information, project item was not found: {:?}", project_item_path);
+                continue;
+            };
+
+            if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+                continue;
+            }
+
+            let address_target = ProjectItemTypeAddress::get_address_target(project_item);
+
+            if !address_target.has_symbolic_offsets() {
+                continue;
+            }
+
+            let Some(stripped_address_target) = address_target.strip_symbolic_offsets(&project_symbol_catalog) else {
+                log::warn!("Cannot strip unresolved symbol information from project item: {:?}", project_item_path);
+                continue;
+            };
+
+            if stripped_address_target != address_target {
+                ProjectItemTypeAddress::set_address_target(project_item, stripped_address_target);
+                project_item.set_has_unsaved_changes(true);
+                has_persisted_property_edits = true;
+            }
+        }
+
+        if !has_persisted_property_edits {
+            return;
+        }
+
+        opened_project
+            .get_project_info_mut()
+            .set_has_unsaved_changes(true);
+        drop(opened_project_guard);
+
+        let project_save_request = ProjectSaveRequest {};
+
+        project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
+            if !project_save_response.success {
+                log::error!("Failed to persist stripped project item symbol information through project save command.");
+            }
+        });
+        project_manager.notify_project_items_changed();
     }
 
     fn apply_project_item_edits(

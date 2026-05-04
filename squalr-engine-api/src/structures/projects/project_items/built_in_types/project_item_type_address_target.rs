@@ -154,6 +154,18 @@ impl ProjectItemAddressTarget {
         Self::new(self.module_name.clone(), pointer_offsets, self.pointer_size).to_runtime_pointer()
     }
 
+    pub fn strip_symbolic_offsets(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) -> Option<Self> {
+        if !self.has_symbolic_offsets() {
+            return Some(self.clone());
+        }
+
+        self.to_runtime_pointer_resolving_symbols(project_symbol_catalog)
+            .map(Self::new_pointer_path)
+    }
+
     fn resolve_symbolic_pointer_chain_segment(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -261,5 +273,35 @@ mod tests {
 
         assert_eq!(runtime_pointer.get_address(), 0x59C);
         assert_eq!(runtime_pointer.get_offset_segments(), &[PointerChainSegment::Offset(0x240)]);
+    }
+
+    #[test]
+    fn strip_symbolic_offsets_returns_numeric_address_target() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Health"), 0x240, String::from("u32")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let address_target = ProjectItemAddressTarget::new(
+            String::from("game.exe"),
+            vec![
+                PointerChainSegment::Symbol(String::from("Health")),
+                PointerChainSegment::Offset(0x10),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+
+        let stripped_address_target = address_target
+            .strip_symbolic_offsets(&project_symbol_catalog)
+            .expect("Expected symbolic offsets to strip.");
+
+        assert_eq!(stripped_address_target.get_module_name(), "game.exe");
+        assert_eq!(
+            stripped_address_target.get_pointer_offsets(),
+            &[
+                PointerChainSegment::Offset(0x240),
+                PointerChainSegment::Offset(0x10)
+            ]
+        );
     }
 }

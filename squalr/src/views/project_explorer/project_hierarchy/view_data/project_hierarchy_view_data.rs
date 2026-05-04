@@ -489,6 +489,34 @@ impl ProjectHierarchyViewData {
             .collect()
     }
 
+    fn contains_strippable_symbol_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_item_paths
+            .iter()
+            .any(|project_item_path| self.is_strippable_symbol_project_item_path(project_item_path))
+    }
+
+    fn contains_symbolic_address_project_item_paths(
+        &self,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_item_paths
+            .iter()
+            .any(|project_item_path| self.is_symbolic_address_project_item_path(project_item_path))
+    }
+
+    fn collect_strippable_symbol_project_item_paths(
+        &self,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        project_item_paths
+            .into_iter()
+            .filter(|project_item_path| self.is_strippable_symbol_project_item_path(project_item_path))
+            .collect()
+    }
+
     fn is_promotable_project_item_path(
         &self,
         project_item_path: &Path,
@@ -500,6 +528,57 @@ impl ProjectHierarchyViewData {
                 let project_item_type_id = project_item.get_item_type().get_project_item_type_id();
 
                 project_item_type_id == ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID || project_item_type_id == ProjectItemTypePointer::PROJECT_ITEM_TYPE_ID
+            })
+            .unwrap_or(false)
+    }
+
+    fn is_strippable_symbol_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        let Some(project_symbol_catalog) = self
+            .opened_project_info
+            .as_ref()
+            .map(ProjectInfo::get_project_symbol_catalog)
+        else {
+            return false;
+        };
+
+        self.project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+            .map(|(_, project_item)| {
+                if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+                    return false;
+                }
+
+                let mut project_item = project_item.clone();
+                let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
+
+                address_target.has_symbolic_offsets()
+                    && address_target
+                        .strip_symbolic_offsets(project_symbol_catalog)
+                        .is_some()
+            })
+            .unwrap_or(false)
+    }
+
+    fn is_symbolic_address_project_item_path(
+        &self,
+        project_item_path: &Path,
+    ) -> bool {
+        self.project_items
+            .iter()
+            .find(|(project_item_ref, _)| project_item_ref.get_project_item_path() == project_item_path)
+            .map(|(_, project_item)| {
+                if project_item.get_item_type().get_project_item_type_id() != ProjectItemTypeAddress::PROJECT_ITEM_TYPE_ID {
+                    return false;
+                }
+
+                let mut project_item = project_item.clone();
+                let address_target = ProjectItemTypeAddress::get_address_target(&mut project_item);
+
+                address_target.has_symbolic_offsets()
             })
             .unwrap_or(false)
     }
@@ -1482,6 +1561,36 @@ impl ProjectHierarchyViewData {
             .unwrap_or(false)
     }
 
+    pub fn has_strippable_symbol_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has strippable symbol project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_strippable_symbol_project_item_paths(project_item_paths))
+            .unwrap_or(false)
+    }
+
+    pub fn has_symbolic_address_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: &[PathBuf],
+    ) -> bool {
+        project_hierarchy_view_data
+            .read("Project hierarchy has symbolic address project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.contains_symbolic_address_project_item_paths(project_item_paths))
+            .unwrap_or(false)
+    }
+
+    pub fn filter_strippable_symbol_project_item_paths(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        project_item_paths: Vec<PathBuf>,
+    ) -> Vec<PathBuf> {
+        project_hierarchy_view_data
+            .read("Project hierarchy filter strippable symbol project item paths")
+            .map(|project_hierarchy_view_data| project_hierarchy_view_data.collect_strippable_symbol_project_item_paths(project_item_paths))
+            .unwrap_or_default()
+    }
+
     pub fn promote_project_items_to_symbols(
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         app_context: Arc<AppContext>,
@@ -2449,13 +2558,17 @@ mod tests {
     };
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::data_types::built_in_types::u8::data_type_u8::DataTypeU8;
-    use squalr_engine_api::structures::memory::pointer::Pointer;
+    use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
+    use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
     use squalr_engine_api::structures::projects::project_items::built_in_types::{
-        project_item_type_address::ProjectItemTypeAddress, project_item_type_directory::ProjectItemTypeDirectory,
-        project_item_type_pointer::ProjectItemTypePointer,
+        project_item_type_address::ProjectItemTypeAddress, project_item_type_address_target::ProjectItemAddressTarget,
+        project_item_type_directory::ProjectItemTypeDirectory, project_item_type_pointer::ProjectItemTypePointer,
     };
     use squalr_engine_api::structures::projects::project_items::{project_item::ProjectItem, project_item_ref::ProjectItemRef};
-    use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
+    use squalr_engine_api::structures::projects::{
+        project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog,
+        project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+    };
     use std::path::{Path, PathBuf};
 
     fn create_directory_project_item(project_item_path: &Path) -> (ProjectItemRef, ProjectItem) {
@@ -2492,6 +2605,26 @@ mod tests {
 
     fn create_project_info(project_directory_path: &Path) -> ProjectInfo {
         ProjectInfo::new(project_directory_path.join(Project::PROJECT_FILE), None, ProjectManifest::new(vec![]))
+    }
+
+    fn create_project_info_with_symbol(
+        project_directory_path: &Path,
+        module_name: &str,
+        symbol_name: &str,
+        symbol_offset: u64,
+    ) -> ProjectInfo {
+        let mut symbol_module = ProjectSymbolModule::new(module_name.to_string(), symbol_offset.saturating_add(0x100));
+
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(symbol_name.to_string(), symbol_offset, String::from("u8")));
+
+        ProjectInfo::new_with_symbol_catalog(
+            project_directory_path.join(Project::PROJECT_FILE),
+            None,
+            ProjectManifest::new(vec![]),
+            ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new()),
+        )
     }
 
     #[test]
@@ -3266,6 +3399,99 @@ mod tests {
         assert!(!ProjectHierarchyViewData::has_promotable_project_item_paths(
             project_hierarchy_view_data,
             std::slice::from_ref(&child_directory_path)
+        ));
+    }
+
+    #[test]
+    fn has_strippable_symbol_project_item_paths_returns_true_for_resolvable_symbolic_address_items() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_project_item_path = hidden_project_root_path.join("health.json");
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new(
+                String::from("game.exe"),
+                vec![PointerChainSegment::Symbol(String::from("Health"))],
+                PointerScanPointerSize::Pointer64,
+            ),
+        );
+
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info_with_symbol(&project_directory_path, "game.exe", "Health", 0x240));
+        project_hierarchy_view_data.project_items = vec![(ProjectItemRef::new(child_project_item_path.clone()), project_item)];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        assert!(ProjectHierarchyViewData::has_strippable_symbol_project_item_paths(
+            project_hierarchy_view_data.clone(),
+            std::slice::from_ref(&child_project_item_path)
+        ));
+        assert!(ProjectHierarchyViewData::has_symbolic_address_project_item_paths(
+            project_hierarchy_view_data.clone(),
+            std::slice::from_ref(&child_project_item_path)
+        ));
+        assert_eq!(
+            ProjectHierarchyViewData::filter_strippable_symbol_project_item_paths(project_hierarchy_view_data, vec![child_project_item_path.clone()]),
+            vec![child_project_item_path]
+        );
+    }
+
+    #[test]
+    fn has_strippable_symbol_project_item_paths_returns_false_for_numeric_address_items() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_project_item_path = hidden_project_root_path.join("health.json");
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info_with_symbol(&project_directory_path, "game.exe", "Health", 0x240));
+        project_hierarchy_view_data.project_items = vec![(
+            ProjectItemRef::new(child_project_item_path.clone()),
+            ProjectItemTypeAddress::new_project_item("Health", 0x240, "game.exe", "", DataTypeU8::get_value_from_primitive(0)),
+        )];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        assert!(!ProjectHierarchyViewData::has_strippable_symbol_project_item_paths(
+            project_hierarchy_view_data.clone(),
+            std::slice::from_ref(&child_project_item_path)
+        ));
+        assert!(!ProjectHierarchyViewData::has_symbolic_address_project_item_paths(
+            project_hierarchy_view_data,
+            std::slice::from_ref(&child_project_item_path)
+        ));
+    }
+
+    #[test]
+    fn symbolic_address_project_item_paths_are_detected_even_when_unresolved() {
+        let dependency_container = DependencyContainer::new();
+        let project_directory_path = PathBuf::from("C:/Projects/TestProject");
+        let hidden_project_root_path = project_directory_path.join(Project::PROJECT_DIR);
+        let child_project_item_path = hidden_project_root_path.join("health.json");
+        let mut project_item = ProjectItemTypeAddress::new_project_item("Health", 0, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let mut project_hierarchy_view_data = ProjectHierarchyViewData::new();
+
+        ProjectItemTypeAddress::set_address_target(
+            &mut project_item,
+            ProjectItemAddressTarget::new(
+                String::from("game.exe"),
+                vec![PointerChainSegment::Symbol(String::from("MissingHealth"))],
+                PointerScanPointerSize::Pointer64,
+            ),
+        );
+
+        project_hierarchy_view_data.opened_project_info = Some(create_project_info_with_symbol(&project_directory_path, "game.exe", "Health", 0x240));
+        project_hierarchy_view_data.project_items = vec![(ProjectItemRef::new(child_project_item_path.clone()), project_item)];
+        let project_hierarchy_view_data = dependency_container.register(project_hierarchy_view_data);
+
+        assert!(ProjectHierarchyViewData::has_symbolic_address_project_item_paths(
+            project_hierarchy_view_data.clone(),
+            std::slice::from_ref(&child_project_item_path)
+        ));
+        assert!(!ProjectHierarchyViewData::has_strippable_symbol_project_item_paths(
+            project_hierarchy_view_data,
+            std::slice::from_ref(&child_project_item_path)
         ));
     }
 }

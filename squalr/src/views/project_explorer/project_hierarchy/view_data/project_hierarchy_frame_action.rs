@@ -38,6 +38,9 @@ pub enum ProjectHierarchyFrameAction {
         project_item_paths: Vec<PathBuf>,
         overwrite_conflicting_symbols: bool,
     },
+    StripSymbolInformation {
+        project_item_paths: Vec<PathBuf>,
+    },
     RequestRename(PathBuf),
     RequestValueEdit(PathBuf),
     RequestDeleteConfirmation(Vec<PathBuf>),
