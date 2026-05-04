@@ -200,6 +200,7 @@ mod tests {
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex, RwLock};
 
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1116,7 +1117,19 @@ mod tests {
             project_hierarchy_view_data.project_items = vec![(project_item_ref.clone(), project_item)];
         }
 
-        ProjectHierarchyView::strip_symbol_information_from_project_items(app_context.clone(), project_hierarchy_view_data, vec![project_item_path]);
+        let did_refresh_details = Arc::new(AtomicBool::new(false));
+        let details_refresh_callback = {
+            let did_refresh_details = did_refresh_details.clone();
+
+            Arc::new(move || did_refresh_details.store(true, Ordering::SeqCst)) as Arc<dyn Fn() + Send + Sync>
+        };
+
+        ProjectHierarchyView::strip_symbol_information_from_project_items(
+            app_context.clone(),
+            project_hierarchy_view_data,
+            vec![project_item_path],
+            Some(details_refresh_callback),
+        );
 
         let opened_project_lock = app_context
             .engine_unprivileged_state
@@ -1142,6 +1155,7 @@ mod tests {
                 PointerChainSegment::Offset(0x10)
             ]
         );
+        assert!(did_refresh_details.load(Ordering::SeqCst));
     }
 
     #[test]
@@ -2392,7 +2406,14 @@ impl Widget for ProjectHierarchyView {
                     return response;
                 }
 
-                Self::strip_symbol_information_from_project_items(self.app_context.clone(), self.project_hierarchy_view_data.clone(), project_item_paths);
+                let details_refresh_callback = self.build_project_item_details_refresh_callback(project_item_paths.clone());
+
+                Self::strip_symbol_information_from_project_items(
+                    self.app_context.clone(),
+                    self.project_hierarchy_view_data.clone(),
+                    project_item_paths,
+                    Some(details_refresh_callback),
+                );
             }
             ProjectHierarchyFrameAction::RequestRename(project_item_path) => {
                 if is_promote_symbol_conflict_active || is_value_edit_take_over_active {
@@ -3015,6 +3036,7 @@ impl ProjectHierarchyView {
         app_context: Arc<AppContext>,
         project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
         project_item_paths: Vec<PathBuf>,
+        details_refresh_callback: Option<Arc<dyn Fn() + Send + Sync>>,
     ) {
         let project_item_paths = ProjectHierarchyViewData::filter_strippable_symbol_project_item_paths(project_hierarchy_view_data, project_item_paths);
 
@@ -3090,6 +3112,10 @@ impl ProjectHierarchyView {
             }
         });
         project_manager.notify_project_items_changed();
+
+        if let Some(details_refresh_callback) = details_refresh_callback {
+            details_refresh_callback();
+        }
     }
 
     fn apply_project_item_edits(
