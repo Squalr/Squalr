@@ -1,7 +1,7 @@
 use crate::plugins::PluginPermission;
 use crate::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum SymbolTreeActionSelection {
     ModuleRoot { module_name: String },
     SymbolLocator { symbol_locator_key: String },
@@ -9,7 +9,7 @@ pub enum SymbolTreeActionSelection {
     DerivedNode { tree_node_key: String },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct SymbolTreeActionContext {
     selection: SymbolTreeActionSelection,
 }
@@ -21,6 +21,12 @@ impl SymbolTreeActionContext {
 
     pub fn get_selection(&self) -> &SymbolTreeActionSelection {
         &self.selection
+    }
+}
+
+impl Default for SymbolTreeActionContext {
+    fn default() -> Self {
+        Self::new(SymbolTreeActionSelection::DerivedNode { tree_node_key: String::new() })
     }
 }
 

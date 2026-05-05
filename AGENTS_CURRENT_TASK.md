@@ -14,4 +14,6 @@ Our current task, from `README.md`, is:
 
 ## Important Information
 
-- Plugin extensibility is moving toward coarse permissions plus registration surfaces. Added `PluginPermission` for `Read/WriteSymbolStore`, `Read/WriteSymbolTreeWindow`, and `Read/WriteProcessMemory`; added Symbol Tree plugin action traits and an engine-backed project symbol store implementation for plugin actions. Validated with focused API/session tests; needs integration into the Symbol Tree context menu and a concrete PE/OS symbol population plugin.
+- Plugin extensibility now has coarse permissions for `Read/WriteSymbolStore`, `Read/WriteSymbolTreeWindow`, and `Read/WriteProcessMemory`, plus Symbol Tree plugin action traits.
+- Added built-in `builtin.symbols.pe` plugin. It contributes a root-only `Populate PE Symbols` Symbol Tree action that registers PE struct descriptors and adds a `DOS Header` module field at offset `0`.
+- Symbol Explorer right-click menus discover enabled Symbol Tree plugin actions through the plugin registry and dispatch them through `ProjectSymbolsExecutePluginActionRequest`. Current execution path uses the built-in registry on the unprivileged command side; future plugin enablement persistence/sync may need tightening if non-default enablement matters for client-side action discovery.

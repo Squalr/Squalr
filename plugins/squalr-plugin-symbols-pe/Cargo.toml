@@ -1,0 +1,8 @@
+[package]
+name = "squalr-plugin-symbols-pe"
+version = "0.3.0"
+authors = ["Zachary Canann"]
+edition = "2024"
+
+[dependencies]
+squalr-engine-api = { path = "../../squalr-engine-api" }

@@ -1,8 +1,9 @@
 use crate::commands::project_symbols::{
     create::project_symbols_create_request::ProjectSymbolsCreateRequest,
     create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
-    delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest, list::project_symbols_list_request::ProjectSymbolsListRequest,
-    rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
+    delete::project_symbols_delete_request::ProjectSymbolsDeleteRequest,
+    execute_plugin_action::project_symbols_execute_plugin_action_request::ProjectSymbolsExecutePluginActionRequest,
+    list::project_symbols_list_request::ProjectSymbolsListRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
     rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
     update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
 };
@@ -25,6 +26,11 @@ pub enum ProjectSymbolsCommand {
     Delete {
         #[structopt(flatten)]
         project_symbols_delete_request: ProjectSymbolsDeleteRequest,
+    },
+    /// Executes a Symbol Tree plugin action.
+    ExecutePluginAction {
+        #[structopt(flatten)]
+        project_symbols_execute_plugin_action_request: ProjectSymbolsExecutePluginActionRequest,
     },
     /// Lists the current project symbol store.
     List {

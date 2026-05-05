@@ -6,6 +6,7 @@ members = [
     "plugins/squalr-plugin-instructions-powerpc",
     "plugins/squalr-plugin-instructions-x86",
     "plugins/squalr-plugin-memory-view-dolphin",
+    "plugins/squalr-plugin-symbols-pe",
     "squalr-tests",
     "squalr-engine-api",
     "squalr-engine-domain",

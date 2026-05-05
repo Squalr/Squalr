@@ -35,6 +35,7 @@ use squalr_engine_api::commands::{
         create::project_symbols_create_request::ProjectSymbolsCreateRequest,
         create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
         delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode, ProjectSymbolsDeleteRequest},
+        execute_plugin_action::project_symbols_execute_plugin_action_request::ProjectSymbolsExecutePluginActionRequest,
         rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
         rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
     },
@@ -42,6 +43,7 @@ use squalr_engine_api::commands::{
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::symbol_tree::symbol_tree_action::{SymbolTreeActionContext, SymbolTreeActionSelection};
 use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
@@ -117,6 +119,13 @@ struct AddSymbolToProjectTarget {
     module_name: String,
     data_type_id: String,
     pointer_offsets: Option<Vec<PointerChainSegment>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SymbolTreePluginActionMenuItem {
+    plugin_id: String,
+    action_id: String,
+    label: String,
 }
 
 #[derive(Clone, Debug)]
@@ -2563,14 +2572,14 @@ impl SymbolExplorerView {
     fn calculate_symbol_tree_context_menu_width(
         app_context: &AppContext,
         user_interface: &mut Ui,
-        item_labels: &[&str],
+        item_labels: &[String],
     ) -> f32 {
         let mut longest_label_width: f32 = 0.0;
 
         user_interface.ctx().fonts_mut(|fonts| {
             for item_label in item_labels {
                 let galley = fonts.layout_no_wrap(
-                    (*item_label).to_string(),
+                    item_label.to_string(),
                     app_context
                         .theme
                         .font_library
@@ -2584,6 +2593,77 @@ impl SymbolExplorerView {
         });
 
         ToolbarMenuItemView::row_width_from_text_width(longest_label_width).ceil()
+    }
+
+    fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeEntry) -> SymbolTreeActionContext {
+        match symbol_tree_entry.get_kind() {
+            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
+                module_name: module_name.to_string(),
+            }),
+            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolTreeActionContext::new(SymbolTreeActionSelection::SymbolLocator {
+                symbol_locator_key: symbol_locator_key.to_string(),
+            }),
+            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRange {
+                module_name: module_name.to_string(),
+                offset: *offset,
+                length: *length,
+            }),
+            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::PointerTarget => SymbolTreeActionContext::new(SymbolTreeActionSelection::DerivedNode {
+                tree_node_key: symbol_tree_entry.get_node_key().to_string(),
+            }),
+        }
+    }
+
+    fn build_symbol_tree_plugin_action_menu_items(
+        &self,
+        context: &SymbolTreeActionContext,
+    ) -> Vec<SymbolTreePluginActionMenuItem> {
+        let plugin_registry = self.app_context.engine_unprivileged_state.get_plugin_registry();
+
+        plugin_registry
+            .get_enabled_symbol_tree_actions()
+            .into_iter()
+            .filter(|(plugin_id, symbol_tree_action)| {
+                symbol_tree_action.is_visible(context) && plugin_registry.plugin_action_has_required_permissions(plugin_id, symbol_tree_action.as_ref())
+            })
+            .map(|(plugin_id, symbol_tree_action)| SymbolTreePluginActionMenuItem {
+                plugin_id,
+                action_id: symbol_tree_action.action_id().to_string(),
+                label: symbol_tree_action.label(context),
+            })
+            .collect()
+    }
+
+    fn execute_symbol_tree_plugin_action(
+        &self,
+        menu_item: &SymbolTreePluginActionMenuItem,
+        context: SymbolTreeActionContext,
+    ) {
+        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
+        let project_symbols_execute_plugin_action_request = ProjectSymbolsExecutePluginActionRequest {
+            plugin_id: menu_item.plugin_id.clone(),
+            action_id: menu_item.action_id.clone(),
+            context: context.clone(),
+        };
+
+        project_symbols_execute_plugin_action_request.send(
+            &self.app_context.engine_unprivileged_state,
+            move |project_symbols_execute_plugin_action_response| {
+                if !project_symbols_execute_plugin_action_response.success {
+                    log::warn!(
+                        "Symbol Tree plugin action failed: {}",
+                        project_symbols_execute_plugin_action_response
+                            .error
+                            .unwrap_or_else(|| String::from("unknown error"))
+                    );
+                    return;
+                }
+
+                if let SymbolTreeActionSelection::ModuleRoot { module_name } = context.get_selection() {
+                    SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{module_name}"));
+                }
+            },
+        );
     }
 
     #[allow(dead_code)]
@@ -2884,25 +2964,33 @@ impl SymbolExplorerView {
                     });
                 let context_menu_u8_span_edit_target = Self::build_u8_span_edit_target(symbol_tree_entry);
                 let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
+                let context_menu_symbol_tree_action_context = Self::build_symbol_tree_action_context(symbol_tree_entry);
+                let context_menu_plugin_action_menu_items = self.build_symbol_tree_plugin_action_menu_items(&context_menu_symbol_tree_action_context);
                 let can_delete_symbol_tree_entry =
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
                 if can_open_symbol_tree_entry {
-                    context_menu_labels.extend(["Open in Memory Viewer", "Open in Code Viewer"]);
+                    context_menu_labels.push(String::from("Open in Memory Viewer"));
+                    context_menu_labels.push(String::from("Open in Code Viewer"));
                 }
                 if context_menu_add_symbol_to_project_target.is_some() {
-                    context_menu_labels.push("Add to Project");
+                    context_menu_labels.push(String::from("Add to Project"));
                 }
                 if context_menu_u8_span_edit_target.is_some() {
-                    context_menu_labels.push("Define Field...");
-                    context_menu_labels.push("Split in Half");
+                    context_menu_labels.push(String::from("Define Field..."));
+                    context_menu_labels.push(String::from("Split in Half"));
                 }
                 if can_rename_symbol_tree_entry {
-                    context_menu_labels.push("Rename");
+                    context_menu_labels.push(String::from("Rename"));
                 }
-                context_menu_labels.push("New Module");
+                context_menu_labels.extend(
+                    context_menu_plugin_action_menu_items
+                        .iter()
+                        .map(|menu_item| menu_item.label.clone()),
+                );
+                context_menu_labels.push(String::from("New Module"));
                 if can_delete_symbol_tree_entry {
-                    context_menu_labels.push("Delete");
+                    context_menu_labels.push(String::from("Delete"));
                 }
                 let context_menu_width = Self::calculate_symbol_tree_context_menu_width(self.app_context.as_ref(), user_interface, &context_menu_labels);
                 let mut is_context_menu_open = true;
@@ -3068,7 +3156,44 @@ impl SymbolExplorerView {
                             *should_close = true;
                         }
 
-                        if can_open_symbol_tree_entry || context_menu_u8_span_edit_target.is_some() || can_rename_symbol_tree_entry {
+                        let has_symbol_tree_edit_menu_items =
+                            can_open_symbol_tree_entry || context_menu_u8_span_edit_target.is_some() || can_rename_symbol_tree_entry;
+
+                        if has_symbol_tree_edit_menu_items && !context_menu_plugin_action_menu_items.is_empty() {
+                            user_interface.separator();
+                        }
+
+                        for plugin_action_menu_item in &context_menu_plugin_action_menu_items {
+                            let plugin_action_widget_id = format!(
+                                "symbol_tree_ctx_plugin_action_{}_{}",
+                                plugin_action_menu_item.plugin_id, plugin_action_menu_item.action_id
+                            );
+
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        &plugin_action_menu_item.label,
+                                        &plugin_action_widget_id,
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_data_type_blue_blocks_4
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.execute_symbol_tree_plugin_action(plugin_action_menu_item, context_menu_symbol_tree_action_context.clone());
+                                *should_close = true;
+                            }
+                        }
+
+                        if has_symbol_tree_edit_menu_items || !context_menu_plugin_action_menu_items.is_empty() {
                             user_interface.separator();
                         }
 

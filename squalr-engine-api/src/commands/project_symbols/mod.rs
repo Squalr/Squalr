@@ -1,6 +1,7 @@
 pub mod create;
 pub mod create_module;
 pub mod delete;
+pub mod execute_plugin_action;
 pub mod list;
 pub mod project_symbols_command;
 pub mod project_symbols_response;

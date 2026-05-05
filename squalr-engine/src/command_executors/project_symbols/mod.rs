@@ -1,6 +1,7 @@
 pub mod create;
 pub mod create_module;
 pub mod delete;
+pub mod execute_plugin_action;
 pub mod list;
 pub mod project_symbol_layout_mutation;
 pub mod project_symbol_name_scope;
