@@ -157,7 +157,7 @@ where
             &scalar_values_by_field_name,
             &resolve_type_size_in_bytes,
         );
-        let element_count_result = resolve_field_element_count(field_definition, &scalar_values_by_field_name);
+        let element_count_result = resolve_field_element_count(field_definition, &scalar_values_by_field_name, &resolve_type_size_in_bytes);
         let unit_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref());
         let mut field_status = build_field_status(&field_offset_result, &element_count_result, unit_size_in_bytes);
         let displayed_element_count = element_count_result
@@ -233,10 +233,11 @@ where
 fn resolve_field_element_count(
     field_definition: &SymbolicFieldDefinition,
     scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &impl Fn(&DataTypeRef) -> Option<u64>,
 ) -> Result<Option<u64>, String> {
     match field_definition.get_count_resolution() {
         SymbolicFieldCountResolution::Expression(count_expression) => {
-            evaluate_u64_expression(count_expression, scalar_values_by_field_name, &|_| None).map(Some)
+            evaluate_u64_expression(count_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
         }
         SymbolicFieldCountResolution::Inferred => match field_definition.get_container_type() {
             ContainerType::ArrayFixed(element_count) => Ok(Some(element_count)),
@@ -444,5 +445,36 @@ mod tests {
         );
 
         assert_eq!(resolved_struct.get_fields()[0].get_offset_in_bytes(), Some(96));
+    }
+
+    #[test]
+    fn resolver_supports_sizeof_in_count_expressions() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("Items"),
+            vec![
+                SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
+                SymbolicFieldDefinition::from_str("capacity:u32").expect("Expected capacity field to parse."),
+                SymbolicFieldDefinition::from_str("unfilled:u8[(capacity - count) * sizeof(Element)]").expect("Expected unfilled field to parse."),
+            ],
+        );
+
+        let resolved_struct = resolve_symbolic_struct_definition(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                "Element" => Some(32),
+                _ => None,
+            },
+            |field_definition, _, _| match field_definition.get_field_name() {
+                "count" => Ok(Some(4)),
+                "capacity" => Ok(Some(12)),
+                _ => Ok(None),
+            },
+            &SymbolicStructResolverOptions::default(),
+        );
+
+        assert_eq!(resolved_struct.get_fields()[2].get_element_count(), Some(256));
+        assert_eq!(resolved_struct.get_fields()[2].get_size_in_bytes(), Some(256));
     }
 }
