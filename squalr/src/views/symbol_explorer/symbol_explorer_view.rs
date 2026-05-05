@@ -18,7 +18,10 @@ use crate::views::{
             DefineFieldDraft, ModuleRootCreateDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState,
             SymbolExplorerViewData,
         },
-        symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries, resolve_symbol_tree_entry_size_in_bytes},
+        symbol_tree_entry::{
+            ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries_with_scalar_reader, resolve_symbol_tree_entry_size_in_bytes,
+        },
+        symbol_tree_scalar_value::SymbolTreeScalarValue,
     },
 };
 use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, TextEdit, Ui, UiBuilder, Widget, vec2};
@@ -61,6 +64,7 @@ use squalr_engine_api::structures::structs::{
 };
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -136,8 +140,10 @@ struct DefineFieldPlan {
 impl SymbolExplorerView {
     pub const WINDOW_ID: &'static str = "window_symbol_explorer";
     const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_pointer_children";
+    const SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_scalar_values";
     const PREVIEW_VALUES_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_preview_values";
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
+    const SCALAR_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const PREVIEW_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
@@ -1738,6 +1744,53 @@ impl SymbolExplorerView {
                     query_id.clone(),
                     ResolvedPointerTarget::new(target_locator, virtual_snapshot_query_result.evaluated_pointer_path.clone()),
                 ))
+            })
+            .collect()
+    }
+
+    fn sync_symbol_scalar_virtual_snapshot(
+        &self,
+        scalar_snapshot_queries: Vec<VirtualSnapshotQuery>,
+    ) {
+        self.app_context
+            .engine_unprivileged_state
+            .set_virtual_snapshot_queries(
+                Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID,
+                Self::SCALAR_VALUES_REFRESH_INTERVAL,
+                SymbolTreeScalarValue::deduplicate_queries_by_id(scalar_snapshot_queries),
+            );
+        self.app_context
+            .engine_unprivileged_state
+            .request_virtual_snapshot_refresh(Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID);
+    }
+
+    fn collect_scalar_values_by_query_id(&self) -> HashMap<String, i128> {
+        let Some(virtual_snapshot) = self
+            .app_context
+            .engine_unprivileged_state
+            .get_virtual_snapshot(Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID)
+        else {
+            return HashMap::new();
+        };
+
+        virtual_snapshot
+            .get_query_results()
+            .iter()
+            .filter_map(|(query_id, virtual_snapshot_query_result)| {
+                let memory_read_response = virtual_snapshot_query_result.memory_read_response.as_ref()?;
+
+                if !memory_read_response.success {
+                    return None;
+                }
+
+                let first_read_field_data_value = memory_read_response
+                    .valued_struct
+                    .get_fields()
+                    .first()
+                    .and_then(|valued_struct_field| valued_struct_field.get_data_value())?;
+                let scalar_value = SymbolTreeScalarValue::read_integer_value(first_read_field_data_value)?;
+
+                Some((query_id.clone(), scalar_value))
             })
             .collect()
     }
@@ -3404,6 +3457,9 @@ impl Widget for SymbolExplorerView {
                 .set_virtual_snapshot_queries(Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID, Self::POINTER_CHILDREN_REFRESH_INTERVAL, Vec::new());
             self.app_context
                 .engine_unprivileged_state
+                .set_virtual_snapshot_queries(Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID, Self::SCALAR_VALUES_REFRESH_INTERVAL, Vec::new());
+            self.app_context
+                .engine_unprivileged_state
                 .set_virtual_snapshot_queries(Self::PREVIEW_VALUES_VIRTUAL_SNAPSHOT_ID, Self::PREVIEW_VALUES_REFRESH_INTERVAL, Vec::new());
 
             return user_interface
@@ -3431,25 +3487,45 @@ impl Widget for SymbolExplorerView {
             .read("Symbol explorer expanded tree nodes")
             .map(|symbol_explorer_view_data| symbol_explorer_view_data.get_expanded_tree_node_keys().clone())
             .unwrap_or_default();
-        let structural_symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+        let scalar_values_by_query_id = self.collect_scalar_values_by_query_id();
+        let scalar_snapshot_queries = RefCell::new(Vec::new());
+        let resolve_primitive_size_in_bytes = |data_type_ref: &DataTypeRef| {
             self.app_context
                 .engine_unprivileged_state
                 .get_default_value(data_type_ref)
                 .map(|default_value| default_value.get_size_in_bytes())
-        });
+        };
+        let read_scalar_field = |project_symbol_locator: &ProjectSymbolLocator, field_definition: &SymbolicFieldDefinition, field_size_in_bytes: u64| {
+            let scalar_query_id = SymbolTreeScalarValue::query_id(project_symbol_locator, field_definition);
+
+            if let Some(scalar_snapshot_query) = SymbolTreeScalarValue::build_query(project_symbol_locator, field_definition, field_size_in_bytes) {
+                scalar_snapshot_queries.borrow_mut().push(scalar_snapshot_query);
+            }
+
+            if let Some(scalar_value) = scalar_values_by_query_id.get(&scalar_query_id) {
+                return Ok(Some(*scalar_value));
+            }
+
+            Ok(None)
+        };
+        let structural_symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            resolve_primitive_size_in_bytes,
+            read_scalar_field,
+        );
+        self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
         self.sync_pointer_child_virtual_snapshot(&project_symbol_catalog, &structural_symbol_tree_entries);
         let resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &resolved_pointer_targets_by_node_key,
-            |data_type_ref| {
-                self.app_context
-                    .engine_unprivileged_state
-                    .get_default_value(data_type_ref)
-                    .map(|default_value| default_value.get_size_in_bytes())
-            },
+            resolve_primitive_size_in_bytes,
+            read_scalar_field,
         );
+        self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
         self.sync_symbol_preview_virtual_snapshot(&project_symbol_catalog, &symbol_tree_entries);
         let preview_values_by_node_key = self.collect_preview_values_by_node_key(&symbol_tree_entries);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
