@@ -528,7 +528,21 @@ fn append_field_children<ResolvePrimitiveSize>(
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
     match container_type {
-        ContainerType::ArrayFixed(_) => {}
+        ContainerType::ArrayFixed(array_length) => append_fixed_array_element_entries(
+            symbol_tree_entries,
+            project_symbol_catalog,
+            symbol_claim_locator_key,
+            parent_node_key,
+            parent_full_path,
+            parent_locator,
+            data_type_ref,
+            array_length,
+            depth,
+            expanded_tree_node_keys,
+            resolved_pointer_targets_by_node_key,
+            resolve_primitive_size_in_bytes,
+            visited_struct_layout_ids,
+        ),
         ContainerType::None => {
             if let Some(nested_struct_layout_definition) = resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()) {
                 let type_identifier = data_type_ref.get_data_type_id().to_string();
@@ -601,6 +615,77 @@ fn append_field_children<ResolvePrimitiveSize>(
     }
 }
 
+fn append_fixed_array_element_entries<ResolvePrimitiveSize>(
+    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    symbol_claim_locator_key: &str,
+    parent_node_key: &str,
+    parent_full_path: &str,
+    parent_locator: &ProjectSymbolLocator,
+    data_type_ref: &DataTypeRef,
+    array_length: u64,
+    depth: usize,
+    expanded_tree_node_keys: &HashSet<String>,
+    resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
+    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
+    visited_struct_layout_ids: &mut HashSet<String>,
+) where
+    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
+{
+    if !data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids) {
+        return;
+    }
+
+    let element_size_in_bytes = resolve_data_type_size_in_bytes(
+        project_symbol_catalog,
+        data_type_ref,
+        resolve_primitive_size_in_bytes,
+        visited_struct_layout_ids,
+    );
+
+    for array_element_index in 0..array_length {
+        let element_display_name = format!("[{}]", array_element_index);
+        let element_full_path = format!("{}{}", parent_full_path, element_display_name);
+        let element_node_key = format!("{}::{}", parent_node_key, element_display_name);
+        let element_offset = element_size_in_bytes.saturating_mul(array_element_index);
+        let element_locator = offset_locator(parent_locator, element_offset);
+        let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
+        let is_expanded = can_expand && expanded_tree_node_keys.contains(&element_node_key);
+
+        symbol_tree_entries.push(SymbolTreeEntry::new(
+            element_node_key.clone(),
+            SymbolTreeEntryKind::StructField,
+            depth,
+            element_display_name,
+            element_full_path.clone(),
+            symbol_claim_locator_key.to_string(),
+            element_locator.clone(),
+            data_type_ref.to_string(),
+            ContainerType::None,
+            can_expand,
+            is_expanded,
+        ));
+
+        if is_expanded {
+            append_field_children(
+                symbol_tree_entries,
+                project_symbol_catalog,
+                symbol_claim_locator_key,
+                &element_node_key,
+                &element_full_path,
+                &element_locator,
+                data_type_ref,
+                ContainerType::None,
+                depth + 1,
+                expanded_tree_node_keys,
+                resolved_pointer_targets_by_node_key,
+                resolve_primitive_size_in_bytes,
+                visited_struct_layout_ids,
+            );
+        }
+    }
+}
+
 fn field_can_expand(
     project_symbol_catalog: &ProjectSymbolCatalog,
     field_definition: &SymbolicFieldDefinition,
@@ -620,7 +705,9 @@ fn data_type_ref_can_expand(
     visited_struct_layout_ids: &mut HashSet<String>,
 ) -> bool {
     match container_type {
-        ContainerType::ArrayFixed(_) => false,
+        ContainerType::ArrayFixed(array_length) => {
+            array_length > 0 && data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids)
+        }
         ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => true,
         ContainerType::None => {
             let data_type_id = data_type_ref.get_data_type_id();
@@ -1002,6 +1089,71 @@ mod tests {
                 offset: 0x08,
                 length: 0x18,
             }
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_expands_module_field_fixed_arrays_of_structs() {
+        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x220);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(
+                String::from("Section Headers"),
+                0x178,
+                String::from("section_header[3]"),
+            ));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![StructLayoutDescriptor::new(
+                String::from("section_header"),
+                SymbolicStructDefinition::new(
+                    String::from("section_header"),
+                    vec![
+                        SymbolicFieldDefinition::new_named(String::from("Name"), DataTypeRef::new("u8"), ContainerType::ArrayFixed(8)),
+                        SymbolicFieldDefinition::new_named(String::from("VirtualSize"), DataTypeRef::new("u32"), ContainerType::None),
+                    ],
+                ),
+            )],
+            Vec::new(),
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:game.exe"),
+            String::from("module_field:module:game.exe:178"),
+            String::from("module_field:module:game.exe:178::[0]"),
+        ]);
+
+        let symbol_tree_entries =
+            build_symbol_tree_entries(
+                &project_symbol_catalog,
+                &expanded_tree_node_keys,
+                &HashMap::new(),
+                |data_type_ref| match data_type_ref.get_data_type_id() {
+                    "u8" => Some(1),
+                    "u32" => Some(4),
+                    _ => None,
+                },
+            );
+
+        assert_eq!(symbol_tree_entries[2].get_display_name(), "Section Headers");
+        assert_eq!(symbol_tree_entries[2].get_display_type_id(), "section_header[3]");
+        assert!(symbol_tree_entries[2].can_expand());
+        assert_eq!(symbol_tree_entries[3].get_full_path(), "Section Headers[0]");
+        assert_eq!(
+            symbol_tree_entries[3].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x178)
+        );
+        assert_eq!(symbol_tree_entries[4].get_full_path(), "Section Headers[0].Name");
+        assert_eq!(symbol_tree_entries[5].get_full_path(), "Section Headers[0].VirtualSize");
+        assert_eq!(
+            symbol_tree_entries[5].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x180)
+        );
+        assert_eq!(symbol_tree_entries[6].get_full_path(), "Section Headers[1]");
+        assert_eq!(
+            symbol_tree_entries[6].get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x184)
         );
     }
 

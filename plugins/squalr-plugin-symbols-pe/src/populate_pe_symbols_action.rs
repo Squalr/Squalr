@@ -232,68 +232,21 @@ fn upsert_pe_module_fields_in_module(
     desired_module_fields: &[DesiredModuleField],
 ) -> Result<(), String> {
     let module_fields = symbol_module.get_fields_mut();
-
-    for desired_module_field in desired_module_fields {
-        let desired_field_end = desired_module_field
-            .offset
-            .checked_add(desired_module_field.size_in_bytes)
-            .ok_or_else(|| format!("PE field `{}` range is too large.", desired_module_field.display_name))?;
-
-        for existing_module_field in module_fields.iter() {
-            let Some(existing_field_size) = resolve_known_module_field_size(existing_module_field.get_struct_layout_id()) else {
-                return Err(format!(
-                    "Cannot safely place PE symbols because `{}` has an unknown size.",
-                    existing_module_field.get_display_name()
-                ));
-            };
-            let Some(existing_field_end) = existing_module_field
-                .get_offset()
-                .checked_add(existing_field_size)
-            else {
-                return Err(format!(
-                    "Cannot safely place PE symbols because `{}` has an invalid range.",
-                    existing_module_field.get_display_name()
-                ));
-            };
-
-            if existing_module_field.get_offset() == desired_module_field.offset {
-                continue;
-            }
-
-            if existing_module_field.get_offset() < desired_field_end
-                && desired_module_field.offset < existing_field_end
-                && !is_u8_array_field(existing_module_field)
-            {
-                return Err(format!(
-                    "PE field `{}` overlaps existing field `{}`.",
-                    desired_module_field.display_name,
-                    existing_module_field.get_display_name()
-                ));
-            }
-        }
-    }
-
-    module_fields.retain(|module_field| {
-        desired_module_fields.iter().all(|desired_module_field| {
-            if module_field.get_offset() == desired_module_field.offset {
-                return false;
-            }
-
-            let Some(module_field_size) = resolve_u8_array_length(module_field.get_struct_layout_id()) else {
-                return true;
-            };
-            let Some(module_field_end) = module_field.get_offset().checked_add(module_field_size) else {
-                return true;
-            };
-            let Some(desired_field_end) = desired_module_field
+    let desired_field_ranges = desired_module_fields
+        .iter()
+        .map(|desired_module_field| {
+            desired_module_field
                 .offset
                 .checked_add(desired_module_field.size_in_bytes)
-            else {
-                return true;
-            };
-
-            !(module_field.get_offset() < desired_field_end && desired_module_field.offset < module_field_end)
+                .map(|desired_field_end| (desired_module_field.offset, desired_field_end))
+                .ok_or_else(|| format!("PE field `{}` range is too large.", desired_module_field.display_name))
         })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    module_fields.retain(|module_field| {
+        !desired_field_ranges
+            .iter()
+            .any(|desired_field_range| module_field_overlaps_desired_pe_range(module_field, *desired_field_range))
     });
 
     for desired_module_field in desired_module_fields {
@@ -307,6 +260,26 @@ fn upsert_pe_module_fields_in_module(
     sort_module_fields(module_fields);
 
     Ok(())
+}
+
+fn module_field_overlaps_desired_pe_range(
+    module_field: &ProjectSymbolModuleField,
+    desired_field_range: (u64, u64),
+) -> bool {
+    let (desired_field_start, desired_field_end) = desired_field_range;
+
+    if module_field.get_offset() >= desired_field_start && module_field.get_offset() < desired_field_end {
+        return true;
+    }
+
+    let Some(module_field_size) = resolve_known_module_field_size(module_field.get_struct_layout_id()) else {
+        return false;
+    };
+    let Some(module_field_end) = module_field.get_offset().checked_add(module_field_size) else {
+        return false;
+    };
+
+    module_field.get_offset() < desired_field_end && desired_field_start < module_field_end
 }
 
 fn analyze_pe_header_layout(
@@ -618,10 +591,6 @@ fn resolve_known_module_field_size(struct_layout_id: &str) -> Option<u64> {
     }
 }
 
-fn is_u8_array_field(module_field: &ProjectSymbolModuleField) -> bool {
-    resolve_u8_array_length(module_field.get_struct_layout_id()).is_some()
-}
-
 fn resolve_u8_array_length(struct_layout_id: &str) -> Option<u64> {
     resolve_fixed_array_length(struct_layout_id, "u8")
 }
@@ -847,6 +816,51 @@ mod tests {
             .get_fields();
 
         assert_eq!(fields.len(), 4);
+        assert_eq!(fields[0].get_struct_layout_id(), IMAGE_DOS_HEADER_ID);
+        assert_eq!(fields[1].get_struct_layout_id(), "u8[64]");
+        assert_eq!(fields[2].get_struct_layout_id(), IMAGE_NT_HEADERS32_ID);
+        assert_eq!(fields[3].get_struct_layout_id(), "win.pe.IMAGE_SECTION_HEADER[3]");
+    }
+
+    #[test]
+    fn populate_pe_symbols_stomps_existing_fields_in_pe_header_span() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x2000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Bogus DOS"), 0, String::from("bogus_dos_header")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Bogus NT"), 0x90, String::from("u32")));
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Outside"), 0x400, String::from("u32")));
+        let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let pe_header_layout = PeHeaderLayout {
+            pe_header_offset: 0x80,
+            size_of_optional_header: 0xE0,
+            number_of_sections: 3,
+            optional_header_kind: PeOptionalHeaderKind::Pe32,
+        };
+
+        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout).expect("Expected PE symbol population to stomp conflicting fields.");
+
+        let fields = project_symbol_catalog
+            .find_symbol_module("game.exe")
+            .expect("Expected module to exist.")
+            .get_fields();
+
+        assert_eq!(fields.len(), 5);
+        assert!(
+            fields
+                .iter()
+                .all(|field| field.get_display_name() != "Bogus DOS")
+        );
+        assert!(
+            fields
+                .iter()
+                .all(|field| field.get_display_name() != "Bogus NT")
+        );
+        assert!(fields.iter().any(|field| field.get_display_name() == "Outside"));
         assert_eq!(fields[0].get_struct_layout_id(), IMAGE_DOS_HEADER_ID);
         assert_eq!(fields[1].get_struct_layout_id(), "u8[64]");
         assert_eq!(fields[2].get_struct_layout_id(), IMAGE_NT_HEADERS32_ID);
