@@ -1,7 +1,7 @@
 use squalr_engine_api::{
     plugins::{
         PluginPermission,
-        symbol_tree::symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices},
+        symbol_tree::symbol_tree_action::{ProcessMemoryStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices},
     },
     registries::symbols::struct_layout_descriptor::StructLayoutDescriptor,
     structures::{
@@ -16,9 +16,42 @@ use squalr_engine_api::{
 
 const IMAGE_DOS_HEADER_ID: &str = "win.pe.IMAGE_DOS_HEADER";
 const IMAGE_FILE_HEADER_ID: &str = "win.pe.IMAGE_FILE_HEADER";
+const IMAGE_NT_HEADERS32_ID: &str = "win.pe.IMAGE_NT_HEADERS32";
+const IMAGE_NT_HEADERS64_ID: &str = "win.pe.IMAGE_NT_HEADERS64";
 const IMAGE_DATA_DIRECTORY_ID: &str = "win.pe.IMAGE_DATA_DIRECTORY";
+const IMAGE_OPTIONAL_HEADER32_ID: &str = "win.pe.IMAGE_OPTIONAL_HEADER32";
 const IMAGE_OPTIONAL_HEADER64_ID: &str = "win.pe.IMAGE_OPTIONAL_HEADER64";
+const IMAGE_SECTION_HEADER_ID: &str = "win.pe.IMAGE_SECTION_HEADER";
 const DOS_HEADER_SIZE_IN_BYTES: u64 = 64;
+const IMAGE_NT_SIGNATURE_SIZE_IN_BYTES: u64 = 4;
+const IMAGE_FILE_HEADER_SIZE_IN_BYTES: u64 = 20;
+const IMAGE_SECTION_HEADER_SIZE_IN_BYTES: u64 = 40;
+const INITIAL_PE_HEADER_READ_SIZE: u64 = 0x1000;
+const MAX_PE_HEADER_READ_SIZE: u64 = 0x10000;
+const PE32_OPTIONAL_HEADER_MAGIC: u16 = 0x10B;
+const PE64_OPTIONAL_HEADER_MAGIC: u16 = 0x20B;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PeOptionalHeaderKind {
+    Pe32,
+    Pe64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PeHeaderLayout {
+    pe_header_offset: u64,
+    size_of_optional_header: u64,
+    number_of_sections: u64,
+    optional_header_kind: PeOptionalHeaderKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct DesiredModuleField {
+    display_name: String,
+    offset: u64,
+    struct_layout_id: String,
+    size_in_bytes: u64,
+}
 
 pub struct PopulatePeSymbolsAction;
 
@@ -47,6 +80,7 @@ impl SymbolTreeAction for PopulatePeSymbolsAction {
             PluginPermission::WriteSymbolStore,
             PluginPermission::ReadSymbolTreeWindow,
             PluginPermission::WriteSymbolTreeWindow,
+            PluginPermission::ReadProcessMemory,
         ]
     }
 
@@ -60,10 +94,11 @@ impl SymbolTreeAction for PopulatePeSymbolsAction {
         };
         let module_name = module_name.clone();
         let module_name_for_update = module_name.clone();
+        let pe_header_layout = analyze_pe_header_layout(services.process_memory(), &module_name)?;
 
         services.symbol_store().write_catalog(
             "populate PE symbols",
-            Box::new(move |project_symbol_catalog| populate_pe_symbols(project_symbol_catalog, &module_name_for_update)),
+            Box::new(move |project_symbol_catalog| populate_pe_symbols(project_symbol_catalog, &module_name_for_update, &pe_header_layout)),
         )?;
         services.symbol_tree_window().request_refresh();
         services
@@ -77,9 +112,10 @@ impl SymbolTreeAction for PopulatePeSymbolsAction {
 fn populate_pe_symbols(
     project_symbol_catalog: &mut ProjectSymbolCatalog,
     module_name: &str,
+    pe_header_layout: &PeHeaderLayout,
 ) -> Result<(), String> {
     upsert_pe_struct_layout_descriptors(project_symbol_catalog);
-    upsert_dos_header_module_field(project_symbol_catalog, module_name)
+    upsert_pe_module_fields(project_symbol_catalog, module_name, pe_header_layout)
 }
 
 fn upsert_pe_struct_layout_descriptors(project_symbol_catalog: &mut ProjectSymbolCatalog) {
@@ -87,8 +123,12 @@ fn upsert_pe_struct_layout_descriptors(project_symbol_catalog: &mut ProjectSymbo
 
     upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_dos_header_descriptor());
     upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_file_header_descriptor());
+    upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_nt_headers32_descriptor());
+    upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_nt_headers64_descriptor());
     upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_data_directory_descriptor());
+    upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_optional_header32_descriptor());
     upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_optional_header64_descriptor());
+    upsert_struct_layout_descriptor(&mut struct_layout_descriptors, image_section_header_descriptor());
     project_symbol_catalog.set_struct_layout_descriptors(struct_layout_descriptors);
 }
 
@@ -107,71 +147,266 @@ fn upsert_struct_layout_descriptor(
     struct_layout_descriptors.push(new_struct_layout_descriptor);
 }
 
-fn upsert_dos_header_module_field(
+fn upsert_pe_module_fields(
     project_symbol_catalog: &mut ProjectSymbolCatalog,
     module_name: &str,
+    pe_header_layout: &PeHeaderLayout,
 ) -> Result<(), String> {
-    project_symbol_catalog.ensure_symbol_module(module_name, DOS_HEADER_SIZE_IN_BYTES);
+    let desired_module_fields = build_desired_pe_module_fields(pe_header_layout)?;
+    let minimum_size = desired_module_fields
+        .iter()
+        .filter_map(|desired_module_field| {
+            desired_module_field
+                .offset
+                .checked_add(desired_module_field.size_in_bytes)
+        })
+        .max()
+        .unwrap_or(DOS_HEADER_SIZE_IN_BYTES);
+
+    project_symbol_catalog.ensure_symbol_module(module_name, minimum_size);
     let Some(symbol_module) = project_symbol_catalog.find_symbol_module_mut(module_name) else {
         return Err(format!("Could not resolve module `{module_name}` after creating it."));
     };
 
-    upsert_dos_header_module_field_in_module(symbol_module)
+    upsert_pe_module_fields_in_module(symbol_module, &desired_module_fields)
 }
 
-fn upsert_dos_header_module_field_in_module(symbol_module: &mut ProjectSymbolModule) -> Result<(), String> {
+fn build_desired_pe_module_fields(pe_header_layout: &PeHeaderLayout) -> Result<Vec<DesiredModuleField>, String> {
+    let mut desired_module_fields = vec![DesiredModuleField {
+        display_name: String::from("DOS Header"),
+        offset: 0,
+        struct_layout_id: IMAGE_DOS_HEADER_ID.to_string(),
+        size_in_bytes: DOS_HEADER_SIZE_IN_BYTES,
+    }];
+
+    if pe_header_layout.pe_header_offset > DOS_HEADER_SIZE_IN_BYTES {
+        desired_module_fields.push(DesiredModuleField {
+            display_name: String::from("DOS Stub"),
+            offset: DOS_HEADER_SIZE_IN_BYTES,
+            struct_layout_id: format!(
+                "u8[{}]",
+                pe_header_layout
+                    .pe_header_offset
+                    .saturating_sub(DOS_HEADER_SIZE_IN_BYTES)
+            ),
+            size_in_bytes: pe_header_layout
+                .pe_header_offset
+                .saturating_sub(DOS_HEADER_SIZE_IN_BYTES),
+        });
+    }
+
+    let nt_headers_size = IMAGE_NT_SIGNATURE_SIZE_IN_BYTES
+        .checked_add(IMAGE_FILE_HEADER_SIZE_IN_BYTES)
+        .and_then(|header_prefix_size| header_prefix_size.checked_add(pe_header_layout.size_of_optional_header))
+        .ok_or_else(|| String::from("PE NT headers size is too large."))?;
+    let section_headers_offset = pe_header_layout
+        .pe_header_offset
+        .checked_add(nt_headers_size)
+        .ok_or_else(|| String::from("PE section headers offset is too large."))?;
+    let section_headers_size = pe_header_layout
+        .number_of_sections
+        .checked_mul(IMAGE_SECTION_HEADER_SIZE_IN_BYTES)
+        .ok_or_else(|| String::from("PE section headers size is too large."))?;
+
+    desired_module_fields.push(DesiredModuleField {
+        display_name: String::from("NT Headers"),
+        offset: pe_header_layout.pe_header_offset,
+        struct_layout_id: pe_header_layout.nt_headers_struct_layout_id().to_string(),
+        size_in_bytes: nt_headers_size,
+    });
+
+    if pe_header_layout.number_of_sections > 0 {
+        desired_module_fields.push(DesiredModuleField {
+            display_name: String::from("Section Headers"),
+            offset: section_headers_offset,
+            struct_layout_id: format!("{}[{}]", IMAGE_SECTION_HEADER_ID, pe_header_layout.number_of_sections),
+            size_in_bytes: section_headers_size,
+        });
+    }
+
+    Ok(desired_module_fields)
+}
+
+fn upsert_pe_module_fields_in_module(
+    symbol_module: &mut ProjectSymbolModule,
+    desired_module_fields: &[DesiredModuleField],
+) -> Result<(), String> {
     let module_fields = symbol_module.get_fields_mut();
 
-    if let Some(existing_field_position) = module_fields
-        .iter()
-        .position(|module_field| module_field.get_offset() == 0)
-    {
-        let existing_struct_layout_id = module_fields[existing_field_position]
-            .get_struct_layout_id()
-            .to_string();
+    for desired_module_field in desired_module_fields {
+        let desired_field_end = desired_module_field
+            .offset
+            .checked_add(desired_module_field.size_in_bytes)
+            .ok_or_else(|| format!("PE field `{}` range is too large.", desired_module_field.display_name))?;
 
-        if existing_struct_layout_id == IMAGE_DOS_HEADER_ID {
-            module_fields[existing_field_position].set_display_name(String::from("DOS Header"));
-            return Ok(());
-        }
+        for existing_module_field in module_fields.iter() {
+            let Some(existing_field_size) = resolve_known_module_field_size(existing_module_field.get_struct_layout_id()) else {
+                return Err(format!(
+                    "Cannot safely place PE symbols because `{}` has an unknown size.",
+                    existing_module_field.get_display_name()
+                ));
+            };
+            let Some(existing_field_end) = existing_module_field
+                .get_offset()
+                .checked_add(existing_field_size)
+            else {
+                return Err(format!(
+                    "Cannot safely place PE symbols because `{}` has an invalid range.",
+                    existing_module_field.get_display_name()
+                ));
+            };
 
-        if let Some(existing_u8_array_length) = resolve_u8_array_length(&existing_struct_layout_id) {
-            if existing_u8_array_length < DOS_HEADER_SIZE_IN_BYTES {
-                return Err(String::from("The module starts with a u8[] field smaller than an IMAGE_DOS_HEADER."));
+            if existing_module_field.get_offset() == desired_module_field.offset {
+                continue;
             }
 
-            module_fields.remove(existing_field_position);
-            module_fields.push(ProjectSymbolModuleField::new(String::from("DOS Header"), 0, IMAGE_DOS_HEADER_ID.to_string()));
-
-            if existing_u8_array_length > DOS_HEADER_SIZE_IN_BYTES {
-                module_fields.push(ProjectSymbolModuleField::new(
-                    format!("u8_{:08X}", DOS_HEADER_SIZE_IN_BYTES),
-                    DOS_HEADER_SIZE_IN_BYTES,
-                    format!("u8[{}]", existing_u8_array_length.saturating_sub(DOS_HEADER_SIZE_IN_BYTES)),
+            if existing_module_field.get_offset() < desired_field_end
+                && desired_module_field.offset < existing_field_end
+                && !is_u8_array_field(existing_module_field)
+            {
+                return Err(format!(
+                    "PE field `{}` overlaps existing field `{}`.",
+                    desired_module_field.display_name,
+                    existing_module_field.get_display_name()
                 ));
             }
-
-            sort_module_fields(module_fields);
-            return Ok(());
         }
+    }
 
-        return Err(format!(
-            "The module already has `{}` at offset 0.",
-            module_fields[existing_field_position].get_display_name()
+    module_fields.retain(|module_field| {
+        desired_module_fields.iter().all(|desired_module_field| {
+            if module_field.get_offset() == desired_module_field.offset {
+                return false;
+            }
+
+            let Some(module_field_size) = resolve_u8_array_length(module_field.get_struct_layout_id()) else {
+                return true;
+            };
+            let Some(module_field_end) = module_field.get_offset().checked_add(module_field_size) else {
+                return true;
+            };
+            let Some(desired_field_end) = desired_module_field
+                .offset
+                .checked_add(desired_module_field.size_in_bytes)
+            else {
+                return true;
+            };
+
+            !(module_field.get_offset() < desired_field_end && desired_module_field.offset < module_field_end)
+        })
+    });
+
+    for desired_module_field in desired_module_fields {
+        module_fields.push(ProjectSymbolModuleField::new(
+            desired_module_field.display_name.clone(),
+            desired_module_field.offset,
+            desired_module_field.struct_layout_id.clone(),
         ));
     }
 
-    if module_fields
-        .iter()
-        .any(|module_field| module_field.get_offset() < DOS_HEADER_SIZE_IN_BYTES)
-    {
-        return Err(String::from("The first 64 bytes of this module already contain symbol fields."));
-    }
-
-    module_fields.push(ProjectSymbolModuleField::new(String::from("DOS Header"), 0, IMAGE_DOS_HEADER_ID.to_string()));
     sort_module_fields(module_fields);
 
     Ok(())
+}
+
+fn analyze_pe_header_layout(
+    process_memory_store: &dyn ProcessMemoryStore,
+    module_name: &str,
+) -> Result<PeHeaderLayout, String> {
+    let initial_header_bytes = process_memory_store.read_module_bytes(module_name, 0, INITIAL_PE_HEADER_READ_SIZE)?;
+    let pe_header_offset = read_pe_header_offset(&initial_header_bytes)?;
+    let minimum_required_size = pe_header_offset
+        .checked_add(IMAGE_NT_SIGNATURE_SIZE_IN_BYTES)
+        .and_then(|offset| offset.checked_add(IMAGE_FILE_HEADER_SIZE_IN_BYTES))
+        .ok_or_else(|| String::from("PE header offset is too large."))?;
+    let header_bytes = if minimum_required_size <= initial_header_bytes.len() as u64 {
+        initial_header_bytes
+    } else {
+        let read_size = minimum_required_size
+            .max(INITIAL_PE_HEADER_READ_SIZE)
+            .min(MAX_PE_HEADER_READ_SIZE);
+
+        process_memory_store.read_module_bytes(module_name, 0, read_size)?
+    };
+
+    read_pe_layout_from_header_bytes(&header_bytes, pe_header_offset)
+}
+
+fn read_pe_header_offset(header_bytes: &[u8]) -> Result<u64, String> {
+    if header_bytes.len() < DOS_HEADER_SIZE_IN_BYTES as usize {
+        return Err(String::from("Module header read is too small for an IMAGE_DOS_HEADER."));
+    }
+
+    if header_bytes.get(0..2) != Some(b"MZ") {
+        return Err(String::from("Selected module does not start with the MZ DOS signature."));
+    }
+
+    let e_lfanew_bytes = header_bytes
+        .get(0x3C..0x40)
+        .ok_or_else(|| String::from("IMAGE_DOS_HEADER.e_lfanew is not readable."))?;
+    let pe_header_offset = u32::from_le_bytes([
+        e_lfanew_bytes[0],
+        e_lfanew_bytes[1],
+        e_lfanew_bytes[2],
+        e_lfanew_bytes[3],
+    ]) as u64;
+
+    if pe_header_offset < DOS_HEADER_SIZE_IN_BYTES {
+        return Err(format!("IMAGE_DOS_HEADER.e_lfanew points inside the DOS header: 0x{pe_header_offset:X}."));
+    }
+
+    if pe_header_offset > MAX_PE_HEADER_READ_SIZE {
+        return Err(format!("IMAGE_DOS_HEADER.e_lfanew is unexpectedly large: 0x{pe_header_offset:X}."));
+    }
+
+    Ok(pe_header_offset)
+}
+
+fn read_pe_layout_from_header_bytes(
+    header_bytes: &[u8],
+    pe_header_offset: u64,
+) -> Result<PeHeaderLayout, String> {
+    let pe_header_position = pe_header_offset as usize;
+    let pe_signature = header_bytes
+        .get(pe_header_position..pe_header_position.saturating_add(4))
+        .ok_or_else(|| String::from("PE signature is not readable."))?;
+
+    if pe_signature != b"PE\0\0" {
+        return Err(format!("IMAGE_DOS_HEADER.e_lfanew does not point at a PE signature: 0x{pe_header_offset:X}."));
+    }
+
+    let file_header_position = pe_header_position.saturating_add(IMAGE_NT_SIGNATURE_SIZE_IN_BYTES as usize);
+    let file_header_bytes = header_bytes
+        .get(file_header_position..file_header_position.saturating_add(IMAGE_FILE_HEADER_SIZE_IN_BYTES as usize))
+        .ok_or_else(|| String::from("IMAGE_FILE_HEADER is not readable."))?;
+    let number_of_sections = u16::from_le_bytes([file_header_bytes[2], file_header_bytes[3]]) as u64;
+    let size_of_optional_header = u16::from_le_bytes([file_header_bytes[16], file_header_bytes[17]]) as u64;
+    let optional_header_position = file_header_position.saturating_add(IMAGE_FILE_HEADER_SIZE_IN_BYTES as usize);
+    let optional_header_magic_bytes = header_bytes
+        .get(optional_header_position..optional_header_position.saturating_add(2))
+        .ok_or_else(|| String::from("IMAGE_OPTIONAL_HEADER magic is not readable."))?;
+    let optional_header_magic = u16::from_le_bytes([optional_header_magic_bytes[0], optional_header_magic_bytes[1]]);
+    let optional_header_kind = match optional_header_magic {
+        PE32_OPTIONAL_HEADER_MAGIC => PeOptionalHeaderKind::Pe32,
+        PE64_OPTIONAL_HEADER_MAGIC => PeOptionalHeaderKind::Pe64,
+        _ => return Err(format!("Unsupported PE optional header magic: 0x{optional_header_magic:X}.")),
+    };
+
+    Ok(PeHeaderLayout {
+        pe_header_offset,
+        size_of_optional_header,
+        number_of_sections,
+        optional_header_kind,
+    })
+}
+
+impl PeHeaderLayout {
+    fn nt_headers_struct_layout_id(&self) -> &'static str {
+        match self.optional_header_kind {
+            PeOptionalHeaderKind::Pe32 => IMAGE_NT_HEADERS32_ID,
+            PeOptionalHeaderKind::Pe64 => IMAGE_NT_HEADERS64_ID,
+        }
+    }
 }
 
 fn image_dos_header_descriptor() -> StructLayoutDescriptor {
@@ -216,8 +451,69 @@ fn image_file_header_descriptor() -> StructLayoutDescriptor {
     )
 }
 
+fn image_nt_headers32_descriptor() -> StructLayoutDescriptor {
+    struct_layout_descriptor(
+        IMAGE_NT_HEADERS32_ID,
+        vec![
+            field("Signature", "u32"),
+            field("FileHeader", IMAGE_FILE_HEADER_ID),
+            field("OptionalHeader", IMAGE_OPTIONAL_HEADER32_ID),
+        ],
+    )
+}
+
+fn image_nt_headers64_descriptor() -> StructLayoutDescriptor {
+    struct_layout_descriptor(
+        IMAGE_NT_HEADERS64_ID,
+        vec![
+            field("Signature", "u32"),
+            field("FileHeader", IMAGE_FILE_HEADER_ID),
+            field("OptionalHeader", IMAGE_OPTIONAL_HEADER64_ID),
+        ],
+    )
+}
+
 fn image_data_directory_descriptor() -> StructLayoutDescriptor {
     struct_layout_descriptor(IMAGE_DATA_DIRECTORY_ID, vec![field("VirtualAddress", "u32"), field("Size", "u32")])
+}
+
+fn image_optional_header32_descriptor() -> StructLayoutDescriptor {
+    struct_layout_descriptor(
+        IMAGE_OPTIONAL_HEADER32_ID,
+        vec![
+            field("Magic", "u16"),
+            field("MajorLinkerVersion", "u8"),
+            field("MinorLinkerVersion", "u8"),
+            field("SizeOfCode", "u32"),
+            field("SizeOfInitializedData", "u32"),
+            field("SizeOfUninitializedData", "u32"),
+            field("AddressOfEntryPoint", "u32"),
+            field("BaseOfCode", "u32"),
+            field("BaseOfData", "u32"),
+            field("ImageBase", "u32"),
+            field("SectionAlignment", "u32"),
+            field("FileAlignment", "u32"),
+            field("MajorOperatingSystemVersion", "u16"),
+            field("MinorOperatingSystemVersion", "u16"),
+            field("MajorImageVersion", "u16"),
+            field("MinorImageVersion", "u16"),
+            field("MajorSubsystemVersion", "u16"),
+            field("MinorSubsystemVersion", "u16"),
+            field("Win32VersionValue", "u32"),
+            field("SizeOfImage", "u32"),
+            field("SizeOfHeaders", "u32"),
+            field("CheckSum", "u32"),
+            field("Subsystem", "u16"),
+            field("DllCharacteristics", "u16"),
+            field("SizeOfStackReserve", "u32"),
+            field("SizeOfStackCommit", "u32"),
+            field("SizeOfHeapReserve", "u32"),
+            field("SizeOfHeapCommit", "u32"),
+            field("LoaderFlags", "u32"),
+            field("NumberOfRvaAndSizes", "u32"),
+            array_field("DataDirectory", IMAGE_DATA_DIRECTORY_ID, 16),
+        ],
+    )
 }
 
 fn image_optional_header64_descriptor() -> StructLayoutDescriptor {
@@ -258,6 +554,24 @@ fn image_optional_header64_descriptor() -> StructLayoutDescriptor {
     )
 }
 
+fn image_section_header_descriptor() -> StructLayoutDescriptor {
+    struct_layout_descriptor(
+        IMAGE_SECTION_HEADER_ID,
+        vec![
+            array_field("Name", "u8", 8),
+            field("VirtualSize", "u32"),
+            field("VirtualAddress", "u32"),
+            field("SizeOfRawData", "u32"),
+            field("PointerToRawData", "u32"),
+            field("PointerToRelocations", "u32"),
+            field("PointerToLinenumbers", "u32"),
+            field("NumberOfRelocations", "u16"),
+            field("NumberOfLinenumbers", "u16"),
+            field("Characteristics", "u32"),
+        ],
+    )
+}
+
 fn struct_layout_descriptor(
     struct_layout_id: &str,
     fields: Vec<SymbolicFieldDefinition>,
@@ -283,8 +597,43 @@ fn array_field(
     SymbolicFieldDefinition::new_named(field_name.to_string(), DataTypeRef::new(data_type_id), ContainerType::ArrayFixed(length))
 }
 
+fn resolve_known_module_field_size(struct_layout_id: &str) -> Option<u64> {
+    if let Some(u8_array_length) = resolve_u8_array_length(struct_layout_id) {
+        return Some(u8_array_length);
+    }
+
+    if let Some(section_header_count) = resolve_fixed_array_length(struct_layout_id, IMAGE_SECTION_HEADER_ID) {
+        return section_header_count.checked_mul(IMAGE_SECTION_HEADER_SIZE_IN_BYTES);
+    }
+
+    match struct_layout_id {
+        IMAGE_DOS_HEADER_ID => Some(DOS_HEADER_SIZE_IN_BYTES),
+        IMAGE_NT_HEADERS32_ID => Some(IMAGE_NT_SIGNATURE_SIZE_IN_BYTES + IMAGE_FILE_HEADER_SIZE_IN_BYTES + 224),
+        IMAGE_NT_HEADERS64_ID => Some(IMAGE_NT_SIGNATURE_SIZE_IN_BYTES + IMAGE_FILE_HEADER_SIZE_IN_BYTES + 240),
+        IMAGE_FILE_HEADER_ID => Some(IMAGE_FILE_HEADER_SIZE_IN_BYTES),
+        IMAGE_OPTIONAL_HEADER32_ID => Some(224),
+        IMAGE_OPTIONAL_HEADER64_ID => Some(240),
+        IMAGE_SECTION_HEADER_ID => Some(IMAGE_SECTION_HEADER_SIZE_IN_BYTES),
+        _ => None,
+    }
+}
+
+fn is_u8_array_field(module_field: &ProjectSymbolModuleField) -> bool {
+    resolve_u8_array_length(module_field.get_struct_layout_id()).is_some()
+}
+
 fn resolve_u8_array_length(struct_layout_id: &str) -> Option<u64> {
-    let length_text = struct_layout_id.strip_prefix("u8[")?.strip_suffix(']')?;
+    resolve_fixed_array_length(struct_layout_id, "u8")
+}
+
+fn resolve_fixed_array_length(
+    struct_layout_id: &str,
+    data_type_id: &str,
+) -> Option<u64> {
+    let length_text = struct_layout_id
+        .strip_prefix(data_type_id)?
+        .strip_prefix('[')?
+        .strip_suffix(']')?;
 
     length_text.parse::<u64>().ok().filter(|length| *length > 0)
 }
@@ -304,10 +653,13 @@ fn sort_module_fields(module_fields: &mut [ProjectSymbolModuleField]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{IMAGE_DOS_HEADER_ID, PopulatePeSymbolsAction, populate_pe_symbols};
+    use super::{
+        IMAGE_DOS_HEADER_ID, IMAGE_NT_HEADERS32_ID, IMAGE_SECTION_HEADER_ID, PeHeaderLayout, PeOptionalHeaderKind, PopulatePeSymbolsAction, populate_pe_symbols,
+    };
     use squalr_engine_api::{
         plugins::symbol_tree::symbol_tree_action::{
-            ProjectSymbolStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices, SymbolTreeWindowStore,
+            ProcessMemoryStore, ProjectSymbolStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices,
+            SymbolTreeWindowStore,
         },
         structures::projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
@@ -353,6 +705,32 @@ mod tests {
         }
     }
 
+    struct TestProcessMemoryStore {
+        header_bytes: Vec<u8>,
+    }
+
+    impl TestProcessMemoryStore {
+        fn new() -> Self {
+            Self {
+                header_bytes: build_test_pe_header_bytes(),
+            }
+        }
+    }
+
+    impl ProcessMemoryStore for TestProcessMemoryStore {
+        fn read_module_bytes(
+            &self,
+            _module_name: &str,
+            offset: u64,
+            length: u64,
+        ) -> Result<Vec<u8>, String> {
+            let read_start = offset as usize;
+            let read_end = read_start.saturating_add(length as usize);
+
+            Ok(self.header_bytes[read_start..read_end.min(self.header_bytes.len())].to_vec())
+        }
+    }
+
     struct TestSymbolTreeWindowStore;
 
     impl SymbolTreeWindowStore for TestSymbolTreeWindowStore {
@@ -367,6 +745,7 @@ mod tests {
 
     struct TestSymbolTreeActionServices {
         project_symbol_store: TestProjectSymbolStore,
+        process_memory_store: TestProcessMemoryStore,
         symbol_tree_window_store: TestSymbolTreeWindowStore,
     }
 
@@ -374,6 +753,7 @@ mod tests {
         fn new(project_symbol_catalog: ProjectSymbolCatalog) -> Self {
             Self {
                 project_symbol_store: TestProjectSymbolStore::new(project_symbol_catalog),
+                process_memory_store: TestProcessMemoryStore::new(),
                 symbol_tree_window_store: TestSymbolTreeWindowStore,
             }
         }
@@ -382,6 +762,10 @@ mod tests {
     impl SymbolTreeActionServices for TestSymbolTreeActionServices {
         fn symbol_store(&self) -> &dyn ProjectSymbolStore {
             &self.project_symbol_store
+        }
+
+        fn process_memory(&self) -> &dyn ProcessMemoryStore {
+            &self.process_memory_store
         }
 
         fn symbol_tree_window(&self) -> &dyn SymbolTreeWindowStore {
@@ -404,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn populate_pe_symbols_adds_dos_header_and_struct_descriptors() {
+    fn populate_pe_symbols_adds_dos_stub_nt_headers_and_section_headers() {
         let project_symbol_catalog =
             ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("game.exe"), 0x2000)], Vec::new(), Vec::new());
         let services = TestSymbolTreeActionServices::new(project_symbol_catalog);
@@ -422,35 +806,62 @@ mod tests {
             .find_symbol_module("game.exe")
             .expect("Expected module to exist.");
 
-        assert_eq!(symbol_module.get_fields().len(), 1);
+        assert_eq!(symbol_module.get_fields().len(), 4);
         assert_eq!(symbol_module.get_fields()[0].get_display_name(), "DOS Header");
         assert_eq!(symbol_module.get_fields()[0].get_struct_layout_id(), IMAGE_DOS_HEADER_ID);
+        assert_eq!(symbol_module.get_fields()[1].get_display_name(), "DOS Stub");
+        assert_eq!(symbol_module.get_fields()[1].get_struct_layout_id(), "u8[64]");
+        assert_eq!(symbol_module.get_fields()[2].get_display_name(), "NT Headers");
+        assert_eq!(symbol_module.get_fields()[2].get_offset(), 0x80);
+        assert_eq!(symbol_module.get_fields()[2].get_struct_layout_id(), IMAGE_NT_HEADERS32_ID);
+        assert_eq!(symbol_module.get_fields()[3].get_display_name(), "Section Headers");
+        assert_eq!(symbol_module.get_fields()[3].get_offset(), 0x178);
+        assert_eq!(symbol_module.get_fields()[3].get_struct_layout_id(), "win.pe.IMAGE_SECTION_HEADER[3]");
         assert!(
             project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
-                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == IMAGE_DOS_HEADER_ID)
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == IMAGE_SECTION_HEADER_ID)
         );
     }
 
     #[test]
-    fn populate_pe_symbols_splits_existing_root_u8_array() {
+    fn populate_pe_symbols_replaces_existing_root_u8_array() {
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x2000);
         symbol_module
             .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0, String::from("u8[128]")));
+            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0, String::from("u8[512]")));
         let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let pe_header_layout = PeHeaderLayout {
+            pe_header_offset: 0x80,
+            size_of_optional_header: 0xE0,
+            number_of_sections: 3,
+            optional_header_kind: PeOptionalHeaderKind::Pe32,
+        };
 
-        populate_pe_symbols(&mut project_symbol_catalog, "game.exe").expect("Expected PE symbol population to split u8[] root field.");
+        populate_pe_symbols(&mut project_symbol_catalog, "game.exe", &pe_header_layout).expect("Expected PE symbol population to replace u8[] root field.");
 
         let fields = project_symbol_catalog
             .find_symbol_module("game.exe")
             .expect("Expected module to exist.")
             .get_fields();
 
-        assert_eq!(fields.len(), 2);
+        assert_eq!(fields.len(), 4);
         assert_eq!(fields[0].get_struct_layout_id(), IMAGE_DOS_HEADER_ID);
-        assert_eq!(fields[1].get_offset(), 64);
         assert_eq!(fields[1].get_struct_layout_id(), "u8[64]");
+        assert_eq!(fields[2].get_struct_layout_id(), IMAGE_NT_HEADERS32_ID);
+        assert_eq!(fields[3].get_struct_layout_id(), "win.pe.IMAGE_SECTION_HEADER[3]");
+    }
+
+    fn build_test_pe_header_bytes() -> Vec<u8> {
+        let mut header_bytes = vec![0_u8; 0x1000];
+        header_bytes[0..2].copy_from_slice(b"MZ");
+        header_bytes[0x3C..0x40].copy_from_slice(&0x80_u32.to_le_bytes());
+        header_bytes[0x80..0x84].copy_from_slice(b"PE\0\0");
+        header_bytes[0x86..0x88].copy_from_slice(&3_u16.to_le_bytes());
+        header_bytes[0x94..0x96].copy_from_slice(&0xE0_u16.to_le_bytes());
+        header_bytes[0x98..0x9A].copy_from_slice(&0x10B_u16.to_le_bytes());
+
+        header_bytes
     }
 }

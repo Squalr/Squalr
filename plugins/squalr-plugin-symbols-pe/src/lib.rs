@@ -35,6 +35,11 @@ mod tests {
                 .metadata()
                 .has_plugin_permission(PluginPermission::WriteSymbolTreeWindow)
         );
+        assert!(
+            plugin
+                .metadata()
+                .has_plugin_permission(PluginPermission::ReadProcessMemory)
+        );
         assert_eq!(plugin.symbol_tree_actions().len(), 1);
     }
 }

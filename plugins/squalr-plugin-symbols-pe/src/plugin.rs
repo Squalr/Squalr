@@ -26,6 +26,7 @@ impl PeSymbolsPlugin {
                     PluginPermission::WriteSymbolStore,
                     PluginPermission::ReadSymbolTreeWindow,
                     PluginPermission::WriteSymbolTreeWindow,
+                    PluginPermission::ReadProcessMemory,
                 ],
                 true,
                 true,

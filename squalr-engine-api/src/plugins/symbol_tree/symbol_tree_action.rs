@@ -40,6 +40,15 @@ pub trait ProjectSymbolStore: Send + Sync {
     ) -> Result<(), String>;
 }
 
+pub trait ProcessMemoryStore: Send + Sync {
+    fn read_module_bytes(
+        &self,
+        module_name: &str,
+        offset: u64,
+        length: u64,
+    ) -> Result<Vec<u8>, String>;
+}
+
 pub trait SymbolTreeWindowStore: Send + Sync {
     fn request_refresh(&self);
 
@@ -51,6 +60,8 @@ pub trait SymbolTreeWindowStore: Send + Sync {
 
 pub trait SymbolTreeActionServices: Send + Sync {
     fn symbol_store(&self) -> &dyn ProjectSymbolStore;
+
+    fn process_memory(&self) -> &dyn ProcessMemoryStore;
 
     fn symbol_tree_window(&self) -> &dyn SymbolTreeWindowStore;
 }
