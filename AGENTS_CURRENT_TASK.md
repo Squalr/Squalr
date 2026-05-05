@@ -14,4 +14,4 @@ Our current task, from `README.md`, is:
 
 ## Important Information
 
-- 
+- Plugin extensibility is moving toward coarse permissions plus registration surfaces. Added `PluginPermission` for `Read/WriteSymbolStore`, `Read/WriteSymbolTreeWindow`, and `Read/WriteProcessMemory`; added Symbol Tree plugin action traits and an engine-backed project symbol store implementation for plugin actions. Validated with focused API/session tests; needs integration into the Symbol Tree context menu and a concrete PE/OS symbol population plugin.

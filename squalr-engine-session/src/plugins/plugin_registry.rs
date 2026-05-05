@@ -4,7 +4,7 @@ use std::{
 };
 
 use squalr_engine_api::{
-    plugins::{PluginActivationState, PluginCapability, PluginPackage, PluginState},
+    plugins::{PluginActivationState, PluginCapability, PluginPackage, PluginPermission, PluginState, symbol_tree::symbol_tree_action::SymbolTreeAction},
     structures::processes::opened_process_info::OpenedProcessInfo,
 };
 use squalr_plugin_builtins::get_builtin_plugin_packages;
@@ -214,6 +214,61 @@ impl PluginRegistry {
             .unwrap_or(false)
     }
 
+    pub fn get_plugin_permissions(
+        &self,
+        plugin_id: &str,
+    ) -> Option<Vec<PluginPermission>> {
+        self.plugin_packages
+            .iter()
+            .find(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+            .map(|plugin_package| plugin_package.metadata().get_plugin_permissions().to_vec())
+    }
+
+    pub fn has_plugin_permission(
+        &self,
+        plugin_id: &str,
+        plugin_permission: PluginPermission,
+    ) -> bool {
+        self.plugin_packages
+            .iter()
+            .find(|plugin_package| plugin_package.metadata().get_plugin_id() == plugin_id)
+            .map(|plugin_package| {
+                plugin_package
+                    .metadata()
+                    .has_plugin_permission(plugin_permission)
+            })
+            .unwrap_or(false)
+    }
+
+    pub fn get_enabled_symbol_tree_actions(&self) -> Vec<(String, std::sync::Arc<dyn SymbolTreeAction>)> {
+        self.plugin_packages
+            .iter()
+            .filter(|plugin_package| self.is_plugin_enabled(plugin_package.metadata().get_plugin_id()))
+            .filter_map(|plugin_package| {
+                plugin_package
+                    .as_symbol_tree_plugin()
+                    .map(|symbol_tree_plugin| (plugin_package.metadata().get_plugin_id().to_string(), symbol_tree_plugin.symbol_tree_actions()))
+            })
+            .flat_map(|(plugin_id, symbol_tree_actions)| {
+                symbol_tree_actions
+                    .iter()
+                    .cloned()
+                    .map(move |symbol_tree_action| (plugin_id.clone(), symbol_tree_action))
+            })
+            .collect()
+    }
+
+    pub fn plugin_action_has_required_permissions(
+        &self,
+        plugin_id: &str,
+        symbol_tree_action: &dyn SymbolTreeAction,
+    ) -> bool {
+        symbol_tree_action
+            .required_permissions()
+            .iter()
+            .all(|plugin_permission| self.has_plugin_permission(plugin_id, *plugin_permission))
+    }
+
     pub fn is_data_type_enabled(
         &self,
         data_type_id: &str,
@@ -268,9 +323,96 @@ impl Default for PluginRegistry {
 mod tests {
     use super::PluginRegistry;
     use squalr_engine_api::{
-        plugins::{PluginActivationState, PluginCapability},
+        plugins::{
+            Plugin, PluginActivationState, PluginCapability, PluginMetadata, PluginPackage, PluginPermission,
+            symbol_tree::{
+                symbol_tree_action::{SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionServices},
+                symbol_tree_plugin::SymbolTreePlugin,
+            },
+        },
         structures::{memory::bitness::Bitness, processes::opened_process_info::OpenedProcessInfo},
     };
+    use std::sync::Arc;
+
+    struct TestSymbolTreeAction;
+
+    impl SymbolTreeAction for TestSymbolTreeAction {
+        fn action_id(&self) -> &'static str {
+            "test.symbol-tree-action"
+        }
+
+        fn label(
+            &self,
+            _context: &SymbolTreeActionContext,
+        ) -> String {
+            String::from("Test Action")
+        }
+
+        fn is_visible(
+            &self,
+            _context: &SymbolTreeActionContext,
+        ) -> bool {
+            true
+        }
+
+        fn required_permissions(&self) -> &'static [PluginPermission] {
+            &[
+                PluginPermission::ReadSymbolStore,
+                PluginPermission::WriteSymbolStore,
+            ]
+        }
+
+        fn execute(
+            &self,
+            _context: &SymbolTreeActionContext,
+            _services: &dyn SymbolTreeActionServices,
+        ) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    struct TestSymbolTreePlugin {
+        metadata: PluginMetadata,
+        symbol_tree_actions: Vec<Arc<dyn SymbolTreeAction>>,
+    }
+
+    impl TestSymbolTreePlugin {
+        fn new() -> Self {
+            Self {
+                metadata: PluginMetadata::new_with_permissions(
+                    "test.symbol-tree",
+                    "Test Symbol Tree",
+                    "Test plugin",
+                    Vec::new(),
+                    vec![
+                        PluginPermission::ReadSymbolStore,
+                        PluginPermission::WriteSymbolStore,
+                    ],
+                    true,
+                    true,
+                ),
+                symbol_tree_actions: vec![Arc::new(TestSymbolTreeAction)],
+            }
+        }
+    }
+
+    impl Plugin for TestSymbolTreePlugin {
+        fn metadata(&self) -> &PluginMetadata {
+            &self.metadata
+        }
+    }
+
+    impl PluginPackage for TestSymbolTreePlugin {
+        fn as_symbol_tree_plugin(&self) -> Option<&dyn SymbolTreePlugin> {
+            Some(self)
+        }
+    }
+
+    impl SymbolTreePlugin for TestSymbolTreePlugin {
+        fn symbol_tree_actions(&self) -> &[Arc<dyn SymbolTreeAction>] {
+            &self.symbol_tree_actions
+        }
+    }
 
     #[test]
     fn registry_exposes_builtin_dolphin_memory_view_plugin() {
@@ -366,5 +508,25 @@ mod tests {
 
         assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.powerpc-family", PluginCapability::InstructionSet));
         assert!(plugin_registry.has_plugin_capability("builtin.instruction-set.powerpc-family", PluginCapability::DataType));
+    }
+
+    #[test]
+    fn registry_exposes_coarse_plugin_permissions() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestSymbolTreePlugin::new())]);
+
+        assert!(plugin_registry.has_plugin_permission("test.symbol-tree", PluginPermission::ReadSymbolStore));
+        assert!(plugin_registry.has_plugin_permission("test.symbol-tree", PluginPermission::WriteSymbolStore));
+        assert!(!plugin_registry.has_plugin_permission("test.symbol-tree", PluginPermission::ReadProcessMemory));
+    }
+
+    #[test]
+    fn registry_collects_enabled_symbol_tree_actions() {
+        let plugin_registry = PluginRegistry::from_plugin_packages(vec![Arc::new(TestSymbolTreePlugin::new())]);
+        let symbol_tree_actions = plugin_registry.get_enabled_symbol_tree_actions();
+
+        assert_eq!(symbol_tree_actions.len(), 1);
+        assert_eq!(symbol_tree_actions[0].0, "test.symbol-tree");
+        assert_eq!(symbol_tree_actions[0].1.action_id(), "test.symbol-tree-action");
+        assert!(plugin_registry.plugin_action_has_required_permissions(&symbol_tree_actions[0].0, symbol_tree_actions[0].1.as_ref()));
     }
 }
