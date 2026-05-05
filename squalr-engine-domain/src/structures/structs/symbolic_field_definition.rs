@@ -1,6 +1,6 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
+    data_values::{container_type::ContainerType, data_value::DataValue, pointer_scan_pointer_size::PointerScanPointerSize},
     structs::{
         symbol_resolver::SymbolResolver,
         symbolic_expression::SymbolicExpression,
@@ -115,27 +115,25 @@ impl SymbolicFieldDefinition {
         } else {
             match self.container_type {
                 ContainerType::None => {
-                    let default_value = symbol_registry
-                        .get_default_value(&self.data_type_ref)
-                        .unwrap_or_default();
-
-                    ValuedStructFieldData::Value(default_value)
+                    if let Some(default_value) = symbol_registry.get_default_value(&self.data_type_ref) {
+                        ValuedStructFieldData::Value(default_value)
+                    } else if let Some(nested_struct_layout) = symbol_registry.get_struct_layout(self.data_type_ref.get_data_type_id()) {
+                        ValuedStructFieldData::NestedStruct(Box::new(nested_struct_layout.get_default_valued_struct(symbol_registry)))
+                    } else {
+                        ValuedStructFieldData::Value(DataValue::default())
+                    }
                 }
                 ContainerType::Array => {
-                    let array_value = symbol_registry
-                        .get_default_value(&self.data_type_ref)
+                    let array_value = self
+                        .build_default_value_or_struct_bytes(symbol_registry, 1)
                         .unwrap_or_default();
 
                     ValuedStructFieldData::Value(array_value)
                 }
                 ContainerType::ArrayFixed(length) => {
-                    let mut array_value = symbol_registry
-                        .get_default_value(&self.data_type_ref)
+                    let array_value = self
+                        .build_default_value_or_struct_bytes(symbol_registry, length)
                         .unwrap_or_default();
-                    let default_bytes = array_value.get_value_bytes();
-                    let repeated_bytes = default_bytes.repeat(length as usize);
-
-                    array_value.copy_from_bytes(&repeated_bytes);
 
                     ValuedStructFieldData::Value(array_value)
                 }
@@ -146,11 +144,42 @@ impl SymbolicFieldDefinition {
         ValuedStructField::new(self.field_name.clone(), field_data, is_read_only)
     }
 
+    fn build_default_value_or_struct_bytes(
+        &self,
+        symbol_registry: &impl SymbolResolver,
+        element_count: u64,
+    ) -> Option<DataValue> {
+        let mut array_value = symbol_registry
+            .get_default_value(&self.data_type_ref)
+            .or_else(|| {
+                let nested_struct_layout = symbol_registry.get_struct_layout(self.data_type_ref.get_data_type_id())?;
+                let nested_struct_bytes = nested_struct_layout
+                    .get_default_valued_struct(symbol_registry)
+                    .get_bytes();
+
+                Some(DataValue::new(self.data_type_ref.clone(), nested_struct_bytes))
+            })?;
+        let repeated_element_count = usize::try_from(element_count).ok()?;
+        let repeated_bytes = array_value.get_value_bytes().repeat(repeated_element_count);
+
+        array_value.copy_from_bytes(&repeated_bytes);
+
+        Some(array_value)
+    }
+
     pub fn get_size_in_bytes(
         &self,
         symbol_registry: &impl SymbolResolver,
     ) -> u64 {
-        let unit_size_in_bytes = symbol_registry.get_unit_size_in_bytes(&self.data_type_ref);
+        let unit_size_in_bytes = symbol_registry
+            .get_default_value(&self.data_type_ref)
+            .map(|default_value| default_value.get_size_in_bytes())
+            .or_else(|| {
+                symbol_registry
+                    .get_struct_layout(self.data_type_ref.get_data_type_id())
+                    .map(|nested_struct_layout| nested_struct_layout.get_size_in_bytes(symbol_registry))
+            })
+            .unwrap_or_else(|| symbol_registry.get_unit_size_in_bytes(&self.data_type_ref));
 
         self.container_type.get_total_size_in_bytes(unit_size_in_bytes)
     }
@@ -291,11 +320,11 @@ impl fmt::Display for SymbolicFieldDefinition {
 #[cfg(test)]
 mod tests {
     use super::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution};
-    use crate::registries::symbols::symbol_registry::SymbolRegistry;
+    use crate::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbol_registry::SymbolRegistry};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
-        structs::symbolic_expression::SymbolicExpression,
+        structs::{symbolic_expression::SymbolicExpression, symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructFieldData},
     };
     use serde_json::json;
     use std::str::FromStr;
@@ -370,6 +399,50 @@ mod tests {
         let valued_struct_field = symbolic_field_definition.get_valued_struct_field(&symbol_registry, false);
 
         assert_eq!(valued_struct_field.get_name(), "position_x");
+    }
+
+    #[test]
+    fn get_valued_struct_field_materializes_nested_struct_fields() {
+        let symbol_registry = SymbolRegistry::new();
+        let nested_struct_layout = SymbolicStructDefinition::new(
+            String::from("test.Nested"),
+            vec![
+                SymbolicFieldDefinition::new_named(String::from("low"), DataTypeRef::new("u16"), ContainerType::None),
+                SymbolicFieldDefinition::new_named(String::from("high"), DataTypeRef::new("u32"), ContainerType::None),
+            ],
+        );
+        symbol_registry.set_project_symbol_catalog(&[StructLayoutDescriptor::new(
+            String::from("test.Nested"),
+            nested_struct_layout,
+        )]);
+        let symbolic_field_definition = SymbolicFieldDefinition::new_named(String::from("Nested"), DataTypeRef::new("test.Nested"), ContainerType::None);
+        let valued_struct_field = symbolic_field_definition.get_valued_struct_field(&symbol_registry, false);
+
+        let ValuedStructFieldData::NestedStruct(nested_struct) = valued_struct_field.get_field_data() else {
+            panic!("Expected nested struct field data.");
+        };
+
+        assert_eq!(nested_struct.get_fields().len(), 2);
+        assert_eq!(nested_struct.get_size_in_bytes(), 6);
+    }
+
+    #[test]
+    fn get_size_in_bytes_resolves_nested_struct_layout_size() {
+        let symbol_registry = SymbolRegistry::new();
+        let nested_struct_layout = SymbolicStructDefinition::new(
+            String::from("test.Nested"),
+            vec![
+                SymbolicFieldDefinition::new_named(String::from("low"), DataTypeRef::new("u16"), ContainerType::None),
+                SymbolicFieldDefinition::new_named(String::from("high"), DataTypeRef::new("u32"), ContainerType::None),
+            ],
+        );
+        symbol_registry.set_project_symbol_catalog(&[StructLayoutDescriptor::new(
+            String::from("test.Nested"),
+            nested_struct_layout,
+        )]);
+        let symbolic_field_definition = SymbolicFieldDefinition::new(DataTypeRef::new("test.Nested"), ContainerType::ArrayFixed(3));
+
+        assert_eq!(symbolic_field_definition.get_size_in_bytes(&symbol_registry), 18);
     }
 
     #[test]

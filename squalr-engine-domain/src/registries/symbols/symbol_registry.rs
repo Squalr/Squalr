@@ -129,17 +129,7 @@ impl SymbolRegistry {
         data_type_id: &str,
     ) -> Option<Arc<dyn DataType>> {
         match self.data_type_registry.read() {
-            Ok(data_type_registry) => {
-                if let Some(data_type) = data_type_registry.get(data_type_id.trim()) {
-                    Some(data_type.clone())
-                } else {
-                    if self.get_data_type_descriptor(data_type_id).is_none() {
-                        log::warn!("Failed to find data type in registry: {}", data_type_id);
-                    }
-
-                    None
-                }
-            }
+            Ok(data_type_registry) => data_type_registry.get(data_type_id.trim()).cloned(),
             Err(error) => {
                 log::error!("Failed to acquire data type registry read lock: {}", error);
                 None
