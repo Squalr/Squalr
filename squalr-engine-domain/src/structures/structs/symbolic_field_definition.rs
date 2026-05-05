@@ -3,6 +3,7 @@ use crate::structures::{
     data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
     structs::{
         symbol_resolver::SymbolResolver,
+        symbolic_expression::SymbolicExpression,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
     },
 };
@@ -16,6 +17,10 @@ pub struct SymbolicFieldDefinition {
     field_name: String,
     data_type_ref: DataTypeRef,
     container_type: ContainerType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    count_expression: Option<SymbolicExpression>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    offset_expression: Option<SymbolicExpression>,
 }
 
 impl SymbolicFieldDefinition {
@@ -27,6 +32,8 @@ impl SymbolicFieldDefinition {
             field_name: String::new(),
             data_type_ref,
             container_type,
+            count_expression: None,
+            offset_expression: None,
         }
     }
 
@@ -39,6 +46,24 @@ impl SymbolicFieldDefinition {
             field_name,
             data_type_ref,
             container_type,
+            count_expression: None,
+            offset_expression: None,
+        }
+    }
+
+    pub fn new_named_with_expressions(
+        field_name: String,
+        data_type_ref: DataTypeRef,
+        container_type: ContainerType,
+        count_expression: Option<SymbolicExpression>,
+        offset_expression: Option<SymbolicExpression>,
+    ) -> Self {
+        SymbolicFieldDefinition {
+            field_name,
+            data_type_ref,
+            container_type,
+            count_expression,
+            offset_expression,
         }
     }
 
@@ -107,6 +132,14 @@ impl SymbolicFieldDefinition {
     pub fn get_container_type(&self) -> ContainerType {
         self.container_type
     }
+
+    pub fn get_count_expression(&self) -> Option<&SymbolicExpression> {
+        self.count_expression.as_ref()
+    }
+
+    pub fn get_offset_expression(&self) -> Option<&SymbolicExpression> {
+        self.offset_expression.as_ref()
+    }
 }
 
 impl FromStr for SymbolicFieldDefinition {
@@ -114,7 +147,15 @@ impl FromStr for SymbolicFieldDefinition {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let trimmed_string = string.trim();
-        let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = trimmed_string.split_once(':') {
+        let (field_definition_string, offset_expression) = if let Some((field_definition_string, offset_expression_string)) = trimmed_string.split_once('@') {
+            (
+                field_definition_string.trim(),
+                Some(SymbolicExpression::from_str(offset_expression_string.trim())?),
+            )
+        } else {
+            (trimmed_string, None)
+        };
+        let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
             let trimmed_field_name = field_name.trim();
 
             if trimmed_field_name.is_empty() {
@@ -123,25 +164,24 @@ impl FromStr for SymbolicFieldDefinition {
 
             (trimmed_field_name.to_string(), type_and_container_string.trim())
         } else {
-            (String::new(), trimmed_string)
+            (String::new(), field_definition_string)
         };
 
-        let (type_str, container_type) = if let Some(open_idx) = type_and_container_string.find('[') {
-            if let Some(close_idx) = type_and_container_string
+        let (type_str, container_type, count_expression) = if let Some(open_bracket_position) = type_and_container_string.find('[') {
+            if let Some(close_bracket_position) = type_and_container_string
                 .strip_suffix(']')
                 .map(|_| type_and_container_string.len() - 1)
             {
-                let type_part = type_and_container_string[..open_idx].trim();
-                let len_part = type_and_container_string[open_idx + 1..close_idx].trim();
+                let type_part = type_and_container_string[..open_bracket_position].trim();
+                let length_part = type_and_container_string[open_bracket_position + 1..close_bracket_position].trim();
 
-                if len_part.is_empty() {
-                    (type_part, ContainerType::Array)
+                if length_part.is_empty() {
+                    (type_part, ContainerType::Array, None)
                 } else {
-                    let array_length = len_part
-                        .parse::<u64>()
-                        .map_err(|error| format!("Invalid array length '{}': {}", len_part, error))?;
-
-                    (type_part, ContainerType::ArrayFixed(array_length))
+                    match length_part.parse::<u64>() {
+                        Ok(array_length) => (type_part, ContainerType::ArrayFixed(array_length), None),
+                        Err(_) => (type_part, ContainerType::Array, Some(SymbolicExpression::from_str(length_part)?)),
+                    }
                 }
             } else {
                 return Err("Missing closing ']' in array type".into());
@@ -151,22 +191,34 @@ impl FromStr for SymbolicFieldDefinition {
                 let type_part = type_and_container_string[..pointer_marker_index].trim();
                 let container_type = ContainerType::from_str(&type_and_container_string[pointer_marker_index..])?;
 
-                (type_part, container_type)
+                (type_part, container_type, None)
             } else {
-                (type_and_container_string, ContainerType::None)
+                (type_and_container_string, ContainerType::None, None)
             }
         } else if let Some(stripped) = type_and_container_string.strip_suffix('*') {
-            (stripped, ContainerType::from_pointer_size(PointerScanPointerSize::Pointer64))
+            (stripped, ContainerType::from_pointer_size(PointerScanPointerSize::Pointer64), None)
         } else {
-            (type_and_container_string, ContainerType::None)
+            (type_and_container_string, ContainerType::None, None)
         };
 
         let data_type = DataTypeRef::from_str(type_str.trim())?;
 
         if field_name.is_empty() {
-            Ok(SymbolicFieldDefinition::new(data_type, container_type))
+            Ok(SymbolicFieldDefinition {
+                field_name,
+                data_type_ref: data_type,
+                container_type,
+                count_expression,
+                offset_expression,
+            })
         } else {
-            Ok(SymbolicFieldDefinition::new_named(field_name, data_type, container_type))
+            Ok(SymbolicFieldDefinition::new_named_with_expressions(
+                field_name,
+                data_type,
+                container_type,
+                count_expression,
+                offset_expression,
+            ))
         }
     }
 }
@@ -176,10 +228,25 @@ impl fmt::Display for SymbolicFieldDefinition {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        if self.field_name.is_empty() {
-            write!(formatter, "{}{}", self.data_type_ref, self.container_type)
+        let container_text = self
+            .count_expression
+            .as_ref()
+            .map(|count_expression| format!("[{}]", count_expression))
+            .unwrap_or_else(|| self.container_type.to_string());
+        let field_text = if self.field_name.is_empty() {
+            format!("{}{}", self.data_type_ref, container_text)
         } else {
-            write!(formatter, "{}:{}{}", self.field_name, self.data_type_ref, self.container_type)
+            format!("{}:{}{}", self.field_name, self.data_type_ref, container_text)
+        };
+
+        if let Some(offset_expression) = &self.offset_expression {
+            return write!(formatter, "{} @ {}", field_text, offset_expression);
+        }
+
+        if self.field_name.is_empty() {
+            write!(formatter, "{}", field_text)
+        } else {
+            write!(formatter, "{}", field_text)
         }
     }
 }
@@ -230,6 +297,38 @@ mod tests {
             ContainerType::Pointer(PointerScanPointerSize::Pointer24be)
         );
         assert_eq!(symbolic_field_definition.to_string(), "ptr:u8*(u24be)");
+    }
+
+    #[test]
+    fn parse_dynamic_array_count_expression_round_trips() {
+        let symbolic_field_definition =
+            SymbolicFieldDefinition::from_str("elements:game.Item[count] @ +8").expect("Expected dynamic array field definition to parse.");
+
+        assert_eq!(symbolic_field_definition.get_field_name(), "elements");
+        assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("game.Item"));
+        assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::Array);
+        assert_eq!(
+            symbolic_field_definition
+                .get_count_expression()
+                .expect("Expected count expression.")
+                .as_str(),
+            "count"
+        );
+        assert_eq!(
+            symbolic_field_definition
+                .get_offset_expression()
+                .expect("Expected offset expression.")
+                .as_str(),
+            "+8"
+        );
+        assert_eq!(symbolic_field_definition.to_string(), "elements:game.Item[count] @ +8");
+    }
+
+    #[test]
+    fn parse_dynamic_array_expression_rejects_bad_syntax() {
+        let parse_error = SymbolicFieldDefinition::from_str("elements:game.Item[count +] @ +8").expect_err("Expected dynamic array field definition to fail.");
+
+        assert!(parse_error.contains("Expected expression value"));
     }
 
     #[test]
