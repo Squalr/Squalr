@@ -11,7 +11,10 @@ use squalr_engine_api::structures::{
         symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
-use std::{collections::HashSet, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SymbolStructFieldOffsetMode {
@@ -61,6 +64,7 @@ pub struct SymbolStructEditorViewData {
     take_over_state: Option<SymbolStructEditorTakeOverState>,
     baseline_draft: Option<SymbolStructLayoutEditDraft>,
     draft: Option<SymbolStructLayoutEditDraft>,
+    field_layout_editor_index: Option<usize>,
 }
 
 impl SymbolStructEditorViewData {
@@ -71,6 +75,7 @@ impl SymbolStructEditorViewData {
             take_over_state: None,
             baseline_draft: None,
             draft: None,
+            field_layout_editor_index: None,
         }
     }
 
@@ -94,6 +99,10 @@ impl SymbolStructEditorViewData {
         self.baseline_draft.as_ref()
     }
 
+    pub fn get_field_layout_editor_index(&self) -> Option<usize> {
+        self.field_layout_editor_index
+    }
+
     pub fn set_filter_text(
         symbol_struct_editor_view_data: Dependency<Self>,
         filter_text: String,
@@ -108,6 +117,12 @@ impl SymbolStructEditorViewData {
         draft: SymbolStructLayoutEditDraft,
     ) {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor update draft") {
+            if symbol_struct_editor_view_data
+                .field_layout_editor_index
+                .is_some_and(|field_index| field_index >= draft.field_drafts.len())
+            {
+                symbol_struct_editor_view_data.field_layout_editor_index = None;
+            }
             symbol_struct_editor_view_data.draft = Some(draft);
         }
     }
@@ -129,6 +144,7 @@ impl SymbolStructEditorViewData {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin create struct layout") {
             symbol_struct_editor_view_data.selected_layout_id = None;
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::CreateStructLayout);
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_struct_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_struct_editor_view_data.draft = Some(baseline_draft);
@@ -145,6 +161,7 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::EditStructLayout {
                 layout_id: layout_id.to_string(),
             });
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
             symbol_struct_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -160,6 +177,28 @@ impl SymbolStructEditorViewData {
     ) {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor request delete confirmation") {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id });
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
+        }
+    }
+
+    pub fn begin_field_layout_editor(
+        symbol_struct_editor_view_data: Dependency<Self>,
+        field_index: usize,
+    ) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin field layout editor") {
+            let Some(draft) = symbol_struct_editor_view_data.draft.as_ref() else {
+                return;
+            };
+
+            if field_index < draft.field_drafts.len() {
+                symbol_struct_editor_view_data.field_layout_editor_index = Some(field_index);
+            }
+        }
+    }
+
+    pub fn cancel_field_layout_editor(symbol_struct_editor_view_data: Dependency<Self>) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor cancel field layout editor") {
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
         }
     }
 
@@ -168,6 +207,7 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.take_over_state = None;
             symbol_struct_editor_view_data.baseline_draft = None;
             symbol_struct_editor_view_data.draft = None;
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
         }
     }
 
@@ -213,6 +253,19 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.take_over_state = None;
             symbol_struct_editor_view_data.baseline_draft = None;
             symbol_struct_editor_view_data.draft = None;
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
+        }
+
+        if symbol_struct_editor_view_data
+            .field_layout_editor_index
+            .is_some_and(|field_index| {
+                symbol_struct_editor_view_data
+                    .draft
+                    .as_ref()
+                    .is_none_or(|draft| field_index >= draft.field_drafts.len())
+            })
+        {
+            symbol_struct_editor_view_data.field_layout_editor_index = None;
         }
     }
 
@@ -359,10 +412,124 @@ impl SymbolStructEditorViewData {
             symbolic_field_definitions.push(symbolic_field_definition);
         }
 
-        Ok(StructLayoutDescriptor::new(
+        let struct_layout_descriptor = StructLayoutDescriptor::new(
             trimmed_layout_id.to_string(),
             SymbolicStructDefinition::new(trimmed_layout_id.to_string(), symbolic_field_definitions),
-        ))
+        );
+
+        Self::validate_local_expression_dependency_cycles(&struct_layout_descriptor)?;
+
+        Ok(struct_layout_descriptor)
+    }
+
+    fn validate_local_expression_dependency_cycles(struct_layout_descriptor: &StructLayoutDescriptor) -> Result<(), String> {
+        let fields = struct_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
+        let field_names = fields
+            .iter()
+            .filter_map(|field_definition| {
+                let field_name = field_definition.get_field_name();
+
+                (!field_name.is_empty()).then_some(field_name.to_string())
+            })
+            .collect::<HashSet<_>>();
+        let mut dependencies_by_field_name = HashMap::new();
+
+        for field_definition in fields {
+            let field_name = field_definition.get_field_name();
+            if field_name.is_empty() {
+                continue;
+            }
+
+            let dependencies = Self::collect_local_field_expression_dependencies(field_definition, &field_names);
+            dependencies_by_field_name.insert(field_name.to_string(), dependencies);
+        }
+
+        let mut visiting_field_names = HashSet::new();
+        let mut visited_field_names = HashSet::new();
+        let mut dependency_stack = Vec::new();
+
+        for field_name in dependencies_by_field_name.keys() {
+            if let Some(cycle_path) = Self::find_local_dependency_cycle(
+                field_name,
+                &dependencies_by_field_name,
+                &mut visiting_field_names,
+                &mut visited_field_names,
+                &mut dependency_stack,
+            ) {
+                return Err(format!("Field layout expressions contain a dependency cycle: {}.", cycle_path.join(" -> ")));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn collect_local_field_expression_dependencies(
+        field_definition: &SymbolicFieldDefinition,
+        field_names: &HashSet<String>,
+    ) -> Vec<String> {
+        let mut dependencies = Vec::new();
+
+        if let Some(expression) = field_definition.get_count_resolution().as_expression() {
+            dependencies.extend(expression.referenced_identifiers());
+        }
+
+        if let SymbolicFieldOffsetResolution::Expression(expression) = field_definition.get_offset_resolution() {
+            dependencies.extend(expression.referenced_identifiers());
+        }
+
+        dependencies.retain(|dependency| field_names.contains(dependency));
+        dependencies.sort();
+        dependencies.dedup();
+
+        dependencies
+    }
+
+    fn find_local_dependency_cycle(
+        field_name: &str,
+        dependencies_by_field_name: &HashMap<String, Vec<String>>,
+        visiting_field_names: &mut HashSet<String>,
+        visited_field_names: &mut HashSet<String>,
+        dependency_stack: &mut Vec<String>,
+    ) -> Option<Vec<String>> {
+        if visited_field_names.contains(field_name) {
+            return None;
+        }
+
+        if visiting_field_names.contains(field_name) {
+            let cycle_start_index = dependency_stack
+                .iter()
+                .position(|dependency_field_name| dependency_field_name == field_name)
+                .unwrap_or(0);
+            let mut cycle_path = dependency_stack[cycle_start_index..].to_vec();
+            cycle_path.push(field_name.to_string());
+
+            return Some(cycle_path);
+        }
+
+        visiting_field_names.insert(field_name.to_string());
+        dependency_stack.push(field_name.to_string());
+
+        if let Some(dependencies) = dependencies_by_field_name.get(field_name) {
+            for dependency in dependencies {
+                if let Some(cycle_path) = Self::find_local_dependency_cycle(
+                    dependency,
+                    dependencies_by_field_name,
+                    visiting_field_names,
+                    visited_field_names,
+                    dependency_stack,
+                ) {
+                    return Some(cycle_path);
+                }
+            }
+        }
+
+        dependency_stack.pop();
+        visiting_field_names.remove(field_name);
+        visited_field_names.insert(field_name.to_string());
+
+        None
     }
 
     pub fn apply_draft_to_catalog(
@@ -638,6 +805,40 @@ mod tests {
         let result = SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft);
 
         assert!(result.is_err_and(|error| error.contains("Dynamic array count expression")));
+    }
+
+    #[test]
+    fn build_struct_layout_descriptor_rejects_local_expression_dependency_cycles() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let mut first_field_draft = create_field_draft(
+            "first",
+            "u32",
+            SymbolStructFieldContainerEdit {
+                kind: SymbolStructFieldContainerKind::DynamicArray,
+                dynamic_array_count_expression: String::from("second"),
+                ..SymbolStructFieldContainerEdit::default()
+            },
+        );
+        first_field_draft.offset_mode = SymbolStructFieldOffsetMode::Expression;
+        first_field_draft.offset_expression = String::from("+0");
+        let second_field_draft = create_field_draft(
+            "second",
+            "u32",
+            SymbolStructFieldContainerEdit {
+                kind: SymbolStructFieldContainerKind::DynamicArray,
+                dynamic_array_count_expression: String::from("first"),
+                ..SymbolStructFieldContainerEdit::default()
+            },
+        );
+        let draft = SymbolStructLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("bad.cycle"),
+            field_drafts: vec![first_field_draft, second_field_draft],
+        };
+
+        let result = SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft);
+
+        assert!(result.is_err_and(|error| error.contains("dependency cycle")));
     }
 
     #[test]

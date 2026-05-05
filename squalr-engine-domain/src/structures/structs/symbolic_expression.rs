@@ -102,6 +102,16 @@ impl SymbolicExpression {
         }
     }
 
+    pub fn referenced_identifiers(&self) -> Vec<String> {
+        let mut referenced_identifiers = Vec::new();
+
+        self.collect_referenced_identifiers(&mut referenced_identifiers);
+        referenced_identifiers.sort();
+        referenced_identifiers.dedup();
+
+        referenced_identifiers
+    }
+
     fn precedence(&self) -> u8 {
         match self {
             Self::Binary { operator, .. } => operator.precedence(),
@@ -140,6 +150,23 @@ impl SymbolicExpression {
             format!("({})", expression_text)
         } else {
             expression_text
+        }
+    }
+
+    fn collect_referenced_identifiers(
+        &self,
+        referenced_identifiers: &mut Vec<String>,
+    ) {
+        match self {
+            Self::Identifier(identifier) => referenced_identifiers.push(identifier.as_str().to_string()),
+            Self::Unary { operand, .. } => operand.collect_referenced_identifiers(referenced_identifiers),
+            Self::Binary {
+                left_operand, right_operand, ..
+            } => {
+                left_operand.collect_referenced_identifiers(referenced_identifiers);
+                right_operand.collect_referenced_identifiers(referenced_identifiers);
+            }
+            Self::Literal(_) | Self::SizeOf(_) => {}
         }
     }
 }
@@ -601,5 +628,15 @@ mod tests {
             .expect_err("Expected symbolic expression evaluation to fail.");
 
         assert_eq!(evaluation_error, SymbolicExpressionEvaluationError::DivisionByZero);
+    }
+
+    #[test]
+    fn expression_reports_referenced_identifiers() {
+        let symbolic_expression = SymbolicExpression::from_str("count + sizeof(game.Item) + capacity - count").expect("Expected symbolic expression to parse.");
+
+        assert_eq!(
+            symbolic_expression.referenced_identifiers(),
+            vec![String::from("capacity"), String::from("count")]
+        );
     }
 }

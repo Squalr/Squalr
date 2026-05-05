@@ -26,6 +26,7 @@ use squalr_engine_api::structures::{
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
+    structs::symbolic_field_definition::SymbolicFieldDefinition,
 };
 use std::sync::Arc;
 
@@ -35,6 +36,7 @@ enum SymbolStructFieldRowAction {
     RemoveField,
     MoveUp,
     MoveDown,
+    EditLayout,
 }
 
 #[derive(Clone)]
@@ -53,6 +55,8 @@ impl SymbolStructEditorView {
     const FIELD_CONTAINER_MODE_WIDTH: f32 = 160.0;
     const FIELD_CONTAINER_DETAIL_WIDTH: f32 = 140.0;
     const FIELD_OFFSET_MODE_WIDTH: f32 = 160.0;
+    const FIELD_EXPRESSION_PICKER_WIDTH: f32 = 190.0;
+    const FIELD_EXPRESSION_OPERATOR_BUTTON_WIDTH: f32 = 32.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
@@ -400,6 +404,223 @@ impl SymbolStructEditorView {
         if let Some(selected_offset_mode) = selected_offset_mode {
             field_draft.offset_mode = selected_offset_mode;
         }
+    }
+
+    fn render_text_button(
+        &self,
+        user_interface: &mut Ui,
+        text: &str,
+        tooltip_text: &str,
+        width: f32,
+        height: f32,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let response = user_interface.add_sized(
+            vec2(width, height),
+            ThemeButton::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .border_width(1.0)
+                .border_color(theme.background_control_primary_dark),
+        );
+
+        user_interface.painter().text(
+            response.rect.center(),
+            Align2::CENTER_CENTER,
+            text,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
+
+        response
+    }
+
+    fn append_expression_token(
+        expression_text: &mut String,
+        token: &str,
+    ) {
+        let trimmed_expression = expression_text.trim_end().to_string();
+        let token_is_operator = matches!(token, "+" | "-" | "*" | "/");
+        let next_expression = if trimmed_expression.is_empty() {
+            token.to_string()
+        } else if token_is_operator {
+            format!("{} {} ", trimmed_expression, token)
+        } else if trimmed_expression.ends_with('(') || token == ")" {
+            format!("{}{}", trimmed_expression, token)
+        } else {
+            format!("{} {}", trimmed_expression, token)
+        };
+
+        *expression_text = next_expression;
+    }
+
+    fn collect_expression_field_names(
+        draft: &SymbolStructLayoutEditDraft,
+        selected_field_index: usize,
+    ) -> Vec<String> {
+        let mut field_names = draft
+            .field_drafts
+            .iter()
+            .enumerate()
+            .filter_map(|(field_index, field_draft)| {
+                let field_name = field_draft.field_name.trim();
+
+                (!field_name.is_empty() && field_index != selected_field_index).then_some(field_name.to_string())
+            })
+            .collect::<Vec<_>>();
+        field_names.sort();
+        field_names.dedup();
+
+        field_names
+    }
+
+    fn collect_expression_type_ids(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) -> Vec<String> {
+        let mut type_ids = self
+            .available_data_types()
+            .into_iter()
+            .map(|data_type_ref| data_type_ref.get_data_type_id().to_string())
+            .chain(
+                project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string()),
+            )
+            .collect::<Vec<_>>();
+        type_ids.sort_by_key(|type_id| type_id.to_ascii_lowercase());
+        type_ids.dedup_by(|left_type_id, right_type_id| left_type_id.eq_ignore_ascii_case(right_type_id));
+
+        type_ids
+    }
+
+    fn render_expression_editor(
+        &self,
+        user_interface: &mut Ui,
+        expression_text: &mut String,
+        preview_text: &str,
+        id_prefix: &str,
+        field_names: &[String],
+        type_ids: &[String],
+    ) {
+        self.render_string_value_box(
+            user_interface,
+            expression_text,
+            preview_text,
+            &format!("{}_text", id_prefix),
+            user_interface.available_width(),
+            Self::FIELD_ROW_HEIGHT,
+        );
+        user_interface.add_space(Self::FIELD_INPUT_SPACING);
+
+        user_interface.horizontal_wrapped(|user_interface| {
+            for operator in ["+", "-", "*", "/", "(", ")"] {
+                let operator_response = self.render_text_button(
+                    user_interface,
+                    operator,
+                    "Append this operator to the expression.",
+                    Self::FIELD_EXPRESSION_OPERATOR_BUTTON_WIDTH,
+                    Self::FIELD_ROW_HEIGHT,
+                );
+
+                if operator_response.clicked() {
+                    Self::append_expression_token(expression_text, operator);
+                }
+            }
+
+            let field_picker_width = Self::FIELD_EXPRESSION_PICKER_WIDTH.min(user_interface.available_width().max(1.0));
+            let mut selected_field_name = None;
+            user_interface.add(
+                ComboBoxView::new(
+                    self.app_context.clone(),
+                    "Field...",
+                    &format!("{}_field_picker", id_prefix),
+                    None,
+                    |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                        for field_name in field_names {
+                            let field_response =
+                                popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), field_name, None, field_picker_width));
+
+                            if field_response.clicked() {
+                                selected_field_name = Some(field_name.clone());
+                                *should_close = true;
+                            }
+                        }
+                    },
+                )
+                .width(field_picker_width)
+                .height(Self::FIELD_ROW_HEIGHT),
+            );
+            if let Some(selected_field_name) = selected_field_name {
+                Self::append_expression_token(expression_text, &selected_field_name);
+            }
+
+            let type_picker_width = Self::FIELD_EXPRESSION_PICKER_WIDTH.min(user_interface.available_width().max(1.0));
+            let mut selected_type_id = None;
+            user_interface.add(
+                ComboBoxView::new(
+                    self.app_context.clone(),
+                    "sizeof...",
+                    &format!("{}_sizeof_picker", id_prefix),
+                    None,
+                    |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                        for type_id in type_ids {
+                            let type_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), type_id, None, type_picker_width));
+
+                            if type_response.clicked() {
+                                selected_type_id = Some(type_id.clone());
+                                *should_close = true;
+                            }
+                        }
+                    },
+                )
+                .width(type_picker_width)
+                .height(Self::FIELD_ROW_HEIGHT),
+            );
+            if let Some(selected_type_id) = selected_type_id {
+                Self::append_expression_token(expression_text, &format!("sizeof({})", selected_type_id));
+            }
+        });
+    }
+
+    fn format_field_layout_summary(field_draft: &SymbolStructFieldEditDraft) -> String {
+        let shape_text = match field_draft.container_edit.kind {
+            SymbolStructFieldContainerKind::Element => String::from("element"),
+            SymbolStructFieldContainerKind::Array => String::from("array"),
+            SymbolStructFieldContainerKind::FixedArray => {
+                let fixed_array_length = field_draft.container_edit.fixed_array_length.trim();
+
+                if fixed_array_length.is_empty() {
+                    String::from("fixed array")
+                } else {
+                    format!("fixed array [{}]", fixed_array_length)
+                }
+            }
+            SymbolStructFieldContainerKind::DynamicArray => {
+                let count_expression = field_draft.container_edit.dynamic_array_count_expression.trim();
+
+                if count_expression.is_empty() {
+                    String::from("dynamic array")
+                } else {
+                    format!("dynamic array [{}]", count_expression)
+                }
+            }
+            SymbolStructFieldContainerKind::Pointer => format!("pointer ({})", field_draft.container_edit.pointer_size),
+        };
+        let offset_text = match field_draft.offset_mode {
+            SymbolStructFieldOffsetMode::Sequential => String::from("sequential"),
+            SymbolStructFieldOffsetMode::Expression => {
+                let offset_expression = field_draft.offset_expression.trim();
+
+                if offset_expression.is_empty() {
+                    String::from("expression offset")
+                } else {
+                    format!("@ {}", offset_expression)
+                }
+            }
+        };
+
+        format!("{} | {}", shape_text, offset_text)
     }
 
     fn render_struct_layout_row(
@@ -756,6 +977,18 @@ impl SymbolStructEditorView {
                             if move_up_response.clicked() {
                                 pending_field_row_action = Some(SymbolStructFieldRowAction::MoveUp);
                             }
+
+                            user_interface.add_space(Self::FIELD_INPUT_SPACING);
+
+                            let edit_layout_response = self.render_icon_button(
+                                user_interface,
+                                &theme.icon_library.icon_handle_common_properties,
+                                "Edit this field's layout.",
+                                false,
+                            );
+                            if edit_layout_response.clicked() {
+                                pending_field_row_action = Some(SymbolStructFieldRowAction::EditLayout);
+                            }
                         },
                     );
                 },
@@ -796,65 +1029,8 @@ impl SymbolStructEditorView {
                 },
             );
 
-            match field_draft.container_edit.kind {
-                SymbolStructFieldContainerKind::Element | SymbolStructFieldContainerKind::Array => {}
-                SymbolStructFieldContainerKind::FixedArray => {
-                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                    self.render_unsigned_integer_value_box(
-                        user_interface,
-                        &mut field_draft.container_edit.fixed_array_length,
-                        "length",
-                        &format!("symbol_struct_editor_fixed_array_length_{}", field_index),
-                        Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
-                        Self::FIELD_ROW_HEIGHT,
-                    );
-                }
-                SymbolStructFieldContainerKind::DynamicArray => {
-                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                    self.render_string_value_box(
-                        user_interface,
-                        &mut field_draft.container_edit.dynamic_array_count_expression,
-                        "count expression",
-                        &format!("symbol_struct_editor_dynamic_array_count_expression_{}", field_index),
-                        user_interface.available_width(),
-                        Self::FIELD_ROW_HEIGHT,
-                    );
-                }
-                SymbolStructFieldContainerKind::Pointer => {
-                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                    self.render_pointer_size_selector(
-                        user_interface,
-                        &mut field_draft.container_edit,
-                        field_index,
-                        Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
-                    );
-                }
-            }
-
             user_interface.add_space(Self::FIELD_INPUT_SPACING);
-            user_interface.allocate_ui_with_layout(
-                vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
-                Layout::left_to_right(Align::Center),
-                |user_interface| {
-                    let available_width = user_interface.available_width().max(0.0);
-                    let offset_mode_width = Self::FIELD_OFFSET_MODE_WIDTH.min(available_width);
-                    let expression_width = (available_width - offset_mode_width - Self::FIELD_INPUT_SPACING).max(0.0);
-
-                    self.render_offset_mode_selector(user_interface, field_draft, field_index, offset_mode_width);
-
-                    if matches!(field_draft.offset_mode, SymbolStructFieldOffsetMode::Expression) {
-                        user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut field_draft.offset_expression,
-                            "offset expression",
-                            &format!("symbol_struct_editor_offset_expression_{}", field_index),
-                            expression_width,
-                            Self::FIELD_ROW_HEIGHT,
-                        );
-                    }
-                },
-            );
+            user_interface.label(RichText::new(Self::format_field_layout_summary(field_draft)).color(theme.foreground_preview));
         });
 
         pending_field_row_action
@@ -918,7 +1094,175 @@ impl SymbolStructEditorView {
                         draft.field_drafts.swap(field_index, field_index + 1);
                     }
                 }
+                SymbolStructFieldRowAction::EditLayout => {
+                    SymbolStructEditorViewData::begin_field_layout_editor(self.symbol_struct_editor_view_data.clone(), field_index);
+                }
             }
+        }
+    }
+
+    fn render_field_layout_take_over(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &mut SymbolStructLayoutEditDraft,
+        field_index: usize,
+    ) {
+        let Some(field_draft) = draft.field_drafts.get(field_index) else {
+            SymbolStructEditorViewData::cancel_field_layout_editor(self.symbol_struct_editor_view_data.clone());
+            return;
+        };
+        let field_title = if field_draft.field_name.trim().is_empty() {
+            format!("Field {}", field_index + 1)
+        } else {
+            field_draft.field_name.trim().to_string()
+        };
+        let field_type_id = field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id()
+            .to_string();
+        let field_names = Self::collect_expression_field_names(draft, field_index);
+        let type_ids = self.collect_expression_type_ids(project_symbol_catalog);
+        let mut should_close_field_layout_editor = false;
+
+        self.render_take_over_panel(
+            user_interface,
+            "Field Layout",
+            Self::ICON_BUTTON_WIDTH,
+            |user_interface| {
+                let back_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &self
+                        .app_context
+                        .theme
+                        .icon_library
+                        .icon_handle_navigation_left_arrow,
+                    "Return to struct layout editing.",
+                    false,
+                );
+                if back_response.clicked() {
+                    should_close_field_layout_editor = true;
+                }
+            },
+            |user_interface| {
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, "Field", |user_interface| {
+                        user_interface.label(RichText::new(&field_title).color(self.app_context.theme.foreground));
+                        user_interface.add_space(4.0);
+                        user_interface.label(RichText::new(&field_type_id).color(self.app_context.theme.foreground_preview));
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+                user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, "Shape", |user_interface| {
+                        let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                            return;
+                        };
+
+                        self.render_container_kind_selector(
+                            user_interface,
+                            &mut field_draft.container_edit,
+                            field_index,
+                            Self::FIELD_CONTAINER_MODE_WIDTH.min(user_interface.available_width()),
+                        );
+
+                        match field_draft.container_edit.kind {
+                            SymbolStructFieldContainerKind::Element | SymbolStructFieldContainerKind::Array => {}
+                            SymbolStructFieldContainerKind::FixedArray => {
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                                self.render_unsigned_integer_value_box(
+                                    user_interface,
+                                    &mut field_draft.container_edit.fixed_array_length,
+                                    "length",
+                                    &format!("symbol_struct_editor_field_layout_fixed_array_length_{}", field_index),
+                                    Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
+                                    Self::FIELD_ROW_HEIGHT,
+                                );
+                            }
+                            SymbolStructFieldContainerKind::DynamicArray => {
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                                self.render_expression_editor(
+                                    user_interface,
+                                    &mut field_draft.container_edit.dynamic_array_count_expression,
+                                    "count expression",
+                                    &format!("symbol_struct_editor_field_layout_count_expression_{}", field_index),
+                                    &field_names,
+                                    &type_ids,
+                                );
+                            }
+                            SymbolStructFieldContainerKind::Pointer => {
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                                self.render_pointer_size_selector(
+                                    user_interface,
+                                    &mut field_draft.container_edit,
+                                    field_index,
+                                    Self::FIELD_CONTAINER_DETAIL_WIDTH.min(user_interface.available_width()),
+                                );
+                            }
+                        }
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+                user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, "Offset", |user_interface| {
+                        let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                            return;
+                        };
+
+                        self.render_offset_mode_selector(
+                            user_interface,
+                            field_draft,
+                            field_index,
+                            Self::FIELD_OFFSET_MODE_WIDTH.min(user_interface.available_width()),
+                        );
+
+                        if matches!(field_draft.offset_mode, SymbolStructFieldOffsetMode::Expression) {
+                            user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                            self.render_expression_editor(
+                                user_interface,
+                                &mut field_draft.offset_expression,
+                                "offset expression",
+                                &format!("symbol_struct_editor_field_layout_offset_expression_{}", field_index),
+                                &field_names,
+                                &type_ids,
+                            );
+                        }
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+                user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+
+                let preview_result =
+                    SymbolStructEditorViewData::build_struct_layout_descriptor(project_symbol_catalog, draft).map(|struct_layout_descriptor| {
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_fields()
+                            .get(field_index)
+                            .map(SymbolicFieldDefinition::to_string)
+                            .unwrap_or_default()
+                    });
+
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, "Preview", |user_interface| match preview_result {
+                        Ok(preview_text) => {
+                            user_interface.label(RichText::new(preview_text).color(self.app_context.theme.foreground_preview));
+                        }
+                        Err(error) => {
+                            user_interface.label(RichText::new(error).color(self.app_context.theme.error_red));
+                        }
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+            },
+        );
+
+        if should_close_field_layout_editor {
+            SymbolStructEditorViewData::cancel_field_layout_editor(self.symbol_struct_editor_view_data.clone());
         }
     }
 
@@ -929,6 +1273,7 @@ impl SymbolStructEditorView {
         take_over_title: &str,
         baseline_draft: Option<&SymbolStructLayoutEditDraft>,
         draft: Option<&SymbolStructLayoutEditDraft>,
+        field_layout_editor_index: Option<usize>,
     ) {
         let Some(draft) = draft else {
             return;
@@ -936,6 +1281,12 @@ impl SymbolStructEditorView {
         let baseline_draft = baseline_draft.unwrap_or(draft);
 
         let mut edited_draft = draft.clone();
+        if let Some(field_layout_editor_index) = field_layout_editor_index {
+            self.render_field_layout_take_over(user_interface, project_symbol_catalog, &mut edited_draft, field_layout_editor_index);
+            SymbolStructEditorViewData::update_draft(self.symbol_struct_editor_view_data.clone(), edited_draft);
+            return;
+        }
+
         let validation_result = SymbolStructEditorViewData::build_struct_layout_descriptor(project_symbol_catalog, &edited_draft);
         let usage_count = edited_draft
             .original_layout_id
@@ -1147,7 +1498,7 @@ impl Widget for SymbolStructEditorView {
         };
 
         SymbolStructEditorViewData::synchronize(self.symbol_struct_editor_view_data.clone(), &project_symbol_catalog);
-        let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft) = self
+        let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft, field_layout_editor_index) = self
             .symbol_struct_editor_view_data
             .read("SymbolStructEditor view")
             .map(|symbol_struct_editor_view_data| {
@@ -1159,9 +1510,10 @@ impl Widget for SymbolStructEditorView {
                     symbol_struct_editor_view_data.get_take_over_state().cloned(),
                     symbol_struct_editor_view_data.get_baseline_draft().cloned(),
                     symbol_struct_editor_view_data.get_draft().cloned(),
+                    symbol_struct_editor_view_data.get_field_layout_editor_index(),
                 )
             })
-            .unwrap_or((None, String::new(), None, None, None));
+            .unwrap_or((None, String::new(), None, None, None, None));
         let is_take_over_active = take_over_state.is_some();
         let is_window_focused = self
             .app_context
@@ -1173,7 +1525,11 @@ impl Widget for SymbolStructEditorView {
             .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
         if is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
-            SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
+            if field_layout_editor_index.is_some() {
+                SymbolStructEditorViewData::cancel_field_layout_editor(self.symbol_struct_editor_view_data.clone());
+            } else {
+                SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
+            }
         }
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
@@ -1207,6 +1563,7 @@ impl Widget for SymbolStructEditorView {
                             "New Struct Layout",
                             baseline_draft.as_ref(),
                             draft.as_ref(),
+                            field_layout_editor_index,
                         );
                     }
                     Some(SymbolStructEditorTakeOverState::EditStructLayout { .. }) => {
@@ -1216,6 +1573,7 @@ impl Widget for SymbolStructEditorView {
                             "Edit Struct Layout",
                             baseline_draft.as_ref(),
                             draft.as_ref(),
+                            field_layout_editor_index,
                         );
                     }
                     Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id }) => {

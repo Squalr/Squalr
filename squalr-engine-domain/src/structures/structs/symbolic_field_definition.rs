@@ -38,6 +38,13 @@ impl SymbolicFieldCountResolution {
     pub fn is_inferred(&self) -> bool {
         matches!(self, Self::Inferred)
     }
+
+    pub fn as_expression(&self) -> Option<&SymbolicExpression> {
+        match self {
+            Self::Expression(expression) => Some(expression),
+            Self::Inferred => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
