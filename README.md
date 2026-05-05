@@ -336,3 +336,8 @@ Additionally, conversions should be architecturally audited for robustness.
 Branch: `pr/engine-event-hooks`
 
 When the engine emits events, it would be nice for listeners and plugins to hook into these.
+
+### Symbol authoring
+Branch: `pr/symbol-authoring-2`
+
+We need to augment symbol authoring to automate this with discovered pointer graphs, and to correctly label functions as instruction data types
