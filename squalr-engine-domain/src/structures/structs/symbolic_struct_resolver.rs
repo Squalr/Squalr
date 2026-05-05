@@ -3,7 +3,7 @@ use crate::structures::{
     data_values::container_type::ContainerType,
     structs::{
         symbolic_expression::{SymbolicExpression, SymbolicExpressionEvaluationError},
-        symbolic_field_definition::SymbolicFieldDefinition,
+        symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
@@ -222,25 +222,27 @@ fn resolve_field_offset<ResolveTypeSize>(
 where
     ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
 {
-    let Some(offset_expression) = field_definition.get_offset_expression() else {
-        return Ok(Some(next_sequential_offset));
-    };
-
-    evaluate_u64_expression(offset_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
+    match field_definition.get_offset_resolution() {
+        SymbolicFieldOffsetResolution::Sequential => Ok(Some(next_sequential_offset)),
+        SymbolicFieldOffsetResolution::Expression(offset_expression) => {
+            evaluate_u64_expression(offset_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
+        }
+    }
 }
 
 fn resolve_field_element_count(
     field_definition: &SymbolicFieldDefinition,
     scalar_values_by_field_name: &BTreeMap<String, i128>,
 ) -> Result<Option<u64>, String> {
-    if let Some(count_expression) = field_definition.get_count_expression() {
-        return evaluate_u64_expression(count_expression, scalar_values_by_field_name, &|_| None).map(Some);
-    }
-
-    match field_definition.get_container_type() {
-        ContainerType::ArrayFixed(element_count) => Ok(Some(element_count)),
-        ContainerType::Array => Ok(None),
-        ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Ok(Some(1)),
+    match field_definition.get_count_resolution() {
+        SymbolicFieldCountResolution::Expression(count_expression) => {
+            evaluate_u64_expression(count_expression, scalar_values_by_field_name, &|_| None).map(Some)
+        }
+        SymbolicFieldCountResolution::Inferred => match field_definition.get_container_type() {
+            ContainerType::ArrayFixed(element_count) => Ok(Some(element_count)),
+            ContainerType::Array => Ok(None),
+            ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Ok(Some(1)),
+        },
     }
 }
 
@@ -292,7 +294,7 @@ fn maybe_capture_scalar_field_value<ReadScalarField>(
 ) where
     ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
 {
-    if field_definition.get_field_name().is_empty() || field_definition.get_count_expression().is_some() {
+    if field_definition.get_field_name().is_empty() || !field_definition.get_count_resolution().is_inferred() {
         return;
     }
 

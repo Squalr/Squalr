@@ -17,10 +17,44 @@ pub struct SymbolicFieldDefinition {
     field_name: String,
     data_type_ref: DataTypeRef,
     container_type: ContainerType,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    count_expression: Option<SymbolicExpression>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    offset_expression: Option<SymbolicExpression>,
+    #[serde(default, skip_serializing_if = "SymbolicFieldCountResolution::is_inferred")]
+    count_resolution: SymbolicFieldCountResolution,
+    #[serde(default, skip_serializing_if = "SymbolicFieldOffsetResolution::is_sequential")]
+    offset_resolution: SymbolicFieldOffsetResolution,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SymbolicFieldCountResolution {
+    #[default]
+    Inferred,
+    Expression(SymbolicExpression),
+}
+
+impl SymbolicFieldCountResolution {
+    pub fn new_expression(expression: SymbolicExpression) -> Self {
+        Self::Expression(expression)
+    }
+
+    pub fn is_inferred(&self) -> bool {
+        matches!(self, Self::Inferred)
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SymbolicFieldOffsetResolution {
+    #[default]
+    Sequential,
+    Expression(SymbolicExpression),
+}
+
+impl SymbolicFieldOffsetResolution {
+    pub fn new_expression(expression: SymbolicExpression) -> Self {
+        Self::Expression(expression)
+    }
+
+    pub fn is_sequential(&self) -> bool {
+        matches!(self, Self::Sequential)
+    }
 }
 
 impl SymbolicFieldDefinition {
@@ -32,8 +66,8 @@ impl SymbolicFieldDefinition {
             field_name: String::new(),
             data_type_ref,
             container_type,
-            count_expression: None,
-            offset_expression: None,
+            count_resolution: SymbolicFieldCountResolution::Inferred,
+            offset_resolution: SymbolicFieldOffsetResolution::Sequential,
         }
     }
 
@@ -46,24 +80,24 @@ impl SymbolicFieldDefinition {
             field_name,
             data_type_ref,
             container_type,
-            count_expression: None,
-            offset_expression: None,
+            count_resolution: SymbolicFieldCountResolution::Inferred,
+            offset_resolution: SymbolicFieldOffsetResolution::Sequential,
         }
     }
 
-    pub fn new_named_with_expressions(
+    pub fn new_named_with_resolutions(
         field_name: String,
         data_type_ref: DataTypeRef,
         container_type: ContainerType,
-        count_expression: Option<SymbolicExpression>,
-        offset_expression: Option<SymbolicExpression>,
+        count_resolution: SymbolicFieldCountResolution,
+        offset_resolution: SymbolicFieldOffsetResolution,
     ) -> Self {
         SymbolicFieldDefinition {
             field_name,
             data_type_ref,
             container_type,
-            count_expression,
-            offset_expression,
+            count_resolution,
+            offset_resolution,
         }
     }
 
@@ -133,12 +167,12 @@ impl SymbolicFieldDefinition {
         self.container_type
     }
 
-    pub fn get_count_expression(&self) -> Option<&SymbolicExpression> {
-        self.count_expression.as_ref()
+    pub fn get_count_resolution(&self) -> &SymbolicFieldCountResolution {
+        &self.count_resolution
     }
 
-    pub fn get_offset_expression(&self) -> Option<&SymbolicExpression> {
-        self.offset_expression.as_ref()
+    pub fn get_offset_resolution(&self) -> &SymbolicFieldOffsetResolution {
+        &self.offset_resolution
     }
 }
 
@@ -147,13 +181,13 @@ impl FromStr for SymbolicFieldDefinition {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let trimmed_string = string.trim();
-        let (field_definition_string, offset_expression) = if let Some((field_definition_string, offset_expression_string)) = trimmed_string.split_once('@') {
+        let (field_definition_string, offset_resolution) = if let Some((field_definition_string, offset_expression_string)) = trimmed_string.split_once('@') {
             (
                 field_definition_string.trim(),
-                Some(SymbolicExpression::from_str(offset_expression_string.trim())?),
+                SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(offset_expression_string.trim())?),
             )
         } else {
-            (trimmed_string, None)
+            (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
         let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
             let trimmed_field_name = field_name.trim();
@@ -167,7 +201,7 @@ impl FromStr for SymbolicFieldDefinition {
             (String::new(), field_definition_string)
         };
 
-        let (type_str, container_type, count_expression) = if let Some(open_bracket_position) = type_and_container_string.find('[') {
+        let (type_str, container_type, count_resolution) = if let Some(open_bracket_position) = type_and_container_string.find('[') {
             if let Some(close_bracket_position) = type_and_container_string
                 .strip_suffix(']')
                 .map(|_| type_and_container_string.len() - 1)
@@ -176,11 +210,15 @@ impl FromStr for SymbolicFieldDefinition {
                 let length_part = type_and_container_string[open_bracket_position + 1..close_bracket_position].trim();
 
                 if length_part.is_empty() {
-                    (type_part, ContainerType::Array, None)
+                    (type_part, ContainerType::Array, SymbolicFieldCountResolution::Inferred)
                 } else {
                     match length_part.parse::<u64>() {
-                        Ok(array_length) => (type_part, ContainerType::ArrayFixed(array_length), None),
-                        Err(_) => (type_part, ContainerType::Array, Some(SymbolicExpression::from_str(length_part)?)),
+                        Ok(array_length) => (type_part, ContainerType::ArrayFixed(array_length), SymbolicFieldCountResolution::Inferred),
+                        Err(_) => (
+                            type_part,
+                            ContainerType::Array,
+                            SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str(length_part)?),
+                        ),
                     }
                 }
             } else {
@@ -191,14 +229,18 @@ impl FromStr for SymbolicFieldDefinition {
                 let type_part = type_and_container_string[..pointer_marker_index].trim();
                 let container_type = ContainerType::from_str(&type_and_container_string[pointer_marker_index..])?;
 
-                (type_part, container_type, None)
+                (type_part, container_type, SymbolicFieldCountResolution::Inferred)
             } else {
-                (type_and_container_string, ContainerType::None, None)
+                (type_and_container_string, ContainerType::None, SymbolicFieldCountResolution::Inferred)
             }
         } else if let Some(stripped) = type_and_container_string.strip_suffix('*') {
-            (stripped, ContainerType::from_pointer_size(PointerScanPointerSize::Pointer64), None)
+            (
+                stripped,
+                ContainerType::from_pointer_size(PointerScanPointerSize::Pointer64),
+                SymbolicFieldCountResolution::Inferred,
+            )
         } else {
-            (type_and_container_string, ContainerType::None, None)
+            (type_and_container_string, ContainerType::None, SymbolicFieldCountResolution::Inferred)
         };
 
         let data_type = DataTypeRef::from_str(type_str.trim())?;
@@ -208,16 +250,16 @@ impl FromStr for SymbolicFieldDefinition {
                 field_name,
                 data_type_ref: data_type,
                 container_type,
-                count_expression,
-                offset_expression,
+                count_resolution,
+                offset_resolution,
             })
         } else {
-            Ok(SymbolicFieldDefinition::new_named_with_expressions(
+            Ok(SymbolicFieldDefinition::new_named_with_resolutions(
                 field_name,
                 data_type,
                 container_type,
-                count_expression,
-                offset_expression,
+                count_resolution,
+                offset_resolution,
             ))
         }
     }
@@ -228,36 +270,32 @@ impl fmt::Display for SymbolicFieldDefinition {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        let container_text = self
-            .count_expression
-            .as_ref()
-            .map(|count_expression| format!("[{}]", count_expression))
-            .unwrap_or_else(|| self.container_type.to_string());
+        let container_text = match &self.count_resolution {
+            SymbolicFieldCountResolution::Inferred => self.container_type.to_string(),
+            SymbolicFieldCountResolution::Expression(count_expression) => format!("[{}]", count_expression),
+        };
         let field_text = if self.field_name.is_empty() {
             format!("{}{}", self.data_type_ref, container_text)
         } else {
             format!("{}:{}{}", self.field_name, self.data_type_ref, container_text)
         };
 
-        if let Some(offset_expression) = &self.offset_expression {
+        if let SymbolicFieldOffsetResolution::Expression(offset_expression) = &self.offset_resolution {
             return write!(formatter, "{} @ {}", field_text, offset_expression);
         }
 
-        if self.field_name.is_empty() {
-            write!(formatter, "{}", field_text)
-        } else {
-            write!(formatter, "{}", field_text)
-        }
+        write!(formatter, "{}", field_text)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::SymbolicFieldDefinition;
+    use super::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution};
     use crate::registries::symbols::symbol_registry::SymbolRegistry;
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
+        structs::symbolic_expression::SymbolicExpression,
     };
     use serde_json::json;
     use std::str::FromStr;
@@ -308,18 +346,12 @@ mod tests {
         assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("game.Item"));
         assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::Array);
         assert_eq!(
-            symbolic_field_definition
-                .get_count_expression()
-                .expect("Expected count expression.")
-                .as_str(),
-            "count"
+            symbolic_field_definition.get_count_resolution(),
+            &SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str("count").expect("Expected count expression to parse."))
         );
         assert_eq!(
-            symbolic_field_definition
-                .get_offset_expression()
-                .expect("Expected offset expression.")
-                .as_str(),
-            "+8"
+            symbolic_field_definition.get_offset_resolution(),
+            &SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str("+8").expect("Expected offset expression to parse."))
         );
         assert_eq!(symbolic_field_definition.to_string(), "elements:game.Item[count] @ +8");
     }
@@ -352,5 +384,7 @@ mod tests {
         assert_eq!(symbolic_field_definition.get_field_name(), "");
         assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("u32"));
         assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::None);
+        assert_eq!(symbolic_field_definition.get_count_resolution(), &SymbolicFieldCountResolution::Inferred);
+        assert_eq!(symbolic_field_definition.get_offset_resolution(), &SymbolicFieldOffsetResolution::Sequential);
     }
 }
