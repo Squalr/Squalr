@@ -1,12 +1,12 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::widgets::controls::combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView};
-use crate::ui::widgets::controls::data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView};
+use crate::ui::widgets::controls::data_type_selector::data_type_selector_view::DataTypeSelectorView;
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
 };
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
-    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructLayoutEditDraft,
+    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
 };
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
 use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
@@ -52,6 +52,7 @@ impl SymbolStructEditorView {
     const FIELD_INPUT_SPACING: f32 = 8.0;
     const FIELD_CONTAINER_MODE_WIDTH: f32 = 160.0;
     const FIELD_CONTAINER_DETAIL_WIDTH: f32 = 140.0;
+    const FIELD_OFFSET_MODE_WIDTH: f32 = 160.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
@@ -361,6 +362,43 @@ impl SymbolStructEditorView {
 
         if let Some(selected_pointer_size) = selected_pointer_size {
             container_edit.pointer_size = selected_pointer_size;
+        }
+    }
+
+    fn render_offset_mode_selector(
+        &self,
+        user_interface: &mut Ui,
+        field_draft: &mut SymbolStructFieldEditDraft,
+        field_index: usize,
+        width: f32,
+    ) {
+        let selector_id = format!("symbol_struct_editor_offset_mode_{}", field_index);
+        let current_label = field_draft.offset_mode.label();
+        let mut selected_offset_mode = None;
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                current_label,
+                &selector_id,
+                None,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    for offset_mode in SymbolStructFieldOffsetMode::ALL {
+                        let offset_mode_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), offset_mode.label(), None, width));
+
+                        if offset_mode_response.clicked() {
+                            selected_offset_mode = Some(offset_mode);
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(width)
+            .height(Self::FIELD_ROW_HEIGHT),
+        );
+
+        if let Some(selected_offset_mode) = selected_offset_mode {
+            field_draft.offset_mode = selected_offset_mode;
         }
     }
 
@@ -771,6 +809,17 @@ impl SymbolStructEditorView {
                         Self::FIELD_ROW_HEIGHT,
                     );
                 }
+                SymbolStructFieldContainerKind::DynamicArray => {
+                    user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                    self.render_string_value_box(
+                        user_interface,
+                        &mut field_draft.container_edit.dynamic_array_count_expression,
+                        "count expression",
+                        &format!("symbol_struct_editor_dynamic_array_count_expression_{}", field_index),
+                        user_interface.available_width(),
+                        Self::FIELD_ROW_HEIGHT,
+                    );
+                }
                 SymbolStructFieldContainerKind::Pointer => {
                     user_interface.add_space(Self::FIELD_INPUT_SPACING);
                     self.render_pointer_size_selector(
@@ -781,6 +830,31 @@ impl SymbolStructEditorView {
                     );
                 }
             }
+
+            user_interface.add_space(Self::FIELD_INPUT_SPACING);
+            user_interface.allocate_ui_with_layout(
+                vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT),
+                Layout::left_to_right(Align::Center),
+                |user_interface| {
+                    let available_width = user_interface.available_width().max(0.0);
+                    let offset_mode_width = Self::FIELD_OFFSET_MODE_WIDTH.min(available_width);
+                    let expression_width = (available_width - offset_mode_width - Self::FIELD_INPUT_SPACING).max(0.0);
+
+                    self.render_offset_mode_selector(user_interface, field_draft, field_index, offset_mode_width);
+
+                    if matches!(field_draft.offset_mode, SymbolStructFieldOffsetMode::Expression) {
+                        user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut field_draft.offset_expression,
+                            "offset expression",
+                            &format!("symbol_struct_editor_offset_expression_{}", field_index),
+                            expression_width,
+                            Self::FIELD_ROW_HEIGHT,
+                        );
+                    }
+                },
+            );
         });
 
         pending_field_row_action
@@ -822,23 +896,16 @@ impl SymbolStructEditorView {
             match field_row_action {
                 SymbolStructFieldRowAction::InsertAfter => {
                     let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
-                    draft.field_drafts.insert(
-                        insert_index,
-                        SymbolStructFieldEditDraft {
-                            field_name: String::new(),
-                            data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
-                            container_edit: SymbolStructFieldContainerEdit::default(),
-                        },
-                    );
+                    draft
+                        .field_drafts
+                        .insert(insert_index, SymbolStructFieldEditDraft::new(self.default_data_type_ref()));
                 }
                 SymbolStructFieldRowAction::RemoveField => {
                     draft.field_drafts.remove(field_index);
                     if draft.field_drafts.is_empty() {
-                        draft.field_drafts.push(SymbolStructFieldEditDraft {
-                            field_name: String::new(),
-                            data_type_selection: DataTypeSelection::new(self.default_data_type_ref()),
-                            container_edit: SymbolStructFieldContainerEdit::default(),
-                        });
+                        draft
+                            .field_drafts
+                            .push(SymbolStructFieldEditDraft::new(self.default_data_type_ref()));
                     }
                 }
                 SymbolStructFieldRowAction::MoveUp => {

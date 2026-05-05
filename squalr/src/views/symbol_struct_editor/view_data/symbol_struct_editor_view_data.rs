@@ -5,15 +5,39 @@ use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayo
 use squalr_engine_api::structures::{
     data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
-    structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
+    structs::{
+        symbolic_expression::SymbolicExpression,
+        symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
+        symbolic_struct_definition::SymbolicStructDefinition,
+    },
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, str::FromStr};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SymbolStructFieldOffsetMode {
+    #[default]
+    Sequential,
+    Expression,
+}
+
+impl SymbolStructFieldOffsetMode {
+    pub const ALL: [Self; 2] = [Self::Sequential, Self::Expression];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Sequential => "Sequential",
+            Self::Expression => "Expression",
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolStructFieldEditDraft {
     pub field_name: String,
     pub data_type_selection: DataTypeSelection,
     pub container_edit: SymbolStructFieldContainerEdit,
+    pub offset_mode: SymbolStructFieldOffsetMode,
+    pub offset_expression: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -261,11 +285,7 @@ impl SymbolStructEditorViewData {
                 .get_struct_layout_definition()
                 .get_fields()
                 .iter()
-                .map(|symbolic_field_definition| SymbolStructFieldEditDraft {
-                    field_name: symbolic_field_definition.get_field_name().to_string(),
-                    data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
-                    container_edit: SymbolStructFieldContainerEdit::from_container_type(symbolic_field_definition.get_container_type()),
-                })
+                .map(SymbolStructFieldEditDraft::from_symbolic_field_definition)
                 .collect(),
         }
     }
@@ -288,11 +308,7 @@ impl SymbolStructEditorViewData {
         SymbolStructLayoutEditDraft {
             original_layout_id: None,
             layout_id: proposed_layout_id,
-            field_drafts: vec![SymbolStructFieldEditDraft {
-                field_name: String::new(),
-                data_type_selection: DataTypeSelection::new(default_data_type_ref),
-                container_edit: SymbolStructFieldContainerEdit::default(),
-            }],
+            field_drafts: vec![SymbolStructFieldEditDraft::new(default_data_type_ref)],
         }
     }
 
@@ -329,17 +345,16 @@ impl SymbolStructEditorViewData {
             }
 
             let container_type = field_draft.container_edit.to_container_type()?;
+            let count_resolution = field_draft.container_edit.to_count_resolution()?;
+            let offset_resolution = field_draft.to_offset_resolution()?;
             let trimmed_field_name = field_draft.field_name.trim().to_string();
             if !trimmed_field_name.is_empty() && !field_names.insert(trimmed_field_name.clone()) {
                 return Err(format!("Field name `{}` is already used in this struct.", trimmed_field_name));
             }
 
             let data_type_ref = DataTypeRef::new(&trimmed_data_type_id);
-            let symbolic_field_definition = if trimmed_field_name.is_empty() {
-                SymbolicFieldDefinition::new(data_type_ref, container_type)
-            } else {
-                SymbolicFieldDefinition::new_named(trimmed_field_name, data_type_ref, container_type)
-            };
+            let symbolic_field_definition =
+                SymbolicFieldDefinition::new_named_with_resolutions(trimmed_field_name, data_type_ref, container_type, count_resolution, offset_resolution);
 
             symbolic_field_definitions.push(symbolic_field_definition);
         }
@@ -423,24 +438,62 @@ impl SymbolStructEditorViewData {
     }
 }
 
+impl SymbolStructFieldEditDraft {
+    pub fn new(default_data_type_ref: DataTypeRef) -> Self {
+        Self {
+            field_name: String::new(),
+            data_type_selection: DataTypeSelection::new(default_data_type_ref),
+            container_edit: SymbolStructFieldContainerEdit::default(),
+            offset_mode: SymbolStructFieldOffsetMode::Sequential,
+            offset_expression: String::new(),
+        }
+    }
+
+    pub fn from_symbolic_field_definition(symbolic_field_definition: &SymbolicFieldDefinition) -> Self {
+        let (offset_mode, offset_expression) = match symbolic_field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Sequential => (SymbolStructFieldOffsetMode::Sequential, String::new()),
+            SymbolicFieldOffsetResolution::Expression(offset_expression) => (SymbolStructFieldOffsetMode::Expression, offset_expression.to_string()),
+        };
+
+        Self {
+            field_name: symbolic_field_definition.get_field_name().to_string(),
+            data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
+            container_edit: SymbolStructFieldContainerEdit::from_symbolic_field_definition(symbolic_field_definition),
+            offset_mode,
+            offset_expression,
+        }
+    }
+
+    pub fn to_offset_resolution(&self) -> Result<SymbolicFieldOffsetResolution, String> {
+        match self.offset_mode {
+            SymbolStructFieldOffsetMode::Sequential => Ok(SymbolicFieldOffsetResolution::Sequential),
+            SymbolStructFieldOffsetMode::Expression => {
+                let trimmed_expression = self.offset_expression.trim();
+                if trimmed_expression.is_empty() {
+                    return Err(String::from("Offset expression is required."));
+                }
+
+                Ok(SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(trimmed_expression)?))
+            }
+        }
+    }
+}
+
 impl Default for SymbolStructLayoutEditDraft {
     fn default() -> Self {
         Self {
             original_layout_id: None,
             layout_id: String::new(),
-            field_drafts: vec![SymbolStructFieldEditDraft {
-                field_name: String::new(),
-                data_type_selection: DataTypeSelection::new(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
-                container_edit: SymbolStructFieldContainerEdit::default(),
-            }],
+            field_drafts: vec![SymbolStructFieldEditDraft::new(DataTypeRef::new(
+                DataTypeI32::DATA_TYPE_ID,
+            ))],
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructLayoutEditDraft};
-    use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
+    use super::{SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft};
     use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
@@ -452,6 +505,7 @@ mod tests {
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
+    use std::str::FromStr;
 
     fn create_project_symbol_catalog() -> ProjectSymbolCatalog {
         ProjectSymbolCatalog::new_with_symbol_claims(
@@ -472,6 +526,18 @@ mod tests {
                 String::from("player.stats"),
             )],
         )
+    }
+
+    fn create_field_draft(
+        field_name: &str,
+        data_type_id: &str,
+        container_edit: SymbolStructFieldContainerEdit,
+    ) -> SymbolStructFieldEditDraft {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new(data_type_id));
+        field_draft.field_name = field_name.to_string();
+        field_draft.container_edit = container_edit;
+
+        field_draft
     }
 
     #[test]
@@ -496,15 +562,15 @@ mod tests {
         let draft = SymbolStructLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
-            field_drafts: vec![SymbolStructFieldEditDraft {
-                field_name: String::from("items"),
-                data_type_selection: DataTypeSelection::new(DataTypeRef::new("u16")),
-                container_edit: SymbolStructFieldContainerEdit {
+            field_drafts: vec![create_field_draft(
+                "items",
+                "u16",
+                SymbolStructFieldContainerEdit {
                     kind: SymbolStructFieldContainerKind::FixedArray,
                     fixed_array_length: String::from("4"),
                     ..SymbolStructFieldContainerEdit::default()
                 },
-            }],
+            )],
         };
 
         let struct_layout_descriptor =
@@ -522,22 +588,67 @@ mod tests {
     }
 
     #[test]
+    fn draft_round_trips_dynamic_count_and_offset_expressions() {
+        let struct_layout_descriptor = StructLayoutDescriptor::new(
+            String::from("image.headers"),
+            SymbolicStructDefinition::new(
+                String::from("image.headers"),
+                vec![
+                    SymbolicFieldDefinition::from_str("count:u24 @ +0").expect("Expected count field to parse."),
+                    SymbolicFieldDefinition::from_str("sections:win.Section[count] @ +4 + sizeof(win.Header)").expect("Expected dynamic field to parse."),
+                ],
+            ),
+        );
+
+        let draft = SymbolStructEditorViewData::create_draft_from_descriptor(&struct_layout_descriptor);
+        let sections_draft = draft.field_drafts.get(1).expect("Expected sections draft.");
+
+        assert_eq!(sections_draft.container_edit.kind, SymbolStructFieldContainerKind::DynamicArray);
+        assert_eq!(sections_draft.container_edit.dynamic_array_count_expression, "count");
+        assert_eq!(sections_draft.offset_mode, SymbolStructFieldOffsetMode::Expression);
+        assert_eq!(sections_draft.offset_expression, "+4 + sizeof(win.Header)");
+
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let round_tripped_descriptor =
+            SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected dynamic draft to build.");
+        let round_tripped_field_text = round_tripped_descriptor
+            .get_struct_layout_definition()
+            .get_fields()[1]
+            .to_string();
+
+        assert_eq!(round_tripped_field_text, "sections:win.Section[count] @ +4 + sizeof(win.Header)");
+    }
+
+    #[test]
+    fn build_struct_layout_descriptor_rejects_empty_dynamic_count_expression() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolStructLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            field_drafts: vec![create_field_draft(
+                "items",
+                "u16",
+                SymbolStructFieldContainerEdit {
+                    kind: SymbolStructFieldContainerKind::DynamicArray,
+                    ..SymbolStructFieldContainerEdit::default()
+                },
+            )],
+        };
+
+        let result = SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft);
+
+        assert!(result.is_err_and(|error| error.contains("Dynamic array count expression")));
+    }
+
+    #[test]
     fn build_struct_layout_descriptor_rejects_duplicate_field_names() {
         let project_symbol_catalog = ProjectSymbolCatalog::default();
         let draft = SymbolStructLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("timer.state"),
             field_drafts: vec![
-                SymbolStructFieldEditDraft {
-                    field_name: String::from("Timer"),
-                    data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
-                    container_edit: SymbolStructFieldContainerEdit::default(),
-                },
-                SymbolStructFieldEditDraft {
-                    field_name: String::from("Timer"),
-                    data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
-                    container_edit: SymbolStructFieldContainerEdit::default(),
-                },
+                create_field_draft("Timer", "u32", SymbolStructFieldContainerEdit::default()),
+                create_field_draft("Timer", "u32", SymbolStructFieldContainerEdit::default()),
             ],
         };
 
@@ -552,11 +663,11 @@ mod tests {
         let draft = SymbolStructLayoutEditDraft {
             original_layout_id: Some(String::from("player.stats")),
             layout_id: String::from("player.profile"),
-            field_drafts: vec![SymbolStructFieldEditDraft {
-                field_name: String::from("health"),
-                data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
-                container_edit: SymbolStructFieldContainerEdit::default(),
-            }],
+            field_drafts: vec![create_field_draft(
+                "health",
+                "u32",
+                SymbolStructFieldContainerEdit::default(),
+            )],
         };
 
         let updated_project_symbol_catalog =
@@ -642,11 +753,11 @@ mod tests {
         let draft = SymbolStructLayoutEditDraft {
             original_layout_id: Some(String::from("player.stats")),
             layout_id: String::from("player.profile"),
-            field_drafts: vec![SymbolStructFieldEditDraft {
-                field_name: String::from("health"),
-                data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
-                container_edit: SymbolStructFieldContainerEdit::default(),
-            }],
+            field_drafts: vec![create_field_draft(
+                "health",
+                "u32",
+                SymbolStructFieldContainerEdit::default(),
+            )],
         };
 
         let updated_project_symbol_catalog =
