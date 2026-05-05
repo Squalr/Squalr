@@ -256,9 +256,7 @@ where
     ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
 {
     let value = expression
-        .evaluate(&|identifier| scalar_values_by_field_name.get(identifier).copied(), &|type_id| {
-            resolve_type_size_in_bytes(&DataTypeRef::new(type_id))
-        })
+        .evaluate(&|identifier| scalar_values_by_field_name.get(identifier).copied(), resolve_type_size_in_bytes)
         .map_err(format_expression_error)?;
 
     u64::try_from(value).map_err(|_| format!("Expression `{}` resolved to negative or too-large value `{}`.", expression, value))

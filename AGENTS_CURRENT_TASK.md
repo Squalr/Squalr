@@ -28,3 +28,5 @@ Our current task, from `README.md`, is:
 - Struct-typed Symbol Tree rows now expose `Edit Struct Layout...` in the context menu. The action opens/selects the Symbol Struct Editor and enters edit mode for the row's project struct layout. Needs human verification in the live GUI.
 - Symbol Struct Editor usage counts now include module fields and nested struct field references, and layout renames update direct module-field type references.
 - Validation: `cargo test -p squalr --lib` passed with 347 tests on 2026-05-04.
+- Cleaned up symbolic expressions so `SymbolicExpression` is now the parsed AST, not stored source text. Text remains only as parse/display/serde boundary data; `sizeof(...)` stores `DataTypeRef`, identifiers are wrapped in `SymbolicExpressionIdentifier`, and evaluation walks the AST directly.
+- Validation: `cargo test -p squalr-engine-domain --lib`, `cargo test -p squalr --lib`, and `cargo test -p squalr-plugin-symbols-pe` passed on 2026-05-04.
