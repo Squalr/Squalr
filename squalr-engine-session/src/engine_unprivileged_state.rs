@@ -298,6 +298,27 @@ impl EngineUnprivilegedState {
             .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
     }
 
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.supports_scalar_integer_values(data_type_ref))
+            .unwrap_or(false)
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.read_scalar_integer_value(data_value))
+            .unwrap_or_else(|| {
+                Err(SymbolRegistryError::data_type_not_registered(
+                    "read scalar integer value",
+                    data_value.get_data_type_id(),
+                ))
+            })
+    }
+
     pub fn set_virtual_snapshot_queries(
         &self,
         virtual_snapshot_id: &str,

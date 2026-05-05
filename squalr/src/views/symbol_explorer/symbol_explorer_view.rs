@@ -1830,7 +1830,12 @@ impl SymbolExplorerView {
                     .get_fields()
                     .first()
                     .and_then(|valued_struct_field| valued_struct_field.get_data_value())?;
-                let scalar_value = SymbolTreeScalarValue::read_integer_value(first_read_field_data_value)?;
+                let scalar_value = self
+                    .app_context
+                    .engine_unprivileged_state
+                    .read_scalar_integer_value(first_read_field_data_value)
+                    .ok()
+                    .flatten()?;
 
                 Some((query_id.clone(), scalar_value))
             })
@@ -3575,7 +3580,13 @@ impl Widget for SymbolExplorerView {
         let read_scalar_field = |project_symbol_locator: &ProjectSymbolLocator, field_definition: &SymbolicFieldDefinition, field_size_in_bytes: u64| {
             let scalar_query_id = SymbolTreeScalarValue::query_id(project_symbol_locator, field_definition);
 
-            if let Some(scalar_snapshot_query) = SymbolTreeScalarValue::build_query(project_symbol_locator, field_definition, field_size_in_bytes) {
+            if let Some(scalar_snapshot_query) =
+                SymbolTreeScalarValue::build_query(project_symbol_locator, field_definition, field_size_in_bytes, |data_type_ref| {
+                    self.app_context
+                        .engine_unprivileged_state
+                        .supports_scalar_integer_values(data_type_ref)
+                })
+            {
                 scalar_snapshot_queries.borrow_mut().push(scalar_snapshot_query);
             }
 

@@ -186,6 +186,22 @@ impl PrivilegedRegistryCache {
             .anonymize_value_to_supported_formats(data_value)
     }
 
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.built_in_symbol_registry
+            .supports_scalar_integer_values(data_type_ref)
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, squalr_engine_api::registries::symbols::symbol_registry_error::SymbolRegistryError> {
+        self.built_in_symbol_registry
+            .read_scalar_integer_value(data_value)
+    }
+
     pub fn get_default_value(
         &self,
         data_type_ref: &DataTypeRef,
@@ -260,6 +276,7 @@ mod tests {
             data_types::data_type_ref::DataTypeRef,
             data_values::{
                 anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
+                data_value::DataValue,
             },
             memory::endian::Endian,
             scanning::comparisons::{
@@ -356,6 +373,20 @@ mod tests {
             privileged_registry_cache
                 .get_default_value(&DataTypeRef::new(first_plugin_data_type_id))
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn default_cache_reads_plugin_scalar_integer_values() {
+        let privileged_registry_cache = PrivilegedRegistryCache::default();
+        let data_value = DataValue::new(DataTypeRef::new("u24"), vec![0x56, 0x34, 0x12]);
+
+        assert!(privileged_registry_cache.supports_scalar_integer_values(data_value.get_data_type_ref()));
+        assert_eq!(
+            privileged_registry_cache
+                .read_scalar_integer_value(&data_value)
+                .expect("Expected scalar integer value to decode."),
+            Some(0x12_3456)
         );
     }
 

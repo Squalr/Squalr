@@ -697,6 +697,29 @@ impl SymbolRegistry {
         }
     }
 
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.get_data_type(data_type_ref.get_data_type_id())
+            .is_some_and(|data_type| data_type.supports_scalar_integer_values())
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, SymbolRegistryError> {
+        match self.get_data_type(data_value.get_data_type_id()) {
+            Some(data_type) => data_type
+                .read_scalar_integer_value(data_value.get_value_bytes())
+                .map_err(|error| SymbolRegistryError::data_type_operation_failed("read scalar integer value", error)),
+            None => Err(SymbolRegistryError::data_type_not_registered(
+                "read scalar integer value",
+                data_value.get_data_type_id(),
+            )),
+        }
+    }
+
     pub fn get_supported_anonymous_value_string_formats(
         &self,
         data_type_ref: &DataTypeRef,
