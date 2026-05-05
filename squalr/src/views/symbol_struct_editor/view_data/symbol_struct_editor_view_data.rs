@@ -226,11 +226,31 @@ impl SymbolStructEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
     ) -> usize {
-        project_symbol_catalog
+        let symbol_claim_usage_count = project_symbol_catalog
             .get_symbol_claims()
             .iter()
             .filter(|symbol_claim| symbol_claim.get_struct_layout_id() == struct_layout_id)
-            .count()
+            .count();
+        let module_field_usage_count = project_symbol_catalog
+            .get_symbol_modules()
+            .iter()
+            .flat_map(|symbol_module| symbol_module.get_fields())
+            .filter(|module_field| module_field.get_struct_layout_id() == struct_layout_id)
+            .count();
+        let struct_field_usage_count = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .flat_map(|struct_layout_descriptor| {
+                struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_fields()
+            })
+            .filter(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().get_data_type_id() == struct_layout_id)
+            .count();
+
+        symbol_claim_usage_count
+            .saturating_add(module_field_usage_count)
+            .saturating_add(struct_field_usage_count)
     }
 
     pub fn create_draft_from_descriptor(struct_layout_descriptor: &StructLayoutDescriptor) -> SymbolStructLayoutEditDraft {
@@ -363,6 +383,18 @@ impl SymbolStructEditorViewData {
                         );
                     }
                 }
+
+                for symbol_module in updated_project_symbol_catalog.get_symbol_modules_mut() {
+                    for module_field in symbol_module.get_fields_mut() {
+                        if module_field.get_struct_layout_id() == original_layout_id {
+                            module_field.set_struct_layout_id(
+                                resolved_struct_layout_descriptor
+                                    .get_struct_layout_id()
+                                    .to_string(),
+                            );
+                        }
+                    }
+                }
             }
         }
 
@@ -414,7 +446,10 @@ mod tests {
     use squalr_engine_api::structures::{
         data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
         data_values::container_type::ContainerType,
-        projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim},
+        projects::{
+            project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
+            project_symbol_module_field::ProjectSymbolModuleField,
+        },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
 
@@ -549,5 +584,80 @@ mod tests {
         let result = SymbolStructEditorViewData::remove_struct_layout_from_catalog(&project_symbol_catalog, "player.stats");
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn count_symbol_claim_usages_includes_module_fields_and_nested_struct_fields() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Player"), 0, String::from("player.stats")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![StructLayoutDescriptor::new(
+                String::from("player.container"),
+                SymbolicStructDefinition::new(
+                    String::from("player.container"),
+                    vec![SymbolicFieldDefinition::new_named(
+                        String::from("Stats"),
+                        DataTypeRef::new("player.stats"),
+                        ContainerType::None,
+                    )],
+                ),
+            )],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x1234,
+                String::from("player.stats"),
+            )],
+        );
+
+        assert_eq!(
+            SymbolStructEditorViewData::count_symbol_claim_usages(&project_symbol_catalog, "player.stats"),
+            3
+        );
+    }
+
+    #[test]
+    fn apply_draft_to_catalog_renames_module_field_type_usage() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Player"), 0, String::from("player.stats")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![StructLayoutDescriptor::new(
+                String::from("player.stats"),
+                SymbolicStructDefinition::new(
+                    String::from("player.stats"),
+                    vec![SymbolicFieldDefinition::new_named(
+                        String::from("health"),
+                        DataTypeRef::new("u32"),
+                        ContainerType::None,
+                    )],
+                ),
+            )],
+            Vec::new(),
+        );
+        let draft = SymbolStructLayoutEditDraft {
+            original_layout_id: Some(String::from("player.stats")),
+            layout_id: String::from("player.profile"),
+            field_drafts: vec![SymbolStructFieldEditDraft {
+                field_name: String::from("health"),
+                data_type_selection: DataTypeSelection::new(DataTypeRef::new("u32")),
+                container_edit: SymbolStructFieldContainerEdit::default(),
+            }],
+        };
+
+        let updated_project_symbol_catalog =
+            SymbolStructEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &draft).expect("Expected draft to apply.");
+
+        let module_field_type_id = updated_project_symbol_catalog
+            .get_symbol_modules()
+            .first()
+            .and_then(|symbol_module| symbol_module.get_fields().first())
+            .map(ProjectSymbolModuleField::get_struct_layout_id);
+
+        assert_eq!(module_field_type_id, Some("player.profile"));
     }
 }
