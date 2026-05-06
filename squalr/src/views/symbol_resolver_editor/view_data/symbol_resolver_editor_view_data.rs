@@ -20,7 +20,6 @@ pub struct SymbolResolverEditDraft {
 pub struct SymbolResolverEditorViewData {
     selected_resolver_id: Option<String>,
     selected_node_path: Option<Vec<usize>>,
-    add_menu_position: Option<eframe::egui::Pos2>,
     take_over_state: Option<SymbolResolverEditorTakeOverState>,
     baseline_draft: Option<SymbolResolverEditDraft>,
     draft: Option<SymbolResolverEditDraft>,
@@ -37,10 +36,6 @@ impl SymbolResolverEditorViewData {
 
     pub fn get_selected_node_path(&self) -> Option<&[usize]> {
         self.selected_node_path.as_deref()
-    }
-
-    pub fn get_add_menu_position(&self) -> Option<eframe::egui::Pos2> {
-        self.add_menu_position
     }
 
     pub fn get_take_over_state(&self) -> Option<&SymbolResolverEditorTakeOverState> {
@@ -72,17 +67,6 @@ impl SymbolResolverEditorViewData {
         self.selected_node_path = Some(node_path);
     }
 
-    pub fn show_add_menu(
-        &mut self,
-        position: eframe::egui::Pos2,
-    ) {
-        self.add_menu_position = Some(position);
-    }
-
-    pub fn hide_add_menu(&mut self) {
-        self.add_menu_position = None;
-    }
-
     pub fn begin_create_resolver(
         &mut self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -98,8 +82,7 @@ impl SymbolResolverEditorViewData {
         let baseline_draft = Self::create_default_new_draft_with_root(project_symbol_catalog, root_node);
 
         self.selected_resolver_id = None;
-        self.selected_node_path = None;
-        self.add_menu_position = None;
+        self.selected_node_path = Some(Vec::new());
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::CreateResolver);
         self.baseline_draft = Some(baseline_draft.clone());
         self.draft = Some(baseline_draft);
@@ -111,6 +94,7 @@ impl SymbolResolverEditorViewData {
         resolver_id: &str,
     ) {
         self.selected_resolver_id = Some(resolver_id.to_string());
+        self.selected_node_path = Some(Vec::new());
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::EditResolver {
             resolver_id: resolver_id.to_string(),
         });
@@ -123,7 +107,6 @@ impl SymbolResolverEditorViewData {
     pub fn cancel_take_over_state(&mut self) {
         self.take_over_state = None;
         self.selected_node_path = None;
-        self.add_menu_position = None;
         self.baseline_draft = None;
         self.draft = None;
     }
@@ -135,11 +118,23 @@ impl SymbolResolverEditorViewData {
         self.draft = Some(draft);
     }
 
+    pub fn update_draft_resolver_id(
+        &mut self,
+        resolver_id: String,
+    ) {
+        if let Some(draft) = self.draft.as_mut() {
+            draft.resolver_id = resolver_id;
+        }
+    }
+
     pub fn synchronize(
         &mut self,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
         if matches!(self.take_over_state, Some(SymbolResolverEditorTakeOverState::CreateResolver)) {
+            if self.selected_node_path.is_none() {
+                self.selected_node_path = Some(Vec::new());
+            }
             return;
         }
 
@@ -172,6 +167,8 @@ impl SymbolResolverEditorViewData {
 
         if should_clear_take_over_state {
             self.cancel_take_over_state();
+        } else if self.take_over_state.is_some() && self.selected_node_path.is_none() {
+            self.selected_node_path = Some(Vec::new());
         }
     }
 
