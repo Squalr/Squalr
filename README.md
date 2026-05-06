@@ -341,3 +341,9 @@ When the engine emits events, it would be nice for listeners and plugins to hook
 Branch: `pr/symbol-authoring-2`
 
 We need to augment symbol authoring to automate this with discovered pointer graphs, and to correctly label functions as instruction data types
+
+Additionally, we need to handle symbol expressions that support all sorts of dynamic structures like an array where the count dictates the number of elements in an array, etc.
+
+This needs to leverage our existing data value / data types / anonymous string / symbols systems.
+
+Complexity arises from cycle detection, etc.

@@ -1,6 +1,6 @@
 # Agentic Current Task
 Our current task, from `README.md`, is:
-`pr/TODO`
+`pr/symbol-authoring-2`
 
 # Notes from Owner
 - Assume any unstaged/uncommitted file changes are from a previous iteration, or from the human author giving guidance. Keep them if they look good; do not ask about them by default.
