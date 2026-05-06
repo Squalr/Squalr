@@ -6,7 +6,8 @@ use squalr_engine_api::structures::structs::symbolic_resolver_definition::{Symbo
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolResolverEditorTakeOverState {
     CreateResolver,
-    EditResolver { resolver_id: String },
+    RenameResolver { resolver_id: String },
+    OpenResolver { resolver_id: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -82,20 +83,36 @@ impl SymbolResolverEditorViewData {
         let baseline_draft = Self::create_default_new_draft_with_root(project_symbol_catalog, root_node);
 
         self.selected_resolver_id = None;
-        self.selected_node_path = Some(Vec::new());
+        self.selected_node_path = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::CreateResolver);
         self.baseline_draft = Some(baseline_draft.clone());
         self.draft = Some(baseline_draft);
     }
 
-    pub fn begin_edit_resolver(
+    pub fn begin_rename_resolver(
+        &mut self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolver_id: &str,
+    ) {
+        self.selected_resolver_id = Some(resolver_id.to_string());
+        self.selected_node_path = None;
+        self.take_over_state = Some(SymbolResolverEditorTakeOverState::RenameResolver {
+            resolver_id: resolver_id.to_string(),
+        });
+        self.baseline_draft = project_symbol_catalog
+            .find_symbolic_resolver_descriptor(resolver_id)
+            .map(Self::create_draft_from_descriptor);
+        self.draft = self.baseline_draft.clone();
+    }
+
+    pub fn begin_open_resolver(
         &mut self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         resolver_id: &str,
     ) {
         self.selected_resolver_id = Some(resolver_id.to_string());
         self.selected_node_path = Some(Vec::new());
-        self.take_over_state = Some(SymbolResolverEditorTakeOverState::EditResolver {
+        self.take_over_state = Some(SymbolResolverEditorTakeOverState::OpenResolver {
             resolver_id: resolver_id.to_string(),
         });
         self.baseline_draft = project_symbol_catalog
@@ -132,9 +149,6 @@ impl SymbolResolverEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
         if matches!(self.take_over_state, Some(SymbolResolverEditorTakeOverState::CreateResolver)) {
-            if self.selected_node_path.is_none() {
-                self.selected_node_path = Some(Vec::new());
-            }
             return;
         }
 
@@ -159,15 +173,17 @@ impl SymbolResolverEditorViewData {
 
         let should_clear_take_over_state = match self.take_over_state.as_ref() {
             Some(SymbolResolverEditorTakeOverState::CreateResolver) => false,
-            Some(SymbolResolverEditorTakeOverState::EditResolver { resolver_id }) => project_symbol_catalog
-                .find_symbolic_resolver_descriptor(resolver_id)
-                .is_none(),
+            Some(SymbolResolverEditorTakeOverState::RenameResolver { resolver_id } | SymbolResolverEditorTakeOverState::OpenResolver { resolver_id }) => {
+                project_symbol_catalog
+                    .find_symbolic_resolver_descriptor(resolver_id)
+                    .is_none()
+            }
             None => false,
         };
 
         if should_clear_take_over_state {
             self.cancel_take_over_state();
-        } else if self.take_over_state.is_some() && self.selected_node_path.is_none() {
+        } else if matches!(self.take_over_state, Some(SymbolResolverEditorTakeOverState::OpenResolver { .. })) && self.selected_node_path.is_none() {
             self.selected_node_path = Some(Vec::new());
         }
     }

@@ -6,7 +6,9 @@ use crate::{
     },
     views::{
         struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
-        symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{SymbolResolverEditDraft, SymbolResolverEditorViewData, SymbolResolverNodeKind},
+        symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{
+            SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData, SymbolResolverNodeKind,
+        },
     },
 };
 use eframe::egui::{Align, Align2, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
@@ -41,7 +43,8 @@ pub struct SymbolResolverEditorView {
 enum ResolverFrameAction {
     None,
     BeginCreateResolver,
-    BeginEditResolver(String),
+    BeginRenameResolver(String),
+    BeginOpenResolver(String),
     SelectResolver(String),
     SaveDraft,
     CancelDraft,
@@ -253,11 +256,13 @@ impl SymbolResolverEditorView {
                     let resolver_id = resolver_descriptor.get_resolver_id();
                     let (row_response, edit_response) = self.render_resolver_list_entry(user_interface, resolver_id, selected_resolver_id == Some(resolver_id));
 
-                    if row_response.clicked() {
+                    if row_response.double_clicked() {
+                        action = ResolverFrameAction::BeginOpenResolver(resolver_id.to_string());
+                    } else if row_response.clicked() {
                         action = ResolverFrameAction::SelectResolver(resolver_id.to_string());
                     }
                     if edit_response.clicked() {
-                        action = ResolverFrameAction::BeginEditResolver(resolver_id.to_string());
+                        action = ResolverFrameAction::BeginRenameResolver(resolver_id.to_string());
                     }
                 }
 
@@ -359,11 +364,10 @@ impl SymbolResolverEditorView {
             });
     }
 
-    fn render_resolver_edit_take_over(
+    fn render_resolver_name_take_over(
         &self,
         user_interface: &mut Ui,
         draft: &SymbolResolverEditDraft,
-        selected_node_path: Option<&[usize]>,
         validation_result: Option<&Result<squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor, String>>,
         can_save: bool,
     ) -> ResolverFrameAction {
@@ -405,7 +409,7 @@ impl SymbolResolverEditorView {
         header_user_interface.painter().text(
             pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
             Align2::LEFT_CENTER,
-            if is_existing_resolver { "Edit resolver" } else { "Create resolver" },
+            if is_existing_resolver { "Rename resolver" } else { "Create resolver" },
             theme.font_library.font_noto_sans.font_window_title.clone(),
             theme.foreground,
         );
@@ -510,9 +514,6 @@ impl SymbolResolverEditorView {
                         user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
                         user_interface.label(RichText::new(validation_error).color(theme.error_red));
                     }
-
-                    user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_TOP);
-                    self.render_resolver_node_editor_tree(user_interface, draft, selected_node_path);
                 },
             );
         });
@@ -522,6 +523,103 @@ impl SymbolResolverEditorView {
         if user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && !is_format_popup_open {
             action = ResolverFrameAction::CancelDraft;
         }
+
+        action
+    }
+
+    fn render_resolver_open_take_over(
+        &self,
+        user_interface: &mut Ui,
+        draft: &SymbolResolverEditDraft,
+        selected_node_path: Option<&[usize]>,
+        can_save: bool,
+    ) -> ResolverFrameAction {
+        let theme = &self.app_context.theme;
+        let mut action = ResolverFrameAction::None;
+        let (panel_rect, _) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::hover());
+
+        user_interface
+            .painter()
+            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_panel);
+
+        let mut panel_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(panel_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        panel_user_interface.set_clip_rect(panel_rect);
+
+        let (header_rect, _) = panel_user_interface.allocate_exact_size(
+            vec2(panel_user_interface.available_width().max(1.0), Self::TAKE_OVER_HEADER_HEIGHT),
+            Sense::hover(),
+        );
+        panel_user_interface
+            .painter()
+            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
+
+        let mut header_user_interface = panel_user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(header_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        header_user_interface.set_clip_rect(header_rect);
+
+        let header_action_width = Self::ICON_BUTTON_WIDTH * 2.0 + Self::TAKE_OVER_ROW_SPACING;
+        let title_width = (header_rect.width() - header_action_width - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
+        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
+        header_user_interface.painter().text(
+            pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
+            Align2::LEFT_CENTER,
+            draft.resolver_id.as_str(),
+            theme.font_library.font_noto_sans.font_window_title.clone(),
+            theme.foreground,
+        );
+
+        header_user_interface.allocate_ui_with_layout(
+            vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+            Layout::right_to_left(Align::Center),
+            |user_interface| {
+                let save_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_common_check_mark,
+                    "Save resolver tree.",
+                    theme.background_control_primary,
+                    theme.background_control_primary_dark,
+                    !can_save,
+                    Self::TAKE_OVER_HEADER_HEIGHT,
+                );
+                if can_save && save_response.clicked() {
+                    action = ResolverFrameAction::SaveDraft;
+                }
+
+                user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
+
+                let cancel_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_navigation_cancel,
+                    "Close resolver tree.",
+                    theme.background_control_secondary,
+                    theme.submenu_border,
+                    false,
+                    Self::TAKE_OVER_HEADER_HEIGHT,
+                );
+                if cancel_response.clicked() {
+                    action = ResolverFrameAction::CancelDraft;
+                }
+            },
+        );
+
+        panel_user_interface.add_space(4.0);
+        panel_user_interface.allocate_ui_with_layout(
+            vec2(
+                panel_user_interface.available_width(),
+                panel_user_interface.available_height().max(Self::ROW_HEIGHT),
+            ),
+            Layout::top_down(Align::Min),
+            |user_interface| {
+                self.render_resolver_node_editor_tree(user_interface, draft, selected_node_path);
+            },
+        );
 
         action
     }
@@ -899,14 +997,23 @@ impl SymbolResolverEditorView {
                 {
                     view_data.begin_create_resolver(project_symbol_catalog);
                 }
-                self.focus_current_selection_in_struct_viewer();
+                self.clear_struct_viewer_if_symbol_resolver_focused();
             }
-            ResolverFrameAction::BeginEditResolver(resolver_id) => {
+            ResolverFrameAction::BeginRenameResolver(resolver_id) => {
                 if let Some(mut view_data) = self
                     .symbol_resolver_editor_view_data
-                    .write("SymbolResolverEditor begin edit resolver")
+                    .write("SymbolResolverEditor begin rename resolver")
                 {
-                    view_data.begin_edit_resolver(project_symbol_catalog, &resolver_id);
+                    view_data.begin_rename_resolver(project_symbol_catalog, &resolver_id);
+                }
+                self.clear_struct_viewer_if_symbol_resolver_focused();
+            }
+            ResolverFrameAction::BeginOpenResolver(resolver_id) => {
+                if let Some(mut view_data) = self
+                    .symbol_resolver_editor_view_data
+                    .write("SymbolResolverEditor begin open resolver")
+                {
+                    view_data.begin_open_resolver(project_symbol_catalog, &resolver_id);
                 }
                 self.focus_current_selection_in_struct_viewer();
             }
@@ -1178,31 +1285,33 @@ impl Widget for SymbolResolverEditorView {
             .zip(baseline_draft.as_ref())
             .map(|(draft, baseline_draft)| draft != baseline_draft)
             .unwrap_or(false);
-        let is_creating_resolver = matches!(
-            take_over_state,
-            Some(crate::views::symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::SymbolResolverEditorTakeOverState::CreateResolver)
-        );
+        let is_creating_resolver = matches!(take_over_state, Some(SymbolResolverEditorTakeOverState::CreateResolver));
         let can_save = draft.is_some() && validation_result.as_ref().is_some_and(Result::is_ok) && (has_draft_changes || is_creating_resolver);
         let mut frame_action = ResolverFrameAction::None;
 
         let response = user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                if let Some(draft) = draft.as_ref() {
-                    frame_action =
-                        self.render_resolver_edit_take_over(user_interface, draft, selected_node_path.as_deref(), validation_result.as_ref(), can_save);
-                } else {
-                    frame_action = self.render_selection_toolbar(user_interface);
-                    user_interface.add_space(4.0);
-                    user_interface.allocate_ui_with_layout(
-                        vec2(user_interface.available_width(), user_interface.available_height().max(Self::ROW_HEIGHT)),
-                        Layout::top_down(Align::Min),
-                        |user_interface| {
-                            let list_action = self.render_resolver_list(user_interface, &project_symbol_catalog, selected_resolver_id.as_deref());
-                            if !matches!(list_action, ResolverFrameAction::None) {
-                                frame_action = list_action;
-                            }
-                        },
-                    );
+                match (take_over_state.as_ref(), draft.as_ref()) {
+                    (Some(SymbolResolverEditorTakeOverState::CreateResolver | SymbolResolverEditorTakeOverState::RenameResolver { .. }), Some(draft)) => {
+                        frame_action = self.render_resolver_name_take_over(user_interface, draft, validation_result.as_ref(), can_save);
+                    }
+                    (Some(SymbolResolverEditorTakeOverState::OpenResolver { .. }), Some(draft)) => {
+                        frame_action = self.render_resolver_open_take_over(user_interface, draft, selected_node_path.as_deref(), can_save);
+                    }
+                    _ => {
+                        frame_action = self.render_selection_toolbar(user_interface);
+                        user_interface.add_space(4.0);
+                        user_interface.allocate_ui_with_layout(
+                            vec2(user_interface.available_width(), user_interface.available_height().max(Self::ROW_HEIGHT)),
+                            Layout::top_down(Align::Min),
+                            |user_interface| {
+                                let list_action = self.render_resolver_list(user_interface, &project_symbol_catalog, selected_resolver_id.as_deref());
+                                if !matches!(list_action, ResolverFrameAction::None) {
+                                    frame_action = list_action;
+                                }
+                            },
+                        );
+                    }
                 }
             })
             .response;
