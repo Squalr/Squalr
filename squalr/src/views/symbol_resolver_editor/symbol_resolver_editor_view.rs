@@ -3,16 +3,15 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         widgets::controls::{
-            button::Button as ThemeButton,
-            combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
-            context_menu::context_menu::ContextMenu,
-            data_value_box::data_value_box_view::DataValueBoxView,
-            state_layer::StateLayer,
+            button::Button as ThemeButton, context_menu::context_menu::ContextMenu, state_layer::StateLayer,
             toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
         },
     },
-    views::symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{
-        SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData, SymbolResolverNodeKind,
+    views::{
+        struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
+        symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{
+            SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData, SymbolResolverNodeKind,
+        },
     },
 };
 use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
@@ -26,9 +25,12 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
     data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
-    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
-    structs::symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode},
+    structs::{
+        symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode},
+        valued_struct::ValuedStruct,
+        valued_struct_field::ValuedStructField,
+    },
 };
 use std::sync::Arc;
 
@@ -36,6 +38,7 @@ use std::sync::Arc;
 pub struct SymbolResolverEditorView {
     app_context: Arc<AppContext>,
     symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
+    struct_viewer_view_data: Dependency<StructViewerViewData>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,19 +58,22 @@ impl SymbolResolverEditorView {
     const ROW_LEFT_PADDING: f32 = 8.0;
     const SMALL_ARROW_SIZE: f32 = 10.0;
     const ADD_MENU_WIDTH: f32 = 180.0;
-    const DETAILS_HEIGHT: f32 = 104.0;
-    const DETAILS_HEADER_HEIGHT: f32 = 28.0;
-    const DETAILS_VALUE_WIDTH: f32 = 224.0;
-    const DETAILS_COMBO_WIDTH: f32 = 144.0;
+    const DETAILS_FIELD_RESOLVER_ID: &'static str = "resolver_id";
+    const DETAILS_FIELD_LITERAL_VALUE: &'static str = "literal_value";
+    const DETAILS_FIELD_LOCAL_FIELD: &'static str = "local_field";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_resolver_editor_view_data = app_context
             .dependency_container
             .register(SymbolResolverEditorViewData::new());
+        let struct_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<StructViewerViewData>();
 
         Self {
             app_context,
             symbol_resolver_editor_view_data,
+            struct_viewer_view_data,
         }
     }
 
@@ -139,10 +145,6 @@ impl SymbolResolverEditorView {
             .first()
             .cloned()
             .unwrap_or_else(|| DataTypeRef::new("u32"))
-    }
-
-    fn string_data_type_ref() -> DataTypeRef {
-        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
     fn render_toolbar(
@@ -316,6 +318,7 @@ impl SymbolResolverEditorView {
                             {
                                 view_data.select_resolver(None);
                             }
+                            self.focus_current_selection_in_struct_viewer();
                         }
                         self.render_node_tree(
                             user_interface,
@@ -360,6 +363,7 @@ impl SymbolResolverEditorView {
             {
                 view_data.select_node(resolver_id.to_string(), node_path.clone());
             }
+            self.focus_current_selection_in_struct_viewer();
         }
 
         if let SymbolicResolverNode::Binary { left_node, right_node, .. } = resolver_node {
@@ -507,6 +511,7 @@ impl SymbolResolverEditorView {
                         {
                             view_data.begin_create_resolver_with_root(project_symbol_catalog, root_node);
                         }
+                        self.focus_current_selection_in_struct_viewer();
                         *should_close = true;
                     }
                 }
@@ -526,243 +531,187 @@ impl SymbolResolverEditorView {
         }
     }
 
-    fn render_details_panel(
-        &self,
-        user_interface: &mut Ui,
-        selected_node_path: Option<&[usize]>,
-        draft: Option<&SymbolResolverEditDraft>,
-    ) {
+    fn focus_current_selection_in_struct_viewer(&self) {
+        let (selected_node_path, draft) = self
+            .symbol_resolver_editor_view_data
+            .read("SymbolResolverEditor focus details selection")
+            .map(|view_data| (view_data.get_selected_node_path().map(<[usize]>::to_vec), view_data.get_draft().cloned()))
+            .unwrap_or((None, None));
         let Some(draft) = draft else {
             return;
         };
 
-        let theme = &self.app_context.theme;
-        let (allocated_size_rectangle, _response) =
-            user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::DETAILS_HEIGHT), Sense::hover());
-        user_interface
-            .painter()
-            .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_panel);
-        user_interface.painter().rect_filled(
-            eframe::egui::Rect::from_min_size(
-                allocated_size_rectangle.min,
-                vec2(allocated_size_rectangle.width(), Self::DETAILS_HEADER_HEIGHT),
-            ),
-            CornerRadius::ZERO,
-            theme.background_primary,
-        );
+        self.focus_draft_selection_in_struct_viewer(selected_node_path, &draft);
+    }
 
-        let header_text = if selected_node_path.is_some() { "Node Details" } else { "Resolver Details" };
-        user_interface.painter().text(
-            pos2(
-                allocated_size_rectangle.min.x + 8.0,
-                allocated_size_rectangle.min.y + Self::DETAILS_HEADER_HEIGHT * 0.5,
-            ),
-            Align2::LEFT_CENTER,
-            header_text,
-            theme.font_library.font_noto_sans.font_header.clone(),
-            theme.foreground,
-        );
+    fn clear_struct_viewer_if_symbol_resolver_focused(&self) {
+        let is_symbol_resolver_focused = self
+            .struct_viewer_view_data
+            .read("SymbolResolverEditor check details focus")
+            .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned())
+            .is_some_and(|focus_target| matches!(focus_target, StructViewerFocusTarget::SymbolResolverEditor { .. }));
 
-        let content_rectangle = eframe::egui::Rect::from_min_max(
-            pos2(
-                allocated_size_rectangle.min.x + 8.0,
-                allocated_size_rectangle.min.y + Self::DETAILS_HEADER_HEIGHT + 8.0,
-            ),
-            pos2(allocated_size_rectangle.max.x - 8.0, allocated_size_rectangle.max.y - 8.0),
-        );
-        let mut details_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(content_rectangle)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-
-        let mut edited_draft = draft.clone();
-        if let Some(selected_node_path) = selected_node_path {
-            self.render_node_details(&mut details_user_interface, &mut edited_draft, selected_node_path);
-        } else {
-            let details_value_width = Self::DETAILS_VALUE_WIDTH.min(details_user_interface.available_width());
-            self.render_string_value_box(
-                &mut details_user_interface,
-                &mut edited_draft.resolver_id,
-                "Resolver id",
-                "symbol_resolver_details_id",
-                details_value_width,
-            );
-        }
-
-        if edited_draft != *draft {
-            if let Some(mut view_data) = self
-                .symbol_resolver_editor_view_data
-                .write("SymbolResolverEditor update details")
-            {
-                view_data.update_draft(edited_draft);
-            }
+        if is_symbol_resolver_focused {
+            StructViewerViewData::clear_focus(self.struct_viewer_view_data.clone());
         }
     }
 
-    fn render_node_details(
+    fn focus_draft_selection_in_struct_viewer(
         &self,
-        user_interface: &mut Ui,
+        selected_node_path: Option<Vec<usize>>,
+        draft: &SymbolResolverEditDraft,
+    ) {
+        let Some(details_struct) = Self::build_details_struct(draft, selected_node_path.as_deref()) else {
+            return;
+        };
+        let selection_key = Self::build_struct_viewer_focus_target_key(draft, selected_node_path.as_deref());
+        let edit_callback =
+            Self::build_struct_viewer_edit_callback(self.symbol_resolver_editor_view_data.clone(), selected_node_path, self.default_data_type_ref());
+
+        StructViewerViewData::focus_valued_struct_with_focus_target(
+            self.struct_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            details_struct,
+            edit_callback,
+            Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
+        );
+    }
+
+    fn build_struct_viewer_edit_callback(
+        symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
+        selected_node_path: Option<Vec<usize>>,
+        default_data_type_ref: DataTypeRef,
+    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
+        Arc::new(move |edited_field: ValuedStructField| {
+            let Some(mut view_data) = symbol_resolver_editor_view_data.write("SymbolResolverEditor apply details edit") else {
+                return;
+            };
+            let Some(mut draft) = view_data.get_draft().cloned() else {
+                return;
+            };
+
+            if let Some(selected_node_path) = selected_node_path.as_deref() {
+                Self::apply_node_details_edit(&mut draft, selected_node_path, &edited_field, default_data_type_ref.clone());
+            } else if edited_field.get_name() == Self::DETAILS_FIELD_RESOLVER_ID {
+                draft.resolver_id = StructViewerViewData::read_utf8_field_text(&edited_field);
+            }
+
+            view_data.update_draft(draft);
+        })
+    }
+
+    fn apply_node_details_edit(
         draft: &mut SymbolResolverEditDraft,
         selected_node_path: &[usize],
+        edited_field: &ValuedStructField,
+        default_data_type_ref: DataTypeRef,
     ) {
-        let default_data_type_ref = self.default_data_type_ref();
+        let edited_field_name = edited_field.get_name();
+        let edited_text = StructViewerViewData::read_utf8_field_text(edited_field);
         let Some(selected_node) = Self::get_node_mut(draft.resolver_definition.get_root_node_mut(), selected_node_path) else {
             return;
         };
 
-        let mut selected_kind = Self::resolver_node_kind(selected_node);
-        self.render_node_kind_combo(user_interface, &mut selected_kind);
-        if selected_kind != Self::resolver_node_kind(selected_node) {
-            *selected_node = SymbolResolverEditorViewData::default_node_for_kind(selected_kind, default_data_type_ref);
-            return;
-        }
+        match edited_field_name {
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND => {
+                let Some(next_kind) = Self::resolver_node_kind_from_label(&edited_text) else {
+                    return;
+                };
 
-        user_interface.add_space(8.0);
-        match selected_node {
-            SymbolicResolverNode::Literal(value) => {
-                let mut value_text = value.to_string();
-                self.render_string_value_box(
-                    user_interface,
-                    &mut value_text,
-                    "Literal value",
-                    "symbol_resolver_literal_value",
-                    Self::DETAILS_VALUE_WIDTH,
-                );
-                if let Ok(parsed_value) = value_text.trim().parse::<i128>() {
+                if next_kind != Self::resolver_node_kind(selected_node) {
+                    *selected_node = SymbolResolverEditorViewData::default_node_for_kind(next_kind, default_data_type_ref);
+                }
+            }
+            Self::DETAILS_FIELD_LITERAL_VALUE => {
+                if let (SymbolicResolverNode::Literal(value), Ok(parsed_value)) = (selected_node, edited_text.trim().parse::<i128>()) {
                     *value = parsed_value;
                 }
             }
-            SymbolicResolverNode::LocalField { field_name } => {
-                self.render_string_value_box(
-                    user_interface,
-                    field_name,
-                    "Local field",
-                    "symbol_resolver_local_field",
-                    Self::DETAILS_VALUE_WIDTH,
-                );
-            }
-            SymbolicResolverNode::TypeSize { data_type_ref } => {
-                let mut type_id = data_type_ref.get_data_type_id().to_string();
-                self.render_string_value_box(
-                    user_interface,
-                    &mut type_id,
-                    "Data type",
-                    "symbol_resolver_type_size",
-                    Self::DETAILS_VALUE_WIDTH,
-                );
-                if type_id.trim() != data_type_ref.get_data_type_id() {
-                    *data_type_ref = DataTypeRef::new(type_id.trim());
+            Self::DETAILS_FIELD_LOCAL_FIELD => {
+                if let SymbolicResolverNode::LocalField { field_name } = selected_node {
+                    *field_name = edited_text;
                 }
             }
-            SymbolicResolverNode::Binary { operator, .. } => {
-                self.render_operator_combo(user_interface, operator);
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => {
+                if let SymbolicResolverNode::TypeSize { data_type_ref } = selected_node {
+                    *data_type_ref = DataTypeRef::new(edited_text.trim());
+                }
             }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR => {
+                if let (SymbolicResolverNode::Binary { operator, .. }, Some(next_operator)) = (selected_node, Self::resolver_operator_from_label(&edited_text))
+                {
+                    *operator = next_operator;
+                }
+            }
+            _ => {}
         }
     }
 
-    fn render_node_kind_combo(
-        &self,
-        user_interface: &mut Ui,
-        selected_kind: &mut SymbolResolverNodeKind,
-    ) {
-        let selected_label = Self::resolver_node_kind_label(*selected_kind);
-        user_interface.add(
-            ComboBoxView::new(
-                self.app_context.clone(),
-                selected_label,
-                "symbol_resolver_node_kind",
-                None,
-                |popup_user_interface, should_close| {
-                    for candidate_kind in [
-                        SymbolResolverNodeKind::Literal,
-                        SymbolResolverNodeKind::LocalField,
-                        SymbolResolverNodeKind::TypeSize,
-                        SymbolResolverNodeKind::Operation,
-                    ] {
-                        if popup_user_interface
-                            .add(ComboBoxItemView::new(
-                                self.app_context.clone(),
-                                Self::resolver_node_kind_label(candidate_kind),
-                                None,
-                                Self::DETAILS_COMBO_WIDTH,
-                            ))
-                            .clicked()
-                        {
-                            *selected_kind = candidate_kind;
-                            *should_close = true;
-                        }
-                    }
-                },
-            )
-            .width(Self::DETAILS_COMBO_WIDTH)
-            .height(Self::ROW_HEIGHT),
-        );
+    fn build_details_struct(
+        draft: &SymbolResolverEditDraft,
+        selected_node_path: Option<&[usize]>,
+    ) -> Option<ValuedStruct> {
+        let Some(selected_node_path) = selected_node_path else {
+            return Some(ValuedStruct::new_anonymous(vec![
+                DataTypeStringUtf8::get_value_from_primitive_string(&draft.resolver_id)
+                    .to_named_valued_struct_field(Self::DETAILS_FIELD_RESOLVER_ID.to_string(), false),
+            ]));
+        };
+        let selected_node = Self::get_node(draft.resolver_definition.get_root_node(), selected_node_path)?;
+        let mut fields = vec![
+            DataTypeStringUtf8::get_value_from_primitive_string(Self::resolver_node_kind_label(Self::resolver_node_kind(selected_node)))
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND.to_string(), false),
+        ];
+
+        match selected_node {
+            SymbolicResolverNode::Literal(value) => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())
+                        .to_named_valued_struct_field(Self::DETAILS_FIELD_LITERAL_VALUE.to_string(), false),
+                );
+            }
+            SymbolicResolverNode::LocalField { field_name } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(field_name)
+                        .to_named_valued_struct_field(Self::DETAILS_FIELD_LOCAL_FIELD.to_string(), false),
+                );
+            }
+            SymbolicResolverNode::TypeSize { data_type_ref } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(data_type_ref.get_data_type_id())
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE.to_string(), false),
+                );
+            }
+            SymbolicResolverNode::Binary { operator, .. } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(operator.label())
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR.to_string(), false),
+                );
+            }
+        }
+
+        Some(ValuedStruct::new_anonymous(fields))
     }
 
-    fn render_operator_combo(
-        &self,
-        user_interface: &mut Ui,
-        operator: &mut SymbolicResolverBinaryOperator,
-    ) {
-        user_interface.add(
-            ComboBoxView::new(
-                self.app_context.clone(),
-                operator.label(),
-                "symbol_resolver_operator",
-                None,
-                |popup_user_interface, should_close| {
-                    for candidate_operator in SymbolicResolverBinaryOperator::ALL {
-                        if popup_user_interface
-                            .add(ComboBoxItemView::new(
-                                self.app_context.clone(),
-                                candidate_operator.label(),
-                                None,
-                                Self::DETAILS_COMBO_WIDTH,
-                            ))
-                            .clicked()
-                        {
-                            *operator = candidate_operator;
-                            *should_close = true;
-                        }
-                    }
-                },
-            )
-            .width(Self::DETAILS_COMBO_WIDTH)
-            .height(Self::ROW_HEIGHT),
-        );
-    }
+    fn build_struct_viewer_focus_target_key(
+        draft: &SymbolResolverEditDraft,
+        selected_node_path: Option<&[usize]>,
+    ) -> String {
+        let resolver_key = draft
+            .original_resolver_id
+            .as_deref()
+            .unwrap_or(draft.resolver_id.as_str());
+        let node_path_key = selected_node_path
+            .map(|node_path| {
+                node_path
+                    .iter()
+                    .map(usize::to_string)
+                    .collect::<Vec<_>>()
+                    .join(".")
+            })
+            .unwrap_or_default();
 
-    fn render_string_value_box(
-        &self,
-        user_interface: &mut Ui,
-        value: &mut String,
-        preview_text: &str,
-        id: &str,
-        width: f32,
-    ) {
-        let validation_data_type_ref = Self::string_data_type_ref();
-        let mut value_string = AnonymousValueString::new(value.clone(), AnonymousValueStringFormat::String, ContainerType::None);
-
-        user_interface.add(
-            DataValueBoxView::new(
-                self.app_context.clone(),
-                &mut value_string,
-                &validation_data_type_ref,
-                false,
-                true,
-                preview_text,
-                id,
-            )
-            .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
-            .show_format_button(false)
-            .normalize_value_format(false)
-            .use_format_text_colors(false)
-            .width(width)
-            .height(Self::ROW_HEIGHT),
-        );
-
-        *value = value_string.get_anonymous_value_string().to_string();
+        format!("{}|{}", resolver_key, node_path_key)
     }
 
     fn select_resolver(
@@ -777,6 +726,7 @@ impl SymbolResolverEditorView {
             view_data.select_resolver(Some(resolver_id.to_string()));
             view_data.begin_edit_resolver(project_symbol_catalog, resolver_id);
         }
+        self.focus_current_selection_in_struct_viewer();
     }
 
     fn ensure_selected_resolver_has_draft(
@@ -822,6 +772,7 @@ impl SymbolResolverEditorView {
                 {
                     view_data.cancel_take_over_state();
                 }
+                self.clear_struct_viewer_if_symbol_resolver_focused();
             }
             ResolverToolbarAction::DeleteResolver => {
                 if let Some(selected_resolver_id) = selected_resolver_id {
@@ -834,6 +785,7 @@ impl SymbolResolverEditorView {
                     {
                         view_data.cancel_take_over_state();
                     }
+                    self.clear_struct_viewer_if_symbol_resolver_focused();
                 }
             }
         }
@@ -847,14 +799,16 @@ impl SymbolResolverEditorView {
         match SymbolResolverEditorViewData::apply_draft_to_catalog(project_symbol_catalog, draft) {
             Ok(updated_project_symbol_catalog) => {
                 let saved_resolver_id = draft.resolver_id.trim().to_string();
-                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                self.persist_project_symbol_catalog(updated_project_symbol_catalog.clone());
                 if let Some(mut view_data) = self
                     .symbol_resolver_editor_view_data
                     .write("SymbolResolverEditor save resolver")
                 {
                     view_data.cancel_take_over_state();
                     view_data.select_resolver(Some(saved_resolver_id));
+                    view_data.begin_edit_resolver(&updated_project_symbol_catalog, draft.resolver_id.trim());
                 }
+                self.focus_current_selection_in_struct_viewer();
             }
             Err(error) => {
                 log::error!("Failed to apply symbol resolver draft: {}.", error);
@@ -880,6 +834,23 @@ impl SymbolResolverEditorView {
         }
     }
 
+    fn resolver_node_kind_from_label(label: &str) -> Option<SymbolResolverNodeKind> {
+        match label.trim() {
+            "Literal" => Some(SymbolResolverNodeKind::Literal),
+            "Local Field" => Some(SymbolResolverNodeKind::LocalField),
+            "Type Size" => Some(SymbolResolverNodeKind::TypeSize),
+            "Operation" => Some(SymbolResolverNodeKind::Operation),
+            _ => None,
+        }
+    }
+
+    fn resolver_operator_from_label(label: &str) -> Option<SymbolicResolverBinaryOperator> {
+        SymbolicResolverBinaryOperator::ALL
+            .iter()
+            .copied()
+            .find(|operator| operator.label() == label.trim())
+    }
+
     fn node_tree_text(resolver_node: &SymbolicResolverNode) -> (String, String, TreeEntryKind) {
         match resolver_node {
             SymbolicResolverNode::Literal(value) => (String::from("Literal"), value.to_string(), TreeEntryKind::Literal),
@@ -901,6 +872,24 @@ impl SymbolResolverEditorView {
             SymbolicResolverNode::Binary { left_node, right_node, .. } => match node_path[0] {
                 0 => Self::get_node_mut(left_node, &node_path[1..]),
                 1 => Self::get_node_mut(right_node, &node_path[1..]),
+                _ => None,
+            },
+            SymbolicResolverNode::Literal(_) | SymbolicResolverNode::LocalField { .. } | SymbolicResolverNode::TypeSize { .. } => None,
+        }
+    }
+
+    fn get_node<'resolver>(
+        resolver_node: &'resolver SymbolicResolverNode,
+        node_path: &[usize],
+    ) -> Option<&'resolver SymbolicResolverNode> {
+        if node_path.is_empty() {
+            return Some(resolver_node);
+        }
+
+        match resolver_node {
+            SymbolicResolverNode::Binary { left_node, right_node, .. } => match node_path[0] {
+                0 => Self::get_node(left_node, &node_path[1..]),
+                1 => Self::get_node(right_node, &node_path[1..]),
                 _ => None,
             },
             SymbolicResolverNode::Literal(_) | SymbolicResolverNode::LocalField { .. } | SymbolicResolverNode::TypeSize { .. } => None,
@@ -1068,15 +1057,7 @@ impl Widget for SymbolResolverEditorView {
                 user_interface.add_space(4.0);
                 self.render_add_menu(user_interface, &project_symbol_catalog, add_menu_position);
                 user_interface.allocate_ui_with_layout(
-                    vec2(
-                        user_interface.available_width(),
-                        (user_interface.available_height()
-                            - draft
-                                .as_ref()
-                                .map(|_| Self::DETAILS_HEIGHT + 8.0)
-                                .unwrap_or(0.0))
-                        .max(Self::ROW_HEIGHT),
-                    ),
+                    vec2(user_interface.available_width(), user_interface.available_height().max(Self::ROW_HEIGHT)),
                     Layout::top_down(Align::Min),
                     |user_interface| {
                         self.render_resolver_tree(
@@ -1088,11 +1069,6 @@ impl Widget for SymbolResolverEditorView {
                         );
                     },
                 );
-
-                if draft.is_some() {
-                    user_interface.add_space(8.0);
-                    self.render_details_panel(user_interface, selected_node_path.as_deref(), draft.as_ref());
-                }
             })
             .response
     }

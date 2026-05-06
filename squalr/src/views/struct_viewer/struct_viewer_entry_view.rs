@@ -25,8 +25,8 @@ use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::anonymous_value_string::AnonymousValueString,
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-    structs::symbolic_field_definition::SymbolicFieldDefinition,
     structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
+    structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverBinaryOperator},
 };
 use std::{str::FromStr, sync::Arc};
 
@@ -52,6 +52,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer64,
         PointerScanPointerSize::Pointer64be,
     ];
+    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 4] = ["Literal", "Local Field", "Type Size", "Operation"];
 
     fn value_box_position_x(
         value_position_x: f32,
@@ -154,6 +155,17 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
     }
 
+    fn commit_symbol_resolver_data_type_selection(
+        valued_struct_field: &ValuedStructField,
+        data_type_selection: &DataTypeSelection,
+        struct_viewer_frame_action: &mut StructViewerFrameAction,
+    ) {
+        let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(data_type_selection.visible_data_type().get_data_type_id())
+            .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
+
+        *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
+    }
+
     fn commit_container_type_selection(
         valued_struct_field: &ValuedStructField,
         container_mode: StructViewerContainerMode,
@@ -161,6 +173,17 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     ) {
         let edited_field = DataTypeStringUtf8::get_value_from_primitive_string(container_mode.label())
             .to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
+
+        *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
+    }
+
+    fn commit_symbol_resolver_text_selection(
+        valued_struct_field: &ValuedStructField,
+        selected_label: &str,
+        struct_viewer_frame_action: &mut StructViewerFrameAction,
+    ) {
+        let edited_field =
+            DataTypeStringUtf8::get_value_from_primitive_string(selected_label).to_named_valued_struct_field(valued_struct_field.get_name().to_string(), false);
 
         *struct_viewer_frame_action = StructViewerFrameAction::EditValue(edited_field);
     }
@@ -451,7 +474,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     *self.struct_viewer_frame_action = StructViewerFrameAction::OpenInCodeViewer(self.valued_struct_field.get_name().to_string());
                 }
             }
-            StructViewerFieldEditorKind::DataTypeSelector => {
+            StructViewerFieldEditorKind::DataTypeSelector | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector => {
                 if let Some(field_data_type_selection) = self.field_data_type_selection {
                     let previous_data_type_ref = field_data_type_selection.visible_data_type().clone();
                     let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
@@ -475,7 +498,18 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     field_data_type_selection.replace_selected_data_types(vec![selected_data_type_ref.clone()]);
 
                     if previous_data_type_ref != selected_data_type_ref {
-                        Self::commit_data_type_selection(self.valued_struct_field, field_data_type_selection, self.struct_viewer_frame_action);
+                        if matches!(
+                            self.field_presentation.editor_kind(),
+                            StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
+                        ) {
+                            Self::commit_symbol_resolver_data_type_selection(
+                                self.valued_struct_field,
+                                field_data_type_selection,
+                                self.struct_viewer_frame_action,
+                            );
+                        } else {
+                            Self::commit_data_type_selection(self.valued_struct_field, field_data_type_selection, self.struct_viewer_frame_action);
+                        }
                     }
                 }
             }
@@ -571,6 +605,100 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_pointer_size_label) = selected_pointer_size_label {
                     Self::commit_project_item_pointer_size_selection(self.valued_struct_field, &selected_pointer_size_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolResolverNodeKindSelector => {
+                let node_kind_selector_id = format!(
+                    "struct_viewer_symbol_resolver_node_kind_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_node_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let node_kind_label = Self::SYMBOL_RESOLVER_NODE_KIND_LABELS
+                    .iter()
+                    .copied()
+                    .find(|candidate_label| *candidate_label == current_node_kind)
+                    .unwrap_or("Literal");
+                let mut selected_node_kind_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let node_kind_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(node_kind_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        node_kind_label,
+                        &node_kind_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for candidate_label in Self::SYMBOL_RESOLVER_NODE_KIND_LABELS {
+                                let node_kind_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, node_kind_width));
+
+                                if node_kind_response.clicked() {
+                                    selected_node_kind_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(node_kind_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_node_kind_label) = selected_node_kind_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_node_kind_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolResolverOperatorSelector => {
+                let operator_selector_id = format!(
+                    "struct_viewer_symbol_resolver_operator_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_operator = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let operator_label = SymbolicResolverBinaryOperator::ALL
+                    .iter()
+                    .copied()
+                    .map(SymbolicResolverBinaryOperator::label)
+                    .find(|candidate_label| *candidate_label == current_operator)
+                    .unwrap_or(SymbolicResolverBinaryOperator::Add.label());
+                let mut selected_operator_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let operator_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(operator_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        operator_label,
+                        &operator_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for candidate_operator in SymbolicResolverBinaryOperator::ALL {
+                                let candidate_label = candidate_operator.label();
+                                let operator_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, operator_width));
+
+                                if operator_response.clicked() {
+                                    selected_operator_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(operator_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_operator_label) = selected_operator_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_operator_label, self.struct_viewer_frame_action);
                 }
             }
         }

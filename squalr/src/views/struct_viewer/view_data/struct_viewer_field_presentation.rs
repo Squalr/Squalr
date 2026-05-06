@@ -7,6 +7,9 @@ pub enum StructViewerFieldEditorKind {
     ContainerTypeSelector,
     ProjectItemPointerSizeSelector,
     ProjectItemPointerOffsetsEditor,
+    SymbolResolverNodeKindSelector,
+    SymbolResolverOperatorSelector,
+    SymbolResolverDataTypeSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -50,6 +50,9 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_ARRAY_SIZE: &'static str = "__virtual_array_size";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS: &'static str = "__address_target_pointer_offsets";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE: &'static str = "__address_target_pointer_size";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND: &'static str = "__symbol_resolver_node_kind";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR: &'static str = "__symbol_resolver_operator";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE: &'static str = "__symbol_resolver_data_type";
 
     pub fn new() -> Self {
         Self {
@@ -448,6 +451,12 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::ProjectItemPointerSizeSelector)
             } else if Self::is_project_item_pointer_offsets_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Offsets"), StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor)
+            } else if Self::is_symbol_resolver_node_kind_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Type"), StructViewerFieldEditorKind::SymbolResolverNodeKindSelector)
+            } else if Self::is_symbol_resolver_operator_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Operator"), StructViewerFieldEditorKind::SymbolResolverOperatorSelector)
+            } else if Self::is_symbol_resolver_data_type_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -473,6 +482,9 @@ impl StructViewerViewData {
             ProjectItemTypeAddress::PROPERTY_MODULE => String::from("Module"),
             "__address_target_pointer_offsets" => String::from("Pointer Offsets"),
             "__address_target_pointer_size" => String::from("Pointer Size"),
+            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND => String::from("Type"),
+            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR => String::from("Operator"),
+            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => String::from("Data Type"),
             _ => Self::humanize_field_key(field_name),
         }
     }
@@ -530,13 +542,23 @@ impl StructViewerViewData {
         let mut field_data_type_selections = HashMap::new();
 
         for valued_struct_field in valued_struct.get_fields() {
-            if !Self::is_data_type_reference_field(valued_struct_field) {
+            if !Self::is_data_type_reference_field(valued_struct_field) && !Self::is_symbol_resolver_data_type_field(valued_struct_field) {
                 continue;
             }
 
-            let selected_data_type_ref = Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
-                .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
-                .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID));
+            let selected_data_type_ref = if Self::is_symbol_resolver_data_type_field(valued_struct_field) {
+                let type_id = Self::read_utf8_field_text(valued_struct_field);
+
+                if type_id.trim().is_empty() {
+                    DataTypeRef::new(DataTypeU8::DATA_TYPE_ID)
+                } else {
+                    DataTypeRef::new(type_id.trim())
+                }
+            } else {
+                Self::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
+                    .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().clone())
+                    .unwrap_or_else(|| DataTypeRef::new(DataTypeU8::DATA_TYPE_ID))
+            };
 
             field_data_type_selections.insert(valued_struct_field.get_name().to_string(), DataTypeSelection::new(selected_data_type_ref));
         }
@@ -562,6 +584,18 @@ impl StructViewerViewData {
 
     fn is_project_item_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE
+    }
+
+    fn is_symbol_resolver_node_kind_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND
+    }
+
+    fn is_symbol_resolver_operator_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR
+    }
+
+    fn is_symbol_resolver_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE
     }
 
     fn is_live_value_field(valued_struct_field: &ValuedStructField) -> bool {
