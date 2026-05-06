@@ -11,7 +11,7 @@ use crate::{
         },
     },
 };
-use eframe::egui::{Align, Align2, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, Direction, Id, Key, Layout, Rect, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
@@ -21,7 +21,10 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
-    data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+    data_types::{
+        built_in_types::{i64::data_type_i64::DataTypeI64, string::utf8::data_type_string_utf8::DataTypeStringUtf8},
+        data_type_ref::DataTypeRef,
+    },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
@@ -66,7 +69,6 @@ impl SymbolResolverEditorView {
     const TAKE_OVER_ROW_SPACING: f32 = 8.0;
     const RESOLVER_ID_EDITOR_WIDTH: f32 = 260.0;
     const RESOLVER_ID_EDITOR_ID: &'static str = "symbol_resolver_editor_resolver_id";
-    const DETAILS_FIELD_LITERAL_VALUE: &'static str = "literal_value";
     const DETAILS_FIELD_LOCAL_FIELD: &'static str = "local_field";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -316,30 +318,30 @@ impl SymbolResolverEditorView {
         }
         .ui(user_interface);
 
-        let mut row_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(allocated_size_rectangle)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-
-        let edit_button_width = Self::ICON_BUTTON_WIDTH;
-        let label_width = (row_user_interface.available_width() - edit_button_width).max(0.0);
-        row_user_interface.allocate_ui_with_layout(vec2(label_width, Self::ROW_HEIGHT), Layout::left_to_right(Align::Center), |user_interface| {
-            user_interface.add_space(Self::ROW_LEFT_PADDING);
-            user_interface.label(
-                RichText::new(resolver_id)
-                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                    .color(theme.foreground),
-            );
-        });
-
-        let edit_response = row_user_interface.add_sized(
+        let edit_button_rect = Rect::from_min_size(
+            pos2(allocated_size_rectangle.max.x - Self::ICON_BUTTON_WIDTH, allocated_size_rectangle.min.y),
             vec2(Self::ICON_BUTTON_WIDTH, Self::ROW_HEIGHT),
+        );
+        let edit_response = user_interface.put(
+            edit_button_rect,
             ThemeButton::new_from_theme(theme)
                 .background_color(Color32::TRANSPARENT)
                 .with_tooltip_text("Edit resolver."),
         );
-        IconDraw::draw(&mut row_user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
+        IconDraw::draw(user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
+
+        let label_position = pos2(allocated_size_rectangle.min.x + Self::ROW_LEFT_PADDING, allocated_size_rectangle.center().y);
+        let label_clip_rect = Rect::from_min_max(
+            pos2(allocated_size_rectangle.min.x + Self::ROW_LEFT_PADDING, allocated_size_rectangle.min.y),
+            pos2(edit_button_rect.min.x - Self::TAKE_OVER_ROW_SPACING, allocated_size_rectangle.max.y),
+        );
+        user_interface.painter().with_clip_rect(label_clip_rect).text(
+            label_position,
+            Align2::LEFT_CENTER,
+            resolver_id,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
 
         (row_response, edit_response)
     }
@@ -879,9 +881,9 @@ impl SymbolResolverEditorView {
                     return true;
                 }
             }
-            Self::DETAILS_FIELD_LITERAL_VALUE => {
-                if let (SymbolicResolverNode::Literal(value), Ok(parsed_value)) = (selected_node, edited_text.trim().parse::<i128>()) {
-                    *value = parsed_value;
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE => {
+                if let (SymbolicResolverNode::Literal(value), Some(parsed_value)) = (selected_node, Self::read_i64_field_value(edited_field)) {
+                    *value = i128::from(parsed_value);
                 }
             }
             Self::DETAILS_FIELD_LOCAL_FIELD => {
@@ -920,8 +922,8 @@ impl SymbolResolverEditorView {
         match selected_node {
             SymbolicResolverNode::Literal(value) => {
                 fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&value.to_string())
-                        .to_named_valued_struct_field(Self::DETAILS_FIELD_LITERAL_VALUE.to_string(), false),
+                    DataTypeI64::get_value_from_primitive(Self::clamp_i128_to_i64(*value))
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE.to_string(), false),
                 );
             }
             SymbolicResolverNode::LocalField { field_name } => {
@@ -1160,6 +1162,17 @@ impl SymbolResolverEditorView {
         }
     }
 
+    fn clamp_i128_to_i64(value: i128) -> i64 {
+        value.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
+    }
+
+    fn read_i64_field_value(valued_struct_field: &ValuedStructField) -> Option<i64> {
+        let value_bytes = valued_struct_field.get_data_value()?.get_value_bytes();
+        let value_bytes: [u8; 8] = value_bytes.as_slice().try_into().ok()?;
+
+        Some(i64::from_le_bytes(value_bytes))
+    }
+
     fn measure_text_width(
         user_interface: &Ui,
         text: &str,
@@ -1366,7 +1379,7 @@ mod tests {
         );
         assert!(
             details_struct
-                .get_field(SymbolResolverEditorView::DETAILS_FIELD_LITERAL_VALUE)
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE)
                 .is_none()
         );
     }

@@ -50,6 +50,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_ARRAY_SIZE: &'static str = "__virtual_array_size";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS: &'static str = "__address_target_pointer_offsets";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE: &'static str = "__address_target_pointer_size";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE: &'static str = "literal_value";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND: &'static str = "__symbol_resolver_node_kind";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR: &'static str = "__symbol_resolver_operator";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE: &'static str = "__symbol_resolver_data_type";
@@ -344,6 +345,9 @@ impl StructViewerViewData {
         if valued_struct_field.get_name() == ProjectItemTypeAddress::PROPERTY_ADDRESS {
             return AnonymousValueStringFormat::Hexadecimal;
         }
+        if valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE {
+            return AnonymousValueStringFormat::Hexadecimal;
+        }
 
         engine_unprivileged_state.get_default_anonymous_value_string_format(data_type_ref)
     }
@@ -483,6 +487,7 @@ impl StructViewerViewData {
             "__address_target_pointer_offsets" => String::from("Pointer Offsets"),
             "__address_target_pointer_size" => String::from("Pointer Size"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND => String::from("Type"),
+            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE => String::from("Literal Value"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR => String::from("Operator"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => String::from("Data Type"),
             _ => Self::humanize_field_key(field_name),
