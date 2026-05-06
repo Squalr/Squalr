@@ -37,10 +37,30 @@ impl SymbolStructFieldContainerKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SymbolStructFieldDynamicCountMode {
+    #[default]
+    Resolver,
+    Expression,
+}
+
+impl SymbolStructFieldDynamicCountMode {
+    pub const ALL: [Self; 2] = [Self::Resolver, Self::Expression];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Resolver => "Resolver",
+            Self::Expression => "Expression",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolStructFieldContainerEdit {
     pub kind: SymbolStructFieldContainerKind,
     pub fixed_array_length: String,
+    pub dynamic_array_count_mode: SymbolStructFieldDynamicCountMode,
+    pub dynamic_array_count_resolver_id: String,
     pub dynamic_array_count_expression: String,
     pub pointer_size: PointerScanPointerSize,
 }
@@ -50,6 +70,8 @@ impl Default for SymbolStructFieldContainerEdit {
         Self {
             kind: SymbolStructFieldContainerKind::Element,
             fixed_array_length: String::new(),
+            dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Resolver,
+            dynamic_array_count_resolver_id: String::new(),
             dynamic_array_count_expression: String::new(),
             pointer_size: PointerScanPointerSize::Pointer64,
         }
@@ -62,12 +84,14 @@ impl SymbolStructFieldContainerEdit {
             SymbolicFieldCountResolution::Inferred => Self::from_container_type(symbolic_field_definition.get_container_type()),
             SymbolicFieldCountResolution::Expression(count_expression) => Self {
                 kind: SymbolStructFieldContainerKind::DynamicArray,
+                dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Expression,
                 dynamic_array_count_expression: count_expression.to_string(),
                 ..Self::from_container_type(symbolic_field_definition.get_container_type())
             },
             SymbolicFieldCountResolution::Resolver(resolver_id) => Self {
                 kind: SymbolStructFieldContainerKind::DynamicArray,
-                dynamic_array_count_expression: format!("resolver({})", resolver_id),
+                dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Resolver,
+                dynamic_array_count_resolver_id: resolver_id.clone(),
                 ..Self::from_container_type(symbolic_field_definition.get_container_type())
             },
         }
@@ -126,18 +150,28 @@ impl SymbolStructFieldContainerEdit {
 
     pub fn to_count_resolution(&self) -> Result<SymbolicFieldCountResolution, String> {
         match self.kind {
-            SymbolStructFieldContainerKind::DynamicArray => {
-                let trimmed_expression = self.dynamic_array_count_expression.trim();
-                if trimmed_expression.is_empty() {
-                    return Err(String::from("Dynamic array count expression is required."));
-                }
+            SymbolStructFieldContainerKind::DynamicArray => match self.dynamic_array_count_mode {
+                SymbolStructFieldDynamicCountMode::Resolver => {
+                    let trimmed_resolver_id = self.dynamic_array_count_resolver_id.trim();
+                    if trimmed_resolver_id.is_empty() {
+                        return Err(String::from("Dynamic array count resolver is required."));
+                    }
 
-                if let Some(resolver_id) = parse_resolver_reference(trimmed_expression) {
-                    return Ok(SymbolicFieldCountResolution::new_resolver(resolver_id));
+                    Ok(SymbolicFieldCountResolution::new_resolver(trimmed_resolver_id.to_string()))
                 }
+                SymbolStructFieldDynamicCountMode::Expression => {
+                    let trimmed_expression = self.dynamic_array_count_expression.trim();
+                    if trimmed_expression.is_empty() {
+                        return Err(String::from("Dynamic array count expression is required."));
+                    }
 
-                Ok(SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str(trimmed_expression)?))
-            }
+                    if let Some(resolver_id) = parse_resolver_reference(trimmed_expression) {
+                        return Ok(SymbolicFieldCountResolution::new_resolver(resolver_id));
+                    }
+
+                    Ok(SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str(trimmed_expression)?))
+                }
+            },
             SymbolStructFieldContainerKind::Element
             | SymbolStructFieldContainerKind::Array
             | SymbolStructFieldContainerKind::FixedArray
@@ -157,7 +191,7 @@ fn parse_resolver_reference(resolver_reference: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
+    use super::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind, SymbolStructFieldDynamicCountMode};
     use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldCountResolution;
 
     #[test]
@@ -175,6 +209,7 @@ mod tests {
     fn dynamic_array_container_parses_count_expression() {
         let container_edit = SymbolStructFieldContainerEdit {
             kind: SymbolStructFieldContainerKind::DynamicArray,
+            dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Expression,
             dynamic_array_count_expression: String::from("capacity - count"),
             ..SymbolStructFieldContainerEdit::default()
         };
@@ -193,13 +228,29 @@ mod tests {
     fn dynamic_array_container_parses_count_resolver() {
         let container_edit = SymbolStructFieldContainerEdit {
             kind: SymbolStructFieldContainerKind::DynamicArray,
-            dynamic_array_count_expression: String::from("resolver(inventory.count)"),
+            dynamic_array_count_resolver_id: String::from("inventory.count"),
             ..SymbolStructFieldContainerEdit::default()
         };
 
         let count_resolution = container_edit
             .to_count_resolution()
             .expect("Expected count resolver to parse.");
+
+        assert_eq!(count_resolution, SymbolicFieldCountResolution::new_resolver(String::from("inventory.count")));
+    }
+
+    #[test]
+    fn dynamic_array_container_keeps_resolver_text_escape_hatch() {
+        let container_edit = SymbolStructFieldContainerEdit {
+            kind: SymbolStructFieldContainerKind::DynamicArray,
+            dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Expression,
+            dynamic_array_count_expression: String::from("resolver(inventory.count)"),
+            ..SymbolStructFieldContainerEdit::default()
+        };
+
+        let count_resolution = container_edit
+            .to_count_resolution()
+            .expect("Expected count resolver text escape hatch to parse.");
 
         assert_eq!(count_resolution, SymbolicFieldCountResolution::new_resolver(String::from("inventory.count")));
     }

@@ -16,7 +16,7 @@ Our current task, from `README.md`, is:
 - [X] In the Struct Editor, let dynamic array counts and expression offsets pick a resolver from the global resolver list. Needs human verification for live GUI ergonomics.
 - [X] Migrate PE header formulas to built-in/project resolver descriptors so `PE Headers` no longer depends on hardcoded inline expression strings.
 - [X] Run focused domain/API/GUI tests for resolver serialization, evaluation, struct editor integration, Symbol Explorer resolution, and PE population.
-- [ ] Replace inline symbolic-expression authoring in the Symbol Struct Editor with a first-class resolver model completely. The old text escape hatch remains temporarily.
+- [X] Replace inline symbolic-expression authoring in the Symbol Struct Editor with a first-class resolver model completely. The old text escape hatch remains temporarily. Needs human verification for live GUI ergonomics.
 - [ ] Add local resolver dependency validation and cycle diagnostics at the resolver-descriptor/catalog level.
 - [ ] Remove or demote the current expression text builder UI after the resolver picker/tree editor path is human-verified.
 
@@ -35,6 +35,7 @@ Our current task, from `README.md`, is:
 - Resolver opened mode shows the rooted expression tree. There is no tree add menu or morph button; node kind/operator/type details route through the existing Details Viewer (`StructViewerViewData`). Changing a node to an operation creates the fixed two child slots, and changing it back removes nesting through the same Details Viewer combo path. Changing node kind refocuses Details Viewer because the selected node's editable fields change shape. Needs human verification for live GUI ergonomics.
 - Resolver list rows draw the edit button at the far right edge. Literal resolver node details use a numeric `i64` value field with bin/dec/hex display formats and hex as the default Details Viewer format. Needs human verification for live GUI ergonomics.
 - The Struct Editor now offers resolver pickers for dynamic array counts and expression offsets, while keeping the old expression text editor as a temporary escape hatch.
+- The Struct Editor field draft model now stores dynamic count and offset resolver ids separately from inline expression text. Dynamic count editing has explicit `Resolver`/`Expression` modes, offsets have `Sequential`/`Resolver`/`Expression` modes, and the expression mode still accepts `resolver(id)` as a temporary text escape hatch.
 - The Resolver Editor should eventually own resolver construction, validation, dependency visualization, and preview diagnostics.
 - Global symbol inputs should be modeled as a structured symbol chain, not a free-text path. It should work like the existing ProjectItemAddress symbolic offset chain UX/model, except every chain entry must be a valid symbol segment and numeric bin/dec/hex pointer offsets are invalid. Pointer dereferences, module-base references, and conditional layout/type selection should be deferred until the resolver model is stable.
 - Built-in PE population is now backed by PE resolver descriptors for dynamic offsets/counts. PE32 versus PE32+ selection is still plugin analysis today; resolver-based conditional layout selection is a later feature.
@@ -48,3 +49,4 @@ Our current task, from `README.md`, is:
 - Validation passed on 2026-05-06 after changing Symbol Resolvers to list mode plus explicit create/edit takeover: `cargo test -p squalr --lib symbol_resolver_editor` and `cargo test -p squalr --lib`.
 - Validation passed on 2026-05-06 after splitting Symbol Resolvers into list, create-name, rename-name, and opened-tree surfaces: `cargo test -p squalr --lib symbol_resolver_editor` and `cargo test -p squalr --lib`.
 - Validation passed on 2026-05-06 after right-aligning resolver row edit buttons and making literal details numeric: `cargo test -p squalr --lib symbol_resolver_editor` and `cargo test -p squalr --lib`.
+- Validation passed on 2026-05-06 after splitting Symbol Struct Editor resolver fields from inline expression text: `cargo test -p squalr --lib symbol_struct_editor`, `cargo test -p squalr --lib symbol_resolver_editor`, and `cargo test -p squalr --lib`.

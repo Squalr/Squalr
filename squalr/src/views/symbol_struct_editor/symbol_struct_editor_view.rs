@@ -8,7 +8,9 @@ use crate::ui::widgets::controls::{
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
     SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
 };
-use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
+use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{
+    SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind, SymbolStructFieldDynamicCountMode,
+};
 use eframe::egui::{Align, Align2, ComboBox, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
@@ -331,6 +333,44 @@ impl SymbolStructEditorView {
         }
     }
 
+    fn render_dynamic_count_mode_selector(
+        &self,
+        user_interface: &mut Ui,
+        container_edit: &mut SymbolStructFieldContainerEdit,
+        field_index: usize,
+        width: f32,
+    ) {
+        let selector_id = format!("symbol_struct_editor_dynamic_count_mode_{}", field_index);
+        let current_label = container_edit.dynamic_array_count_mode.label();
+        let mut selected_dynamic_count_mode = None;
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                current_label,
+                &selector_id,
+                None,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    for dynamic_count_mode in SymbolStructFieldDynamicCountMode::ALL {
+                        let dynamic_count_mode_response =
+                            popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), dynamic_count_mode.label(), None, width));
+
+                        if dynamic_count_mode_response.clicked() {
+                            selected_dynamic_count_mode = Some(dynamic_count_mode);
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(width)
+            .height(Self::FIELD_ROW_HEIGHT),
+        );
+
+        if let Some(selected_dynamic_count_mode) = selected_dynamic_count_mode {
+            container_edit.dynamic_array_count_mode = selected_dynamic_count_mode;
+        }
+    }
+
     fn render_pointer_size_selector(
         &self,
         user_interface: &mut Ui,
@@ -587,7 +627,7 @@ impl SymbolStructEditorView {
         &self,
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_resolver_reference_text: &mut String,
+        selected_resolver_id: &mut String,
         id_prefix: &str,
     ) {
         let resolver_descriptors = project_symbol_catalog.get_symbolic_resolver_descriptors();
@@ -596,12 +636,11 @@ impl SymbolStructEditorView {
             return;
         }
 
-        let selected_text = selected_resolver_reference_text
-            .trim()
-            .strip_prefix("resolver(")
-            .and_then(|resolver_text| resolver_text.strip_suffix(')'))
-            .unwrap_or("Pick resolver...")
-            .to_string();
+        let selected_text = if selected_resolver_id.trim().is_empty() {
+            String::from("Pick resolver...")
+        } else {
+            selected_resolver_id.trim().to_string()
+        };
 
         ComboBox::from_id_salt(id_prefix)
             .selected_text(&selected_text)
@@ -612,7 +651,7 @@ impl SymbolStructEditorView {
                         .selectable_label(selected_text == resolver_id, resolver_id)
                         .clicked()
                     {
-                        *selected_resolver_reference_text = format!("resolver({})", resolver_id);
+                        *selected_resolver_id = resolver_id.to_string();
                     }
                 }
             });
@@ -631,19 +670,42 @@ impl SymbolStructEditorView {
                     format!("fixed array [{}]", fixed_array_length)
                 }
             }
-            SymbolStructFieldContainerKind::DynamicArray => {
-                let count_expression = field_draft.container_edit.dynamic_array_count_expression.trim();
+            SymbolStructFieldContainerKind::DynamicArray => match field_draft.container_edit.dynamic_array_count_mode {
+                SymbolStructFieldDynamicCountMode::Resolver => {
+                    let resolver_id = field_draft
+                        .container_edit
+                        .dynamic_array_count_resolver_id
+                        .trim();
 
-                if count_expression.is_empty() {
-                    String::from("dynamic array")
-                } else {
-                    format!("dynamic array [{}]", count_expression)
+                    if resolver_id.is_empty() {
+                        String::from("dynamic array")
+                    } else {
+                        format!("dynamic array [resolver({})]", resolver_id)
+                    }
                 }
-            }
+                SymbolStructFieldDynamicCountMode::Expression => {
+                    let count_expression = field_draft.container_edit.dynamic_array_count_expression.trim();
+
+                    if count_expression.is_empty() {
+                        String::from("dynamic array")
+                    } else {
+                        format!("dynamic array [{}]", count_expression)
+                    }
+                }
+            },
             SymbolStructFieldContainerKind::Pointer => format!("pointer ({})", field_draft.container_edit.pointer_size),
         };
         let offset_text = match field_draft.offset_mode {
             SymbolStructFieldOffsetMode::Sequential => String::from("sequential"),
+            SymbolStructFieldOffsetMode::Resolver => {
+                let resolver_id = field_draft.offset_resolver_id.trim();
+
+                if resolver_id.is_empty() {
+                    String::from("resolver offset")
+                } else {
+                    format!("@ resolver({})", resolver_id)
+                }
+            }
             SymbolStructFieldOffsetMode::Expression => {
                 let offset_expression = field_draft.offset_expression.trim();
 
@@ -1219,21 +1281,33 @@ impl SymbolStructEditorView {
                             }
                             SymbolStructFieldContainerKind::DynamicArray => {
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                                self.render_resolver_picker(
+                                self.render_dynamic_count_mode_selector(
                                     user_interface,
-                                    project_symbol_catalog,
-                                    &mut field_draft.container_edit.dynamic_array_count_expression,
-                                    &format!("symbol_struct_editor_field_layout_count_resolver_{}", field_index),
+                                    &mut field_draft.container_edit,
+                                    field_index,
+                                    Self::FIELD_CONTAINER_MODE_WIDTH.min(user_interface.available_width()),
                                 );
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                                self.render_expression_editor(
-                                    user_interface,
-                                    &mut field_draft.container_edit.dynamic_array_count_expression,
-                                    "count expression",
-                                    &format!("symbol_struct_editor_field_layout_count_expression_{}", field_index),
-                                    &field_names,
-                                    &type_ids,
-                                );
+                                match field_draft.container_edit.dynamic_array_count_mode {
+                                    SymbolStructFieldDynamicCountMode::Resolver => {
+                                        self.render_resolver_picker(
+                                            user_interface,
+                                            project_symbol_catalog,
+                                            &mut field_draft.container_edit.dynamic_array_count_resolver_id,
+                                            &format!("symbol_struct_editor_field_layout_count_resolver_{}", field_index),
+                                        );
+                                    }
+                                    SymbolStructFieldDynamicCountMode::Expression => {
+                                        self.render_expression_editor(
+                                            user_interface,
+                                            &mut field_draft.container_edit.dynamic_array_count_expression,
+                                            "count expression",
+                                            &format!("symbol_struct_editor_field_layout_count_expression_{}", field_index),
+                                            &field_names,
+                                            &type_ids,
+                                        );
+                                    }
+                                }
                             }
                             SymbolStructFieldContainerKind::Pointer => {
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
@@ -1263,23 +1337,28 @@ impl SymbolStructEditorView {
                             Self::FIELD_OFFSET_MODE_WIDTH.min(user_interface.available_width()),
                         );
 
-                        if matches!(field_draft.offset_mode, SymbolStructFieldOffsetMode::Expression) {
-                            user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                            self.render_resolver_picker(
-                                user_interface,
-                                project_symbol_catalog,
-                                &mut field_draft.offset_expression,
-                                &format!("symbol_struct_editor_field_layout_offset_resolver_{}", field_index),
-                            );
-                            user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                            self.render_expression_editor(
-                                user_interface,
-                                &mut field_draft.offset_expression,
-                                "offset expression",
-                                &format!("symbol_struct_editor_field_layout_offset_expression_{}", field_index),
-                                &field_names,
-                                &type_ids,
-                            );
+                        match field_draft.offset_mode {
+                            SymbolStructFieldOffsetMode::Sequential => {}
+                            SymbolStructFieldOffsetMode::Resolver => {
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                                self.render_resolver_picker(
+                                    user_interface,
+                                    project_symbol_catalog,
+                                    &mut field_draft.offset_resolver_id,
+                                    &format!("symbol_struct_editor_field_layout_offset_resolver_{}", field_index),
+                                );
+                            }
+                            SymbolStructFieldOffsetMode::Expression => {
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                                self.render_expression_editor(
+                                    user_interface,
+                                    &mut field_draft.offset_expression,
+                                    "offset expression",
+                                    &format!("symbol_struct_editor_field_layout_offset_expression_{}", field_index),
+                                    &field_names,
+                                    &type_ids,
+                                );
+                            }
                         }
                     })
                     .desired_width(user_interface.available_width()),
