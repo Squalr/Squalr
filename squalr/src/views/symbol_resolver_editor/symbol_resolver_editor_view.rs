@@ -2,10 +2,17 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{button::Button as ThemeButton, state_layer::StateLayer},
+        widgets::controls::{
+            button::Button as ThemeButton,
+            combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+            context_menu::context_menu::ContextMenu,
+            data_value_box::data_value_box_view::DataValueBoxView,
+            state_layer::StateLayer,
+            toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+        },
     },
     views::symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{
-        SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData,
+        SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData, SymbolResolverNodeKind,
     },
 };
 use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
@@ -18,7 +25,8 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
-    data_types::data_type_ref::DataTypeRef,
+    data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode},
 };
@@ -30,22 +38,12 @@ pub struct SymbolResolverEditorView {
     symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ResolverNodeKind {
-    Literal,
-    LocalField,
-    TypeSize,
-    Binary,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ResolverToolbarAction {
     None,
-    CreateResolver,
     SaveDraft,
     CancelDraft,
     DeleteResolver,
-    ReplaceSelectedNode(ResolverNodeKind),
 }
 
 impl SymbolResolverEditorView {
@@ -55,8 +53,12 @@ impl SymbolResolverEditorView {
     const ICON_BUTTON_WIDTH: f32 = 36.0;
     const TREE_LEVEL_INDENT: f32 = 18.0;
     const ROW_LEFT_PADDING: f32 = 8.0;
-    const ICON_SIZE: f32 = 16.0;
     const SMALL_ARROW_SIZE: f32 = 10.0;
+    const ADD_MENU_WIDTH: f32 = 180.0;
+    const DETAILS_HEIGHT: f32 = 104.0;
+    const DETAILS_HEADER_HEIGHT: f32 = 28.0;
+    const DETAILS_VALUE_WIDTH: f32 = 224.0;
+    const DETAILS_COMBO_WIDTH: f32 = 144.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_resolver_editor_view_data = app_context
@@ -139,13 +141,16 @@ impl SymbolResolverEditorView {
             .unwrap_or_else(|| DataTypeRef::new("u32"))
     }
 
+    fn string_data_type_ref() -> DataTypeRef {
+        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
+    }
+
     fn render_toolbar(
         &self,
         user_interface: &mut Ui,
         can_save: bool,
         has_draft: bool,
         has_selected_resolver: bool,
-        has_selected_node_target: bool,
     ) -> ResolverToolbarAction {
         let theme = &self.app_context.theme;
         let (allocated_size_rectangle, _response) =
@@ -161,64 +166,14 @@ impl SymbolResolverEditorView {
                 .layout(Layout::left_to_right(Align::Center)),
         );
 
-        if self
-            .render_icon_button(
-                &mut toolbar_user_interface,
-                &theme.icon_library.icon_handle_common_add,
-                "Create resolver.",
-                false,
-            )
-            .clicked()
-        {
-            action = ResolverToolbarAction::CreateResolver;
-        }
-
-        if self
-            .render_icon_button(
-                &mut toolbar_user_interface,
-                &theme.icon_library.icon_handle_display_type_decimal,
-                "Set selected node to literal.",
-                !has_selected_node_target,
-            )
-            .clicked()
-        {
-            action = ResolverToolbarAction::ReplaceSelectedNode(ResolverNodeKind::Literal);
-        }
-
-        if self
-            .render_icon_button(
-                &mut toolbar_user_interface,
-                &theme.icon_library.icon_handle_common_properties,
-                "Set selected node to local field.",
-                !has_selected_node_target,
-            )
-            .clicked()
-        {
-            action = ResolverToolbarAction::ReplaceSelectedNode(ResolverNodeKind::LocalField);
-        }
-
-        if self
-            .render_icon_button(
-                &mut toolbar_user_interface,
-                &theme.icon_library.icon_handle_data_type_unknown,
-                "Set selected node to type size.",
-                !has_selected_node_target,
-            )
-            .clicked()
-        {
-            action = ResolverToolbarAction::ReplaceSelectedNode(ResolverNodeKind::TypeSize);
-        }
-
-        if self
-            .render_icon_button(
-                &mut toolbar_user_interface,
-                &theme.icon_library.icon_handle_file_system_open_folder,
-                "Set selected node to operation.",
-                !has_selected_node_target,
-            )
-            .clicked()
-        {
-            action = ResolverToolbarAction::ReplaceSelectedNode(ResolverNodeKind::Binary);
+        let add_response = self.render_icon_button(&mut toolbar_user_interface, &theme.icon_library.icon_handle_common_add, "Add resolver.", false);
+        if add_response.clicked() {
+            if let Some(mut view_data) = self
+                .symbol_resolver_editor_view_data
+                .write("SymbolResolverEditor show add menu")
+            {
+                view_data.show_add_menu(add_response.rect.left_bottom());
+            }
         }
 
         toolbar_user_interface.allocate_ui_with_layout(
@@ -473,19 +428,7 @@ impl SymbolResolverEditorView {
             IconDraw::draw_sized(user_interface, arrow_center, vec2(Self::SMALL_ARROW_SIZE, Self::SMALL_ARROW_SIZE), arrow_icon);
         }
 
-        let icon_center = pos2(
-            arrow_center.x + Self::SMALL_ARROW_SIZE * 0.5 + 6.0 + Self::ICON_SIZE * 0.5,
-            allocated_size_rectangle.center().y,
-        );
-        IconDraw::draw_sized_tinted(
-            user_interface,
-            icon_center,
-            vec2(Self::ICON_SIZE, Self::ICON_SIZE),
-            self.icon_for_tree_entry(entry_kind),
-            Color32::WHITE,
-        );
-
-        let label_position = pos2(icon_center.x + Self::ICON_SIZE * 0.5 + 6.0, allocated_size_rectangle.center().y);
+        let label_position = pos2(arrow_center.x + Self::SMALL_ARROW_SIZE * 0.5 + 8.0, allocated_size_rectangle.center().y);
         let preview_width = if preview.is_empty() {
             0.0
         } else {
@@ -527,18 +470,299 @@ impl SymbolResolverEditorView {
         response
     }
 
-    fn icon_for_tree_entry(
+    fn render_add_menu(
         &self,
-        entry_kind: TreeEntryKind,
-    ) -> &TextureHandle {
-        let theme = &self.app_context.theme;
-        match entry_kind {
-            TreeEntryKind::Resolver => &theme.icon_library.icon_handle_common_properties,
-            TreeEntryKind::Literal => &theme.icon_library.icon_handle_display_type_decimal,
-            TreeEntryKind::LocalField => &theme.icon_library.icon_handle_common_properties,
-            TreeEntryKind::TypeSize => &theme.icon_library.icon_handle_data_type_unknown,
-            TreeEntryKind::Operation => &theme.icon_library.icon_handle_file_system_open_folder,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        add_menu_position: Option<eframe::egui::Pos2>,
+    ) {
+        let Some(add_menu_position) = add_menu_position else {
+            return;
+        };
+
+        let mut open = true;
+        ContextMenu::new(
+            self.app_context.clone(),
+            "symbol_resolver_add_menu",
+            add_menu_position,
+            |user_interface, should_close| {
+                for (label, item_id, resolver_node_kind) in [
+                    ("New Literal Resolver", "symbol_resolver_add_literal", SymbolResolverNodeKind::Literal),
+                    (
+                        "New Local Field Resolver",
+                        "symbol_resolver_add_local_field",
+                        SymbolResolverNodeKind::LocalField,
+                    ),
+                    ("New Type Size Resolver", "symbol_resolver_add_type_size", SymbolResolverNodeKind::TypeSize),
+                    ("New Operation Resolver", "symbol_resolver_add_operation", SymbolResolverNodeKind::Operation),
+                ] {
+                    if user_interface
+                        .add(ToolbarMenuItemView::new(self.app_context.clone(), label, item_id, &None, Self::ADD_MENU_WIDTH))
+                        .clicked()
+                    {
+                        let root_node = SymbolResolverEditorViewData::default_node_for_kind(resolver_node_kind, self.default_data_type_ref());
+                        if let Some(mut view_data) = self
+                            .symbol_resolver_editor_view_data
+                            .write("SymbolResolverEditor create resolver from menu")
+                        {
+                            view_data.begin_create_resolver_with_root(project_symbol_catalog, root_node);
+                        }
+                        *should_close = true;
+                    }
+                }
+            },
+        )
+        .width(Self::ADD_MENU_WIDTH)
+        .corner_radius(8)
+        .show(user_interface, &mut open);
+
+        if !open {
+            if let Some(mut view_data) = self
+                .symbol_resolver_editor_view_data
+                .write("SymbolResolverEditor hide add menu")
+            {
+                view_data.hide_add_menu();
+            }
         }
+    }
+
+    fn render_details_panel(
+        &self,
+        user_interface: &mut Ui,
+        selected_node_path: Option<&[usize]>,
+        draft: Option<&SymbolResolverEditDraft>,
+    ) {
+        let Some(draft) = draft else {
+            return;
+        };
+
+        let theme = &self.app_context.theme;
+        let (allocated_size_rectangle, _response) =
+            user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::DETAILS_HEIGHT), Sense::hover());
+        user_interface
+            .painter()
+            .rect_filled(allocated_size_rectangle, CornerRadius::ZERO, theme.background_panel);
+        user_interface.painter().rect_filled(
+            eframe::egui::Rect::from_min_size(
+                allocated_size_rectangle.min,
+                vec2(allocated_size_rectangle.width(), Self::DETAILS_HEADER_HEIGHT),
+            ),
+            CornerRadius::ZERO,
+            theme.background_primary,
+        );
+
+        let header_text = if selected_node_path.is_some() { "Node Details" } else { "Resolver Details" };
+        user_interface.painter().text(
+            pos2(
+                allocated_size_rectangle.min.x + 8.0,
+                allocated_size_rectangle.min.y + Self::DETAILS_HEADER_HEIGHT * 0.5,
+            ),
+            Align2::LEFT_CENTER,
+            header_text,
+            theme.font_library.font_noto_sans.font_header.clone(),
+            theme.foreground,
+        );
+
+        let content_rectangle = eframe::egui::Rect::from_min_max(
+            pos2(
+                allocated_size_rectangle.min.x + 8.0,
+                allocated_size_rectangle.min.y + Self::DETAILS_HEADER_HEIGHT + 8.0,
+            ),
+            pos2(allocated_size_rectangle.max.x - 8.0, allocated_size_rectangle.max.y - 8.0),
+        );
+        let mut details_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(content_rectangle)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+
+        let mut edited_draft = draft.clone();
+        if let Some(selected_node_path) = selected_node_path {
+            self.render_node_details(&mut details_user_interface, &mut edited_draft, selected_node_path);
+        } else {
+            let details_value_width = Self::DETAILS_VALUE_WIDTH.min(details_user_interface.available_width());
+            self.render_string_value_box(
+                &mut details_user_interface,
+                &mut edited_draft.resolver_id,
+                "Resolver id",
+                "symbol_resolver_details_id",
+                details_value_width,
+            );
+        }
+
+        if edited_draft != *draft {
+            if let Some(mut view_data) = self
+                .symbol_resolver_editor_view_data
+                .write("SymbolResolverEditor update details")
+            {
+                view_data.update_draft(edited_draft);
+            }
+        }
+    }
+
+    fn render_node_details(
+        &self,
+        user_interface: &mut Ui,
+        draft: &mut SymbolResolverEditDraft,
+        selected_node_path: &[usize],
+    ) {
+        let default_data_type_ref = self.default_data_type_ref();
+        let Some(selected_node) = Self::get_node_mut(draft.resolver_definition.get_root_node_mut(), selected_node_path) else {
+            return;
+        };
+
+        let mut selected_kind = Self::resolver_node_kind(selected_node);
+        self.render_node_kind_combo(user_interface, &mut selected_kind);
+        if selected_kind != Self::resolver_node_kind(selected_node) {
+            *selected_node = SymbolResolverEditorViewData::default_node_for_kind(selected_kind, default_data_type_ref);
+            return;
+        }
+
+        user_interface.add_space(8.0);
+        match selected_node {
+            SymbolicResolverNode::Literal(value) => {
+                let mut value_text = value.to_string();
+                self.render_string_value_box(
+                    user_interface,
+                    &mut value_text,
+                    "Literal value",
+                    "symbol_resolver_literal_value",
+                    Self::DETAILS_VALUE_WIDTH,
+                );
+                if let Ok(parsed_value) = value_text.trim().parse::<i128>() {
+                    *value = parsed_value;
+                }
+            }
+            SymbolicResolverNode::LocalField { field_name } => {
+                self.render_string_value_box(
+                    user_interface,
+                    field_name,
+                    "Local field",
+                    "symbol_resolver_local_field",
+                    Self::DETAILS_VALUE_WIDTH,
+                );
+            }
+            SymbolicResolverNode::TypeSize { data_type_ref } => {
+                let mut type_id = data_type_ref.get_data_type_id().to_string();
+                self.render_string_value_box(
+                    user_interface,
+                    &mut type_id,
+                    "Data type",
+                    "symbol_resolver_type_size",
+                    Self::DETAILS_VALUE_WIDTH,
+                );
+                if type_id.trim() != data_type_ref.get_data_type_id() {
+                    *data_type_ref = DataTypeRef::new(type_id.trim());
+                }
+            }
+            SymbolicResolverNode::Binary { operator, .. } => {
+                self.render_operator_combo(user_interface, operator);
+            }
+        }
+    }
+
+    fn render_node_kind_combo(
+        &self,
+        user_interface: &mut Ui,
+        selected_kind: &mut SymbolResolverNodeKind,
+    ) {
+        let selected_label = Self::resolver_node_kind_label(*selected_kind);
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                selected_label,
+                "symbol_resolver_node_kind",
+                None,
+                |popup_user_interface, should_close| {
+                    for candidate_kind in [
+                        SymbolResolverNodeKind::Literal,
+                        SymbolResolverNodeKind::LocalField,
+                        SymbolResolverNodeKind::TypeSize,
+                        SymbolResolverNodeKind::Operation,
+                    ] {
+                        if popup_user_interface
+                            .add(ComboBoxItemView::new(
+                                self.app_context.clone(),
+                                Self::resolver_node_kind_label(candidate_kind),
+                                None,
+                                Self::DETAILS_COMBO_WIDTH,
+                            ))
+                            .clicked()
+                        {
+                            *selected_kind = candidate_kind;
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(Self::DETAILS_COMBO_WIDTH)
+            .height(Self::ROW_HEIGHT),
+        );
+    }
+
+    fn render_operator_combo(
+        &self,
+        user_interface: &mut Ui,
+        operator: &mut SymbolicResolverBinaryOperator,
+    ) {
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                operator.label(),
+                "symbol_resolver_operator",
+                None,
+                |popup_user_interface, should_close| {
+                    for candidate_operator in SymbolicResolverBinaryOperator::ALL {
+                        if popup_user_interface
+                            .add(ComboBoxItemView::new(
+                                self.app_context.clone(),
+                                candidate_operator.label(),
+                                None,
+                                Self::DETAILS_COMBO_WIDTH,
+                            ))
+                            .clicked()
+                        {
+                            *operator = candidate_operator;
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(Self::DETAILS_COMBO_WIDTH)
+            .height(Self::ROW_HEIGHT),
+        );
+    }
+
+    fn render_string_value_box(
+        &self,
+        user_interface: &mut Ui,
+        value: &mut String,
+        preview_text: &str,
+        id: &str,
+        width: f32,
+    ) {
+        let validation_data_type_ref = Self::string_data_type_ref();
+        let mut value_string = AnonymousValueString::new(value.clone(), AnonymousValueStringFormat::String, ContainerType::None);
+
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut value_string,
+                &validation_data_type_ref,
+                false,
+                true,
+                preview_text,
+                id,
+            )
+            .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
+            .show_format_button(false)
+            .normalize_value_format(false)
+            .use_format_text_colors(false)
+            .width(width)
+            .height(Self::ROW_HEIGHT),
+        );
+
+        *value = value_string.get_anonymous_value_string().to_string();
     }
 
     fn select_resolver(
@@ -582,19 +806,10 @@ impl SymbolResolverEditorView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         action: ResolverToolbarAction,
         selected_resolver_id: Option<&str>,
-        selected_node_path: Option<&[usize]>,
         draft: Option<&SymbolResolverEditDraft>,
     ) {
         match action {
             ResolverToolbarAction::None => {}
-            ResolverToolbarAction::CreateResolver => {
-                if let Some(mut view_data) = self
-                    .symbol_resolver_editor_view_data
-                    .write("SymbolResolverEditor create resolver")
-                {
-                    view_data.begin_create_resolver(project_symbol_catalog);
-                }
-            }
             ResolverToolbarAction::SaveDraft => {
                 if let Some(draft) = draft {
                     self.save_draft(project_symbol_catalog, draft);
@@ -618,24 +833,6 @@ impl SymbolResolverEditorView {
                         .write("SymbolResolverEditor delete resolver")
                     {
                         view_data.cancel_take_over_state();
-                    }
-                }
-            }
-            ResolverToolbarAction::ReplaceSelectedNode(resolver_node_kind) => {
-                let Some(draft) = draft else {
-                    return;
-                };
-                let mut edited_draft = draft.clone();
-                let selected_node_path = selected_node_path.unwrap_or(&[]);
-                let default_data_type_ref = self.default_data_type_ref();
-
-                if let Some(selected_node) = Self::get_node_mut(edited_draft.resolver_definition.get_root_node_mut(), selected_node_path) {
-                    *selected_node = Self::default_node_for_kind(resolver_node_kind, default_data_type_ref);
-                    if let Some(mut view_data) = self
-                        .symbol_resolver_editor_view_data
-                        .write("SymbolResolverEditor replace node")
-                    {
-                        view_data.update_draft(edited_draft);
                     }
                 }
             }
@@ -665,19 +862,21 @@ impl SymbolResolverEditorView {
         }
     }
 
-    fn default_node_for_kind(
-        resolver_node_kind: ResolverNodeKind,
-        default_data_type_ref: DataTypeRef,
-    ) -> SymbolicResolverNode {
+    fn resolver_node_kind(resolver_node: &SymbolicResolverNode) -> SymbolResolverNodeKind {
+        match resolver_node {
+            SymbolicResolverNode::Literal(_) => SymbolResolverNodeKind::Literal,
+            SymbolicResolverNode::LocalField { .. } => SymbolResolverNodeKind::LocalField,
+            SymbolicResolverNode::TypeSize { .. } => SymbolResolverNodeKind::TypeSize,
+            SymbolicResolverNode::Binary { .. } => SymbolResolverNodeKind::Operation,
+        }
+    }
+
+    fn resolver_node_kind_label(resolver_node_kind: SymbolResolverNodeKind) -> &'static str {
         match resolver_node_kind {
-            ResolverNodeKind::Literal => SymbolicResolverNode::new_literal(0),
-            ResolverNodeKind::LocalField => SymbolicResolverNode::new_local_field(String::from("field")),
-            ResolverNodeKind::TypeSize => SymbolicResolverNode::new_type_size(default_data_type_ref),
-            ResolverNodeKind::Binary => SymbolicResolverNode::new_binary(
-                SymbolicResolverBinaryOperator::Add,
-                SymbolicResolverNode::new_literal(0),
-                SymbolicResolverNode::new_literal(0),
-            ),
+            SymbolResolverNodeKind::Literal => "Literal",
+            SymbolResolverNodeKind::LocalField => "Local Field",
+            SymbolResolverNodeKind::TypeSize => "Type Size",
+            SymbolResolverNodeKind::Operation => "Operation",
         }
     }
 
@@ -808,34 +1007,36 @@ impl Widget for SymbolResolverEditorView {
             view_data.synchronize(&project_symbol_catalog);
         }
 
-        let (selected_resolver_id, selected_node_path, take_over_state, baseline_draft, draft) = self
+        let (selected_resolver_id, selected_node_path, add_menu_position, take_over_state, baseline_draft, draft) = self
             .symbol_resolver_editor_view_data
             .read("SymbolResolverEditor view")
             .map(|view_data| {
                 (
                     view_data.get_selected_resolver_id().map(str::to_string),
                     view_data.get_selected_node_path().map(<[usize]>::to_vec),
+                    view_data.get_add_menu_position(),
                     view_data.get_take_over_state().cloned(),
                     view_data.get_baseline_draft().cloned(),
                     view_data.get_draft().cloned(),
                 )
             })
-            .unwrap_or((None, None, None, None, None));
+            .unwrap_or((None, None, None, None, None, None));
 
         self.ensure_selected_resolver_has_draft(&project_symbol_catalog, selected_resolver_id.as_deref(), take_over_state.as_ref());
 
-        let (selected_resolver_id, selected_node_path, baseline_draft, draft) = self
+        let (selected_resolver_id, selected_node_path, add_menu_position, baseline_draft, draft) = self
             .symbol_resolver_editor_view_data
             .read("SymbolResolverEditor view after draft ensure")
             .map(|view_data| {
                 (
                     view_data.get_selected_resolver_id().map(str::to_string),
                     view_data.get_selected_node_path().map(<[usize]>::to_vec),
+                    view_data.get_add_menu_position(),
                     view_data.get_baseline_draft().cloned(),
                     view_data.get_draft().cloned(),
                 )
             })
-            .unwrap_or((selected_resolver_id, selected_node_path, baseline_draft, draft));
+            .unwrap_or((selected_resolver_id, selected_node_path, add_menu_position, baseline_draft, draft));
 
         let can_handle_window_shortcuts = self
             .app_context
@@ -859,28 +1060,23 @@ impl Widget for SymbolResolverEditorView {
             .map(|(draft, baseline_draft)| draft != baseline_draft)
             .unwrap_or(false)
             && validation_result.as_ref().is_some_and(Result::is_ok);
-        let has_selected_node_target = draft.is_some();
-
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
-                let toolbar_action = self.render_toolbar(
-                    user_interface,
-                    can_save,
-                    draft.is_some(),
-                    selected_resolver_id.is_some(),
-                    has_selected_node_target,
-                );
-                self.apply_toolbar_action(
-                    &project_symbol_catalog,
-                    toolbar_action,
-                    selected_resolver_id.as_deref(),
-                    selected_node_path.as_deref(),
-                    draft.as_ref(),
-                );
+                let toolbar_action = self.render_toolbar(user_interface, can_save, draft.is_some(), selected_resolver_id.is_some());
+                self.apply_toolbar_action(&project_symbol_catalog, toolbar_action, selected_resolver_id.as_deref(), draft.as_ref());
 
                 user_interface.add_space(4.0);
+                self.render_add_menu(user_interface, &project_symbol_catalog, add_menu_position);
                 user_interface.allocate_ui_with_layout(
-                    vec2(user_interface.available_width(), user_interface.available_height()),
+                    vec2(
+                        user_interface.available_width(),
+                        (user_interface.available_height()
+                            - draft
+                                .as_ref()
+                                .map(|_| Self::DETAILS_HEIGHT + 8.0)
+                                .unwrap_or(0.0))
+                        .max(Self::ROW_HEIGHT),
+                    ),
                     Layout::top_down(Align::Min),
                     |user_interface| {
                         self.render_resolver_tree(
@@ -892,6 +1088,11 @@ impl Widget for SymbolResolverEditorView {
                         );
                     },
                 );
+
+                if draft.is_some() {
+                    user_interface.add_space(8.0);
+                    self.render_details_panel(user_interface, selected_node_path.as_deref(), draft.as_ref());
+                }
             })
             .response
     }

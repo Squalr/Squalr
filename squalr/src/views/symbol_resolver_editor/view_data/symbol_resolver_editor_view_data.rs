@@ -1,6 +1,7 @@
 use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
-use squalr_engine_api::structures::structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode};
+use squalr_engine_api::structures::structs::symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolResolverEditorTakeOverState {
@@ -19,6 +20,7 @@ pub struct SymbolResolverEditDraft {
 pub struct SymbolResolverEditorViewData {
     selected_resolver_id: Option<String>,
     selected_node_path: Option<Vec<usize>>,
+    add_menu_position: Option<eframe::egui::Pos2>,
     take_over_state: Option<SymbolResolverEditorTakeOverState>,
     baseline_draft: Option<SymbolResolverEditDraft>,
     draft: Option<SymbolResolverEditDraft>,
@@ -35,6 +37,10 @@ impl SymbolResolverEditorViewData {
 
     pub fn get_selected_node_path(&self) -> Option<&[usize]> {
         self.selected_node_path.as_deref()
+    }
+
+    pub fn get_add_menu_position(&self) -> Option<eframe::egui::Pos2> {
+        self.add_menu_position
     }
 
     pub fn get_take_over_state(&self) -> Option<&SymbolResolverEditorTakeOverState> {
@@ -66,14 +72,34 @@ impl SymbolResolverEditorViewData {
         self.selected_node_path = Some(node_path);
     }
 
+    pub fn show_add_menu(
+        &mut self,
+        position: eframe::egui::Pos2,
+    ) {
+        self.add_menu_position = Some(position);
+    }
+
+    pub fn hide_add_menu(&mut self) {
+        self.add_menu_position = None;
+    }
+
     pub fn begin_create_resolver(
         &mut self,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
-        let baseline_draft = Self::create_default_new_draft(project_symbol_catalog);
+        self.begin_create_resolver_with_root(project_symbol_catalog, SymbolicResolverNode::new_literal(0));
+    }
+
+    pub fn begin_create_resolver_with_root(
+        &mut self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        root_node: SymbolicResolverNode,
+    ) {
+        let baseline_draft = Self::create_default_new_draft_with_root(project_symbol_catalog, root_node);
 
         self.selected_resolver_id = None;
         self.selected_node_path = None;
+        self.add_menu_position = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::CreateResolver);
         self.baseline_draft = Some(baseline_draft.clone());
         self.draft = Some(baseline_draft);
@@ -97,6 +123,7 @@ impl SymbolResolverEditorViewData {
     pub fn cancel_take_over_state(&mut self) {
         self.take_over_state = None;
         self.selected_node_path = None;
+        self.add_menu_position = None;
         self.baseline_draft = None;
         self.draft = None;
     }
@@ -149,6 +176,13 @@ impl SymbolResolverEditorViewData {
     }
 
     pub fn create_default_new_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> SymbolResolverEditDraft {
+        Self::create_default_new_draft_with_root(project_symbol_catalog, SymbolicResolverNode::new_literal(0))
+    }
+
+    pub fn create_default_new_draft_with_root(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        root_node: SymbolicResolverNode,
+    ) -> SymbolResolverEditDraft {
         let mut suffix_index = 1_u64;
         let mut proposed_resolver_id = String::from("new.resolver");
         while project_symbol_catalog
@@ -162,7 +196,23 @@ impl SymbolResolverEditorViewData {
         SymbolResolverEditDraft {
             original_resolver_id: None,
             resolver_id: proposed_resolver_id,
-            resolver_definition: SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(0)),
+            resolver_definition: SymbolicResolverDefinition::new(root_node),
+        }
+    }
+
+    pub fn default_node_for_kind(
+        resolver_node_kind: SymbolResolverNodeKind,
+        default_data_type_ref: DataTypeRef,
+    ) -> SymbolicResolverNode {
+        match resolver_node_kind {
+            SymbolResolverNodeKind::Literal => SymbolicResolverNode::new_literal(0),
+            SymbolResolverNodeKind::LocalField => SymbolicResolverNode::new_local_field(String::from("field")),
+            SymbolResolverNodeKind::TypeSize => SymbolicResolverNode::new_type_size(default_data_type_ref),
+            SymbolResolverNodeKind::Operation => SymbolicResolverNode::new_binary(
+                SymbolicResolverBinaryOperator::Add,
+                SymbolicResolverNode::new_literal(0),
+                SymbolicResolverNode::new_literal(0),
+            ),
         }
     }
 
@@ -240,6 +290,14 @@ impl SymbolResolverEditorViewData {
 
         updated_project_symbol_catalog
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SymbolResolverNodeKind {
+    Literal,
+    LocalField,
+    TypeSize,
+    Operation,
 }
 
 #[cfg(test)]
