@@ -19,7 +19,7 @@ pub struct SymbolResolverEditDraft {
 #[derive(Clone, Default)]
 pub struct SymbolResolverEditorViewData {
     selected_resolver_id: Option<String>,
-    filter_text: String,
+    selected_node_path: Option<Vec<usize>>,
     take_over_state: Option<SymbolResolverEditorTakeOverState>,
     baseline_draft: Option<SymbolResolverEditDraft>,
     draft: Option<SymbolResolverEditDraft>,
@@ -34,8 +34,8 @@ impl SymbolResolverEditorViewData {
         self.selected_resolver_id.as_deref()
     }
 
-    pub fn get_filter_text(&self) -> &str {
-        &self.filter_text
+    pub fn get_selected_node_path(&self) -> Option<&[usize]> {
+        self.selected_node_path.as_deref()
     }
 
     pub fn get_take_over_state(&self) -> Option<&SymbolResolverEditorTakeOverState> {
@@ -50,18 +50,21 @@ impl SymbolResolverEditorViewData {
         self.draft.as_ref()
     }
 
-    pub fn set_filter_text(
-        &mut self,
-        filter_text: String,
-    ) {
-        self.filter_text = filter_text;
-    }
-
     pub fn select_resolver(
         &mut self,
         resolver_id: Option<String>,
     ) {
         self.selected_resolver_id = resolver_id;
+        self.selected_node_path = None;
+    }
+
+    pub fn select_node(
+        &mut self,
+        resolver_id: String,
+        node_path: Vec<usize>,
+    ) {
+        self.selected_resolver_id = Some(resolver_id);
+        self.selected_node_path = Some(node_path);
     }
 
     pub fn begin_create_resolver(
@@ -71,6 +74,7 @@ impl SymbolResolverEditorViewData {
         let baseline_draft = Self::create_default_new_draft(project_symbol_catalog);
 
         self.selected_resolver_id = None;
+        self.selected_node_path = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::CreateResolver);
         self.baseline_draft = Some(baseline_draft.clone());
         self.draft = Some(baseline_draft);
@@ -96,12 +100,14 @@ impl SymbolResolverEditorViewData {
         resolver_id: String,
     ) {
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id });
+        self.selected_node_path = None;
         self.baseline_draft = None;
         self.draft = None;
     }
 
     pub fn cancel_take_over_state(&mut self) {
         self.take_over_state = None;
+        self.selected_node_path = None;
         self.baseline_draft = None;
         self.draft = None;
     }
@@ -117,6 +123,10 @@ impl SymbolResolverEditorViewData {
         &mut self,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) {
+        if matches!(self.take_over_state, Some(SymbolResolverEditorTakeOverState::CreateResolver)) {
+            return;
+        }
+
         self.selected_resolver_id = self
             .selected_resolver_id
             .as_ref()
@@ -132,6 +142,9 @@ impl SymbolResolverEditorViewData {
                     .first()
                     .map(|resolver_descriptor| resolver_descriptor.get_resolver_id().to_string())
             });
+        if self.selected_resolver_id.is_none() {
+            self.selected_node_path = None;
+        }
 
         let should_clear_take_over_state = match self.take_over_state.as_ref() {
             Some(SymbolResolverEditorTakeOverState::CreateResolver) => false,
@@ -145,21 +158,6 @@ impl SymbolResolverEditorViewData {
         if should_clear_take_over_state {
             self.cancel_take_over_state();
         }
-    }
-
-    pub fn layout_matches_filter(
-        resolver_descriptor: &SymbolicResolverDescriptor,
-        filter_text: &str,
-    ) -> bool {
-        let trimmed_filter_text = filter_text.trim();
-        if trimmed_filter_text.is_empty() {
-            return true;
-        }
-
-        resolver_descriptor
-            .get_resolver_id()
-            .to_ascii_lowercase()
-            .contains(&trimmed_filter_text.to_ascii_lowercase())
     }
 
     pub fn create_default_new_draft(project_symbol_catalog: &ProjectSymbolCatalog) -> SymbolResolverEditDraft {
