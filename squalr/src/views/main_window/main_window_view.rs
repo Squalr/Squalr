@@ -113,7 +113,7 @@ impl MainWindowView {
             app_context_for_symbol_resolver_editor.clone(),
             dock_view_data.clone(),
             SymbolResolverEditorView::new(app_context_for_symbol_resolver_editor.clone()),
-            Rc::new("Symbol Resolver Editor".to_string()),
+            Rc::new("Symbol Resolvers".to_string()),
             Rc::new(SymbolResolverEditorView::WINDOW_ID.to_string()),
         );
 

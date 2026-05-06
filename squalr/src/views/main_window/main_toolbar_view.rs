@@ -149,7 +149,7 @@ impl MainToolbarView {
                     ),
                     ToolbarMenuItemData::new(
                         SymbolResolverEditorView::WINDOW_ID,
-                        "Symbol Resolver Editor",
+                        "Symbol Resolvers",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_symbol_resolver_editor.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(SymbolResolverEditorView::WINDOW_ID) {

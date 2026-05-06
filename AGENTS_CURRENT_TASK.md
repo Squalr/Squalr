@@ -12,7 +12,7 @@ Our current task, from `README.md`, is:
 
 - [X] Add resolver descriptors to the project symbol catalog as a new reusable symbol-authoring store.
 - [X] Keep the initial resolver execution scope local to the current struct instance: local scalar fields plus type sizes.
-- [X] Build a dedicated Symbol Resolver Editor window that edits resolver descriptors as a tree, not as expression text. Needs human verification for live GUI ergonomics.
+- [X] Build a dedicated Symbol Resolvers window that edits resolver descriptors as a project-explorer-like tree, not as expression text. Needs human verification for live GUI ergonomics.
 - [X] In the Struct Editor, let dynamic array counts and expression offsets pick a resolver from the global resolver list. Needs human verification for live GUI ergonomics.
 - [X] Migrate PE header formulas to built-in/project resolver descriptors so `PE Headers` no longer depends on hardcoded inline expression strings.
 - [X] Run focused domain/API/GUI tests for resolver serialization, evaluation, struct editor integration, Symbol Explorer resolution, and PE population.
@@ -29,9 +29,11 @@ Our current task, from `README.md`, is:
 - The current resolver evaluator is intentionally narrow. It does not provide global project symbol scope, arbitrary symbol locators, pointer dereference inside expressions, or conditional type/layout selection.
 - The current runtime resolver evaluates formulas/resolvers against scalar fields collected from the same struct instance. Symbol Explorer feeds those scalar values through a dedicated virtual snapshot lane so formulaic layouts can converge over frames.
 - The current cycle detection only rejects local field-name dependency cycles inside a struct draft. It is not a project-wide dependency graph.
-- Added a first-pass Symbol Resolver Editor dock window. It can list, create, edit, and delete resolver descriptors with a recursive node tree. Styling and workflow density need human verification.
+- Added a Symbol Resolvers dock window. It is titled `Symbol Resolvers`, defaults into the same tab group as Project Explorer, and uses the themed project controls instead of raw egui buttons/combos/text edits for the resolver list and tree. Needs human verification for live GUI ergonomics.
+- The resolver editing flow is now closer to Project Explorer: select a resolver from the list, then edit the tree below it. Operation nodes render as folder-like tree rows and currently have exactly two child slots.
 - The Struct Editor now offers resolver pickers for dynamic array counts and expression offsets, while keeping the old expression text editor as a temporary escape hatch.
 - The Resolver Editor should eventually own resolver construction, validation, dependency visualization, and preview diagnostics.
 - Global symbol references, pointer dereferences, module-base references, and conditional layout/type selection should be deferred until the local resolver model is stable.
 - Built-in PE population is now backed by PE resolver descriptors for dynamic offsets/counts. PE32 versus PE32+ selection is still plugin analysis today; resolver-based conditional layout selection is a later feature.
 - Validation passed on 2026-05-05: `cargo test -p squalr-engine-domain --lib`, `cargo test -p squalr-engine-api --lib`, `cargo test -p squalr-plugin-symbols-pe`, and `cargo test -p squalr --lib`.
+- Validation passed on 2026-05-06 after the Symbol Resolvers UI rewrite: `cargo test -p squalr --lib symbol_resolver_editor`, `cargo test -p squalr --lib dockable_window_settings`, and `cargo test -p squalr --lib`.

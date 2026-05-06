@@ -49,14 +49,14 @@ impl DockSettingsConfig {
                                 0.5,
                                 DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
-                                    .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
+                                    .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID))
+                                    .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID)),
                             )
                             .push_child(
                                 0.5,
                                 DockBuilder::tab_node(StructViewerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
                                     .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
-                                    .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID))
                                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
                             ),
                     )
@@ -87,7 +87,8 @@ impl DockSettingsConfig {
                         0.5,
                         DockBuilder::tab_node(ProjectExplorerView::WINDOW_ID)
                             .push_tab(DockBuilder::window(ProcessSelectorView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID)),
+                            .push_tab(DockBuilder::window(ProjectExplorerView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID)),
                     )
                     .push_child(
                         0.5,
@@ -102,7 +103,6 @@ impl DockSettingsConfig {
                 DockBuilder::tab_node(StructViewerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID))
                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
             )
             .push_child(
@@ -125,7 +125,7 @@ impl DockSettingsConfig {
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID);
-        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SymbolResolverEditorView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, ProjectExplorerView::WINDOW_ID, SymbolResolverEditorView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
@@ -246,9 +246,9 @@ mod tests {
     use crate::views::{
         code_viewer::code_viewer_view::CodeViewerView, element_scanner::scanner::element_scanner_view::ElementScannerView,
         memory_viewer::memory_viewer_view::MemoryViewerView, output::output_view::OutputView, plugins::plugins_view::PluginsView,
-        pointer_scanner::pointer_scanner_view::PointerScannerView, settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView,
-        symbol_explorer::symbol_explorer_view::SymbolExplorerView, symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView,
-        symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView,
+        pointer_scanner::pointer_scanner_view::PointerScannerView, project_explorer::project_explorer_view::ProjectExplorerView,
+        settings::settings_view::SettingsView, struct_viewer::struct_viewer_view::StructViewerView, symbol_explorer::symbol_explorer_view::SymbolExplorerView,
+        symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView, symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView,
     };
 
     #[test]
@@ -266,6 +266,13 @@ mod tests {
 
         assert!(dock_root.are_windows_in_same_tab_group(ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(PointerScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID));
+    }
+
+    #[test]
+    fn default_layout_places_symbol_resolvers_with_project_explorer() {
+        let dock_root = DockSettingsConfig::get_default_layout();
+
+        assert!(dock_root.are_windows_in_same_tab_group(ProjectExplorerView::WINDOW_ID, SymbolResolverEditorView::WINDOW_ID));
     }
 
     #[test]
@@ -299,6 +306,5 @@ mod tests {
 
         assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID));
         assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
-        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SymbolResolverEditorView::WINDOW_ID));
     }
 }
