@@ -565,8 +565,13 @@ impl SymbolResolverEditorView {
             return;
         };
         let selection_key = Self::build_struct_viewer_focus_target_key(draft, selected_node_path.as_deref());
-        let edit_callback =
-            Self::build_struct_viewer_edit_callback(self.symbol_resolver_editor_view_data.clone(), selected_node_path, self.default_data_type_ref());
+        let edit_callback = Self::build_struct_viewer_edit_callback(
+            self.app_context.clone(),
+            self.symbol_resolver_editor_view_data.clone(),
+            self.struct_viewer_view_data.clone(),
+            selected_node_path,
+            self.default_data_type_ref(),
+        );
 
         StructViewerViewData::focus_valued_struct_with_focus_target(
             self.struct_viewer_view_data.clone(),
@@ -578,25 +583,53 @@ impl SymbolResolverEditorView {
     }
 
     fn build_struct_viewer_edit_callback(
+        app_context: Arc<AppContext>,
         symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
         selected_node_path: Option<Vec<usize>>,
         default_data_type_ref: DataTypeRef,
     ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
         Arc::new(move |edited_field: ValuedStructField| {
-            let Some(mut view_data) = symbol_resolver_editor_view_data.write("SymbolResolverEditor apply details edit") else {
-                return;
-            };
-            let Some(mut draft) = view_data.get_draft().cloned() else {
-                return;
+            let mut should_refocus_details = false;
+            let updated_draft = {
+                let Some(mut view_data) = symbol_resolver_editor_view_data.write("SymbolResolverEditor apply details edit") else {
+                    return;
+                };
+                let Some(mut draft) = view_data.get_draft().cloned() else {
+                    return;
+                };
+
+                if let Some(selected_node_path) = selected_node_path.as_deref() {
+                    should_refocus_details = Self::apply_node_details_edit(&mut draft, selected_node_path, &edited_field, default_data_type_ref.clone());
+                } else if edited_field.get_name() == Self::DETAILS_FIELD_RESOLVER_ID {
+                    draft.resolver_id = StructViewerViewData::read_utf8_field_text(&edited_field);
+                }
+
+                view_data.update_draft(draft.clone());
+                draft
             };
 
-            if let Some(selected_node_path) = selected_node_path.as_deref() {
-                Self::apply_node_details_edit(&mut draft, selected_node_path, &edited_field, default_data_type_ref.clone());
-            } else if edited_field.get_name() == Self::DETAILS_FIELD_RESOLVER_ID {
-                draft.resolver_id = StructViewerViewData::read_utf8_field_text(&edited_field);
+            if should_refocus_details {
+                let Some(details_struct) = Self::build_details_struct(&updated_draft, selected_node_path.as_deref()) else {
+                    return;
+                };
+                let selection_key = Self::build_struct_viewer_focus_target_key(&updated_draft, selected_node_path.as_deref());
+                let edit_callback = Self::build_struct_viewer_edit_callback(
+                    app_context.clone(),
+                    symbol_resolver_editor_view_data.clone(),
+                    struct_viewer_view_data.clone(),
+                    selected_node_path.clone(),
+                    default_data_type_ref.clone(),
+                );
+
+                StructViewerViewData::focus_valued_struct_with_focus_target(
+                    struct_viewer_view_data.clone(),
+                    app_context.engine_unprivileged_state.clone(),
+                    details_struct,
+                    edit_callback,
+                    Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
+                );
             }
-
-            view_data.update_draft(draft);
         })
     }
 
@@ -605,21 +638,22 @@ impl SymbolResolverEditorView {
         selected_node_path: &[usize],
         edited_field: &ValuedStructField,
         default_data_type_ref: DataTypeRef,
-    ) {
+    ) -> bool {
         let edited_field_name = edited_field.get_name();
         let edited_text = StructViewerViewData::read_utf8_field_text(edited_field);
         let Some(selected_node) = Self::get_node_mut(draft.resolver_definition.get_root_node_mut(), selected_node_path) else {
-            return;
+            return false;
         };
 
         match edited_field_name {
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND => {
                 let Some(next_kind) = Self::resolver_node_kind_from_label(&edited_text) else {
-                    return;
+                    return false;
                 };
 
                 if next_kind != Self::resolver_node_kind(selected_node) {
                     *selected_node = SymbolResolverEditorViewData::default_node_for_kind(next_kind, default_data_type_ref);
+                    return true;
                 }
             }
             Self::DETAILS_FIELD_LITERAL_VALUE => {
@@ -645,6 +679,8 @@ impl SymbolResolverEditorView {
             }
             _ => {}
         }
+
+        false
     }
 
     fn build_details_struct(
@@ -1071,5 +1107,63 @@ impl Widget for SymbolResolverEditorView {
                 );
             })
             .response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SymbolResolverEditorView;
+    use crate::views::{
+        struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
+        symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::SymbolResolverEditDraft,
+    };
+    use squalr_engine_api::structures::{
+        data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+        structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode},
+    };
+
+    #[test]
+    fn node_kind_edit_requests_details_refresh_when_shape_changes() {
+        let mut draft = SymbolResolverEditDraft {
+            original_resolver_id: Some(String::from("count")),
+            resolver_id: String::from("count"),
+            resolver_definition: SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(7)),
+        };
+        let edited_kind_field = DataTypeStringUtf8::get_value_from_primitive_string("Operation")
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND.to_string(), false);
+
+        let should_refocus_details = SymbolResolverEditorView::apply_node_details_edit(&mut draft, &[], &edited_kind_field, DataTypeRef::new("u32"));
+
+        assert!(should_refocus_details);
+        assert!(matches!(draft.resolver_definition.get_root_node(), SymbolicResolverNode::Binary { .. }));
+
+        let details_struct = SymbolResolverEditorView::build_details_struct(&draft, Some(&[])).expect("Expected node details.");
+
+        assert!(
+            details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR)
+                .is_some()
+        );
+        assert!(
+            details_struct
+                .get_field(SymbolResolverEditorView::DETAILS_FIELD_LITERAL_VALUE)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn node_kind_edit_skips_details_refresh_when_shape_is_unchanged() {
+        let mut draft = SymbolResolverEditDraft {
+            original_resolver_id: Some(String::from("count")),
+            resolver_id: String::from("count"),
+            resolver_definition: SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(7)),
+        };
+        let edited_kind_field = DataTypeStringUtf8::get_value_from_primitive_string("Literal")
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND.to_string(), false);
+
+        let should_refocus_details = SymbolResolverEditorView::apply_node_details_edit(&mut draft, &[], &edited_kind_field, DataTypeRef::new("u32"));
+
+        assert!(!should_refocus_details);
+        assert!(matches!(draft.resolver_definition.get_root_node(), SymbolicResolverNode::Literal(7)));
     }
 }
