@@ -42,6 +42,7 @@ pub struct StructViewerViewData {
     pub field_data_type_selections: HashMap<String, DataTypeSelection>,
     pub take_over_state: Option<StructViewerTakeOverState>,
     pub value_splitter_ratio: f32,
+    details_update_revision: u64,
 }
 
 impl StructViewerViewData {
@@ -69,6 +70,7 @@ impl StructViewerViewData {
             field_data_type_selections: HashMap::new(),
             take_over_state: None,
             value_splitter_ratio: Self::DEFAULT_NAME_SPLITTER_RATIO,
+            details_update_revision: 0,
         }
     }
 
@@ -207,6 +209,10 @@ impl StructViewerViewData {
         self.focus_target.as_ref().as_ref()
     }
 
+    pub fn get_details_update_revision(&self) -> u64 {
+        self.details_update_revision
+    }
+
     pub fn build_read_only_presented_state(
         engine_unprivileged_state: &Arc<EngineUnprivilegedState>,
         valued_struct: ValuedStruct,
@@ -232,6 +238,7 @@ impl StructViewerViewData {
         self.struct_field_modified_callback = valued_struct_field_edited_callback;
         self.focus_target = Arc::new(focus_target);
         self.refresh_cached_field_state(&engine_unprivileged_state);
+        self.details_update_revision = self.details_update_revision.saturating_add(1);
     }
 
     pub fn refresh_cached_field_state(
@@ -759,6 +766,7 @@ mod tests {
             unprivileged_command::UnprivilegedCommand,
             unprivileged_command_response::{TypedUnprivilegedCommandResponse, UnprivilegedCommandResponse},
         },
+        dependency_injection::dependency_container::DependencyContainer,
         engine::{
             engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_binding_error::EngineBindingError,
             engine_event_envelope::EngineEventEnvelope, engine_execution_context::EngineExecutionContext,
@@ -803,6 +811,29 @@ mod tests {
 
     fn create_test_engine_unprivileged_state() -> Arc<EngineUnprivilegedState> {
         EngineUnprivilegedState::new(Arc::new(RwLock::new(TestEngineBindings)))
+    }
+
+    #[test]
+    fn focus_valued_struct_increments_details_update_revision() {
+        let dependency_container = DependencyContainer::new();
+        let struct_viewer_view_data = dependency_container.register(StructViewerViewData::new());
+        let engine_unprivileged_state = create_test_engine_unprivileged_state();
+        let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("module.exe").to_named_valued_struct_field("module".to_string(), false),
+        ]);
+
+        StructViewerViewData::focus_valued_struct(
+            struct_viewer_view_data.clone(),
+            engine_unprivileged_state,
+            valued_struct,
+            Arc::new(|_edited_field| {}),
+        );
+
+        let details_update_revision = struct_viewer_view_data
+            .read("Read details update revision")
+            .map(|struct_viewer_view_data| struct_viewer_view_data.get_details_update_revision());
+
+        assert_eq!(details_update_revision, Some(1));
     }
 
     #[test]

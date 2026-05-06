@@ -19,6 +19,7 @@ use crate::views::process_selector::view_data::process_selector_view_data::Proce
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
+use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
 use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
 use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
@@ -26,6 +27,7 @@ use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense,
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
 use log::Level;
+use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
@@ -41,6 +43,8 @@ pub struct MainWindowView {
     main_footer_view: MainFooterView,
     main_window_take_over_state: Arc<RwLock<MainWindowTakeOverState>>,
     output_log_history_len_cursor: Arc<RwLock<usize>>,
+    struct_viewer_view_data: Dependency<StructViewerViewData>,
+    struct_viewer_update_revision_cursor: Arc<RwLock<u64>>,
     resize_thickness: f32,
 }
 
@@ -206,6 +210,10 @@ impl MainWindowView {
         ]);
         let dock_root_view = DockRootView::new(app_context.clone(), dock_view_data.clone());
         let main_footer_view = MainFooterView::new(app_context.clone(), corner_radius, 24.0);
+        let struct_viewer_view_data = app_context
+            .dependency_container
+            .get_dependency::<StructViewerViewData>();
+        let struct_viewer_update_revision_cursor = Arc::new(RwLock::new(0));
         let resize_thickness = 4.0;
 
         Self {
@@ -218,6 +226,8 @@ impl MainWindowView {
             main_footer_view,
             main_window_take_over_state,
             output_log_history_len_cursor,
+            struct_viewer_view_data,
+            struct_viewer_update_revision_cursor,
             resize_thickness,
         }
     }
@@ -346,6 +356,43 @@ impl MainWindowView {
         } else {
             self.dock_view_data
                 .request_tab_attention(ProjectExplorerView::WINDOW_ID, DockTabAttentionKind::Warning, true);
+        }
+    }
+
+    fn poll_struct_viewer_tab_attention(&self) {
+        let current_details_update_revision = match self
+            .struct_viewer_view_data
+            .read("Poll struct viewer tab attention")
+        {
+            Some(struct_viewer_view_data) => struct_viewer_view_data.get_details_update_revision(),
+            None => return,
+        };
+        let previous_details_update_revision = match self.struct_viewer_update_revision_cursor.read() {
+            Ok(previous_details_update_revision) => *previous_details_update_revision,
+            Err(error) => {
+                log::error!("Failed to acquire struct viewer update revision cursor for read: {}.", error);
+
+                return;
+            }
+        };
+
+        if current_details_update_revision <= previous_details_update_revision {
+            return;
+        }
+
+        match self.struct_viewer_update_revision_cursor.write() {
+            Ok(mut previous_details_update_revision) => {
+                *previous_details_update_revision = current_details_update_revision;
+            }
+            Err(error) => {
+                log::error!("Failed to acquire struct viewer update revision cursor for write: {}.", error);
+            }
+        }
+
+        let is_struct_viewer_tab_active = Self::is_window_active_tab(&self.app_context, StructViewerView::WINDOW_ID);
+        if !is_struct_viewer_tab_active {
+            self.dock_view_data
+                .request_tab_attention(StructViewerView::WINDOW_ID, DockTabAttentionKind::Warning, false);
         }
     }
 
@@ -482,6 +529,7 @@ impl Widget for MainWindowView {
     ) -> Response {
         self.poll_output_tab_attention();
         self.poll_project_explorer_tab_attention();
+        self.poll_struct_viewer_tab_attention();
         let take_over_state = self.get_take_over_state();
         let app_context = self.app_context.clone();
         let resize_thickness = self.resize_thickness;
