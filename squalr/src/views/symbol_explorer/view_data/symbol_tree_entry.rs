@@ -9,7 +9,7 @@ use squalr_engine_api::structures::{
     structs::{
         symbolic_field_definition::SymbolicFieldDefinition,
         symbolic_struct_definition::SymbolicStructDefinition,
-        symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition},
+        symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers},
     },
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -487,7 +487,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
 {
-    let resolved_symbolic_struct = resolve_symbolic_struct_definition(
+    let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers(
         struct_layout_definition,
         |data_type_ref| {
             Some(resolve_data_type_size_in_bytes(
@@ -501,6 +501,11 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
             let field_locator = offset_locator(parent_locator, field_offset);
 
             read_scalar_field(&field_locator, field_definition, field_size_in_bytes)
+        },
+        |resolver_id| {
+            project_symbol_catalog
+                .find_symbolic_resolver_descriptor(resolver_id)
+                .map(|resolver_descriptor| resolver_descriptor.get_resolver_definition().clone())
         },
         &SymbolicStructResolverOptions::default(),
     );
@@ -974,15 +979,20 @@ fn resolve_symbol_claim_type(
 #[cfg(test)]
 mod tests {
     use super::{ResolvedPointerTarget, SymbolTreeEntryKind, build_symbol_tree_entries, build_symbol_tree_entries_with_scalar_reader};
-    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator},
-        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
+        structs::{
+            symbolic_field_definition::SymbolicFieldDefinition,
+            symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode},
+            symbolic_struct_definition::SymbolicStructDefinition,
+        },
     };
     use std::collections::{HashMap, HashSet};
+    use std::str::FromStr;
 
     #[test]
     fn build_symbol_tree_entries_derives_nested_struct_and_array_children() {
@@ -1293,6 +1303,75 @@ mod tests {
             |symbol_tree_entry| symbol_tree_entry.get_full_path() == "PE Headers.SectionHeaders[0].VirtualSize"
                 && symbol_tree_entry.get_locator() == &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x180)
         ));
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_resolves_dynamic_fields_through_catalog_resolvers() {
+        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x100);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Items"), 0, String::from("items")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            vec![symbol_module],
+            vec![StructLayoutDescriptor::new(
+                String::from("items"),
+                SymbolicStructDefinition::new(
+                    String::from("items"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("count:u32 @ +0").expect("Expected count field to parse."),
+                        SymbolicFieldDefinition::from_str("values:u16[resolver(items.count)] @ resolver(items.values_offset)")
+                            .expect("Expected resolver field to parse."),
+                    ],
+                ),
+            )],
+            vec![
+                SymbolicResolverDescriptor::new(
+                    String::from("items.count"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("count"))),
+                ),
+                SymbolicResolverDescriptor::new(
+                    String::from("items.values_offset"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
+                        SymbolicResolverBinaryOperator::Add,
+                        SymbolicResolverNode::new_literal(2),
+                        SymbolicResolverNode::new_literal(2),
+                    )),
+                ),
+            ],
+            Vec::new(),
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:game.exe"),
+            String::from("module_field:module:game.exe:0"),
+        ]);
+
+        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u16" => Some(2),
+                "u32" => Some(4),
+                _ => None,
+            },
+            |_, field_definition, _| match field_definition.get_field_name() {
+                "count" => Ok(Some(3)),
+                _ => Ok(None),
+            },
+        );
+
+        let values_entry = symbol_tree_entries
+            .iter()
+            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Items.values")
+            .expect("Expected dynamic values entry.");
+
+        assert_eq!(values_entry.get_display_type_id(), "u16[3]");
+        assert_eq!(
+            values_entry.get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 4)
+        );
     }
 
     #[test]

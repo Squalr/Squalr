@@ -9,7 +9,7 @@ use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_dat
     SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
 };
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
-use eframe::egui::{Align, Align2, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, ComboBox, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
@@ -581,6 +581,41 @@ impl SymbolStructEditorView {
                 Self::append_expression_token(expression_text, &format!("sizeof({})", selected_type_id));
             }
         });
+    }
+
+    fn render_resolver_picker(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        selected_resolver_reference_text: &mut String,
+        id_prefix: &str,
+    ) {
+        let resolver_descriptors = project_symbol_catalog.get_symbolic_resolver_descriptors();
+        if resolver_descriptors.is_empty() {
+            user_interface.label(RichText::new("No reusable resolvers yet.").color(self.app_context.theme.foreground_preview));
+            return;
+        }
+
+        let selected_text = selected_resolver_reference_text
+            .trim()
+            .strip_prefix("resolver(")
+            .and_then(|resolver_text| resolver_text.strip_suffix(')'))
+            .unwrap_or("Pick resolver...")
+            .to_string();
+
+        ComboBox::from_id_salt(id_prefix)
+            .selected_text(&selected_text)
+            .show_ui(user_interface, |user_interface| {
+                for resolver_descriptor in resolver_descriptors {
+                    let resolver_id = resolver_descriptor.get_resolver_id();
+                    if user_interface
+                        .selectable_label(selected_text == resolver_id, resolver_id)
+                        .clicked()
+                    {
+                        *selected_resolver_reference_text = format!("resolver({})", resolver_id);
+                    }
+                }
+            });
     }
 
     fn format_field_layout_summary(field_draft: &SymbolStructFieldEditDraft) -> String {
@@ -1184,6 +1219,13 @@ impl SymbolStructEditorView {
                             }
                             SymbolStructFieldContainerKind::DynamicArray => {
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                                self.render_resolver_picker(
+                                    user_interface,
+                                    project_symbol_catalog,
+                                    &mut field_draft.container_edit.dynamic_array_count_expression,
+                                    &format!("symbol_struct_editor_field_layout_count_resolver_{}", field_index),
+                                );
+                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
                                 self.render_expression_editor(
                                     user_interface,
                                     &mut field_draft.container_edit.dynamic_array_count_expression,
@@ -1222,6 +1264,13 @@ impl SymbolStructEditorView {
                         );
 
                         if matches!(field_draft.offset_mode, SymbolStructFieldOffsetMode::Expression) {
+                            user_interface.add_space(Self::FIELD_INPUT_SPACING);
+                            self.render_resolver_picker(
+                                user_interface,
+                                project_symbol_catalog,
+                                &mut field_draft.offset_expression,
+                                &format!("symbol_struct_editor_field_layout_offset_resolver_{}", field_index),
+                            );
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
                             self.render_expression_editor(
                                 user_interface,

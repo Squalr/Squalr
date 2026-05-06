@@ -1,6 +1,7 @@
 pub mod symbol_resolver;
 pub mod symbolic_expression;
 pub mod symbolic_field_definition;
+pub mod symbolic_resolver_definition;
 pub mod symbolic_struct_definition;
 pub mod symbolic_struct_ref;
 pub mod symbolic_struct_resolver;

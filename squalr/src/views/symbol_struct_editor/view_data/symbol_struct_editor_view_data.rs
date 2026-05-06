@@ -620,6 +620,7 @@ impl SymbolStructFieldEditDraft {
         let (offset_mode, offset_expression) = match symbolic_field_definition.get_offset_resolution() {
             SymbolicFieldOffsetResolution::Sequential => (SymbolStructFieldOffsetMode::Sequential, String::new()),
             SymbolicFieldOffsetResolution::Expression(offset_expression) => (SymbolStructFieldOffsetMode::Expression, offset_expression.to_string()),
+            SymbolicFieldOffsetResolution::Resolver(resolver_id) => (SymbolStructFieldOffsetMode::Expression, format!("resolver({})", resolver_id)),
         };
 
         Self {
@@ -640,10 +641,23 @@ impl SymbolStructFieldEditDraft {
                     return Err(String::from("Offset expression is required."));
                 }
 
+                if let Some(resolver_id) = parse_resolver_reference(trimmed_expression) {
+                    return Ok(SymbolicFieldOffsetResolution::new_resolver(resolver_id));
+                }
+
                 Ok(SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(trimmed_expression)?))
             }
         }
     }
+}
+
+fn parse_resolver_reference(resolver_reference: &str) -> Option<String> {
+    let resolver_id = resolver_reference
+        .strip_prefix("resolver(")?
+        .strip_suffix(')')?
+        .trim();
+
+    (!resolver_id.is_empty()).then_some(resolver_id.to_string())
 }
 
 impl Default for SymbolStructLayoutEditDraft {

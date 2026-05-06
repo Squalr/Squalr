@@ -10,4 +10,5 @@ pub mod project_explorer;
 pub mod settings;
 pub mod struct_viewer;
 pub mod symbol_explorer;
+pub mod symbol_resolver_editor;
 pub mod symbol_struct_editor;

@@ -20,6 +20,7 @@ use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
 use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
@@ -107,6 +108,15 @@ impl MainWindowView {
             Rc::new(SymbolStructEditorView::WINDOW_ID.to_string()),
         );
 
+        let app_context_for_symbol_resolver_editor = app_context.clone();
+        let symbol_resolver_editor_view = DockedWindowView::new(
+            app_context_for_symbol_resolver_editor.clone(),
+            dock_view_data.clone(),
+            SymbolResolverEditorView::new(app_context_for_symbol_resolver_editor.clone()),
+            Rc::new("Symbol Resolver Editor".to_string()),
+            Rc::new(SymbolResolverEditorView::WINDOW_ID.to_string()),
+        );
+
         let app_context_for_memory_viewer = app_context.clone();
         let memory_viewer_view = DockedWindowView::new(
             app_context_for_memory_viewer.clone(),
@@ -184,6 +194,7 @@ impl MainWindowView {
             Box::new(settings_view),
             Box::new(struct_viewer_view),
             Box::new(symbol_struct_editor_view),
+            Box::new(symbol_resolver_editor_view),
             Box::new(memory_viewer_view),
             Box::new(code_viewer_view),
             Box::new(project_explorer_view),

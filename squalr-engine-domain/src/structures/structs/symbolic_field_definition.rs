@@ -28,11 +28,16 @@ pub enum SymbolicFieldCountResolution {
     #[default]
     Inferred,
     Expression(SymbolicExpression),
+    Resolver(String),
 }
 
 impl SymbolicFieldCountResolution {
     pub fn new_expression(expression: SymbolicExpression) -> Self {
         Self::Expression(expression)
+    }
+
+    pub fn new_resolver(resolver_id: String) -> Self {
+        Self::Resolver(resolver_id)
     }
 
     pub fn is_inferred(&self) -> bool {
@@ -42,7 +47,14 @@ impl SymbolicFieldCountResolution {
     pub fn as_expression(&self) -> Option<&SymbolicExpression> {
         match self {
             Self::Expression(expression) => Some(expression),
-            Self::Inferred => None,
+            Self::Inferred | Self::Resolver(_) => None,
+        }
+    }
+
+    pub fn as_resolver_id(&self) -> Option<&str> {
+        match self {
+            Self::Resolver(resolver_id) => Some(resolver_id),
+            Self::Inferred | Self::Expression(_) => None,
         }
     }
 }
@@ -52,6 +64,7 @@ pub enum SymbolicFieldOffsetResolution {
     #[default]
     Sequential,
     Expression(SymbolicExpression),
+    Resolver(String),
 }
 
 impl SymbolicFieldOffsetResolution {
@@ -59,8 +72,19 @@ impl SymbolicFieldOffsetResolution {
         Self::Expression(expression)
     }
 
+    pub fn new_resolver(resolver_id: String) -> Self {
+        Self::Resolver(resolver_id)
+    }
+
     pub fn is_sequential(&self) -> bool {
         matches!(self, Self::Sequential)
+    }
+
+    pub fn as_resolver_id(&self) -> Option<&str> {
+        match self {
+            Self::Resolver(resolver_id) => Some(resolver_id),
+            Self::Sequential | Self::Expression(_) => None,
+        }
     }
 }
 
@@ -218,10 +242,7 @@ impl FromStr for SymbolicFieldDefinition {
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let trimmed_string = string.trim();
         let (field_definition_string, offset_resolution) = if let Some((field_definition_string, offset_expression_string)) = trimmed_string.split_once('@') {
-            (
-                field_definition_string.trim(),
-                SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(offset_expression_string.trim())?),
-            )
+            (field_definition_string.trim(), parse_offset_resolution(offset_expression_string.trim())?)
         } else {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
@@ -250,11 +271,7 @@ impl FromStr for SymbolicFieldDefinition {
                 } else {
                     match length_part.parse::<u64>() {
                         Ok(array_length) => (type_part, ContainerType::ArrayFixed(array_length), SymbolicFieldCountResolution::Inferred),
-                        Err(_) => (
-                            type_part,
-                            ContainerType::Array,
-                            SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str(length_part)?),
-                        ),
+                        Err(_) => (type_part, ContainerType::Array, parse_count_resolution(length_part)?),
                     }
                 }
             } else {
@@ -309,6 +326,7 @@ impl fmt::Display for SymbolicFieldDefinition {
         let container_text = match &self.count_resolution {
             SymbolicFieldCountResolution::Inferred => self.container_type.to_string(),
             SymbolicFieldCountResolution::Expression(count_expression) => format!("[{}]", count_expression),
+            SymbolicFieldCountResolution::Resolver(resolver_id) => format!("[resolver({})]", resolver_id),
         };
         let field_text = if self.field_name.is_empty() {
             format!("{}{}", self.data_type_ref, container_text)
@@ -316,12 +334,39 @@ impl fmt::Display for SymbolicFieldDefinition {
             format!("{}:{}{}", self.field_name, self.data_type_ref, container_text)
         };
 
-        if let SymbolicFieldOffsetResolution::Expression(offset_expression) = &self.offset_resolution {
-            return write!(formatter, "{} @ {}", field_text, offset_expression);
+        match &self.offset_resolution {
+            SymbolicFieldOffsetResolution::Expression(offset_expression) => return write!(formatter, "{} @ {}", field_text, offset_expression),
+            SymbolicFieldOffsetResolution::Resolver(resolver_id) => return write!(formatter, "{} @ resolver({})", field_text, resolver_id),
+            SymbolicFieldOffsetResolution::Sequential => {}
         }
 
         write!(formatter, "{}", field_text)
     }
+}
+
+fn parse_count_resolution(length_part: &str) -> Result<SymbolicFieldCountResolution, String> {
+    if let Some(resolver_id) = parse_resolver_reference(length_part) {
+        return Ok(SymbolicFieldCountResolution::new_resolver(resolver_id));
+    }
+
+    Ok(SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str(length_part)?))
+}
+
+fn parse_offset_resolution(offset_part: &str) -> Result<SymbolicFieldOffsetResolution, String> {
+    if let Some(resolver_id) = parse_resolver_reference(offset_part) {
+        return Ok(SymbolicFieldOffsetResolution::new_resolver(resolver_id));
+    }
+
+    Ok(SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(offset_part)?))
+}
+
+fn parse_resolver_reference(resolver_reference: &str) -> Option<String> {
+    let resolver_id = resolver_reference
+        .strip_prefix("resolver(")?
+        .strip_suffix(')')?
+        .trim();
+
+    (!resolver_id.is_empty()).then_some(resolver_id.to_string())
 }
 
 #[cfg(test)]
@@ -390,6 +435,25 @@ mod tests {
             &SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str("+8").expect("Expected offset expression to parse."))
         );
         assert_eq!(symbolic_field_definition.to_string(), "elements:game.Item[count] @ +8");
+    }
+
+    #[test]
+    fn parse_dynamic_array_resolver_reference_round_trips() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("elements:game.Item[resolver(game.item_count)] @ resolver(game.item_offset)")
+            .expect("Expected dynamic array resolver field definition to parse.");
+
+        assert_eq!(
+            symbolic_field_definition.get_count_resolution(),
+            &SymbolicFieldCountResolution::new_resolver(String::from("game.item_count"))
+        );
+        assert_eq!(
+            symbolic_field_definition.get_offset_resolution(),
+            &SymbolicFieldOffsetResolution::new_resolver(String::from("game.item_offset"))
+        );
+        assert_eq!(
+            symbolic_field_definition.to_string(),
+            "elements:game.Item[resolver(game.item_count)] @ resolver(game.item_offset)"
+        );
     }
 
     #[test]
