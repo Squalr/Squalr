@@ -2,13 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
-        widgets::controls::{
-            button::Button as ThemeButton,
-            combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
-            data_value_box::data_value_box_view::DataValueBoxView,
-            groupbox::GroupBox,
-            state_layer::StateLayer,
-        },
+        widgets::controls::{button::Button as ThemeButton, state_layer::StateLayer},
     },
     views::symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{
         SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData,
@@ -24,8 +18,7 @@ use squalr_engine_api::commands::{
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
 use squalr_engine_api::structures::{
-    data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
-    data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+    data_types::data_type_ref::DataTypeRef,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode},
 };
@@ -64,9 +57,6 @@ impl SymbolResolverEditorView {
     const ROW_LEFT_PADDING: f32 = 8.0;
     const ICON_SIZE: f32 = 16.0;
     const SMALL_ARROW_SIZE: f32 = 10.0;
-    const DETAILS_HEIGHT: f32 = 178.0;
-    const DETAILS_VALUE_WIDTH: f32 = 224.0;
-    const OPERATOR_COMBO_WIDTH: f32 = 88.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_resolver_editor_view_data = app_context
@@ -147,10 +137,6 @@ impl SymbolResolverEditorView {
             .first()
             .cloned()
             .unwrap_or_else(|| DataTypeRef::new("u32"))
-    }
-
-    fn string_data_type_ref() -> DataTypeRef {
-        DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
     fn render_toolbar(
@@ -299,38 +285,6 @@ impl SymbolResolverEditorView {
         );
 
         button_response
-    }
-
-    fn render_string_value_box(
-        &self,
-        user_interface: &mut Ui,
-        value: &mut String,
-        preview_text: &str,
-        id: &str,
-        width: f32,
-    ) {
-        let validation_data_type_ref = Self::string_data_type_ref();
-        let mut value_string = AnonymousValueString::new(value.clone(), AnonymousValueStringFormat::String, ContainerType::None);
-
-        user_interface.add(
-            DataValueBoxView::new(
-                self.app_context.clone(),
-                &mut value_string,
-                &validation_data_type_ref,
-                false,
-                true,
-                preview_text,
-                id,
-            )
-            .allowed_anonymous_value_string_formats(vec![AnonymousValueStringFormat::String])
-            .show_format_button(false)
-            .normalize_value_format(false)
-            .use_format_text_colors(false)
-            .width(width)
-            .height(Self::ROW_HEIGHT),
-        );
-
-        *value = value_string.get_anonymous_value_string().to_string();
     }
 
     fn render_resolver_tree(
@@ -587,205 +541,6 @@ impl SymbolResolverEditorView {
         }
     }
 
-    fn render_details(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_node_path: Option<&[usize]>,
-        _baseline_draft: Option<&SymbolResolverEditDraft>,
-        draft: Option<&SymbolResolverEditDraft>,
-    ) {
-        let Some(draft) = draft else {
-            self.render_empty_details(user_interface);
-            return;
-        };
-        let mut edited_draft = draft.clone();
-        let theme = &self.app_context.theme;
-        let header = if selected_node_path.is_some() { "Node Details" } else { "Resolver Details" };
-
-        user_interface.add(
-            GroupBox::new_from_theme(theme, header, |user_interface| {
-                if let Some(selected_node_path) = selected_node_path {
-                    self.render_node_details(user_interface, &mut edited_draft, selected_node_path);
-                } else {
-                    self.render_string_value_box(
-                        user_interface,
-                        &mut edited_draft.resolver_id,
-                        "Resolver id",
-                        "symbol_resolver_details_id",
-                        Self::DETAILS_VALUE_WIDTH.min(user_interface.available_width()),
-                    );
-                }
-
-                user_interface.add_space(8.0);
-                let validation_result = SymbolResolverEditorViewData::build_resolver_descriptor(project_symbol_catalog, &edited_draft);
-                match validation_result {
-                    Ok(_) => {
-                        user_interface.label(RichText::new("Valid resolver.").color(theme.foreground_preview));
-                    }
-                    Err(error) => {
-                        user_interface.label(RichText::new(error).color(theme.error_red));
-                    }
-                }
-            })
-            .desired_width(user_interface.available_width())
-            .desired_height(Self::DETAILS_HEIGHT),
-        );
-
-        if edited_draft != *draft {
-            if let Some(mut view_data) = self
-                .symbol_resolver_editor_view_data
-                .write("SymbolResolverEditor update draft")
-            {
-                view_data.update_draft(edited_draft);
-            }
-        }
-    }
-
-    fn render_node_details(
-        &self,
-        user_interface: &mut Ui,
-        draft: &mut SymbolResolverEditDraft,
-        selected_node_path: &[usize],
-    ) {
-        let Some(selected_node) = Self::get_node_mut(draft.resolver_definition.get_root_node_mut(), selected_node_path) else {
-            user_interface.label(RichText::new("Missing selected node.").color(self.app_context.theme.error_red));
-            return;
-        };
-
-        user_interface.label(RichText::new(Self::resolver_node_kind_label(Self::resolver_node_kind(selected_node))).color(self.app_context.theme.foreground));
-        user_interface.add_space(6.0);
-
-        match selected_node {
-            SymbolicResolverNode::Literal(value) => {
-                let mut value_text = value.to_string();
-                self.render_string_value_box(
-                    user_interface,
-                    &mut value_text,
-                    "Literal value",
-                    "symbol_resolver_node_literal",
-                    Self::DETAILS_VALUE_WIDTH.min(user_interface.available_width()),
-                );
-                if let Ok(parsed_value) = value_text.trim().parse::<i128>() {
-                    *value = parsed_value;
-                }
-            }
-            SymbolicResolverNode::LocalField { field_name } => {
-                self.render_string_value_box(
-                    user_interface,
-                    field_name,
-                    "Local field",
-                    "symbol_resolver_node_local_field",
-                    Self::DETAILS_VALUE_WIDTH.min(user_interface.available_width()),
-                );
-            }
-            SymbolicResolverNode::TypeSize { data_type_ref } => {
-                let mut type_id = data_type_ref.get_data_type_id().to_string();
-                self.render_string_value_box(
-                    user_interface,
-                    &mut type_id,
-                    "Data type",
-                    "symbol_resolver_node_type_size",
-                    Self::DETAILS_VALUE_WIDTH.min(user_interface.available_width()),
-                );
-                if type_id.trim() != data_type_ref.get_data_type_id() {
-                    *data_type_ref = DataTypeRef::new(type_id.trim());
-                }
-            }
-            SymbolicResolverNode::Binary { operator, .. } => {
-                self.render_operator_combo(user_interface, operator);
-            }
-        }
-    }
-
-    fn render_operator_combo(
-        &self,
-        user_interface: &mut Ui,
-        operator: &mut SymbolicResolverBinaryOperator,
-    ) {
-        let selected_label = operator.label();
-        let combo_box_width = Self::OPERATOR_COMBO_WIDTH;
-
-        user_interface.add(
-            ComboBoxView::new(
-                self.app_context.clone(),
-                selected_label,
-                "symbol_resolver_node_operator",
-                None,
-                |popup_user_interface, should_close| {
-                    for candidate_operator in SymbolicResolverBinaryOperator::ALL {
-                        let response = popup_user_interface.add(ComboBoxItemView::new(
-                            self.app_context.clone(),
-                            candidate_operator.label(),
-                            None,
-                            combo_box_width,
-                        ));
-                        if response.clicked() {
-                            *operator = candidate_operator;
-                            *should_close = true;
-                        }
-                    }
-                },
-            )
-            .width(combo_box_width)
-            .height(Self::ROW_HEIGHT),
-        );
-    }
-
-    fn render_empty_details(
-        &self,
-        user_interface: &mut Ui,
-    ) {
-        let theme = &self.app_context.theme;
-        user_interface.add(
-            GroupBox::new_from_theme(theme, "Details", |user_interface| {
-                user_interface.label(RichText::new("Select a resolver or node.").color(theme.foreground_preview));
-            })
-            .desired_width(user_interface.available_width())
-            .desired_height(Self::DETAILS_HEIGHT),
-        );
-    }
-
-    fn render_delete_confirmation(
-        &self,
-        user_interface: &mut Ui,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        resolver_id: &str,
-    ) {
-        let theme = &self.app_context.theme;
-        user_interface.add(
-            GroupBox::new_from_theme(theme, "Delete Resolver", |user_interface| {
-                user_interface.label(RichText::new(format!("Delete `{}`?", resolver_id)).color(theme.foreground));
-                user_interface.add_space(8.0);
-
-                let delete_response = self.render_icon_button(user_interface, &theme.icon_library.icon_handle_common_delete, "Delete resolver.", false);
-                let cancel_response = self.render_icon_button(user_interface, &theme.icon_library.icon_handle_navigation_cancel, "Cancel delete.", false);
-
-                if cancel_response.clicked() {
-                    if let Some(mut view_data) = self
-                        .symbol_resolver_editor_view_data
-                        .write("SymbolResolverEditor cancel delete")
-                    {
-                        view_data.cancel_take_over_state();
-                    }
-                }
-
-                if delete_response.clicked() {
-                    let updated_project_symbol_catalog = SymbolResolverEditorViewData::remove_resolver_from_catalog(project_symbol_catalog, resolver_id);
-                    self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                    if let Some(mut view_data) = self
-                        .symbol_resolver_editor_view_data
-                        .write("SymbolResolverEditor delete resolver")
-                    {
-                        view_data.cancel_take_over_state();
-                    }
-                }
-            })
-            .desired_width(user_interface.available_width())
-            .desired_height(Self::DETAILS_HEIGHT),
-        );
-    }
-
     fn select_resolver(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -855,11 +610,14 @@ impl SymbolResolverEditorView {
             }
             ResolverToolbarAction::DeleteResolver => {
                 if let Some(selected_resolver_id) = selected_resolver_id {
+                    let updated_project_symbol_catalog =
+                        SymbolResolverEditorViewData::remove_resolver_from_catalog(project_symbol_catalog, selected_resolver_id);
+                    self.persist_project_symbol_catalog(updated_project_symbol_catalog);
                     if let Some(mut view_data) = self
                         .symbol_resolver_editor_view_data
                         .write("SymbolResolverEditor delete resolver")
                     {
-                        view_data.request_delete_confirmation(selected_resolver_id.to_string());
+                        view_data.cancel_take_over_state();
                     }
                 }
             }
@@ -904,24 +662,6 @@ impl SymbolResolverEditorView {
             Err(error) => {
                 log::error!("Failed to apply symbol resolver draft: {}.", error);
             }
-        }
-    }
-
-    fn resolver_node_kind(resolver_node: &SymbolicResolverNode) -> ResolverNodeKind {
-        match resolver_node {
-            SymbolicResolverNode::Literal(_) => ResolverNodeKind::Literal,
-            SymbolicResolverNode::LocalField { .. } => ResolverNodeKind::LocalField,
-            SymbolicResolverNode::TypeSize { .. } => ResolverNodeKind::TypeSize,
-            SymbolicResolverNode::Binary { .. } => ResolverNodeKind::Binary,
-        }
-    }
-
-    fn resolver_node_kind_label(resolver_node_kind: ResolverNodeKind) -> &'static str {
-        match resolver_node_kind {
-            ResolverNodeKind::Literal => "Literal",
-            ResolverNodeKind::LocalField => "Local Field",
-            ResolverNodeKind::TypeSize => "Type Size",
-            ResolverNodeKind::Binary => "Operation",
         }
     }
 
@@ -1084,19 +824,18 @@ impl Widget for SymbolResolverEditorView {
 
         self.ensure_selected_resolver_has_draft(&project_symbol_catalog, selected_resolver_id.as_deref(), take_over_state.as_ref());
 
-        let (selected_resolver_id, selected_node_path, take_over_state, baseline_draft, draft) = self
+        let (selected_resolver_id, selected_node_path, baseline_draft, draft) = self
             .symbol_resolver_editor_view_data
             .read("SymbolResolverEditor view after draft ensure")
             .map(|view_data| {
                 (
                     view_data.get_selected_resolver_id().map(str::to_string),
                     view_data.get_selected_node_path().map(<[usize]>::to_vec),
-                    view_data.get_take_over_state().cloned(),
                     view_data.get_baseline_draft().cloned(),
                     view_data.get_draft().cloned(),
                 )
             })
-            .unwrap_or((selected_resolver_id, selected_node_path, take_over_state, baseline_draft, draft));
+            .unwrap_or((selected_resolver_id, selected_node_path, baseline_draft, draft));
 
         let can_handle_window_shortcuts = self
             .app_context
@@ -1120,7 +859,7 @@ impl Widget for SymbolResolverEditorView {
             .map(|(draft, baseline_draft)| draft != baseline_draft)
             .unwrap_or(false)
             && validation_result.as_ref().is_some_and(Result::is_ok);
-        let has_selected_node_target = draft.is_some() && !matches!(take_over_state, Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { .. }));
+        let has_selected_node_target = draft.is_some();
 
         user_interface
             .allocate_ui_with_layout(user_interface.available_size(), Layout::top_down(Align::Min), |user_interface| {
@@ -1140,10 +879,8 @@ impl Widget for SymbolResolverEditorView {
                 );
 
                 user_interface.add_space(4.0);
-                let details_height = Self::DETAILS_HEIGHT.min(user_interface.available_height() * 0.45);
-                let tree_height = (user_interface.available_height() - details_height - 8.0).max(Self::ROW_HEIGHT);
                 user_interface.allocate_ui_with_layout(
-                    vec2(user_interface.available_width(), tree_height),
+                    vec2(user_interface.available_width(), user_interface.available_height()),
                     Layout::top_down(Align::Min),
                     |user_interface| {
                         self.render_resolver_tree(
@@ -1155,19 +892,6 @@ impl Widget for SymbolResolverEditorView {
                         );
                     },
                 );
-
-                user_interface.add_space(8.0);
-                if let Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id }) = take_over_state.as_ref() {
-                    self.render_delete_confirmation(user_interface, &project_symbol_catalog, resolver_id);
-                } else {
-                    self.render_details(
-                        user_interface,
-                        &project_symbol_catalog,
-                        selected_node_path.as_deref(),
-                        baseline_draft.as_ref(),
-                        draft.as_ref(),
-                    );
-                }
             })
             .response
     }

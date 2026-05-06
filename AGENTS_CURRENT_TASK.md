@@ -30,7 +30,7 @@ Our current task, from `README.md`, is:
 - The current runtime resolver evaluates formulas/resolvers against scalar fields collected from the same struct instance. Symbol Explorer feeds those scalar values through a dedicated virtual snapshot lane so formulaic layouts can converge over frames.
 - The current cycle detection only rejects local field-name dependency cycles inside a struct draft. It is not a project-wide dependency graph.
 - Added a Symbol Resolvers dock window. It is titled `Symbol Resolvers`, defaults into the same tab group as Project Explorer, and uses the themed project controls instead of raw egui buttons/combos/text edits. Needs human verification for live GUI ergonomics.
-- The resolver editing flow is now a single Project Explorer-style tree: resolver rows are top-level entries, operation rows parent two child node rows, selecting any tree row drives the details panel, and the header toolbar creates resolvers or replaces the selected node with literal/local-field/type-size/operation nodes. There is no search box in the edit surface.
+- The resolver editing flow is now reduced to a Project Explorer-style tree plus header toolbar: resolver rows are top-level entries, operation rows parent two child node rows, and the toolbar creates resolvers or replaces the selected node with literal/local-field/type-size/operation nodes. There is no search box, group box, or in-window details panel in the edit surface.
 - The Struct Editor now offers resolver pickers for dynamic array counts and expression offsets, while keeping the old expression text editor as a temporary escape hatch.
 - The Resolver Editor should eventually own resolver construction, validation, dependency visualization, and preview diagnostics.
 - Global symbol references, pointer dereferences, module-base references, and conditional layout/type selection should be deferred until the local resolver model is stable.
@@ -38,3 +38,4 @@ Our current task, from `README.md`, is:
 - Validation passed on 2026-05-05: `cargo test -p squalr-engine-domain --lib`, `cargo test -p squalr-engine-api --lib`, `cargo test -p squalr-plugin-symbols-pe`, and `cargo test -p squalr --lib`.
 - Validation passed on 2026-05-06 after the Symbol Resolvers UI rewrite: `cargo test -p squalr --lib symbol_resolver_editor`, `cargo test -p squalr --lib dockable_window_settings`, and `cargo test -p squalr --lib`.
 - Validation passed on 2026-05-06 after the tree/details correction: `cargo test -p squalr --lib symbol_resolver_editor` and `cargo test -p squalr --lib`.
+- Validation passed on 2026-05-06 after simplifying Symbol Resolvers back to toolbar + tree only: `cargo test -p squalr --lib symbol_resolver_editor` and `cargo test -p squalr --lib`.

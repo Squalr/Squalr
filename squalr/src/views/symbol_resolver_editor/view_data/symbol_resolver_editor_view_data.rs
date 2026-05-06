@@ -6,7 +6,6 @@ use squalr_engine_api::structures::structs::symbolic_resolver_definition::{Symbo
 pub enum SymbolResolverEditorTakeOverState {
     CreateResolver,
     EditResolver { resolver_id: String },
-    DeleteConfirmation { resolver_id: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,16 +94,6 @@ impl SymbolResolverEditorViewData {
         self.draft = self.baseline_draft.clone();
     }
 
-    pub fn request_delete_confirmation(
-        &mut self,
-        resolver_id: String,
-    ) {
-        self.take_over_state = Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id });
-        self.selected_node_path = None;
-        self.baseline_draft = None;
-        self.draft = None;
-    }
-
     pub fn cancel_take_over_state(&mut self) {
         self.take_over_state = None;
         self.selected_node_path = None;
@@ -148,8 +137,7 @@ impl SymbolResolverEditorViewData {
 
         let should_clear_take_over_state = match self.take_over_state.as_ref() {
             Some(SymbolResolverEditorTakeOverState::CreateResolver) => false,
-            Some(SymbolResolverEditorTakeOverState::EditResolver { resolver_id })
-            | Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id }) => project_symbol_catalog
+            Some(SymbolResolverEditorTakeOverState::EditResolver { resolver_id }) => project_symbol_catalog
                 .find_symbolic_resolver_descriptor(resolver_id)
                 .is_none(),
             None => false,
