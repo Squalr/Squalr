@@ -1659,12 +1659,12 @@ impl SymbolStructEditorView {
                     GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
                         user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
                         user_interface.add_space(4.0);
-                        let usage_text = if usage_count == 0 {
-                            String::from("No existing references will be changed.")
+                        let (usage_text, usage_text_color) = if usage_count == 0 {
+                            (String::from("No existing references will be changed."), theme.foreground_preview)
                         } else {
-                            format!("{} existing references will be changed to raw u8.", usage_count)
+                            (format!("{} existing references will be changed to raw u8.", usage_count), theme.warning)
                         };
-                        user_interface.label(RichText::new(usage_text).color(theme.foreground_preview));
+                        user_interface.label(RichText::new(usage_text).color(usage_text_color));
                     })
                     .desired_width(user_interface.available_width()),
                 );
