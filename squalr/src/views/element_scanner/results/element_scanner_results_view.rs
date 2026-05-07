@@ -205,11 +205,36 @@ impl Widget for ElementScannerResultsView {
         let mut new_previous_value_splitter_ratio: Option<f32> = None;
         let mut did_change_data_type_filters = false;
         let mut element_sanner_result_frame_action: ElementScannerResultFrameAction = ElementScannerResultFrameAction::None;
-        let mut scan_results_has_keyboard_focus = false;
         let bounded_results_rectangle = user_interface
             .available_rect_before_wrap()
             .intersect(user_interface.clip_rect());
         let results_response = user_interface.allocate_rect(bounded_results_rectangle, Sense::click());
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+        let (scan_result_navigation_direction, extend_scan_result_selection) = if can_handle_window_shortcuts {
+            let extend_scan_result_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+            let navigate_up = user_interface.input_mut(|input_state| {
+                let modifiers = input_state.modifiers;
+                input_state.consume_key(modifiers, Key::ArrowUp)
+            });
+            let navigate_down = !navigate_up
+                && user_interface.input_mut(|input_state| {
+                    let modifiers = input_state.modifiers;
+                    input_state.consume_key(modifiers, Key::ArrowDown)
+                });
+
+            if navigate_up {
+                (Some(ListNavigationDirection::Up), extend_scan_result_selection)
+            } else if navigate_down {
+                (Some(ListNavigationDirection::Down), extend_scan_result_selection)
+            } else {
+                (None, false)
+            }
+        } else {
+            (None, false)
+        };
         let mut results_user_interface = user_interface.new_child(
             eframe::egui::UiBuilder::new()
                 .max_rect(results_response.rect)
@@ -546,12 +571,6 @@ impl Widget for ElementScannerResultsView {
                             );
                             let row_response = user_interface.add(entry_widget);
 
-                            if row_response.clicked() || row_response.double_clicked() {
-                                row_response.request_focus();
-                            }
-
-                            scan_results_has_keyboard_focus |= row_response.has_focus();
-
                             if rows_min_y.is_none() {
                                 rows_min_y = Some(row_response.rect.min.y);
                             }
@@ -637,40 +656,24 @@ impl Widget for ElementScannerResultsView {
             );
         }
 
-        let can_handle_window_shortcuts = self
-            .app_context
-            .window_focus_manager
-            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
-        let should_handle_result_shortcuts = scan_results_has_keyboard_focus || can_handle_window_shortcuts;
-
-        if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
-            let extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+        if let Some(scan_result_navigation_direction) = scan_result_navigation_direction {
             ElementScannerResultsViewData::navigate_scan_result_selection(
                 self.element_scanner_results_view_data.clone(),
                 self.struct_viewer_view_data.clone(),
                 self.app_context.engine_unprivileged_state.clone(),
-                ListNavigationDirection::Up,
-                extend_selection,
-            );
-        } else if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
-            let extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
-            ElementScannerResultsViewData::navigate_scan_result_selection(
-                self.element_scanner_results_view_data.clone(),
-                self.struct_viewer_view_data.clone(),
-                self.app_context.engine_unprivileged_state.clone(),
-                ListNavigationDirection::Down,
-                extend_selection,
+                scan_result_navigation_direction,
+                extend_scan_result_selection,
             );
         }
 
-        if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
             ElementScannerResultsViewData::delete_selected_scan_results(
                 self.element_scanner_results_view_data.clone(),
                 self.app_context.engine_unprivileged_state.clone(),
             );
         }
 
-        if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Space)) {
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Space)) {
             element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(
                 ElementScannerResultsViewData::get_selection_freeze_checkstate(self.element_scanner_results_view_data.clone()),
             );
