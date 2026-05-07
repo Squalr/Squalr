@@ -1,3 +1,4 @@
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
@@ -57,6 +58,32 @@ impl SymbolResolverEditorViewData {
     ) {
         self.selected_resolver_id = resolver_id;
         self.selected_node_path = None;
+    }
+
+    pub fn navigate_resolver_selection(
+        &mut self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        direction: ListNavigationDirection,
+    ) -> Option<String> {
+        let resolver_ids = project_symbol_catalog
+            .get_symbolic_resolver_descriptors()
+            .iter()
+            .map(|resolver_descriptor| resolver_descriptor.get_resolver_id().to_string())
+            .collect::<Vec<String>>();
+        let selected_resolver_index = self
+            .selected_resolver_id
+            .as_ref()
+            .and_then(|selected_resolver_id| {
+                resolver_ids
+                    .iter()
+                    .position(|resolver_id| resolver_id == selected_resolver_id)
+            });
+        let next_selection_index = resolve_next_index(selected_resolver_index, resolver_ids.len(), direction)?;
+        let next_resolver_id = resolver_ids.get(next_selection_index)?.clone();
+
+        self.select_resolver(Some(next_resolver_id.clone()));
+
+        Some(next_resolver_id)
     }
 
     pub fn select_node(

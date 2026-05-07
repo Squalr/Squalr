@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
+use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView};
 use crate::ui::widgets::controls::data_type_selector::data_type_selector_view::DataTypeSelectorView;
 use crate::ui::widgets::controls::{
@@ -1745,6 +1746,22 @@ impl Widget for SymbolStructEditorView {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
                 SymbolStructEditorViewData::begin_edit_struct_layout(self.symbol_struct_editor_view_data.clone(), &project_symbol_catalog, selected_layout_id);
             }
+        }
+
+        if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
+            SymbolStructEditorViewData::navigate_struct_layout_selection(
+                self.symbol_struct_editor_view_data.clone(),
+                &project_symbol_catalog,
+                ListNavigationDirection::Up,
+            );
+        }
+
+        if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
+            SymbolStructEditorViewData::navigate_struct_layout_selection(
+                self.symbol_struct_editor_view_data.clone(),
+                &project_symbol_catalog,
+                ListNavigationDirection::Down,
+            );
         }
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {

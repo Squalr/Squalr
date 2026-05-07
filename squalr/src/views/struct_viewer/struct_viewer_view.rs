@@ -6,6 +6,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
+        list_navigation::ListNavigationDirection,
         widgets::controls::{button::Button, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox},
     },
     views::{
@@ -1018,6 +1019,25 @@ impl Widget for StructViewerView {
             && user_interface.input(|input_state| input_state.key_pressed(Key::Escape) || input_state.key_pressed(Key::Backspace))
         {
             should_cancel_take_over = true;
+        }
+
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+
+        if active_pointer_offsets_field_name.is_none()
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp))
+        {
+            StructViewerViewData::navigate_field_selection(self.struct_viewer_view_data.clone(), ListNavigationDirection::Up);
+        }
+
+        if active_pointer_offsets_field_name.is_none()
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown))
+        {
+            StructViewerViewData::navigate_field_selection(self.struct_viewer_view_data.clone(), ListNavigationDirection::Down);
         }
 
         if should_cancel_take_over {

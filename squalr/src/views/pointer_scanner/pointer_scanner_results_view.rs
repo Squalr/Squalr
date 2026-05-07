@@ -1,9 +1,11 @@
 use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::geometry::safe_clamp_f32;
+use crate::ui::list_navigation::ListNavigationDirection;
+use crate::views::pointer_scanner::pointer_scanner_view::PointerScannerView;
 use crate::views::pointer_scanner::view_data::pointer_scanner_view_data::{PointerScannerTreeRow, PointerScannerViewData};
 use crate::views::project_explorer::project_hierarchy::view_data::project_hierarchy_view_data::ProjectHierarchyViewData;
-use eframe::egui::{Align, Align2, CursorIcon, FontId, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{Align, Align2, CursorIcon, FontId, Key, Layout, Response, ScrollArea, Sense, Ui, UiBuilder, Widget, pos2, vec2};
 use epaint::{Color32, CornerRadius, Rect};
 use squalr_engine_api::{commands::unprivileged_command_request::UnprivilegedCommandRequest, dependency_injection::dependency::Dependency};
 use std::sync::Arc;
@@ -523,6 +525,27 @@ impl Widget for PointerScannerResultsView {
                     pointer_scanner_view_data.resolved_splitter_ratio = new_resolved_splitter_ratio;
                 }
             }
+        }
+
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), PointerScannerView::WINDOW_ID);
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
+            PointerScannerViewData::navigate_node_selection(self.pointer_scanner_view_data.clone(), ListNavigationDirection::Up);
+        }
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
+            PointerScannerViewData::navigate_node_selection(self.pointer_scanner_view_data.clone(), ListNavigationDirection::Down);
+        }
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowLeft)) {
+            PointerScannerViewData::navigate_back(self.pointer_scanner_view_data.clone());
+        }
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowRight)) {
+            PointerScannerViewData::navigate_into_selected_node_context(self.pointer_scanner_view_data.clone());
         }
 
         if let Some(clicked_node_id) = clicked_node_id {

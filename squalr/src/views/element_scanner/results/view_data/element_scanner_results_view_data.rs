@@ -1,4 +1,5 @@
 use crate::ui::geometry::safe_clamp_ord;
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::check_state::CheckState;
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::element_scanner::scanner::view_data::element_scanner_view_data::ElementScannerViewData;
@@ -813,11 +814,72 @@ impl ElementScannerResultsViewData {
         );
     }
 
+    pub fn navigate_scan_result_selection(
+        element_scanner_results_view_data: Dependency<Self>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        direction: ListNavigationDirection,
+        extend_selection: bool,
+    ) {
+        let (selection_start_index, selection_end_index) = {
+            let Some(element_scanner_results_view_data) = element_scanner_results_view_data.read("Navigate scan result selection") else {
+                return;
+            };
+            let current_index = element_scanner_results_view_data
+                .selection_index_end
+                .or(element_scanner_results_view_data.selection_index_start)
+                .and_then(|selection_index| usize::try_from(selection_index).ok());
+            let Some(next_index) = resolve_next_index(current_index, element_scanner_results_view_data.current_scan_results.len(), direction) else {
+                return;
+            };
+            let next_index = next_index as i32;
+
+            if extend_selection {
+                let selection_start_index = element_scanner_results_view_data
+                    .selection_index_start
+                    .or(element_scanner_results_view_data.selection_index_end)
+                    .unwrap_or(next_index);
+
+                (Some(selection_start_index), Some(next_index))
+            } else {
+                (Some(next_index), None)
+            }
+        };
+
+        Self::set_scan_result_selection(
+            element_scanner_results_view_data,
+            struct_viewer_view_data,
+            engine_unprivileged_state,
+            selection_start_index,
+            selection_end_index,
+        );
+    }
+
     pub fn set_scan_result_selection_end(
         element_scanner_results_view_data: Dependency<Self>,
         struct_viewer_view_data: Dependency<StructViewerViewData>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
         scan_result_collection_end_index: Option<i32>,
+    ) {
+        let selection_start_index = element_scanner_results_view_data
+            .read("Set scan result selection end start")
+            .and_then(|element_scanner_results_view_data| element_scanner_results_view_data.selection_index_start);
+
+        Self::set_scan_result_selection(
+            element_scanner_results_view_data,
+            struct_viewer_view_data,
+            engine_unprivileged_state,
+            selection_start_index,
+            scan_result_collection_end_index,
+        );
+    }
+
+    fn set_scan_result_selection(
+        element_scanner_results_view_data: Dependency<Self>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        engine_unprivileged_state: Arc<EngineUnprivilegedState>,
+        selection_index_start: Option<i32>,
+        selection_index_end: Option<i32>,
     ) {
         let element_scanner_results_view_data_dependency = element_scanner_results_view_data.clone();
         let mut element_scanner_results_view_data = match element_scanner_results_view_data.write("Set scan result selection end") {
@@ -826,7 +888,8 @@ impl ElementScannerResultsViewData {
         };
         let mut valued_structs = Vec::new();
 
-        element_scanner_results_view_data.selection_index_end = scan_result_collection_end_index;
+        element_scanner_results_view_data.selection_index_start = selection_index_start;
+        element_scanner_results_view_data.selection_index_end = selection_index_end;
 
         Self::for_each_selected_scan_result(&mut element_scanner_results_view_data, |scan_result| {
             valued_structs.push(scan_result.as_valued_struct())

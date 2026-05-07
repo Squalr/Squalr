@@ -2,6 +2,7 @@ use crate::{
     app_context::AppContext,
     ui::{
         draw::icon_draw::IconDraw,
+        list_navigation::ListNavigationDirection,
         widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer},
     },
     views::{
@@ -1328,6 +1329,52 @@ impl Widget for SymbolResolverEditorView {
                 }
             })
             .response;
+
+        if can_handle_window_shortcuts
+            && take_over_state.is_none()
+            && matches!(frame_action, ResolverFrameAction::None)
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp))
+        {
+            if let Some(mut view_data) = self
+                .symbol_resolver_editor_view_data
+                .write("SymbolResolverEditor keyboard navigate up")
+            {
+                view_data.navigate_resolver_selection(&project_symbol_catalog, ListNavigationDirection::Up);
+            }
+        }
+
+        if can_handle_window_shortcuts
+            && take_over_state.is_none()
+            && matches!(frame_action, ResolverFrameAction::None)
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown))
+        {
+            if let Some(mut view_data) = self
+                .symbol_resolver_editor_view_data
+                .write("SymbolResolverEditor keyboard navigate down")
+            {
+                view_data.navigate_resolver_selection(&project_symbol_catalog, ListNavigationDirection::Down);
+            }
+        }
+
+        if can_handle_window_shortcuts
+            && take_over_state.is_none()
+            && matches!(frame_action, ResolverFrameAction::None)
+            && user_interface.input(|input_state| input_state.key_pressed(Key::Enter))
+            && selected_resolver_id.is_some()
+        {
+            if let Some(selected_resolver_id) = selected_resolver_id.as_deref() {
+                frame_action = ResolverFrameAction::BeginOpenResolver(selected_resolver_id.to_string());
+            }
+        }
+
+        if can_handle_window_shortcuts
+            && take_over_state.is_none()
+            && matches!(frame_action, ResolverFrameAction::None)
+            && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
+            && selected_resolver_id.is_some()
+        {
+            frame_action = ResolverFrameAction::DeleteResolver;
+        }
 
         if can_handle_window_shortcuts
             && user_interface.input(|input_state| input_state.key_pressed(Key::Escape))

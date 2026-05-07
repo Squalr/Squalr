@@ -3,6 +3,7 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
+        list_navigation::ListNavigationDirection,
         widgets::controls::{
             combo_box::combo_box_view::ComboBoxView, data_type_selector::data_type_selector_view::DataTypeSelectorView,
             data_value_box::data_value_box_convert_item_view::DataValueBoxConvertItemView,
@@ -22,7 +23,7 @@ use crate::{
         struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align, Align2, CursorIcon, Direction, Layout, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget};
+use eframe::egui::{Align, Align2, CursorIcon, Direction, Key, Layout, Response, ScrollArea, Sense, Spinner, Ui, UiBuilder, Widget};
 use epaint::{Margin, Rect, Vec2, pos2, vec2};
 use squalr_engine_api::{
     dependency_injection::dependency::Dependency,
@@ -636,7 +637,40 @@ impl Widget for ElementScannerResultsView {
             );
         }
 
-        if scan_results_has_keyboard_focus && user_interface.input(|input_state| input_state.key_pressed(eframe::egui::Key::Space)) {
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+        let should_handle_result_shortcuts = scan_results_has_keyboard_focus || can_handle_window_shortcuts;
+
+        if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
+            let extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+            ElementScannerResultsViewData::navigate_scan_result_selection(
+                self.element_scanner_results_view_data.clone(),
+                self.struct_viewer_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+                ListNavigationDirection::Up,
+                extend_selection,
+            );
+        } else if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
+            let extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+            ElementScannerResultsViewData::navigate_scan_result_selection(
+                self.element_scanner_results_view_data.clone(),
+                self.struct_viewer_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+                ListNavigationDirection::Down,
+                extend_selection,
+            );
+        }
+
+        if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
+            ElementScannerResultsViewData::delete_selected_scan_results(
+                self.element_scanner_results_view_data.clone(),
+                self.app_context.engine_unprivileged_state.clone(),
+            );
+        }
+
+        if should_handle_result_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Space)) {
             element_sanner_result_frame_action = ElementScannerResultFrameAction::from_selection_freeze_checkstate(
                 ElementScannerResultsViewData::get_selection_freeze_checkstate(self.element_scanner_results_view_data.clone()),
             );

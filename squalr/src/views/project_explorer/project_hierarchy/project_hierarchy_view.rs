@@ -3,6 +3,7 @@ use crate::{
     ui::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
         geometry::{safe_clamp_f32, safe_clamp_ord},
+        list_navigation::ListNavigationDirection,
         widgets::controls::{context_menu::context_menu::ContextMenu, groupbox::GroupBox, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
     },
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -2032,6 +2033,44 @@ impl Widget for ProjectHierarchyView {
                     ProjectHierarchyTakeOverState::PromoteSymbolConflict { project_item_paths, .. } => Some(project_item_paths),
                     _ => None,
                 });
+        }
+
+        if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp))
+        {
+            let extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+            if ProjectHierarchyViewData::navigate_project_item_selection(
+                self.project_hierarchy_view_data.clone(),
+                ListNavigationDirection::Up,
+                extend_selection,
+            )
+            .is_some()
+            {
+                self.focus_selected_project_items_in_struct_viewer();
+            }
+        }
+
+        if !is_delete_confirmation_active
+            && !is_promote_symbol_conflict_active
+            && !is_rename_take_over_active
+            && !is_value_edit_take_over_active
+            && can_handle_window_shortcuts
+            && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown))
+        {
+            let extend_selection = user_interface.input(|input_state| input_state.modifiers.shift);
+            if ProjectHierarchyViewData::navigate_project_item_selection(
+                self.project_hierarchy_view_data.clone(),
+                ListNavigationDirection::Down,
+                extend_selection,
+            )
+            .is_some()
+            {
+                self.focus_selected_project_items_in_struct_viewer();
+            }
         }
 
         if !is_delete_confirmation_active

@@ -1,3 +1,4 @@
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::struct_viewer::view_data::struct_viewer_container_mode::StructViewerContainerMode;
 use crate::views::struct_viewer::view_data::struct_viewer_field_presentation::{StructViewerFieldEditorKind, StructViewerFieldPresentation};
@@ -93,6 +94,34 @@ impl StructViewerViewData {
         };
 
         struct_viewer_view_data.selected_field_name = Arc::new(None);
+    }
+
+    pub fn navigate_field_selection(
+        struct_viewer_view_data: Dependency<Self>,
+        direction: ListNavigationDirection,
+    ) -> Option<String> {
+        let mut struct_viewer_view_data = struct_viewer_view_data.write("Navigate selected struct viewer field")?;
+        let struct_under_view = struct_viewer_view_data.struct_under_view.as_ref().as_ref()?;
+        let selected_field_index = struct_viewer_view_data
+            .selected_field_name
+            .as_ref()
+            .as_ref()
+            .and_then(|selected_field_name| {
+                struct_under_view
+                    .get_fields()
+                    .iter()
+                    .position(|valued_struct_field| valued_struct_field.get_name() == selected_field_name)
+            });
+        let next_selection_index = resolve_next_index(selected_field_index, struct_under_view.get_fields().len(), direction)?;
+        let next_field_name = struct_under_view
+            .get_fields()
+            .get(next_selection_index)?
+            .get_name()
+            .to_string();
+
+        struct_viewer_view_data.selected_field_name = Arc::new(Some(next_field_name.clone()));
+
+        Some(next_field_name)
     }
 
     pub fn focus_valued_struct(

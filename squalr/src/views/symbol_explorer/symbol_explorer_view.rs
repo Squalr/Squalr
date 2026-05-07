@@ -1,5 +1,6 @@
 use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
     context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
@@ -815,6 +816,22 @@ impl SymbolExplorerView {
                 .find(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_node_key),
             _ => None,
         }
+    }
+
+    fn resolve_adjacent_symbol_tree_entry<'entry>(
+        symbol_tree_entries: &'entry [SymbolTreeEntry],
+        selected_entry: Option<&SymbolExplorerSelection>,
+        direction: ListNavigationDirection,
+    ) -> Option<&'entry SymbolTreeEntry> {
+        let selected_symbol_tree_entry = Self::build_selected_symbol_tree_entry(symbol_tree_entries, selected_entry);
+        let selected_symbol_tree_index = selected_symbol_tree_entry.and_then(|selected_symbol_tree_entry| {
+            symbol_tree_entries
+                .iter()
+                .position(|symbol_tree_entry| symbol_tree_entry.get_node_key() == selected_symbol_tree_entry.get_node_key())
+        });
+        let next_selection_index = resolve_next_index(selected_symbol_tree_index, symbol_tree_entries.len(), direction)?;
+
+        symbol_tree_entries.get(next_selection_index)
     }
 
     fn is_module_field_tree_entry(symbol_tree_entry: &SymbolTreeEntry) -> bool {
@@ -3706,6 +3723,48 @@ impl Widget for SymbolExplorerView {
         if is_window_focused && is_create_module_root_active && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             if let Some(project_symbols_create_module_request) = create_module_root_request.clone() {
                 self.create_module_root(project_symbols_create_module_request);
+            }
+        }
+
+        if can_use_standard_toolbar_actions && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowUp)) {
+            if let Some(next_symbol_tree_entry) =
+                Self::resolve_adjacent_symbol_tree_entry(&symbol_tree_entries, selected_entry.as_ref(), ListNavigationDirection::Up)
+            {
+                if let Some(selection) = Self::build_selection_for_tree_entry(next_symbol_tree_entry) {
+                    SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+
+                    if !matches!(next_symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                        self.focus_symbol_tree_entry_in_struct_viewer(&project_symbol_catalog, next_symbol_tree_entry);
+                    }
+                }
+            }
+        }
+
+        if can_use_standard_toolbar_actions && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowDown)) {
+            if let Some(next_symbol_tree_entry) =
+                Self::resolve_adjacent_symbol_tree_entry(&symbol_tree_entries, selected_entry.as_ref(), ListNavigationDirection::Down)
+            {
+                if let Some(selection) = Self::build_selection_for_tree_entry(next_symbol_tree_entry) {
+                    SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
+
+                    if !matches!(next_symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                        self.focus_symbol_tree_entry_in_struct_viewer(&project_symbol_catalog, next_symbol_tree_entry);
+                    }
+                }
+            }
+        }
+
+        if can_use_standard_toolbar_actions && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowRight)) {
+            if let Some(selected_symbol_tree_entry) = selected_symbol_tree_entry.filter(|symbol_tree_entry| symbol_tree_entry.can_expand()) {
+                SymbolExplorerViewData::expand_tree_node(self.symbol_explorer_view_data.clone(), selected_symbol_tree_entry.get_node_key());
+            }
+        }
+
+        if can_use_standard_toolbar_actions && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::ArrowLeft)) {
+            if let Some(selected_symbol_tree_entry) =
+                selected_symbol_tree_entry.filter(|symbol_tree_entry| symbol_tree_entry.can_expand() && symbol_tree_entry.is_expanded())
+            {
+                SymbolExplorerViewData::toggle_tree_node_expansion(self.symbol_explorer_view_data.clone(), selected_symbol_tree_entry.get_node_key());
             }
         }
 

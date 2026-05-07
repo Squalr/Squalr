@@ -1,3 +1,4 @@
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::SymbolStructFieldContainerEdit;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -137,6 +138,34 @@ impl SymbolStructEditorViewData {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor select struct layout") {
             symbol_struct_editor_view_data.selected_layout_id = selected_layout_id;
         }
+    }
+
+    pub fn navigate_struct_layout_selection(
+        symbol_struct_editor_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        direction: ListNavigationDirection,
+    ) -> Option<String> {
+        let mut symbol_struct_editor_view_data = symbol_struct_editor_view_data.write("SymbolStructEditor navigate struct layout selection")?;
+        let visible_layout_ids = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .filter(|struct_layout_descriptor| Self::layout_matches_filter(struct_layout_descriptor, &symbol_struct_editor_view_data.filter_text))
+            .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
+            .collect::<Vec<String>>();
+        let selected_layout_index = symbol_struct_editor_view_data
+            .selected_layout_id
+            .as_ref()
+            .and_then(|selected_layout_id| {
+                visible_layout_ids
+                    .iter()
+                    .position(|visible_layout_id| visible_layout_id == selected_layout_id)
+            });
+        let next_selection_index = resolve_next_index(selected_layout_index, visible_layout_ids.len(), direction)?;
+        let next_layout_id = visible_layout_ids.get(next_selection_index)?.clone();
+
+        symbol_struct_editor_view_data.selected_layout_id = Some(next_layout_id.clone());
+
+        Some(next_layout_id)
     }
 
     pub fn begin_create_struct_layout(

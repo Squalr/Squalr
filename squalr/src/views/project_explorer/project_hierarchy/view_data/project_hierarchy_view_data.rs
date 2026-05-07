@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::views::project_explorer::project_hierarchy::view_data::{
     project_hierarchy_clipboard::{ProjectHierarchyClipboard, ProjectHierarchyClipboardMode},
     project_hierarchy_create_item_kind::ProjectHierarchyCreateItemKind,
@@ -244,6 +245,33 @@ impl ProjectHierarchyViewData {
             None => return,
         };
         project_hierarchy_view_data.apply_selection(project_item_path, additive_selection, range_selection);
+    }
+
+    pub fn navigate_project_item_selection(
+        project_hierarchy_view_data: Dependency<ProjectHierarchyViewData>,
+        direction: ListNavigationDirection,
+        extend_selection: bool,
+    ) -> Option<PathBuf> {
+        let mut project_hierarchy_view_data = project_hierarchy_view_data.write("Project hierarchy navigate project item selection")?;
+        let selected_project_item_index = project_hierarchy_view_data
+            .selected_project_item_path
+            .as_ref()
+            .and_then(|selected_project_item_path| {
+                project_hierarchy_view_data
+                    .tree_entries
+                    .iter()
+                    .position(|tree_entry| &tree_entry.project_item_path == selected_project_item_path)
+            });
+        let next_selection_index = resolve_next_index(selected_project_item_index, project_hierarchy_view_data.tree_entries.len(), direction)?;
+        let next_project_item_path = project_hierarchy_view_data
+            .tree_entries
+            .get(next_selection_index)?
+            .project_item_path
+            .clone();
+
+        project_hierarchy_view_data.apply_selection(next_project_item_path.clone(), false, extend_selection);
+
+        Some(next_project_item_path)
     }
 
     fn apply_selection(

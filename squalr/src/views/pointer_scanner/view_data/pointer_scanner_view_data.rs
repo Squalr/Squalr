@@ -1,4 +1,5 @@
 use crate::ui::geometry::safe_clamp_ord;
+use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_request::PointerScanExpandRequest;
 use squalr_engine_api::commands::pointer_scan::expand::pointer_scan_expand_response::PointerScanExpandResponse;
@@ -914,6 +915,40 @@ impl PointerScannerViewData {
         if let Some(mut pointer_scanner_view_data_guard) = pointer_scanner_view_data.write("Pointer scanner select node") {
             pointer_scanner_view_data_guard.selected_node_id = Some(node_id);
             pointer_scanner_view_data_guard.request_repaint();
+        }
+    }
+
+    pub fn navigate_node_selection(
+        pointer_scanner_view_data: Dependency<Self>,
+        direction: ListNavigationDirection,
+    ) -> Option<u64> {
+        let mut pointer_scanner_view_data_guard = pointer_scanner_view_data.write("Pointer scanner navigate node selection")?;
+        let selected_node_index = pointer_scanner_view_data_guard
+            .selected_node_id
+            .and_then(|selected_node_id| {
+                pointer_scanner_view_data_guard
+                    .current_context_node_ids
+                    .iter()
+                    .position(|node_id| *node_id == selected_node_id)
+            });
+        let next_selection_index = resolve_next_index(selected_node_index, pointer_scanner_view_data_guard.current_context_node_ids.len(), direction)?;
+        let next_node_id = *pointer_scanner_view_data_guard
+            .current_context_node_ids
+            .get(next_selection_index)?;
+
+        pointer_scanner_view_data_guard.selected_node_id = Some(next_node_id);
+        pointer_scanner_view_data_guard.request_repaint();
+
+        Some(next_node_id)
+    }
+
+    pub fn navigate_into_selected_node_context(pointer_scanner_view_data: Dependency<Self>) {
+        let selected_node_id = pointer_scanner_view_data
+            .read("Pointer scanner read selected node for navigation")
+            .and_then(|pointer_scanner_view_data_guard| pointer_scanner_view_data_guard.selected_node_id);
+
+        if let Some(selected_node_id) = selected_node_id {
+            Self::navigate_into_node_context(pointer_scanner_view_data, selected_node_id);
         }
     }
 
