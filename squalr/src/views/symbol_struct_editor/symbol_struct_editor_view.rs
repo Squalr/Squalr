@@ -938,17 +938,6 @@ impl SymbolStructEditorView {
                     );
                 }
             }
-
-            let usage_count = selected_layout_id
-                .map(|selected_layout_id| SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
-                .unwrap_or(0);
-            let can_delete_selected_layout = !is_take_over_active && selected_layout_id.is_some() && usage_count == 0;
-            let delete_layout_response = self.render_delete_icon_button(user_interface, "Delete the selected struct layout.", !can_delete_selected_layout);
-            if delete_layout_response.clicked() {
-                if let Some(selected_layout_id) = selected_layout_id {
-                    SymbolStructEditorViewData::request_delete_confirmation(self.symbol_struct_editor_view_data.clone(), selected_layout_id.to_string());
-                }
-            }
         });
 
         user_interface.add_space(8.0);

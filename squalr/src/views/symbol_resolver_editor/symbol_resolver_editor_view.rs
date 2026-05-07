@@ -3,7 +3,9 @@ use crate::{
     ui::{
         draw::icon_draw::IconDraw,
         list_navigation::ListNavigationDirection,
-        widgets::controls::{button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, state_layer::StateLayer},
+        widgets::controls::{
+            button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
+        },
     },
     views::{
         struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
@@ -50,9 +52,10 @@ enum ResolverFrameAction {
     BeginRenameResolver(String),
     BeginOpenResolver(String),
     SelectResolver(String),
+    RequestDeleteConfirmation(String),
+    ConfirmDeleteResolver(String),
     SaveDraft,
     CancelDraft,
-    DeleteResolver,
 }
 
 impl SymbolResolverEditorView {
@@ -432,7 +435,9 @@ impl SymbolResolverEditorView {
                         Self::TAKE_OVER_HEADER_HEIGHT,
                     );
                     if delete_response.clicked() {
-                        action = ResolverFrameAction::DeleteResolver;
+                        if let Some(resolver_id) = draft.original_resolver_id.as_deref() {
+                            action = ResolverFrameAction::RequestDeleteConfirmation(resolver_id.to_string());
+                        }
                     }
 
                     user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
@@ -623,6 +628,120 @@ impl SymbolResolverEditorView {
                 self.render_resolver_node_editor_tree(user_interface, draft, selected_node_path);
             },
         );
+
+        action
+    }
+
+    fn render_delete_confirmation_take_over(
+        &self,
+        user_interface: &mut Ui,
+        resolver_id: &str,
+    ) -> ResolverFrameAction {
+        let theme = &self.app_context.theme;
+        let mut action = ResolverFrameAction::None;
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+            action = ResolverFrameAction::ConfirmDeleteResolver(resolver_id.to_string());
+        } else if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) {
+            action = ResolverFrameAction::CancelDraft;
+        }
+
+        let (panel_rect, _) = user_interface.allocate_exact_size(user_interface.available_size(), Sense::hover());
+
+        user_interface
+            .painter()
+            .rect_filled(panel_rect, CornerRadius::ZERO, theme.background_panel);
+
+        let mut panel_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(panel_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        panel_user_interface.set_clip_rect(panel_rect);
+
+        let (header_rect, _) = panel_user_interface.allocate_exact_size(
+            vec2(panel_user_interface.available_width().max(1.0), Self::TAKE_OVER_HEADER_HEIGHT),
+            Sense::hover(),
+        );
+        panel_user_interface
+            .painter()
+            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
+
+        let mut header_user_interface = panel_user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(header_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        header_user_interface.set_clip_rect(header_rect);
+
+        let header_action_width = Self::ICON_BUTTON_WIDTH * 2.0 + Self::TAKE_OVER_ROW_SPACING;
+        let title_width = (header_rect.width() - header_action_width - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
+        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
+        header_user_interface.painter().text(
+            pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
+            Align2::LEFT_CENTER,
+            "Delete resolver",
+            theme.font_library.font_noto_sans.font_window_title.clone(),
+            theme.foreground,
+        );
+
+        header_user_interface.allocate_ui_with_layout(
+            vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+            Layout::right_to_left(Align::Center),
+            |user_interface| {
+                let delete_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_common_delete,
+                    "Delete this resolver.",
+                    theme.background_control_danger,
+                    theme.background_control_danger_dark,
+                    false,
+                    Self::TAKE_OVER_HEADER_HEIGHT,
+                );
+                if delete_response.clicked() {
+                    action = ResolverFrameAction::ConfirmDeleteResolver(resolver_id.to_string());
+                }
+
+                user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
+
+                let cancel_response = self.render_take_over_header_icon_button(
+                    user_interface,
+                    &theme.icon_library.icon_handle_navigation_cancel,
+                    "Cancel resolver deletion.",
+                    theme.background_control_secondary,
+                    theme.submenu_border,
+                    false,
+                    Self::TAKE_OVER_HEADER_HEIGHT,
+                );
+                if cancel_response.clicked() {
+                    action = ResolverFrameAction::CancelDraft;
+                }
+            },
+        );
+
+        panel_user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_TOP);
+        panel_user_interface.horizontal(|user_interface| {
+            user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
+            user_interface.allocate_ui_with_layout(
+                vec2(
+                    (user_interface.available_width() - Self::TAKE_OVER_CONTENT_PADDING_X * 2.0).max(0.0),
+                    user_interface.available_height(),
+                ),
+                Layout::top_down(Align::Min),
+                |user_interface| {
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
+                            user_interface.label(RichText::new(format!("Delete `{}`?", resolver_id)).color(theme.foreground));
+                        })
+                        .desired_width(user_interface.available_width()),
+                    );
+                },
+            );
+        });
 
         action
     }
@@ -988,7 +1107,6 @@ impl SymbolResolverEditorView {
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         action: ResolverFrameAction,
-        selected_resolver_id: Option<&str>,
         draft: Option<&SymbolResolverEditDraft>,
     ) {
         match action {
@@ -1023,6 +1141,26 @@ impl SymbolResolverEditorView {
             ResolverFrameAction::SelectResolver(resolver_id) => {
                 self.select_resolver(&resolver_id);
             }
+            ResolverFrameAction::RequestDeleteConfirmation(resolver_id) => {
+                if let Some(mut view_data) = self
+                    .symbol_resolver_editor_view_data
+                    .write("SymbolResolverEditor begin delete confirmation")
+                {
+                    view_data.begin_delete_confirmation(&resolver_id);
+                }
+                self.clear_struct_viewer_if_symbol_resolver_focused();
+            }
+            ResolverFrameAction::ConfirmDeleteResolver(resolver_id) => {
+                let updated_project_symbol_catalog = SymbolResolverEditorViewData::remove_resolver_from_catalog(project_symbol_catalog, &resolver_id);
+                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                if let Some(mut view_data) = self
+                    .symbol_resolver_editor_view_data
+                    .write("SymbolResolverEditor delete resolver")
+                {
+                    view_data.cancel_take_over_state();
+                }
+                self.clear_struct_viewer_if_symbol_resolver_focused();
+            }
             ResolverFrameAction::SaveDraft => {
                 let current_draft = self
                     .symbol_resolver_editor_view_data
@@ -1041,20 +1179,6 @@ impl SymbolResolverEditorView {
                     view_data.cancel_take_over_state();
                 }
                 self.clear_struct_viewer_if_symbol_resolver_focused();
-            }
-            ResolverFrameAction::DeleteResolver => {
-                if let Some(selected_resolver_id) = selected_resolver_id {
-                    let updated_project_symbol_catalog =
-                        SymbolResolverEditorViewData::remove_resolver_from_catalog(project_symbol_catalog, selected_resolver_id);
-                    self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                    if let Some(mut view_data) = self
-                        .symbol_resolver_editor_view_data
-                        .write("SymbolResolverEditor delete resolver")
-                    {
-                        view_data.cancel_take_over_state();
-                    }
-                    self.clear_struct_viewer_if_symbol_resolver_focused();
-                }
             }
         }
     }
@@ -1312,6 +1436,9 @@ impl Widget for SymbolResolverEditorView {
                     (Some(SymbolResolverEditorTakeOverState::OpenResolver { .. }), Some(draft)) => {
                         frame_action = self.render_resolver_open_take_over(user_interface, draft, selected_node_path.as_deref(), can_save);
                     }
+                    (Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id }), _) => {
+                        frame_action = self.render_delete_confirmation_take_over(user_interface, resolver_id);
+                    }
                     _ => {
                         frame_action = self.render_selection_toolbar(user_interface);
                         user_interface.add_space(4.0);
@@ -1373,7 +1500,9 @@ impl Widget for SymbolResolverEditorView {
             && user_interface.input(|input_state| input_state.key_pressed(Key::Delete))
             && selected_resolver_id.is_some()
         {
-            frame_action = ResolverFrameAction::DeleteResolver;
+            if let Some(selected_resolver_id) = selected_resolver_id.as_deref() {
+                frame_action = ResolverFrameAction::RequestDeleteConfirmation(selected_resolver_id.to_string());
+            }
         }
 
         if can_handle_window_shortcuts
@@ -1384,7 +1513,7 @@ impl Widget for SymbolResolverEditorView {
             frame_action = ResolverFrameAction::CancelDraft;
         }
 
-        self.apply_frame_action(&project_symbol_catalog, frame_action, selected_resolver_id.as_deref(), draft.as_ref());
+        self.apply_frame_action(&project_symbol_catalog, frame_action, draft.as_ref());
 
         response
     }

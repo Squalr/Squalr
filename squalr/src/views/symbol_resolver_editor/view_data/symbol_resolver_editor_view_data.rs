@@ -9,6 +9,7 @@ pub enum SymbolResolverEditorTakeOverState {
     CreateResolver,
     RenameResolver { resolver_id: String },
     OpenResolver { resolver_id: String },
+    DeleteConfirmation { resolver_id: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -148,6 +149,19 @@ impl SymbolResolverEditorViewData {
         self.draft = self.baseline_draft.clone();
     }
 
+    pub fn begin_delete_confirmation(
+        &mut self,
+        resolver_id: &str,
+    ) {
+        self.selected_resolver_id = Some(resolver_id.to_string());
+        self.selected_node_path = None;
+        self.take_over_state = Some(SymbolResolverEditorTakeOverState::DeleteConfirmation {
+            resolver_id: resolver_id.to_string(),
+        });
+        self.baseline_draft = None;
+        self.draft = None;
+    }
+
     pub fn cancel_take_over_state(&mut self) {
         self.take_over_state = None;
         self.selected_node_path = None;
@@ -200,11 +214,13 @@ impl SymbolResolverEditorViewData {
 
         let should_clear_take_over_state = match self.take_over_state.as_ref() {
             Some(SymbolResolverEditorTakeOverState::CreateResolver) => false,
-            Some(SymbolResolverEditorTakeOverState::RenameResolver { resolver_id } | SymbolResolverEditorTakeOverState::OpenResolver { resolver_id }) => {
-                project_symbol_catalog
-                    .find_symbolic_resolver_descriptor(resolver_id)
-                    .is_none()
-            }
+            Some(
+                SymbolResolverEditorTakeOverState::RenameResolver { resolver_id }
+                | SymbolResolverEditorTakeOverState::OpenResolver { resolver_id }
+                | SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id },
+            ) => project_symbol_catalog
+                .find_symbolic_resolver_descriptor(resolver_id)
+                .is_none(),
             None => false,
         };
 
@@ -342,7 +358,7 @@ pub enum SymbolResolverNodeKind {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolResolverEditDraft, SymbolResolverEditorViewData};
+    use super::{SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData};
     use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
     use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
     use squalr_engine_api::structures::structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode};
@@ -362,6 +378,22 @@ mod tests {
         let draft = SymbolResolverEditorViewData::create_default_new_draft(&project_symbol_catalog);
 
         assert_eq!(draft.resolver_id, "new.resolver2");
+    }
+
+    #[test]
+    fn begin_delete_confirmation_selects_resolver_without_draft() {
+        let mut view_data = SymbolResolverEditorViewData::new();
+
+        view_data.begin_delete_confirmation("health.count");
+
+        assert_eq!(view_data.get_selected_resolver_id(), Some("health.count"));
+        assert_eq!(
+            view_data.get_take_over_state(),
+            Some(&SymbolResolverEditorTakeOverState::DeleteConfirmation {
+                resolver_id: String::from("health.count"),
+            })
+        );
+        assert!(view_data.get_draft().is_none());
     }
 
     #[test]

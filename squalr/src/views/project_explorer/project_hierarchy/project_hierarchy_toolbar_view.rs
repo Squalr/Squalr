@@ -53,7 +53,6 @@ impl Widget for ProjectHierarchyToolbarView {
 
         toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |user_interface| {
             let button_size = vec2(36.0, 28.0);
-            let has_deletable_selected_project_item = ProjectHierarchyViewData::has_deletable_selected_project_item(self.project_hierarchy_view_data.clone());
             let (is_busy, has_take_over_state) = self
                 .project_hierarchy_view_data
                 .read("Project hierarchy toolbar state")
@@ -97,27 +96,6 @@ impl Widget for ProjectHierarchyToolbarView {
                     );
                 }
             }
-
-            user_interface.allocate_ui_with_layout(
-                vec2(user_interface.available_width(), height),
-                Layout::right_to_left(Align::Center),
-                |user_interface| {
-                    let button_delete = user_interface.add_sized(
-                        button_size,
-                        Button::new_from_theme(&theme)
-                            .with_tooltip_text("Delete selected project item.")
-                            .background_color(theme.background_control_danger)
-                            .border_color(theme.background_control_danger_dark)
-                            .border_width(1.0)
-                            .disabled(!has_deletable_selected_project_item || is_busy || has_take_over_state),
-                    );
-                    IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
-
-                    if button_delete.clicked() {
-                        ProjectHierarchyViewData::request_delete_confirmation_for_selected_project_item(self.project_hierarchy_view_data.clone());
-                    }
-                },
-            );
         });
 
         response
