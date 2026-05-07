@@ -18,8 +18,12 @@ use crate::views::{
             DefineFieldDraft, ModuleRootCreateDraft, SymbolExplorerContextMenuTarget, SymbolExplorerSelection, SymbolExplorerTakeOverState,
             SymbolExplorerViewData,
         },
-        symbol_tree_entry::{ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries, resolve_symbol_tree_entry_size_in_bytes},
+        symbol_tree_entry::{
+            ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries_with_scalar_reader, resolve_symbol_tree_entry_size_in_bytes,
+        },
+        symbol_tree_scalar_value::SymbolTreeScalarValue,
     },
+    symbol_struct_editor::{symbol_struct_editor_view::SymbolStructEditorView, view_data::symbol_struct_editor_view_data::SymbolStructEditorViewData},
 };
 use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, TextEdit, Ui, UiBuilder, Widget, vec2};
 use epaint::{Stroke, pos2};
@@ -35,6 +39,7 @@ use squalr_engine_api::commands::{
         create::project_symbols_create_request::ProjectSymbolsCreateRequest,
         create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
         delete::project_symbols_delete_request::{ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode, ProjectSymbolsDeleteRequest},
+        execute_plugin_action::project_symbols_execute_plugin_action_request::ProjectSymbolsExecutePluginActionRequest,
         rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
         rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
     },
@@ -42,6 +47,7 @@ use squalr_engine_api::commands::{
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::plugins::symbol_tree::symbol_tree_action::{SymbolTreeActionContext, SymbolTreeActionSelection};
 use squalr_engine_api::structures::data_types::built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u64::data_type_u64::DataTypeU64};
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
@@ -59,6 +65,7 @@ use squalr_engine_api::structures::structs::{
 };
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -71,6 +78,7 @@ pub struct SymbolExplorerView {
     app_context: Arc<AppContext>,
     symbol_explorer_view_data: Dependency<SymbolExplorerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
+    symbol_struct_editor_view_data: Dependency<SymbolStructEditorViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     code_viewer_view_data: Dependency<CodeViewerViewData>,
 }
@@ -119,6 +127,13 @@ struct AddSymbolToProjectTarget {
     pointer_offsets: Option<Vec<PointerChainSegment>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SymbolTreePluginActionMenuItem {
+    plugin_id: String,
+    action_id: String,
+    label: String,
+}
+
 #[derive(Clone, Debug)]
 struct DefineFieldPlan {
     project_symbols_create_request: ProjectSymbolsCreateRequest,
@@ -127,8 +142,10 @@ struct DefineFieldPlan {
 impl SymbolExplorerView {
     pub const WINDOW_ID: &'static str = "window_symbol_explorer";
     const POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_pointer_children";
+    const SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_scalar_values";
     const PREVIEW_VALUES_VIRTUAL_SNAPSHOT_ID: &'static str = "symbol_explorer_preview_values";
     const POINTER_CHILDREN_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
+    const SCALAR_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const PREVIEW_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
@@ -153,6 +170,9 @@ impl SymbolExplorerView {
         let struct_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<StructViewerViewData>();
+        let symbol_struct_editor_view_data = app_context
+            .dependency_container
+            .get_dependency::<SymbolStructEditorViewData>();
         let memory_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<MemoryViewerViewData>();
@@ -164,6 +184,7 @@ impl SymbolExplorerView {
             app_context,
             symbol_explorer_view_data,
             struct_viewer_view_data,
+            symbol_struct_editor_view_data,
             memory_viewer_view_data,
             code_viewer_view_data,
         }
@@ -872,11 +893,16 @@ impl SymbolExplorerView {
     }
 
     fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<AddSymbolToProjectTarget> {
-        let SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } = symbol_tree_entry.get_kind() else {
+        if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
             return None;
-        };
-        let project_item_name = symbol_tree_entry.get_display_name().trim().to_string();
-        let (address, module_name) = Self::parse_symbol_locator_key_as_project_item_address(symbol_locator_key)?;
+        }
+
+        let project_item_name = Self::build_add_symbol_project_item_name(symbol_tree_entry);
+        let address = symbol_tree_entry.get_locator().get_focus_address();
+        let module_name = symbol_tree_entry
+            .get_locator()
+            .get_focus_module_name()
+            .to_string();
         let pointer_offsets = Self::build_add_symbol_pointer_offsets(symbol_tree_entry, address, &module_name);
 
         Some(AddSymbolToProjectTarget {
@@ -887,9 +913,16 @@ impl SymbolExplorerView {
             },
             address,
             module_name,
-            data_type_id: symbol_tree_entry.get_symbol_type_id().to_string(),
+            data_type_id: symbol_tree_entry.get_display_type_id(),
             pointer_offsets,
         })
+    }
+
+    fn build_add_symbol_project_item_name(symbol_tree_entry: &SymbolTreeEntry) -> String {
+        match symbol_tree_entry.get_kind() {
+            SymbolTreeEntryKind::SymbolClaim { .. } => symbol_tree_entry.get_display_name().trim().to_string(),
+            _ => symbol_tree_entry.get_full_path().trim().to_string(),
+        }
     }
 
     fn build_add_symbol_project_item_create_request(add_symbol_to_project_target: &AddSymbolToProjectTarget) -> ProjectItemsCreateRequest {
@@ -909,7 +942,11 @@ impl SymbolExplorerView {
         address: u64,
         module_name: &str,
     ) -> Option<Vec<PointerChainSegment>> {
-        if module_name.trim().is_empty() || !PointerChainSegment::is_valid_symbol_name(symbol_tree_entry.get_display_name()) {
+        if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { .. })
+            || symbol_tree_entry.get_depth() != 1
+            || module_name.trim().is_empty()
+            || !PointerChainSegment::is_valid_symbol_name(symbol_tree_entry.get_display_name())
+        {
             return None;
         }
 
@@ -919,18 +956,38 @@ impl SymbolExplorerView {
         ])
     }
 
-    fn parse_symbol_locator_key_as_project_item_address(symbol_locator_key: &str) -> Option<(u64, String)> {
-        if let Some(address_text) = symbol_locator_key.strip_prefix("absolute:") {
-            let address = u64::from_str_radix(address_text, 16).ok()?;
+    fn build_struct_layout_edit_target(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entry: &SymbolTreeEntry,
+    ) -> Option<String> {
+        let symbol_type_id = symbol_tree_entry.get_symbol_type_id();
 
-            return Some((address, String::new()));
+        project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbol_type_id)
+            .then(|| symbol_type_id.to_string())
+    }
+
+    fn edit_symbol_tree_entry_struct_layout(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        struct_layout_id: &str,
+    ) {
+        SymbolStructEditorViewData::begin_edit_struct_layout(self.symbol_struct_editor_view_data.clone(), project_symbol_catalog, struct_layout_id);
+
+        match self.app_context.docking_manager.write() {
+            Ok(mut docking_manager) => {
+                docking_manager.set_window_visibility(SymbolStructEditorView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(SymbolStructEditorView::WINDOW_ID);
+            }
+            Err(error) => {
+                log::error!(
+                    "Failed to acquire docking manager while opening Symbol Struct Editor from Symbol Explorer: {}",
+                    error
+                );
+            }
         }
-
-        let module_locator_text = symbol_locator_key.strip_prefix("module:")?;
-        let (module_name, offset_text) = module_locator_text.rsplit_once(':')?;
-        let offset = u64::from_str_radix(offset_text, 16).ok()?;
-
-        Some((offset, module_name.to_string()))
     }
 
     fn add_symbol_to_project(
@@ -1729,6 +1786,58 @@ impl SymbolExplorerView {
                     query_id.clone(),
                     ResolvedPointerTarget::new(target_locator, virtual_snapshot_query_result.evaluated_pointer_path.clone()),
                 ))
+            })
+            .collect()
+    }
+
+    fn sync_symbol_scalar_virtual_snapshot(
+        &self,
+        scalar_snapshot_queries: Vec<VirtualSnapshotQuery>,
+    ) {
+        self.app_context
+            .engine_unprivileged_state
+            .set_virtual_snapshot_queries(
+                Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID,
+                Self::SCALAR_VALUES_REFRESH_INTERVAL,
+                SymbolTreeScalarValue::deduplicate_queries_by_id(scalar_snapshot_queries),
+            );
+        self.app_context
+            .engine_unprivileged_state
+            .request_virtual_snapshot_refresh(Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID);
+    }
+
+    fn collect_scalar_values_by_query_id(&self) -> HashMap<String, i128> {
+        let Some(virtual_snapshot) = self
+            .app_context
+            .engine_unprivileged_state
+            .get_virtual_snapshot(Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID)
+        else {
+            return HashMap::new();
+        };
+
+        virtual_snapshot
+            .get_query_results()
+            .iter()
+            .filter_map(|(query_id, virtual_snapshot_query_result)| {
+                let memory_read_response = virtual_snapshot_query_result.memory_read_response.as_ref()?;
+
+                if !memory_read_response.success {
+                    return None;
+                }
+
+                let first_read_field_data_value = memory_read_response
+                    .valued_struct
+                    .get_fields()
+                    .first()
+                    .and_then(|valued_struct_field| valued_struct_field.get_data_value())?;
+                let scalar_value = self
+                    .app_context
+                    .engine_unprivileged_state
+                    .read_scalar_integer_value(first_read_field_data_value)
+                    .ok()
+                    .flatten()?;
+
+                Some((query_id.clone(), scalar_value))
             })
             .collect()
     }
@@ -2563,14 +2672,14 @@ impl SymbolExplorerView {
     fn calculate_symbol_tree_context_menu_width(
         app_context: &AppContext,
         user_interface: &mut Ui,
-        item_labels: &[&str],
+        item_labels: &[String],
     ) -> f32 {
         let mut longest_label_width: f32 = 0.0;
 
         user_interface.ctx().fonts_mut(|fonts| {
             for item_label in item_labels {
                 let galley = fonts.layout_no_wrap(
-                    (*item_label).to_string(),
+                    item_label.to_string(),
                     app_context
                         .theme
                         .font_library
@@ -2584,6 +2693,77 @@ impl SymbolExplorerView {
         });
 
         ToolbarMenuItemView::row_width_from_text_width(longest_label_width).ceil()
+    }
+
+    fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeEntry) -> SymbolTreeActionContext {
+        match symbol_tree_entry.get_kind() {
+            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
+                module_name: module_name.to_string(),
+            }),
+            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolTreeActionContext::new(SymbolTreeActionSelection::SymbolLocator {
+                symbol_locator_key: symbol_locator_key.to_string(),
+            }),
+            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRange {
+                module_name: module_name.to_string(),
+                offset: *offset,
+                length: *length,
+            }),
+            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::PointerTarget => SymbolTreeActionContext::new(SymbolTreeActionSelection::DerivedNode {
+                tree_node_key: symbol_tree_entry.get_node_key().to_string(),
+            }),
+        }
+    }
+
+    fn build_symbol_tree_plugin_action_menu_items(
+        &self,
+        context: &SymbolTreeActionContext,
+    ) -> Vec<SymbolTreePluginActionMenuItem> {
+        let plugin_registry = self.app_context.engine_unprivileged_state.get_plugin_registry();
+
+        plugin_registry
+            .get_enabled_symbol_tree_actions()
+            .into_iter()
+            .filter(|(plugin_id, symbol_tree_action)| {
+                symbol_tree_action.is_visible(context) && plugin_registry.plugin_action_has_required_permissions(plugin_id, symbol_tree_action.as_ref())
+            })
+            .map(|(plugin_id, symbol_tree_action)| SymbolTreePluginActionMenuItem {
+                plugin_id,
+                action_id: symbol_tree_action.action_id().to_string(),
+                label: symbol_tree_action.label(context),
+            })
+            .collect()
+    }
+
+    fn execute_symbol_tree_plugin_action(
+        &self,
+        menu_item: &SymbolTreePluginActionMenuItem,
+        context: SymbolTreeActionContext,
+    ) {
+        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
+        let project_symbols_execute_plugin_action_request = ProjectSymbolsExecutePluginActionRequest {
+            plugin_id: menu_item.plugin_id.clone(),
+            action_id: menu_item.action_id.clone(),
+            context: context.clone(),
+        };
+
+        project_symbols_execute_plugin_action_request.send(
+            &self.app_context.engine_unprivileged_state,
+            move |project_symbols_execute_plugin_action_response| {
+                if !project_symbols_execute_plugin_action_response.success {
+                    log::warn!(
+                        "Symbol Tree plugin action failed: {}",
+                        project_symbols_execute_plugin_action_response
+                            .error
+                            .unwrap_or_else(|| String::from("unknown error"))
+                    );
+                    return;
+                }
+
+                if let SymbolTreeActionSelection::ModuleRoot { module_name } = context.get_selection() {
+                    SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{module_name}"));
+                }
+            },
+        );
     }
 
     #[allow(dead_code)]
@@ -2884,25 +3064,37 @@ impl SymbolExplorerView {
                     });
                 let context_menu_u8_span_edit_target = Self::build_u8_span_edit_target(symbol_tree_entry);
                 let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
+                let context_menu_struct_layout_edit_target = Self::build_struct_layout_edit_target(project_symbol_catalog, symbol_tree_entry);
+                let context_menu_symbol_tree_action_context = Self::build_symbol_tree_action_context(symbol_tree_entry);
+                let context_menu_plugin_action_menu_items = self.build_symbol_tree_plugin_action_menu_items(&context_menu_symbol_tree_action_context);
                 let can_delete_symbol_tree_entry =
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
                 if can_open_symbol_tree_entry {
-                    context_menu_labels.extend(["Open in Memory Viewer", "Open in Code Viewer"]);
+                    context_menu_labels.push(String::from("Open in Memory Viewer"));
+                    context_menu_labels.push(String::from("Open in Code Viewer"));
                 }
                 if context_menu_add_symbol_to_project_target.is_some() {
-                    context_menu_labels.push("Add to Project");
+                    context_menu_labels.push(String::from("Add to Project"));
                 }
                 if context_menu_u8_span_edit_target.is_some() {
-                    context_menu_labels.push("Define Field...");
-                    context_menu_labels.push("Split in Half");
+                    context_menu_labels.push(String::from("Define Field..."));
+                    context_menu_labels.push(String::from("Split in Half"));
+                }
+                if context_menu_struct_layout_edit_target.is_some() {
+                    context_menu_labels.push(String::from("Edit Struct Layout..."));
                 }
                 if can_rename_symbol_tree_entry {
-                    context_menu_labels.push("Rename");
+                    context_menu_labels.push(String::from("Rename"));
                 }
-                context_menu_labels.push("New Module");
+                context_menu_labels.extend(
+                    context_menu_plugin_action_menu_items
+                        .iter()
+                        .map(|menu_item| menu_item.label.clone()),
+                );
+                context_menu_labels.push(String::from("New Module"));
                 if can_delete_symbol_tree_entry {
-                    context_menu_labels.push("Delete");
+                    context_menu_labels.push(String::from("Delete"));
                 }
                 let context_menu_width = Self::calculate_symbol_tree_context_menu_width(self.app_context.as_ref(), user_interface, &context_menu_labels);
                 let mut is_context_menu_open = true;
@@ -2989,7 +3181,7 @@ impl SymbolExplorerView {
                         }
 
                         if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some())
-                            && (context_menu_u8_span_edit_target.is_some() || can_rename_symbol_tree_entry)
+                            && (context_menu_u8_span_edit_target.is_some() || context_menu_struct_layout_edit_target.is_some() || can_rename_symbol_tree_entry)
                         {
                             user_interface.separator();
                         }
@@ -3051,6 +3243,35 @@ impl SymbolExplorerView {
                             user_interface.separator();
                         }
 
+                        if let Some(struct_layout_id) = context_menu_struct_layout_edit_target.as_deref() {
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        "Edit Struct Layout...",
+                                        "symbol_tree_ctx_edit_struct_layout",
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_common_edit
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.edit_symbol_tree_entry_struct_layout(project_symbol_catalog, struct_layout_id);
+                                *should_close = true;
+                            }
+                        }
+
+                        if context_menu_struct_layout_edit_target.is_some() && can_rename_symbol_tree_entry {
+                            user_interface.separator();
+                        }
+
                         if can_rename_symbol_tree_entry
                             && user_interface
                                 .add(
@@ -3068,7 +3289,46 @@ impl SymbolExplorerView {
                             *should_close = true;
                         }
 
-                        if can_open_symbol_tree_entry || context_menu_u8_span_edit_target.is_some() || can_rename_symbol_tree_entry {
+                        let has_symbol_tree_edit_menu_items = can_open_symbol_tree_entry
+                            || context_menu_u8_span_edit_target.is_some()
+                            || context_menu_struct_layout_edit_target.is_some()
+                            || can_rename_symbol_tree_entry;
+
+                        if has_symbol_tree_edit_menu_items && !context_menu_plugin_action_menu_items.is_empty() {
+                            user_interface.separator();
+                        }
+
+                        for plugin_action_menu_item in &context_menu_plugin_action_menu_items {
+                            let plugin_action_widget_id = format!(
+                                "symbol_tree_ctx_plugin_action_{}_{}",
+                                plugin_action_menu_item.plugin_id, plugin_action_menu_item.action_id
+                            );
+
+                            if user_interface
+                                .add(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        &plugin_action_menu_item.label,
+                                        &plugin_action_widget_id,
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_data_type_blue_blocks_4
+                                            .clone(),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.execute_symbol_tree_plugin_action(plugin_action_menu_item, context_menu_symbol_tree_action_context.clone());
+                                *should_close = true;
+                            }
+                        }
+
+                        if has_symbol_tree_edit_menu_items || !context_menu_plugin_action_menu_items.is_empty() {
                             user_interface.separator();
                         }
 
@@ -3279,6 +3539,9 @@ impl Widget for SymbolExplorerView {
                 .set_virtual_snapshot_queries(Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID, Self::POINTER_CHILDREN_REFRESH_INTERVAL, Vec::new());
             self.app_context
                 .engine_unprivileged_state
+                .set_virtual_snapshot_queries(Self::SCALAR_VALUES_VIRTUAL_SNAPSHOT_ID, Self::SCALAR_VALUES_REFRESH_INTERVAL, Vec::new());
+            self.app_context
+                .engine_unprivileged_state
                 .set_virtual_snapshot_queries(Self::PREVIEW_VALUES_VIRTUAL_SNAPSHOT_ID, Self::PREVIEW_VALUES_REFRESH_INTERVAL, Vec::new());
 
             return user_interface
@@ -3306,25 +3569,51 @@ impl Widget for SymbolExplorerView {
             .read("Symbol explorer expanded tree nodes")
             .map(|symbol_explorer_view_data| symbol_explorer_view_data.get_expanded_tree_node_keys().clone())
             .unwrap_or_default();
-        let structural_symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+        let scalar_values_by_query_id = self.collect_scalar_values_by_query_id();
+        let scalar_snapshot_queries = RefCell::new(Vec::new());
+        let resolve_primitive_size_in_bytes = |data_type_ref: &DataTypeRef| {
             self.app_context
                 .engine_unprivileged_state
                 .get_default_value(data_type_ref)
                 .map(|default_value| default_value.get_size_in_bytes())
-        });
+        };
+        let read_scalar_field = |project_symbol_locator: &ProjectSymbolLocator, field_definition: &SymbolicFieldDefinition, field_size_in_bytes: u64| {
+            let scalar_query_id = SymbolTreeScalarValue::query_id(project_symbol_locator, field_definition);
+
+            if let Some(scalar_snapshot_query) =
+                SymbolTreeScalarValue::build_query(project_symbol_locator, field_definition, field_size_in_bytes, |data_type_ref| {
+                    self.app_context
+                        .engine_unprivileged_state
+                        .supports_scalar_integer_values(data_type_ref)
+                })
+            {
+                scalar_snapshot_queries.borrow_mut().push(scalar_snapshot_query);
+            }
+
+            if let Some(scalar_value) = scalar_values_by_query_id.get(&scalar_query_id) {
+                return Ok(Some(*scalar_value));
+            }
+
+            Ok(None)
+        };
+        let structural_symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            resolve_primitive_size_in_bytes,
+            read_scalar_field,
+        );
+        self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
         self.sync_pointer_child_virtual_snapshot(&project_symbol_catalog, &structural_symbol_tree_entries);
         let resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &resolved_pointer_targets_by_node_key,
-            |data_type_ref| {
-                self.app_context
-                    .engine_unprivileged_state
-                    .get_default_value(data_type_ref)
-                    .map(|default_value| default_value.get_size_in_bytes())
-            },
+            resolve_primitive_size_in_bytes,
+            read_scalar_field,
         );
+        self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
         self.sync_symbol_preview_virtual_snapshot(&project_symbol_catalog, &symbol_tree_entries);
         let preview_values_by_node_key = self.collect_preview_values_by_node_key(&symbol_tree_entries);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
@@ -3744,6 +4033,22 @@ mod tests {
         )
     }
 
+    fn create_struct_field_tree_entry() -> SymbolTreeEntry {
+        SymbolTreeEntry::new(
+            String::from("module_field:module:game.exe:0::NTHeaders::FileHeader"),
+            SymbolTreeEntryKind::StructField,
+            3,
+            String::from("FileHeader"),
+            String::from("PE Headers.NTHeaders.FileHeader"),
+            String::from("module:game.exe:0"),
+            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x84),
+            String::from("win.pe.IMAGE_FILE_HEADER"),
+            ContainerType::None,
+            true,
+            false,
+        )
+    }
+
     fn create_fixed_array_symbol_claim_tree_entry(
         data_type_id: &str,
         array_length: u64,
@@ -3812,10 +4117,44 @@ mod tests {
     }
 
     #[test]
-    fn build_add_symbol_to_project_target_ignores_derived_rows() {
-        let u8_segment_entry = create_u8_segment_tree_entry();
+    fn build_add_symbol_to_project_target_accepts_struct_field_rows() {
+        let struct_field_entry = create_struct_field_tree_entry();
+        let add_symbol_to_project_target =
+            SymbolExplorerView::build_add_symbol_to_project_target(&struct_field_entry).expect("Expected derived struct field add-to-project target.");
 
-        assert_eq!(SymbolExplorerView::build_add_symbol_to_project_target(&u8_segment_entry), None);
+        assert_eq!(add_symbol_to_project_target.project_item_name, "PE Headers.NTHeaders.FileHeader");
+        assert_eq!(add_symbol_to_project_target.address, 0x84);
+        assert_eq!(add_symbol_to_project_target.module_name, "game.exe");
+        assert_eq!(add_symbol_to_project_target.data_type_id, "win.pe.IMAGE_FILE_HEADER");
+        assert_eq!(add_symbol_to_project_target.pointer_offsets, None);
+    }
+
+    #[test]
+    fn build_add_symbol_to_project_target_ignores_module_roots() {
+        let module_entry = create_module_tree_entry("game.exe");
+
+        assert_eq!(SymbolExplorerView::build_add_symbol_to_project_target(&module_entry), None);
+    }
+
+    #[test]
+    fn build_struct_layout_edit_target_resolves_project_struct_rows() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("win.pe.IMAGE_FILE_HEADER"),
+            SymbolicStructDefinition::new(
+                String::from("win.pe.IMAGE_FILE_HEADER"),
+                vec![SymbolicFieldDefinition::new_named(
+                    String::from("NumberOfSections"),
+                    DataTypeRef::new("u16"),
+                    ContainerType::None,
+                )],
+            ),
+        )]);
+        let struct_field_entry = create_struct_field_tree_entry();
+
+        assert_eq!(
+            SymbolExplorerView::build_struct_layout_edit_target(&project_symbol_catalog, &struct_field_entry),
+            Some(String::from("win.pe.IMAGE_FILE_HEADER"))
+        );
     }
 
     #[test]

@@ -14,6 +14,7 @@ use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
 use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
@@ -48,6 +49,7 @@ impl MainToolbarView {
         let docking_manager_for_symbol_explorer = app_context.docking_manager.clone();
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
         let docking_manager_for_symbol_struct_editor = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_resolver_editor = app_context.docking_manager.clone();
         let docking_manager_for_memory_viewer = app_context.docking_manager.clone();
         let docking_manager_for_code_viewer = app_context.docking_manager.clone();
         let docking_manager_for_output = app_context.docking_manager.clone();
@@ -138,6 +140,19 @@ impl MainToolbarView {
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_symbol_struct_editor.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(SymbolStructEditorView::WINDOW_ID) {
+                                    return Some(docked_node.is_visible());
+                                }
+                            }
+
+                            None
+                        })),
+                    ),
+                    ToolbarMenuItemData::new(
+                        SymbolResolverEditorView::WINDOW_ID,
+                        "Symbol Resolvers",
+                        Some(Box::new(move || {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_resolver_editor.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolResolverEditorView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -314,6 +329,7 @@ impl Widget for MainToolbarView {
             | SymbolExplorerView::WINDOW_ID
             | StructViewerView::WINDOW_ID
             | SymbolStructEditorView::WINDOW_ID
+            | SymbolResolverEditorView::WINDOW_ID
             | MemoryViewerView::WINDOW_ID
             | CodeViewerView::WINDOW_ID
             | OutputView::WINDOW_ID

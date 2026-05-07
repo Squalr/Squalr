@@ -31,6 +31,11 @@ impl UnprivilegedCommandExecutor for ProjectSymbolsCommand {
             } => project_symbols_delete_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),
+            ProjectSymbolsCommand::ExecutePluginAction {
+                project_symbols_execute_plugin_action_request,
+            } => project_symbols_execute_plugin_action_request
+                .execute(engine_unprivileged_state)
+                .to_engine_response(),
             ProjectSymbolsCommand::List { project_symbols_list_request } => project_symbols_list_request
                 .execute(engine_unprivileged_state)
                 .to_engine_response(),

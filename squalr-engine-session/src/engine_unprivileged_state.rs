@@ -1,4 +1,5 @@
 use crate::logging::log_dispatcher::{LogDispatcher, LogDispatcherOptions};
+use crate::plugins::plugin_registry::PluginRegistry;
 use crate::registries::privileged_registry_cache::PrivilegedRegistryCache;
 use crate::virtual_snapshots::{
     virtual_snapshot::VirtualSnapshot, virtual_snapshot_query::VirtualSnapshotQuery, virtual_snapshot_resolver::materialize_virtual_snapshot_queries,
@@ -46,6 +47,8 @@ pub struct EngineUnprivilegedState {
     file_system_logger: Arc<LogDispatcher>,
     /// Project manager for organizing and manipulating projects.
     project_manager: Arc<ProjectManager>,
+    /// Built-in plugin registry used by client-side extension points.
+    plugin_registry: Arc<PluginRegistry>,
     /// Cached privileged-owned registry catalog synchronized from the engine.
     privileged_registry_cache: Arc<RwLock<PrivilegedRegistryCache>>,
     /// Session-owned virtual snapshots used by interactive views.
@@ -119,6 +122,7 @@ impl EngineUnprivilegedState {
         options: EngineUnprivilegedStateOptions,
     ) -> Arc<Self> {
         let project_manager = Arc::new(ProjectManager::new());
+        let plugin_registry = Arc::new(PluginRegistry::new());
 
         Arc::new(EngineUnprivilegedState {
             engine_api_unprivileged_bindings,
@@ -127,6 +131,7 @@ impl EngineUnprivilegedState {
                 enable_console_output: options.enable_console_logging,
             })),
             project_manager,
+            plugin_registry,
             privileged_registry_cache: Arc::new(RwLock::new(PrivilegedRegistryCache::default())),
             virtual_snapshots: Arc::new(RwLock::new(HashMap::new())),
         })
@@ -140,6 +145,10 @@ impl EngineUnprivilegedState {
     /// Gets the file system logger that routes log events to the log file.
     pub fn get_logger(&self) -> &Arc<LogDispatcher> {
         &self.file_system_logger
+    }
+
+    pub fn get_plugin_registry(&self) -> Arc<PluginRegistry> {
+        self.plugin_registry.clone()
     }
 
     pub fn get_privileged_registry_generation(&self) -> u64 {
@@ -287,6 +296,27 @@ impl EngineUnprivilegedState {
     ) -> Result<Vec<AnonymousValueString>, SymbolRegistryError> {
         self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.anonymize_value_to_supported_formats(data_value))
             .unwrap_or_else(|| Err(SymbolRegistryError::data_type_not_registered("anonymize value", data_value.get_data_type_id())))
+    }
+
+    pub fn supports_scalar_integer_values(
+        &self,
+        data_type_ref: &DataTypeRef,
+    ) -> bool {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.supports_scalar_integer_values(data_type_ref))
+            .unwrap_or(false)
+    }
+
+    pub fn read_scalar_integer_value(
+        &self,
+        data_value: &DataValue,
+    ) -> Result<Option<i128>, SymbolRegistryError> {
+        self.read_privileged_registry_cache(|privileged_registry_cache| privileged_registry_cache.read_scalar_integer_value(data_value))
+            .unwrap_or_else(|| {
+                Err(SymbolRegistryError::data_type_not_registered(
+                    "read scalar integer value",
+                    data_value.get_data_type_id(),
+                ))
+            })
     }
 
     pub fn set_virtual_snapshot_queries(

@@ -1,5 +1,6 @@
 use crossbeam_channel::{Receiver, unbounded};
 use squalr_engine_api::commands::{
+    memory::{memory_command::MemoryCommand, read::memory_read_request::MemoryReadRequest, read::memory_read_response::MemoryReadResponse},
     privileged_command::PrivilegedCommand,
     privileged_command_response::{PrivilegedCommandResponse, TypedPrivilegedCommandResponse},
     registry::{registry_command::RegistryCommand, set_project_symbols::registry_set_project_symbols_response::RegistrySetProjectSymbolsResponse},
@@ -24,12 +25,23 @@ use std::{
 
 pub struct MockProjectSymbolsBindings {
     captured_project_symbol_catalogs: Arc<Mutex<Vec<ProjectSymbolCatalog>>>,
+    memory_read_response_factory: Option<Arc<dyn Fn(&MemoryReadRequest) -> MemoryReadResponse + Send + Sync>>,
 }
 
 impl MockProjectSymbolsBindings {
     pub fn new() -> Self {
         Self {
             captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
+            memory_read_response_factory: None,
+        }
+    }
+
+    pub fn new_with_memory_read_response_factory(
+        memory_read_response_factory: impl Fn(&MemoryReadRequest) -> MemoryReadResponse + Send + Sync + 'static
+    ) -> Self {
+        Self {
+            captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
+            memory_read_response_factory: Some(Arc::new(memory_read_response_factory)),
         }
     }
 
@@ -57,6 +69,15 @@ impl EngineApiUnprivilegedBindings for MockProjectSymbolsBindings {
                 drop(captured_project_symbol_catalogs);
 
                 callback(RegistrySetProjectSymbolsResponse { success: true }.to_engine_response());
+
+                Ok(())
+            }
+            PrivilegedCommand::Memory(MemoryCommand::Read { memory_read_request }) => {
+                let Some(memory_read_response_factory) = self.memory_read_response_factory.as_ref() else {
+                    return Err(EngineBindingError::unavailable("dispatching memory read in project-symbols tests"));
+                };
+
+                callback(memory_read_response_factory(&memory_read_request).to_engine_response());
 
                 Ok(())
             }

@@ -1,4 +1,5 @@
 use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+use crate::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
@@ -11,6 +12,8 @@ pub struct ProjectSymbolCatalog {
     symbol_modules: Vec<ProjectSymbolModule>,
     #[serde(default)]
     struct_layout_descriptors: Vec<StructLayoutDescriptor>,
+    #[serde(default)]
+    symbolic_resolver_descriptors: Vec<SymbolicResolverDescriptor>,
     #[serde(default)]
     symbol_claims: Vec<ProjectSymbolClaim>,
 }
@@ -32,9 +35,19 @@ impl ProjectSymbolCatalog {
         struct_layout_descriptors: Vec<StructLayoutDescriptor>,
         symbol_claims: Vec<ProjectSymbolClaim>,
     ) -> Self {
+        Self::new_with_modules_resolvers_and_symbol_claims(symbol_modules, struct_layout_descriptors, Vec::new(), symbol_claims)
+    }
+
+    pub fn new_with_modules_resolvers_and_symbol_claims(
+        symbol_modules: Vec<ProjectSymbolModule>,
+        struct_layout_descriptors: Vec<StructLayoutDescriptor>,
+        symbolic_resolver_descriptors: Vec<SymbolicResolverDescriptor>,
+        symbol_claims: Vec<ProjectSymbolClaim>,
+    ) -> Self {
         Self {
             symbol_modules,
             struct_layout_descriptors,
+            symbolic_resolver_descriptors,
             symbol_claims,
         }
     }
@@ -162,6 +175,26 @@ impl ProjectSymbolCatalog {
         self.struct_layout_descriptors = struct_layout_descriptors;
     }
 
+    pub fn get_symbolic_resolver_descriptors(&self) -> &[SymbolicResolverDescriptor] {
+        &self.symbolic_resolver_descriptors
+    }
+
+    pub fn set_symbolic_resolver_descriptors(
+        &mut self,
+        symbolic_resolver_descriptors: Vec<SymbolicResolverDescriptor>,
+    ) {
+        self.symbolic_resolver_descriptors = symbolic_resolver_descriptors;
+    }
+
+    pub fn find_symbolic_resolver_descriptor(
+        &self,
+        resolver_id: &str,
+    ) -> Option<&SymbolicResolverDescriptor> {
+        self.symbolic_resolver_descriptors
+            .iter()
+            .find(|resolver_descriptor| resolver_descriptor.get_resolver_id() == resolver_id)
+    }
+
     pub fn get_symbol_claims(&self) -> &[ProjectSymbolClaim] {
         &self.symbol_claims
     }
@@ -214,7 +247,10 @@ impl ProjectSymbolCatalog {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.symbol_modules.is_empty() && self.struct_layout_descriptors.is_empty() && self.symbol_claims.is_empty()
+        self.symbol_modules.is_empty()
+            && self.struct_layout_descriptors.is_empty()
+            && self.symbolic_resolver_descriptors.is_empty()
+            && self.symbol_claims.is_empty()
     }
 }
 
@@ -230,4 +266,41 @@ fn parse_symbol_locator_key(symbol_locator_key: &str) -> Option<ProjectSymbolLoc
     let offset = u64::from_str_radix(offset_text, 16).ok()?;
 
     Some(ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProjectSymbolCatalog;
+    use crate::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
+    use crate::structures::structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode};
+
+    #[test]
+    fn catalog_stores_symbolic_resolver_descriptors() {
+        let resolver_descriptor = SymbolicResolverDescriptor::new(
+            String::from("inventory.count"),
+            SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("count"))),
+        );
+        let project_symbol_catalog =
+            ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(Vec::new(), Vec::new(), vec![resolver_descriptor], Vec::new());
+
+        let found_resolver_descriptor = project_symbol_catalog
+            .find_symbolic_resolver_descriptor("inventory.count")
+            .expect("Expected resolver descriptor.");
+
+        assert_eq!(found_resolver_descriptor.get_resolver_id(), "inventory.count");
+    }
+
+    #[test]
+    fn empty_catalog_considers_resolvers() {
+        let mut project_symbol_catalog = ProjectSymbolCatalog::default();
+
+        assert!(project_symbol_catalog.is_empty());
+
+        project_symbol_catalog.set_symbolic_resolver_descriptors(vec![SymbolicResolverDescriptor::new(
+            String::from("inventory.count"),
+            SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(1)),
+        )]);
+
+        assert!(!project_symbol_catalog.is_empty());
+    }
 }

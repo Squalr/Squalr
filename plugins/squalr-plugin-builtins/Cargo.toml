@@ -11,3 +11,4 @@ squalr-plugin-instructions-arm = { path = "../squalr-plugin-instructions-arm" }
 squalr-plugin-instructions-powerpc = { path = "../squalr-plugin-instructions-powerpc" }
 squalr-plugin-instructions-x86 = { path = "../squalr-plugin-instructions-x86" }
 squalr-plugin-memory-view-dolphin = { path = "../squalr-plugin-memory-view-dolphin" }
+squalr-plugin-symbols-pe = { path = "../squalr-plugin-symbols-pe" }

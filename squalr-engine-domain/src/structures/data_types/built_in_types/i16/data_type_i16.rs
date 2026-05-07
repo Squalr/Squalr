@@ -100,6 +100,10 @@ impl DataType for DataTypeI16 {
         true
     }
 
+    fn supports_scalar_integer_values(&self) -> bool {
+        true
+    }
+
     fn get_default_value(
         &self,
         data_type_ref: DataTypeRef,

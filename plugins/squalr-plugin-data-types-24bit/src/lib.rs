@@ -13,6 +13,7 @@ pub use plugin::TwentyFourBitDataTypesPlugin;
 mod tests {
     use super::{DataTypeI24, DataTypeI24be, DataTypeU24, DataTypeU24be, TwentyFourBitDataTypesPlugin};
     use squalr_engine_api::plugins::{Plugin, data_type::DataTypePlugin};
+    use squalr_engine_api::structures::data_types::data_type::DataType;
 
     #[test]
     fn plugin_exposes_expected_metadata_and_data_types() {
@@ -29,5 +30,18 @@ mod tests {
                 DataTypeI24be::DATA_TYPE_ID,
             ]
         );
+    }
+
+    #[test]
+    fn twenty_four_bit_types_opt_into_scalar_integer_layout_values() {
+        let unsigned_value = DataTypeU24
+            .read_scalar_integer_value(DataTypeU24::get_value_from_primitive(0x12_3456).get_value_bytes())
+            .expect("Expected u24 scalar integer value to decode.");
+        let signed_big_endian_value = DataTypeI24be
+            .read_scalar_integer_value(DataTypeI24be::get_value_from_primitive(-32768).get_value_bytes())
+            .expect("Expected i24be scalar integer value to decode.");
+
+        assert_eq!(unsigned_value, Some(0x12_3456));
+        assert_eq!(signed_big_endian_value, Some(-32768));
     }
 }
