@@ -4,7 +4,10 @@ use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
-    data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
+    data_types::{
+        built_in_types::{i32::data_type_i32::DataTypeI32, u8::data_type_u8::DataTypeU8},
+        data_type_ref::DataTypeRef,
+    },
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
         symbolic_expression::SymbolicExpression,
@@ -564,6 +567,72 @@ impl SymbolStructEditorViewData {
         None
     }
 
+    fn retarget_catalog_struct_layout_references(
+        project_symbol_catalog: &mut ProjectSymbolCatalog,
+        source_struct_layout_id: &str,
+        replacement_data_type_ref: &DataTypeRef,
+    ) {
+        for symbol_claim in project_symbol_catalog.get_symbol_claims_mut() {
+            if symbol_claim.get_struct_layout_id() == source_struct_layout_id {
+                symbol_claim.set_struct_layout_id(replacement_data_type_ref.get_data_type_id().to_string());
+            }
+        }
+
+        for symbol_module in project_symbol_catalog.get_symbol_modules_mut() {
+            for module_field in symbol_module.get_fields_mut() {
+                if module_field.get_struct_layout_id() == source_struct_layout_id {
+                    module_field.set_struct_layout_id(replacement_data_type_ref.get_data_type_id().to_string());
+                }
+            }
+        }
+
+        let retargeted_struct_layout_descriptors = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .map(|struct_layout_descriptor| {
+                let retargeted_fields = struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_fields()
+                    .iter()
+                    .map(|symbolic_field_definition| {
+                        Self::retarget_symbolic_field_definition_type(symbolic_field_definition, source_struct_layout_id, replacement_data_type_ref)
+                    })
+                    .collect();
+
+                StructLayoutDescriptor::new(
+                    struct_layout_descriptor.get_struct_layout_id().to_string(),
+                    SymbolicStructDefinition::new(
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_symbol_namespace()
+                            .to_string(),
+                        retargeted_fields,
+                    ),
+                )
+            })
+            .collect();
+
+        project_symbol_catalog.set_struct_layout_descriptors(retargeted_struct_layout_descriptors);
+    }
+
+    fn retarget_symbolic_field_definition_type(
+        symbolic_field_definition: &SymbolicFieldDefinition,
+        source_struct_layout_id: &str,
+        replacement_data_type_ref: &DataTypeRef,
+    ) -> SymbolicFieldDefinition {
+        if symbolic_field_definition.get_data_type_ref().get_data_type_id() != source_struct_layout_id {
+            return symbolic_field_definition.clone();
+        }
+
+        SymbolicFieldDefinition::new_named_with_resolutions(
+            symbolic_field_definition.get_field_name().to_string(),
+            replacement_data_type_ref.clone(),
+            symbolic_field_definition.get_container_type(),
+            symbolic_field_definition.get_count_resolution().clone(),
+            symbolic_field_definition.get_offset_resolution().clone(),
+        )
+    }
+
     pub fn apply_draft_to_catalog(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolStructLayoutEditDraft,
@@ -588,27 +657,11 @@ impl SymbolStructEditorViewData {
 
         if let Some(original_layout_id) = draft.original_layout_id.as_deref() {
             if original_layout_id != resolved_struct_layout_descriptor.get_struct_layout_id() {
-                for symbol_claim in updated_project_symbol_catalog.get_symbol_claims_mut() {
-                    if symbol_claim.get_struct_layout_id() == original_layout_id {
-                        symbol_claim.set_struct_layout_id(
-                            resolved_struct_layout_descriptor
-                                .get_struct_layout_id()
-                                .to_string(),
-                        );
-                    }
-                }
-
-                for symbol_module in updated_project_symbol_catalog.get_symbol_modules_mut() {
-                    for module_field in symbol_module.get_fields_mut() {
-                        if module_field.get_struct_layout_id() == original_layout_id {
-                            module_field.set_struct_layout_id(
-                                resolved_struct_layout_descriptor
-                                    .get_struct_layout_id()
-                                    .to_string(),
-                            );
-                        }
-                    }
-                }
+                Self::retarget_catalog_struct_layout_references(
+                    &mut updated_project_symbol_catalog,
+                    original_layout_id,
+                    &DataTypeRef::new(resolved_struct_layout_descriptor.get_struct_layout_id()),
+                );
             }
         }
 
@@ -619,10 +672,6 @@ impl SymbolStructEditorViewData {
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
     ) -> Result<ProjectSymbolCatalog, String> {
-        if Self::count_symbol_claim_usages(project_symbol_catalog, struct_layout_id) > 0 {
-            return Err(String::from("Struct layouts that are still used by symbol claims cannot be deleted."));
-        }
-
         let mut updated_project_symbol_catalog = project_symbol_catalog.clone();
         updated_project_symbol_catalog.set_struct_layout_descriptors(
             updated_project_symbol_catalog
@@ -631,6 +680,11 @@ impl SymbolStructEditorViewData {
                 .filter(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() != struct_layout_id)
                 .cloned()
                 .collect(),
+        );
+        Self::retarget_catalog_struct_layout_references(
+            &mut updated_project_symbol_catalog,
+            struct_layout_id,
+            &DataTypeRef::new(DataTypeU8::DATA_TYPE_ID),
         );
 
         Ok(updated_project_symbol_catalog)
@@ -724,7 +778,10 @@ mod tests {
     };
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
-        data_types::{built_in_types::i32::data_type_i32::DataTypeI32, data_type_ref::DataTypeRef},
+        data_types::{
+            built_in_types::{i32::data_type_i32::DataTypeI32, u8::data_type_u8::DataTypeU8},
+            data_type_ref::DataTypeRef,
+        },
         data_values::container_type::ContainerType,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
@@ -996,12 +1053,68 @@ mod tests {
     }
 
     #[test]
-    fn remove_struct_layout_from_catalog_rejects_in_use_layouts() {
-        let project_symbol_catalog = create_project_symbol_catalog();
+    fn remove_struct_layout_from_catalog_retargets_in_use_layouts_to_u8() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Player"), 0, String::from("player.stats")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+            vec![symbol_module],
+            vec![StructLayoutDescriptor::new(
+                String::from("player.container"),
+                SymbolicStructDefinition::new(
+                    String::from("player.container"),
+                    vec![SymbolicFieldDefinition::new_named(
+                        String::from("Stats"),
+                        DataTypeRef::new("player.stats"),
+                        ContainerType::None,
+                    )],
+                ),
+            )],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Player"),
+                0x1234,
+                String::from("player.stats"),
+            )],
+        );
 
-        let result = SymbolStructEditorViewData::remove_struct_layout_from_catalog(&project_symbol_catalog, "player.stats");
+        let updated_project_symbol_catalog =
+            SymbolStructEditorViewData::remove_struct_layout_from_catalog(&project_symbol_catalog, "player.stats").expect("Expected layout to delete.");
 
-        assert!(result.is_err());
+        assert!(
+            updated_project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .all(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() != "player.stats")
+        );
+        assert_eq!(
+            updated_project_symbol_catalog
+                .get_symbol_claims()
+                .first()
+                .map(ProjectSymbolClaim::get_struct_layout_id),
+            Some(DataTypeU8::DATA_TYPE_ID)
+        );
+        assert_eq!(
+            updated_project_symbol_catalog
+                .get_symbol_modules()
+                .first()
+                .and_then(|symbol_module| symbol_module.get_fields().first())
+                .map(ProjectSymbolModuleField::get_struct_layout_id),
+            Some(DataTypeU8::DATA_TYPE_ID)
+        );
+        assert_eq!(
+            updated_project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .first()
+                .and_then(|struct_layout_descriptor| {
+                    struct_layout_descriptor
+                        .get_struct_layout_definition()
+                        .get_fields()
+                        .first()
+                })
+                .map(|symbolic_field_definition| symbolic_field_definition.get_data_type_ref().get_data_type_id()),
+            Some(DataTypeU8::DATA_TYPE_ID)
+        );
     }
 
     #[test]

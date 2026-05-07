@@ -1618,7 +1618,6 @@ impl SymbolStructEditorView {
     ) {
         let usage_count = SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, layout_id);
 
-        let can_delete_layout = usage_count == 0;
         let mut should_cancel_take_over = false;
         let mut should_delete_layout = false;
         let can_handle_window_shortcuts = self
@@ -1626,7 +1625,7 @@ impl SymbolStructEditorView {
             .window_focus_manager
             .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
-        if can_delete_layout && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
             should_delete_layout = true;
         }
 
@@ -1635,7 +1634,7 @@ impl SymbolStructEditorView {
             "Delete Struct Layout",
             Self::ICON_BUTTON_WIDTH * 2.0,
             |user_interface| {
-                let delete_response = self.render_take_over_header_delete_icon_button(user_interface, "Delete the selected struct layout.", !can_delete_layout);
+                let delete_response = self.render_take_over_header_delete_icon_button(user_interface, "Delete the selected struct layout.", false);
                 if delete_response.clicked() {
                     should_delete_layout = true;
                 }
@@ -1660,7 +1659,12 @@ impl SymbolStructEditorView {
                     GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
                         user_interface.label(RichText::new(format!("Delete `{}`?", layout_id)).color(theme.foreground));
                         user_interface.add_space(4.0);
-                        user_interface.label(RichText::new(format!("{} symbol claim uses.", usage_count)).color(theme.foreground_preview));
+                        let usage_text = if usage_count == 0 {
+                            String::from("No existing references will be changed.")
+                        } else {
+                            format!("{} existing references will be changed to raw u8.", usage_count)
+                        };
+                        user_interface.label(RichText::new(usage_text).color(theme.foreground_preview));
                     })
                     .desired_width(user_interface.available_width()),
                 );
@@ -1755,10 +1759,7 @@ impl Widget for SymbolStructEditorView {
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
             if let Some(selected_layout_id) = selected_layout_id.as_deref() {
-                let usage_count = SymbolStructEditorViewData::count_symbol_claim_usages(&project_symbol_catalog, selected_layout_id);
-                if usage_count == 0 {
-                    SymbolStructEditorViewData::request_delete_confirmation(self.symbol_struct_editor_view_data.clone(), selected_layout_id.to_string());
-                }
+                SymbolStructEditorViewData::request_delete_confirmation(self.symbol_struct_editor_view_data.clone(), selected_layout_id.to_string());
             }
         }
 
