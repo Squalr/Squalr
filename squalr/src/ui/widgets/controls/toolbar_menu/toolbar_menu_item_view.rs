@@ -10,6 +10,8 @@ pub struct ToolbarMenuItemView<'lifetime> {
     item_id: &'lifetime str,
     check_state: &'lifetime Option<Box<dyn Fn() -> Option<bool> + Send + Sync>>,
     icon: Option<TextureHandle>,
+    icon_background_color: Option<Color32>,
+    icon_border_color: Option<Color32>,
     width: f32,
     disabled: bool,
 }
@@ -28,6 +30,8 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
             item_id,
             check_state,
             icon: None,
+            icon_background_color: None,
+            icon_border_color: None,
             width,
             disabled: false,
         }
@@ -38,6 +42,16 @@ impl<'lifetime> ToolbarMenuItemView<'lifetime> {
         icon: TextureHandle,
     ) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    pub fn icon_background(
+        mut self,
+        background_color: Color32,
+        border_color: Color32,
+    ) -> Self {
+        self.icon_background_color = Some(background_color);
+        self.icon_border_color = Some(border_color);
         self
     }
 
@@ -147,6 +161,18 @@ impl<'a> Widget for ToolbarMenuItemView<'a> {
                 allocated_size_rectangle.center().y - icon_size.y * 0.5,
             );
             let icon_rect = Rect::from_min_size(icon_position, icon_size);
+
+            if let Some(icon_background_color) = self.icon_background_color {
+                user_interface
+                    .painter()
+                    .rect_filled(icon_rect, CornerRadius::ZERO, icon_background_color);
+                user_interface.painter().rect_stroke(
+                    icon_rect,
+                    CornerRadius::ZERO,
+                    (1.0, self.icon_border_color.unwrap_or(icon_background_color)),
+                    StrokeKind::Inside,
+                );
+            }
 
             user_interface
                 .painter()

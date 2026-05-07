@@ -3353,13 +3353,18 @@ impl SymbolExplorerView {
 
                             if user_interface
                                 .add(
-                                    ToolbarMenuItemView::new(self.app_context.clone(), "Delete", "symbol_tree_ctx_delete", &None, context_menu_width).icon(
-                                        self.app_context
-                                            .theme
-                                            .icon_library
-                                            .icon_handle_common_delete
-                                            .clone(),
-                                    ),
+                                    ToolbarMenuItemView::new(self.app_context.clone(), "Delete", "symbol_tree_ctx_delete", &None, context_menu_width)
+                                        .icon(
+                                            self.app_context
+                                                .theme
+                                                .icon_library
+                                                .icon_handle_common_delete
+                                                .clone(),
+                                        )
+                                        .icon_background(
+                                            self.app_context.theme.background_control_danger,
+                                            self.app_context.theme.background_control_danger_dark,
+                                        ),
                                 )
                                 .clicked()
                             {

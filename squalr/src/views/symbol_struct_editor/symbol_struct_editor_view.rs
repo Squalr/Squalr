@@ -141,6 +141,22 @@ impl SymbolStructEditorView {
         }
     }
 
+    fn delete_struct_layout(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_id: &str,
+    ) {
+        match SymbolStructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
+            Ok(updated_project_symbol_catalog) => {
+                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
+            }
+            Err(error) => {
+                log::error!("Failed to delete struct layout: {}.", error);
+            }
+        }
+    }
+
     fn default_data_type_ref(&self) -> DataTypeRef {
         let registered_data_types = self
             .app_context
@@ -183,12 +199,51 @@ impl SymbolStructEditorView {
         is_disabled: bool,
     ) -> Response {
         let theme = &self.app_context.theme;
+
+        self.render_icon_button_with_style(
+            user_interface,
+            icon_handle,
+            tooltip_text,
+            theme.background_control_secondary,
+            theme.submenu_border,
+            is_disabled,
+        )
+    }
+
+    fn render_delete_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+
+        self.render_icon_button_with_style(
+            user_interface,
+            &theme.icon_library.icon_handle_common_delete,
+            tooltip_text,
+            theme.background_control_danger,
+            theme.background_control_danger_dark,
+            is_disabled,
+        )
+    }
+
+    fn render_icon_button_with_style(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        background_color: Color32,
+        border_color: Color32,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
         let button_response = user_interface.add_sized(
             vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
             ThemeButton::new_from_theme(theme)
                 .with_tooltip_text(tooltip_text)
-                .background_color(theme.background_control_secondary)
-                .border_color(theme.submenu_border)
+                .background_color(background_color)
+                .border_color(border_color)
                 .border_width(1.0)
                 .disabled(is_disabled),
         );
@@ -210,14 +265,54 @@ impl SymbolStructEditorView {
         tooltip_text: &str,
         is_disabled: bool,
     ) -> Response {
+        self.render_take_over_header_icon_button_with_style(
+            user_interface,
+            icon_handle,
+            tooltip_text,
+            Color32::TRANSPARENT,
+            Color32::TRANSPARENT,
+            is_disabled,
+        )
+    }
+
+    fn render_take_over_header_delete_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
         let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(Color32::TRANSPARENT)
-                .disabled(is_disabled),
-        );
+
+        self.render_take_over_header_icon_button_with_style(
+            user_interface,
+            &theme.icon_library.icon_handle_common_delete,
+            tooltip_text,
+            theme.background_control_danger,
+            theme.background_control_danger_dark,
+            is_disabled,
+        )
+    }
+
+    fn render_take_over_header_icon_button_with_style(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        background_color: Color32,
+        border_color: Color32,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let mut button = ThemeButton::new_from_theme(theme)
+            .with_tooltip_text(tooltip_text)
+            .background_color(background_color)
+            .disabled(is_disabled);
+
+        if background_color != Color32::TRANSPARENT || border_color != Color32::TRANSPARENT {
+            button = button.border_color(border_color).border_width(1.0);
+        }
+
+        let button_response = user_interface.add_sized(vec2(Self::ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT), button);
 
         IconDraw::draw_tinted(
             user_interface,
@@ -847,12 +942,7 @@ impl SymbolStructEditorView {
                 .map(|selected_layout_id| SymbolStructEditorViewData::count_symbol_claim_usages(project_symbol_catalog, selected_layout_id))
                 .unwrap_or(0);
             let can_delete_selected_layout = !is_take_over_active && selected_layout_id.is_some() && usage_count == 0;
-            let delete_layout_response = self.render_icon_button(
-                user_interface,
-                &theme.icon_library.icon_handle_common_delete,
-                "Delete the selected struct layout.",
-                !can_delete_selected_layout,
-            );
+            let delete_layout_response = self.render_delete_icon_button(user_interface, "Delete the selected struct layout.", !can_delete_selected_layout);
             if delete_layout_response.clicked() {
                 if let Some(selected_layout_id) = selected_layout_id {
                     SymbolStructEditorViewData::request_delete_confirmation(self.symbol_struct_editor_view_data.clone(), selected_layout_id.to_string());
@@ -1041,12 +1131,8 @@ impl SymbolStructEditorView {
 
                             user_interface.add_space(Self::FIELD_INPUT_SPACING);
 
-                            let remove_field_response = self.render_icon_button(
-                                user_interface,
-                                &theme.icon_library.icon_handle_common_delete,
-                                "Remove this field from the draft struct layout.",
-                                !can_remove_field,
-                            );
+                            let remove_field_response =
+                                self.render_delete_icon_button(user_interface, "Remove this field from the draft struct layout.", !can_remove_field);
                             if remove_field_response.clicked() {
                                 pending_field_row_action = Some(SymbolStructFieldRowAction::RemoveField);
                             }
@@ -1545,18 +1631,21 @@ impl SymbolStructEditorView {
         let can_delete_layout = usage_count == 0;
         let mut should_cancel_take_over = false;
         let mut should_delete_layout = false;
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+
+        if can_delete_layout && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+            should_delete_layout = true;
+        }
 
         self.render_take_over_panel(
             user_interface,
             "Delete Struct Layout",
             Self::ICON_BUTTON_WIDTH * 2.0,
             |user_interface| {
-                let delete_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &self.app_context.theme.icon_library.icon_handle_common_delete,
-                    "Delete the selected struct layout.",
-                    !can_delete_layout,
-                );
+                let delete_response = self.render_take_over_header_delete_icon_button(user_interface, "Delete the selected struct layout.", !can_delete_layout);
                 if delete_response.clicked() {
                     should_delete_layout = true;
                 }
@@ -1594,15 +1683,7 @@ impl SymbolStructEditorView {
         }
 
         if should_delete_layout {
-            match SymbolStructEditorViewData::remove_struct_layout_from_catalog(project_symbol_catalog, layout_id) {
-                Ok(updated_project_symbol_catalog) => {
-                    self.persist_project_symbol_catalog(updated_project_symbol_catalog);
-                    SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
-                }
-                Err(error) => {
-                    log::error!("Failed to delete struct layout: {}.", error);
-                }
-            }
+            self.delete_struct_layout(project_symbol_catalog, layout_id);
         }
     }
 }

@@ -193,7 +193,9 @@ impl Widget for ElementScannerResultsActionBarView {
         let delete_selection_response = toolbar_user_interface.put(
             delete_selection_button_rect,
             Button::new_from_theme(theme)
-                .background_color(Color32::TRANSPARENT)
+                .background_color(theme.background_control_danger)
+                .border_color(theme.background_control_danger_dark)
+                .border_width(1.0)
                 .with_tooltip_text("Delete selection from results."),
         );
         IconDraw::draw(

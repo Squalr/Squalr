@@ -1738,7 +1738,11 @@ impl Widget for ProjectHierarchyView {
                                                             &None,
                                                             project_item_menu_width,
                                                         )
-                                                        .icon(self.app_context.theme.icon_library.icon_handle_common_delete.clone()))
+                                                        .icon(self.app_context.theme.icon_library.icon_handle_common_delete.clone())
+                                                        .icon_background(
+                                                            self.app_context.theme.background_control_danger,
+                                                            self.app_context.theme.background_control_danger_dark,
+                                                        ))
                                                         .clicked()
                                                     {
                                                         project_hierarchy_frame_action =

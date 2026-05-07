@@ -111,6 +111,7 @@ impl SymbolExplorerToolbarView {
                 &theme.icon_library.icon_handle_common_delete,
                 "Delete selected module, symbol, or field.",
                 self.can_delete_selected_entry,
+                Some((theme.background_control_danger, theme.background_control_danger_dark)),
             )
             .clicked()
             {
@@ -123,6 +124,7 @@ impl SymbolExplorerToolbarView {
                 &theme.icon_library.icon_handle_common_edit,
                 "Rename selected module, symbol, or field.",
                 self.can_rename_selected_entry,
+                None,
             )
             .clicked()
             {
@@ -135,6 +137,7 @@ impl SymbolExplorerToolbarView {
                 &theme.icon_library.icon_handle_project_cpu_instruction,
                 "Open selected symbol or field in Code Viewer.",
                 self.can_open_in_code_viewer,
+                None,
             )
             .clicked()
             {
@@ -147,6 +150,7 @@ impl SymbolExplorerToolbarView {
                 &theme.icon_library.icon_handle_scan_collect_values,
                 "Open selected symbol or field in Memory Viewer.",
                 self.can_open_in_memory_viewer,
+                None,
             )
             .clicked()
             {
@@ -159,6 +163,7 @@ impl SymbolExplorerToolbarView {
                 &theme.icon_library.icon_handle_common_add,
                 "Add module.",
                 self.can_create_module_root,
+                None,
             )
             .clicked()
             {
@@ -175,12 +180,18 @@ impl SymbolExplorerToolbarView {
         icon_handle: &epaint::TextureHandle,
         tooltip_text: &str,
         enabled: bool,
+        colors: Option<(Color32, Color32)>,
     ) -> eframe::egui::Response {
+        let (background_color, border_color, border_width) = colors
+            .map(|(background_color, border_color)| (background_color, border_color, 1.0))
+            .unwrap_or((Color32::TRANSPARENT, Color32::TRANSPARENT, 0.0));
         let button_response = user_interface.add_sized(
             vec2(Self::TOOLBAR_BUTTON_SIZE, Self::TOOLBAR_HEIGHT),
             Button::new_from_theme(theme)
                 .with_tooltip_text(tooltip_text)
-                .background_color(Color32::TRANSPARENT)
+                .background_color(background_color)
+                .border_color(border_color)
+                .border_width(border_width)
                 .disabled(!enabled),
         );
 

@@ -106,7 +106,9 @@ impl Widget for ProjectHierarchyToolbarView {
                         button_size,
                         Button::new_from_theme(&theme)
                             .with_tooltip_text("Delete selected project item.")
-                            .background_color(Color32::TRANSPARENT)
+                            .background_color(theme.background_control_danger)
+                            .border_color(theme.background_control_danger_dark)
+                            .border_width(1.0)
                             .disabled(!has_deletable_selected_project_item || is_busy || has_take_over_state),
                     );
                     IconDraw::draw(user_interface, button_delete.rect, &theme.icon_library.icon_handle_common_delete);
