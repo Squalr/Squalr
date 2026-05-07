@@ -753,69 +753,6 @@ impl SymbolStructEditorView {
             });
     }
 
-    fn format_field_layout_summary(field_draft: &SymbolStructFieldEditDraft) -> String {
-        let shape_text = match field_draft.container_edit.kind {
-            SymbolStructFieldContainerKind::Element => String::from("element"),
-            SymbolStructFieldContainerKind::Array => String::from("array"),
-            SymbolStructFieldContainerKind::FixedArray => {
-                let fixed_array_length = field_draft.container_edit.fixed_array_length.trim();
-
-                if fixed_array_length.is_empty() {
-                    String::from("fixed array")
-                } else {
-                    format!("fixed array [{}]", fixed_array_length)
-                }
-            }
-            SymbolStructFieldContainerKind::DynamicArray => match field_draft.container_edit.dynamic_array_count_mode {
-                SymbolStructFieldDynamicCountMode::Resolver => {
-                    let resolver_id = field_draft
-                        .container_edit
-                        .dynamic_array_count_resolver_id
-                        .trim();
-
-                    if resolver_id.is_empty() {
-                        String::from("dynamic array")
-                    } else {
-                        format!("dynamic array [resolver({})]", resolver_id)
-                    }
-                }
-                SymbolStructFieldDynamicCountMode::Expression => {
-                    let count_expression = field_draft.container_edit.dynamic_array_count_expression.trim();
-
-                    if count_expression.is_empty() {
-                        String::from("dynamic array")
-                    } else {
-                        format!("dynamic array [{}]", count_expression)
-                    }
-                }
-            },
-            SymbolStructFieldContainerKind::Pointer => format!("pointer ({})", field_draft.container_edit.pointer_size),
-        };
-        let offset_text = match field_draft.offset_mode {
-            SymbolStructFieldOffsetMode::Sequential => String::from("sequential"),
-            SymbolStructFieldOffsetMode::Resolver => {
-                let resolver_id = field_draft.offset_resolver_id.trim();
-
-                if resolver_id.is_empty() {
-                    String::from("resolver offset")
-                } else {
-                    format!("@ resolver({})", resolver_id)
-                }
-            }
-            SymbolStructFieldOffsetMode::Expression => {
-                let offset_expression = field_draft.offset_expression.trim();
-
-                if offset_expression.is_empty() {
-                    String::from("expression offset")
-                } else {
-                    format!("@ {}", offset_expression)
-                }
-            }
-        };
-
-        format!("{} | {}", shape_text, offset_text)
-    }
-
     fn render_struct_layout_row(
         &self,
         user_interface: &mut Ui,
@@ -1201,9 +1138,6 @@ impl SymbolStructEditorView {
                     self.render_container_kind_selector(user_interface, &mut field_draft.container_edit, field_index, container_mode_width);
                 },
             );
-
-            user_interface.add_space(Self::FIELD_INPUT_SPACING);
-            user_interface.label(RichText::new(Self::format_field_layout_summary(field_draft)).color(theme.foreground_preview));
         });
 
         pending_field_row_action
