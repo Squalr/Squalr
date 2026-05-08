@@ -9,9 +9,7 @@ use crate::ui::widgets::controls::{
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
     SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
 };
-use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{
-    SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind, SymbolStructFieldDynamicCountMode,
-};
+use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
 use eframe::egui::{
     Align, Align2, Button as EguiButton, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
@@ -60,8 +58,6 @@ impl SymbolStructEditorView {
     const FIELD_CONTAINER_MODE_WIDTH: f32 = 160.0;
     const FIELD_CONTAINER_DETAIL_WIDTH: f32 = 140.0;
     const FIELD_OFFSET_MODE_WIDTH: f32 = 160.0;
-    const FIELD_EXPRESSION_PICKER_WIDTH: f32 = 190.0;
-    const FIELD_EXPRESSION_OPERATOR_BUTTON_WIDTH: f32 = 32.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
@@ -466,44 +462,6 @@ impl SymbolStructEditorView {
         }
     }
 
-    fn render_dynamic_count_mode_selector(
-        &self,
-        user_interface: &mut Ui,
-        container_edit: &mut SymbolStructFieldContainerEdit,
-        field_index: usize,
-        width: f32,
-    ) {
-        let selector_id = format!("symbol_struct_editor_dynamic_count_mode_{}", field_index);
-        let current_label = container_edit.dynamic_array_count_mode.label();
-        let mut selected_dynamic_count_mode = None;
-
-        user_interface.add(
-            ComboBoxView::new(
-                self.app_context.clone(),
-                current_label,
-                &selector_id,
-                None,
-                |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                    for dynamic_count_mode in SymbolStructFieldDynamicCountMode::ALL {
-                        let dynamic_count_mode_response =
-                            popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), dynamic_count_mode.label(), None, width));
-
-                        if dynamic_count_mode_response.clicked() {
-                            selected_dynamic_count_mode = Some(dynamic_count_mode);
-                            *should_close = true;
-                        }
-                    }
-                },
-            )
-            .width(width)
-            .height(Self::FIELD_ROW_HEIGHT),
-        );
-
-        if let Some(selected_dynamic_count_mode) = selected_dynamic_count_mode {
-            container_edit.dynamic_array_count_mode = selected_dynamic_count_mode;
-        }
-    }
-
     fn render_pointer_size_selector(
         &self,
         user_interface: &mut Ui,
@@ -577,183 +535,6 @@ impl SymbolStructEditorView {
         if let Some(selected_offset_mode) = selected_offset_mode {
             field_draft.offset_mode = selected_offset_mode;
         }
-    }
-
-    fn render_text_button(
-        &self,
-        user_interface: &mut Ui,
-        text: &str,
-        tooltip_text: &str,
-        width: f32,
-        height: f32,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let response = user_interface.add_sized(
-            vec2(width, height),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .border_width(1.0)
-                .border_color(theme.background_control_primary_dark),
-        );
-
-        user_interface.painter().text(
-            response.rect.center(),
-            Align2::CENTER_CENTER,
-            text,
-            theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground,
-        );
-
-        response
-    }
-
-    fn append_expression_token(
-        expression_text: &mut String,
-        token: &str,
-    ) {
-        let trimmed_expression = expression_text.trim_end().to_string();
-        let token_is_operator = matches!(token, "+" | "-" | "*" | "/");
-        let next_expression = if trimmed_expression.is_empty() {
-            token.to_string()
-        } else if token_is_operator {
-            format!("{} {} ", trimmed_expression, token)
-        } else if trimmed_expression.ends_with('(') || token == ")" {
-            format!("{}{}", trimmed_expression, token)
-        } else {
-            format!("{} {}", trimmed_expression, token)
-        };
-
-        *expression_text = next_expression;
-    }
-
-    fn collect_expression_field_names(
-        draft: &SymbolStructLayoutEditDraft,
-        selected_field_index: usize,
-    ) -> Vec<String> {
-        let mut field_names = draft
-            .field_drafts
-            .iter()
-            .enumerate()
-            .filter_map(|(field_index, field_draft)| {
-                let field_name = field_draft.field_name.trim();
-
-                (!field_name.is_empty() && field_index != selected_field_index).then_some(field_name.to_string())
-            })
-            .collect::<Vec<_>>();
-        field_names.sort();
-        field_names.dedup();
-
-        field_names
-    }
-
-    fn collect_expression_type_ids(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-    ) -> Vec<String> {
-        let mut type_ids = self
-            .available_data_types()
-            .into_iter()
-            .map(|data_type_ref| data_type_ref.get_data_type_id().to_string())
-            .chain(
-                project_symbol_catalog
-                    .get_struct_layout_descriptors()
-                    .iter()
-                    .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string()),
-            )
-            .collect::<Vec<_>>();
-        type_ids.sort_by_key(|type_id| type_id.to_ascii_lowercase());
-        type_ids.dedup_by(|left_type_id, right_type_id| left_type_id.eq_ignore_ascii_case(right_type_id));
-
-        type_ids
-    }
-
-    fn render_expression_editor(
-        &self,
-        user_interface: &mut Ui,
-        expression_text: &mut String,
-        preview_text: &str,
-        id_prefix: &str,
-        field_names: &[String],
-        type_ids: &[String],
-    ) {
-        self.render_string_value_box(
-            user_interface,
-            expression_text,
-            preview_text,
-            &format!("{}_text", id_prefix),
-            user_interface.available_width(),
-            Self::FIELD_ROW_HEIGHT,
-        );
-        user_interface.add_space(Self::FIELD_INPUT_SPACING);
-
-        user_interface.horizontal_wrapped(|user_interface| {
-            for operator in ["+", "-", "*", "/", "(", ")"] {
-                let operator_response = self.render_text_button(
-                    user_interface,
-                    operator,
-                    "Append this operator to the expression.",
-                    Self::FIELD_EXPRESSION_OPERATOR_BUTTON_WIDTH,
-                    Self::FIELD_ROW_HEIGHT,
-                );
-
-                if operator_response.clicked() {
-                    Self::append_expression_token(expression_text, operator);
-                }
-            }
-
-            let field_picker_width = Self::FIELD_EXPRESSION_PICKER_WIDTH.min(user_interface.available_width().max(1.0));
-            let mut selected_field_name = None;
-            user_interface.add(
-                ComboBoxView::new(
-                    self.app_context.clone(),
-                    "Field...",
-                    &format!("{}_field_picker", id_prefix),
-                    None,
-                    |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                        for field_name in field_names {
-                            let field_response =
-                                popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), field_name, None, field_picker_width));
-
-                            if field_response.clicked() {
-                                selected_field_name = Some(field_name.clone());
-                                *should_close = true;
-                            }
-                        }
-                    },
-                )
-                .width(field_picker_width)
-                .height(Self::FIELD_ROW_HEIGHT),
-            );
-            if let Some(selected_field_name) = selected_field_name {
-                Self::append_expression_token(expression_text, &selected_field_name);
-            }
-
-            let type_picker_width = Self::FIELD_EXPRESSION_PICKER_WIDTH.min(user_interface.available_width().max(1.0));
-            let mut selected_type_id = None;
-            user_interface.add(
-                ComboBoxView::new(
-                    self.app_context.clone(),
-                    "sizeof...",
-                    &format!("{}_sizeof_picker", id_prefix),
-                    None,
-                    |popup_user_interface: &mut Ui, should_close: &mut bool| {
-                        for type_id in type_ids {
-                            let type_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), type_id, None, type_picker_width));
-
-                            if type_response.clicked() {
-                                selected_type_id = Some(type_id.clone());
-                                *should_close = true;
-                            }
-                        }
-                    },
-                )
-                .width(type_picker_width)
-                .height(Self::FIELD_ROW_HEIGHT),
-            );
-            if let Some(selected_type_id) = selected_type_id {
-                Self::append_expression_token(expression_text, &format!("sizeof({})", selected_type_id));
-            }
-        });
     }
 
     fn render_resolver_picker(
@@ -1282,8 +1063,6 @@ impl SymbolStructEditorView {
             .visible_data_type()
             .get_data_type_id()
             .to_string();
-        let field_names = Self::collect_expression_field_names(draft, field_index);
-        let type_ids = self.collect_expression_type_ids(project_symbol_catalog);
         let mut should_close_field_layout_editor = false;
 
         self.render_take_over_panel(
@@ -1344,33 +1123,12 @@ impl SymbolStructEditorView {
                             }
                             SymbolStructFieldContainerKind::DynamicArray => {
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                                self.render_dynamic_count_mode_selector(
+                                self.render_resolver_picker(
                                     user_interface,
-                                    &mut field_draft.container_edit,
-                                    field_index,
-                                    Self::FIELD_CONTAINER_MODE_WIDTH.min(user_interface.available_width()),
+                                    project_symbol_catalog,
+                                    &mut field_draft.container_edit.dynamic_array_count_resolver_id,
+                                    &format!("symbol_struct_editor_field_layout_count_resolver_{}", field_index),
                                 );
-                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                                match field_draft.container_edit.dynamic_array_count_mode {
-                                    SymbolStructFieldDynamicCountMode::Resolver => {
-                                        self.render_resolver_picker(
-                                            user_interface,
-                                            project_symbol_catalog,
-                                            &mut field_draft.container_edit.dynamic_array_count_resolver_id,
-                                            &format!("symbol_struct_editor_field_layout_count_resolver_{}", field_index),
-                                        );
-                                    }
-                                    SymbolStructFieldDynamicCountMode::Expression => {
-                                        self.render_expression_editor(
-                                            user_interface,
-                                            &mut field_draft.container_edit.dynamic_array_count_expression,
-                                            "count expression",
-                                            &format!("symbol_struct_editor_field_layout_count_expression_{}", field_index),
-                                            &field_names,
-                                            &type_ids,
-                                        );
-                                    }
-                                }
                             }
                             SymbolStructFieldContainerKind::Pointer => {
                                 user_interface.add_space(Self::FIELD_INPUT_SPACING);
@@ -1409,17 +1167,6 @@ impl SymbolStructEditorView {
                                     project_symbol_catalog,
                                     &mut field_draft.offset_resolver_id,
                                     &format!("symbol_struct_editor_field_layout_offset_resolver_{}", field_index),
-                                );
-                            }
-                            SymbolStructFieldOffsetMode::Expression => {
-                                user_interface.add_space(Self::FIELD_INPUT_SPACING);
-                                self.render_expression_editor(
-                                    user_interface,
-                                    &mut field_draft.offset_expression,
-                                    "offset expression",
-                                    &format!("symbol_struct_editor_field_layout_offset_expression_{}", field_index),
-                                    &field_names,
-                                    &type_ids,
                                 );
                             }
                         }

@@ -10,32 +10,26 @@ use squalr_engine_api::structures::{
     },
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
-        symbolic_expression::SymbolicExpression,
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SymbolStructFieldOffsetMode {
     #[default]
     Sequential,
     Resolver,
-    Expression,
 }
 
 impl SymbolStructFieldOffsetMode {
-    pub const ALL: [Self; 3] = [Self::Sequential, Self::Resolver, Self::Expression];
+    pub const ALL: [Self; 2] = [Self::Sequential, Self::Resolver];
 
     pub fn label(&self) -> &'static str {
         match self {
             Self::Sequential => "Sequential",
             Self::Resolver => "Resolver",
-            Self::Expression => "Expression",
         }
     }
 }
@@ -47,7 +41,6 @@ pub struct SymbolStructFieldEditDraft {
     pub container_edit: SymbolStructFieldContainerEdit,
     pub offset_mode: SymbolStructFieldOffsetMode,
     pub offset_resolver_id: String,
-    pub offset_expression: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -699,17 +692,14 @@ impl SymbolStructFieldEditDraft {
             container_edit: SymbolStructFieldContainerEdit::default(),
             offset_mode: SymbolStructFieldOffsetMode::Sequential,
             offset_resolver_id: String::new(),
-            offset_expression: String::new(),
         }
     }
 
     pub fn from_symbolic_field_definition(symbolic_field_definition: &SymbolicFieldDefinition) -> Self {
-        let (offset_mode, offset_resolver_id, offset_expression) = match symbolic_field_definition.get_offset_resolution() {
-            SymbolicFieldOffsetResolution::Sequential => (SymbolStructFieldOffsetMode::Sequential, String::new(), String::new()),
-            SymbolicFieldOffsetResolution::Expression(offset_expression) => {
-                (SymbolStructFieldOffsetMode::Expression, String::new(), offset_expression.to_string())
-            }
-            SymbolicFieldOffsetResolution::Resolver(resolver_id) => (SymbolStructFieldOffsetMode::Resolver, resolver_id.clone(), String::new()),
+        let (offset_mode, offset_resolver_id) = match symbolic_field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Sequential => (SymbolStructFieldOffsetMode::Sequential, String::new()),
+            SymbolicFieldOffsetResolution::Expression(_) => (SymbolStructFieldOffsetMode::Resolver, String::new()),
+            SymbolicFieldOffsetResolution::Resolver(resolver_id) => (SymbolStructFieldOffsetMode::Resolver, resolver_id.clone()),
         };
 
         Self {
@@ -718,7 +708,6 @@ impl SymbolStructFieldEditDraft {
             container_edit: SymbolStructFieldContainerEdit::from_symbolic_field_definition(symbolic_field_definition),
             offset_mode,
             offset_resolver_id,
-            offset_expression,
         }
     }
 
@@ -733,29 +722,8 @@ impl SymbolStructFieldEditDraft {
 
                 Ok(SymbolicFieldOffsetResolution::new_resolver(trimmed_resolver_id.to_string()))
             }
-            SymbolStructFieldOffsetMode::Expression => {
-                let trimmed_expression = self.offset_expression.trim();
-                if trimmed_expression.is_empty() {
-                    return Err(String::from("Offset expression is required."));
-                }
-
-                if let Some(resolver_id) = parse_resolver_reference(trimmed_expression) {
-                    return Ok(SymbolicFieldOffsetResolution::new_resolver(resolver_id));
-                }
-
-                Ok(SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(trimmed_expression)?))
-            }
         }
     }
-}
-
-fn parse_resolver_reference(resolver_reference: &str) -> Option<String> {
-    let resolver_id = resolver_reference
-        .strip_prefix("resolver(")?
-        .strip_suffix(')')?
-        .trim();
-
-    (!resolver_id.is_empty()).then_some(resolver_id.to_string())
 }
 
 impl Default for SymbolStructLayoutEditDraft {
@@ -773,9 +741,7 @@ impl Default for SymbolStructLayoutEditDraft {
 #[cfg(test)]
 mod tests {
     use super::{SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft};
-    use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{
-        SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind, SymbolStructFieldDynamicCountMode,
-    };
+    use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{
@@ -872,13 +838,13 @@ mod tests {
     }
 
     #[test]
-    fn draft_round_trips_dynamic_count_and_offset_expressions() {
+    fn draft_demotes_dynamic_count_and_offset_expressions_to_resolver_selection() {
         let struct_layout_descriptor = StructLayoutDescriptor::new(
             String::from("image.headers"),
             SymbolicStructDefinition::new(
                 String::from("image.headers"),
                 vec![
-                    SymbolicFieldDefinition::from_str("count:u24 @ +0").expect("Expected count field to parse."),
+                    SymbolicFieldDefinition::from_str("count:u24").expect("Expected count field to parse."),
                     SymbolicFieldDefinition::from_str("sections:win.Section[count] @ +4 + sizeof(win.Header)").expect("Expected dynamic field to parse."),
                 ],
             ),
@@ -888,23 +854,14 @@ mod tests {
         let sections_draft = draft.field_drafts.get(1).expect("Expected sections draft.");
 
         assert_eq!(sections_draft.container_edit.kind, SymbolStructFieldContainerKind::DynamicArray);
-        assert_eq!(
-            sections_draft.container_edit.dynamic_array_count_mode,
-            SymbolStructFieldDynamicCountMode::Expression
+        assert!(
+            sections_draft
+                .container_edit
+                .dynamic_array_count_resolver_id
+                .is_empty()
         );
-        assert_eq!(sections_draft.container_edit.dynamic_array_count_expression, "count");
-        assert_eq!(sections_draft.offset_mode, SymbolStructFieldOffsetMode::Expression);
-        assert_eq!(sections_draft.offset_expression, "+4 + sizeof(win.Header)");
-
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
-        let round_tripped_descriptor =
-            SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected dynamic draft to build.");
-        let round_tripped_field_text = round_tripped_descriptor
-            .get_struct_layout_definition()
-            .get_fields()[1]
-            .to_string();
-
-        assert_eq!(round_tripped_field_text, "sections:win.Section[count] @ +4 + sizeof(win.Header)");
+        assert_eq!(sections_draft.offset_mode, SymbolStructFieldOffsetMode::Resolver);
+        assert!(sections_draft.offset_resolver_id.is_empty());
     }
 
     #[test]
@@ -914,7 +871,7 @@ mod tests {
             SymbolicStructDefinition::new(
                 String::from("image.headers"),
                 vec![
-                    SymbolicFieldDefinition::from_str("count:u24 @ +0").expect("Expected count field to parse."),
+                    SymbolicFieldDefinition::from_str("count:u24").expect("Expected count field to parse."),
                     SymbolicFieldDefinition::from_str("sections:win.Section[resolver(pe.section_count)] @ resolver(pe.section_table)")
                         .expect("Expected dynamic field to parse."),
                 ],
@@ -925,10 +882,6 @@ mod tests {
         let sections_draft = draft.field_drafts.get(1).expect("Expected sections draft.");
 
         assert_eq!(sections_draft.container_edit.kind, SymbolStructFieldContainerKind::DynamicArray);
-        assert_eq!(
-            sections_draft.container_edit.dynamic_array_count_mode,
-            SymbolStructFieldDynamicCountMode::Resolver
-        );
         assert_eq!(sections_draft.container_edit.dynamic_array_count_resolver_id, "pe.section_count");
         assert_eq!(sections_draft.offset_mode, SymbolStructFieldOffsetMode::Resolver);
         assert_eq!(sections_draft.offset_resolver_id, "pe.section_table");
@@ -966,42 +919,6 @@ mod tests {
         let result = SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft);
 
         assert!(result.is_err_and(|error| error.contains("Dynamic array count resolver")));
-    }
-
-    #[test]
-    fn build_struct_layout_descriptor_rejects_local_expression_dependency_cycles() {
-        let project_symbol_catalog = ProjectSymbolCatalog::default();
-        let mut first_field_draft = create_field_draft(
-            "first",
-            "u32",
-            SymbolStructFieldContainerEdit {
-                kind: SymbolStructFieldContainerKind::DynamicArray,
-                dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Expression,
-                dynamic_array_count_expression: String::from("second"),
-                ..SymbolStructFieldContainerEdit::default()
-            },
-        );
-        first_field_draft.offset_mode = SymbolStructFieldOffsetMode::Expression;
-        first_field_draft.offset_expression = String::from("+0");
-        let second_field_draft = create_field_draft(
-            "second",
-            "u32",
-            SymbolStructFieldContainerEdit {
-                kind: SymbolStructFieldContainerKind::DynamicArray,
-                dynamic_array_count_mode: SymbolStructFieldDynamicCountMode::Expression,
-                dynamic_array_count_expression: String::from("first"),
-                ..SymbolStructFieldContainerEdit::default()
-            },
-        );
-        let draft = SymbolStructLayoutEditDraft {
-            original_layout_id: None,
-            layout_id: String::from("bad.cycle"),
-            field_drafts: vec![first_field_draft, second_field_draft],
-        };
-
-        let result = SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft);
-
-        assert!(result.is_err_and(|error| error.contains("dependency cycle")));
     }
 
     #[test]
