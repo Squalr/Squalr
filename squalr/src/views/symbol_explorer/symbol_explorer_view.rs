@@ -2493,6 +2493,17 @@ impl SymbolExplorerView {
                                 user_interface.add_space(side_spacing);
                                 user_interface.spacing_mut().item_spacing.x = button_spacing;
 
+                                let button_confirm_delete = user_interface.add_sized(
+                                    button_size,
+                                    eframe::egui::Button::new(RichText::new(confirm_button_label).color(theme.foreground))
+                                        .fill(theme.background_control_danger)
+                                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                                );
+
+                                if button_confirm_delete.clicked() {
+                                    did_confirm_delete = true;
+                                }
+
                                 let button_cancel = self.draw_sized_action_button(
                                     user_interface,
                                     "Cancel",
@@ -2504,17 +2515,6 @@ impl SymbolExplorerView {
 
                                 if button_cancel.clicked() {
                                     SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
-                                }
-
-                                let button_confirm_delete = user_interface.add_sized(
-                                    button_size,
-                                    eframe::egui::Button::new(RichText::new(confirm_button_label).color(theme.foreground))
-                                        .fill(theme.background_control_danger)
-                                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
-                                );
-
-                                if button_confirm_delete.clicked() {
-                                    did_confirm_delete = true;
                                 }
                             });
                         });

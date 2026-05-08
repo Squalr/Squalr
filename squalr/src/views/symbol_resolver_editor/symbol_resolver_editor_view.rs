@@ -286,13 +286,6 @@ impl SymbolResolverEditorView {
                 user_interface.add_space(side_spacing);
                 user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
 
-                let cancel_response = user_interface.add_sized(
-                    button_size,
-                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
-                        .fill(theme.background_control_secondary)
-                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                );
-
                 let delete_response = user_interface.add_sized(
                     button_size,
                     EguiButton::new(RichText::new("Delete").color(theme.foreground))
@@ -300,7 +293,14 @@ impl SymbolResolverEditorView {
                         .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
                 );
 
-                (cancel_response, delete_response)
+                let cancel_response = user_interface.add_sized(
+                    button_size,
+                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                        .fill(theme.background_control_secondary)
+                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                );
+
+                (delete_response, cancel_response)
             })
             .inner;
 
@@ -765,12 +765,12 @@ impl SymbolResolverEditorView {
                     );
 
                     user_interface.add_space(Self::TAKE_OVER_ROW_SPACING + Self::TAKE_OVER_ROW_SPACING);
-                    let (cancel_response, delete_response) = self.render_delete_take_over_action_buttons(user_interface);
-                    if cancel_response.clicked() {
-                        action = ResolverFrameAction::CancelDraft;
-                    }
+                    let (delete_response, cancel_response) = self.render_delete_take_over_action_buttons(user_interface);
                     if delete_response.clicked() {
                         action = ResolverFrameAction::ConfirmDeleteResolver(resolver_id.to_string());
+                    }
+                    if cancel_response.clicked() {
+                        action = ResolverFrameAction::CancelDraft;
                     }
                 },
             );

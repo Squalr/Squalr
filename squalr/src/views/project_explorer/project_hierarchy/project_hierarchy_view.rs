@@ -1895,17 +1895,6 @@ impl Widget for ProjectHierarchyView {
                                                 user_interface.add_space(side_spacing);
                                                 user_interface.spacing_mut().item_spacing.x = button_spacing;
 
-                                                let button_cancel = user_interface.add_sized(
-                                                    button_size,
-                                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                                        .fill(theme.background_control_secondary)
-                                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                                                );
-
-                                                if button_cancel.clicked() {
-                                                    should_cancel_take_over = true;
-                                                }
-
                                                 let button_confirm_delete = user_interface.add_sized(
                                                     button_size,
                                                     eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
@@ -1915,6 +1904,17 @@ impl Widget for ProjectHierarchyView {
 
                                                 if button_confirm_delete.clicked() {
                                                     delete_confirmation_project_item_paths = Some(project_item_paths);
+                                                }
+
+                                                let button_cancel = user_interface.add_sized(
+                                                    button_size,
+                                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                                        .fill(theme.background_control_secondary)
+                                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                                );
+
+                                                if button_cancel.clicked() {
+                                                    should_cancel_take_over = true;
                                                 }
                                             });
                                         });
