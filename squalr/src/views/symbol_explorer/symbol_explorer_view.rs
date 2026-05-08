@@ -991,7 +991,7 @@ impl SymbolExplorerView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
     ) {
-        SymbolStructEditorViewData::begin_edit_struct_layout(self.symbol_struct_editor_view_data.clone(), project_symbol_catalog, struct_layout_id);
+        SymbolStructEditorViewData::begin_open_struct_layout(self.symbol_struct_editor_view_data.clone(), project_symbol_catalog, struct_layout_id);
 
         match self.app_context.docking_manager.write() {
             Ok(mut docking_manager) => {

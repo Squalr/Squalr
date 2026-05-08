@@ -5,4 +5,5 @@ pub enum StructViewerFocusTarget {
     ProjectHierarchy { project_item_paths: Vec<PathBuf> },
     SymbolExplorer { selection_key: String },
     SymbolResolverEditor { selection_key: String },
+    SymbolStructEditor { selection_key: String },
 }

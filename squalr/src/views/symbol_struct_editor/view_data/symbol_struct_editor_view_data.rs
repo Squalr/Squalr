@@ -53,7 +53,8 @@ pub struct SymbolStructLayoutEditDraft {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolStructEditorTakeOverState {
     CreateStructLayout,
-    EditStructLayout { layout_id: String },
+    RenameStructLayout { layout_id: String },
+    OpenStructLayout { layout_id: String },
     DeleteConfirmation { layout_id: String },
 }
 
@@ -64,7 +65,7 @@ pub struct SymbolStructEditorViewData {
     take_over_state: Option<SymbolStructEditorTakeOverState>,
     baseline_draft: Option<SymbolStructLayoutEditDraft>,
     draft: Option<SymbolStructLayoutEditDraft>,
-    field_layout_editor_index: Option<usize>,
+    selected_field_index: Option<usize>,
 }
 
 impl SymbolStructEditorViewData {
@@ -75,7 +76,7 @@ impl SymbolStructEditorViewData {
             take_over_state: None,
             baseline_draft: None,
             draft: None,
-            field_layout_editor_index: None,
+            selected_field_index: None,
         }
     }
 
@@ -99,8 +100,8 @@ impl SymbolStructEditorViewData {
         self.baseline_draft.as_ref()
     }
 
-    pub fn get_field_layout_editor_index(&self) -> Option<usize> {
-        self.field_layout_editor_index
+    pub fn get_selected_field_index(&self) -> Option<usize> {
+        self.selected_field_index
     }
 
     pub fn set_filter_text(
@@ -117,14 +118,21 @@ impl SymbolStructEditorViewData {
         draft: SymbolStructLayoutEditDraft,
     ) {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor update draft") {
-            if symbol_struct_editor_view_data
-                .field_layout_editor_index
-                .is_some_and(|field_index| field_index >= draft.field_drafts.len())
-            {
-                symbol_struct_editor_view_data.field_layout_editor_index = None;
-            }
-            symbol_struct_editor_view_data.draft = Some(draft);
+            symbol_struct_editor_view_data.replace_draft(draft);
         }
+    }
+
+    pub fn replace_draft(
+        &mut self,
+        draft: SymbolStructLayoutEditDraft,
+    ) {
+        if self
+            .selected_field_index
+            .is_some_and(|field_index| field_index >= draft.field_drafts.len())
+        {
+            self.selected_field_index = None;
+        }
+        self.draft = Some(draft);
     }
 
     pub fn select_struct_layout(
@@ -172,24 +180,44 @@ impl SymbolStructEditorViewData {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin create struct layout") {
             symbol_struct_editor_view_data.selected_layout_id = None;
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::CreateStructLayout);
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+            symbol_struct_editor_view_data.selected_field_index = None;
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_struct_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_struct_editor_view_data.draft = Some(baseline_draft);
         }
     }
 
-    pub fn begin_edit_struct_layout(
+    pub fn begin_rename_struct_layout(
         symbol_struct_editor_view_data: Dependency<Self>,
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
     ) {
-        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin edit struct layout") {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin rename struct layout") {
             symbol_struct_editor_view_data.selected_layout_id = Some(layout_id.to_string());
-            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::EditStructLayout {
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::RenameStructLayout {
                 layout_id: layout_id.to_string(),
             });
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+            symbol_struct_editor_view_data.selected_field_index = None;
+            symbol_struct_editor_view_data.baseline_draft = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
+                .map(Self::create_draft_from_descriptor);
+            symbol_struct_editor_view_data.draft = symbol_struct_editor_view_data.baseline_draft.clone();
+        }
+    }
+
+    pub fn begin_open_struct_layout(
+        symbol_struct_editor_view_data: Dependency<Self>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_id: &str,
+    ) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin open struct layout") {
+            symbol_struct_editor_view_data.selected_layout_id = Some(layout_id.to_string());
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::OpenStructLayout {
+                layout_id: layout_id.to_string(),
+            });
+            symbol_struct_editor_view_data.selected_field_index = None;
             symbol_struct_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -205,28 +233,22 @@ impl SymbolStructEditorViewData {
     ) {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor request delete confirmation") {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id });
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+            symbol_struct_editor_view_data.selected_field_index = None;
         }
     }
 
-    pub fn begin_field_layout_editor(
+    pub fn select_field(
         symbol_struct_editor_view_data: Dependency<Self>,
         field_index: usize,
     ) {
-        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor begin field layout editor") {
-            let Some(draft) = symbol_struct_editor_view_data.draft.as_ref() else {
-                return;
-            };
-
-            if field_index < draft.field_drafts.len() {
-                symbol_struct_editor_view_data.field_layout_editor_index = Some(field_index);
-            }
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor select field") {
+            symbol_struct_editor_view_data.selected_field_index = Some(field_index);
         }
     }
 
-    pub fn cancel_field_layout_editor(symbol_struct_editor_view_data: Dependency<Self>) {
-        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor cancel field layout editor") {
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+    pub fn clear_field_selection(symbol_struct_editor_view_data: Dependency<Self>) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor clear field selection") {
+            symbol_struct_editor_view_data.selected_field_index = None;
         }
     }
 
@@ -235,7 +257,7 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.take_over_state = None;
             symbol_struct_editor_view_data.baseline_draft = None;
             symbol_struct_editor_view_data.draft = None;
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+            symbol_struct_editor_view_data.selected_field_index = None;
         }
     }
 
@@ -268,12 +290,14 @@ impl SymbolStructEditorViewData {
 
         let should_clear_take_over_state = match symbol_struct_editor_view_data.take_over_state.as_ref() {
             Some(SymbolStructEditorTakeOverState::CreateStructLayout) => false,
-            Some(SymbolStructEditorTakeOverState::EditStructLayout { layout_id }) | Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
-                !project_symbol_catalog
-                    .get_struct_layout_descriptors()
-                    .iter()
-                    .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
-            }
+            Some(
+                SymbolStructEditorTakeOverState::RenameStructLayout { layout_id }
+                | SymbolStructEditorTakeOverState::OpenStructLayout { layout_id }
+                | SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id },
+            ) => !project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id),
             None => false,
         };
 
@@ -281,11 +305,11 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.take_over_state = None;
             symbol_struct_editor_view_data.baseline_draft = None;
             symbol_struct_editor_view_data.draft = None;
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+            symbol_struct_editor_view_data.selected_field_index = None;
         }
 
         if symbol_struct_editor_view_data
-            .field_layout_editor_index
+            .selected_field_index
             .is_some_and(|field_index| {
                 symbol_struct_editor_view_data
                     .draft
@@ -293,7 +317,7 @@ impl SymbolStructEditorViewData {
                     .is_none_or(|draft| field_index >= draft.field_drafts.len())
             })
         {
-            symbol_struct_editor_view_data.field_layout_editor_index = None;
+            symbol_struct_editor_view_data.selected_field_index = None;
         }
     }
 

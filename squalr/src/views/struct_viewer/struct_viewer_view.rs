@@ -906,7 +906,10 @@ impl Widget for StructViewerView {
                                     StructViewerFieldEditorKind::ContainerTypeSelector
                                     | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector
                                     | StructViewerFieldEditorKind::SymbolResolverNodeKindSelector
-                                    | StructViewerFieldEditorKind::SymbolResolverOperatorSelector => {
+                                    | StructViewerFieldEditorKind::SymbolResolverOperatorSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,

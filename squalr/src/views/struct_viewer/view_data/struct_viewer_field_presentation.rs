@@ -10,6 +10,9 @@ pub enum StructViewerFieldEditorKind {
     SymbolResolverNodeKindSelector,
     SymbolResolverOperatorSelector,
     SymbolResolverDataTypeSelector,
+    SymbolStructFieldContainerKindSelector,
+    SymbolStructFieldPointerSizeSelector,
+    SymbolStructFieldOffsetModeSelector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

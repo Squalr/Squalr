@@ -53,6 +53,8 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer64be,
     ];
     const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 4] = ["Literal", "Local Field", "Type Size", "Operation"];
+    const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
+    const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 2] = ["Sequential", "Resolver"];
 
     fn value_box_position_x(
         value_position_x: f32,
@@ -699,6 +701,146 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_operator_label) = selected_operator_label {
                     Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_operator_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector => {
+                let container_kind_selector_id = format!(
+                    "struct_viewer_symbol_struct_field_container_kind_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_container_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let container_kind_label = Self::SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS
+                    .iter()
+                    .copied()
+                    .find(|candidate_label| *candidate_label == current_container_kind)
+                    .unwrap_or("Element");
+                let mut selected_container_kind_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let container_kind_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(container_kind_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        container_kind_label,
+                        &container_kind_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for candidate_label in Self::SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS {
+                                let container_kind_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, container_kind_width));
+
+                                if container_kind_response.clicked() {
+                                    selected_container_kind_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(container_kind_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_container_kind_label) = selected_container_kind_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_container_kind_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector => {
+                let pointer_size_selector_id = format!(
+                    "struct_viewer_symbol_struct_field_pointer_size_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_pointer_size = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let pointer_size_label = PointerScanPointerSize::ALL
+                    .iter()
+                    .copied()
+                    .map(|pointer_size| pointer_size.to_string())
+                    .find(|candidate_label| *candidate_label == current_pointer_size)
+                    .unwrap_or_else(|| PointerScanPointerSize::Pointer64.to_string());
+                let mut selected_pointer_size_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let pointer_size_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(pointer_size_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        &pointer_size_label,
+                        &pointer_size_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for pointer_size in PointerScanPointerSize::ALL {
+                                let candidate_label = pointer_size.to_string();
+                                let pointer_size_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &candidate_label, None, pointer_size_width));
+
+                                if pointer_size_response.clicked() {
+                                    selected_pointer_size_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(pointer_size_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_pointer_size_label) = selected_pointer_size_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, &selected_pointer_size_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector => {
+                let offset_mode_selector_id = format!(
+                    "struct_viewer_symbol_struct_field_offset_mode_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_offset_mode = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let offset_mode_label = Self::SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS
+                    .iter()
+                    .copied()
+                    .find(|candidate_label| *candidate_label == current_offset_mode)
+                    .unwrap_or("Sequential");
+                let mut selected_offset_mode_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let offset_mode_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(offset_mode_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        offset_mode_label,
+                        &offset_mode_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for candidate_label in Self::SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS {
+                                let offset_mode_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, offset_mode_width));
+
+                                if offset_mode_response.clicked() {
+                                    selected_offset_mode_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(offset_mode_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_offset_mode_label) = selected_offset_mode_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_offset_mode_label, self.struct_viewer_frame_action);
                 }
             }
         }
