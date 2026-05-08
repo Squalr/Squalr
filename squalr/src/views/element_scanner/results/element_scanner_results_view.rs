@@ -10,6 +10,7 @@ use crate::{
         },
     },
     views::{
+        element_scanner::scanner::element_scanner_view::ElementScannerView,
         element_scanner::{
             results::{
                 element_scanner_result_entry_view::ElementScannerResultEntryView,
@@ -212,7 +213,7 @@ impl Widget for ElementScannerResultsView {
         let can_handle_window_shortcuts = self
             .app_context
             .window_focus_manager
-            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+            .can_window_handle_shortcuts(user_interface.ctx(), ElementScannerView::WINDOW_ID);
         let (scan_result_navigation_direction, extend_scan_result_selection) = if can_handle_window_shortcuts {
             let extend_scan_result_selection = user_interface.input(|input_state| input_state.modifiers.shift);
             let navigate_up = user_interface.input_mut(|input_state| {
@@ -666,11 +667,13 @@ impl Widget for ElementScannerResultsView {
             );
         }
 
-        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Delete)) {
-            ElementScannerResultsViewData::delete_selected_scan_results(
-                self.element_scanner_results_view_data.clone(),
-                self.app_context.engine_unprivileged_state.clone(),
-            );
+        if can_handle_window_shortcuts
+            && user_interface.input_mut(|input_state| {
+                let modifiers = input_state.modifiers;
+                input_state.consume_key(modifiers, Key::Delete)
+            })
+        {
+            element_sanner_result_frame_action = ElementScannerResultFrameAction::DeleteSelection;
         }
 
         if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Space)) {
@@ -717,7 +720,12 @@ impl Widget for ElementScannerResultsView {
                 }
                 ElementScannerResultFrameAction::ToggleFreezeSelection(_) => {}
                 ElementScannerResultFrameAction::AddSelection => {}
-                ElementScannerResultFrameAction::DeleteSelection => {}
+                ElementScannerResultFrameAction::DeleteSelection => {
+                    ElementScannerResultsViewData::delete_selected_scan_results(
+                        self.element_scanner_results_view_data.clone(),
+                        self.app_context.engine_unprivileged_state.clone(),
+                    );
+                }
                 ElementScannerResultFrameAction::CommitValueToSelection(_) => {}
             }
         }
