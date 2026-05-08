@@ -43,6 +43,7 @@ pub struct DockedWindowFooterView {
 
 impl DockedWindowFooterView {
     const TAB_ROW_HEIGHT: f32 = 24.0;
+    const TAB_ROW_GAP: f32 = 2.0;
     const TAB_HORIZONTAL_PADDING: f32 = 10.0;
     const TAB_MIN_WIDTH: f32 = 96.0;
     const TAB_MAX_WIDTH: f32 = 160.0;
@@ -153,7 +154,9 @@ impl DockedWindowFooterView {
     }
 
     fn height_for_row_count(row_count: usize) -> f32 {
-        Self::TAB_ROW_HEIGHT * row_count.max(1) as f32
+        let row_count = row_count.max(1);
+
+        Self::TAB_ROW_HEIGHT * row_count as f32 + Self::TAB_ROW_GAP * row_count.saturating_sub(1) as f32
     }
 
     fn draw_tab_label(
@@ -379,7 +382,8 @@ impl Widget for DockedWindowFooterView {
         let mut hovered_tab_drop_target = None;
 
         for (row_number, tab_layout_row) in tab_layout.rows.iter().enumerate() {
-            let row_min = pos2(available_size_rect.min.x, available_size_rect.min.y + row_number as f32 * Self::TAB_ROW_HEIGHT);
+            let row_top_offset = row_number as f32 * (Self::TAB_ROW_HEIGHT + Self::TAB_ROW_GAP);
+            let row_min = pos2(available_size_rect.min.x, available_size_rect.min.y + row_top_offset);
             let row_rect = Rect::from_min_size(row_min, vec2(available_size_rect.width(), Self::TAB_ROW_HEIGHT));
             let rendered_tab_widths = Self::resolve_rendered_tab_widths(&tab_layout, row_number, row_rect.width());
             let row_content_rect = Rect::from_min_size(row_min, vec2(row_rect.width(), Self::TAB_ROW_HEIGHT));
@@ -687,6 +691,13 @@ mod tests {
 
         assert_eq!(stretched_tab_widths, vec![200.0, 100.0]);
         assert_eq!(stretched_tab_widths.iter().sum::<f32>(), 300.0);
+    }
+
+    #[test]
+    fn footer_height_includes_gap_between_rows() {
+        assert_eq!(DockedWindowFooterView::height_for_row_count(1), 24.0);
+        assert_eq!(DockedWindowFooterView::height_for_row_count(2), 50.0);
+        assert_eq!(DockedWindowFooterView::height_for_row_count(3), 76.0);
     }
 
     #[test]
