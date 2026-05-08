@@ -670,8 +670,15 @@ impl AppShell {
         }
 
         match response_receiver.recv_timeout(Duration::from_secs(3)) {
-            Ok(_scan_results_delete_response) => {
-                self.app_state.scan_results_pane_state.status_message = "Deleted selected scan results.".to_string();
+            Ok(scan_results_delete_response) => {
+                if scan_results_delete_response.deleted_result_count < scan_results_delete_response.requested_result_count {
+                    self.app_state.scan_results_pane_state.status_message = format!(
+                        "Deleted {} of {} selected scan results.",
+                        scan_results_delete_response.deleted_result_count, scan_results_delete_response.requested_result_count
+                    );
+                } else {
+                    self.app_state.scan_results_pane_state.status_message = "Deleted selected scan results.".to_string();
+                }
                 self.query_scan_results_current_page(squalr_engine);
             }
             Err(receive_error) => {

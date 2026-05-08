@@ -4,7 +4,10 @@ use crate::commands::scan_results::scan_results_response::ScanResultsResponse;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ScanResultsDeleteResponse {}
+pub struct ScanResultsDeleteResponse {
+    pub requested_result_count: u64,
+    pub deleted_result_count: u64,
+}
 
 impl TypedPrivilegedCommandResponse for ScanResultsDeleteResponse {
     fn to_engine_response(&self) -> PrivilegedCommandResponse {

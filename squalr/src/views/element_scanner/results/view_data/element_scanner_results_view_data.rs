@@ -31,6 +31,7 @@ use squalr_engine_api::{
     },
 };
 use squalr_engine_session::engine_unprivileged_state::EngineUnprivilegedState;
+use std::collections::BTreeSet;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -730,6 +731,36 @@ impl ElementScannerResultsViewData {
         }
     }
 
+    fn remove_current_scan_results_by_refs(
+        element_scanner_results_view_data: Dependency<Self>,
+        scan_result_refs: &[ScanResultRef],
+    ) -> usize {
+        let deleted_scan_result_global_indices = scan_result_refs
+            .iter()
+            .map(|scan_result_ref| scan_result_ref.get_scan_result_global_index())
+            .collect::<BTreeSet<_>>();
+
+        let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Remove current scan results by refs") else {
+            return 0;
+        };
+
+        let previous_visible_result_count = element_scanner_results_view_data.current_scan_results.len();
+        element_scanner_results_view_data
+            .current_scan_results
+            .retain(|scan_result| {
+                let scan_result_global_index = scan_result
+                    .get_base_result()
+                    .get_scan_result_ref()
+                    .get_scan_result_global_index();
+
+                !deleted_scan_result_global_indices.contains(&scan_result_global_index)
+            });
+        element_scanner_results_view_data.selection_index_start = None;
+        element_scanner_results_view_data.selection_index_end = None;
+
+        previous_visible_result_count.saturating_sub(element_scanner_results_view_data.current_scan_results.len())
+    }
+
     fn set_page_index(
         element_scanner_results_view_data: Dependency<Self>,
         engine_unprivileged_state: Arc<EngineUnprivilegedState>,
@@ -986,11 +1017,32 @@ impl ElementScannerResultsViewData {
         let scan_result_refs = Self::collect_selected_scan_result_refs(element_scanner_results_view_data.clone());
 
         if !scan_result_refs.is_empty() {
-            Self::clear_selection(element_scanner_results_view_data);
-            let engine_unprivileged_state = &engine_unprivileged_state;
+            let requested_result_count = scan_result_refs.len() as u64;
+            let removed_visible_result_count = Self::remove_current_scan_results_by_refs(element_scanner_results_view_data.clone(), &scan_result_refs);
             let scan_results_delete_request = ScanResultsDeleteRequest { scan_result_refs };
+            let element_scanner_results_view_data_for_response = element_scanner_results_view_data.clone();
+            let engine_unprivileged_state_for_response = engine_unprivileged_state.clone();
 
-            scan_results_delete_request.send(engine_unprivileged_state, |_response| {});
+            if removed_visible_result_count == 0 {
+                log::warn!("Scan results delete request had selected refs, but none were visible on the current page.");
+            }
+
+            let did_dispatch = scan_results_delete_request.send(&engine_unprivileged_state, move |scan_results_delete_response| {
+                if scan_results_delete_response.deleted_result_count < requested_result_count {
+                    log::warn!(
+                        "Scan results delete completed with {} of {} requested result(s) deleted.",
+                        scan_results_delete_response.deleted_result_count,
+                        requested_result_count
+                    );
+                }
+
+                Self::query_scan_results(element_scanner_results_view_data_for_response, engine_unprivileged_state_for_response, false);
+            });
+
+            if !did_dispatch {
+                log::warn!("Scan results delete request failed to dispatch.");
+                Self::query_scan_results(element_scanner_results_view_data, engine_unprivileged_state, false);
+            }
         }
     }
 
@@ -1337,6 +1389,43 @@ mod tests {
             .read("Verify scan result selection cleared")
             .expect("Expected scan results view data read guard.");
 
+        assert_eq!(element_scanner_results_view_data.selection_index_start, None);
+        assert_eq!(element_scanner_results_view_data.selection_index_end, None);
+    }
+
+    #[test]
+    fn remove_current_scan_results_by_refs_removes_visible_refs_and_clears_selection() {
+        let dependency_container = DependencyContainer::new();
+        let element_scanner_results_view_data = dependency_container.register(create_view_data_with_scan_results(&[10, 11, 12, 13]));
+
+        {
+            let mut element_scanner_results_view_data = element_scanner_results_view_data
+                .write("Seed scan result selection")
+                .expect("Expected scan results view data write guard.");
+            element_scanner_results_view_data.selection_index_start = Some(1);
+            element_scanner_results_view_data.selection_index_end = Some(2);
+        }
+
+        let removed_visible_result_count = ElementScannerResultsViewData::remove_current_scan_results_by_refs(
+            element_scanner_results_view_data.clone(),
+            &[ScanResultRef::new(11), ScanResultRef::new(12)],
+        );
+        let element_scanner_results_view_data = element_scanner_results_view_data
+            .read("Verify current scan results after client-side delete")
+            .expect("Expected scan results view data read guard.");
+        let remaining_scan_result_global_indices = element_scanner_results_view_data
+            .current_scan_results
+            .iter()
+            .map(|scan_result| {
+                scan_result
+                    .get_base_result()
+                    .get_scan_result_ref()
+                    .get_scan_result_global_index()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(removed_visible_result_count, 2);
+        assert_eq!(remaining_scan_result_global_indices, vec![10, 13]);
         assert_eq!(element_scanner_results_view_data.selection_index_start, None);
         assert_eq!(element_scanner_results_view_data.selection_index_end, None);
     }

@@ -13,6 +13,7 @@ impl PrivilegedCommandRequestExecutor for ScanResultsDeleteRequest {
         engine_privileged_state: &Arc<EnginePrivilegedState>,
     ) -> <Self as PrivilegedCommandRequestExecutor>::ResponseType {
         let snapshot = engine_privileged_state.get_snapshot();
+        let requested_result_count = self.scan_result_refs.len() as u64;
         let deleted_result_count = match snapshot.write() {
             Ok(mut snapshot_guard) => snapshot_guard.delete_scan_results(
                 self.scan_result_refs
@@ -21,7 +22,10 @@ impl PrivilegedCommandRequestExecutor for ScanResultsDeleteRequest {
             ),
             Err(error) => {
                 log::error!("Failed to acquire write lock on snapshot for delete request: {}", error);
-                return ScanResultsDeleteResponse {};
+                return ScanResultsDeleteResponse {
+                    requested_result_count,
+                    deleted_result_count: 0,
+                };
             }
         };
 
@@ -29,6 +33,17 @@ impl PrivilegedCommandRequestExecutor for ScanResultsDeleteRequest {
             engine_privileged_state.emit_event(ScanResultsUpdatedEvent { is_new_scan: false });
         }
 
-        ScanResultsDeleteResponse {}
+        if deleted_result_count < requested_result_count {
+            log::warn!(
+                "Scan results delete request deleted {} of {} requested result(s); stale or invalid result refs were ignored.",
+                deleted_result_count,
+                requested_result_count
+            );
+        }
+
+        ScanResultsDeleteResponse {
+            requested_result_count,
+            deleted_result_count,
+        }
     }
 }

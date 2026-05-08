@@ -63,9 +63,14 @@ impl ElementScanExecutor {
         };
 
         let start_time = Instant::now();
+        let committed_deleted_result_count = snapshot.commit_deleted_scan_result_indices(symbol_registry);
         let processed_region_count = Arc::new(AtomicUsize::new(0));
         let total_region_count = snapshot.get_region_count();
         let snapshot_regions = snapshot.get_snapshot_regions_mut();
+
+        if with_logging && committed_deleted_result_count > 0 {
+            log::info!("Committed {} manually deleted scan result(s) before scanning.", committed_deleted_result_count);
+        }
 
         // Create a function that processes every snapshot region, from which we will grab the existing snapshot filters (previous results) to perform our next scan.
         let snapshot_iterator = |snapshot_region: &mut SnapshotRegion| {

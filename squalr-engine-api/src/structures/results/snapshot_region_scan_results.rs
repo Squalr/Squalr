@@ -480,6 +480,49 @@ impl SnapshotRegionScanResults {
         &self.snapshot_region_filter_collections
     }
 
+    /// Rebuilds the region filters with matching global scan-result indices removed.
+    pub fn remove_scan_results_by_global_indices(
+        &mut self,
+        symbol_registry: &SymbolRegistry,
+        region_global_scan_result_index_base: u64,
+        deleted_scan_result_indices: &BTreeSet<u64>,
+    ) -> u64 {
+        if deleted_scan_result_indices.is_empty() {
+            return 0;
+        }
+
+        let region_global_scan_result_index_end = region_global_scan_result_index_base.saturating_add(self.get_number_of_results());
+        let mut deleted_collection_result_indices = vec![Vec::new(); self.snapshot_region_filter_collections.len()];
+        let mut removed_result_count = 0u64;
+
+        for deleted_scan_result_index in deleted_scan_result_indices
+            .range(region_global_scan_result_index_base..region_global_scan_result_index_end)
+            .copied()
+        {
+            let local_scan_result_index = deleted_scan_result_index.saturating_sub(region_global_scan_result_index_base);
+
+            if let Some((collection_index, collection_result_index)) = self.get_scan_result_location_by_local_scan_result_index(local_scan_result_index) {
+                deleted_collection_result_indices[collection_index].push(collection_result_index);
+                removed_result_count = removed_result_count.saturating_add(1);
+            }
+        }
+
+        if removed_result_count == 0 {
+            return 0;
+        }
+
+        self.snapshot_region_filter_collections = self
+            .snapshot_region_filter_collections
+            .iter()
+            .zip(deleted_collection_result_indices.iter())
+            .map(|(snapshot_region_filter_collection, deleted_collection_result_indices)| {
+                snapshot_region_filter_collection.remove_results_at_indices(symbol_registry, deleted_collection_result_indices)
+            })
+            .collect();
+
+        removed_result_count
+    }
+
     /// Gets the minimum and maximum bounds across every filter contained by this snapshot region.
     pub fn get_filter_bounds(&self) -> (u64, u64) {
         let mut filter_min_address = u64::MAX;
@@ -647,6 +690,57 @@ impl SnapshotRegionScanResults {
         let current_address = collection_cursor.get_current_address()?;
 
         Some((current_address, collection_cursor.collection.get_data_type_ref().clone()))
+    }
+
+    fn get_scan_result_location_by_local_scan_result_index(
+        &self,
+        local_scan_result_index: u64,
+    ) -> Option<(usize, u64)> {
+        let mut collection_cursors = Vec::new();
+        let mut collection_cursor_heap: BinaryHeap<Reverse<(u64, usize)>> = BinaryHeap::new();
+        let mut collection_indices = Vec::new();
+        let mut collection_result_indices: Vec<u64> = Vec::new();
+
+        for (collection_index, snapshot_region_filter_collection) in self.snapshot_region_filter_collections.iter().enumerate() {
+            let Some(collection_cursor) = ScanResultsPageCursor::new(snapshot_region_filter_collection, true) else {
+                continue;
+            };
+            let Some(current_address) = collection_cursor.get_current_address() else {
+                continue;
+            };
+            let collection_cursor_index = collection_cursors.len();
+
+            collection_cursors.push(collection_cursor);
+            collection_indices.push(collection_index);
+            collection_result_indices.push(0);
+            collection_cursor_heap.push(Reverse((current_address, collection_cursor_index)));
+        }
+
+        let mut remaining_results_to_skip = local_scan_result_index;
+
+        while remaining_results_to_skip > 0 {
+            let Some(Reverse((_current_address, collection_cursor_index))) = collection_cursor_heap.pop() else {
+                return None;
+            };
+            let next_competing_address = collection_cursor_heap
+                .peek()
+                .map(|Reverse((current_address, _collection_cursor_index))| *current_address);
+            let collection_cursor = &mut collection_cursors[collection_cursor_index];
+            let max_consecutive_results = collection_cursor.get_max_consecutive_results_before(next_competing_address);
+            let results_to_advance = max_consecutive_results.min(remaining_results_to_skip);
+
+            collection_cursor.advance_results(results_to_advance);
+            collection_result_indices[collection_cursor_index] = collection_result_indices[collection_cursor_index].saturating_add(results_to_advance);
+            remaining_results_to_skip = remaining_results_to_skip.saturating_sub(results_to_advance);
+
+            if let Some(updated_address) = collection_cursor.get_current_address() {
+                collection_cursor_heap.push(Reverse((updated_address, collection_cursor_index)));
+            }
+        }
+
+        let Reverse((_current_address, collection_cursor_index)) = collection_cursor_heap.pop()?;
+
+        Some((collection_indices[collection_cursor_index], collection_result_indices[collection_cursor_index]))
     }
 
     fn get_deleted_result_count_for_data_types(

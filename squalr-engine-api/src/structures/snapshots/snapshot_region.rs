@@ -6,7 +6,7 @@ use crate::structures::memory::normalized_region::NormalizedRegion;
 use crate::structures::results::snapshot_region_scan_results::SnapshotRegionScanResults;
 use crate::structures::scanning::filters::snapshot_region_filter::SnapshotRegionFilter;
 use crate::structures::scanning::filters::snapshot_region_filter_collection::SnapshotRegionFilterCollection;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 /// Defines a contiguous region of memory within a snapshot.
 /// JIRA: Please no public fields. These were made public to support pushing memory reading functionality into a trait.
@@ -184,6 +184,23 @@ impl SnapshotRegion {
 
     pub fn get_scan_results(&self) -> &SnapshotRegionScanResults {
         &self.scan_results
+    }
+
+    pub fn remove_scan_results_by_global_indices(
+        &mut self,
+        symbol_registry: &SymbolRegistry,
+        region_global_scan_result_index_base: u64,
+        deleted_scan_result_indices: &BTreeSet<u64>,
+    ) -> u64 {
+        let removed_result_count =
+            self.scan_results
+                .remove_scan_results_by_global_indices(symbol_registry, region_global_scan_result_index_base, deleted_scan_result_indices);
+
+        if removed_result_count > 0 {
+            self.resize_to_filters();
+        }
+
+        removed_result_count
     }
 
     pub fn set_scan_results(
