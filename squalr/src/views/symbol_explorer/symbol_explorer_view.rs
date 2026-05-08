@@ -3787,9 +3787,6 @@ impl Widget for SymbolExplorerView {
                 SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. } | SymbolTreeEntryKind::U8Segment { .. }
             )
         });
-        let can_open_selected_entry =
-            selected_symbol_tree_entry.is_some_and(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }));
-
         if !is_delete_confirmation_active
             && !is_inline_rename_active
             && can_handle_window_shortcuts
@@ -3817,45 +3814,11 @@ impl Widget for SymbolExplorerView {
                 );
                 let toolbar_action = SymbolExplorerToolbarView::new(self.app_context.clone())
                     .can_create_module_root(can_use_standard_toolbar_actions)
-                    .can_rename_selected_entry(can_rename_selected_entry && can_use_standard_toolbar_actions)
-                    .can_delete_selected_entry(
-                        (selected_module_child_range_target.is_some() || selected_symbol_claim.is_some() || selected_module_name.is_some())
-                            && can_use_standard_toolbar_actions,
-                    )
-                    .can_open_in_code_viewer(can_open_selected_entry && can_use_standard_toolbar_actions)
-                    .can_open_in_memory_viewer(can_open_selected_entry && can_use_standard_toolbar_actions)
                     .show(&mut list_user_interface);
 
                 match toolbar_action {
                     Some(SymbolExplorerToolbarAction::CreateModuleRoot) => {
                         SymbolExplorerViewData::begin_create_module_root(self.symbol_explorer_view_data.clone());
-                    }
-                    Some(SymbolExplorerToolbarAction::RenameSelectedEntry) => {
-                        if can_rename_selected_entry {
-                            if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
-                                SymbolExplorerViewData::begin_inline_rename(
-                                    self.symbol_explorer_view_data.clone(),
-                                    symbol_tree_entry.get_node_key().to_string(),
-                                );
-                            }
-                        }
-                    }
-                    Some(SymbolExplorerToolbarAction::DeleteSelectedEntry) => {
-                        self.request_delete_for_selection(
-                            selected_symbol_claim,
-                            selected_module_name.as_deref(),
-                            selected_module_child_range_target.as_ref(),
-                        );
-                    }
-                    Some(SymbolExplorerToolbarAction::OpenSelectedInCodeViewer) => {
-                        if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
-                            self.focus_code_viewer_for_locator(symbol_tree_entry.get_locator());
-                        }
-                    }
-                    Some(SymbolExplorerToolbarAction::OpenSelectedInMemoryViewer) => {
-                        if let Some(symbol_tree_entry) = selected_symbol_tree_entry {
-                            self.focus_memory_viewer_for_locator(symbol_tree_entry.get_locator());
-                        }
                     }
                     None => {}
                 }

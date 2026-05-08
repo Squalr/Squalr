@@ -3,26 +3,18 @@ use crate::{
     ui::{draw::icon_draw::IconDraw, theme::Theme, widgets::controls::button::Button},
 };
 use eframe::egui::{Align, Layout, Sense, Ui, UiBuilder};
-use epaint::{Color32, CornerRadius, vec2};
+use epaint::{CornerRadius, vec2};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolExplorerToolbarAction {
     CreateModuleRoot,
-    RenameSelectedEntry,
-    DeleteSelectedEntry,
-    OpenSelectedInCodeViewer,
-    OpenSelectedInMemoryViewer,
 }
 
 #[derive(Clone)]
 pub struct SymbolExplorerToolbarView {
     app_context: Arc<AppContext>,
     can_create_module_root: bool,
-    can_rename_selected_entry: bool,
-    can_delete_selected_entry: bool,
-    can_open_in_code_viewer: bool,
-    can_open_in_memory_viewer: bool,
 }
 
 impl SymbolExplorerToolbarView {
@@ -33,10 +25,6 @@ impl SymbolExplorerToolbarView {
         Self {
             app_context,
             can_create_module_root: false,
-            can_rename_selected_entry: false,
-            can_delete_selected_entry: false,
-            can_open_in_code_viewer: false,
-            can_open_in_memory_viewer: false,
         }
     }
 
@@ -45,42 +33,6 @@ impl SymbolExplorerToolbarView {
         can_create_module_root: bool,
     ) -> Self {
         self.can_create_module_root = can_create_module_root;
-
-        self
-    }
-
-    pub fn can_rename_selected_entry(
-        mut self,
-        can_rename_selected_entry: bool,
-    ) -> Self {
-        self.can_rename_selected_entry = can_rename_selected_entry;
-
-        self
-    }
-
-    pub fn can_delete_selected_entry(
-        mut self,
-        can_delete_selected_entry: bool,
-    ) -> Self {
-        self.can_delete_selected_entry = can_delete_selected_entry;
-
-        self
-    }
-
-    pub fn can_open_in_code_viewer(
-        mut self,
-        can_open_in_code_viewer: bool,
-    ) -> Self {
-        self.can_open_in_code_viewer = can_open_in_code_viewer;
-
-        self
-    }
-
-    pub fn can_open_in_memory_viewer(
-        mut self,
-        can_open_in_memory_viewer: bool,
-    ) -> Self {
-        self.can_open_in_memory_viewer = can_open_in_memory_viewer;
 
         self
     }
@@ -104,66 +56,13 @@ impl SymbolExplorerToolbarView {
                 .layout(Layout::left_to_right(Align::Center)),
         );
 
-        toolbar_user_interface.with_layout(Layout::right_to_left(Align::Center), |toolbar_user_interface| {
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_common_delete,
-                "Delete selected module, symbol, or field.",
-                self.can_delete_selected_entry,
-                Some((theme.background_control_danger, theme.background_control_danger_dark)),
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::DeleteSelectedEntry);
-            }
-
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_common_edit,
-                "Rename selected module, symbol, or field.",
-                self.can_rename_selected_entry,
-                None,
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::RenameSelectedEntry);
-            }
-
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_project_cpu_instruction,
-                "Open selected symbol or field in Code Viewer.",
-                self.can_open_in_code_viewer,
-                None,
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::OpenSelectedInCodeViewer);
-            }
-
-            if Self::draw_icon_button(
-                toolbar_user_interface,
-                theme,
-                &theme.icon_library.icon_handle_scan_collect_values,
-                "Open selected symbol or field in Memory Viewer.",
-                self.can_open_in_memory_viewer,
-                None,
-            )
-            .clicked()
-            {
-                clicked_action = Some(SymbolExplorerToolbarAction::OpenSelectedInMemoryViewer);
-            }
-
+        toolbar_user_interface.with_layout(Layout::left_to_right(Align::Center), |toolbar_user_interface| {
             if Self::draw_icon_button(
                 toolbar_user_interface,
                 theme,
                 &theme.icon_library.icon_handle_common_add,
                 "Add module.",
                 self.can_create_module_root,
-                None,
             )
             .clicked()
             {
@@ -180,18 +79,12 @@ impl SymbolExplorerToolbarView {
         icon_handle: &epaint::TextureHandle,
         tooltip_text: &str,
         enabled: bool,
-        colors: Option<(Color32, Color32)>,
     ) -> eframe::egui::Response {
-        let (background_color, border_color, border_width) = colors
-            .map(|(background_color, border_color)| (background_color, border_color, 1.0))
-            .unwrap_or((Color32::TRANSPARENT, Color32::TRANSPARENT, 0.0));
         let button_response = user_interface.add_sized(
             vec2(Self::TOOLBAR_BUTTON_SIZE, Self::TOOLBAR_HEIGHT),
             Button::new_from_theme(theme)
                 .with_tooltip_text(tooltip_text)
-                .background_color(background_color)
-                .border_color(border_color)
-                .border_width(border_width)
+                .background_color(epaint::Color32::TRANSPARENT)
                 .disabled(!enabled),
         );
 

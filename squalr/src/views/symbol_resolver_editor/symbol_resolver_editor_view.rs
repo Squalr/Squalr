@@ -14,7 +14,10 @@ use crate::{
         },
     },
 };
-use eframe::egui::{Align, Align2, Direction, Id, Key, Layout, Rect, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{
+    Align, Align2, Button as EguiButton, Direction, Id, Key, Layout, Rect, Response, RichText, ScrollArea, Sense, TextureHandle, Ui, UiBuilder, Widget, pos2,
+    vec2,
+};
 use epaint::{Color32, CornerRadius, Stroke, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
@@ -71,6 +74,8 @@ impl SymbolResolverEditorView {
     const TAKE_OVER_CONTENT_PADDING_TOP: f32 = 12.0;
     const TAKE_OVER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_ROW_SPACING: f32 = 8.0;
+    const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
+    const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
     const RESOLVER_ID_EDITOR_WIDTH: f32 = 260.0;
     const RESOLVER_ID_EDITOR_ID: &'static str = "symbol_resolver_editor_resolver_id";
     const DETAILS_FIELD_LOCAL_FIELD: &'static str = "local_field";
@@ -190,37 +195,6 @@ impl SymbolResolverEditorView {
         action
     }
 
-    fn render_take_over_header_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        icon_handle: &TextureHandle,
-        tooltip_text: &str,
-        background_color: Color32,
-        border_color: Color32,
-        is_disabled: bool,
-        button_height: f32,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::ICON_BUTTON_WIDTH, button_height),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(background_color)
-                .border_color(border_color)
-                .border_width(1.0)
-                .disabled(is_disabled),
-        );
-
-        IconDraw::draw_tinted(
-            user_interface,
-            button_response.rect,
-            icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
-    }
-
     fn render_icon_button(
         &self,
         user_interface: &mut Ui,
@@ -245,6 +219,50 @@ impl SymbolResolverEditorView {
         );
 
         button_response
+    }
+
+    fn render_take_over_action_buttons(
+        &self,
+        user_interface: &mut Ui,
+        accept_label: &str,
+        can_accept: bool,
+    ) -> (Response, Response) {
+        let theme = &self.app_context.theme;
+        let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::ROW_HEIGHT);
+        let total_button_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+        let side_spacing = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
+
+        user_interface
+            .horizontal(|user_interface| {
+                user_interface.add_space(side_spacing);
+                user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+
+                let cancel_response = user_interface.add_sized(
+                    button_size,
+                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                        .fill(theme.background_control_danger)
+                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                );
+
+                let accept_button = EguiButton::new(RichText::new(accept_label).color(if can_accept { theme.foreground } else { theme.foreground_preview }))
+                    .fill(if can_accept {
+                        theme.background_control_primary
+                    } else {
+                        theme.background_control_secondary
+                    })
+                    .stroke(Stroke::new(
+                        1.0,
+                        if can_accept {
+                            theme.background_control_primary_dark
+                        } else {
+                            theme.background_control_secondary_dark
+                        },
+                    ));
+                let accept_response = user_interface.add_enabled(can_accept, accept_button);
+
+                (cancel_response, accept_response)
+            })
+            .inner
     }
 
     fn render_resolver_list(
@@ -464,9 +482,7 @@ impl SymbolResolverEditorView {
         );
         header_user_interface.set_clip_rect(header_rect);
 
-        let header_button_count: f32 = if is_existing_resolver { 2.0 } else { 1.0 };
-        let header_action_width = Self::ICON_BUTTON_WIDTH * header_button_count + Self::TAKE_OVER_ROW_SPACING * (header_button_count - 1.0).max(0.0);
-        let title_width = (header_rect.width() - header_action_width - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
+        let title_width = (header_rect.width() - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
             pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
@@ -474,44 +490,6 @@ impl SymbolResolverEditorView {
             if is_existing_resolver { "Rename resolver" } else { "Create resolver" },
             theme.font_library.font_noto_sans.font_window_title.clone(),
             theme.foreground,
-        );
-
-        header_user_interface.allocate_ui_with_layout(
-            vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-            Layout::right_to_left(Align::Center),
-            |user_interface| {
-                if is_existing_resolver {
-                    let delete_response = self.render_take_over_header_icon_button(
-                        user_interface,
-                        &theme.icon_library.icon_handle_common_delete,
-                        "Delete this resolver.",
-                        theme.background_control_danger,
-                        theme.background_control_danger_dark,
-                        false,
-                        Self::TAKE_OVER_HEADER_HEIGHT,
-                    );
-                    if delete_response.clicked() {
-                        if let Some(resolver_id) = draft.original_resolver_id.as_deref() {
-                            action = ResolverFrameAction::RequestDeleteConfirmation(resolver_id.to_string());
-                        }
-                    }
-
-                    user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
-                }
-
-                let cancel_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_navigation_cancel,
-                    "Cancel resolver editing.",
-                    theme.background_control_secondary,
-                    theme.submenu_border,
-                    false,
-                    Self::TAKE_OVER_HEADER_HEIGHT,
-                );
-                if cancel_response.clicked() {
-                    action = ResolverFrameAction::CancelDraft;
-                }
-            },
         );
 
         panel_user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_TOP);
@@ -549,6 +527,7 @@ impl SymbolResolverEditorView {
                         );
 
                         let edited_resolver_id = resolver_id_value.get_anonymous_value_string().to_string();
+                        let did_commit_resolver_id = DataValueBoxView::consume_commit_on_enter(user_interface, Self::RESOLVER_ID_EDITOR_ID);
                         if edited_resolver_id != draft.resolver_id {
                             if let Some(mut view_data) = self
                                 .symbol_resolver_editor_view_data
@@ -558,18 +537,7 @@ impl SymbolResolverEditorView {
                             }
                         }
 
-                        user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
-
-                        let save_response = self.render_take_over_header_icon_button(
-                            user_interface,
-                            &theme.icon_library.icon_handle_common_check_mark,
-                            "Save resolver.",
-                            theme.background_control_primary,
-                            theme.background_control_primary_dark,
-                            !can_save,
-                            Self::ROW_HEIGHT,
-                        );
-                        if can_save && (save_response.clicked() || DataValueBoxView::consume_commit_on_enter(user_interface, Self::RESOLVER_ID_EDITOR_ID)) {
+                        if can_save && did_commit_resolver_id {
                             action = ResolverFrameAction::SaveDraft;
                         }
                     });
@@ -577,6 +545,15 @@ impl SymbolResolverEditorView {
                     if let Some(Err(validation_error)) = validation_result {
                         user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
                         user_interface.label(RichText::new(validation_error).color(theme.error_red));
+                    }
+
+                    user_interface.add_space(Self::TAKE_OVER_ROW_SPACING + Self::TAKE_OVER_ROW_SPACING);
+                    let (cancel_response, accept_response) = self.render_take_over_action_buttons(user_interface, "Accept", can_save);
+                    if cancel_response.clicked() {
+                        action = ResolverFrameAction::CancelDraft;
+                    }
+                    if accept_response.clicked() {
+                        action = ResolverFrameAction::SaveDraft;
                     }
                 },
             );
@@ -628,8 +605,7 @@ impl SymbolResolverEditorView {
         );
         header_user_interface.set_clip_rect(header_rect);
 
-        let header_action_width = Self::ICON_BUTTON_WIDTH * 2.0 + Self::TAKE_OVER_ROW_SPACING;
-        let title_width = (header_rect.width() - header_action_width - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
+        let title_width = (header_rect.width() - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
             pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
@@ -639,51 +615,23 @@ impl SymbolResolverEditorView {
             theme.foreground,
         );
 
-        header_user_interface.allocate_ui_with_layout(
-            vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-            Layout::right_to_left(Align::Center),
-            |user_interface| {
-                let save_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_common_check_mark,
-                    "Save resolver tree.",
-                    theme.background_control_primary,
-                    theme.background_control_primary_dark,
-                    !can_save,
-                    Self::TAKE_OVER_HEADER_HEIGHT,
-                );
-                if can_save && save_response.clicked() {
-                    action = ResolverFrameAction::SaveDraft;
-                }
-
-                user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
-
-                let cancel_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_navigation_cancel,
-                    "Close resolver tree.",
-                    theme.background_control_secondary,
-                    theme.submenu_border,
-                    false,
-                    Self::TAKE_OVER_HEADER_HEIGHT,
-                );
-                if cancel_response.clicked() {
-                    action = ResolverFrameAction::CancelDraft;
-                }
-            },
-        );
-
         panel_user_interface.add_space(4.0);
+        let tree_height = (panel_user_interface.available_height() - Self::ROW_HEIGHT - Self::TAKE_OVER_ROW_SPACING).max(Self::ROW_HEIGHT);
         panel_user_interface.allocate_ui_with_layout(
-            vec2(
-                panel_user_interface.available_width(),
-                panel_user_interface.available_height().max(Self::ROW_HEIGHT),
-            ),
+            vec2(panel_user_interface.available_width(), tree_height),
             Layout::top_down(Align::Min),
             |user_interface| {
                 self.render_resolver_node_editor_tree(user_interface, draft, selected_node_path);
             },
         );
+        panel_user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
+        let (cancel_response, accept_response) = self.render_take_over_action_buttons(&mut panel_user_interface, "Accept", can_save);
+        if cancel_response.clicked() {
+            action = ResolverFrameAction::CancelDraft;
+        }
+        if accept_response.clicked() {
+            action = ResolverFrameAction::SaveDraft;
+        }
 
         action
     }
@@ -736,8 +684,7 @@ impl SymbolResolverEditorView {
         );
         header_user_interface.set_clip_rect(header_rect);
 
-        let header_action_width = Self::ICON_BUTTON_WIDTH * 2.0 + Self::TAKE_OVER_ROW_SPACING;
-        let title_width = (header_rect.width() - header_action_width - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
+        let title_width = (header_rect.width() - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
             pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
@@ -745,40 +692,6 @@ impl SymbolResolverEditorView {
             "Delete resolver",
             theme.font_library.font_noto_sans.font_window_title.clone(),
             theme.foreground,
-        );
-
-        header_user_interface.allocate_ui_with_layout(
-            vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-            Layout::right_to_left(Align::Center),
-            |user_interface| {
-                let delete_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_common_delete,
-                    "Delete this resolver.",
-                    theme.background_control_danger,
-                    theme.background_control_danger_dark,
-                    false,
-                    Self::TAKE_OVER_HEADER_HEIGHT,
-                );
-                if delete_response.clicked() {
-                    action = ResolverFrameAction::ConfirmDeleteResolver(resolver_id.to_string());
-                }
-
-                user_interface.add_space(Self::TAKE_OVER_ROW_SPACING);
-
-                let cancel_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &theme.icon_library.icon_handle_navigation_cancel,
-                    "Cancel resolver deletion.",
-                    theme.background_control_secondary,
-                    theme.submenu_border,
-                    false,
-                    Self::TAKE_OVER_HEADER_HEIGHT,
-                );
-                if cancel_response.clicked() {
-                    action = ResolverFrameAction::CancelDraft;
-                }
-            },
         );
 
         panel_user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_TOP);
@@ -806,6 +719,15 @@ impl SymbolResolverEditorView {
                         })
                         .desired_width(user_interface.available_width()),
                     );
+
+                    user_interface.add_space(Self::TAKE_OVER_ROW_SPACING + Self::TAKE_OVER_ROW_SPACING);
+                    let (cancel_response, accept_response) = self.render_take_over_action_buttons(user_interface, "Accept", true);
+                    if cancel_response.clicked() {
+                        action = ResolverFrameAction::CancelDraft;
+                    }
+                    if accept_response.clicked() {
+                        action = ResolverFrameAction::ConfirmDeleteResolver(resolver_id.to_string());
+                    }
                 },
             );
         });

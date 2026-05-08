@@ -12,7 +12,9 @@ use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_dat
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{
     SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind, SymbolStructFieldDynamicCountMode,
 };
-use eframe::egui::{Align, Align2, ComboBox, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2};
+use eframe::egui::{
+    Align, Align2, Button as EguiButton, ComboBox, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
+};
 use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
@@ -67,6 +69,8 @@ impl SymbolStructEditorView {
     const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
     const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
+    const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
+    const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_struct_editor_view_data = app_context
@@ -276,24 +280,6 @@ impl SymbolStructEditorView {
         )
     }
 
-    fn render_take_over_header_delete_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-
-        self.render_take_over_header_icon_button_with_style(
-            user_interface,
-            &theme.icon_library.icon_handle_common_delete,
-            tooltip_text,
-            theme.background_control_danger,
-            theme.background_control_danger_dark,
-            is_disabled,
-        )
-    }
-
     fn render_take_over_header_icon_button_with_style(
         &self,
         user_interface: &mut Ui,
@@ -323,6 +309,50 @@ impl SymbolStructEditorView {
         );
 
         button_response
+    }
+
+    fn render_take_over_action_buttons(
+        &self,
+        user_interface: &mut Ui,
+        accept_label: &str,
+        can_accept: bool,
+    ) -> (Response, Response) {
+        let theme = &self.app_context.theme;
+        let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT);
+        let total_button_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+        let side_spacing = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
+
+        user_interface
+            .horizontal(|user_interface| {
+                user_interface.add_space(side_spacing);
+                user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+
+                let cancel_response = user_interface.add_sized(
+                    button_size,
+                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                        .fill(theme.background_control_danger)
+                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                );
+
+                let accept_button = EguiButton::new(RichText::new(accept_label).color(if can_accept { theme.foreground } else { theme.foreground_preview }))
+                    .fill(if can_accept {
+                        theme.background_control_primary
+                    } else {
+                        theme.background_control_secondary
+                    })
+                    .stroke(Stroke::new(
+                        1.0,
+                        if can_accept {
+                            theme.background_control_primary_dark
+                        } else {
+                            theme.background_control_secondary_dark
+                        },
+                    ));
+                let accept_response = user_interface.add_enabled(can_accept, accept_button);
+
+                (cancel_response, accept_response)
+            })
+            .inner
     }
 
     fn render_string_value_box(
@@ -1434,47 +1464,14 @@ impl SymbolStructEditorView {
         let has_unsaved_changes = edited_draft != *baseline_draft;
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
         let can_save = validation_result.is_ok() && has_unsaved_changes;
-        let save_tooltip = if !has_unsaved_changes {
-            "No struct layout changes to save."
-        } else if validation_result.is_err() {
-            "Fix validation errors before saving this struct layout."
-        } else if is_creating_new_layout {
-            "Save this new struct layout."
-        } else {
-            "Save these struct layout changes."
-        };
         let mut should_cancel_take_over = false;
         let mut should_save_draft = false;
 
         self.render_take_over_panel(
             user_interface,
             take_over_title,
-            Self::ICON_BUTTON_WIDTH * 2.0,
-            |user_interface| {
-                let save_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &self.app_context.theme.icon_library.icon_handle_file_system_save,
-                    save_tooltip,
-                    !can_save,
-                );
-                if save_response.clicked() {
-                    should_save_draft = true;
-                }
-
-                let cancel_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &self
-                        .app_context
-                        .theme
-                        .icon_library
-                        .icon_handle_navigation_cancel,
-                    "Cancel struct layout editing.",
-                    false,
-                );
-                if cancel_response.clicked() {
-                    should_cancel_take_over = true;
-                }
-            },
+            0.0,
+            |_user_interface| {},
             |user_interface| {
                 user_interface.add(
                     GroupBox::new_from_theme(&self.app_context.theme, "Struct Layout", |user_interface| {
@@ -1515,6 +1512,15 @@ impl SymbolStructEditorView {
                 if let Err(validation_error) = validation_result.as_ref() {
                     user_interface.label(RichText::new(validation_error).color(self.app_context.theme.error_red));
                     user_interface.add_space(8.0);
+                }
+
+                user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+                let (cancel_response, accept_response) = self.render_take_over_action_buttons(user_interface, "Accept", can_save);
+                if cancel_response.clicked() {
+                    should_cancel_take_over = true;
+                }
+                if accept_response.clicked() {
+                    should_save_draft = true;
                 }
             },
         );
@@ -1566,27 +1572,8 @@ impl SymbolStructEditorView {
         self.render_take_over_panel(
             user_interface,
             "Delete Struct Layout",
-            Self::ICON_BUTTON_WIDTH * 2.0,
-            |user_interface| {
-                let delete_response = self.render_take_over_header_delete_icon_button(user_interface, "Delete the selected struct layout.", false);
-                if delete_response.clicked() {
-                    should_delete_layout = true;
-                }
-
-                let cancel_response = self.render_take_over_header_icon_button(
-                    user_interface,
-                    &self
-                        .app_context
-                        .theme
-                        .icon_library
-                        .icon_handle_navigation_cancel,
-                    "Cancel struct layout deletion.",
-                    false,
-                );
-                if cancel_response.clicked() {
-                    should_cancel_take_over = true;
-                }
-            },
+            0.0,
+            |_user_interface| {},
             |user_interface| {
                 let theme = &self.app_context.theme;
                 user_interface.add(
@@ -1602,6 +1589,15 @@ impl SymbolStructEditorView {
                     })
                     .desired_width(user_interface.available_width()),
                 );
+
+                user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+                let (cancel_response, accept_response) = self.render_take_over_action_buttons(user_interface, "Accept", true);
+                if cancel_response.clicked() {
+                    should_cancel_take_over = true;
+                }
+                if accept_response.clicked() {
+                    should_delete_layout = true;
+                }
             },
         );
 
