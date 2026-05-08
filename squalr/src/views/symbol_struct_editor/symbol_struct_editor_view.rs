@@ -13,7 +13,7 @@ use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container
     SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind, SymbolStructFieldDynamicCountMode,
 };
 use eframe::egui::{
-    Align, Align2, Button as EguiButton, ComboBox, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Button as EguiButton, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
 use epaint::{Color32, CornerRadius, StrokeKind};
 use squalr_engine_api::commands::{
@@ -69,6 +69,7 @@ impl SymbolStructEditorView {
     const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
     const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
+    const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
 
@@ -322,7 +323,7 @@ impl SymbolStructEditorView {
         let total_button_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
         let side_spacing = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
 
-        user_interface
+        let responses = user_interface
             .horizontal(|user_interface| {
                 user_interface.add_space(side_spacing);
                 user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
@@ -348,11 +349,17 @@ impl SymbolStructEditorView {
                             theme.background_control_secondary_dark
                         },
                     ));
-                let accept_response = user_interface.add_enabled(can_accept, accept_button);
+                let accept_response = user_interface
+                    .add_enabled_ui(can_accept, |user_interface| user_interface.add_sized(button_size, accept_button))
+                    .inner;
 
                 (cancel_response, accept_response)
             })
-            .inner
+            .inner;
+
+        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
+
+        responses
     }
 
     fn render_string_value_box(
@@ -768,19 +775,34 @@ impl SymbolStructEditorView {
             selected_resolver_id.trim().to_string()
         };
 
-        ComboBox::from_id_salt(id_prefix)
-            .selected_text(&selected_text)
-            .show_ui(user_interface, |user_interface| {
-                for resolver_descriptor in resolver_descriptors {
-                    let resolver_id = resolver_descriptor.get_resolver_id();
-                    if user_interface
-                        .selectable_label(selected_text == resolver_id, resolver_id)
-                        .clicked()
-                    {
-                        *selected_resolver_id = resolver_id.to_string();
+        let picker_width = user_interface.available_width().max(1.0);
+        let mut selected_resolver = None;
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                selected_text,
+                id_prefix,
+                None,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    for resolver_descriptor in resolver_descriptors {
+                        let resolver_id = resolver_descriptor.get_resolver_id();
+                        let resolver_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), resolver_id, None, picker_width));
+
+                        if resolver_response.clicked() {
+                            selected_resolver = Some(resolver_id.to_string());
+                            *should_close = true;
+                        }
                     }
-                }
-            });
+                },
+            )
+            .width(picker_width)
+            .height(Self::FIELD_ROW_HEIGHT),
+        );
+
+        if let Some(selected_resolver) = selected_resolver {
+            *selected_resolver_id = selected_resolver;
+        }
     }
 
     fn render_struct_layout_row(
@@ -1043,6 +1065,7 @@ impl SymbolStructEditorView {
                     user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
                     user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
                         add_contents(user_interface);
+                        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
                     });
                 });
             });

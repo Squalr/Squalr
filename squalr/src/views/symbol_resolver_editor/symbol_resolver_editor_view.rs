@@ -74,6 +74,7 @@ impl SymbolResolverEditorView {
     const TAKE_OVER_CONTENT_PADDING_TOP: f32 = 12.0;
     const TAKE_OVER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_ROW_SPACING: f32 = 8.0;
+    const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
     const RESOLVER_ID_EDITOR_WIDTH: f32 = 260.0;
@@ -232,7 +233,7 @@ impl SymbolResolverEditorView {
         let total_button_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
         let side_spacing = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
 
-        user_interface
+        let responses = user_interface
             .horizontal(|user_interface| {
                 user_interface.add_space(side_spacing);
                 user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
@@ -258,11 +259,17 @@ impl SymbolResolverEditorView {
                             theme.background_control_secondary_dark
                         },
                     ));
-                let accept_response = user_interface.add_enabled(can_accept, accept_button);
+                let accept_response = user_interface
+                    .add_enabled_ui(can_accept, |user_interface| user_interface.add_sized(button_size, accept_button))
+                    .inner;
 
                 (cancel_response, accept_response)
             })
-            .inner
+            .inner;
+
+        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
+
+        responses
     }
 
     fn render_resolver_list(

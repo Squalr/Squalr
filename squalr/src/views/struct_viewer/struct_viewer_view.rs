@@ -61,6 +61,7 @@ impl StructViewerView {
     const TAKE_OVER_CONTENT_PADDING_X: f32 = 12.0;
     const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
+    const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let struct_viewer_view_data = if app_context
@@ -297,6 +298,7 @@ impl StructViewerView {
                     user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
                     user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
                         add_contents(user_interface);
+                        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
                     });
                 });
             });
