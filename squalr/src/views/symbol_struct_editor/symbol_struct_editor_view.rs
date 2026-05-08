@@ -313,6 +313,43 @@ impl SymbolStructEditorView {
         responses
     }
 
+    fn render_delete_take_over_action_buttons(
+        &self,
+        user_interface: &mut Ui,
+    ) -> (Response, Response) {
+        let theme = &self.app_context.theme;
+        let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT);
+        let total_button_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+        let side_spacing = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
+
+        let responses = user_interface
+            .horizontal(|user_interface| {
+                user_interface.add_space(side_spacing);
+                user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+
+                let cancel_response = user_interface.add_sized(
+                    button_size,
+                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                        .fill(theme.background_control_primary)
+                        .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
+                );
+
+                let delete_response = user_interface.add_sized(
+                    button_size,
+                    EguiButton::new(RichText::new("Delete").color(theme.foreground))
+                        .fill(theme.background_control_danger)
+                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                );
+
+                (cancel_response, delete_response)
+            })
+            .inner;
+
+        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
+
+        responses
+    }
+
     fn render_string_value_box(
         &self,
         user_interface: &mut Ui,
@@ -1270,11 +1307,11 @@ impl SymbolStructEditorView {
                 );
 
                 user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
-                let (cancel_response, accept_response) = self.render_take_over_action_buttons(user_interface, "Accept", true);
+                let (cancel_response, delete_response) = self.render_delete_take_over_action_buttons(user_interface);
                 if cancel_response.clicked() {
                     should_cancel_take_over = true;
                 }
-                if accept_response.clicked() {
+                if delete_response.clicked() {
                     should_delete_layout = true;
                 }
             },

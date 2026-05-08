@@ -1898,8 +1898,8 @@ impl Widget for ProjectHierarchyView {
                                                 let button_cancel = user_interface.add_sized(
                                                     button_size,
                                                     eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                                        .fill(theme.background_control_secondary)
-                                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                                        .fill(theme.background_control_primary)
+                                                        .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
                                                 );
 
                                                 if button_cancel.clicked() {
