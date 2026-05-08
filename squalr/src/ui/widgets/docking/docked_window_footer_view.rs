@@ -2,7 +2,6 @@ use crate::{
     app_context::AppContext,
     models::docking::{drag_drop::dock_tab_drop_target::DockTabDropTarget, hierarchy::types::dock_tab_insertion_direction::DockTabInsertionDirection},
     ui::{
-        draw::icon_draw::IconDraw,
         geometry::safe_clamp_f32,
         widgets::{
             controls::button::Button,
@@ -17,20 +16,36 @@ use eframe::egui::{Align, CursorIcon, Layout, Response, Sense, Ui, UiBuilder, Wi
 use epaint::{Color32, CornerRadius, Pos2, Rect, pos2, vec2};
 use std::{rc::Rc, sync::Arc};
 
+#[derive(Clone, Debug, PartialEq)]
+struct DockedTabLayoutItem {
+    sibling_id: String,
+    title: String,
+    tab_width: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct DockedTabLayoutRow {
+    items: Vec<DockedTabLayoutItem>,
+    row_width: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct DockedTabLayout {
+    rows: Vec<DockedTabLayoutRow>,
+}
+
 #[derive(Clone)]
 pub struct DockedWindowFooterView {
     app_context: Arc<AppContext>,
     dock_view_data: Arc<DockRootViewData>,
     identifier: Rc<String>,
-    height: f32,
 }
 
 impl DockedWindowFooterView {
-    const ARROW_BUTTON_WIDTH: f32 = 24.0;
+    const TAB_ROW_HEIGHT: f32 = 24.0;
     const TAB_HORIZONTAL_PADDING: f32 = 10.0;
     const TAB_MIN_WIDTH: f32 = 96.0;
     const TAB_MAX_WIDTH: f32 = 160.0;
-    const TAB_SCROLL_STEP: f32 = 128.0;
     const ATTENTION_PULSE_PERIOD_SECS: f32 = 2.6;
 
     fn lerp_color(
@@ -84,16 +99,31 @@ impl DockedWindowFooterView {
             app_context,
             dock_view_data,
             identifier,
-            height: 24.0,
         }
     }
 
-    pub fn get_height(&self) -> f32 {
-        self.height
-    }
+    pub fn get_height(
+        &self,
+        user_interface: &Ui,
+        available_width: f32,
+    ) -> f32 {
+        let sibling_ids = match self.app_context.docking_manager.read() {
+            Ok(docking_manager_guard) => docking_manager_guard.get_sibling_tab_ids(&self.identifier, true),
+            Err(error) => {
+                log::error!("Failed to acquire docking manager lock while resolving dock footer height: {}", error);
+                Vec::new()
+            }
+        };
+        let windows = match self.dock_view_data.windows.read() {
+            Ok(windows) => windows,
+            Err(error) => {
+                log::error!("Failed to acquire windows lock while resolving dock footer height: {}", error);
+                return Self::TAB_ROW_HEIGHT;
+            }
+        };
+        let tab_layout = self.resolve_tab_layout(user_interface, &sibling_ids, windows.as_slice(), available_width);
 
-    fn build_tab_group_key(sibling_ids: &[String]) -> String {
-        sibling_ids.join("|")
+        Self::height_for_row_count(tab_layout.rows.len())
     }
 
     fn resolve_window_title<'window>(
@@ -122,31 +152,8 @@ impl DockedWindowFooterView {
         )
     }
 
-    fn clamp_tab_strip_scroll_offset(
-        requested_scroll_offset: f32,
-        total_tab_width: f32,
-        viewport_width: f32,
-    ) -> f32 {
-        let max_scroll_offset = (total_tab_width - viewport_width).max(0.0);
-
-        safe_clamp_f32(requested_scroll_offset, 0.0, max_scroll_offset)
-    }
-
-    fn scroll_offset_for_visible_tab(
-        scroll_offset: f32,
-        tab_rect: Rect,
-        viewport_width: f32,
-        total_tab_width: f32,
-    ) -> f32 {
-        let mut next_scroll_offset = scroll_offset;
-
-        if tab_rect.min.x < scroll_offset {
-            next_scroll_offset = tab_rect.min.x;
-        } else if tab_rect.max.x > scroll_offset + viewport_width {
-            next_scroll_offset = tab_rect.max.x - viewport_width;
-        }
-
-        Self::clamp_tab_strip_scroll_offset(next_scroll_offset, total_tab_width, viewport_width)
+    fn height_for_row_count(row_count: usize) -> f32 {
+        Self::TAB_ROW_HEIGHT * row_count.max(1) as f32
     }
 
     fn draw_tab_label(
@@ -175,33 +182,110 @@ impl DockedWindowFooterView {
             .galley(text_position, title_galley, theme.foreground);
     }
 
-    fn render_scroll_button(
+    fn build_tab_layout_items(
         &self,
-        user_interface: &mut Ui,
-        button_rect: Rect,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
+        user_interface: &Ui,
+        sibling_ids: &[String],
+        windows: &[Box<dyn crate::ui::widgets::docking::dockable_window::DockableWindow>],
+    ) -> Vec<DockedTabLayoutItem> {
         let theme = &self.app_context.theme;
-        let button_response = user_interface.put(
-            button_rect,
-            Button::new_from_theme(theme)
-                .background_color(theme.background_control_secondary)
-                .border_color(theme.submenu_border)
-                .border_width(1.0)
-                .with_tooltip_text(tooltip_text)
-                .disabled(is_disabled),
-        );
 
-        IconDraw::draw_tinted(
-            user_interface,
-            button_rect,
-            icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
+        sibling_ids
+            .iter()
+            .map(|sibling_id| {
+                let title = Self::resolve_window_title(windows, sibling_id)
+                    .unwrap_or(sibling_id.as_str())
+                    .to_string();
 
-        button_response
+                DockedTabLayoutItem {
+                    sibling_id: sibling_id.clone(),
+                    tab_width: Self::measure_tab_width(user_interface, theme, &title),
+                    title,
+                }
+            })
+            .collect()
+    }
+
+    fn resolve_minimum_row_count(
+        tab_layout_items: &[DockedTabLayoutItem],
+        available_width: f32,
+    ) -> usize {
+        if tab_layout_items.is_empty() {
+            return 1;
+        }
+
+        let available_width = available_width.max(1.0);
+        let mut row_count = 1;
+        let mut current_row_width = 0.0;
+
+        for tab_layout_item in tab_layout_items {
+            if current_row_width > 0.0 && current_row_width + tab_layout_item.tab_width > available_width {
+                row_count += 1;
+                current_row_width = tab_layout_item.tab_width;
+            } else {
+                current_row_width += tab_layout_item.tab_width;
+            }
+        }
+
+        row_count
+    }
+
+    fn row_width(tab_layout_items: &[DockedTabLayoutItem]) -> f32 {
+        tab_layout_items
+            .iter()
+            .map(|tab_layout_item| tab_layout_item.tab_width)
+            .sum()
+    }
+
+    fn resolve_balanced_tab_rows(
+        tab_layout_items: &[DockedTabLayoutItem],
+        available_width: f32,
+    ) -> Vec<DockedTabLayoutRow> {
+        if tab_layout_items.is_empty() {
+            return Vec::new();
+        }
+
+        let available_width = available_width.max(1.0);
+        let row_count = Self::resolve_minimum_row_count(tab_layout_items, available_width);
+        let mut rows = Vec::with_capacity(row_count);
+        let mut first_remaining_tab_index = 0;
+
+        for row_number in 0..row_count {
+            let remaining_tab_count = tab_layout_items.len().saturating_sub(first_remaining_tab_index);
+            let remaining_row_count = row_count.saturating_sub(row_number).max(1);
+            let maximum_row_tab_count = remaining_tab_count.saturating_sub(remaining_row_count.saturating_sub(1));
+            let mut row_tab_count = remaining_tab_count
+                .div_ceil(remaining_row_count)
+                .min(maximum_row_tab_count)
+                .max(1);
+
+            while row_tab_count > 1
+                && Self::row_width(&tab_layout_items[first_remaining_tab_index..first_remaining_tab_index + row_tab_count]) > available_width
+            {
+                row_tab_count -= 1;
+            }
+
+            let last_remaining_tab_index = first_remaining_tab_index + row_tab_count;
+            let items = tab_layout_items[first_remaining_tab_index..last_remaining_tab_index].to_vec();
+            let row_width = Self::row_width(&items);
+            rows.push(DockedTabLayoutRow { items, row_width });
+            first_remaining_tab_index = last_remaining_tab_index;
+        }
+
+        rows
+    }
+
+    fn resolve_tab_layout(
+        &self,
+        user_interface: &Ui,
+        sibling_ids: &[String],
+        windows: &[Box<dyn crate::ui::widgets::docking::dockable_window::DockableWindow>],
+        available_width: f32,
+    ) -> DockedTabLayout {
+        let tab_layout_items = self.build_tab_layout_items(user_interface, sibling_ids, windows);
+        let rows = Self::resolve_balanced_tab_rows(&tab_layout_items, available_width);
+
+        DockedTabLayout { rows }
     }
 }
 
@@ -210,7 +294,7 @@ impl Widget for DockedWindowFooterView {
         self,
         user_interface: &mut Ui,
     ) -> Response {
-        let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(user_interface.available_size().x, self.height), Sense::empty());
+        let footer_width = user_interface.available_size().x;
         let theme = &self.app_context.theme;
         let pointer_position = user_interface.ctx().pointer_interact_pos();
         let (sibling_ids, active_tab_id, active_dragged_window_identifier, is_drag_drop_active) = match self.app_context.docking_manager.read() {
@@ -224,6 +308,7 @@ impl Widget for DockedWindowFooterView {
             ),
             Err(error) => {
                 log::error!("Failed to acquire docking manager lock: {}", error);
+                let (_, response) = user_interface.allocate_exact_size(vec2(footer_width, Self::TAB_ROW_HEIGHT), Sense::empty());
                 return response;
             }
         };
@@ -231,231 +316,135 @@ impl Widget for DockedWindowFooterView {
             Ok(windows) => windows,
             Err(error) => {
                 log::error!("Failed to acquire windows lock: {}", error);
+                let (_, response) = user_interface.allocate_exact_size(vec2(footer_width, Self::TAB_ROW_HEIGHT), Sense::empty());
                 return response;
             }
         };
-        let tab_titles = sibling_ids
-            .iter()
-            .map(|sibling_id| {
-                (
-                    sibling_id.clone(),
-                    Self::resolve_window_title(windows.as_slice(), sibling_id)
-                        .unwrap_or(sibling_id.as_str())
-                        .to_string(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let tab_widths = tab_titles
-            .iter()
-            .map(|(_, title)| Self::measure_tab_width(user_interface, theme, title))
-            .collect::<Vec<_>>();
-        let total_tab_width = tab_widths.iter().sum::<f32>();
-        let tab_group_key = Self::build_tab_group_key(&sibling_ids);
-        let is_overflowing = total_tab_width > available_size_rect.width();
-        let viewport_rect = Rect::from_min_max(
-            pos2(
-                available_size_rect.min.x + if is_overflowing { Self::ARROW_BUTTON_WIDTH } else { 0.0 },
-                available_size_rect.min.y,
-            ),
-            pos2(
-                available_size_rect.max.x - if is_overflowing { Self::ARROW_BUTTON_WIDTH } else { 0.0 },
-                available_size_rect.max.y,
-            ),
-        );
-        let viewport_width = viewport_rect.width().max(1.0);
-        let mut scroll_offset =
-            Self::clamp_tab_strip_scroll_offset(self.dock_view_data.get_tab_strip_scroll_offset(&tab_group_key), total_tab_width, viewport_width);
-        let active_tab_index = sibling_ids
-            .iter()
-            .position(|sibling_id| sibling_id == active_tab_id.as_str());
+        let tab_layout = self.resolve_tab_layout(user_interface, &sibling_ids, windows.as_slice(), footer_width);
+        let footer_height = Self::height_for_row_count(tab_layout.rows.len());
+        let (available_size_rect, response) = user_interface.allocate_exact_size(vec2(footer_width, footer_height), Sense::empty());
 
-        if let Some(active_tab_index) = active_tab_index {
-            let tab_start_x = tab_widths.iter().take(active_tab_index).sum::<f32>();
-            let active_tab_rect = Rect::from_min_size(
-                pos2(tab_start_x, available_size_rect.min.y),
-                vec2(tab_widths[active_tab_index], available_size_rect.height()),
-            );
-            scroll_offset = Self::scroll_offset_for_visible_tab(scroll_offset, active_tab_rect, viewport_width, total_tab_width);
-        }
-
-        let max_scroll_offset = (total_tab_width - viewport_width).max(0.0);
-
-        // Background.
         user_interface
             .painter()
             .rect_filled(available_size_rect, CornerRadius::ZERO, theme.background_primary);
 
-        let builder = UiBuilder::new()
-            .max_rect(viewport_rect)
-            .layout(Layout::left_to_right(Align::Center));
-        let mut child_user_interface = user_interface.new_child(builder);
-        child_user_interface.set_clip_rect(viewport_rect);
         let mut selected_tab_id = None;
         let mut toggled_maximized_tab_id = None;
         let mut drag_start_request = None;
         let mut hovered_tab_drop_target = None;
-        let mut selected_tab_index = None;
 
-        let content_rect = Rect::from_min_size(
-            pos2(viewport_rect.min.x - scroll_offset, viewport_rect.min.y),
-            vec2(total_tab_width.max(viewport_rect.width()), available_size_rect.height()),
-        );
-        let mut tab_strip_user_interface = child_user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(content_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-        tab_strip_user_interface.set_clip_rect(viewport_rect);
+        for (row_number, tab_layout_row) in tab_layout.rows.iter().enumerate() {
+            let row_min = pos2(available_size_rect.min.x, available_size_rect.min.y + row_number as f32 * Self::TAB_ROW_HEIGHT);
+            let row_rect = Rect::from_min_size(row_min, vec2(available_size_rect.width(), Self::TAB_ROW_HEIGHT));
+            let row_content_rect = Rect::from_min_size(row_min, vec2(tab_layout_row.row_width.max(row_rect.width()), Self::TAB_ROW_HEIGHT));
+            let mut tab_strip_user_interface = user_interface.new_child(
+                UiBuilder::new()
+                    .max_rect(row_content_rect)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
+            tab_strip_user_interface.set_clip_rect(row_rect);
 
-        for (tab_index, ((sibling_id, title), tab_width)) in tab_titles.iter().zip(tab_widths.iter()).enumerate() {
-            let mut button = Button::new_from_theme(theme)
-                .background_color(theme.background_control_secondary)
-                .border_color(theme.submenu_border)
-                .border_width(1.0);
+            for tab_layout_item in &tab_layout_row.items {
+                let mut button = Button::new_from_theme(theme)
+                    .background_color(theme.background_control_secondary)
+                    .border_color(theme.submenu_border)
+                    .border_width(1.0);
 
-            if sibling_id.as_str() == active_tab_id {
-                button.backgorund_color = theme.background_control_primary;
-                button.border_color = theme.background_control_primary_light;
-            }
-
-            if active_dragged_window_identifier.as_deref() == Some(sibling_id.as_str()) {
-                button.backgorund_color = theme.selected_background;
-                button.border_color = theme.selected_border;
-            }
-
-            let mut tab_attention_state = self.dock_view_data.get_tab_attention_state(sibling_id);
-            if sibling_id.as_str() == active_tab_id
-                && tab_attention_state
-                    .as_ref()
-                    .is_some_and(|tab_attention_state| !tab_attention_state.get_force_when_visible())
-            {
-                self.dock_view_data.clear_tab_attention(sibling_id);
-                tab_attention_state = None;
-            }
-            if let Some(tab_attention_state) = tab_attention_state.as_ref() {
-                let (attention_background_color, attention_border_color) =
-                    Self::resolve_attention_colors(theme, tab_attention_state, button.backgorund_color, button.border_color);
-                button.backgorund_color = attention_background_color;
-                button.border_color = attention_border_color;
-                tab_strip_user_interface.ctx().request_repaint();
-            }
-
-            let response = tab_strip_user_interface
-                .add_sized(
-                    vec2(*tab_width, available_size_rect.height()),
-                    button
-                        .corner_radius(CornerRadius::ZERO)
-                        .sense(Sense::click_and_drag()),
-                )
-                .on_hover_cursor(CursorIcon::Grab);
-
-            if response.rect.is_positive() {
-                Self::draw_tab_label(&tab_strip_user_interface, theme, response.rect, title, viewport_rect);
-            }
-
-            if response.clicked() {
-                selected_tab_id = Some(sibling_id.clone());
-                selected_tab_index = Some(tab_index);
-                self.dock_view_data.clear_tab_attention(sibling_id);
-            }
-
-            if response.double_clicked() {
-                selected_tab_id = Some(sibling_id.clone());
-                selected_tab_index = Some(tab_index);
-                toggled_maximized_tab_id = Some(sibling_id.clone());
-                self.dock_view_data.clear_tab_attention(sibling_id);
-            }
-
-            if response.drag_started() {
-                let pointer_press_origin = tab_strip_user_interface
-                    .input(|input_state| input_state.pointer.press_origin())
-                    .or_else(|| response.interact_pointer_pos());
-
-                if let Some(pointer_press_origin) = pointer_press_origin {
-                    drag_start_request = Some((sibling_id.clone(), pointer_press_origin));
+                if tab_layout_item.sibling_id.as_str() == active_tab_id {
+                    button.backgorund_color = theme.background_control_primary;
+                    button.border_color = theme.background_control_primary_light;
                 }
 
-                tab_strip_user_interface.ctx().request_repaint();
-            }
+                if active_dragged_window_identifier.as_deref() == Some(tab_layout_item.sibling_id.as_str()) {
+                    button.backgorund_color = theme.selected_background;
+                    button.border_color = theme.selected_border;
+                }
 
-            if response.dragged() {
-                tab_strip_user_interface
-                    .ctx()
-                    .set_cursor_icon(CursorIcon::Grabbing);
-                tab_strip_user_interface.ctx().request_repaint();
-            }
+                let mut tab_attention_state = self
+                    .dock_view_data
+                    .get_tab_attention_state(&tab_layout_item.sibling_id);
+                if tab_layout_item.sibling_id.as_str() == active_tab_id
+                    && tab_attention_state
+                        .as_ref()
+                        .is_some_and(|tab_attention_state| !tab_attention_state.get_force_when_visible())
+                {
+                    self.dock_view_data
+                        .clear_tab_attention(&tab_layout_item.sibling_id);
+                    tab_attention_state = None;
+                }
+                if let Some(tab_attention_state) = tab_attention_state.as_ref() {
+                    let (attention_background_color, attention_border_color) =
+                        Self::resolve_attention_colors(theme, tab_attention_state, button.backgorund_color, button.border_color);
+                    button.backgorund_color = attention_background_color;
+                    button.border_color = attention_border_color;
+                    tab_strip_user_interface.ctx().request_repaint();
+                }
 
-            if is_drag_drop_active {
-                let resolved_tab_drop_target = resolve_tab_drop_target(
-                    active_dragged_window_identifier.as_deref(),
-                    sibling_id.as_str(),
-                    response.rect,
-                    pointer_position,
-                );
+                let response = tab_strip_user_interface
+                    .add_sized(
+                        vec2(tab_layout_item.tab_width, Self::TAB_ROW_HEIGHT),
+                        button
+                            .corner_radius(CornerRadius::ZERO)
+                            .sense(Sense::click_and_drag()),
+                    )
+                    .on_hover_cursor(CursorIcon::Grab);
 
-                if let Some(resolved_tab_drop_target) = resolved_tab_drop_target {
-                    paint_tab_drop_preview(
-                        &tab_strip_user_interface,
-                        theme,
+                if response.rect.is_positive() {
+                    Self::draw_tab_label(&tab_strip_user_interface, theme, response.rect, &tab_layout_item.title, row_rect);
+                }
+
+                if response.clicked() {
+                    selected_tab_id = Some(tab_layout_item.sibling_id.clone());
+                    self.dock_view_data
+                        .clear_tab_attention(&tab_layout_item.sibling_id);
+                }
+
+                if response.double_clicked() {
+                    selected_tab_id = Some(tab_layout_item.sibling_id.clone());
+                    toggled_maximized_tab_id = Some(tab_layout_item.sibling_id.clone());
+                    self.dock_view_data
+                        .clear_tab_attention(&tab_layout_item.sibling_id);
+                }
+
+                if response.drag_started() {
+                    let pointer_press_origin = tab_strip_user_interface
+                        .input(|input_state| input_state.pointer.press_origin())
+                        .or_else(|| response.interact_pointer_pos());
+
+                    if let Some(pointer_press_origin) = pointer_press_origin {
+                        drag_start_request = Some((tab_layout_item.sibling_id.clone(), pointer_press_origin));
+                    }
+
+                    tab_strip_user_interface.ctx().request_repaint();
+                }
+
+                if response.dragged() {
+                    tab_strip_user_interface
+                        .ctx()
+                        .set_cursor_icon(CursorIcon::Grabbing);
+                    tab_strip_user_interface.ctx().request_repaint();
+                }
+
+                if is_drag_drop_active {
+                    let resolved_tab_drop_target = resolve_tab_drop_target(
+                        active_dragged_window_identifier.as_deref(),
+                        tab_layout_item.sibling_id.as_str(),
                         response.rect,
-                        resolved_tab_drop_target.tab_insertion_direction,
+                        pointer_position,
                     );
-                    hovered_tab_drop_target = Some(resolved_tab_drop_target);
+
+                    if let Some(resolved_tab_drop_target) = resolved_tab_drop_target {
+                        paint_tab_drop_preview(
+                            &tab_strip_user_interface,
+                            theme,
+                            response.rect,
+                            resolved_tab_drop_target.tab_insertion_direction,
+                        );
+                        hovered_tab_drop_target = Some(resolved_tab_drop_target);
+                    }
                 }
             }
         }
-
-        if is_overflowing {
-            let left_button_rect = Rect::from_min_size(available_size_rect.min, vec2(Self::ARROW_BUTTON_WIDTH, available_size_rect.height()));
-            let right_button_rect = Rect::from_min_size(
-                pos2(available_size_rect.max.x - Self::ARROW_BUTTON_WIDTH, available_size_rect.min.y),
-                vec2(Self::ARROW_BUTTON_WIDTH, available_size_rect.height()),
-            );
-            let can_scroll_left = scroll_offset > 0.0;
-            let can_scroll_right = scroll_offset < max_scroll_offset;
-            let scroll_left_response = self.render_scroll_button(
-                user_interface,
-                left_button_rect,
-                &theme.icon_library.icon_handle_navigation_left_arrow_small,
-                "Scroll tabs left.",
-                !can_scroll_left,
-            );
-            let scroll_right_response = self.render_scroll_button(
-                user_interface,
-                right_button_rect,
-                &theme.icon_library.icon_handle_navigation_right_arrow_small,
-                "Scroll tabs right.",
-                !can_scroll_right,
-            );
-
-            if scroll_left_response.clicked() {
-                scroll_offset = Self::clamp_tab_strip_scroll_offset(scroll_offset - Self::TAB_SCROLL_STEP, total_tab_width, viewport_width);
-            }
-
-            if scroll_right_response.clicked() {
-                scroll_offset = Self::clamp_tab_strip_scroll_offset(scroll_offset + Self::TAB_SCROLL_STEP, total_tab_width, viewport_width);
-            }
-        }
-
-        let final_active_tab_id = selected_tab_id.as_deref().unwrap_or(active_tab_id.as_str());
-        let final_active_tab_index = selected_tab_index.or_else(|| {
-            sibling_ids
-                .iter()
-                .position(|sibling_id| sibling_id == final_active_tab_id)
-        });
-
-        if let Some(final_active_tab_index) = final_active_tab_index {
-            let tab_start_x = tab_widths.iter().take(final_active_tab_index).sum::<f32>();
-            let tab_rect = Rect::from_min_size(
-                pos2(tab_start_x, available_size_rect.min.y),
-                vec2(tab_widths[final_active_tab_index], available_size_rect.height()),
-            );
-            scroll_offset = Self::scroll_offset_for_visible_tab(scroll_offset, tab_rect, viewport_width, total_tab_width);
-        }
-
-        let clamped_scroll_offset = Self::clamp_tab_strip_scroll_offset(scroll_offset, total_tab_width, viewport_width);
-        self.dock_view_data
-            .set_tab_strip_scroll_offset(tab_group_key, clamped_scroll_offset);
 
         if let Some((dragged_tab_identifier, pointer_press_origin)) = drag_start_request {
             if let Ok(mut docking_manager) = self.app_context.docking_manager.write() {
@@ -537,9 +526,20 @@ fn build_tab_drop_preview_rect(
 
 #[cfg(test)]
 mod tests {
-    use super::{DockedWindowFooterView, build_tab_drop_preview_rect, resolve_tab_drop_target};
+    use super::{DockedTabLayoutItem, DockedWindowFooterView, build_tab_drop_preview_rect, resolve_tab_drop_target};
     use crate::models::docking::hierarchy::types::dock_tab_insertion_direction::DockTabInsertionDirection;
-    use epaint::{Rect, pos2, vec2};
+    use epaint::{Rect, pos2};
+
+    fn build_tab_layout_item(
+        tab_index: usize,
+        tab_width: f32,
+    ) -> DockedTabLayoutItem {
+        DockedTabLayoutItem {
+            sibling_id: format!("tab_{tab_index}"),
+            title: format!("Tab {tab_index}"),
+            tab_width,
+        }
+    }
 
     #[test]
     fn left_half_of_tab_resolves_to_before_target() {
@@ -573,17 +573,49 @@ mod tests {
     }
 
     #[test]
-    fn clamp_tab_strip_scroll_offset_stays_in_bounds() {
-        assert_eq!(DockedWindowFooterView::clamp_tab_strip_scroll_offset(-10.0, 480.0, 200.0), 0.0);
-        assert_eq!(DockedWindowFooterView::clamp_tab_strip_scroll_offset(400.0, 480.0, 200.0), 280.0);
-        assert_eq!(DockedWindowFooterView::clamp_tab_strip_scroll_offset(120.0, 480.0, 200.0), 120.0);
+    fn balanced_tab_rows_split_four_tabs_two_and_two() {
+        let tab_layout_items = (0..4)
+            .map(|tab_index| build_tab_layout_item(tab_index, 100.0))
+            .collect::<Vec<_>>();
+        let tab_layout_rows = DockedWindowFooterView::resolve_balanced_tab_rows(&tab_layout_items, 300.0);
+
+        let row_lengths = tab_layout_rows
+            .iter()
+            .map(|tab_layout_row| tab_layout_row.items.len())
+            .collect::<Vec<_>>();
+        assert_eq!(row_lengths, vec![2, 2]);
     }
 
     #[test]
-    fn scroll_offset_for_visible_tab_keeps_hidden_tab_in_view() {
-        let tab_rect = Rect::from_min_size(pos2(320.0, 0.0), vec2(96.0, 24.0));
-        let next_scroll_offset = DockedWindowFooterView::scroll_offset_for_visible_tab(0.0, tab_rect, 200.0, 480.0);
+    fn balanced_tab_rows_allow_two_and_one_for_three_tabs() {
+        let tab_layout_items = (0..3)
+            .map(|tab_index| build_tab_layout_item(tab_index, 100.0))
+            .collect::<Vec<_>>();
+        let tab_layout_rows = DockedWindowFooterView::resolve_balanced_tab_rows(&tab_layout_items, 200.0);
 
-        assert_eq!(next_scroll_offset, 216.0);
+        let row_lengths = tab_layout_rows
+            .iter()
+            .map(|tab_layout_row| tab_layout_row.items.len())
+            .collect::<Vec<_>>();
+        assert_eq!(row_lengths, vec![2, 1]);
+    }
+
+    #[test]
+    fn balanced_tab_rows_preserve_order() {
+        let tab_layout_items = (0..5)
+            .map(|tab_index| build_tab_layout_item(tab_index, 100.0))
+            .collect::<Vec<_>>();
+        let tab_layout_rows = DockedWindowFooterView::resolve_balanced_tab_rows(&tab_layout_items, 250.0);
+        let ordered_tab_ids = tab_layout_rows
+            .iter()
+            .flat_map(|tab_layout_row| {
+                tab_layout_row
+                    .items
+                    .iter()
+                    .map(|tab_layout_item| tab_layout_item.sibling_id.as_str())
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(ordered_tab_ids, vec!["tab_0", "tab_1", "tab_2", "tab_3", "tab_4"]);
     }
 }
