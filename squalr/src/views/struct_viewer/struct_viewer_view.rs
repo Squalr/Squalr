@@ -15,8 +15,8 @@ use crate::{
         struct_viewer::view_data::{struct_viewer_take_over_state::StructViewerTakeOverState, struct_viewer_view_data::StructViewerViewData},
     },
 };
-use eframe::egui::{Align, Align2, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
-use epaint::{CornerRadius, Rect, pos2};
+use eframe::egui::{Align, Align2, Button as EguiButton, CursorIcon, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, Widget, vec2};
+use epaint::{CornerRadius, Rect, Stroke, pos2};
 use squalr_engine_api::commands::privileged_command_request::PrivilegedCommandRequest;
 use squalr_engine_api::commands::privileged_command_response::TypedPrivilegedCommandResponse;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -214,25 +214,6 @@ impl StructViewerView {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
     }
 
-    fn render_take_over_header_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::POINTER_OFFSET_ICON_BUTTON_WIDTH, Self::TAKE_OVER_HEADER_HEIGHT),
-            Button::new_from_theme(theme)
-                .background_color(epaint::Color32::TRANSPARENT)
-                .with_tooltip_text(tooltip_text),
-        );
-
-        IconDraw::draw(user_interface, button_response.rect, icon_handle);
-
-        button_response
-    }
-
     fn render_pointer_offset_icon_button(
         &self,
         user_interface: &mut Ui,
@@ -265,8 +246,6 @@ impl StructViewerView {
         &self,
         user_interface: &mut Ui,
         title: &str,
-        header_action_width: f32,
-        render_header_actions: impl FnOnce(&mut Ui),
         add_contents: impl FnOnce(&mut Ui),
     ) {
         let theme = &self.app_context.theme;
@@ -298,7 +277,7 @@ impl StructViewerView {
         );
         header_user_interface.set_clip_rect(header_inner_rect);
 
-        let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
+        let title_width = (header_inner_rect.width() - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
         let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
         header_user_interface.painter().text(
             pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
@@ -307,16 +286,6 @@ impl StructViewerView {
             theme.font_library.font_noto_sans.font_window_title.clone(),
             theme.foreground,
         );
-
-        if header_action_width > 0.0 {
-            header_user_interface.allocate_ui_with_layout(
-                vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-                Layout::right_to_left(Align::Center),
-                |user_interface| {
-                    render_header_actions(user_interface);
-                },
-            );
-        }
 
         panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
         ScrollArea::vertical()
@@ -444,70 +413,84 @@ impl StructViewerView {
         let pointer_offset_data_type_ref = Self::pointer_offset_data_type_ref();
         let mut should_save_offsets = false;
 
-        self.render_take_over_panel(
-            user_interface,
-            "Edit pointer offsets",
-            Self::POINTER_OFFSET_ICON_BUTTON_WIDTH * 2.0,
-            |user_interface| {
-                let save_response =
-                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_common_check_mark, "Save offsets.");
-                if save_response.clicked() {
-                    should_save_offsets = true;
-                }
+        self.render_take_over_panel(user_interface, "Edit pointer offsets", |user_interface| {
+            user_interface.add(
+                GroupBox::new_from_theme(theme, "Offsets", |user_interface| {
+                    let mut pending_pointer_offset_row_action = None;
+                    let pointer_offset_count = pointer_offset_values.len();
 
-                let cancel_response =
-                    self.render_take_over_header_icon_button(user_interface, &theme.icon_library.icon_handle_navigation_cancel, "Cancel offset edit.");
-                if cancel_response.clicked() {
-                    *should_cancel_take_over = true;
-                }
-            },
-            |user_interface| {
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, "Offsets", |user_interface| {
-                        let mut pending_pointer_offset_row_action = None;
-                        let pointer_offset_count = pointer_offset_values.len();
+                    for pointer_offset_index in 0..pointer_offset_count {
+                        let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
+                            continue;
+                        };
 
-                        for pointer_offset_index in 0..pointer_offset_count {
-                            let Some(pointer_offset_value) = pointer_offset_values.get_mut(pointer_offset_index) else {
-                                continue;
-                            };
-
-                            if let Some(pointer_offset_row_action) = self.render_pointer_offset_editor_section(
-                                user_interface,
-                                pointer_offset_value,
-                                pointer_offset_index,
-                                &pointer_offset_data_type_ref,
-                                pointer_offset_count > 1,
-                            ) {
-                                pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
-                            }
-
-                            if pointer_offset_index + 1 < pointer_offset_count {
-                                user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
-                            }
+                        if let Some(pointer_offset_row_action) = self.render_pointer_offset_editor_section(
+                            user_interface,
+                            pointer_offset_value,
+                            pointer_offset_index,
+                            &pointer_offset_data_type_ref,
+                            pointer_offset_count > 1,
+                        ) {
+                            pending_pointer_offset_row_action = Some((pointer_offset_index, pointer_offset_row_action));
                         }
 
-                        if pointer_offset_count == 0 {
-                            let add_response = self.render_pointer_offset_icon_button(
-                                user_interface,
-                                &theme.icon_library.icon_handle_common_add,
-                                "Append a new offset.",
-                                false,
-                            );
+                        if pointer_offset_index + 1 < pointer_offset_count {
+                            user_interface.add_space(Self::POINTER_OFFSET_SECTION_VERTICAL_SPACING);
+                        }
+                    }
 
-                            if add_response.clicked() {
-                                pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
-                            }
+                    if pointer_offset_count == 0 {
+                        let add_response =
+                            self.render_pointer_offset_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Append a new offset.", false);
+
+                        if add_response.clicked() {
+                            pending_pointer_offset_row_action = Some((0, PointerOffsetRowAction::AppendOffset));
+                        }
+                    }
+
+                    if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
+                        Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                    }
+                })
+                .desired_width(user_interface.available_width()),
+            );
+
+            user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+            user_interface.allocate_ui(
+                vec2(user_interface.available_width(), Self::POINTER_OFFSET_FIELD_ROW_HEIGHT),
+                |user_interface| {
+                    let button_size = vec2(120.0, Self::POINTER_OFFSET_FIELD_ROW_HEIGHT);
+                    let button_spacing = 12.0;
+                    let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                    let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                    user_interface.horizontal(|user_interface| {
+                        user_interface.add_space(side_spacing);
+                        user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                        let cancel_response = user_interface.add_sized(
+                            button_size,
+                            EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                                .fill(theme.background_control_danger)
+                                .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                        );
+                        if cancel_response.clicked() {
+                            *should_cancel_take_over = true;
                         }
 
-                        if let Some((pointer_offset_index, pointer_offset_row_action)) = pending_pointer_offset_row_action {
-                            Self::apply_pointer_offset_row_action(&mut pointer_offset_values, pointer_offset_index, pointer_offset_row_action);
+                        let accept_response = user_interface.add_sized(
+                            button_size,
+                            EguiButton::new(RichText::new("Accept").color(theme.foreground))
+                                .fill(theme.background_control_primary)
+                                .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
+                        );
+                        if accept_response.clicked() {
+                            should_save_offsets = true;
                         }
-                    })
-                    .desired_width(user_interface.available_width()),
-                );
-            },
-        );
+                    });
+                },
+            );
+        });
 
         if should_save_offsets {
             let mut pointer_offsets = pointer_offset_values
