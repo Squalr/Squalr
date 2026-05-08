@@ -287,6 +287,30 @@ impl DockedWindowFooterView {
 
         DockedTabLayout { rows }
     }
+
+    fn resolve_stretched_tab_widths(
+        tab_layout_row: &DockedTabLayoutRow,
+        available_width: f32,
+    ) -> Vec<f32> {
+        if tab_layout_row.items.is_empty() {
+            return Vec::new();
+        }
+
+        let available_width = available_width.max(1.0);
+        let row_width = tab_layout_row.row_width.max(1.0);
+        let stretch_factor = available_width / row_width;
+        let mut stretched_tab_widths = tab_layout_row
+            .items
+            .iter()
+            .map(|tab_layout_item| tab_layout_item.tab_width * stretch_factor)
+            .collect::<Vec<_>>();
+        let stretched_width_sum = stretched_tab_widths.iter().sum::<f32>();
+        if let Some(last_width) = stretched_tab_widths.last_mut() {
+            *last_width += available_width - stretched_width_sum;
+        }
+
+        stretched_tab_widths
+    }
 }
 
 impl Widget for DockedWindowFooterView {
@@ -336,7 +360,8 @@ impl Widget for DockedWindowFooterView {
         for (row_number, tab_layout_row) in tab_layout.rows.iter().enumerate() {
             let row_min = pos2(available_size_rect.min.x, available_size_rect.min.y + row_number as f32 * Self::TAB_ROW_HEIGHT);
             let row_rect = Rect::from_min_size(row_min, vec2(available_size_rect.width(), Self::TAB_ROW_HEIGHT));
-            let row_content_rect = Rect::from_min_size(row_min, vec2(tab_layout_row.row_width.max(row_rect.width()), Self::TAB_ROW_HEIGHT));
+            let stretched_tab_widths = Self::resolve_stretched_tab_widths(tab_layout_row, row_rect.width());
+            let row_content_rect = Rect::from_min_size(row_min, vec2(row_rect.width(), Self::TAB_ROW_HEIGHT));
             let mut tab_strip_user_interface = user_interface.new_child(
                 UiBuilder::new()
                     .max_rect(row_content_rect)
@@ -344,7 +369,7 @@ impl Widget for DockedWindowFooterView {
             );
             tab_strip_user_interface.set_clip_rect(row_rect);
 
-            for tab_layout_item in &tab_layout_row.items {
+            for (tab_layout_item, stretched_tab_width) in tab_layout_row.items.iter().zip(stretched_tab_widths.iter()) {
                 let mut button = Button::new_from_theme(theme)
                     .background_color(theme.background_control_secondary)
                     .border_color(theme.submenu_border)
@@ -382,7 +407,7 @@ impl Widget for DockedWindowFooterView {
 
                 let response = tab_strip_user_interface
                     .add_sized(
-                        vec2(tab_layout_item.tab_width, Self::TAB_ROW_HEIGHT),
+                        vec2(*stretched_tab_width, Self::TAB_ROW_HEIGHT),
                         button
                             .corner_radius(CornerRadius::ZERO)
                             .sense(Sense::click_and_drag()),
@@ -617,5 +642,29 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(ordered_tab_ids, vec!["tab_0", "tab_1", "tab_2", "tab_3", "tab_4"]);
+    }
+
+    #[test]
+    fn stretched_tab_widths_fill_row() {
+        let tab_layout_row = super::DockedTabLayoutRow {
+            items: vec![build_tab_layout_item(0, 100.0), build_tab_layout_item(1, 100.0)],
+            row_width: 200.0,
+        };
+        let stretched_tab_widths = DockedWindowFooterView::resolve_stretched_tab_widths(&tab_layout_row, 300.0);
+
+        assert_eq!(stretched_tab_widths, vec![150.0, 150.0]);
+        assert_eq!(stretched_tab_widths.iter().sum::<f32>(), 300.0);
+    }
+
+    #[test]
+    fn stretched_tab_widths_preserve_preferred_weight() {
+        let tab_layout_row = super::DockedTabLayoutRow {
+            items: vec![build_tab_layout_item(0, 160.0), build_tab_layout_item(1, 80.0)],
+            row_width: 240.0,
+        };
+        let stretched_tab_widths = DockedWindowFooterView::resolve_stretched_tab_widths(&tab_layout_row, 300.0);
+
+        assert_eq!(stretched_tab_widths, vec![200.0, 100.0]);
+        assert_eq!(stretched_tab_widths.iter().sum::<f32>(), 300.0);
     }
 }
