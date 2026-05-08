@@ -473,8 +473,8 @@ impl StructViewerView {
                         let cancel_response = user_interface.add_sized(
                             button_size,
                             EguiButton::new(RichText::new("Cancel").color(theme.foreground))
-                                .fill(theme.background_control_danger)
-                                .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                                .fill(theme.background_control_secondary)
+                                .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
                         );
                         if cancel_response.clicked() {
                             *should_cancel_take_over = true;

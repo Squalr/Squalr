@@ -241,8 +241,8 @@ impl SymbolResolverEditorView {
                 let cancel_response = user_interface.add_sized(
                     button_size,
                     EguiButton::new(RichText::new("Cancel").color(theme.foreground))
-                        .fill(theme.background_control_danger)
-                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                        .fill(theme.background_control_secondary)
+                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
                 );
 
                 let accept_button = EguiButton::new(RichText::new(accept_label).color(if can_accept { theme.foreground } else { theme.foreground_preview }))
