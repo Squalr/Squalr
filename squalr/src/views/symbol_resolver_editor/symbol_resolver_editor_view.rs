@@ -260,7 +260,9 @@ impl SymbolResolverEditorView {
             .show(user_interface, |user_interface| {
                 for resolver_descriptor in project_symbol_catalog.get_symbolic_resolver_descriptors() {
                     let resolver_id = resolver_descriptor.get_resolver_id();
-                    let (row_response, edit_response) = self.render_resolver_list_entry(user_interface, resolver_id, selected_resolver_id == Some(resolver_id));
+                    let usage_count = SymbolResolverEditorViewData::count_resolver_usages(project_symbol_catalog, resolver_id);
+                    let (row_response, edit_response) =
+                        self.render_resolver_list_entry(user_interface, resolver_id, usage_count, selected_resolver_id == Some(resolver_id));
 
                     if row_response.double_clicked() {
                         action = ResolverFrameAction::BeginOpenResolver(resolver_id.to_string());
@@ -284,10 +286,45 @@ impl SymbolResolverEditorView {
         action
     }
 
+    fn render_resolver_list_header(
+        &self,
+        user_interface: &mut Ui,
+    ) {
+        let theme = &self.app_context.theme;
+        let (header_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::ROW_HEIGHT), Sense::hover());
+
+        user_interface
+            .painter()
+            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
+        user_interface.painter().text(
+            pos2(header_rect.min.x + Self::ROW_LEFT_PADDING, header_rect.center().y),
+            Align2::LEFT_CENTER,
+            "Resolver",
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground_preview,
+        );
+        user_interface.painter().text(
+            pos2(header_rect.max.x - Self::ICON_BUTTON_WIDTH - Self::ROW_LEFT_PADDING, header_rect.center().y),
+            Align2::RIGHT_CENTER,
+            "Uses",
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground_preview,
+        );
+    }
+
+    fn resolver_usage_preview_text(usage_count: usize) -> String {
+        if usage_count == 1 {
+            return String::from("1 use");
+        }
+
+        format!("{} uses", usage_count)
+    }
+
     fn render_resolver_list_entry(
         &self,
         user_interface: &mut Ui,
         resolver_id: &str,
+        usage_count: usize,
         is_selected: bool,
     ) -> (Response, Response) {
         let theme = &self.app_context.theme;
@@ -334,10 +371,29 @@ impl SymbolResolverEditorView {
         );
         IconDraw::draw(user_interface, edit_response.rect, &theme.icon_library.icon_handle_common_edit);
 
+        let usage_text = Self::resolver_usage_preview_text(usage_count);
+        let usage_text_width = Self::measure_text_width(
+            user_interface,
+            &usage_text,
+            &theme.font_library.font_noto_sans.font_normal,
+            if is_selected { theme.foreground } else { theme.foreground_preview },
+        );
+        let usage_text_right = edit_button_rect.min.x - Self::ROW_LEFT_PADDING;
+        let usage_text_left = (usage_text_right - usage_text_width).max(allocated_size_rectangle.min.x + Self::ROW_LEFT_PADDING);
+        user_interface.painter().text(
+            pos2(usage_text_right, allocated_size_rectangle.center().y),
+            Align2::RIGHT_CENTER,
+            usage_text,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            if is_selected { theme.foreground } else { theme.foreground_preview },
+        );
+
         let label_position = pos2(allocated_size_rectangle.min.x + Self::ROW_LEFT_PADDING, allocated_size_rectangle.center().y);
+        let label_min_x = allocated_size_rectangle.min.x + Self::ROW_LEFT_PADDING;
+        let label_max_x = (usage_text_left - Self::TAKE_OVER_ROW_SPACING).max(label_min_x);
         let label_clip_rect = Rect::from_min_max(
-            pos2(allocated_size_rectangle.min.x + Self::ROW_LEFT_PADDING, allocated_size_rectangle.min.y),
-            pos2(edit_button_rect.min.x - Self::TAKE_OVER_ROW_SPACING, allocated_size_rectangle.max.y),
+            pos2(label_min_x, allocated_size_rectangle.min.y),
+            pos2(label_max_x, allocated_size_rectangle.max.y),
         );
         user_interface.painter().with_clip_rect(label_clip_rect).text(
             label_position,
@@ -635,10 +691,12 @@ impl SymbolResolverEditorView {
     fn render_delete_confirmation_take_over(
         &self,
         user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         resolver_id: &str,
     ) -> ResolverFrameAction {
         let theme = &self.app_context.theme;
         let mut action = ResolverFrameAction::None;
+        let usage_count = SymbolResolverEditorViewData::count_resolver_usages(project_symbol_catalog, resolver_id);
         let can_handle_window_shortcuts = self
             .app_context
             .window_focus_manager
@@ -736,6 +794,15 @@ impl SymbolResolverEditorView {
                     user_interface.add(
                         GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
                             user_interface.label(RichText::new(format!("Delete `{}`?", resolver_id)).color(theme.foreground));
+                            user_interface.add_space(4.0);
+                            let (usage_text, usage_text_color) = if usage_count == 0 {
+                                (String::from("No existing fields reference this resolver."), theme.foreground_preview)
+                            } else if usage_count == 1 {
+                                (String::from("1 existing resolver reference will become unresolved."), theme.warning)
+                            } else {
+                                (format!("{} existing resolver references will become unresolved.", usage_count), theme.warning)
+                            };
+                            user_interface.label(RichText::new(usage_text).color(usage_text_color));
                         })
                         .desired_width(user_interface.available_width()),
                     );
@@ -1437,11 +1504,12 @@ impl Widget for SymbolResolverEditorView {
                         frame_action = self.render_resolver_open_take_over(user_interface, draft, selected_node_path.as_deref(), can_save);
                     }
                     (Some(SymbolResolverEditorTakeOverState::DeleteConfirmation { resolver_id }), _) => {
-                        frame_action = self.render_delete_confirmation_take_over(user_interface, resolver_id);
+                        frame_action = self.render_delete_confirmation_take_over(user_interface, &project_symbol_catalog, resolver_id);
                     }
                     _ => {
                         frame_action = self.render_selection_toolbar(user_interface);
                         user_interface.add_space(4.0);
+                        self.render_resolver_list_header(user_interface);
                         user_interface.allocate_ui_with_layout(
                             vec2(user_interface.available_width(), user_interface.available_height().max(Self::ROW_HEIGHT)),
                             Layout::top_down(Align::Min),

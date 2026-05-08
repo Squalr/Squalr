@@ -280,6 +280,37 @@ impl SymbolResolverEditorViewData {
         }
     }
 
+    pub fn count_resolver_usages(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolver_id: &str,
+    ) -> usize {
+        project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .flat_map(|struct_layout_descriptor| {
+                struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_fields()
+            })
+            .map(|symbolic_field_definition| {
+                let count_usage = usize::from(
+                    symbolic_field_definition
+                        .get_count_resolution()
+                        .as_resolver_id()
+                        == Some(resolver_id),
+                );
+                let offset_usage = usize::from(
+                    symbolic_field_definition
+                        .get_offset_resolution()
+                        .as_resolver_id()
+                        == Some(resolver_id),
+                );
+
+                count_usage.saturating_add(offset_usage)
+            })
+            .sum()
+    }
+
     pub fn build_resolver_descriptor(
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolResolverEditDraft,
@@ -359,9 +390,14 @@ pub enum SymbolResolverNodeKind {
 #[cfg(test)]
 mod tests {
     use super::{SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData};
-    use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
+    use squalr_engine_api::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
     use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
-    use squalr_engine_api::structures::structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode};
+    use squalr_engine_api::structures::structs::{
+        symbolic_field_definition::SymbolicFieldDefinition,
+        symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode},
+        symbolic_struct_definition::SymbolicStructDefinition,
+    };
+    use std::str::FromStr;
 
     #[test]
     fn create_default_new_draft_picks_unique_resolver_id() {
@@ -435,5 +471,39 @@ mod tests {
         let result = SymbolResolverEditorViewData::build_resolver_descriptor(&project_symbol_catalog, &draft);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn count_resolver_usages_includes_dynamic_counts_and_offsets() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                String::from("inventory"),
+                SymbolicStructDefinition::new(
+                    String::from("inventory"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
+                        SymbolicFieldDefinition::from_str("items:u16[resolver(inventory.item_count)] @ resolver(inventory.items_offset)")
+                            .expect("Expected items field to parse."),
+                        SymbolicFieldDefinition::from_str("padding:u8[resolver(inventory.item_count)]").expect("Expected padding field to parse."),
+                    ],
+                ),
+            )],
+            Vec::new(),
+            Vec::new(),
+        );
+
+        assert_eq!(
+            SymbolResolverEditorViewData::count_resolver_usages(&project_symbol_catalog, "inventory.item_count"),
+            2
+        );
+        assert_eq!(
+            SymbolResolverEditorViewData::count_resolver_usages(&project_symbol_catalog, "inventory.items_offset"),
+            1
+        );
+        assert_eq!(
+            SymbolResolverEditorViewData::count_resolver_usages(&project_symbol_catalog, "inventory.unused"),
+            0
+        );
     }
 }
