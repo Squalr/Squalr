@@ -311,6 +311,27 @@ impl DockedWindowFooterView {
 
         stretched_tab_widths
     }
+
+    fn resolve_rendered_tab_widths(
+        tab_layout: &DockedTabLayout,
+        row_number: usize,
+        available_width: f32,
+    ) -> Vec<f32> {
+        let Some(tab_layout_row) = tab_layout.rows.get(row_number) else {
+            return Vec::new();
+        };
+        let should_stretch_row = tab_layout.rows.len() > 1 && row_number + 1 < tab_layout.rows.len();
+
+        if should_stretch_row {
+            Self::resolve_stretched_tab_widths(tab_layout_row, available_width)
+        } else {
+            tab_layout_row
+                .items
+                .iter()
+                .map(|tab_layout_item| tab_layout_item.tab_width)
+                .collect()
+        }
+    }
 }
 
 impl Widget for DockedWindowFooterView {
@@ -360,7 +381,7 @@ impl Widget for DockedWindowFooterView {
         for (row_number, tab_layout_row) in tab_layout.rows.iter().enumerate() {
             let row_min = pos2(available_size_rect.min.x, available_size_rect.min.y + row_number as f32 * Self::TAB_ROW_HEIGHT);
             let row_rect = Rect::from_min_size(row_min, vec2(available_size_rect.width(), Self::TAB_ROW_HEIGHT));
-            let stretched_tab_widths = Self::resolve_stretched_tab_widths(tab_layout_row, row_rect.width());
+            let rendered_tab_widths = Self::resolve_rendered_tab_widths(&tab_layout, row_number, row_rect.width());
             let row_content_rect = Rect::from_min_size(row_min, vec2(row_rect.width(), Self::TAB_ROW_HEIGHT));
             let mut tab_strip_user_interface = user_interface.new_child(
                 UiBuilder::new()
@@ -369,7 +390,7 @@ impl Widget for DockedWindowFooterView {
             );
             tab_strip_user_interface.set_clip_rect(row_rect);
 
-            for (tab_layout_item, stretched_tab_width) in tab_layout_row.items.iter().zip(stretched_tab_widths.iter()) {
+            for (tab_layout_item, rendered_tab_width) in tab_layout_row.items.iter().zip(rendered_tab_widths.iter()) {
                 let mut button = Button::new_from_theme(theme)
                     .background_color(theme.background_control_secondary)
                     .border_color(theme.submenu_border)
@@ -407,7 +428,7 @@ impl Widget for DockedWindowFooterView {
 
                 let response = tab_strip_user_interface
                     .add_sized(
-                        vec2(*stretched_tab_width, Self::TAB_ROW_HEIGHT),
+                        vec2(*rendered_tab_width, Self::TAB_ROW_HEIGHT),
                         button
                             .corner_radius(CornerRadius::ZERO)
                             .sense(Sense::click_and_drag()),
@@ -666,5 +687,36 @@ mod tests {
 
         assert_eq!(stretched_tab_widths, vec![200.0, 100.0]);
         assert_eq!(stretched_tab_widths.iter().sum::<f32>(), 300.0);
+    }
+
+    #[test]
+    fn rendered_tab_widths_stretch_only_non_final_overflow_rows() {
+        let tab_layout = super::DockedTabLayout {
+            rows: vec![
+                super::DockedTabLayoutRow {
+                    items: vec![build_tab_layout_item(0, 100.0), build_tab_layout_item(1, 100.0)],
+                    row_width: 200.0,
+                },
+                super::DockedTabLayoutRow {
+                    items: vec![build_tab_layout_item(2, 100.0)],
+                    row_width: 100.0,
+                },
+            ],
+        };
+
+        assert_eq!(DockedWindowFooterView::resolve_rendered_tab_widths(&tab_layout, 0, 300.0), vec![150.0, 150.0]);
+        assert_eq!(DockedWindowFooterView::resolve_rendered_tab_widths(&tab_layout, 1, 300.0), vec![100.0]);
+    }
+
+    #[test]
+    fn rendered_tab_widths_leave_single_row_unstretched() {
+        let tab_layout = super::DockedTabLayout {
+            rows: vec![super::DockedTabLayoutRow {
+                items: vec![build_tab_layout_item(0, 100.0), build_tab_layout_item(1, 100.0)],
+                row_width: 200.0,
+            }],
+        };
+
+        assert_eq!(DockedWindowFooterView::resolve_rendered_tab_widths(&tab_layout, 0, 300.0), vec![100.0, 100.0]);
     }
 }
