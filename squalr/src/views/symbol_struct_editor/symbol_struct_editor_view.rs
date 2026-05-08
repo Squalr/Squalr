@@ -882,6 +882,8 @@ impl SymbolStructEditorView {
         user_interface: &mut Ui,
         title: &str,
         header_action_width: f32,
+        content_padding_x: f32,
+        body_top_spacing: f32,
         render_header_actions: impl FnOnce(&mut Ui),
         add_contents: impl FnOnce(&mut Ui),
     ) {
@@ -934,17 +936,18 @@ impl SymbolStructEditorView {
             );
         }
 
-        panel_user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+        if body_top_spacing > 0.0 {
+            panel_user_interface.add_space(body_top_spacing);
+        }
         ScrollArea::vertical()
             .id_salt(format!("symbol_struct_editor_take_over_body_{title}"))
             .auto_shrink([false, false])
             .show(&mut panel_user_interface, |user_interface| {
-                let content_width = (user_interface.available_width() - Self::TAKE_OVER_CONTENT_PADDING_X * 2.0).max(0.0);
+                let content_width = (user_interface.available_width() - content_padding_x * 2.0).max(0.0);
                 user_interface.horizontal(|user_interface| {
-                    user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
+                    user_interface.add_space(content_padding_x);
                     user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
                         add_contents(user_interface);
-                        user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
                     });
                 });
             });
@@ -1189,6 +1192,8 @@ impl SymbolStructEditorView {
             user_interface,
             take_over_title,
             0.0,
+            if show_layout_name_editor { Self::TAKE_OVER_CONTENT_PADDING_X } else { 0.0 },
+            if show_layout_name_editor { Self::TAKE_OVER_SECTION_SPACING } else { 0.0 },
             |_user_interface| {},
             |user_interface| {
                 if show_layout_name_editor {
@@ -1289,6 +1294,8 @@ impl SymbolStructEditorView {
             user_interface,
             "Delete Struct Layout",
             0.0,
+            Self::TAKE_OVER_CONTENT_PADDING_X,
+            Self::TAKE_OVER_SECTION_SPACING,
             |_user_interface| {},
             |user_interface| {
                 let theme = &self.app_context.theme;
