@@ -2497,8 +2497,8 @@ impl SymbolExplorerView {
                                     user_interface,
                                     "Cancel",
                                     button_size,
-                                    theme.background_control_primary,
-                                    theme.background_control_primary_dark,
+                                    theme.background_control_secondary,
+                                    theme.background_control_secondary_dark,
                                     true,
                                 );
 

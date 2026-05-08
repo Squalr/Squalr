@@ -289,8 +289,8 @@ impl SymbolResolverEditorView {
                 let cancel_response = user_interface.add_sized(
                     button_size,
                     EguiButton::new(RichText::new("Cancel").color(theme.foreground))
-                        .fill(theme.background_control_primary)
-                        .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
+                        .fill(theme.background_control_secondary)
+                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
                 );
 
                 let delete_response = user_interface.add_sized(
