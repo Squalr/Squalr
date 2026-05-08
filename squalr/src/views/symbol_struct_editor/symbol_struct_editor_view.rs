@@ -12,7 +12,7 @@ use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container
 use eframe::egui::{
     Align, Align2, Button as EguiButton, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
-use epaint::{Color32, CornerRadius, StrokeKind};
+use epaint::{Color32, CornerRadius, Rect, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
     registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
@@ -60,7 +60,6 @@ impl SymbolStructEditorView {
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
-    const FIELD_SECTION_VERTICAL_SPACING: f32 = 10.0;
     const FIELD_INPUT_SPACING: f32 = 8.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
@@ -72,6 +71,8 @@ impl SymbolStructEditorView {
     const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
+    const FIELD_ROW_LEFT_PADDING: f32 = 8.0;
+    const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_struct_editor_view_data = app_context
@@ -205,24 +206,6 @@ impl SymbolStructEditorView {
         )
     }
 
-    fn render_delete_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-
-        self.render_icon_button_with_style(
-            user_interface,
-            &theme.icon_library.icon_handle_common_delete,
-            tooltip_text,
-            theme.background_control_danger,
-            theme.background_control_danger_dark,
-            is_disabled,
-        )
-    }
-
     fn render_icon_button_with_style(
         &self,
         user_interface: &mut Ui,
@@ -240,6 +223,33 @@ impl SymbolStructEditorView {
                 .background_color(background_color)
                 .border_color(border_color)
                 .border_width(1.0)
+                .disabled(is_disabled),
+        );
+
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
+
+        button_response
+    }
+
+    fn render_flat_icon_button_at(
+        &self,
+        user_interface: &mut Ui,
+        button_rect: Rect,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.put(
+            button_rect,
+            ThemeButton::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .background_color(Color32::TRANSPARENT)
                 .disabled(is_disabled),
         );
 
@@ -577,6 +587,59 @@ impl SymbolStructEditorView {
         Some(u64::from_le_bytes(value_bytes))
     }
 
+    fn measure_text_width(
+        user_interface: &Ui,
+        text: &str,
+        font_id: &eframe::egui::FontId,
+        text_color: Color32,
+    ) -> f32 {
+        if text.is_empty() {
+            return 0.0;
+        }
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(text.to_string(), font_id.clone(), text_color)
+                .size()
+                .x
+        })
+    }
+
+    fn truncate_text_to_width(
+        user_interface: &Ui,
+        text: &str,
+        max_text_width: f32,
+        font_id: &eframe::egui::FontId,
+        text_color: Color32,
+    ) -> String {
+        if text.is_empty() || max_text_width <= 0.0 {
+            return String::new();
+        }
+
+        let full_text_width = Self::measure_text_width(user_interface, text, font_id, text_color);
+        if full_text_width <= max_text_width {
+            return text.to_string();
+        }
+
+        let ellipsis = "...";
+        let ellipsis_width = Self::measure_text_width(user_interface, ellipsis, font_id, text_color);
+        if ellipsis_width > max_text_width {
+            return String::new();
+        }
+
+        let mut truncated_text = text.to_string();
+        while !truncated_text.is_empty() {
+            truncated_text.pop();
+            let candidate_text = format!("{}{}", truncated_text, ellipsis);
+            let candidate_width = Self::measure_text_width(user_interface, &candidate_text, font_id, text_color);
+            if candidate_width <= max_text_width {
+                return candidate_text;
+            }
+        }
+
+        String::new()
+    }
+
     fn render_struct_layout_row(
         &self,
         user_interface: &mut Ui,
@@ -864,36 +927,48 @@ impl SymbolStructEditorView {
         let mut pending_field_row_action = None;
 
         let (row_rect, row_response) =
-            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::FIELD_ROW_HEIGHT), Sense::click());
+            user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::LIST_ROW_HEIGHT), Sense::click());
         if is_selected {
             user_interface
                 .painter()
-                .rect_filled(row_rect, CornerRadius::ZERO, theme.background_control_primary);
-        } else if row_response.hovered() {
+                .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
             user_interface
                 .painter()
-                .rect_filled(row_rect, CornerRadius::ZERO, theme.background_control_secondary);
+                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
         }
 
-        let mut row_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(row_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-        row_user_interface.set_clip_rect(row_rect);
+        StateLayer {
+            bounds_min: row_rect.min,
+            bounds_max: row_rect.max,
+            enabled: true,
+            pressed: row_response.is_pointer_button_down_on(),
+            has_hover: row_response.hovered(),
+            has_focus: row_response.has_focus(),
+            corner_radius: CornerRadius::ZERO,
+            border_width: 0.0,
+            hover_color: theme.hover_tint,
+            pressed_color: theme.pressed_tint,
+            border_color: theme.background_control_secondary_dark,
+            border_color_focused: theme.background_control_secondary_dark,
+        }
+        .ui(user_interface);
 
-        let move_up_response = self.render_icon_button(
-            &mut row_user_interface,
-            &theme.icon_library.icon_handle_navigation_up_arrow_small,
-            "Move this field up.",
-            !can_move_up,
-        );
+        let button_area_width = Self::ICON_BUTTON_WIDTH * 4.0;
+        let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
+        let mut button_min_x = button_area_left;
+        let mut render_next_button = |icon_handle: &eframe::egui::TextureHandle, tooltip_text: &str, is_disabled: bool| -> Response {
+            let button_rect = Rect::from_min_size(pos2(button_min_x, row_rect.min.y), vec2(Self::ICON_BUTTON_WIDTH, Self::LIST_ROW_HEIGHT));
+            button_min_x += Self::ICON_BUTTON_WIDTH;
+
+            self.render_flat_icon_button_at(user_interface, button_rect, icon_handle, tooltip_text, is_disabled)
+        };
+
+        let move_up_response = render_next_button(&theme.icon_library.icon_handle_navigation_up_arrow_small, "Move this field up.", !can_move_up);
         if move_up_response.clicked() {
             pending_field_row_action = Some(SymbolStructFieldRowAction::MoveUp);
         }
 
-        let move_down_response = self.render_icon_button(
-            &mut row_user_interface,
+        let move_down_response = render_next_button(
             &theme.icon_library.icon_handle_navigation_down_arrow_small,
             "Move this field down.",
             !can_move_down,
@@ -902,38 +977,70 @@ impl SymbolStructEditorView {
             pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
         }
 
-        let remove_field_response =
-            self.render_delete_icon_button(&mut row_user_interface, "Remove this field from the draft struct layout.", !can_remove_field);
+        let remove_field_response = render_next_button(
+            &theme.icon_library.icon_handle_common_delete,
+            "Remove this field from the draft struct layout.",
+            !can_remove_field,
+        );
         if remove_field_response.clicked() {
             pending_field_row_action = Some(SymbolStructFieldRowAction::RemoveField);
         }
 
-        let insert_field_response = self.render_icon_button(
-            &mut row_user_interface,
-            &theme.icon_library.icon_handle_common_add,
-            "Insert a new field after this one.",
-            false,
-        );
+        let insert_field_response = render_next_button(&theme.icon_library.icon_handle_common_add, "Insert a new field after this one.", false);
         if insert_field_response.clicked() {
             pending_field_row_action = Some(SymbolStructFieldRowAction::InsertAfter);
         }
 
-        row_user_interface.add_space(Self::FIELD_INPUT_SPACING);
         let field_name = if field_draft.field_name.trim().is_empty() {
             format!("Field {}", field_index + 1)
         } else {
             field_draft.field_name.trim().to_string()
         };
-        row_user_interface.label(RichText::new(field_name).strong().color(theme.foreground));
-        row_user_interface.label(
-            RichText::new(
-                field_draft
-                    .data_type_selection
-                    .visible_data_type()
-                    .get_data_type_id(),
-            )
-            .color(theme.foreground_preview),
+        let preview_text = field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id();
+        let preview_right = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
+        let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
+        let preview_max_width = (preview_right - label_position.x - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
+        let preview_text = Self::truncate_text_to_width(
+            user_interface,
+            preview_text,
+            preview_max_width,
+            &theme.font_library.font_noto_sans.font_small,
+            theme.foreground_preview,
         );
+        let preview_width = Self::measure_text_width(
+            user_interface,
+            &preview_text,
+            &theme.font_library.font_noto_sans.font_small,
+            theme.foreground_preview,
+        );
+        let label_max_width = (preview_right - preview_width - Self::FIELD_ROW_PREVIEW_GAP - label_position.x).max(0.0);
+        let label_text = Self::truncate_text_to_width(
+            user_interface,
+            &field_name,
+            label_max_width,
+            &theme.font_library.font_noto_sans.font_normal,
+            theme.foreground,
+        );
+        user_interface.painter().text(
+            label_position,
+            Align2::LEFT_CENTER,
+            label_text,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
+
+        if !preview_text.is_empty() {
+            user_interface.painter().text(
+                pos2(preview_right, row_rect.center().y),
+                Align2::RIGHT_CENTER,
+                preview_text,
+                theme.font_library.font_noto_sans.font_small.clone(),
+                theme.foreground_preview,
+            );
+        }
 
         if row_response.clicked() && pending_field_row_action.is_none() {
             pending_field_row_action = Some(SymbolStructFieldRowAction::SelectField);
@@ -967,10 +1074,6 @@ impl SymbolStructEditorView {
                 can_move_down,
             ) {
                 pending_field_row_action = Some((field_index, field_row_action));
-            }
-            if field_index + 1 < draft.field_drafts.len() {
-                user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
-                user_interface.add_space(Self::FIELD_SECTION_VERTICAL_SPACING);
             }
         }
 
