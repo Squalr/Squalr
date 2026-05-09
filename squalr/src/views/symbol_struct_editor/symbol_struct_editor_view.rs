@@ -2,12 +2,13 @@ use crate::app_context::AppContext;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
-    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+    button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
+    state_layer::StateLayer, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
-    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
+    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldContextMenuTarget, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode,
+    SymbolStructLayoutEditDraft,
 };
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::SymbolStructFieldContainerKind;
 use eframe::egui::{
@@ -961,7 +962,6 @@ impl SymbolStructEditorView {
         field_draft: &mut SymbolStructFieldEditDraft,
         field_index: usize,
         is_selected: bool,
-        can_remove_field: bool,
         can_move_up: bool,
         can_move_down: bool,
     ) -> Option<SymbolStructFieldRowAction> {
@@ -1019,86 +1019,16 @@ impl SymbolStructEditorView {
             pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
         }
 
-        row_response.context_menu(|user_interface| {
-            if user_interface
-                .add(
-                    ToolbarMenuItemView::new(
-                        self.app_context.clone(),
-                        "Move up",
-                        "symbol_struct_field_ctx_move_up",
-                        &None,
-                        Self::FIELD_CONTEXT_MENU_WIDTH,
-                    )
-                    .icon(theme.icon_library.icon_handle_navigation_up_arrow_small.clone())
-                    .disabled(!can_move_up),
-                )
-                .clicked()
-            {
-                pending_field_row_action = Some(SymbolStructFieldRowAction::MoveUp);
-                user_interface.close();
-            }
+        if row_response.secondary_clicked() {
+            let context_menu_position = row_response
+                .interact_pointer_pos()
+                .unwrap_or_else(|| row_rect.left_bottom());
+            SymbolStructEditorViewData::show_field_context_menu(self.symbol_struct_editor_view_data.clone(), field_index, context_menu_position);
+        }
 
-            if user_interface
-                .add(
-                    ToolbarMenuItemView::new(
-                        self.app_context.clone(),
-                        "Move down",
-                        "symbol_struct_field_ctx_move_down",
-                        &None,
-                        Self::FIELD_CONTEXT_MENU_WIDTH,
-                    )
-                    .icon(
-                        theme
-                            .icon_library
-                            .icon_handle_navigation_down_arrow_small
-                            .clone(),
-                    )
-                    .disabled(!can_move_down),
-                )
-                .clicked()
-            {
-                pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
-                user_interface.close();
-            }
-
-            if user_interface
-                .add(
-                    ToolbarMenuItemView::new(
-                        self.app_context.clone(),
-                        "Insert new below",
-                        "symbol_struct_field_ctx_insert_below",
-                        &None,
-                        Self::FIELD_CONTEXT_MENU_WIDTH,
-                    )
-                    .icon(theme.icon_library.icon_handle_common_add.clone()),
-                )
-                .clicked()
-            {
-                pending_field_row_action = Some(SymbolStructFieldRowAction::InsertAfter);
-                user_interface.close();
-            }
-
-            user_interface.separator();
-
-            if user_interface
-                .add(
-                    ToolbarMenuItemView::new(
-                        self.app_context.clone(),
-                        "Delete",
-                        "symbol_struct_field_ctx_delete",
-                        &None,
-                        Self::FIELD_CONTEXT_MENU_WIDTH,
-                    )
-                    .icon(theme.icon_library.icon_handle_common_delete.clone())
-                    .icon_background(theme.background_control_danger, theme.background_control_danger_dark)
-                    .disabled(!can_remove_field),
-                )
-                .clicked()
-            {
-                pending_field_row_action = Some(SymbolStructFieldRowAction::RequestRemoveFieldConfirmation);
-                user_interface.close();
-            }
-        });
+        if row_response.clicked() {
+            SymbolStructEditorViewData::hide_field_context_menu(self.symbol_struct_editor_view_data.clone());
+        }
 
         let field_name = if field_draft.field_name.trim().is_empty() {
             format!("Field {}", field_index + 1)
@@ -1151,8 +1081,118 @@ impl SymbolStructEditorView {
             );
         }
 
-        if (row_response.clicked() || row_response.secondary_clicked()) && pending_field_row_action.is_none() {
+        if row_response.clicked() && pending_field_row_action.is_none() {
             pending_field_row_action = Some(SymbolStructFieldRowAction::SelectField);
+        }
+
+        pending_field_row_action
+    }
+
+    fn render_field_context_menu(
+        &self,
+        user_interface: &mut Ui,
+        context_menu_target: &SymbolStructFieldContextMenuTarget,
+        field_count: usize,
+    ) -> Option<SymbolStructFieldRowAction> {
+        let theme = &self.app_context.theme;
+        let field_index = context_menu_target.get_field_index();
+        let can_remove_field = field_count > 1;
+        let can_move_up = field_index > 0;
+        let can_move_down = field_index + 1 < field_count;
+        let mut open = true;
+        let mut pending_field_row_action = None;
+
+        ContextMenu::new(
+            self.app_context.clone(),
+            "symbol_struct_field_context_menu",
+            context_menu_target.get_position(),
+            |user_interface, should_close| {
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Move up",
+                            "symbol_struct_field_ctx_move_up",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(theme.icon_library.icon_handle_navigation_up_arrow_small.clone())
+                        .disabled(!can_move_up),
+                    )
+                    .clicked()
+                {
+                    pending_field_row_action = Some(SymbolStructFieldRowAction::MoveUp);
+                    *should_close = true;
+                }
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Move down",
+                            "symbol_struct_field_ctx_move_down",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(
+                            theme
+                                .icon_library
+                                .icon_handle_navigation_down_arrow_small
+                                .clone(),
+                        )
+                        .disabled(!can_move_down),
+                    )
+                    .clicked()
+                {
+                    pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
+                    *should_close = true;
+                }
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Insert new below",
+                            "symbol_struct_field_ctx_insert_below",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(theme.icon_library.icon_handle_common_add.clone()),
+                    )
+                    .clicked()
+                {
+                    pending_field_row_action = Some(SymbolStructFieldRowAction::InsertAfter);
+                    *should_close = true;
+                }
+
+                user_interface.separator();
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Delete",
+                            "symbol_struct_field_ctx_delete",
+                            &None,
+                            Self::FIELD_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(theme.icon_library.icon_handle_common_delete.clone())
+                        .icon_background(theme.background_control_danger, theme.background_control_danger_dark)
+                        .disabled(!can_remove_field),
+                    )
+                    .clicked()
+                {
+                    pending_field_row_action = Some(SymbolStructFieldRowAction::RequestRemoveFieldConfirmation);
+                    *should_close = true;
+                }
+            },
+        )
+        .width(Self::FIELD_CONTEXT_MENU_WIDTH)
+        .corner_radius(8)
+        .show(user_interface, &mut open);
+
+        if !open {
+            SymbolStructEditorViewData::hide_field_context_menu(self.symbol_struct_editor_view_data.clone());
         }
 
         pending_field_row_action
@@ -1165,7 +1205,6 @@ impl SymbolStructEditorView {
         selected_field_index: Option<usize>,
     ) {
         let field_count = draft.field_drafts.len();
-        let can_remove_field = field_count > 1;
         let mut pending_field_row_action = None;
         for field_index in 0..field_count {
             let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
@@ -1178,12 +1217,27 @@ impl SymbolStructEditorView {
                 field_draft,
                 field_index,
                 selected_field_index == Some(field_index),
-                can_remove_field,
                 can_move_up,
                 can_move_down,
             ) {
                 pending_field_row_action = Some((field_index, field_row_action));
             }
+        }
+
+        let field_context_menu_target = self
+            .symbol_struct_editor_view_data
+            .read("SymbolStructEditor field context menu")
+            .and_then(|symbol_struct_editor_view_data| {
+                symbol_struct_editor_view_data
+                    .get_field_context_menu_target()
+                    .cloned()
+            });
+
+        if let Some(field_context_menu_target) = field_context_menu_target
+            && field_context_menu_target.get_field_index() < field_count
+            && let Some(field_row_action) = self.render_field_context_menu(user_interface, &field_context_menu_target, field_count)
+        {
+            pending_field_row_action = Some((field_context_menu_target.get_field_index(), field_row_action));
         }
 
         if let Some((field_index, field_row_action)) = pending_field_row_action {

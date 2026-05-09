@@ -1,6 +1,7 @@
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::SymbolStructFieldContainerEdit;
+use epaint::Pos2;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::{
@@ -59,6 +60,29 @@ pub enum SymbolStructEditorTakeOverState {
     DeleteFieldConfirmation { layout_id: String, field_index: usize },
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct SymbolStructFieldContextMenuTarget {
+    field_index: usize,
+    position: Pos2,
+}
+
+impl SymbolStructFieldContextMenuTarget {
+    pub fn new(
+        field_index: usize,
+        position: Pos2,
+    ) -> Self {
+        Self { field_index, position }
+    }
+
+    pub fn get_field_index(&self) -> usize {
+        self.field_index
+    }
+
+    pub fn get_position(&self) -> Pos2 {
+        self.position
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SymbolStructEditorViewData {
     selected_layout_id: Option<String>,
@@ -67,6 +91,7 @@ pub struct SymbolStructEditorViewData {
     baseline_draft: Option<SymbolStructLayoutEditDraft>,
     draft: Option<SymbolStructLayoutEditDraft>,
     selected_field_index: Option<usize>,
+    field_context_menu_target: Option<SymbolStructFieldContextMenuTarget>,
 }
 
 impl SymbolStructEditorViewData {
@@ -78,6 +103,7 @@ impl SymbolStructEditorViewData {
             baseline_draft: None,
             draft: None,
             selected_field_index: None,
+            field_context_menu_target: None,
         }
     }
 
@@ -103,6 +129,10 @@ impl SymbolStructEditorViewData {
 
     pub fn get_selected_field_index(&self) -> Option<usize> {
         self.selected_field_index
+    }
+
+    pub fn get_field_context_menu_target(&self) -> Option<&SymbolStructFieldContextMenuTarget> {
+        self.field_context_menu_target.as_ref()
     }
 
     pub fn set_filter_text(
@@ -132,6 +162,13 @@ impl SymbolStructEditorViewData {
             .is_some_and(|field_index| field_index >= draft.field_drafts.len())
         {
             self.selected_field_index = None;
+        }
+        if self
+            .field_context_menu_target
+            .as_ref()
+            .is_some_and(|context_menu_target| context_menu_target.get_field_index() >= draft.field_drafts.len())
+        {
+            self.field_context_menu_target = None;
         }
         self.draft = Some(draft);
     }
@@ -182,6 +219,7 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.selected_layout_id = None;
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::CreateStructLayout);
             symbol_struct_editor_view_data.selected_field_index = None;
+            symbol_struct_editor_view_data.field_context_menu_target = None;
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_struct_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_struct_editor_view_data.draft = Some(baseline_draft);
@@ -199,6 +237,7 @@ impl SymbolStructEditorViewData {
                 layout_id: layout_id.to_string(),
             });
             symbol_struct_editor_view_data.selected_field_index = None;
+            symbol_struct_editor_view_data.field_context_menu_target = None;
             symbol_struct_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -219,6 +258,7 @@ impl SymbolStructEditorViewData {
                 layout_id: layout_id.to_string(),
             });
             symbol_struct_editor_view_data.selected_field_index = None;
+            symbol_struct_editor_view_data.field_context_menu_target = None;
             symbol_struct_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -235,6 +275,7 @@ impl SymbolStructEditorViewData {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor request delete confirmation") {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id });
             symbol_struct_editor_view_data.selected_field_index = None;
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
     }
 
@@ -246,6 +287,7 @@ impl SymbolStructEditorViewData {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor request field delete confirmation") {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index });
             symbol_struct_editor_view_data.selected_field_index = Some(field_index);
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
     }
 
@@ -255,6 +297,24 @@ impl SymbolStructEditorViewData {
     ) {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor return to open struct layout") {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::OpenStructLayout { layout_id });
+            symbol_struct_editor_view_data.field_context_menu_target = None;
+        }
+    }
+
+    pub fn show_field_context_menu(
+        symbol_struct_editor_view_data: Dependency<Self>,
+        field_index: usize,
+        position: Pos2,
+    ) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor show field context menu") {
+            symbol_struct_editor_view_data.field_context_menu_target = Some(SymbolStructFieldContextMenuTarget::new(field_index, position));
+            symbol_struct_editor_view_data.selected_field_index = Some(field_index);
+        }
+    }
+
+    pub fn hide_field_context_menu(symbol_struct_editor_view_data: Dependency<Self>) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor hide field context menu") {
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
     }
 
@@ -264,6 +324,7 @@ impl SymbolStructEditorViewData {
     ) {
         if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor select field") {
             symbol_struct_editor_view_data.selected_field_index = Some(field_index);
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
     }
 
@@ -279,6 +340,7 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.baseline_draft = None;
             symbol_struct_editor_view_data.draft = None;
             symbol_struct_editor_view_data.selected_field_index = None;
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
     }
 
@@ -344,6 +406,7 @@ impl SymbolStructEditorViewData {
 
         if let Some(layout_id) = stale_field_delete_layout_id {
             symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::OpenStructLayout { layout_id });
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
 
         if symbol_struct_editor_view_data
@@ -356,6 +419,19 @@ impl SymbolStructEditorViewData {
             })
         {
             symbol_struct_editor_view_data.selected_field_index = None;
+        }
+
+        if symbol_struct_editor_view_data
+            .field_context_menu_target
+            .as_ref()
+            .is_some_and(|context_menu_target| {
+                symbol_struct_editor_view_data
+                    .draft
+                    .as_ref()
+                    .is_none_or(|draft| context_menu_target.get_field_index() >= draft.field_drafts.len())
+            })
+        {
+            symbol_struct_editor_view_data.field_context_menu_target = None;
         }
     }
 
@@ -821,8 +897,11 @@ impl Default for SymbolStructLayoutEditDraft {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolStructEditorViewData, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft};
+    use super::{
+        SymbolStructEditorViewData, SymbolStructFieldContextMenuTarget, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
+    };
     use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
+    use epaint::pos2;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{
@@ -935,6 +1014,24 @@ mod tests {
                 .get_data_type_id()),
             Some(DataTypeI32::DATA_TYPE_ID)
         );
+    }
+
+    #[test]
+    fn replace_draft_clears_stale_field_context_menu_target() {
+        let mut view_data = SymbolStructEditorViewData::new();
+        view_data.field_context_menu_target = Some(SymbolStructFieldContextMenuTarget::new(2, pos2(12.0, 34.0)));
+
+        view_data.replace_draft(SymbolStructLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolStructFieldContainerEdit::default(),
+            )],
+        });
+
+        assert_eq!(view_data.get_field_context_menu_target(), None);
     }
 
     #[test]
