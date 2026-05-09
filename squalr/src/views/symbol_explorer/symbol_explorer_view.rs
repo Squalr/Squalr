@@ -1772,6 +1772,29 @@ impl SymbolExplorerView {
         Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string()))
     }
 
+    fn resolve_relative_pointer_chain_from_pointer_snapshot(
+        resolved_pointer_targets_by_query_id: &HashMap<String, ResolvedPointerTarget>,
+        resolver_pointer_snapshot_queries: &RefCell<Vec<VirtualSnapshotQuery>>,
+        root_locator: &ProjectSymbolLocator,
+        pointer_chain: &SymbolicPointerChain,
+    ) -> Result<i128, SymbolicResolverEvaluationError> {
+        let query_id = Self::relative_pointer_chain_query_id(root_locator, pointer_chain);
+
+        if let Some(resolved_pointer_target) = resolved_pointer_targets_by_query_id.get(&query_id) {
+            return Ok(i128::from(resolved_pointer_target.get_target_locator().get_focus_address()));
+        }
+
+        let Some(pointer_snapshot_query) = Self::build_relative_pointer_chain_virtual_snapshot_query(root_locator, pointer_chain, query_id) else {
+            return Err(SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string()));
+        };
+
+        resolver_pointer_snapshot_queries
+            .borrow_mut()
+            .push(pointer_snapshot_query);
+
+        Err(SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string()))
+    }
+
     fn build_global_pointer_chain_virtual_snapshot_query(
         project_symbol_catalog: &ProjectSymbolCatalog,
         pointer_chain: &SymbolicPointerChain,
@@ -1797,10 +1820,42 @@ impl SymbolExplorerView {
         })
     }
 
+    fn build_relative_pointer_chain_virtual_snapshot_query(
+        root_locator: &ProjectSymbolLocator,
+        pointer_chain: &SymbolicPointerChain,
+        query_id: String,
+    ) -> Option<VirtualSnapshotQuery> {
+        let root_offset = pointer_chain.get_numeric_root_offset()?;
+        let root_address = Pointer::apply_pointer_offset(root_locator.get_focus_address(), root_offset)?;
+
+        Some(VirtualSnapshotQuery::Pointer {
+            query_id,
+            pointer: Pointer::new_with_size_and_segments(
+                root_address,
+                pointer_chain.get_tail_links().to_vec(),
+                root_locator.get_focus_module_name().to_string(),
+                pointer_chain.get_pointer_size(),
+            ),
+            symbolic_struct_definition: SymbolicStructDefinition::new_anonymous(Vec::new()),
+        })
+    }
+
     fn global_pointer_chain_query_id(pointer_chain: &SymbolicPointerChain) -> String {
         format!(
             "resolver_pointer:{}:{}:{}",
             pointer_chain.get_module_name(),
+            pointer_chain.get_pointer_size(),
+            SymbolicPointerChainLink::display_text_list(pointer_chain.get_links())
+        )
+    }
+
+    fn relative_pointer_chain_query_id(
+        root_locator: &ProjectSymbolLocator,
+        pointer_chain: &SymbolicPointerChain,
+    ) -> String {
+        format!(
+            "resolver_relative_pointer:{}:{}:{}",
+            root_locator.to_locator_key(),
             pointer_chain.get_pointer_size(),
             SymbolicPointerChainLink::display_text_list(pointer_chain.get_links())
         )
@@ -3689,6 +3744,14 @@ impl Widget for SymbolExplorerView {
         };
         let previous_resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
         let resolver_pointer_snapshot_queries = RefCell::new(Vec::new());
+        let resolve_relative_pointer_chain = |root_locator: &ProjectSymbolLocator, pointer_chain: &SymbolicPointerChain| {
+            Self::resolve_relative_pointer_chain_from_pointer_snapshot(
+                &previous_resolved_pointer_targets_by_node_key,
+                &resolver_pointer_snapshot_queries,
+                root_locator,
+                pointer_chain,
+            )
+        };
         let resolve_global_pointer_chain = |pointer_chain: &SymbolicPointerChain| {
             Self::resolve_global_pointer_chain_from_pointer_snapshot(
                 &project_symbol_catalog,
@@ -3703,6 +3766,7 @@ impl Widget for SymbolExplorerView {
             &HashMap::new(),
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
         );
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
@@ -3712,6 +3776,14 @@ impl Widget for SymbolExplorerView {
             resolver_pointer_snapshot_queries.borrow().clone(),
         );
         let resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
+        let resolve_relative_pointer_chain = |root_locator: &ProjectSymbolLocator, pointer_chain: &SymbolicPointerChain| {
+            Self::resolve_relative_pointer_chain_from_pointer_snapshot(
+                &resolved_pointer_targets_by_node_key,
+                &resolver_pointer_snapshot_queries,
+                root_locator,
+                pointer_chain,
+            )
+        };
         let resolve_global_pointer_chain = |pointer_chain: &SymbolicPointerChain| {
             Self::resolve_global_pointer_chain_from_pointer_snapshot(
                 &project_symbol_catalog,
@@ -3726,6 +3798,7 @@ impl Widget for SymbolExplorerView {
             &resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
         );
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
@@ -4232,6 +4305,36 @@ mod tests {
 
         assert_eq!(query_id, "resolver_pointer");
         assert_eq!(pointer.get_address(), 0x80);
+        assert_eq!(pointer.get_module_name(), "game.exe");
+        assert_eq!(pointer.get_offset_segments(), &[SymbolicPointerChainLink::Offset(0x20)]);
+        assert!(symbolic_struct_definition.get_fields().is_empty());
+    }
+
+    #[test]
+    fn build_relative_pointer_chain_virtual_snapshot_query_uses_instance_root() {
+        let root_locator = ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x200);
+        let pointer_chain = SymbolicPointerChain::new_absolute(
+            vec![
+                SymbolicPointerChainLink::Offset(0x10),
+                SymbolicPointerChainLink::Offset(0x20),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+        let pointer_snapshot_query =
+            SymbolExplorerView::build_relative_pointer_chain_virtual_snapshot_query(&root_locator, &pointer_chain, String::from("resolver_relative_pointer"))
+                .expect("Expected relative pointer snapshot query.");
+
+        let VirtualSnapshotQuery::Pointer {
+            query_id,
+            pointer,
+            symbolic_struct_definition,
+        } = pointer_snapshot_query
+        else {
+            panic!("Expected pointer query.");
+        };
+
+        assert_eq!(query_id, "resolver_relative_pointer");
+        assert_eq!(pointer.get_address(), 0x210);
         assert_eq!(pointer.get_module_name(), "game.exe");
         assert_eq!(pointer.get_offset_segments(), &[SymbolicPointerChainLink::Offset(0x20)]);
         assert!(symbolic_struct_definition.get_fields().is_empty());

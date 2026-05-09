@@ -8,6 +8,7 @@ use crate::structures::{
         symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -266,6 +267,47 @@ where
     ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
 {
+    resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains(
+        symbolic_struct_definition,
+        resolve_type_size_in_bytes,
+        read_scalar_field,
+        resolve_resolver_definition,
+        resolve_struct_definition,
+        resolve_global_symbol_field,
+        |pointer_chain| Err(SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string())),
+        resolve_global_pointer_chain,
+        options,
+    )
+}
+
+pub fn resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains<
+    ResolveTypeSize,
+    ReadScalarField,
+    ResolveResolverDefinition,
+    ResolveStructDefinition,
+    ResolveGlobalSymbolField,
+    ResolveRelativePointerChain,
+    ResolveGlobalPointerChain,
+>(
+    symbolic_struct_definition: &SymbolicStructDefinition,
+    resolve_type_size_in_bytes: ResolveTypeSize,
+    read_scalar_field: ReadScalarField,
+    resolve_resolver_definition: ResolveResolverDefinition,
+    resolve_struct_definition: ResolveStructDefinition,
+    resolve_global_symbol_field: ResolveGlobalSymbolField,
+    resolve_relative_pointer_chain: ResolveRelativePointerChain,
+    resolve_global_pointer_chain: ResolveGlobalPointerChain,
+    options: &SymbolicStructResolverOptions,
+) -> ResolvedSymbolicStruct
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+    ResolveResolverDefinition: Fn(&str) -> Option<SymbolicResolverDefinition>,
+    ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    ResolveRelativePointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+{
     let mut scalar_values_by_field_name = BTreeMap::new();
     let mut resolved_fields = Vec::new();
     let resolve_pass_count = symbolic_struct_definition
@@ -282,6 +324,7 @@ where
             &resolve_resolver_definition,
             &resolve_struct_definition,
             &resolve_global_symbol_field,
+            &resolve_relative_pointer_chain,
             &resolve_global_pointer_chain,
             options,
             &mut scalar_values_by_field_name,
@@ -308,6 +351,7 @@ fn resolve_symbolic_struct_definition_pass<ResolveTypeSize, ReadScalarField>(
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     options: &SymbolicStructResolverOptions,
     scalar_values_by_field_name: &mut BTreeMap<String, i128>,
@@ -331,6 +375,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             &mut Vec::new(),
         );
@@ -343,6 +388,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             &mut Vec::new(),
         );
@@ -356,6 +402,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             &mut Vec::new(),
         );
@@ -442,6 +489,7 @@ fn resolve_field_offset<ResolveTypeSize, ReadScalarField>(
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<Option<u64>, String>
@@ -461,6 +509,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             resolver_stack,
         )
@@ -477,6 +526,7 @@ fn resolve_field_element_count<ReadScalarField>(
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<Option<u64>, String>
@@ -493,6 +543,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             resolver_stack,
         )
@@ -515,6 +566,7 @@ fn resolve_field_display_element_count<ReadScalarField>(
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<Option<u64>, String>
@@ -532,6 +584,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             resolver_stack,
         )
@@ -548,6 +601,7 @@ fn evaluate_u64_resolver<ResolveTypeSize, ReadScalarField>(
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<u64, String>
@@ -565,33 +619,59 @@ where
     let resolver_definition = resolve_resolver_definition(resolver_id).ok_or_else(|| format!("Unknown resolver `{}`.", resolver_id))?;
     resolver_stack.push(resolver_id.to_string());
     let value = {
-        let mut resolve_relative_symbol_field = |symbol_path: &SymbolicResolverRelativeSymbolPath| {
-            resolve_relative_symbol_path_value(
-                symbol_path,
-                root_struct_definition,
-                scalar_values_by_field_name,
-                resolve_type_size_in_bytes,
-                read_scalar_field,
-                resolve_resolver_definition,
-                resolve_struct_definition,
-                resolve_global_symbol_field,
-                resolve_global_pointer_chain,
-                resolver_stack,
-            )
+        let resolver_stack_cell = RefCell::new(resolver_stack);
+        let value = {
+            let mut resolve_relative_symbol_field = |symbol_path: &SymbolicResolverRelativeSymbolPath| {
+                let mut resolver_stack = resolver_stack_cell.borrow_mut();
+
+                resolve_relative_symbol_path_value(
+                    symbol_path,
+                    root_struct_definition,
+                    scalar_values_by_field_name,
+                    resolve_type_size_in_bytes,
+                    read_scalar_field,
+                    resolve_resolver_definition,
+                    resolve_struct_definition,
+                    resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
+                    &mut resolver_stack,
+                )
+            };
+            let mut resolve_relative_pointer_chain_node = |pointer_chain: &SymbolicPointerChain| {
+                let mut resolver_stack = resolver_stack_cell.borrow_mut();
+
+                resolve_relative_pointer_chain_value(
+                    pointer_chain,
+                    root_struct_definition,
+                    scalar_values_by_field_name,
+                    resolve_type_size_in_bytes,
+                    read_scalar_field,
+                    resolve_resolver_definition,
+                    resolve_struct_definition,
+                    resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
+                    &mut resolver_stack,
+                )
+            };
+
+            resolver_definition
+                .evaluate_with_symbol_fields_and_pointer_chains(
+                    &|field_name| scalar_values_by_field_name.get(field_name).copied(),
+                    resolve_type_size_in_bytes,
+                    &mut resolve_relative_symbol_field,
+                    resolve_global_symbol_field,
+                    &mut resolve_relative_pointer_chain_node,
+                    resolve_global_pointer_chain,
+                )
+                .map_err(format_resolver_error)
         };
 
-        resolver_definition
-            .evaluate_with_symbol_fields_and_pointer_chains(
-                &|field_name| scalar_values_by_field_name.get(field_name).copied(),
-                resolve_type_size_in_bytes,
-                &mut resolve_relative_symbol_field,
-                resolve_global_symbol_field,
-                &mut |pointer_chain| Err(SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string())),
-                resolve_global_pointer_chain,
-            )
-            .map_err(format_resolver_error)
+        resolver_stack_cell.into_inner().pop();
+
+        value
     };
-    resolver_stack.pop();
     let value = value?;
 
     u64::try_from(value).map_err(|_| format!("Resolver `{}` resolved to negative or too-large value `{}`.", resolver_id, value))
@@ -606,6 +686,7 @@ fn resolve_relative_symbol_path_value<ResolveTypeSize, ReadScalarField>(
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<i128, SymbolicResolverEvaluationError>
@@ -649,6 +730,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             resolver_stack,
         )?;
@@ -685,6 +767,56 @@ fn apply_signed_offset(
     SymbolicPointerChain::apply_pointer_offset(base_offset, offset_in_bytes)
 }
 
+fn resolve_relative_pointer_chain_value<ResolveTypeSize, ReadScalarField>(
+    pointer_chain: &SymbolicPointerChain,
+    root_struct_definition: &SymbolicStructDefinition,
+    scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
+    resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolver_stack: &mut Vec<String>,
+) -> Result<i128, SymbolicResolverEvaluationError>
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
+    let mut resolved_links = Vec::with_capacity(pointer_chain.get_links().len());
+
+    for pointer_chain_link in pointer_chain.get_links() {
+        match pointer_chain_link {
+            SymbolicPointerChainLink::Offset(offset_in_bytes) => resolved_links.push(SymbolicPointerChainLink::Offset(*offset_in_bytes)),
+            SymbolicPointerChainLink::Symbol(field_name) => {
+                let (_, field_offset) = resolve_named_field_offset_in_struct(
+                    &SymbolicResolverRelativeSymbolPath::from_dot_path(field_name),
+                    field_name,
+                    root_struct_definition,
+                    scalar_values_by_field_name,
+                    resolve_type_size_in_bytes,
+                    read_scalar_field,
+                    resolve_resolver_definition,
+                    resolve_struct_definition,
+                    resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
+                    resolver_stack,
+                )?;
+                let field_offset =
+                    i64::try_from(field_offset).map_err(|_| SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string()))?;
+
+                resolved_links.push(SymbolicPointerChainLink::Offset(field_offset));
+            }
+        }
+    }
+
+    let resolved_pointer_chain = SymbolicPointerChain::new_absolute(resolved_links, pointer_chain.get_pointer_size());
+
+    resolve_relative_pointer_chain(&resolved_pointer_chain)
+}
+
 fn resolve_named_field_offset_in_struct<'definition, ResolveTypeSize, ReadScalarField>(
     symbol_path: &SymbolicResolverRelativeSymbolPath,
     symbol_path_segment: &str,
@@ -695,6 +827,7 @@ fn resolve_named_field_offset_in_struct<'definition, ResolveTypeSize, ReadScalar
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<(&'definition SymbolicFieldDefinition, u64), SymbolicResolverEvaluationError>
@@ -715,6 +848,7 @@ where
             resolve_resolver_definition,
             resolve_struct_definition,
             resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
             resolver_stack,
         )
@@ -835,13 +969,16 @@ mod tests {
     use super::{
         ResolvedSymbolicFieldStatus, SymbolicStructResolverOptions, resolve_symbolic_struct_definition, resolve_symbolic_struct_definition_with_resolvers,
         resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields,
+        resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains,
     };
-    use crate::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
+        data_values::pointer_scan_pointer_size::PointerScanPointerSize,
+        memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
         structs::symbolic_resolver_definition::{
             SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath,
         },
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition},
     };
     use std::str::FromStr;
 
@@ -1055,6 +1192,54 @@ mod tests {
         assert_eq!(resolved_fields[1].get_displayed_element_count(), Some(3));
         assert_eq!(resolved_fields[1].get_size_in_bytes(), Some(8192));
         assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(8200));
+    }
+
+    #[test]
+    fn resolver_evaluates_relative_pointer_chains_with_symbolic_field_links() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("EntityManager"),
+            vec![
+                SymbolicFieldDefinition::from_str("entity_list:u64 @ +0x10").expect("Expected entity_list field to parse."),
+                SymbolicFieldDefinition::from_str("active_count:u32[resolver(entity.count_via_pointer)] @ +0").expect("Expected active_count field to parse."),
+            ],
+        );
+        let relative_pointer_chain = SymbolicPointerChain::new_absolute(
+            vec![
+                SymbolicPointerChainLink::Symbol(String::from("entity_list")),
+                SymbolicPointerChainLink::Offset(0x20),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+        let count_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_relative_pointer_chain(relative_pointer_chain));
+
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+            |_, _, _| Ok(None),
+            |resolver_id| (resolver_id == "entity.count_via_pointer").then_some(count_resolver.clone()),
+            |_| None,
+            |_, _| panic!("Expected no global symbol field lookup."),
+            |resolved_pointer_chain| {
+                assert_eq!(
+                    resolved_pointer_chain.get_links(),
+                    &[
+                        SymbolicPointerChainLink::Offset(0x10),
+                        SymbolicPointerChainLink::Offset(0x20)
+                    ]
+                );
+                Ok(3)
+            },
+            |_| panic!("Expected no global pointer chain lookup."),
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[1].get_element_count(), Some(3));
+        assert_eq!(resolved_fields[1].get_status(), &ResolvedSymbolicFieldStatus::Ready);
     }
 
     #[test]
