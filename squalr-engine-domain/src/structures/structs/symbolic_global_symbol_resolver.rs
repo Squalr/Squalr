@@ -81,12 +81,14 @@ where
     ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     OffsetLocator: Fn(&SymbolLocator, u64) -> SymbolLocator,
 {
-    let Some(root_symbol_name) = symbol_path.get_segments().first() else {
+    let Some(root_symbol_path_segment) = symbol_path.get_segments().first() else {
         return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
             "{}.{}",
             module_name, symbol_path
         )));
     };
+    let root_symbol_path_segment = SymbolicResolverRelativeSymbolPath::parse_segment(root_symbol_path_segment)
+        .map_err(|error| SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(error.to_string()))?;
     let global_symbol_key = format!("{}.{}", module_name, symbol_path);
     {
         let mut global_symbol_stack = session.global_symbol_stack.borrow_mut();
@@ -103,7 +105,8 @@ where
     let result = resolve_global_symbol_field_value_inner(
         session,
         module_name,
-        root_symbol_name,
+        root_symbol_path_segment.get_field_name(),
+        root_symbol_path_segment.get_offset_in_bytes(),
         SymbolicResolverRelativeSymbolPath::new(symbol_path.get_segments().iter().skip(1).cloned().collect()),
         resolve_global_symbol_roots,
         resolve_type_size_in_bytes,
@@ -129,6 +132,7 @@ fn resolve_global_symbol_field_value_inner<
     session: &SymbolicGlobalSymbolResolverSession,
     module_name: &str,
     root_symbol_name: &str,
+    root_symbol_offset_in_bytes: u64,
     relative_symbol_path: SymbolicResolverRelativeSymbolPath,
     resolve_global_symbol_roots: &ResolveGlobalSymbolRoots,
     resolve_type_size_in_bytes: &ResolveTypeSize,
@@ -168,11 +172,12 @@ where
             module_name, root_symbol_name
         )));
     };
+    let root_locator = offset_locator(&global_symbol_root.locator, root_symbol_offset_in_bytes);
 
     match global_symbol_root.symbol_type {
         SymbolicGlobalSymbolRootType::Struct { struct_layout_definition } => resolve_struct_symbol_path_value(
             session,
-            &global_symbol_root.locator,
+            &root_locator,
             &struct_layout_definition,
             &relative_symbol_path,
             resolve_global_symbol_roots,
@@ -195,7 +200,7 @@ where
                 let field_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref())
                     .ok_or_else(|| SymbolicResolverEvaluationError::UnknownTypeSize(field_definition.get_data_type_ref().to_string()))?;
 
-                return read_scalar_field(&global_symbol_root.locator, &field_definition, field_size_in_bytes)
+                return read_scalar_field(&root_locator, &field_definition, field_size_in_bytes)
                     .map_err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath)?
                     .ok_or_else(|| SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!("{}.{}", module_name, root_symbol_name)));
             }
@@ -209,7 +214,7 @@ where
 
             resolve_struct_symbol_path_value(
                 session,
-                &global_symbol_root.locator,
+                &root_locator,
                 &struct_layout_definition,
                 &relative_symbol_path,
                 resolve_global_symbol_roots,
@@ -255,6 +260,7 @@ where
     let Some(symbol_path_segment) = symbol_path.get_segments().first() else {
         return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
     };
+    let symbol_path_segment = SymbolicResolverRelativeSymbolPath::parse_segment(symbol_path_segment)?;
     let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
         struct_layout_definition,
         resolve_type_size_in_bytes,
@@ -286,7 +292,7 @@ where
         .iter()
         .zip(resolved_symbolic_struct.get_fields())
     {
-        if field_definition.get_field_name() != symbol_path_segment {
+        if field_definition.get_field_name() != symbol_path_segment.get_field_name() {
             continue;
         }
 
@@ -296,7 +302,7 @@ where
                 resolved_symbolic_field,
             )));
         };
-        let field_locator = offset_locator(root_locator, field_offset);
+        let field_locator = offset_locator(root_locator, field_offset.saturating_add(symbol_path_segment.get_offset_in_bytes()));
         let remaining_symbol_path = SymbolicResolverRelativeSymbolPath::new(symbol_path.get_segments().iter().skip(1).cloned().collect());
 
         if remaining_symbol_path.is_empty() {
@@ -413,6 +419,54 @@ mod tests {
     }
 
     #[test]
+    fn global_symbol_resolver_applies_byte_offsets_to_path_segments() {
+        let session = SymbolicGlobalSymbolResolverSession::default();
+        let item_definition = SymbolicStructDefinition::new(
+            String::from("Item"),
+            vec![SymbolicFieldDefinition::from_str("value:u32").expect("Expected value field to parse.")],
+        );
+        let globals_definition = SymbolicStructDefinition::new(
+            String::from("Globals"),
+            vec![
+                SymbolicFieldDefinition::from_str("padding:u8[4]").expect("Expected padding field to parse."),
+                SymbolicFieldDefinition::from_str("items:Item[2]").expect("Expected items field to parse."),
+            ],
+        );
+
+        let value = resolve_global_symbol_field_value(
+            &session,
+            "game.exe",
+            &SymbolicResolverRelativeSymbolPath::from_dot_path("Globals.items+4.value"),
+            &|module_name, root_symbol_name| {
+                if module_name == "game.exe" && root_symbol_name == "Globals" {
+                    vec![SymbolicGlobalSymbolRoot::new(
+                        0x1000_u64,
+                        SymbolicGlobalSymbolRootType::Struct {
+                            struct_layout_definition: globals_definition.clone(),
+                        },
+                    )]
+                } else {
+                    Vec::new()
+                }
+            },
+            &resolve_test_type_size,
+            &|field_address, field_definition, _| {
+                if *field_address == 0x1008 && field_definition.get_field_name() == "value" {
+                    Ok(Some(11))
+                } else {
+                    Ok(None)
+                }
+            },
+            &|_| None,
+            &|data_type_ref| (data_type_ref.get_data_type_id() == "Item").then_some(item_definition.clone()),
+            &|base_address, offset| base_address.saturating_add(offset),
+        )
+        .expect("Expected global symbol path to resolve.");
+
+        assert_eq!(value, 11);
+    }
+
+    #[test]
     fn global_symbol_resolver_reports_ambiguous_roots() {
         let session = SymbolicGlobalSymbolResolverSession::default();
         let value = resolve_global_symbol_field_value(
@@ -497,6 +551,7 @@ mod tests {
         match data_type_ref.get_data_type_id() {
             "u8" => Some(1),
             "u32" => Some(4),
+            "Item" => Some(4),
             _ => None,
         }
     }

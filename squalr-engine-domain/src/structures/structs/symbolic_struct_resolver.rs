@@ -576,9 +576,10 @@ where
     let mut current_base_offset = 0_u64;
 
     for (symbol_path_segment_index, symbol_path_segment) in symbol_path.get_segments().iter().enumerate() {
+        let symbol_path_segment = SymbolicResolverRelativeSymbolPath::parse_segment(symbol_path_segment)?;
         let (field_definition, field_offset) = resolve_named_field_offset_in_struct(
             symbol_path,
-            symbol_path_segment,
+            symbol_path_segment.get_field_name(),
             &current_struct_definition,
             scalar_values_by_field_name,
             resolve_type_size_in_bytes,
@@ -588,7 +589,9 @@ where
             resolve_global_symbol_field,
             resolver_stack,
         )?;
-        let resolved_field_offset = current_base_offset.saturating_add(field_offset);
+        let resolved_field_offset = current_base_offset
+            .saturating_add(field_offset)
+            .saturating_add(symbol_path_segment.get_offset_in_bytes());
         let is_terminal_segment = symbol_path_segment_index + 1 == symbol_path.get_segments().len();
 
         if is_terminal_segment {
@@ -1013,6 +1016,46 @@ mod tests {
 
         assert_eq!(resolved_fields[1].get_element_count(), Some(5));
         assert_eq!(resolved_fields[1].get_status(), &ResolvedSymbolicFieldStatus::Ready);
+    }
+
+    #[test]
+    fn relative_symbol_fields_apply_byte_offsets_to_path_segments() {
+        let item_definition = SymbolicStructDefinition::new(
+            String::from("Item"),
+            vec![SymbolicFieldDefinition::from_str("value:u32").expect("Expected value field to parse.")],
+        );
+        let list_definition = SymbolicStructDefinition::new(
+            String::from("List"),
+            vec![
+                SymbolicFieldDefinition::from_str("padding:u8[4]").expect("Expected padding field to parse."),
+                SymbolicFieldDefinition::from_str("items:Item[2]").expect("Expected items field to parse."),
+                SymbolicFieldDefinition::from_str("elements:u8[resolver(second_value)]").expect("Expected elements field to parse."),
+            ],
+        );
+        let second_value_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_relative_symbol_field(
+            SymbolicResolverRelativeSymbolPath::from_dot_path("items+4.value"),
+        ));
+
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields(
+            &list_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                "Item" => Some(4),
+                _ => None,
+            },
+            |field_definition, field_offset, _| match (field_definition.get_field_name(), field_offset) {
+                ("value", 8) => Ok(Some(11)),
+                _ => Ok(None),
+            },
+            |resolver_id| (resolver_id == "second_value").then_some(second_value_resolver.clone()),
+            |data_type_ref| (data_type_ref.get_data_type_id() == "Item").then_some(item_definition.clone()),
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[2].get_element_count(), Some(11));
+        assert_eq!(resolved_fields[2].get_status(), &ResolvedSymbolicFieldStatus::Ready);
     }
 
     #[test]

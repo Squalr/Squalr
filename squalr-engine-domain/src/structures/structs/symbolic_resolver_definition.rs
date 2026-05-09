@@ -35,6 +35,12 @@ pub struct SymbolicResolverRelativeSymbolPath {
     segments: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SymbolicResolverRelativeSymbolPathSegment {
+    field_name: String,
+    offset_in_bytes: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SymbolicResolverBinaryOperator {
     Add,
@@ -303,6 +309,34 @@ impl SymbolicResolverRelativeSymbolPath {
         &self.segments
     }
 
+    pub fn parse_segment(symbol_path_segment: &str) -> Result<SymbolicResolverRelativeSymbolPathSegment, SymbolicResolverEvaluationError> {
+        let symbol_path_segment = symbol_path_segment.trim();
+
+        if symbol_path_segment.is_empty() {
+            return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(String::from(
+                "Empty symbol path segment",
+            )));
+        }
+
+        let Some((field_name, offset_text)) = symbol_path_segment.rsplit_once('+') else {
+            return Ok(SymbolicResolverRelativeSymbolPathSegment::new(symbol_path_segment.to_string(), 0));
+        };
+        let field_name = field_name.trim();
+        let offset_text = offset_text.trim();
+
+        if field_name.is_empty() || offset_text.is_empty() {
+            return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!(
+                "Invalid symbol path segment `{}`",
+                symbol_path_segment
+            )));
+        }
+
+        let offset_in_bytes = parse_u64_literal(offset_text)
+            .ok_or_else(|| SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!("Invalid symbol path offset `{}`", symbol_path_segment)))?;
+
+        Ok(SymbolicResolverRelativeSymbolPathSegment::new(field_name.to_string(), offset_in_bytes))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
@@ -314,6 +348,40 @@ impl SymbolicResolverRelativeSymbolPath {
             .filter(|segment| !segment.is_empty())
             .collect()
     }
+}
+
+impl SymbolicResolverRelativeSymbolPathSegment {
+    pub fn new(
+        field_name: String,
+        offset_in_bytes: u64,
+    ) -> Self {
+        Self { field_name, offset_in_bytes }
+    }
+
+    pub fn get_field_name(&self) -> &str {
+        &self.field_name
+    }
+
+    pub fn get_offset_in_bytes(&self) -> u64 {
+        self.offset_in_bytes
+    }
+}
+
+fn parse_u64_literal(value_text: &str) -> Option<u64> {
+    let normalized_value_text = value_text.trim().replace('_', "");
+
+    if normalized_value_text.is_empty() {
+        return None;
+    }
+
+    if let Some(hex_value_text) = normalized_value_text
+        .strip_prefix("0x")
+        .or_else(|| normalized_value_text.strip_prefix("0X"))
+    {
+        return u64::from_str_radix(hex_value_text, 16).ok();
+    }
+
+    normalized_value_text.parse::<u64>().ok()
 }
 
 impl fmt::Display for SymbolicResolverRelativeSymbolPath {
@@ -461,5 +529,18 @@ mod tests {
             .expect("Expected resolver to evaluate.");
 
         assert_eq!(value, 7);
+    }
+
+    #[test]
+    fn relative_symbol_path_segments_parse_byte_offsets() {
+        let segment = SymbolicResolverRelativeSymbolPath::parse_segment("items + 0x20").expect("Expected segment to parse.");
+
+        assert_eq!(segment.get_field_name(), "items");
+        assert_eq!(segment.get_offset_in_bytes(), 0x20);
+
+        let segment = SymbolicResolverRelativeSymbolPath::parse_segment("value").expect("Expected segment to parse.");
+
+        assert_eq!(segment.get_field_name(), "value");
+        assert_eq!(segment.get_offset_in_bytes(), 0);
     }
 }
