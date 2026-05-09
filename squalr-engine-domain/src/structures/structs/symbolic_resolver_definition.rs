@@ -16,6 +16,10 @@ pub enum SymbolicResolverNode {
     RelativeSymbolField {
         symbol_path: SymbolicResolverRelativeSymbolPath,
     },
+    GlobalSymbolField {
+        module_name: String,
+        symbol_path: SymbolicResolverRelativeSymbolPath,
+    },
     TypeSize {
         data_type_ref: DataTypeRef,
     },
@@ -61,9 +65,17 @@ impl SymbolicResolverDefinition {
         LookupLocalField: Fn(&str) -> Option<i128>,
         ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
     {
-        self.evaluate_with_relative_symbol_fields(lookup_local_field, resolve_type_size_in_bytes, &mut |symbol_path| {
-            Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()))
-        })
+        self.evaluate_with_symbol_fields(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            &mut |symbol_path| Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string())),
+            &|module_name, symbol_path| {
+                Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
+                    "{}.{}",
+                    module_name, symbol_path
+                )))
+            },
+        )
     }
 
     pub fn evaluate_with_relative_symbol_fields<LookupLocalField, ResolveTypeSize, ResolveRelativeSymbolField>(
@@ -77,8 +89,38 @@ impl SymbolicResolverDefinition {
         ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
         ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     {
-        self.root_node
-            .evaluate_with_relative_symbol_fields(lookup_local_field, resolve_type_size_in_bytes, resolve_relative_symbol_field)
+        self.evaluate_with_symbol_fields(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            resolve_relative_symbol_field,
+            &|module_name, symbol_path| {
+                Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
+                    "{}.{}",
+                    module_name, symbol_path
+                )))
+            },
+        )
+    }
+
+    pub fn evaluate_with_symbol_fields<LookupLocalField, ResolveTypeSize, ResolveRelativeSymbolField, ResolveGlobalSymbolField>(
+        &self,
+        lookup_local_field: &LookupLocalField,
+        resolve_type_size_in_bytes: &ResolveTypeSize,
+        resolve_relative_symbol_field: &mut ResolveRelativeSymbolField,
+        resolve_global_symbol_field: &ResolveGlobalSymbolField,
+    ) -> Result<i128, SymbolicResolverEvaluationError>
+    where
+        LookupLocalField: Fn(&str) -> Option<i128>,
+        ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+        ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    {
+        self.root_node.evaluate_with_symbol_fields(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            resolve_relative_symbol_field,
+            resolve_global_symbol_field,
+        )
     }
 
     pub fn referenced_local_fields(&self) -> Vec<String> {
@@ -97,6 +139,13 @@ impl SymbolicResolverNode {
 
     pub fn new_relative_symbol_field(symbol_path: SymbolicResolverRelativeSymbolPath) -> Self {
         Self::RelativeSymbolField { symbol_path }
+    }
+
+    pub fn new_global_symbol_field(
+        module_name: String,
+        symbol_path: SymbolicResolverRelativeSymbolPath,
+    ) -> Self {
+        Self::GlobalSymbolField { module_name, symbol_path }
     }
 
     pub fn new_type_size(data_type_ref: DataTypeRef) -> Self {
@@ -124,9 +173,17 @@ impl SymbolicResolverNode {
         LookupLocalField: Fn(&str) -> Option<i128>,
         ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
     {
-        self.evaluate_with_relative_symbol_fields(lookup_local_field, resolve_type_size_in_bytes, &mut |symbol_path| {
-            Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()))
-        })
+        self.evaluate_with_symbol_fields(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            &mut |symbol_path| Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string())),
+            &|module_name, symbol_path| {
+                Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
+                    "{}.{}",
+                    module_name, symbol_path
+                )))
+            },
+        )
     }
 
     pub fn evaluate_with_relative_symbol_fields<LookupLocalField, ResolveTypeSize, ResolveRelativeSymbolField>(
@@ -140,12 +197,39 @@ impl SymbolicResolverNode {
         ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
         ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     {
+        self.evaluate_with_symbol_fields(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            resolve_relative_symbol_field,
+            &|module_name, symbol_path| {
+                Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
+                    "{}.{}",
+                    module_name, symbol_path
+                )))
+            },
+        )
+    }
+
+    pub fn evaluate_with_symbol_fields<LookupLocalField, ResolveTypeSize, ResolveRelativeSymbolField, ResolveGlobalSymbolField>(
+        &self,
+        lookup_local_field: &LookupLocalField,
+        resolve_type_size_in_bytes: &ResolveTypeSize,
+        resolve_relative_symbol_field: &mut ResolveRelativeSymbolField,
+        resolve_global_symbol_field: &ResolveGlobalSymbolField,
+    ) -> Result<i128, SymbolicResolverEvaluationError>
+    where
+        LookupLocalField: Fn(&str) -> Option<i128>,
+        ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+        ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    {
         match self {
             Self::Literal(value) => Ok(*value),
             Self::LocalField { field_name } => {
                 lookup_local_field(field_name).ok_or_else(|| SymbolicResolverEvaluationError::UnknownLocalField(field_name.to_string()))
             }
             Self::RelativeSymbolField { symbol_path } => resolve_relative_symbol_field(symbol_path),
+            Self::GlobalSymbolField { module_name, symbol_path } => resolve_global_symbol_field(module_name, symbol_path),
             Self::TypeSize { data_type_ref } => resolve_type_size_in_bytes(data_type_ref)
                 .map(i128::from)
                 .ok_or_else(|| SymbolicResolverEvaluationError::UnknownTypeSize(data_type_ref.to_string())),
@@ -154,10 +238,18 @@ impl SymbolicResolverNode {
                 left_node,
                 right_node,
             } => {
-                let left_value =
-                    left_node.evaluate_with_relative_symbol_fields(lookup_local_field, resolve_type_size_in_bytes, resolve_relative_symbol_field)?;
-                let right_value =
-                    right_node.evaluate_with_relative_symbol_fields(lookup_local_field, resolve_type_size_in_bytes, resolve_relative_symbol_field)?;
+                let left_value = left_node.evaluate_with_symbol_fields(
+                    lookup_local_field,
+                    resolve_type_size_in_bytes,
+                    resolve_relative_symbol_field,
+                    resolve_global_symbol_field,
+                )?;
+                let right_value = right_node.evaluate_with_symbol_fields(
+                    lookup_local_field,
+                    resolve_type_size_in_bytes,
+                    resolve_relative_symbol_field,
+                    resolve_global_symbol_field,
+                )?;
 
                 operator.evaluate(left_value, right_value)
             }
@@ -184,7 +276,7 @@ impl SymbolicResolverNode {
                 left_node.collect_referenced_local_fields(referenced_local_fields);
                 right_node.collect_referenced_local_fields(referenced_local_fields);
             }
-            Self::Literal(_) | Self::RelativeSymbolField { .. } | Self::TypeSize { .. } => {}
+            Self::Literal(_) | Self::RelativeSymbolField { .. } | Self::GlobalSymbolField { .. } | Self::TypeSize { .. } => {}
         }
     }
 }
@@ -286,6 +378,8 @@ impl fmt::Display for SymbolicResolverBinaryOperator {
 pub enum SymbolicResolverEvaluationError {
     UnknownLocalField(String),
     UnknownRelativeSymbolPath(String),
+    UnknownGlobalSymbolPath(String),
+    AmbiguousGlobalSymbolPath(String),
     UnknownTypeSize(String),
     ResolverCycle(String),
     DivisionByZero,
@@ -300,6 +394,8 @@ impl fmt::Display for SymbolicResolverEvaluationError {
         match self {
             Self::UnknownLocalField(field_name) => write!(formatter, "Unknown local field `{}`.", field_name),
             Self::UnknownRelativeSymbolPath(symbol_path) => write!(formatter, "Unknown relative symbol path `{}`.", symbol_path),
+            Self::UnknownGlobalSymbolPath(symbol_path) => write!(formatter, "Unknown global symbol path `{}`.", symbol_path),
+            Self::AmbiguousGlobalSymbolPath(symbol_path) => write!(formatter, "Ambiguous global symbol path `{}`.", symbol_path),
             Self::UnknownTypeSize(type_id) => write!(formatter, "Unknown size for type `{}`.", type_id),
             Self::ResolverCycle(resolver_id) => write!(formatter, "Resolver cycle detected at `{}`.", resolver_id),
             Self::DivisionByZero => write!(formatter, "Division by zero."),
@@ -310,7 +406,7 @@ impl fmt::Display for SymbolicResolverEvaluationError {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode};
+    use super::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath};
     use crate::structures::data_types::data_type_ref::DataTypeRef;
 
     #[test]
@@ -342,5 +438,28 @@ mod tests {
             resolver_definition.referenced_local_fields(),
             vec![String::from("capacity"), String::from("count")]
         );
+    }
+
+    #[test]
+    fn resolver_evaluates_global_symbol_fields() {
+        let resolver_definition = SymbolicResolverDefinition::new(SymbolicResolverNode::new_global_symbol_field(
+            String::from("game.exe"),
+            SymbolicResolverRelativeSymbolPath::from_dot_path("Globals.item_count"),
+        ));
+
+        let value = resolver_definition
+            .evaluate_with_symbol_fields(
+                &|_| None,
+                &|_| None,
+                &mut |_| panic!("Expected no relative symbol field lookup."),
+                &|module_name, symbol_path| {
+                    (module_name == "game.exe" && symbol_path.to_string() == "Globals.item_count")
+                        .then_some(7)
+                        .ok_or_else(|| super::SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!("{}.{}", module_name, symbol_path)))
+                },
+            )
+            .expect("Expected resolver to evaluate.");
+
+        assert_eq!(value, 7);
     }
 }

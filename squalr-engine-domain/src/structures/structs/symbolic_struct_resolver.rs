@@ -191,6 +191,44 @@ where
     ResolveResolverDefinition: Fn(&str) -> Option<SymbolicResolverDefinition>,
     ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
 {
+    resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
+        symbolic_struct_definition,
+        resolve_type_size_in_bytes,
+        read_scalar_field,
+        resolve_resolver_definition,
+        resolve_struct_definition,
+        |module_name, symbol_path| {
+            Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
+                "{}.{}",
+                module_name, symbol_path
+            )))
+        },
+        options,
+    )
+}
+
+pub fn resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields<
+    ResolveTypeSize,
+    ReadScalarField,
+    ResolveResolverDefinition,
+    ResolveStructDefinition,
+    ResolveGlobalSymbolField,
+>(
+    symbolic_struct_definition: &SymbolicStructDefinition,
+    resolve_type_size_in_bytes: ResolveTypeSize,
+    read_scalar_field: ReadScalarField,
+    resolve_resolver_definition: ResolveResolverDefinition,
+    resolve_struct_definition: ResolveStructDefinition,
+    resolve_global_symbol_field: ResolveGlobalSymbolField,
+    options: &SymbolicStructResolverOptions,
+) -> ResolvedSymbolicStruct
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+    ResolveResolverDefinition: Fn(&str) -> Option<SymbolicResolverDefinition>,
+    ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+{
     let mut scalar_values_by_field_name = BTreeMap::new();
     let mut resolved_fields = Vec::new();
     let resolve_pass_count = symbolic_struct_definition
@@ -206,6 +244,7 @@ where
             &read_scalar_field,
             &resolve_resolver_definition,
             &resolve_struct_definition,
+            &resolve_global_symbol_field,
             options,
             &mut scalar_values_by_field_name,
         );
@@ -230,6 +269,7 @@ fn resolve_symbolic_struct_definition_pass<ResolveTypeSize, ReadScalarField>(
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     options: &SymbolicStructResolverOptions,
     scalar_values_by_field_name: &mut BTreeMap<String, i128>,
 ) -> SymbolicStructResolvePass
@@ -251,6 +291,7 @@ where
             read_scalar_field,
             resolve_resolver_definition,
             resolve_struct_definition,
+            resolve_global_symbol_field,
             &mut Vec::new(),
         );
         let element_count_result = resolve_field_element_count(
@@ -261,6 +302,7 @@ where
             read_scalar_field,
             resolve_resolver_definition,
             resolve_struct_definition,
+            resolve_global_symbol_field,
             &mut Vec::new(),
         );
         let unit_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref());
@@ -332,6 +374,7 @@ fn resolve_field_offset<ResolveTypeSize, ReadScalarField>(
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<Option<u64>, String>
 where
@@ -351,6 +394,7 @@ where
             read_scalar_field,
             resolve_resolver_definition,
             resolve_struct_definition,
+            resolve_global_symbol_field,
             resolver_stack,
         )
         .map(Some),
@@ -365,6 +409,7 @@ fn resolve_field_element_count<ReadScalarField>(
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<Option<u64>, String>
 where
@@ -382,6 +427,7 @@ where
             read_scalar_field,
             resolve_resolver_definition,
             resolve_struct_definition,
+            resolve_global_symbol_field,
             resolver_stack,
         )
         .map(Some),
@@ -401,6 +447,7 @@ fn evaluate_u64_resolver<ResolveTypeSize, ReadScalarField>(
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<u64, String>
 where
@@ -426,15 +473,17 @@ where
                 read_scalar_field,
                 resolve_resolver_definition,
                 resolve_struct_definition,
+                resolve_global_symbol_field,
                 resolver_stack,
             )
         };
 
         resolver_definition
-            .evaluate_with_relative_symbol_fields(
+            .evaluate_with_symbol_fields(
                 &|field_name| scalar_values_by_field_name.get(field_name).copied(),
                 resolve_type_size_in_bytes,
                 &mut resolve_relative_symbol_field,
+                resolve_global_symbol_field,
             )
             .map_err(format_resolver_error)
     };
@@ -452,6 +501,7 @@ fn resolve_relative_symbol_path_value<ResolveTypeSize, ReadScalarField>(
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<i128, SymbolicResolverEvaluationError>
 where
@@ -475,6 +525,7 @@ where
             read_scalar_field,
             resolve_resolver_definition,
             resolve_struct_definition,
+            resolve_global_symbol_field,
             resolver_stack,
         )?;
         let resolved_field_offset = current_base_offset.saturating_add(field_offset);
@@ -513,6 +564,7 @@ fn resolve_named_field_offset_in_struct<'definition, ResolveTypeSize, ReadScalar
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
     resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     resolver_stack: &mut Vec<String>,
 ) -> Result<(&'definition SymbolicFieldDefinition, u64), SymbolicResolverEvaluationError>
 where
@@ -531,6 +583,7 @@ where
             read_scalar_field,
             resolve_resolver_definition,
             resolve_struct_definition,
+            resolve_global_symbol_field,
             resolver_stack,
         )
         .map_err(|error| SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!("{}: {}", symbol_path, error)))?

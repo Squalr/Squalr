@@ -328,6 +328,9 @@ impl SymbolResolverEditorViewData {
             SymbolResolverNodeKind::RelativeSymbolField => {
                 SymbolicResolverNode::new_relative_symbol_field(SymbolicResolverRelativeSymbolPath::from_dot_path("Symbol.Field"))
             }
+            SymbolResolverNodeKind::GlobalSymbolField => {
+                SymbolicResolverNode::new_global_symbol_field(String::from("module"), SymbolicResolverRelativeSymbolPath::from_dot_path("Symbol.Field"))
+            }
             SymbolResolverNodeKind::TypeSize => SymbolicResolverNode::new_type_size(default_data_type_ref),
             SymbolResolverNodeKind::Operation => SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Add,
@@ -449,6 +452,7 @@ pub enum SymbolResolverNodeKind {
     Literal,
     LocalField,
     RelativeSymbolField,
+    GlobalSymbolField,
     TypeSize,
     Operation,
 }

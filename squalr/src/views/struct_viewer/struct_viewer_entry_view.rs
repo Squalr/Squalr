@@ -52,10 +52,11 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer64,
         PointerScanPointerSize::Pointer64be,
     ];
-    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 5] = [
+    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 6] = [
         "Literal",
         "Local Field",
         "Relative Symbol Field",
+        "Global Symbol Field",
         "Type Size",
         "Operation",
     ];

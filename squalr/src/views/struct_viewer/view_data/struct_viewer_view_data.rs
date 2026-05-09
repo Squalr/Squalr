@@ -58,6 +58,8 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR: &'static str = "__symbol_resolver_operator";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE: &'static str = "__symbol_resolver_data_type";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH: &'static str = "__symbol_resolver_relative_symbol_path";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE: &'static str = "__symbol_resolver_global_module";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH: &'static str = "__symbol_resolver_global_symbol_path";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_LAYOUT_ID: &'static str = "__symbol_struct_layout_id";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME: &'static str = "__symbol_struct_field_name";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE: &'static str = "__symbol_struct_field_data_type";
@@ -548,6 +550,8 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR => String::from("Operator"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => String::from("Data Type"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH => String::from("Relative Path"),
+            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE => String::from("Module"),
+            Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => String::from("Path"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_LAYOUT_ID => String::from("Name"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME => String::from("Name"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE => String::from("Data Type"),
