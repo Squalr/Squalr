@@ -1,4 +1,5 @@
 use crate::app_context::AppContext;
+use crate::ui::converters::data_type_to_icon_converter::DataTypeToIconConverter;
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
@@ -74,6 +75,8 @@ impl SymbolStructEditorView {
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
     const FIELD_ROW_LEFT_PADDING: f32 = 8.0;
+    const FIELD_ROW_ICON_SIZE: f32 = 16.0;
+    const FIELD_ROW_ICON_GAP: f32 = 4.0;
     const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
     const FIELD_CONTEXT_MENU_WIDTH: f32 = 184.0;
 
@@ -188,6 +191,42 @@ impl SymbolStructEditorView {
 
     fn string_data_type_ref() -> DataTypeRef {
         DataTypeRef::new(DataTypeStringUtf8::DATA_TYPE_ID)
+    }
+
+    fn format_field_data_type_preview(field_draft: &SymbolStructFieldEditDraft) -> String {
+        let data_type_id = field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id()
+            .trim();
+        let container_suffix = match field_draft.container_edit.kind {
+            SymbolStructFieldContainerKind::Element => String::new(),
+            SymbolStructFieldContainerKind::Array => ContainerType::Array.to_string(),
+            SymbolStructFieldContainerKind::FixedArray => {
+                let fixed_array_length = field_draft.container_edit.fixed_array_length.trim();
+
+                if fixed_array_length.is_empty() {
+                    String::from("[?]")
+                } else {
+                    format!("[{}]", fixed_array_length)
+                }
+            }
+            SymbolStructFieldContainerKind::DynamicArray => {
+                let resolver_id = field_draft
+                    .container_edit
+                    .dynamic_array_count_resolver_id
+                    .trim();
+
+                if resolver_id.is_empty() {
+                    ContainerType::Array.to_string()
+                } else {
+                    format!("[resolver({})]", resolver_id)
+                }
+            }
+            SymbolStructFieldContainerKind::Pointer => ContainerType::Pointer(field_draft.container_edit.pointer_size).to_string(),
+        };
+
+        format!("{}{}", data_type_id, container_suffix)
     }
 
     fn render_icon_button(
@@ -1035,16 +1074,22 @@ impl SymbolStructEditorView {
         } else {
             field_draft.field_name.trim().to_string()
         };
-        let preview_text = field_draft
-            .data_type_selection
-            .visible_data_type()
-            .get_data_type_id();
+        let data_type_ref = field_draft.data_type_selection.visible_data_type();
+        let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &theme.icon_library);
+        let icon_size = vec2(Self::FIELD_ROW_ICON_SIZE, Self::FIELD_ROW_ICON_SIZE);
+        let icon_rect = Rect::from_min_size(
+            pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y - icon_size.y * 0.5),
+            icon_size,
+        );
+        IconDraw::draw_sized_tinted(user_interface, icon_rect.center(), icon_size, &data_type_icon, Color32::WHITE);
+
+        let preview_text = Self::format_field_data_type_preview(field_draft);
         let preview_right = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
-        let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
+        let label_position = pos2(icon_rect.max.x + Self::FIELD_ROW_ICON_GAP, row_rect.center().y);
         let preview_max_width = (preview_right - label_position.x - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
         let preview_text = Self::truncate_text_to_width(
             user_interface,
-            preview_text,
+            &preview_text,
             preview_max_width,
             &theme.font_library.font_noto_sans.font_small,
             theme.foreground_preview,
@@ -1558,6 +1603,45 @@ impl SymbolStructEditorView {
                 SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SymbolStructEditorView, SymbolStructFieldContainerKind, SymbolStructFieldEditDraft};
+    use squalr_engine_api::structures::{data_types::data_type_ref::DataTypeRef, pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize};
+
+    #[test]
+    fn format_field_data_type_preview_includes_fixed_array_length() {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("u16"));
+
+        field_draft.container_edit.kind = SymbolStructFieldContainerKind::FixedArray;
+        field_draft.container_edit.fixed_array_length = String::from("4");
+
+        assert_eq!(SymbolStructEditorView::format_field_data_type_preview(&field_draft), "u16[4]");
+    }
+
+    #[test]
+    fn format_field_data_type_preview_includes_pointer_size() {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("u32"));
+
+        field_draft.container_edit.kind = SymbolStructFieldContainerKind::Pointer;
+        field_draft.container_edit.pointer_size = PointerScanPointerSize::Pointer64;
+
+        assert_eq!(SymbolStructEditorView::format_field_data_type_preview(&field_draft), "u32*(u64)");
+    }
+
+    #[test]
+    fn format_field_data_type_preview_includes_dynamic_array_resolver() {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("game.item"));
+
+        field_draft.container_edit.kind = SymbolStructFieldContainerKind::DynamicArray;
+        field_draft.container_edit.dynamic_array_count_resolver_id = String::from("inventory.count");
+
+        assert_eq!(
+            SymbolStructEditorView::format_field_data_type_preview(&field_draft),
+            "game.item[resolver(inventory.count)]"
+        );
     }
 }
 
