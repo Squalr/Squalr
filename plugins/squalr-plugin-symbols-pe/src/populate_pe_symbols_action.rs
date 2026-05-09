@@ -12,7 +12,7 @@ use squalr_engine_api::{
         },
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition,
-            symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode},
+            symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverSymbolPath},
             symbolic_struct_definition::SymbolicStructDefinition,
         },
     },
@@ -32,12 +32,9 @@ const IMAGE_SECTION_HEADER_ID: &str = "win.pe.IMAGE_SECTION_HEADER";
 const PE_RESOLVER_DOS_HEADER_OFFSET_ID: &str = "win.pe.resolver.dos_header_offset";
 const PE_RESOLVER_DOS_STUB_COUNT_ID: &str = "win.pe.resolver.dos_stub_count";
 const PE_RESOLVER_DOS_STUB_OFFSET_ID: &str = "win.pe.resolver.dos_stub_offset";
-const PE_RESOLVER_E_LFANEW_OFFSET_ID: &str = "win.pe.resolver.e_lfanew_offset";
 const PE_RESOLVER_NT_HEADERS_OFFSET_ID: &str = "win.pe.resolver.nt_headers_offset";
 const PE_RESOLVER_NUMBER_OF_SECTIONS_ID: &str = "win.pe.resolver.number_of_sections";
-const PE_RESOLVER_NUMBER_OF_SECTIONS_OFFSET_ID: &str = "win.pe.resolver.number_of_sections_offset";
 const PE_RESOLVER_SECTION_HEADERS_OFFSET_ID: &str = "win.pe.resolver.section_headers_offset";
-const PE_RESOLVER_SIZE_OF_OPTIONAL_HEADER_OFFSET_ID: &str = "win.pe.resolver.size_of_optional_header_offset";
 const DOS_HEADER_SIZE_IN_BYTES: u64 = 64;
 const IMAGE_NT_SIGNATURE_SIZE_IN_BYTES: u64 = 4;
 const IMAGE_FILE_HEADER_SIZE_IN_BYTES: u64 = 20;
@@ -45,8 +42,6 @@ const IMAGE_SECTION_HEADER_SIZE_IN_BYTES: u64 = 40;
 const INITIAL_PE_HEADER_READ_SIZE: u64 = 0x1000;
 const MAX_PE_HEADER_READ_SIZE: u64 = 0x10000;
 const DOS_STUB_OFFSET: u64 = DOS_HEADER_SIZE_IN_BYTES;
-const PE_FILE_HEADER_NUMBER_OF_SECTIONS_OFFSET: u64 = IMAGE_NT_SIGNATURE_SIZE_IN_BYTES + 2;
-const PE_FILE_HEADER_SIZE_OF_OPTIONAL_HEADER_OFFSET: u64 = IMAGE_NT_SIGNATURE_SIZE_IN_BYTES + 16;
 const PE_SECTION_HEADERS_OFFSET_FROM_NT_HEADERS: u64 = IMAGE_NT_SIGNATURE_SIZE_IN_BYTES + IMAGE_FILE_HEADER_SIZE_IN_BYTES;
 const PE32_OPTIONAL_HEADER_MAGIC: u16 = 0x10B;
 const PE64_OPTIONAL_HEADER_MAGIC: u16 = 0x20B;
@@ -154,23 +149,11 @@ fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectS
     );
     upsert_symbolic_resolver_descriptor(
         &mut symbolic_resolver_descriptors,
-        literal_resolver_descriptor(PE_RESOLVER_E_LFANEW_OFFSET_ID, 0x3C),
+        symbol_field_resolver_descriptor(PE_RESOLVER_NT_HEADERS_OFFSET_ID, &["DOSHeader", "e_lfanew"]),
     );
     upsert_symbolic_resolver_descriptor(
         &mut symbolic_resolver_descriptors,
-        local_field_resolver_descriptor(PE_RESOLVER_NT_HEADERS_OFFSET_ID, "e_lfanew"),
-    );
-    upsert_symbolic_resolver_descriptor(
-        &mut symbolic_resolver_descriptors,
-        local_field_resolver_descriptor(PE_RESOLVER_NUMBER_OF_SECTIONS_ID, "NumberOfSections"),
-    );
-    upsert_symbolic_resolver_descriptor(
-        &mut symbolic_resolver_descriptors,
-        e_lfanew_plus_resolver_descriptor(PE_RESOLVER_NUMBER_OF_SECTIONS_OFFSET_ID, PE_FILE_HEADER_NUMBER_OF_SECTIONS_OFFSET),
-    );
-    upsert_symbolic_resolver_descriptor(
-        &mut symbolic_resolver_descriptors,
-        e_lfanew_plus_resolver_descriptor(PE_RESOLVER_SIZE_OF_OPTIONAL_HEADER_OFFSET_ID, PE_FILE_HEADER_SIZE_OF_OPTIONAL_HEADER_OFFSET),
+        symbol_field_resolver_descriptor(PE_RESOLVER_NUMBER_OF_SECTIONS_ID, &["NTHeaders", "FileHeader", "NumberOfSections"]),
     );
     upsert_symbolic_resolver_descriptor(
         &mut symbolic_resolver_descriptors,
@@ -178,7 +161,7 @@ fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectS
             PE_RESOLVER_DOS_STUB_COUNT_ID.to_string(),
             SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Subtract,
-                SymbolicResolverNode::new_local_field(String::from("e_lfanew")),
+                symbol_field_node(&["DOSHeader", "e_lfanew"]),
                 SymbolicResolverNode::new_literal(DOS_HEADER_SIZE_IN_BYTES as i128),
             )),
         ),
@@ -190,7 +173,7 @@ fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectS
             SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Add,
                 e_lfanew_plus_node(PE_SECTION_HEADERS_OFFSET_FROM_NT_HEADERS),
-                SymbolicResolverNode::new_local_field(String::from("SizeOfOptionalHeader")),
+                symbol_field_node(&["NTHeaders", "FileHeader", "SizeOfOptionalHeader"]),
             )),
         ),
     );
@@ -223,29 +206,31 @@ fn literal_resolver_descriptor(
     )
 }
 
-fn local_field_resolver_descriptor(
+fn symbol_field_resolver_descriptor(
     resolver_id: &str,
-    field_name: &str,
+    symbol_path_segments: &[&str],
 ) -> SymbolicResolverDescriptor {
     SymbolicResolverDescriptor::new(
         resolver_id.to_string(),
-        SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(field_name.to_string())),
+        SymbolicResolverDefinition::new(symbol_field_node(symbol_path_segments)),
     )
-}
-
-fn e_lfanew_plus_resolver_descriptor(
-    resolver_id: &str,
-    offset: u64,
-) -> SymbolicResolverDescriptor {
-    SymbolicResolverDescriptor::new(resolver_id.to_string(), SymbolicResolverDefinition::new(e_lfanew_plus_node(offset)))
 }
 
 fn e_lfanew_plus_node(offset: u64) -> SymbolicResolverNode {
     SymbolicResolverNode::new_binary(
         SymbolicResolverBinaryOperator::Add,
-        SymbolicResolverNode::new_local_field(String::from("e_lfanew")),
+        symbol_field_node(&["DOSHeader", "e_lfanew"]),
         SymbolicResolverNode::new_literal(offset as i128),
     )
+}
+
+fn symbol_field_node(symbol_path_segments: &[&str]) -> SymbolicResolverNode {
+    SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::new(
+        symbol_path_segments
+            .iter()
+            .map(|symbol_path_segment| symbol_path_segment.to_string())
+            .collect(),
+    ))
 }
 
 fn upsert_pe_struct_layout_descriptors(project_symbol_catalog: &mut ProjectSymbolCatalog) -> Result<(), String> {
@@ -527,12 +512,6 @@ fn pe_headers_descriptor(
     Ok(struct_layout_descriptor(
         struct_layout_id,
         vec![
-            expression_field(&format!("e_lfanew:u32 @ resolver({})", PE_RESOLVER_E_LFANEW_OFFSET_ID))?,
-            expression_field(&format!("NumberOfSections:u16 @ resolver({})", PE_RESOLVER_NUMBER_OF_SECTIONS_OFFSET_ID))?,
-            expression_field(&format!(
-                "SizeOfOptionalHeader:u16 @ resolver({})",
-                PE_RESOLVER_SIZE_OF_OPTIONAL_HEADER_OFFSET_ID
-            ))?,
             expression_field(&format!("DOSHeader:{} @ resolver({})", IMAGE_DOS_HEADER_ID, PE_RESOLVER_DOS_HEADER_OFFSET_ID))?,
             expression_field(&format!(
                 "DOSStub:u8[resolver({})] @ resolver({})",

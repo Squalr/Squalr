@@ -35,7 +35,7 @@ use squalr_engine_api::structures::{
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
-        symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode},
+        symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode, SymbolicResolverSymbolPath},
         valued_struct::ValuedStruct,
         valued_struct_field::ValuedStructField,
     },
@@ -1243,6 +1243,11 @@ impl SymbolResolverEditorView {
                     *field_name = edited_text;
                 }
             }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_SYMBOL_PATH => {
+                if let SymbolicResolverNode::SymbolField { symbol_path } = selected_node {
+                    *symbol_path = SymbolicResolverSymbolPath::from_dot_path(&edited_text);
+                }
+            }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => {
                 if let SymbolicResolverNode::TypeSize { data_type_ref } = selected_node {
                     *data_type_ref = DataTypeRef::new(edited_text.trim());
@@ -1282,6 +1287,12 @@ impl SymbolResolverEditorView {
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(field_name)
                         .to_named_valued_struct_field(Self::DETAILS_FIELD_LOCAL_FIELD.to_string(), false),
+                );
+            }
+            SymbolicResolverNode::SymbolField { symbol_path } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&symbol_path.to_string())
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_SYMBOL_PATH.to_string(), false),
                 );
             }
             SymbolicResolverNode::TypeSize { data_type_ref } => {
@@ -1453,6 +1464,7 @@ impl SymbolResolverEditorView {
         match resolver_node {
             SymbolicResolverNode::Literal(_) => SymbolResolverNodeKind::Literal,
             SymbolicResolverNode::LocalField { .. } => SymbolResolverNodeKind::LocalField,
+            SymbolicResolverNode::SymbolField { .. } => SymbolResolverNodeKind::SymbolField,
             SymbolicResolverNode::TypeSize { .. } => SymbolResolverNodeKind::TypeSize,
             SymbolicResolverNode::Binary { .. } => SymbolResolverNodeKind::Operation,
         }
@@ -1462,6 +1474,7 @@ impl SymbolResolverEditorView {
         match resolver_node_kind {
             SymbolResolverNodeKind::Literal => "Literal",
             SymbolResolverNodeKind::LocalField => "Local Field",
+            SymbolResolverNodeKind::SymbolField => "Symbol Field",
             SymbolResolverNodeKind::TypeSize => "Type Size",
             SymbolResolverNodeKind::Operation => "Operation",
         }
@@ -1471,6 +1484,7 @@ impl SymbolResolverEditorView {
         match label.trim() {
             "Literal" => Some(SymbolResolverNodeKind::Literal),
             "Local Field" => Some(SymbolResolverNodeKind::LocalField),
+            "Symbol Field" => Some(SymbolResolverNodeKind::SymbolField),
             "Type Size" => Some(SymbolResolverNodeKind::TypeSize),
             "Operation" => Some(SymbolResolverNodeKind::Operation),
             _ => None,
@@ -1488,6 +1502,7 @@ impl SymbolResolverEditorView {
         match resolver_node {
             SymbolicResolverNode::Literal(value) => (String::from("Literal"), value.to_string(), TreeEntryKind::Literal),
             SymbolicResolverNode::LocalField { field_name } => (String::from("Local Field"), field_name.to_string(), TreeEntryKind::LocalField),
+            SymbolicResolverNode::SymbolField { symbol_path } => (String::from("Symbol Field"), symbol_path.to_string(), TreeEntryKind::SymbolField),
             SymbolicResolverNode::TypeSize { data_type_ref } => (String::from("Type Size"), data_type_ref.to_string(), TreeEntryKind::TypeSize),
             SymbolicResolverNode::Binary { operator, .. } => (format!("Operation {}", operator.label()), String::new(), TreeEntryKind::Operation),
         }
@@ -1507,7 +1522,10 @@ impl SymbolResolverEditorView {
                 1 => Self::get_node_mut(right_node, &node_path[1..]),
                 _ => None,
             },
-            SymbolicResolverNode::Literal(_) | SymbolicResolverNode::LocalField { .. } | SymbolicResolverNode::TypeSize { .. } => None,
+            SymbolicResolverNode::Literal(_)
+            | SymbolicResolverNode::LocalField { .. }
+            | SymbolicResolverNode::SymbolField { .. }
+            | SymbolicResolverNode::TypeSize { .. } => None,
         }
     }
 
@@ -1525,7 +1543,10 @@ impl SymbolResolverEditorView {
                 1 => Self::get_node(right_node, &node_path[1..]),
                 _ => None,
             },
-            SymbolicResolverNode::Literal(_) | SymbolicResolverNode::LocalField { .. } | SymbolicResolverNode::TypeSize { .. } => None,
+            SymbolicResolverNode::Literal(_)
+            | SymbolicResolverNode::LocalField { .. }
+            | SymbolicResolverNode::SymbolField { .. }
+            | SymbolicResolverNode::TypeSize { .. } => None,
         }
     }
 
@@ -1613,6 +1634,7 @@ impl SymbolResolverEditorView {
 enum TreeEntryKind {
     Literal,
     LocalField,
+    SymbolField,
     TypeSize,
     Operation,
 }

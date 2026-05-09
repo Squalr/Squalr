@@ -52,7 +52,13 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         PointerScanPointerSize::Pointer64,
         PointerScanPointerSize::Pointer64be,
     ];
-    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 4] = ["Literal", "Local Field", "Type Size", "Operation"];
+    const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 5] = [
+        "Literal",
+        "Local Field",
+        "Symbol Field",
+        "Type Size",
+        "Operation",
+    ];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
     const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 2] = ["Sequential", "Resolver"];
 

@@ -4,7 +4,7 @@ use crate::structures::{
     structs::{
         symbolic_expression::{SymbolicExpression, SymbolicExpressionEvaluationError},
         symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
-        symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverEvaluationError},
+        symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverEvaluationError, SymbolicResolverSymbolPath},
         symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
@@ -162,6 +162,35 @@ where
     ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
     ResolveResolverDefinition: Fn(&str) -> Option<SymbolicResolverDefinition>,
 {
+    resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
+        symbolic_struct_definition,
+        resolve_type_size_in_bytes,
+        read_scalar_field,
+        resolve_resolver_definition,
+        |_| None,
+        options,
+    )
+}
+
+pub fn resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields<
+    ResolveTypeSize,
+    ReadScalarField,
+    ResolveResolverDefinition,
+    ResolveStructDefinition,
+>(
+    symbolic_struct_definition: &SymbolicStructDefinition,
+    resolve_type_size_in_bytes: ResolveTypeSize,
+    read_scalar_field: ReadScalarField,
+    resolve_resolver_definition: ResolveResolverDefinition,
+    resolve_struct_definition: ResolveStructDefinition,
+    options: &SymbolicStructResolverOptions,
+) -> ResolvedSymbolicStruct
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+    ResolveResolverDefinition: Fn(&str) -> Option<SymbolicResolverDefinition>,
+    ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+{
     let mut scalar_values_by_field_name = BTreeMap::new();
     let mut resolved_fields = Vec::new();
     let resolve_pass_count = symbolic_struct_definition
@@ -176,6 +205,7 @@ where
             &resolve_type_size_in_bytes,
             &read_scalar_field,
             &resolve_resolver_definition,
+            &resolve_struct_definition,
             options,
             &mut scalar_values_by_field_name,
         );
@@ -199,6 +229,7 @@ fn resolve_symbolic_struct_definition_pass<ResolveTypeSize, ReadScalarField>(
     resolve_type_size_in_bytes: &ResolveTypeSize,
     read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     options: &SymbolicStructResolverOptions,
     scalar_values_by_field_name: &mut BTreeMap<String, i128>,
 ) -> SymbolicStructResolvePass
@@ -212,17 +243,25 @@ where
 
     for field_definition in symbolic_struct_definition.get_fields() {
         let field_offset_result = resolve_field_offset(
+            symbolic_struct_definition,
             field_definition,
             next_sequential_offset,
             scalar_values_by_field_name,
             resolve_type_size_in_bytes,
+            read_scalar_field,
             resolve_resolver_definition,
+            resolve_struct_definition,
+            &mut Vec::new(),
         );
         let element_count_result = resolve_field_element_count(
+            symbolic_struct_definition,
             field_definition,
             scalar_values_by_field_name,
             resolve_type_size_in_bytes,
+            read_scalar_field,
             resolve_resolver_definition,
+            resolve_struct_definition,
+            &mut Vec::new(),
         );
         let unit_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref());
         let mut field_status = build_field_status(&field_offset_result, &element_count_result, unit_size_in_bytes);
@@ -284,15 +323,20 @@ where
     }
 }
 
-fn resolve_field_offset<ResolveTypeSize>(
+fn resolve_field_offset<ResolveTypeSize, ReadScalarField>(
+    root_struct_definition: &SymbolicStructDefinition,
     field_definition: &SymbolicFieldDefinition,
     next_sequential_offset: u64,
     scalar_values_by_field_name: &BTreeMap<String, i128>,
     resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolver_stack: &mut Vec<String>,
 ) -> Result<Option<u64>, String>
 where
     ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
 {
     match field_definition.get_offset_resolution() {
         SymbolicFieldOffsetResolution::Sequential => Ok(Some(next_sequential_offset)),
@@ -300,30 +344,45 @@ where
             evaluate_u64_expression(offset_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
         }
         SymbolicFieldOffsetResolution::Resolver(resolver_id) => evaluate_u64_resolver(
+            root_struct_definition,
             resolver_id,
             scalar_values_by_field_name,
             resolve_type_size_in_bytes,
+            read_scalar_field,
             resolve_resolver_definition,
+            resolve_struct_definition,
+            resolver_stack,
         )
         .map(Some),
     }
 }
 
-fn resolve_field_element_count(
+fn resolve_field_element_count<ReadScalarField>(
+    root_struct_definition: &SymbolicStructDefinition,
     field_definition: &SymbolicFieldDefinition,
     scalar_values_by_field_name: &BTreeMap<String, i128>,
     resolve_type_size_in_bytes: &impl Fn(&DataTypeRef) -> Option<u64>,
+    read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
-) -> Result<Option<u64>, String> {
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolver_stack: &mut Vec<String>,
+) -> Result<Option<u64>, String>
+where
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
     match field_definition.get_count_resolution() {
         SymbolicFieldCountResolution::Expression(count_expression) => {
             evaluate_u64_expression(count_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
         }
         SymbolicFieldCountResolution::Resolver(resolver_id) => evaluate_u64_resolver(
+            root_struct_definition,
             resolver_id,
             scalar_values_by_field_name,
             resolve_type_size_in_bytes,
+            read_scalar_field,
             resolve_resolver_definition,
+            resolve_struct_definition,
+            resolver_stack,
         )
         .map(Some),
         SymbolicFieldCountResolution::Inferred => match field_definition.get_container_type() {
@@ -334,21 +393,174 @@ fn resolve_field_element_count(
     }
 }
 
-fn evaluate_u64_resolver<ResolveTypeSize>(
+fn evaluate_u64_resolver<ResolveTypeSize, ReadScalarField>(
+    root_struct_definition: &SymbolicStructDefinition,
     resolver_id: &str,
     scalar_values_by_field_name: &BTreeMap<String, i128>,
     resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
     resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolver_stack: &mut Vec<String>,
 ) -> Result<u64, String>
 where
     ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
 {
+    if resolver_stack
+        .iter()
+        .any(|stacked_resolver_id| stacked_resolver_id == resolver_id)
+    {
+        return Err(SymbolicResolverEvaluationError::ResolverCycle(resolver_id.to_string()).to_string());
+    }
+
     let resolver_definition = resolve_resolver_definition(resolver_id).ok_or_else(|| format!("Unknown resolver `{}`.", resolver_id))?;
-    let value = resolver_definition
-        .evaluate(&|field_name| scalar_values_by_field_name.get(field_name).copied(), resolve_type_size_in_bytes)
-        .map_err(format_resolver_error)?;
+    resolver_stack.push(resolver_id.to_string());
+    let value = {
+        let mut resolve_symbol_field = |symbol_path: &SymbolicResolverSymbolPath| {
+            resolve_symbol_path_value(
+                symbol_path,
+                root_struct_definition,
+                scalar_values_by_field_name,
+                resolve_type_size_in_bytes,
+                read_scalar_field,
+                resolve_resolver_definition,
+                resolve_struct_definition,
+                resolver_stack,
+            )
+        };
+
+        resolver_definition
+            .evaluate_with_symbol_fields(
+                &|field_name| scalar_values_by_field_name.get(field_name).copied(),
+                resolve_type_size_in_bytes,
+                &mut resolve_symbol_field,
+            )
+            .map_err(format_resolver_error)
+    };
+    resolver_stack.pop();
+    let value = value?;
 
     u64::try_from(value).map_err(|_| format!("Resolver `{}` resolved to negative or too-large value `{}`.", resolver_id, value))
+}
+
+fn resolve_symbol_path_value<ResolveTypeSize, ReadScalarField>(
+    symbol_path: &SymbolicResolverSymbolPath,
+    root_struct_definition: &SymbolicStructDefinition,
+    scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
+    resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolver_stack: &mut Vec<String>,
+) -> Result<i128, SymbolicResolverEvaluationError>
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
+    if symbol_path.is_empty() {
+        return Err(SymbolicResolverEvaluationError::UnknownSymbolPath(symbol_path.to_string()));
+    }
+
+    let mut current_struct_definition = root_struct_definition.clone();
+    let mut current_base_offset = 0_u64;
+
+    for (symbol_path_segment_index, symbol_path_segment) in symbol_path.get_segments().iter().enumerate() {
+        let (field_definition, field_offset) = resolve_named_field_offset_in_struct(
+            symbol_path,
+            symbol_path_segment,
+            &current_struct_definition,
+            scalar_values_by_field_name,
+            resolve_type_size_in_bytes,
+            read_scalar_field,
+            resolve_resolver_definition,
+            resolve_struct_definition,
+            resolver_stack,
+        )?;
+        let resolved_field_offset = current_base_offset.saturating_add(field_offset);
+        let is_terminal_segment = symbol_path_segment_index + 1 == symbol_path.get_segments().len();
+
+        if is_terminal_segment {
+            if !matches!(field_definition.get_container_type(), ContainerType::None) {
+                return Err(SymbolicResolverEvaluationError::UnknownSymbolPath(format!(
+                    "{} is not a scalar field.",
+                    symbol_path
+                )));
+            }
+
+            let field_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref())
+                .ok_or_else(|| SymbolicResolverEvaluationError::UnknownTypeSize(field_definition.get_data_type_ref().to_string()))?;
+
+            return read_scalar_field(field_definition, resolved_field_offset, field_size_in_bytes)
+                .map_err(SymbolicResolverEvaluationError::UnknownSymbolPath)?
+                .ok_or_else(|| SymbolicResolverEvaluationError::UnknownSymbolPath(symbol_path.to_string()));
+        }
+
+        current_struct_definition = resolve_struct_definition(field_definition.get_data_type_ref())
+            .ok_or_else(|| SymbolicResolverEvaluationError::UnknownSymbolPath(symbol_path.to_string()))?;
+        current_base_offset = resolved_field_offset;
+    }
+
+    Err(SymbolicResolverEvaluationError::UnknownSymbolPath(symbol_path.to_string()))
+}
+
+fn resolve_named_field_offset_in_struct<'definition, ResolveTypeSize, ReadScalarField>(
+    symbol_path: &SymbolicResolverSymbolPath,
+    symbol_path_segment: &str,
+    current_struct_definition: &'definition SymbolicStructDefinition,
+    scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
+    resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolver_stack: &mut Vec<String>,
+) -> Result<(&'definition SymbolicFieldDefinition, u64), SymbolicResolverEvaluationError>
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
+    let mut next_sequential_offset = 0_u64;
+
+    for field_definition in current_struct_definition.get_fields() {
+        let field_offset = resolve_field_offset(
+            current_struct_definition,
+            field_definition,
+            next_sequential_offset,
+            scalar_values_by_field_name,
+            resolve_type_size_in_bytes,
+            read_scalar_field,
+            resolve_resolver_definition,
+            resolve_struct_definition,
+            resolver_stack,
+        )
+        .map_err(|error| SymbolicResolverEvaluationError::UnknownSymbolPath(format!("{}: {}", symbol_path, error)))?
+        .ok_or_else(|| SymbolicResolverEvaluationError::UnknownSymbolPath(symbol_path.to_string()))?;
+
+        if field_definition.get_field_name() == symbol_path_segment {
+            return Ok((field_definition, field_offset));
+        }
+
+        let field_size_in_bytes = resolve_field_static_size_in_bytes(field_definition, resolve_type_size_in_bytes);
+
+        if let Some(field_size_in_bytes) = field_size_in_bytes {
+            next_sequential_offset = field_offset.saturating_add(field_size_in_bytes);
+        }
+    }
+
+    Err(SymbolicResolverEvaluationError::UnknownSymbolPath(symbol_path.to_string()))
+}
+
+fn resolve_field_static_size_in_bytes(
+    field_definition: &SymbolicFieldDefinition,
+    resolve_type_size_in_bytes: &impl Fn(&DataTypeRef) -> Option<u64>,
+) -> Option<u64> {
+    let unit_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref())?;
+
+    match field_definition.get_container_type() {
+        ContainerType::ArrayFixed(element_count) => unit_size_in_bytes.checked_mul(element_count),
+        ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Some(unit_size_in_bytes),
+        ContainerType::Array => None,
+    }
 }
 
 fn evaluate_u64_expression<ResolveTypeSize>(
@@ -431,11 +643,12 @@ fn format_resolver_error(error: SymbolicResolverEvaluationError) -> String {
 mod tests {
     use super::{
         ResolvedSymbolicFieldStatus, SymbolicStructResolverOptions, resolve_symbolic_struct_definition, resolve_symbolic_struct_definition_with_resolvers,
+        resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields,
     };
     use crate::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
-        structs::symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode},
+        structs::symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverSymbolPath},
     };
     use std::str::FromStr;
 
@@ -663,5 +876,118 @@ mod tests {
 
         assert_eq!(resolved_struct.get_fields()[1].get_offset_in_bytes(), Some(8));
         assert_eq!(resolved_struct.get_fields()[1].get_element_count(), Some(3));
+    }
+
+    #[test]
+    fn resolver_uses_nested_symbol_fields_for_dynamic_layout() {
+        let dos_header_definition = SymbolicStructDefinition::new(
+            String::from("DosHeader"),
+            vec![
+                SymbolicFieldDefinition::from_str("padding:u8[60]").expect("Expected padding field to parse."),
+                SymbolicFieldDefinition::from_str("e_lfanew:u32").expect("Expected e_lfanew field to parse."),
+            ],
+        );
+        let file_header_definition = SymbolicStructDefinition::new(
+            String::from("FileHeader"),
+            vec![
+                SymbolicFieldDefinition::from_str("Machine:u16").expect("Expected Machine field to parse."),
+                SymbolicFieldDefinition::from_str("NumberOfSections:u16").expect("Expected NumberOfSections field to parse."),
+                SymbolicFieldDefinition::from_str("TimeDateStamp:u32").expect("Expected TimeDateStamp field to parse."),
+                SymbolicFieldDefinition::from_str("PointerToSymbolTable:u32").expect("Expected PointerToSymbolTable field to parse."),
+                SymbolicFieldDefinition::from_str("NumberOfSymbols:u32").expect("Expected NumberOfSymbols field to parse."),
+                SymbolicFieldDefinition::from_str("SizeOfOptionalHeader:u16").expect("Expected SizeOfOptionalHeader field to parse."),
+            ],
+        );
+        let nt_header_definition = SymbolicStructDefinition::new(
+            String::from("NtHeader"),
+            vec![
+                SymbolicFieldDefinition::from_str("Signature:u32").expect("Expected Signature field to parse."),
+                SymbolicFieldDefinition::from_str("FileHeader:FileHeader").expect("Expected FileHeader field to parse."),
+            ],
+        );
+        let pe_headers_definition = SymbolicStructDefinition::new(
+            String::from("PeHeaders"),
+            vec![
+                SymbolicFieldDefinition::from_str("DOSHeader:DosHeader @ +0").expect("Expected DOSHeader field to parse."),
+                SymbolicFieldDefinition::from_str("NTHeaders:NtHeader @ resolver(nt_offset)").expect("Expected NTHeaders field to parse."),
+                SymbolicFieldDefinition::from_str("SectionHeaders:u8[resolver(section_count)] @ resolver(section_offset)")
+                    .expect("Expected SectionHeaders field to parse."),
+            ],
+        );
+        let nt_offset_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::from_dot_path(
+            "DOSHeader.e_lfanew",
+        )));
+        let section_count_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::from_dot_path(
+            "NTHeaders.FileHeader.NumberOfSections",
+        )));
+        let section_offset_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
+            SymbolicResolverBinaryOperator::Add,
+            SymbolicResolverNode::new_binary(
+                SymbolicResolverBinaryOperator::Add,
+                SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::from_dot_path("DOSHeader.e_lfanew")),
+                SymbolicResolverNode::new_literal(24),
+            ),
+            SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::from_dot_path("NTHeaders.FileHeader.SizeOfOptionalHeader")),
+        ));
+
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
+            &pe_headers_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u16" => Some(2),
+                "u32" => Some(4),
+                "DosHeader" => Some(64),
+                "FileHeader" => Some(20),
+                "NtHeader" => Some(24),
+                _ => None,
+            },
+            |_, field_offset, _| match field_offset {
+                0x3C => Ok(Some(0x80)),
+                0x86 => Ok(Some(3)),
+                0x94 => Ok(Some(0xE0)),
+                _ => Ok(None),
+            },
+            |resolver_id| match resolver_id {
+                "nt_offset" => Some(nt_offset_resolver.clone()),
+                "section_count" => Some(section_count_resolver.clone()),
+                "section_offset" => Some(section_offset_resolver.clone()),
+                _ => None,
+            },
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "DosHeader" => Some(dos_header_definition.clone()),
+                "FileHeader" => Some(file_header_definition.clone()),
+                "NtHeader" => Some(nt_header_definition.clone()),
+                _ => None,
+            },
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[1].get_offset_in_bytes(), Some(0x80));
+        assert_eq!(resolved_fields[2].get_element_count(), Some(3));
+        assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(0x178));
+    }
+
+    #[test]
+    fn resolver_reports_symbol_field_cycles() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("Cycle"),
+            vec![SymbolicFieldDefinition::from_str("value:u32 @ resolver(loop)").expect("Expected value field to parse.")],
+        );
+        let cyclic_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::from_dot_path("value")));
+
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
+            &symbolic_struct_definition,
+            |data_type_ref| (data_type_ref == &DataTypeRef::new("u32")).then_some(4),
+            |_, _, _| Ok(Some(7)),
+            |resolver_id| (resolver_id == "loop").then_some(cyclic_resolver.clone()),
+            |_| None,
+            &SymbolicStructResolverOptions::default(),
+        );
+
+        assert!(matches!(
+            resolved_struct.get_fields()[0].get_status(),
+            ResolvedSymbolicFieldStatus::Unresolved { reason } if reason.contains("Resolver cycle detected")
+        ));
     }
 }
