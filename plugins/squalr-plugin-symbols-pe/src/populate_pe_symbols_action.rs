@@ -749,16 +749,19 @@ fn sort_module_fields(module_fields: &mut [ProjectSymbolModuleField]) {
 #[cfg(test)]
 mod tests {
     use super::{
-        IMAGE_SECTION_HEADER_ID, PE_HEADERS32_ID, PE_RESOLVER_SECTION_HEADERS_OFFSET_ID, PeHeaderLayout, PeOptionalHeaderKind, PopulatePeSymbolsAction,
-        populate_pe_symbols,
+        IMAGE_SECTION_HEADER_ID, PE_HEADERS32_ID, PE_RESOLVER_NT_HEADERS_OFFSET_ID, PE_RESOLVER_NUMBER_OF_SECTIONS_ID, PE_RESOLVER_SECTION_HEADERS_OFFSET_ID,
+        PeHeaderLayout, PeOptionalHeaderKind, PopulatePeSymbolsAction, SymbolicResolverRelativeSymbolPath, populate_pe_symbols,
     };
     use squalr_engine_api::{
         plugins::symbol_tree::symbol_tree_action::{
             ProcessMemoryStore, ProjectSymbolStore, SymbolTreeAction, SymbolTreeActionContext, SymbolTreeActionSelection, SymbolTreeActionServices,
             SymbolTreeWindowStore,
         },
-        structures::projects::{
-            project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+        structures::{
+            projects::{
+                project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
+            },
+            structs::symbolic_resolver_definition::SymbolicResolverNode,
         },
     };
     use std::sync::{Arc, Mutex};
@@ -884,7 +887,7 @@ mod tests {
     }
 
     #[test]
-    fn populate_pe_symbols_adds_formulaic_pe_headers_root() {
+    fn populate_pe_symbols_adds_relative_resolver_backed_pe_headers_root() {
         let project_symbol_catalog =
             ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("game.exe"), 0x2000)], Vec::new(), Vec::new());
         let services = TestSymbolTreeActionServices::new(project_symbol_catalog);
@@ -911,6 +914,19 @@ mod tests {
                 .find_symbolic_resolver_descriptor(PE_RESOLVER_SECTION_HEADERS_OFFSET_ID)
                 .is_some()
         );
+        assert_relative_symbol_resolver_path(&project_symbol_catalog, PE_RESOLVER_NT_HEADERS_OFFSET_ID, "DOSHeader.e_lfanew");
+        assert_relative_symbol_resolver_path(
+            &project_symbol_catalog,
+            PE_RESOLVER_NUMBER_OF_SECTIONS_ID,
+            "NTHeaders.FileHeader.NumberOfSections",
+        );
+        assert_resolver_contains_relative_path(&project_symbol_catalog, PE_RESOLVER_SECTION_HEADERS_OFFSET_ID, "DOSHeader.e_lfanew");
+        assert_resolver_contains_relative_path(
+            &project_symbol_catalog,
+            PE_RESOLVER_SECTION_HEADERS_OFFSET_ID,
+            "NTHeaders.FileHeader.SizeOfOptionalHeader",
+        );
+        assert_resolver_has_no_global_symbol_fields(&project_symbol_catalog, PE_RESOLVER_SECTION_HEADERS_OFFSET_ID);
         let pe_headers_descriptor = project_symbol_catalog
             .get_struct_layout_descriptors()
             .iter()
@@ -1022,5 +1038,84 @@ mod tests {
         header_bytes[0x98..0x9A].copy_from_slice(&0x10B_u16.to_le_bytes());
 
         header_bytes
+    }
+
+    fn assert_relative_symbol_resolver_path(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolver_id: &str,
+        expected_symbol_path: &str,
+    ) {
+        let resolver_descriptor = project_symbol_catalog
+            .find_symbolic_resolver_descriptor(resolver_id)
+            .unwrap_or_else(|| panic!("Expected resolver `{resolver_id}`."));
+
+        assert_eq!(
+            resolver_descriptor.get_resolver_definition().get_root_node(),
+            &SymbolicResolverNode::new_relative_symbol_field(SymbolicResolverRelativeSymbolPath::from_dot_path(expected_symbol_path))
+        );
+    }
+
+    fn assert_resolver_contains_relative_path(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolver_id: &str,
+        expected_symbol_path: &str,
+    ) {
+        let resolver_descriptor = project_symbol_catalog
+            .find_symbolic_resolver_descriptor(resolver_id)
+            .unwrap_or_else(|| panic!("Expected resolver `{resolver_id}`."));
+        let mut relative_symbol_paths = Vec::new();
+
+        collect_relative_symbol_paths(resolver_descriptor.get_resolver_definition().get_root_node(), &mut relative_symbol_paths);
+
+        assert!(
+            relative_symbol_paths
+                .iter()
+                .any(|symbol_path| symbol_path == expected_symbol_path),
+            "Expected resolver `{resolver_id}` to contain relative path `{expected_symbol_path}`. Found: {relative_symbol_paths:?}."
+        );
+    }
+
+    fn assert_resolver_has_no_global_symbol_fields(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolver_id: &str,
+    ) {
+        let resolver_descriptor = project_symbol_catalog
+            .find_symbolic_resolver_descriptor(resolver_id)
+            .unwrap_or_else(|| panic!("Expected resolver `{resolver_id}`."));
+
+        assert!(
+            !resolver_contains_global_symbol_field(resolver_descriptor.get_resolver_definition().get_root_node()),
+            "PE resolvers should stay relative because every needed value lives inside the PE Headers root."
+        );
+    }
+
+    fn collect_relative_symbol_paths(
+        resolver_node: &SymbolicResolverNode,
+        relative_symbol_paths: &mut Vec<String>,
+    ) {
+        match resolver_node {
+            SymbolicResolverNode::RelativeSymbolField { symbol_path } => relative_symbol_paths.push(symbol_path.to_string()),
+            SymbolicResolverNode::Binary { left_node, right_node, .. } => {
+                collect_relative_symbol_paths(left_node, relative_symbol_paths);
+                collect_relative_symbol_paths(right_node, relative_symbol_paths);
+            }
+            SymbolicResolverNode::Literal(_)
+            | SymbolicResolverNode::LocalField { .. }
+            | SymbolicResolverNode::GlobalSymbolField { .. }
+            | SymbolicResolverNode::TypeSize { .. } => {}
+        }
+    }
+
+    fn resolver_contains_global_symbol_field(resolver_node: &SymbolicResolverNode) -> bool {
+        match resolver_node {
+            SymbolicResolverNode::GlobalSymbolField { .. } => true,
+            SymbolicResolverNode::Binary { left_node, right_node, .. } => {
+                resolver_contains_global_symbol_field(left_node) || resolver_contains_global_symbol_field(right_node)
+            }
+            SymbolicResolverNode::Literal(_)
+            | SymbolicResolverNode::LocalField { .. }
+            | SymbolicResolverNode::RelativeSymbolField { .. }
+            | SymbolicResolverNode::TypeSize { .. } => false,
+        }
     }
 }
