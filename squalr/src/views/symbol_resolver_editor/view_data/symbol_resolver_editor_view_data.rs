@@ -4,7 +4,7 @@ use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::Symbol
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::structs::symbolic_resolver_definition::{
-    SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverSymbolPath,
+    SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -325,7 +325,9 @@ impl SymbolResolverEditorViewData {
         match resolver_node_kind {
             SymbolResolverNodeKind::Literal => SymbolicResolverNode::new_literal(0),
             SymbolResolverNodeKind::LocalField => SymbolicResolverNode::new_local_field(String::from("field")),
-            SymbolResolverNodeKind::SymbolField => SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::from_dot_path("Symbol.Field")),
+            SymbolResolverNodeKind::RelativeSymbolField => {
+                SymbolicResolverNode::new_relative_symbol_field(SymbolicResolverRelativeSymbolPath::from_dot_path("Symbol.Field"))
+            }
             SymbolResolverNodeKind::TypeSize => SymbolicResolverNode::new_type_size(default_data_type_ref),
             SymbolResolverNodeKind::Operation => SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Add,
@@ -446,7 +448,7 @@ impl SymbolResolverEditorViewData {
 pub enum SymbolResolverNodeKind {
     Literal,
     LocalField,
-    SymbolField,
+    RelativeSymbolField,
     TypeSize,
     Operation,
 }

@@ -9,7 +9,7 @@ use squalr_engine_api::structures::{
     structs::{
         symbolic_field_definition::SymbolicFieldDefinition,
         symbolic_struct_definition::SymbolicStructDefinition,
-        symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields},
+        symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields},
     },
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -487,7 +487,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
 {
-    let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
+    let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields(
         struct_layout_definition,
         |data_type_ref| {
             Some(resolve_data_type_size_in_bytes(

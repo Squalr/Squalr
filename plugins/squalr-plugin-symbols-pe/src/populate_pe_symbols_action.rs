@@ -12,7 +12,9 @@ use squalr_engine_api::{
         },
         structs::{
             symbolic_field_definition::SymbolicFieldDefinition,
-            symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverSymbolPath},
+            symbolic_resolver_definition::{
+                SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath,
+            },
             symbolic_struct_definition::SymbolicStructDefinition,
         },
     },
@@ -149,11 +151,11 @@ fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectS
     );
     upsert_symbolic_resolver_descriptor(
         &mut symbolic_resolver_descriptors,
-        symbol_field_resolver_descriptor(PE_RESOLVER_NT_HEADERS_OFFSET_ID, &["DOSHeader", "e_lfanew"]),
+        relative_symbol_field_resolver_descriptor(PE_RESOLVER_NT_HEADERS_OFFSET_ID, &["DOSHeader", "e_lfanew"]),
     );
     upsert_symbolic_resolver_descriptor(
         &mut symbolic_resolver_descriptors,
-        symbol_field_resolver_descriptor(PE_RESOLVER_NUMBER_OF_SECTIONS_ID, &["NTHeaders", "FileHeader", "NumberOfSections"]),
+        relative_symbol_field_resolver_descriptor(PE_RESOLVER_NUMBER_OF_SECTIONS_ID, &["NTHeaders", "FileHeader", "NumberOfSections"]),
     );
     upsert_symbolic_resolver_descriptor(
         &mut symbolic_resolver_descriptors,
@@ -161,7 +163,7 @@ fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectS
             PE_RESOLVER_DOS_STUB_COUNT_ID.to_string(),
             SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Subtract,
-                symbol_field_node(&["DOSHeader", "e_lfanew"]),
+                relative_symbol_field_node(&["DOSHeader", "e_lfanew"]),
                 SymbolicResolverNode::new_literal(DOS_HEADER_SIZE_IN_BYTES as i128),
             )),
         ),
@@ -173,7 +175,7 @@ fn upsert_pe_symbolic_resolver_descriptors(project_symbol_catalog: &mut ProjectS
             SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Add,
                 e_lfanew_plus_node(PE_SECTION_HEADERS_OFFSET_FROM_NT_HEADERS),
-                symbol_field_node(&["NTHeaders", "FileHeader", "SizeOfOptionalHeader"]),
+                relative_symbol_field_node(&["NTHeaders", "FileHeader", "SizeOfOptionalHeader"]),
             )),
         ),
     );
@@ -206,26 +208,26 @@ fn literal_resolver_descriptor(
     )
 }
 
-fn symbol_field_resolver_descriptor(
+fn relative_symbol_field_resolver_descriptor(
     resolver_id: &str,
     symbol_path_segments: &[&str],
 ) -> SymbolicResolverDescriptor {
     SymbolicResolverDescriptor::new(
         resolver_id.to_string(),
-        SymbolicResolverDefinition::new(symbol_field_node(symbol_path_segments)),
+        SymbolicResolverDefinition::new(relative_symbol_field_node(symbol_path_segments)),
     )
 }
 
 fn e_lfanew_plus_node(offset: u64) -> SymbolicResolverNode {
     SymbolicResolverNode::new_binary(
         SymbolicResolverBinaryOperator::Add,
-        symbol_field_node(&["DOSHeader", "e_lfanew"]),
+        relative_symbol_field_node(&["DOSHeader", "e_lfanew"]),
         SymbolicResolverNode::new_literal(offset as i128),
     )
 }
 
-fn symbol_field_node(symbol_path_segments: &[&str]) -> SymbolicResolverNode {
-    SymbolicResolverNode::new_symbol_field(SymbolicResolverSymbolPath::new(
+fn relative_symbol_field_node(symbol_path_segments: &[&str]) -> SymbolicResolverNode {
+    SymbolicResolverNode::new_relative_symbol_field(SymbolicResolverRelativeSymbolPath::new(
         symbol_path_segments
             .iter()
             .map(|symbol_path_segment| symbol_path_segment.to_string())

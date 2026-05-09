@@ -55,7 +55,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     const SYMBOL_RESOLVER_NODE_KIND_LABELS: [&'static str; 5] = [
         "Literal",
         "Local Field",
-        "Symbol Field",
+        "Relative Symbol Field",
         "Type Size",
         "Operation",
     ];
