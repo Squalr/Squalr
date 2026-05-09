@@ -8,12 +8,13 @@ use squalr_engine_api::structures::{
     },
     structs::{
         symbolic_field_definition::SymbolicFieldDefinition,
-        symbolic_resolver_definition::{SymbolicResolverEvaluationError, SymbolicResolverRelativeSymbolPath},
+        symbolic_global_symbol_resolver::{
+            SymbolicGlobalSymbolResolverSession, SymbolicGlobalSymbolRoot, SymbolicGlobalSymbolRootType, resolve_global_symbol_field_value,
+        },
         symbolic_struct_definition::SymbolicStructDefinition,
         symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields},
     },
 };
-use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::str::FromStr;
 
@@ -489,7 +490,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
 {
-    let global_symbol_stack = RefCell::new(Vec::new());
+    let global_symbol_resolver_session = SymbolicGlobalSymbolResolverSession::default();
     let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
         struct_layout_definition,
         |data_type_ref| {
@@ -513,12 +514,26 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
         |data_type_ref| resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()),
         |module_name, symbol_path| {
             resolve_global_symbol_field_value(
-                project_symbol_catalog,
+                &global_symbol_resolver_session,
                 module_name,
                 symbol_path,
-                resolve_primitive_size_in_bytes,
-                read_scalar_field,
-                &global_symbol_stack,
+                &|module_name, root_symbol_name| resolve_global_symbol_roots(project_symbol_catalog, module_name, root_symbol_name),
+                &|data_type_ref| {
+                    Some(resolve_data_type_size_in_bytes(
+                        project_symbol_catalog,
+                        data_type_ref,
+                        resolve_primitive_size_in_bytes,
+                        &mut HashSet::new(),
+                    ))
+                },
+                &|field_locator, field_definition, field_size_in_bytes| read_scalar_field(field_locator, field_definition, field_size_in_bytes),
+                &|resolver_id| {
+                    project_symbol_catalog
+                        .find_symbolic_resolver_descriptor(resolver_id)
+                        .map(|resolver_descriptor| resolver_descriptor.get_resolver_definition().clone())
+                },
+                &|data_type_ref| resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()),
+                &offset_locator,
             )
         },
         &SymbolicStructResolverOptions::default(),
@@ -774,151 +789,11 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
     }
 }
 
-struct GlobalSymbolRoot {
-    locator: ProjectSymbolLocator,
-    symbol_claim_type: ResolvedSymbolClaimType,
-}
-
-fn resolve_global_symbol_field_value<ResolvePrimitiveSize, ReadScalarField>(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    module_name: &str,
-    symbol_path: &SymbolicResolverRelativeSymbolPath,
-    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
-    read_scalar_field: ReadScalarField,
-    global_symbol_stack: &RefCell<Vec<String>>,
-) -> Result<i128, SymbolicResolverEvaluationError>
-where
-    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
-    ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
-{
-    let Some(root_symbol_name) = symbol_path.get_segments().first() else {
-        return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
-            "{}.{}",
-            module_name, symbol_path
-        )));
-    };
-    let global_symbol_key = format!("{}.{}", module_name, symbol_path);
-    {
-        let mut global_symbol_stack = global_symbol_stack.borrow_mut();
-        if global_symbol_stack
-            .iter()
-            .any(|stacked_global_symbol_key| stacked_global_symbol_key == &global_symbol_key)
-        {
-            return Err(SymbolicResolverEvaluationError::ResolverCycle(global_symbol_key));
-        }
-
-        global_symbol_stack.push(global_symbol_key.clone());
-    }
-
-    let result = resolve_global_symbol_field_value_inner(
-        project_symbol_catalog,
-        module_name,
-        root_symbol_name,
-        SymbolicResolverRelativeSymbolPath::new(symbol_path.get_segments().iter().skip(1).cloned().collect()),
-        resolve_primitive_size_in_bytes,
-        read_scalar_field,
-        global_symbol_stack,
-    );
-    global_symbol_stack.borrow_mut().pop();
-
-    result
-}
-
-fn resolve_global_symbol_field_value_inner<ResolvePrimitiveSize, ReadScalarField>(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    module_name: &str,
-    root_symbol_name: &str,
-    relative_symbol_path: SymbolicResolverRelativeSymbolPath,
-    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
-    read_scalar_field: ReadScalarField,
-    global_symbol_stack: &RefCell<Vec<String>>,
-) -> Result<i128, SymbolicResolverEvaluationError>
-where
-    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
-    ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
-{
-    let global_symbol_roots = resolve_global_symbol_roots(project_symbol_catalog, module_name, root_symbol_name);
-
-    if global_symbol_roots.is_empty() {
-        return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
-            "{}.{}",
-            module_name, root_symbol_name
-        )));
-    }
-
-    if global_symbol_roots.len() > 1 {
-        return Err(SymbolicResolverEvaluationError::AmbiguousGlobalSymbolPath(format!(
-            "{}.{}",
-            module_name, root_symbol_name
-        )));
-    }
-
-    let Some(global_symbol_root) = global_symbol_roots.into_iter().next() else {
-        return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
-            "{}.{}",
-            module_name, root_symbol_name
-        )));
-    };
-
-    match global_symbol_root.symbol_claim_type {
-        ResolvedSymbolClaimType::Struct { struct_layout_definition, .. } => resolve_struct_symbol_path_value(
-            project_symbol_catalog,
-            &global_symbol_root.locator,
-            &struct_layout_definition,
-            &relative_symbol_path,
-            resolve_primitive_size_in_bytes,
-            read_scalar_field,
-            global_symbol_stack,
-        ),
-        ResolvedSymbolClaimType::Field {
-            data_type_ref, container_type, ..
-        } => {
-            if relative_symbol_path.is_empty() {
-                if !matches!(container_type, ContainerType::None) {
-                    return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
-                        "{}.{} is not a scalar field.",
-                        module_name, root_symbol_name
-                    )));
-                }
-
-                let field_definition = SymbolicFieldDefinition::new_named(root_symbol_name.to_string(), data_type_ref, container_type);
-                let field_size_in_bytes = resolve_data_type_size_in_bytes(
-                    project_symbol_catalog,
-                    field_definition.get_data_type_ref(),
-                    resolve_primitive_size_in_bytes,
-                    &mut HashSet::new(),
-                );
-
-                return read_scalar_field(&global_symbol_root.locator, &field_definition, field_size_in_bytes)
-                    .map_err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath)?
-                    .ok_or_else(|| SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!("{}.{}", module_name, root_symbol_name)));
-            }
-
-            let Some(struct_layout_definition) = resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()) else {
-                return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
-                    "{}.{}.{}",
-                    module_name, root_symbol_name, relative_symbol_path
-                )));
-            };
-
-            resolve_struct_symbol_path_value(
-                project_symbol_catalog,
-                &global_symbol_root.locator,
-                &struct_layout_definition,
-                &relative_symbol_path,
-                resolve_primitive_size_in_bytes,
-                read_scalar_field,
-                global_symbol_stack,
-            )
-        }
-    }
-}
-
 fn resolve_global_symbol_roots(
     project_symbol_catalog: &ProjectSymbolCatalog,
     module_name: &str,
     root_symbol_name: &str,
-) -> Vec<GlobalSymbolRoot> {
+) -> Vec<SymbolicGlobalSymbolRoot<ProjectSymbolLocator>> {
     let mut global_symbol_roots = Vec::new();
 
     if let Some(symbol_module) = project_symbol_catalog.find_symbol_module(module_name) {
@@ -927,9 +802,11 @@ fn resolve_global_symbol_roots(
                 .get_fields()
                 .iter()
                 .filter(|module_field| module_field.get_display_name() == root_symbol_name)
-                .map(|module_field| GlobalSymbolRoot {
-                    locator: ProjectSymbolLocator::new_module_offset(module_name.to_string(), module_field.get_offset()),
-                    symbol_claim_type: resolve_symbol_claim_type(project_symbol_catalog, module_field.get_struct_layout_id()),
+                .map(|module_field| {
+                    SymbolicGlobalSymbolRoot::new(
+                        ProjectSymbolLocator::new_module_offset(module_name.to_string(), module_field.get_offset()),
+                        resolve_symbol_claim_type(project_symbol_catalog, module_field.get_struct_layout_id()).to_global_symbol_root_type(),
+                    )
                 }),
         );
     }
@@ -951,116 +828,16 @@ fn resolve_global_symbol_roots(
                     return None;
                 };
 
-                (claim_module_name == module_name).then(|| GlobalSymbolRoot {
-                    locator: symbol_claim.get_locator().clone(),
-                    symbol_claim_type: resolve_symbol_claim_type(project_symbol_catalog, symbol_claim.get_struct_layout_id()),
+                (claim_module_name == module_name).then(|| {
+                    SymbolicGlobalSymbolRoot::new(
+                        symbol_claim.get_locator().clone(),
+                        resolve_symbol_claim_type(project_symbol_catalog, symbol_claim.get_struct_layout_id()).to_global_symbol_root_type(),
+                    )
                 })
             }),
     );
 
     global_symbol_roots
-}
-
-fn resolve_struct_symbol_path_value<ResolvePrimitiveSize, ReadScalarField>(
-    project_symbol_catalog: &ProjectSymbolCatalog,
-    root_locator: &ProjectSymbolLocator,
-    struct_layout_definition: &SymbolicStructDefinition,
-    symbol_path: &SymbolicResolverRelativeSymbolPath,
-    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
-    read_scalar_field: ReadScalarField,
-    global_symbol_stack: &RefCell<Vec<String>>,
-) -> Result<i128, SymbolicResolverEvaluationError>
-where
-    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
-    ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
-{
-    let Some(symbol_path_segment) = symbol_path.get_segments().first() else {
-        return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
-    };
-    let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
-        struct_layout_definition,
-        |data_type_ref| {
-            Some(resolve_data_type_size_in_bytes(
-                project_symbol_catalog,
-                data_type_ref,
-                resolve_primitive_size_in_bytes,
-                &mut HashSet::new(),
-            ))
-        },
-        |field_definition, field_offset, field_size_in_bytes| {
-            let field_locator = offset_locator(root_locator, field_offset);
-
-            read_scalar_field(&field_locator, field_definition, field_size_in_bytes)
-        },
-        |resolver_id| {
-            project_symbol_catalog
-                .find_symbolic_resolver_descriptor(resolver_id)
-                .map(|resolver_descriptor| resolver_descriptor.get_resolver_definition().clone())
-        },
-        |data_type_ref| resolve_struct_layout_definition(project_symbol_catalog, data_type_ref.get_data_type_id()),
-        |module_name, nested_symbol_path| {
-            resolve_global_symbol_field_value(
-                project_symbol_catalog,
-                module_name,
-                nested_symbol_path,
-                resolve_primitive_size_in_bytes,
-                read_scalar_field,
-                global_symbol_stack,
-            )
-        },
-        &SymbolicStructResolverOptions::default(),
-    );
-
-    for (field_definition, resolved_symbolic_field) in struct_layout_definition
-        .get_fields()
-        .iter()
-        .zip(resolved_symbolic_struct.get_fields())
-    {
-        if field_definition.get_field_name() != symbol_path_segment {
-            continue;
-        }
-
-        let Some(field_offset) = resolved_symbolic_field.get_offset_in_bytes() else {
-            return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
-        };
-        let field_locator = offset_locator(root_locator, field_offset);
-        let remaining_symbol_path = SymbolicResolverRelativeSymbolPath::new(symbol_path.get_segments().iter().skip(1).cloned().collect());
-
-        if remaining_symbol_path.is_empty() {
-            if !matches!(resolved_symbolic_field.get_container_type(), ContainerType::None) {
-                return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!(
-                    "{} is not a scalar field.",
-                    symbol_path
-                )));
-            }
-
-            let Some(field_size_in_bytes) = resolved_symbolic_field.get_size_in_bytes() else {
-                return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
-            };
-
-            return read_scalar_field(&field_locator, field_definition, field_size_in_bytes)
-                .map_err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath)?
-                .ok_or_else(|| SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
-        }
-
-        let Some(nested_struct_layout_definition) =
-            resolve_struct_layout_definition(project_symbol_catalog, field_definition.get_data_type_ref().get_data_type_id())
-        else {
-            return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
-        };
-
-        return resolve_struct_symbol_path_value(
-            project_symbol_catalog,
-            &field_locator,
-            &nested_struct_layout_definition,
-            &remaining_symbol_path,
-            resolve_primitive_size_in_bytes,
-            read_scalar_field,
-            global_symbol_stack,
-        );
-    }
-
-    Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()))
 }
 
 fn data_type_ref_can_expand(
@@ -1250,6 +1027,20 @@ impl ResolvedSymbolClaimType {
             Self::Field {
                 data_type_ref, container_type, ..
             } => data_type_ref_can_expand(project_symbol_catalog, data_type_ref, *container_type, &mut HashSet::new()),
+        }
+    }
+
+    fn to_global_symbol_root_type(&self) -> SymbolicGlobalSymbolRootType {
+        match self {
+            Self::Struct { struct_layout_definition, .. } => SymbolicGlobalSymbolRootType::Struct {
+                struct_layout_definition: struct_layout_definition.clone(),
+            },
+            Self::Field {
+                data_type_ref, container_type, ..
+            } => SymbolicGlobalSymbolRootType::Field {
+                data_type_ref: data_type_ref.clone(),
+                container_type: *container_type,
+            },
         }
     }
 }
