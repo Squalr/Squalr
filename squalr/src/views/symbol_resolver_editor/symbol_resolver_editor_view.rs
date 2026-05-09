@@ -33,6 +33,7 @@ use squalr_engine_api::structures::{
         data_type_ref::DataTypeRef,
     },
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
+    memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
         symbolic_resolver_definition::{SymbolicResolverBinaryOperator, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath},
@@ -1247,15 +1248,29 @@ impl SymbolResolverEditorView {
                 if let SymbolicResolverNode::RelativeSymbolField { symbol_path } = selected_node {
                     *symbol_path = SymbolicResolverRelativeSymbolPath::from_dot_path(&edited_text);
                 }
+                if let SymbolicResolverNode::RelativePointerChain { pointer_chain } = selected_node {
+                    *pointer_chain =
+                        SymbolicPointerChain::new_absolute(SymbolicPointerChainLink::parse_text_list(&edited_text), pointer_chain.get_pointer_size());
+                }
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE => {
                 if let SymbolicResolverNode::GlobalSymbolField { module_name, .. } = selected_node {
                     *module_name = edited_text.trim().to_string();
                 }
+                if let SymbolicResolverNode::GlobalPointerChain { pointer_chain } = selected_node {
+                    pointer_chain.set_module_name(edited_text.trim().to_string());
+                }
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => {
                 if let SymbolicResolverNode::GlobalSymbolField { symbol_path, .. } = selected_node {
                     *symbol_path = SymbolicResolverRelativeSymbolPath::from_dot_path(&edited_text);
+                }
+                if let SymbolicResolverNode::GlobalPointerChain { pointer_chain } = selected_node {
+                    *pointer_chain = SymbolicPointerChain::new(
+                        pointer_chain.get_module_name().to_string(),
+                        SymbolicPointerChainLink::parse_text_list(&edited_text),
+                        pointer_chain.get_pointer_size(),
+                    );
                 }
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE => {
@@ -1312,6 +1327,22 @@ impl SymbolResolverEditorView {
                 );
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(&symbol_path.to_string())
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH.to_string(), false),
+                );
+            }
+            SymbolicResolverNode::RelativePointerChain { pointer_chain } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&SymbolicPointerChainLink::display_text_list(pointer_chain.get_links()))
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH.to_string(), false),
+                );
+            }
+            SymbolicResolverNode::GlobalPointerChain { pointer_chain } => {
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(pointer_chain.get_module_name())
+                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE.to_string(), false),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&SymbolicPointerChainLink::display_text_list(pointer_chain.get_links()))
                         .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH.to_string(), false),
                 );
             }
@@ -1486,6 +1517,8 @@ impl SymbolResolverEditorView {
             SymbolicResolverNode::LocalField { .. } => SymbolResolverNodeKind::LocalField,
             SymbolicResolverNode::RelativeSymbolField { .. } => SymbolResolverNodeKind::RelativeSymbolField,
             SymbolicResolverNode::GlobalSymbolField { .. } => SymbolResolverNodeKind::GlobalSymbolField,
+            SymbolicResolverNode::RelativePointerChain { .. } => SymbolResolverNodeKind::RelativePointerChain,
+            SymbolicResolverNode::GlobalPointerChain { .. } => SymbolResolverNodeKind::GlobalPointerChain,
             SymbolicResolverNode::TypeSize { .. } => SymbolResolverNodeKind::TypeSize,
             SymbolicResolverNode::Binary { .. } => SymbolResolverNodeKind::Operation,
         }
@@ -1497,6 +1530,8 @@ impl SymbolResolverEditorView {
             SymbolResolverNodeKind::LocalField => "Local Field",
             SymbolResolverNodeKind::RelativeSymbolField => "Relative Symbol Field",
             SymbolResolverNodeKind::GlobalSymbolField => "Global Symbol Field",
+            SymbolResolverNodeKind::RelativePointerChain => "Relative Pointer Chain",
+            SymbolResolverNodeKind::GlobalPointerChain => "Global Pointer Chain",
             SymbolResolverNodeKind::TypeSize => "Type Size",
             SymbolResolverNodeKind::Operation => "Operation",
         }
@@ -1508,6 +1543,8 @@ impl SymbolResolverEditorView {
             "Local Field" => Some(SymbolResolverNodeKind::LocalField),
             "Relative Symbol Field" | "Symbol Field" => Some(SymbolResolverNodeKind::RelativeSymbolField),
             "Global Symbol Field" => Some(SymbolResolverNodeKind::GlobalSymbolField),
+            "Relative Pointer Chain" => Some(SymbolResolverNodeKind::RelativePointerChain),
+            "Global Pointer Chain" => Some(SymbolResolverNodeKind::GlobalPointerChain),
             "Type Size" => Some(SymbolResolverNodeKind::TypeSize),
             "Operation" => Some(SymbolResolverNodeKind::Operation),
             _ => None,
@@ -1535,6 +1572,16 @@ impl SymbolResolverEditorView {
                 format!("{}.{}", module_name, symbol_path),
                 TreeEntryKind::GlobalSymbolField,
             ),
+            SymbolicResolverNode::RelativePointerChain { pointer_chain } => (
+                String::from("Relative Pointer Chain"),
+                SymbolicPointerChainLink::display_text_list(pointer_chain.get_links()),
+                TreeEntryKind::RelativeSymbolField,
+            ),
+            SymbolicResolverNode::GlobalPointerChain { pointer_chain } => (
+                String::from("Global Pointer Chain"),
+                pointer_chain.to_string(),
+                TreeEntryKind::GlobalSymbolField,
+            ),
             SymbolicResolverNode::TypeSize { data_type_ref } => (String::from("Type Size"), data_type_ref.to_string(), TreeEntryKind::TypeSize),
             SymbolicResolverNode::Binary { operator, .. } => (format!("Operation {}", operator.label()), String::new(), TreeEntryKind::Operation),
         }
@@ -1558,6 +1605,8 @@ impl SymbolResolverEditorView {
             | SymbolicResolverNode::LocalField { .. }
             | SymbolicResolverNode::RelativeSymbolField { .. }
             | SymbolicResolverNode::GlobalSymbolField { .. }
+            | SymbolicResolverNode::RelativePointerChain { .. }
+            | SymbolicResolverNode::GlobalPointerChain { .. }
             | SymbolicResolverNode::TypeSize { .. } => None,
         }
     }
@@ -1580,6 +1629,8 @@ impl SymbolResolverEditorView {
             | SymbolicResolverNode::LocalField { .. }
             | SymbolicResolverNode::RelativeSymbolField { .. }
             | SymbolicResolverNode::GlobalSymbolField { .. }
+            | SymbolicResolverNode::RelativePointerChain { .. }
+            | SymbolicResolverNode::GlobalPointerChain { .. }
             | SymbolicResolverNode::TypeSize { .. } => None,
         }
     }

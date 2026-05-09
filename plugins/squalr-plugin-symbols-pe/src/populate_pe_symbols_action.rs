@@ -1102,6 +1102,8 @@ mod tests {
             SymbolicResolverNode::Literal(_)
             | SymbolicResolverNode::LocalField { .. }
             | SymbolicResolverNode::GlobalSymbolField { .. }
+            | SymbolicResolverNode::RelativePointerChain { .. }
+            | SymbolicResolverNode::GlobalPointerChain { .. }
             | SymbolicResolverNode::TypeSize { .. } => {}
         }
     }
@@ -1115,6 +1117,8 @@ mod tests {
             SymbolicResolverNode::Literal(_)
             | SymbolicResolverNode::LocalField { .. }
             | SymbolicResolverNode::RelativeSymbolField { .. }
+            | SymbolicResolverNode::RelativePointerChain { .. }
+            | SymbolicResolverNode::GlobalPointerChain { .. }
             | SymbolicResolverNode::TypeSize { .. } => false,
         }
     }

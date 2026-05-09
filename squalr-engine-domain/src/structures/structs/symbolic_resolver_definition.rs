@@ -24,6 +24,12 @@ pub enum SymbolicResolverNode {
         module_name: String,
         symbol_path: SymbolicResolverRelativeSymbolPath,
     },
+    RelativePointerChain {
+        pointer_chain: SymbolicPointerChain,
+    },
+    GlobalPointerChain {
+        pointer_chain: SymbolicPointerChain,
+    },
     TypeSize {
         data_type_ref: DataTypeRef,
     },
@@ -125,11 +131,47 @@ impl SymbolicResolverDefinition {
         ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
         ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     {
-        self.root_node.evaluate_with_symbol_fields(
+        self.evaluate_with_symbol_fields_and_pointer_chains(
             lookup_local_field,
             resolve_type_size_in_bytes,
             resolve_relative_symbol_field,
             resolve_global_symbol_field,
+            &mut |pointer_chain| Err(SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string())),
+            &|pointer_chain| Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string())),
+        )
+    }
+
+    pub fn evaluate_with_symbol_fields_and_pointer_chains<
+        LookupLocalField,
+        ResolveTypeSize,
+        ResolveRelativeSymbolField,
+        ResolveGlobalSymbolField,
+        ResolveRelativePointerChain,
+        ResolveGlobalPointerChain,
+    >(
+        &self,
+        lookup_local_field: &LookupLocalField,
+        resolve_type_size_in_bytes: &ResolveTypeSize,
+        resolve_relative_symbol_field: &mut ResolveRelativeSymbolField,
+        resolve_global_symbol_field: &ResolveGlobalSymbolField,
+        resolve_relative_pointer_chain: &mut ResolveRelativePointerChain,
+        resolve_global_pointer_chain: &ResolveGlobalPointerChain,
+    ) -> Result<i128, SymbolicResolverEvaluationError>
+    where
+        LookupLocalField: Fn(&str) -> Option<i128>,
+        ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+        ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveRelativePointerChain: FnMut(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    {
+        self.root_node.evaluate_with_symbol_fields_and_pointer_chains(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            resolve_relative_symbol_field,
+            resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
+            resolve_global_pointer_chain,
         )
     }
 
@@ -156,6 +198,14 @@ impl SymbolicResolverNode {
         symbol_path: SymbolicResolverRelativeSymbolPath,
     ) -> Self {
         Self::GlobalSymbolField { module_name, symbol_path }
+    }
+
+    pub fn new_relative_pointer_chain(pointer_chain: SymbolicPointerChain) -> Self {
+        Self::RelativePointerChain { pointer_chain }
+    }
+
+    pub fn new_global_pointer_chain(pointer_chain: SymbolicPointerChain) -> Self {
+        Self::GlobalPointerChain { pointer_chain }
     }
 
     pub fn new_type_size(data_type_ref: DataTypeRef) -> Self {
@@ -233,6 +283,40 @@ impl SymbolicResolverNode {
         ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
         ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
     {
+        self.evaluate_with_symbol_fields_and_pointer_chains(
+            lookup_local_field,
+            resolve_type_size_in_bytes,
+            resolve_relative_symbol_field,
+            resolve_global_symbol_field,
+            &mut |pointer_chain| Err(SymbolicResolverEvaluationError::UnknownRelativePointerChain(pointer_chain.to_string())),
+            &|pointer_chain| Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string())),
+        )
+    }
+
+    pub fn evaluate_with_symbol_fields_and_pointer_chains<
+        LookupLocalField,
+        ResolveTypeSize,
+        ResolveRelativeSymbolField,
+        ResolveGlobalSymbolField,
+        ResolveRelativePointerChain,
+        ResolveGlobalPointerChain,
+    >(
+        &self,
+        lookup_local_field: &LookupLocalField,
+        resolve_type_size_in_bytes: &ResolveTypeSize,
+        resolve_relative_symbol_field: &mut ResolveRelativeSymbolField,
+        resolve_global_symbol_field: &ResolveGlobalSymbolField,
+        resolve_relative_pointer_chain: &mut ResolveRelativePointerChain,
+        resolve_global_pointer_chain: &ResolveGlobalPointerChain,
+    ) -> Result<i128, SymbolicResolverEvaluationError>
+    where
+        LookupLocalField: Fn(&str) -> Option<i128>,
+        ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+        ResolveRelativeSymbolField: FnMut(&SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveGlobalSymbolField: Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveRelativePointerChain: FnMut(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+        ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    {
         match self {
             Self::Literal(value) => Ok(*value),
             Self::LocalField { field_name } => {
@@ -240,6 +324,8 @@ impl SymbolicResolverNode {
             }
             Self::RelativeSymbolField { symbol_path } => resolve_relative_symbol_field(symbol_path),
             Self::GlobalSymbolField { module_name, symbol_path } => resolve_global_symbol_field(module_name, symbol_path),
+            Self::RelativePointerChain { pointer_chain } => resolve_relative_pointer_chain(pointer_chain),
+            Self::GlobalPointerChain { pointer_chain } => resolve_global_pointer_chain(pointer_chain),
             Self::TypeSize { data_type_ref } => resolve_type_size_in_bytes(data_type_ref)
                 .map(i128::from)
                 .ok_or_else(|| SymbolicResolverEvaluationError::UnknownTypeSize(data_type_ref.to_string())),
@@ -248,17 +334,21 @@ impl SymbolicResolverNode {
                 left_node,
                 right_node,
             } => {
-                let left_value = left_node.evaluate_with_symbol_fields(
+                let left_value = left_node.evaluate_with_symbol_fields_and_pointer_chains(
                     lookup_local_field,
                     resolve_type_size_in_bytes,
                     resolve_relative_symbol_field,
                     resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
                 )?;
-                let right_value = right_node.evaluate_with_symbol_fields(
+                let right_value = right_node.evaluate_with_symbol_fields_and_pointer_chains(
                     lookup_local_field,
                     resolve_type_size_in_bytes,
                     resolve_relative_symbol_field,
                     resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
                 )?;
 
                 operator.evaluate(left_value, right_value)
@@ -286,7 +376,12 @@ impl SymbolicResolverNode {
                 left_node.collect_referenced_local_fields(referenced_local_fields);
                 right_node.collect_referenced_local_fields(referenced_local_fields);
             }
-            Self::Literal(_) | Self::RelativeSymbolField { .. } | Self::GlobalSymbolField { .. } | Self::TypeSize { .. } => {}
+            Self::Literal(_)
+            | Self::RelativeSymbolField { .. }
+            | Self::GlobalSymbolField { .. }
+            | Self::RelativePointerChain { .. }
+            | Self::GlobalPointerChain { .. }
+            | Self::TypeSize { .. } => {}
         }
     }
 }
@@ -497,6 +592,8 @@ pub enum SymbolicResolverEvaluationError {
     UnknownRelativeSymbolPath(String),
     UnknownGlobalSymbolPath(String),
     AmbiguousGlobalSymbolPath(String),
+    UnknownRelativePointerChain(String),
+    UnknownGlobalPointerChain(String),
     UnknownTypeSize(String),
     ResolverCycle(String),
     DivisionByZero,
@@ -513,6 +610,8 @@ impl fmt::Display for SymbolicResolverEvaluationError {
             Self::UnknownRelativeSymbolPath(symbol_path) => write!(formatter, "Unknown relative symbol path `{}`.", symbol_path),
             Self::UnknownGlobalSymbolPath(symbol_path) => write!(formatter, "Unknown global symbol path `{}`.", symbol_path),
             Self::AmbiguousGlobalSymbolPath(symbol_path) => write!(formatter, "Ambiguous global symbol path `{}`.", symbol_path),
+            Self::UnknownRelativePointerChain(pointer_chain) => write!(formatter, "Unknown relative pointer chain `{}`.", pointer_chain),
+            Self::UnknownGlobalPointerChain(pointer_chain) => write!(formatter, "Unknown global pointer chain `{}`.", pointer_chain),
             Self::UnknownTypeSize(type_id) => write!(formatter, "Unknown size for type `{}`.", type_id),
             Self::ResolverCycle(resolver_id) => write!(formatter, "Resolver cycle detected at `{}`.", resolver_id),
             Self::DivisionByZero => write!(formatter, "Division by zero."),
@@ -525,7 +624,8 @@ impl fmt::Display for SymbolicResolverEvaluationError {
 mod tests {
     use super::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath};
     use crate::structures::data_types::data_type_ref::DataTypeRef;
-    use crate::structures::memory::symbolic_pointer_chain::SymbolicPointerChainLink;
+    use crate::structures::data_values::pointer_scan_pointer_size::PointerScanPointerSize;
+    use crate::structures::memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink};
 
     #[test]
     fn resolver_evaluates_local_fields_and_type_sizes() {
@@ -579,6 +679,35 @@ mod tests {
             .expect("Expected resolver to evaluate.");
 
         assert_eq!(value, 7);
+    }
+
+    #[test]
+    fn resolver_evaluates_global_pointer_chains() {
+        let pointer_chain = SymbolicPointerChain::new(
+            String::from("game.exe"),
+            vec![
+                SymbolicPointerChainLink::Symbol(String::from("Globals")),
+                SymbolicPointerChainLink::Offset(0x20),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+        let resolver_definition = SymbolicResolverDefinition::new(SymbolicResolverNode::new_global_pointer_chain(pointer_chain.clone()));
+
+        let value = resolver_definition
+            .evaluate_with_symbol_fields_and_pointer_chains(
+                &|_| None,
+                &|_| None,
+                &mut |_| panic!("Expected no relative symbol field lookup."),
+                &|_, _| panic!("Expected no global symbol field lookup."),
+                &mut |_| panic!("Expected no relative pointer chain lookup."),
+                &|resolved_pointer_chain| {
+                    assert_eq!(resolved_pointer_chain, &pointer_chain);
+                    Ok(0x1234)
+                },
+            )
+            .expect("Expected resolver to evaluate.");
+
+        assert_eq!(value, 0x1234);
     }
 
     #[test]

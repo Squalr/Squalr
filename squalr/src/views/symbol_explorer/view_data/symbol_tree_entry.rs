@@ -2,6 +2,7 @@ use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayo
 use squalr_engine_api::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::container_type::ContainerType,
+    memory::symbolic_pointer_chain::SymbolicPointerChain,
     projects::{
         project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
         project_symbol_module_field::ProjectSymbolModuleField,
@@ -11,8 +12,9 @@ use squalr_engine_api::structures::{
         symbolic_global_symbol_resolver::{
             SymbolicGlobalSymbolResolverSession, SymbolicGlobalSymbolRoot, SymbolicGlobalSymbolRootType, resolve_global_symbol_field_value,
         },
+        symbolic_resolver_definition::SymbolicResolverEvaluationError,
         symbolic_struct_definition::SymbolicStructDefinition,
-        symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields},
+        symbolic_struct_resolver::{SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_pointer_chains},
     },
 };
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -178,6 +180,29 @@ where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
 {
+    build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+        project_symbol_catalog,
+        expanded_tree_node_keys,
+        resolved_pointer_targets_by_node_key,
+        resolve_primitive_size_in_bytes,
+        read_scalar_field,
+        |pointer_chain| Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string())),
+    )
+}
+
+pub fn build_symbol_tree_entries_with_scalar_reader_and_pointer_chains<ResolvePrimitiveSize, ReadScalarField, ResolveGlobalPointerChain>(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    expanded_tree_node_keys: &HashSet<String>,
+    resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
+    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
+    read_scalar_field: ReadScalarField,
+    resolve_global_pointer_chain: ResolveGlobalPointerChain,
+) -> Vec<SymbolTreeEntry>
+where
+    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
+    ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
+    ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
+{
     let mut symbol_tree_entries = Vec::new();
     let mut module_symbol_claims: BTreeMap<String, Vec<ProjectSymbolClaim>> = BTreeMap::new();
     let mut module_fields_by_name: BTreeMap<String, Vec<ProjectSymbolModuleField>> = BTreeMap::new();
@@ -262,6 +287,7 @@ where
                 resolved_pointer_targets_by_node_key,
                 resolve_primitive_size_in_bytes,
                 read_scalar_field,
+                resolve_global_pointer_chain,
             );
 
             let claim_size_in_bytes = resolve_symbol_claim_size_in_bytes(project_symbol_catalog, &symbol_claim, resolve_primitive_size_in_bytes);
@@ -299,6 +325,7 @@ where
                 resolved_pointer_targets_by_node_key,
                 resolve_primitive_size_in_bytes,
                 read_scalar_field,
+                resolve_global_pointer_chain,
             );
         }
     }
@@ -389,7 +416,7 @@ fn module_node_key(module_name: &str) -> String {
     format!("module:{}", module_name)
 }
 
-fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField>(
+fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField, ResolveGlobalPointerChain>(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim: &ProjectSymbolClaim,
@@ -398,9 +425,11 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField>(
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     read_scalar_field: ReadScalarField,
+    resolve_global_pointer_chain: ResolveGlobalPointerChain,
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
+    ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
     let root_node_key = if symbol_claim
         .get_metadata()
@@ -449,6 +478,7 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField>(
             resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_global_pointer_chain,
             &mut HashSet::new(),
         ),
         ResolvedSymbolClaimType::Field {
@@ -467,12 +497,13 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField>(
             resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_global_pointer_chain,
             &mut HashSet::new(),
         ),
     }
 }
 
-fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
+fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveGlobalPointerChain>(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim_locator_key: &str,
@@ -485,13 +516,15 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     read_scalar_field: ReadScalarField,
+    resolve_global_pointer_chain: ResolveGlobalPointerChain,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
+    ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
     let global_symbol_resolver_session = SymbolicGlobalSymbolResolverSession::default();
-    let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
+    let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_pointer_chains(
         struct_layout_definition,
         |data_type_ref| {
             Some(resolve_data_type_size_in_bytes(
@@ -536,6 +569,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
                 &offset_locator,
             )
         },
+        resolve_global_pointer_chain,
         &SymbolicStructResolverOptions::default(),
     );
 
@@ -607,13 +641,14 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
                 resolved_pointer_targets_by_node_key,
                 resolve_primitive_size_in_bytes,
                 read_scalar_field,
+                resolve_global_pointer_chain,
                 visited_struct_layout_ids,
             );
         }
     }
 }
 
-fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
+fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveGlobalPointerChain>(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim_locator_key: &str,
@@ -627,10 +662,12 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     read_scalar_field: ReadScalarField,
+    resolve_global_pointer_chain: ResolveGlobalPointerChain,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
+    ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
     match container_type {
         ContainerType::ArrayFixed(array_length) => append_fixed_array_element_entries(
@@ -648,6 +685,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
             resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_global_pointer_chain,
             visited_struct_layout_ids,
         ),
         ContainerType::PointerArrayFixed(pointer_size, array_length) => append_fixed_array_element_entries(
@@ -665,6 +703,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
             resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_global_pointer_chain,
             visited_struct_layout_ids,
         ),
         ContainerType::None => {
@@ -688,6 +727,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
                     resolved_pointer_targets_by_node_key,
                     resolve_primitive_size_in_bytes,
                     read_scalar_field,
+                    resolve_global_pointer_chain,
                     visited_struct_layout_ids,
                 );
 
@@ -733,6 +773,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
                     resolved_pointer_targets_by_node_key,
                     resolve_primitive_size_in_bytes,
                     read_scalar_field,
+                    resolve_global_pointer_chain,
                     visited_struct_layout_ids,
                 );
             }
@@ -741,7 +782,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
     }
 }
 
-fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
+fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField, ResolveGlobalPointerChain>(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim_locator_key: &str,
@@ -756,10 +797,12 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     read_scalar_field: ReadScalarField,
+    resolve_global_pointer_chain: ResolveGlobalPointerChain,
     visited_struct_layout_ids: &mut HashSet<String>,
 ) where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
+    ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
     if !data_type_ref_can_expand(project_symbol_catalog, data_type_ref, element_container_type, visited_struct_layout_ids) {
         return;
@@ -811,6 +854,7 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
                 resolved_pointer_targets_by_node_key,
                 resolve_primitive_size_in_bytes,
                 read_scalar_field,
+                resolve_global_pointer_chain,
                 visited_struct_layout_ids,
             );
         }
@@ -1661,6 +1705,69 @@ mod tests {
             values_entry.get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x200)
         );
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_resolves_dynamic_fields_through_global_pointer_chain_resolvers() {
+        use squalr_engine_api::structures::{
+            memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
+            pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+            projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField},
+        };
+
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x300);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Items"), 0x200, String::from("items")));
+        let pointer_chain = SymbolicPointerChain::new(
+            String::from("game.exe"),
+            vec![
+                SymbolicPointerChainLink::Symbol(String::from("Items")),
+                SymbolicPointerChainLink::Offset(0x20),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            vec![symbol_module],
+            vec![StructLayoutDescriptor::new(
+                String::from("items"),
+                SymbolicStructDefinition::new(
+                    String::from("items"),
+                    vec![SymbolicFieldDefinition::from_str("values:u16[resolver(items.count_via_pointer)] @ +0").expect("Expected values field to parse.")],
+                ),
+            )],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("items.count_via_pointer"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_global_pointer_chain(pointer_chain.clone())),
+            )],
+            Vec::new(),
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:game.exe"),
+            String::from("module_field:module:game.exe:200"),
+        ]);
+
+        let symbol_tree_entries = super::build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u16" => Some(2),
+                _ => None,
+            },
+            |_, _, _| Ok(None),
+            |resolved_pointer_chain| {
+                assert_eq!(resolved_pointer_chain, &pointer_chain);
+                Ok(4)
+            },
+        );
+
+        let values_entry = symbol_tree_entries
+            .iter()
+            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Items.values")
+            .expect("Expected dynamic values entry.");
+
+        assert_eq!(values_entry.get_display_type_id(), "u16[4]");
     }
 
     #[test]

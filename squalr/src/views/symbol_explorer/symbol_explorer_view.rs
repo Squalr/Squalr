@@ -20,7 +20,8 @@ use crate::views::{
             SymbolExplorerViewData,
         },
         symbol_tree_entry::{
-            ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries_with_scalar_reader, resolve_symbol_tree_entry_size_in_bytes,
+            ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries_with_scalar_reader_and_pointer_chains,
+            resolve_symbol_tree_entry_size_in_bytes,
         },
         symbol_tree_scalar_value::SymbolTreeScalarValue,
     },
@@ -54,15 +55,19 @@ use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{
     anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType,
 };
-use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
+use squalr_engine_api::structures::memory::{
+    pointer::Pointer,
+    pointer_chain_segment::PointerChainSegment,
+    symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
+};
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
     project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
     project_symbol_locator::ProjectSymbolLocator,
 };
 use squalr_engine_api::structures::structs::{
-    symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct,
-    valued_struct_field::ValuedStructField,
+    symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverEvaluationError,
+    symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField,
 };
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
@@ -1683,15 +1688,18 @@ impl SymbolExplorerView {
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entries: &[SymbolTreeEntry],
+        additional_pointer_snapshot_queries: Vec<VirtualSnapshotQuery>,
     ) {
-        let pointer_snapshot_queries = self.build_pointer_snapshot_queries(project_symbol_catalog, symbol_tree_entries);
+        let mut pointer_snapshot_queries = self.build_pointer_snapshot_queries(project_symbol_catalog, symbol_tree_entries);
+
+        pointer_snapshot_queries.extend(additional_pointer_snapshot_queries);
 
         self.app_context
             .engine_unprivileged_state
             .set_virtual_snapshot_queries(
                 Self::POINTER_CHILDREN_VIRTUAL_SNAPSHOT_ID,
                 Self::POINTER_CHILDREN_REFRESH_INTERVAL,
-                pointer_snapshot_queries,
+                SymbolTreeScalarValue::deduplicate_queries_by_id(pointer_snapshot_queries),
             );
         self.app_context
             .engine_unprivileged_state
@@ -1739,6 +1747,63 @@ impl SymbolExplorerView {
             ),
             symbolic_struct_definition,
         })
+    }
+
+    fn resolve_global_pointer_chain_from_pointer_snapshot(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolved_pointer_targets_by_query_id: &HashMap<String, ResolvedPointerTarget>,
+        resolver_pointer_snapshot_queries: &RefCell<Vec<VirtualSnapshotQuery>>,
+        pointer_chain: &SymbolicPointerChain,
+    ) -> Result<i128, SymbolicResolverEvaluationError> {
+        let query_id = Self::global_pointer_chain_query_id(pointer_chain);
+
+        if let Some(resolved_pointer_target) = resolved_pointer_targets_by_query_id.get(&query_id) {
+            return Ok(i128::from(resolved_pointer_target.get_target_locator().get_focus_address()));
+        }
+
+        let Some(pointer_snapshot_query) = Self::build_global_pointer_chain_virtual_snapshot_query(project_symbol_catalog, pointer_chain, query_id) else {
+            return Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string()));
+        };
+
+        resolver_pointer_snapshot_queries
+            .borrow_mut()
+            .push(pointer_snapshot_query);
+
+        Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string()))
+    }
+
+    fn build_global_pointer_chain_virtual_snapshot_query(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        pointer_chain: &SymbolicPointerChain,
+        query_id: String,
+    ) -> Option<VirtualSnapshotQuery> {
+        let resolved_pointer_chain = pointer_chain.with_resolved_symbols(|module_name, symbol_name| {
+            project_symbol_catalog
+                .find_module_symbol_offset_by_display_name(module_name, symbol_name)
+                .and_then(|symbol_offset| i64::try_from(symbol_offset).ok())
+        })?;
+        let root_offset = resolved_pointer_chain.get_numeric_root_offset()?;
+        let root_offset = u64::try_from(root_offset).ok()?;
+
+        Some(VirtualSnapshotQuery::Pointer {
+            query_id,
+            pointer: Pointer::new_with_size_and_segments(
+                root_offset,
+                resolved_pointer_chain.get_tail_links().to_vec(),
+                resolved_pointer_chain.get_module_name().to_string(),
+                resolved_pointer_chain.get_pointer_size(),
+            ),
+            symbolic_struct_definition: SymbolicStructDefinition::new_anonymous(Vec::new()),
+        })
+    }
+
+    fn global_pointer_chain_query_id(pointer_chain: &SymbolicPointerChain) -> String {
+        format!(
+            "resolver_pointer:{}:{}:{}",
+            pointer_chain.get_module_name(),
+            pointer_chain.get_pointer_size(),
+            SymbolicPointerChainLink::display_text_list(pointer_chain.get_links())
+        )
     }
 
     fn build_symbolic_struct_definition_for_symbol_type(
@@ -3622,24 +3687,53 @@ impl Widget for SymbolExplorerView {
 
             Ok(None)
         };
-        let structural_symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let previous_resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
+        let resolver_pointer_snapshot_queries = RefCell::new(Vec::new());
+        let resolve_global_pointer_chain = |pointer_chain: &SymbolicPointerChain| {
+            Self::resolve_global_pointer_chain_from_pointer_snapshot(
+                &project_symbol_catalog,
+                &previous_resolved_pointer_targets_by_node_key,
+                &resolver_pointer_snapshot_queries,
+                pointer_chain,
+            )
+        };
+        let structural_symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_global_pointer_chain,
         );
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
-        self.sync_pointer_child_virtual_snapshot(&project_symbol_catalog, &structural_symbol_tree_entries);
+        self.sync_pointer_child_virtual_snapshot(
+            &project_symbol_catalog,
+            &structural_symbol_tree_entries,
+            resolver_pointer_snapshot_queries.borrow().clone(),
+        );
         let resolved_pointer_targets_by_node_key = self.collect_resolved_pointer_targets_by_node_key();
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let resolve_global_pointer_chain = |pointer_chain: &SymbolicPointerChain| {
+            Self::resolve_global_pointer_chain_from_pointer_snapshot(
+                &project_symbol_catalog,
+                &resolved_pointer_targets_by_node_key,
+                &resolver_pointer_snapshot_queries,
+                pointer_chain,
+            )
+        };
+        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &resolved_pointer_targets_by_node_key,
             resolve_primitive_size_in_bytes,
             read_scalar_field,
+            resolve_global_pointer_chain,
         );
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
+        self.sync_pointer_child_virtual_snapshot(
+            &project_symbol_catalog,
+            &symbol_tree_entries,
+            resolver_pointer_snapshot_queries.borrow().clone(),
+        );
         self.sync_symbol_preview_virtual_snapshot(&project_symbol_catalog, &symbol_tree_entries);
         let preview_values_by_node_key = self.collect_preview_values_by_node_key(&symbol_tree_entries);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(self.symbol_explorer_view_data.clone(), &symbol_tree_entries);
@@ -3959,14 +4053,19 @@ mod tests {
             data_type_ref::DataTypeRef,
         },
         data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
-        memory::pointer_chain_segment::PointerChainSegment,
+        memory::{
+            pointer_chain_segment::PointerChainSegment,
+            symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
+        },
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::{
             project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
-            project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
+            project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator, project_symbol_module::ProjectSymbolModule,
+            project_symbol_module_field::ProjectSymbolModuleField,
         },
         structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct},
     };
+    use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 
     fn create_symbol_claim_tree_entry(
         display_name: &str,
@@ -4099,6 +4198,43 @@ mod tests {
             false,
             false,
         )
+    }
+
+    #[test]
+    fn build_global_pointer_chain_virtual_snapshot_query_resolves_symbolic_links() {
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x1000);
+
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("Globals"), 0x80, String::from("globals")));
+
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
+        let pointer_chain = SymbolicPointerChain::new(
+            String::from("game.exe"),
+            vec![
+                SymbolicPointerChainLink::Symbol(String::from("Globals")),
+                SymbolicPointerChainLink::Offset(0x20),
+            ],
+            PointerScanPointerSize::Pointer64,
+        );
+        let pointer_snapshot_query =
+            SymbolExplorerView::build_global_pointer_chain_virtual_snapshot_query(&project_symbol_catalog, &pointer_chain, String::from("resolver_pointer"))
+                .expect("Expected pointer snapshot query.");
+
+        let VirtualSnapshotQuery::Pointer {
+            query_id,
+            pointer,
+            symbolic_struct_definition,
+        } = pointer_snapshot_query
+        else {
+            panic!("Expected pointer query.");
+        };
+
+        assert_eq!(query_id, "resolver_pointer");
+        assert_eq!(pointer.get_address(), 0x80);
+        assert_eq!(pointer.get_module_name(), "game.exe");
+        assert_eq!(pointer.get_offset_segments(), &[SymbolicPointerChainLink::Offset(0x20)]);
+        assert!(symbolic_struct_definition.get_fields().is_empty());
     }
 
     #[test]

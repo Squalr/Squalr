@@ -2,6 +2,8 @@ use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use epaint::Pos2;
 use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
+use squalr_engine_api::structures::memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink};
+use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::structs::symbolic_resolver_definition::{
     SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath,
@@ -331,6 +333,15 @@ impl SymbolResolverEditorViewData {
             SymbolResolverNodeKind::GlobalSymbolField => {
                 SymbolicResolverNode::new_global_symbol_field(String::from("module"), SymbolicResolverRelativeSymbolPath::from_dot_path("Symbol.Field"))
             }
+            SymbolResolverNodeKind::RelativePointerChain => SymbolicResolverNode::new_relative_pointer_chain(SymbolicPointerChain::new_absolute(
+                vec![SymbolicPointerChainLink::Offset(0)],
+                PointerScanPointerSize::Pointer64,
+            )),
+            SymbolResolverNodeKind::GlobalPointerChain => SymbolicResolverNode::new_global_pointer_chain(SymbolicPointerChain::new(
+                String::from("module"),
+                vec![SymbolicPointerChainLink::Offset(0)],
+                PointerScanPointerSize::Pointer64,
+            )),
             SymbolResolverNodeKind::TypeSize => SymbolicResolverNode::new_type_size(default_data_type_ref),
             SymbolResolverNodeKind::Operation => SymbolicResolverNode::new_binary(
                 SymbolicResolverBinaryOperator::Add,
@@ -453,6 +464,8 @@ pub enum SymbolResolverNodeKind {
     LocalField,
     RelativeSymbolField,
     GlobalSymbolField,
+    RelativePointerChain,
+    GlobalPointerChain,
     TypeSize,
     Operation,
 }
