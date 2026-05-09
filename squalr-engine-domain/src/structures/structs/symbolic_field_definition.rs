@@ -23,6 +23,8 @@ pub struct SymbolicFieldDefinition {
     display_count_resolution: SymbolicFieldCountResolution,
     #[serde(default, skip_serializing_if = "SymbolicFieldOffsetResolution::is_sequential")]
     offset_resolution: SymbolicFieldOffsetResolution,
+    #[serde(default, skip_serializing_if = "is_false")]
+    is_hidden: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +104,7 @@ impl SymbolicFieldDefinition {
             count_resolution: SymbolicFieldCountResolution::Inferred,
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
+            is_hidden: false,
         }
     }
 
@@ -117,6 +120,7 @@ impl SymbolicFieldDefinition {
             count_resolution: SymbolicFieldCountResolution::Inferred,
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
+            is_hidden: false,
         }
     }
 
@@ -134,6 +138,7 @@ impl SymbolicFieldDefinition {
             count_resolution,
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution,
+            is_hidden: false,
         }
     }
 
@@ -152,7 +157,16 @@ impl SymbolicFieldDefinition {
             count_resolution,
             display_count_resolution,
             offset_resolution,
+            is_hidden: false,
         }
+    }
+
+    pub fn with_hidden(
+        mut self,
+        is_hidden: bool,
+    ) -> Self {
+        self.is_hidden = is_hidden;
+        self
     }
 
     pub fn get_valued_struct_field(
@@ -279,6 +293,10 @@ impl SymbolicFieldDefinition {
     pub fn get_offset_resolution(&self) -> &SymbolicFieldOffsetResolution {
         &self.offset_resolution
     }
+
+    pub fn is_hidden(&self) -> bool {
+        self.is_hidden
+    }
 }
 
 impl FromStr for SymbolicFieldDefinition {
@@ -291,6 +309,7 @@ impl FromStr for SymbolicFieldDefinition {
         } else {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
+        let (field_definition_string, is_hidden) = parse_hidden_flag(field_definition_string);
         let (field_definition_string, display_count_resolution) = parse_display_count_resolution(field_definition_string)?;
         let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
             let trimmed_field_name = field_name.trim();
@@ -366,6 +385,7 @@ impl FromStr for SymbolicFieldDefinition {
                 count_resolution,
                 display_count_resolution,
                 offset_resolution,
+                is_hidden,
             })
         } else {
             Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
@@ -375,7 +395,8 @@ impl FromStr for SymbolicFieldDefinition {
                 count_resolution,
                 display_count_resolution,
                 offset_resolution,
-            ))
+            )
+            .with_hidden(is_hidden))
         }
     }
 }
@@ -404,6 +425,10 @@ impl fmt::Display for SymbolicFieldDefinition {
             SymbolicFieldCountResolution::Resolver(resolver_id) => {
                 field_text = format!("{} display resolver({})", field_text, resolver_id);
             }
+        }
+
+        if self.is_hidden {
+            field_text = format!("{} hidden", field_text);
         }
 
         match &self.offset_resolution {
@@ -450,6 +475,19 @@ fn split_pointer_suffix(type_part: &str) -> Result<(&str, Option<PointerScanPoin
     }
 
     Ok((type_part, None))
+}
+
+fn parse_hidden_flag(field_definition_string: &str) -> (&str, bool) {
+    let trimmed_field_definition_string = field_definition_string.trim();
+    let Some(field_definition_without_hidden) = trimmed_field_definition_string.strip_suffix(" hidden") else {
+        return (trimmed_field_definition_string, false);
+    };
+
+    (field_definition_without_hidden.trim(), true)
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 fn parse_count_resolution(length_part: &str) -> Result<SymbolicFieldCountResolution, String> {
@@ -625,6 +663,16 @@ mod tests {
             &SymbolicFieldCountResolution::new_resolver(String::from("entity.count"))
         );
         assert_eq!(symbolic_field_definition.to_string(), "entities:u64[1024] display resolver(entity.count)");
+    }
+
+    #[test]
+    fn parse_hidden_field_round_trips() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("reserved:u8[12] hidden").expect("Expected hidden field definition to parse.");
+
+        assert_eq!(symbolic_field_definition.get_field_name(), "reserved");
+        assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::ArrayFixed(12));
+        assert!(symbolic_field_definition.is_hidden());
+        assert_eq!(symbolic_field_definition.to_string(), "reserved:u8[12] hidden");
     }
 
     #[test]

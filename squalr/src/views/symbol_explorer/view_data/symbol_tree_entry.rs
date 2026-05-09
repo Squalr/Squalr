@@ -545,6 +545,10 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
         .zip(resolved_symbolic_struct.get_fields())
         .enumerate()
     {
+        if field_definition.is_hidden() {
+            continue;
+        }
+
         let field_display_name = if field_definition.get_field_name().is_empty() {
             format!("field_{}", field_index)
         } else {
@@ -1706,6 +1710,53 @@ mod tests {
         assert_eq!(symbol_tree_entries[1].get_display_name(), "Blob");
         assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[300]");
         assert_eq!(symbol_tree_entries[1].can_expand(), false);
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_omits_hidden_storage_fields_but_preserves_offsets() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![StructLayoutDescriptor::new(
+                String::from("header"),
+                SymbolicStructDefinition::new(
+                    String::from("header"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("reserved:u8[12] hidden").expect("Expected hidden field to parse."),
+                        SymbolicFieldDefinition::from_str("value:u32").expect("Expected value field to parse."),
+                    ],
+                ),
+            )],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("Header"),
+                0x100,
+                String::from("header"),
+            )],
+        );
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([
+                String::from("module:Absolute / Unmapped"),
+                String::from("claim:absolute:100"),
+            ]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                _ => None,
+            },
+        );
+
+        assert!(
+            !symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Header.reserved")
+        );
+        let value_entry = symbol_tree_entries
+            .iter()
+            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Header.value")
+            .expect("Expected visible value field.");
+
+        assert_eq!(value_entry.get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10C));
     }
 
     #[test]

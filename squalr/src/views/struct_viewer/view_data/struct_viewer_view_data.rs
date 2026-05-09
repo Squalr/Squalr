@@ -64,6 +64,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME: &'static str = "__symbol_struct_field_name";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE: &'static str = "__symbol_struct_field_data_type";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND: &'static str = "__symbol_struct_field_container_kind";
+    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN: &'static str = "__symbol_struct_field_hidden";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_struct_field_fixed_array_length";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER: &'static str = "__symbol_struct_field_count_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_struct_field_display_count_resolver";
@@ -557,6 +558,7 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME => String::from("Name"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE => String::from("Data Type"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND => String::from("Container"),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN => String::from("Hidden"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER => String::from("Count Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),

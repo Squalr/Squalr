@@ -40,6 +40,7 @@ pub struct SymbolStructFieldEditDraft {
     pub field_name: String,
     pub data_type_selection: DataTypeSelection,
     pub container_edit: SymbolStructFieldContainerEdit,
+    pub is_hidden: bool,
     pub offset_mode: SymbolStructFieldOffsetMode,
     pub offset_resolver_id: String,
 }
@@ -599,7 +600,8 @@ impl SymbolStructEditorViewData {
                 count_resolution,
                 display_count_resolution,
                 offset_resolution,
-            );
+            )
+            .with_hidden(field_draft.is_hidden);
 
             symbolic_field_definitions.push(symbolic_field_definition);
         }
@@ -859,6 +861,7 @@ impl SymbolStructFieldEditDraft {
             field_name: String::new(),
             data_type_selection: DataTypeSelection::new(default_data_type_ref),
             container_edit: SymbolStructFieldContainerEdit::default(),
+            is_hidden: false,
             offset_mode: SymbolStructFieldOffsetMode::Sequential,
             offset_resolver_id: String::new(),
         }
@@ -875,6 +878,7 @@ impl SymbolStructFieldEditDraft {
             field_name: symbolic_field_definition.get_field_name().to_string(),
             data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
             container_edit: SymbolStructFieldContainerEdit::from_symbolic_field_definition(symbolic_field_definition),
+            is_hidden: symbolic_field_definition.is_hidden(),
             offset_mode,
             offset_resolver_id,
         }
@@ -1137,6 +1141,33 @@ mod tests {
         assert_eq!(
             round_tripped_field_text,
             "sections:win.Section[resolver(pe.section_count)] @ resolver(pe.section_table)"
+        );
+    }
+
+    #[test]
+    fn draft_round_trips_hidden_fields() {
+        let struct_layout_descriptor = StructLayoutDescriptor::new(
+            String::from("header"),
+            SymbolicStructDefinition::new(
+                String::from("header"),
+                vec![SymbolicFieldDefinition::from_str("reserved:u8[12] hidden").expect("Expected hidden field to parse.")],
+            ),
+        );
+
+        let draft = SymbolStructEditorViewData::create_draft_from_descriptor(&struct_layout_descriptor);
+        let field_draft = draft.field_drafts.first().expect("Expected field draft.");
+
+        assert!(field_draft.is_hidden);
+
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let round_tripped_descriptor =
+            SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected hidden draft to build.");
+
+        assert!(
+            round_tripped_descriptor
+                .get_struct_layout_definition()
+                .get_fields()[0]
+                .is_hidden()
         );
     }
 

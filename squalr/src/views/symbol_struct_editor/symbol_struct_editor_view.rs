@@ -271,7 +271,9 @@ impl SymbolStructEditorView {
             }
         };
 
-        format!("{}{}", data_type_id, container_suffix)
+        let visibility_suffix = if field_draft.is_hidden { " hidden" } else { "" };
+
+        format!("{}{}{}", data_type_id, container_suffix, visibility_suffix)
     }
 
     fn render_icon_button(
@@ -582,6 +584,8 @@ impl SymbolStructEditorView {
             .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(field_draft.container_edit.kind.label())
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string(if field_draft.is_hidden { "true" } else { "false" })
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN.to_string(), false),
         ];
 
         if matches!(
@@ -711,6 +715,9 @@ impl SymbolStructEditorView {
                     field_draft.container_edit.kind = container_kind;
                 }
             }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN => {
+                field_draft.is_hidden = Self::parse_bool_text(&edited_text).unwrap_or(field_draft.is_hidden);
+            }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH => {
                 if let Some(length) = Self::read_u64_field_value(edited_field) {
                     field_draft.container_edit.fixed_array_length = length.max(1).to_string();
@@ -751,6 +758,14 @@ impl SymbolStructEditorView {
             .iter()
             .copied()
             .find(|offset_mode| offset_mode.label() == label)
+    }
+
+    fn parse_bool_text(text: &str) -> Option<bool> {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "true" | "yes" | "1" | "hidden" => Some(true),
+            "false" | "no" | "0" | "visible" => Some(false),
+            _ => None,
+        }
     }
 
     fn read_u64_field_value(valued_struct_field: &ValuedStructField) -> Option<u64> {
@@ -1718,6 +1733,17 @@ mod tests {
         field_draft.container_edit.fixed_array_length = String::from("4");
 
         assert_eq!(SymbolStructEditorView::format_field_data_type_preview(&field_draft), "u16[4]");
+    }
+
+    #[test]
+    fn format_field_data_type_preview_includes_hidden_marker() {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("u8"));
+
+        field_draft.container_edit.kind = SymbolStructFieldContainerKind::FixedArray;
+        field_draft.container_edit.fixed_array_length = String::from("12");
+        field_draft.is_hidden = true;
+
+        assert_eq!(SymbolStructEditorView::format_field_data_type_preview(&field_draft), "u8[12] hidden");
     }
 
     #[test]
