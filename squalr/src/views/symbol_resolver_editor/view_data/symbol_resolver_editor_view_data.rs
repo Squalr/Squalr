@@ -436,6 +436,7 @@ impl SymbolResolverEditorViewData {
                 .cmp(&right_resolver.get_resolver_id().to_ascii_lowercase())
         });
         updated_project_symbol_catalog.set_symbolic_resolver_descriptors(resolver_descriptors);
+        updated_project_symbol_catalog.validate_local_resolver_dependencies()?;
 
         Ok(updated_project_symbol_catalog)
     }
@@ -554,6 +555,37 @@ mod tests {
         let result = SymbolResolverEditorViewData::build_resolver_descriptor(&project_symbol_catalog, &draft);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn apply_draft_to_catalog_rejects_local_resolver_field_cycles() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                String::from("cycle"),
+                SymbolicStructDefinition::new(
+                    String::from("cycle"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("left:u8[resolver(read_right)]").expect("Expected left field to parse."),
+                        SymbolicFieldDefinition::from_str("right:u8[resolver(read_left)]").expect("Expected right field to parse."),
+                    ],
+                ),
+            )],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("read_right"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("right"))),
+            )],
+            Vec::new(),
+        );
+        let draft = SymbolResolverEditDraft {
+            original_resolver_id: None,
+            resolver_id: String::from("read_left"),
+            resolver_definition: SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("left"))),
+        };
+
+        let result = SymbolResolverEditorViewData::apply_draft_to_catalog(&project_symbol_catalog, &draft);
+
+        assert!(result.is_err_and(|error| error.contains("dependency cycle")));
     }
 
     #[test]

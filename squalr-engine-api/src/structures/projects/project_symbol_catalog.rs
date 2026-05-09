@@ -4,7 +4,9 @@ use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 use crate::structures::projects::project_symbol_module_field::ProjectSymbolModuleField;
+use crate::structures::structs::symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectSymbolCatalog {
@@ -252,6 +254,153 @@ impl ProjectSymbolCatalog {
             && self.symbolic_resolver_descriptors.is_empty()
             && self.symbol_claims.is_empty()
     }
+
+    pub fn validate_local_resolver_dependencies(&self) -> Result<(), String> {
+        for struct_layout_descriptor in &self.struct_layout_descriptors {
+            self.validate_local_resolver_dependencies_for_struct_layout(struct_layout_descriptor)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn validate_local_resolver_dependencies_for_struct_layout(
+        &self,
+        struct_layout_descriptor: &StructLayoutDescriptor,
+    ) -> Result<(), String> {
+        let fields = struct_layout_descriptor
+            .get_struct_layout_definition()
+            .get_fields();
+        let field_names = fields
+            .iter()
+            .filter_map(|field_definition| {
+                let field_name = field_definition.get_field_name();
+
+                (!field_name.is_empty()).then_some(field_name.to_string())
+            })
+            .collect::<HashSet<_>>();
+        let mut dependencies_by_field_name = HashMap::new();
+
+        for field_definition in fields {
+            let field_name = field_definition.get_field_name();
+            if field_name.is_empty() {
+                continue;
+            }
+
+            let dependencies = self.collect_local_field_layout_dependencies(field_definition, &field_names);
+            dependencies_by_field_name.insert(field_name.to_string(), dependencies);
+        }
+
+        let mut visiting_field_names = HashSet::new();
+        let mut visited_field_names = HashSet::new();
+        let mut dependency_stack = Vec::new();
+
+        for field_name in dependencies_by_field_name.keys() {
+            if let Some(cycle_path) = Self::find_local_dependency_cycle(
+                field_name,
+                &dependencies_by_field_name,
+                &mut visiting_field_names,
+                &mut visited_field_names,
+                &mut dependency_stack,
+            ) {
+                return Err(format!(
+                    "Struct `{}` field layout resolvers contain a dependency cycle: {}.",
+                    struct_layout_descriptor.get_struct_layout_id(),
+                    cycle_path.join(" -> ")
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    fn collect_local_field_layout_dependencies(
+        &self,
+        field_definition: &SymbolicFieldDefinition,
+        field_names: &HashSet<String>,
+    ) -> Vec<String> {
+        let mut dependencies = Vec::new();
+
+        if let Some(expression) = field_definition.get_count_resolution().as_expression() {
+            dependencies.extend(expression.referenced_identifiers());
+        }
+
+        if let Some(expression) = field_definition.get_display_count_resolution().as_expression() {
+            dependencies.extend(expression.referenced_identifiers());
+        }
+
+        if let SymbolicFieldOffsetResolution::Expression(expression) = field_definition.get_offset_resolution() {
+            dependencies.extend(expression.referenced_identifiers());
+        }
+
+        dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_count_resolution().as_resolver_id()));
+        dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_display_count_resolution().as_resolver_id()));
+        dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_offset_resolution().as_resolver_id()));
+        dependencies.retain(|dependency| field_names.contains(dependency));
+        dependencies.sort();
+        dependencies.dedup();
+
+        dependencies
+    }
+
+    fn collect_local_field_dependencies_from_resolver(
+        &self,
+        resolver_id: Option<&str>,
+    ) -> Vec<String> {
+        resolver_id
+            .and_then(|resolver_id| self.find_symbolic_resolver_descriptor(resolver_id))
+            .map(|resolver_descriptor| {
+                resolver_descriptor
+                    .get_resolver_definition()
+                    .referenced_local_fields()
+            })
+            .unwrap_or_default()
+    }
+
+    fn find_local_dependency_cycle(
+        field_name: &str,
+        dependencies_by_field_name: &HashMap<String, Vec<String>>,
+        visiting_field_names: &mut HashSet<String>,
+        visited_field_names: &mut HashSet<String>,
+        dependency_stack: &mut Vec<String>,
+    ) -> Option<Vec<String>> {
+        if visited_field_names.contains(field_name) {
+            return None;
+        }
+
+        if visiting_field_names.contains(field_name) {
+            let cycle_start_dependency_index = dependency_stack
+                .iter()
+                .position(|dependency_field_name| dependency_field_name == field_name)
+                .unwrap_or(0);
+            let mut cycle_path = dependency_stack[cycle_start_dependency_index..].to_vec();
+            cycle_path.push(field_name.to_string());
+
+            return Some(cycle_path);
+        }
+
+        visiting_field_names.insert(field_name.to_string());
+        dependency_stack.push(field_name.to_string());
+
+        if let Some(dependencies) = dependencies_by_field_name.get(field_name) {
+            for dependency in dependencies {
+                if let Some(cycle_path) = Self::find_local_dependency_cycle(
+                    dependency,
+                    dependencies_by_field_name,
+                    visiting_field_names,
+                    visited_field_names,
+                    dependency_stack,
+                ) {
+                    return Some(cycle_path);
+                }
+            }
+        }
+
+        dependency_stack.pop();
+        visiting_field_names.remove(field_name);
+        visited_field_names.insert(field_name.to_string());
+
+        None
+    }
 }
 
 fn parse_symbol_locator_key(symbol_locator_key: &str) -> Option<ProjectSymbolLocator> {
@@ -271,8 +420,13 @@ fn parse_symbol_locator_key(symbol_locator_key: &str) -> Option<ProjectSymbolLoc
 #[cfg(test)]
 mod tests {
     use super::ProjectSymbolCatalog;
-    use crate::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
-    use crate::structures::structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode};
+    use crate::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
+    use crate::structures::structs::{
+        symbolic_field_definition::SymbolicFieldDefinition,
+        symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode},
+        symbolic_struct_definition::SymbolicStructDefinition,
+    };
+    use std::str::FromStr;
 
     #[test]
     fn catalog_stores_symbolic_resolver_descriptors() {
@@ -302,5 +456,65 @@ mod tests {
         )]);
 
         assert!(!project_symbol_catalog.is_empty());
+    }
+
+    #[test]
+    fn validate_local_resolver_dependencies_accepts_acyclic_resolver_field_dependencies() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                String::from("inventory"),
+                SymbolicStructDefinition::new(
+                    String::from("inventory"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field."),
+                        SymbolicFieldDefinition::from_str("items:u16[resolver(inventory.item_count)]").expect("Expected items field."),
+                    ],
+                ),
+            )],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("inventory.item_count"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("count"))),
+            )],
+            Vec::new(),
+        );
+
+        assert!(
+            project_symbol_catalog
+                .validate_local_resolver_dependencies()
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn validate_local_resolver_dependencies_rejects_resolver_field_cycles() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                String::from("cycle"),
+                SymbolicStructDefinition::new(
+                    String::from("cycle"),
+                    vec![
+                        SymbolicFieldDefinition::from_str("left:u8[resolver(read_right)]").expect("Expected left field."),
+                        SymbolicFieldDefinition::from_str("right:u8[resolver(read_left)]").expect("Expected right field."),
+                    ],
+                ),
+            )],
+            vec![
+                SymbolicResolverDescriptor::new(
+                    String::from("read_right"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("right"))),
+                ),
+                SymbolicResolverDescriptor::new(
+                    String::from("read_left"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("left"))),
+                ),
+            ],
+            Vec::new(),
+        );
+
+        let validation_result = project_symbol_catalog.validate_local_resolver_dependencies();
+
+        assert!(validation_result.is_err_and(|error| error.contains("left") && error.contains("right")));
     }
 }

@@ -15,7 +15,7 @@ use squalr_engine_api::structures::{
         symbolic_struct_definition::SymbolicStructDefinition,
     },
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SymbolStructFieldOffsetMode {
@@ -611,123 +611,9 @@ impl SymbolStructEditorViewData {
             SymbolicStructDefinition::new(trimmed_layout_id.to_string(), symbolic_field_definitions),
         );
 
-        Self::validate_local_expression_dependency_cycles(&struct_layout_descriptor)?;
+        project_symbol_catalog.validate_local_resolver_dependencies_for_struct_layout(&struct_layout_descriptor)?;
 
         Ok(struct_layout_descriptor)
-    }
-
-    fn validate_local_expression_dependency_cycles(struct_layout_descriptor: &StructLayoutDescriptor) -> Result<(), String> {
-        let fields = struct_layout_descriptor
-            .get_struct_layout_definition()
-            .get_fields();
-        let field_names = fields
-            .iter()
-            .filter_map(|field_definition| {
-                let field_name = field_definition.get_field_name();
-
-                (!field_name.is_empty()).then_some(field_name.to_string())
-            })
-            .collect::<HashSet<_>>();
-        let mut dependencies_by_field_name = HashMap::new();
-
-        for field_definition in fields {
-            let field_name = field_definition.get_field_name();
-            if field_name.is_empty() {
-                continue;
-            }
-
-            let dependencies = Self::collect_local_field_expression_dependencies(field_definition, &field_names);
-            dependencies_by_field_name.insert(field_name.to_string(), dependencies);
-        }
-
-        let mut visiting_field_names = HashSet::new();
-        let mut visited_field_names = HashSet::new();
-        let mut dependency_stack = Vec::new();
-
-        for field_name in dependencies_by_field_name.keys() {
-            if let Some(cycle_path) = Self::find_local_dependency_cycle(
-                field_name,
-                &dependencies_by_field_name,
-                &mut visiting_field_names,
-                &mut visited_field_names,
-                &mut dependency_stack,
-            ) {
-                return Err(format!("Field layout expressions contain a dependency cycle: {}.", cycle_path.join(" -> ")));
-            }
-        }
-
-        Ok(())
-    }
-
-    fn collect_local_field_expression_dependencies(
-        field_definition: &SymbolicFieldDefinition,
-        field_names: &HashSet<String>,
-    ) -> Vec<String> {
-        let mut dependencies = Vec::new();
-
-        if let Some(expression) = field_definition.get_count_resolution().as_expression() {
-            dependencies.extend(expression.referenced_identifiers());
-        }
-
-        if let Some(expression) = field_definition.get_display_count_resolution().as_expression() {
-            dependencies.extend(expression.referenced_identifiers());
-        }
-
-        if let SymbolicFieldOffsetResolution::Expression(expression) = field_definition.get_offset_resolution() {
-            dependencies.extend(expression.referenced_identifiers());
-        }
-
-        dependencies.retain(|dependency| field_names.contains(dependency));
-        dependencies.sort();
-        dependencies.dedup();
-
-        dependencies
-    }
-
-    fn find_local_dependency_cycle(
-        field_name: &str,
-        dependencies_by_field_name: &HashMap<String, Vec<String>>,
-        visiting_field_names: &mut HashSet<String>,
-        visited_field_names: &mut HashSet<String>,
-        dependency_stack: &mut Vec<String>,
-    ) -> Option<Vec<String>> {
-        if visited_field_names.contains(field_name) {
-            return None;
-        }
-
-        if visiting_field_names.contains(field_name) {
-            let cycle_start_index = dependency_stack
-                .iter()
-                .position(|dependency_field_name| dependency_field_name == field_name)
-                .unwrap_or(0);
-            let mut cycle_path = dependency_stack[cycle_start_index..].to_vec();
-            cycle_path.push(field_name.to_string());
-
-            return Some(cycle_path);
-        }
-
-        visiting_field_names.insert(field_name.to_string());
-        dependency_stack.push(field_name.to_string());
-
-        if let Some(dependencies) = dependencies_by_field_name.get(field_name) {
-            for dependency in dependencies {
-                if let Some(cycle_path) = Self::find_local_dependency_cycle(
-                    dependency,
-                    dependencies_by_field_name,
-                    visiting_field_names,
-                    visited_field_names,
-                    dependency_stack,
-                ) {
-                    return Some(cycle_path);
-                }
-            }
-        }
-
-        dependency_stack.pop();
-        visiting_field_names.remove(field_name);
-        visited_field_names.insert(field_name.to_string());
-
-        None
     }
 
     fn retarget_catalog_struct_layout_references(
