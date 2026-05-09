@@ -66,6 +66,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND: &'static str = "__symbol_struct_field_container_kind";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_struct_field_fixed_array_length";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER: &'static str = "__symbol_struct_field_count_resolver";
+    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_struct_field_display_count_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE: &'static str = "__symbol_struct_field_pointer_size";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE: &'static str = "__symbol_struct_field_offset_mode";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER: &'static str = "__symbol_struct_field_offset_resolver";
@@ -558,6 +559,7 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND => String::from("Container"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER => String::from("Count Resolver"),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE => String::from("Offset"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER => String::from("Offset Resolver"),

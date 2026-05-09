@@ -560,7 +560,10 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
         );
         let field_container_type = resolved_symbolic_field
             .get_displayed_element_count()
-            .and_then(|element_count| matches!(field_definition.get_container_type(), ContainerType::Array).then_some(ContainerType::ArrayFixed(element_count)))
+            .and_then(|element_count| {
+                matches!(field_definition.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_))
+                    .then_some(ContainerType::ArrayFixed(element_count))
+            })
             .unwrap_or_else(|| field_definition.get_container_type());
         let can_expand = data_type_ref_can_expand(
             project_symbol_catalog,
@@ -1467,6 +1470,92 @@ mod tests {
         assert_eq!(
             values_entry.get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 4)
+        );
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_expands_fixed_array_by_display_count_resolver() {
+        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+
+        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x3000);
+        symbol_module
+            .get_fields_mut()
+            .push(ProjectSymbolModuleField::new(String::from("EntityList"), 0, String::from("entity_list")));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            vec![symbol_module],
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("entity_list"),
+                    SymbolicStructDefinition::new(
+                        String::from("entity_list"),
+                        vec![
+                            SymbolicFieldDefinition::from_str("count:u32 @ +0").expect("Expected count field to parse."),
+                            SymbolicFieldDefinition::from_str("entities:Entity[1024] display resolver(entity_list.count) @ +8")
+                                .expect("Expected fixed display-count field to parse."),
+                            SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
+                        ],
+                    ),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("Entity"),
+                    SymbolicStructDefinition::new(
+                        String::from("Entity"),
+                        vec![SymbolicFieldDefinition::from_str("id:u64").expect("Expected id field to parse.")],
+                    ),
+                ),
+            ],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("entity_list.count"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("count"))),
+            )],
+            Vec::new(),
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:game.exe"),
+            String::from("module_field:module:game.exe:0"),
+            String::from("module_field:module:game.exe:0::entities"),
+        ]);
+
+        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+            |_, field_definition, _| match field_definition.get_field_name() {
+                "count" => Ok(Some(3)),
+                _ => Ok(None),
+            },
+        );
+
+        let entities_entry = symbol_tree_entries
+            .iter()
+            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities")
+            .expect("Expected fixed array entry.");
+
+        assert_eq!(entities_entry.get_display_type_id(), "Entity[3]");
+        assert!(
+            symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[2]")
+        );
+        assert!(
+            !symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[3]")
+        );
+
+        let tail_entry = symbol_tree_entries
+            .iter()
+            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.tail")
+            .expect("Expected tail entry.");
+
+        assert_eq!(
+            tail_entry.get_locator(),
+            &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x2008)
         );
     }
 

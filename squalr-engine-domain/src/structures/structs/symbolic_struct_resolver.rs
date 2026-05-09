@@ -305,17 +305,37 @@ where
             resolve_global_symbol_field,
             &mut Vec::new(),
         );
+        let display_element_count_result = resolve_field_display_element_count(
+            symbolic_struct_definition,
+            field_definition,
+            &element_count_result,
+            scalar_values_by_field_name,
+            resolve_type_size_in_bytes,
+            read_scalar_field,
+            resolve_resolver_definition,
+            resolve_struct_definition,
+            resolve_global_symbol_field,
+            &mut Vec::new(),
+        );
         let unit_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref());
-        let mut field_status = build_field_status(&field_offset_result, &element_count_result, unit_size_in_bytes);
-        let displayed_element_count = element_count_result
+        let mut field_status = build_field_status(&field_offset_result, &element_count_result, &display_element_count_result, unit_size_in_bytes);
+        let display_element_count = display_element_count_result
             .as_ref()
             .ok()
             .and_then(|element_count| *element_count)
-            .map(|element_count| element_count.min(options.get_max_dynamic_array_preview_elements()));
-        if let (Ok(Some(actual_element_count)), Some(displayed_element_count)) = (&element_count_result, displayed_element_count) {
-            if *actual_element_count > displayed_element_count && matches!(field_status, ResolvedSymbolicFieldStatus::Ready) {
+            .map(|display_element_count| {
+                element_count_result
+                    .as_ref()
+                    .ok()
+                    .and_then(|element_count| *element_count)
+                    .map(|storage_element_count| display_element_count.min(storage_element_count))
+                    .unwrap_or(display_element_count)
+            });
+        let displayed_element_count = display_element_count.map(|element_count| element_count.min(options.get_max_dynamic_array_preview_elements()));
+        if let (Some(display_element_count), Some(displayed_element_count)) = (display_element_count, displayed_element_count) {
+            if display_element_count > displayed_element_count && matches!(field_status, ResolvedSymbolicFieldStatus::Ready) {
                 field_status = ResolvedSymbolicFieldStatus::Clamped {
-                    actual_element_count: *actual_element_count,
+                    actual_element_count: display_element_count,
                     displayed_element_count,
                     reason: format!(
                         "Dynamic array count exceeds preview limit of {}.",
@@ -324,8 +344,13 @@ where
                 };
             }
         }
-        let field_size_in_bytes =
-            unit_size_in_bytes.and_then(|unit_size| displayed_element_count.and_then(|element_count| unit_size.checked_mul(element_count)));
+        let field_size_in_bytes = unit_size_in_bytes.and_then(|unit_size| {
+            element_count_result
+                .as_ref()
+                .ok()
+                .and_then(|element_count| *element_count)
+                .and_then(|element_count| unit_size.checked_mul(element_count))
+        });
         let field_offset = field_offset_result.as_ref().ok().copied().flatten();
 
         if let Some(field_size) = field_size_in_bytes {
@@ -436,6 +461,41 @@ where
             ContainerType::Array => Ok(None),
             ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Ok(Some(1)),
         },
+    }
+}
+
+fn resolve_field_display_element_count<ReadScalarField>(
+    root_struct_definition: &SymbolicStructDefinition,
+    field_definition: &SymbolicFieldDefinition,
+    element_count_result: &Result<Option<u64>, String>,
+    scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &impl Fn(&DataTypeRef) -> Option<u64>,
+    read_scalar_field: &ReadScalarField,
+    resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolver_stack: &mut Vec<String>,
+) -> Result<Option<u64>, String>
+where
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
+    match field_definition.get_display_count_resolution() {
+        SymbolicFieldCountResolution::Inferred => element_count_result.clone(),
+        SymbolicFieldCountResolution::Expression(count_expression) => {
+            evaluate_u64_expression(count_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
+        }
+        SymbolicFieldCountResolution::Resolver(resolver_id) => evaluate_u64_resolver(
+            root_struct_definition,
+            resolver_id,
+            scalar_values_by_field_name,
+            resolve_type_size_in_bytes,
+            read_scalar_field,
+            resolve_resolver_definition,
+            resolve_struct_definition,
+            resolve_global_symbol_field,
+            resolver_stack,
+        )
+        .map(Some),
     }
 }
 
@@ -634,6 +694,7 @@ where
 fn build_field_status(
     field_offset_result: &Result<Option<u64>, String>,
     element_count_result: &Result<Option<u64>, String>,
+    display_element_count_result: &Result<Option<u64>, String>,
     unit_size_in_bytes: Option<u64>,
 ) -> ResolvedSymbolicFieldStatus {
     if let Err(error) = field_offset_result {
@@ -641,6 +702,10 @@ fn build_field_status(
     }
 
     if let Err(error) = element_count_result {
+        return ResolvedSymbolicFieldStatus::Unresolved { reason: error.to_string() };
+    }
+
+    if let Err(error) = display_element_count_result {
         return ResolvedSymbolicFieldStatus::Unresolved { reason: error.to_string() };
     }
 
@@ -839,7 +904,39 @@ mod tests {
 
         assert_eq!(resolved_fields[1].get_element_count(), Some(1000));
         assert_eq!(resolved_fields[1].get_displayed_element_count(), Some(16));
-        assert_eq!(resolved_fields[1].get_size_in_bytes(), Some(512));
+        assert_eq!(resolved_fields[1].get_size_in_bytes(), Some(32000));
+    }
+
+    #[test]
+    fn resolver_uses_display_count_without_shrinking_fixed_storage() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("EntityList"),
+            vec![
+                SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
+                SymbolicFieldDefinition::from_str("entities:u64[1024] display count @ +8").expect("Expected entities field to parse."),
+                SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
+            ],
+        );
+
+        let resolved_struct = resolve_symbolic_struct_definition(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+            |field_definition, _, _| match field_definition.get_field_name() {
+                "count" => Ok(Some(3)),
+                _ => Ok(None),
+            },
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[1].get_element_count(), Some(1024));
+        assert_eq!(resolved_fields[1].get_displayed_element_count(), Some(3));
+        assert_eq!(resolved_fields[1].get_size_in_bytes(), Some(8192));
+        assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(8200));
     }
 
     #[test]

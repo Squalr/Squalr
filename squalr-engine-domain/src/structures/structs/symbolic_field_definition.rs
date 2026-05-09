@@ -19,6 +19,8 @@ pub struct SymbolicFieldDefinition {
     container_type: ContainerType,
     #[serde(default, skip_serializing_if = "SymbolicFieldCountResolution::is_inferred")]
     count_resolution: SymbolicFieldCountResolution,
+    #[serde(default, skip_serializing_if = "SymbolicFieldCountResolution::is_inferred")]
+    display_count_resolution: SymbolicFieldCountResolution,
     #[serde(default, skip_serializing_if = "SymbolicFieldOffsetResolution::is_sequential")]
     offset_resolution: SymbolicFieldOffsetResolution,
 }
@@ -98,6 +100,7 @@ impl SymbolicFieldDefinition {
             data_type_ref,
             container_type,
             count_resolution: SymbolicFieldCountResolution::Inferred,
+            display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
         }
     }
@@ -112,6 +115,7 @@ impl SymbolicFieldDefinition {
             data_type_ref,
             container_type,
             count_resolution: SymbolicFieldCountResolution::Inferred,
+            display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
         }
     }
@@ -128,6 +132,25 @@ impl SymbolicFieldDefinition {
             data_type_ref,
             container_type,
             count_resolution,
+            display_count_resolution: SymbolicFieldCountResolution::Inferred,
+            offset_resolution,
+        }
+    }
+
+    pub fn new_named_with_resolutions_and_display_count(
+        field_name: String,
+        data_type_ref: DataTypeRef,
+        container_type: ContainerType,
+        count_resolution: SymbolicFieldCountResolution,
+        display_count_resolution: SymbolicFieldCountResolution,
+        offset_resolution: SymbolicFieldOffsetResolution,
+    ) -> Self {
+        SymbolicFieldDefinition {
+            field_name,
+            data_type_ref,
+            container_type,
+            count_resolution,
+            display_count_resolution,
             offset_resolution,
         }
     }
@@ -231,6 +254,10 @@ impl SymbolicFieldDefinition {
         &self.count_resolution
     }
 
+    pub fn get_display_count_resolution(&self) -> &SymbolicFieldCountResolution {
+        &self.display_count_resolution
+    }
+
     pub fn get_offset_resolution(&self) -> &SymbolicFieldOffsetResolution {
         &self.offset_resolution
     }
@@ -246,6 +273,7 @@ impl FromStr for SymbolicFieldDefinition {
         } else {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
+        let (field_definition_string, display_count_resolution) = parse_display_count_resolution(field_definition_string)?;
         let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
             let trimmed_field_name = field_name.trim();
 
@@ -304,14 +332,16 @@ impl FromStr for SymbolicFieldDefinition {
                 data_type_ref: data_type,
                 container_type,
                 count_resolution,
+                display_count_resolution,
                 offset_resolution,
             })
         } else {
-            Ok(SymbolicFieldDefinition::new_named_with_resolutions(
+            Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
                 field_name,
                 data_type,
                 container_type,
                 count_resolution,
+                display_count_resolution,
                 offset_resolution,
             ))
         }
@@ -328,11 +358,21 @@ impl fmt::Display for SymbolicFieldDefinition {
             SymbolicFieldCountResolution::Expression(count_expression) => format!("[{}]", count_expression),
             SymbolicFieldCountResolution::Resolver(resolver_id) => format!("[resolver({})]", resolver_id),
         };
-        let field_text = if self.field_name.is_empty() {
+        let mut field_text = if self.field_name.is_empty() {
             format!("{}{}", self.data_type_ref, container_text)
         } else {
             format!("{}:{}{}", self.field_name, self.data_type_ref, container_text)
         };
+
+        match &self.display_count_resolution {
+            SymbolicFieldCountResolution::Inferred => {}
+            SymbolicFieldCountResolution::Expression(count_expression) => {
+                field_text = format!("{} display {}", field_text, count_expression);
+            }
+            SymbolicFieldCountResolution::Resolver(resolver_id) => {
+                field_text = format!("{} display resolver({})", field_text, resolver_id);
+            }
+        }
 
         match &self.offset_resolution {
             SymbolicFieldOffsetResolution::Expression(offset_expression) => return write!(formatter, "{} @ {}", field_text, offset_expression),
@@ -358,6 +398,18 @@ fn parse_offset_resolution(offset_part: &str) -> Result<SymbolicFieldOffsetResol
     }
 
     Ok(SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(offset_part)?))
+}
+
+fn parse_display_count_resolution(field_definition_string: &str) -> Result<(&str, SymbolicFieldCountResolution), String> {
+    let Some((field_definition_string, display_count_string)) = field_definition_string.rsplit_once(" display ") else {
+        return Ok((field_definition_string, SymbolicFieldCountResolution::Inferred));
+    };
+    let trimmed_display_count_string = display_count_string.trim();
+    if trimmed_display_count_string.is_empty() {
+        return Err(String::from("Display count resolver or expression is required."));
+    }
+
+    Ok((field_definition_string.trim(), parse_count_resolution(trimmed_display_count_string)?))
 }
 
 fn parse_resolver_reference(resolver_reference: &str) -> Option<String> {
@@ -454,6 +506,20 @@ mod tests {
             symbolic_field_definition.to_string(),
             "elements:game.Item[resolver(game.item_count)] @ resolver(game.item_offset)"
         );
+    }
+
+    #[test]
+    fn parse_fixed_array_display_count_resolver_round_trips() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("entities:u64[1024] display resolver(entity.count)")
+            .expect("Expected fixed array display resolver field definition to parse.");
+
+        assert_eq!(symbolic_field_definition.get_field_name(), "entities");
+        assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::ArrayFixed(1024));
+        assert_eq!(
+            symbolic_field_definition.get_display_count_resolution(),
+            &SymbolicFieldCountResolution::new_resolver(String::from("entity.count"))
+        );
+        assert_eq!(symbolic_field_definition.to_string(), "entities:u64[1024] display resolver(entity.count)");
     }
 
     #[test]

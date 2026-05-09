@@ -208,6 +208,17 @@ impl SymbolStructEditorView {
 
                 if fixed_array_length.is_empty() {
                     String::from("[?]")
+                } else if !field_draft
+                    .container_edit
+                    .display_count_resolver_id
+                    .trim()
+                    .is_empty()
+                {
+                    format!(
+                        "[{}] display resolver({})",
+                        fixed_array_length,
+                        field_draft.container_edit.display_count_resolver_id.trim()
+                    )
                 } else {
                     format!("[{}]", fixed_array_length)
                 }
@@ -552,11 +563,23 @@ impl SymbolStructEditorView {
                     DataTypeU64::get_value_from_primitive(length)
                         .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH.to_string(), false),
                 );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
+                        StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
+                        false,
+                    ),
+                );
             }
             SymbolStructFieldContainerKind::DynamicArray => {
                 fields.push(
                     DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.dynamic_array_count_resolver_id)
                         .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER.to_string(), false),
+                );
+                fields.push(
+                    DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
+                        StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
+                        false,
+                    ),
                 );
             }
             SymbolStructFieldContainerKind::Pointer => {
@@ -654,6 +677,9 @@ impl SymbolStructEditorView {
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER => {
                 field_draft.container_edit.dynamic_array_count_resolver_id = edited_text;
+            }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER => {
+                field_draft.container_edit.display_count_resolver_id = edited_text;
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE => {
                 if let Ok(pointer_size) = PointerScanPointerSize::from_str(edited_text.trim()) {
@@ -1651,6 +1677,20 @@ mod tests {
         field_draft.container_edit.fixed_array_length = String::from("4");
 
         assert_eq!(SymbolStructEditorView::format_field_data_type_preview(&field_draft), "u16[4]");
+    }
+
+    #[test]
+    fn format_field_data_type_preview_includes_fixed_array_display_resolver() {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("u64"));
+
+        field_draft.container_edit.kind = SymbolStructFieldContainerKind::FixedArray;
+        field_draft.container_edit.fixed_array_length = String::from("1024");
+        field_draft.container_edit.display_count_resolver_id = String::from("entity.count");
+
+        assert_eq!(
+            SymbolStructEditorView::format_field_data_type_preview(&field_draft),
+            "u64[1024] display resolver(entity.count)"
+        );
     }
 
     #[test]

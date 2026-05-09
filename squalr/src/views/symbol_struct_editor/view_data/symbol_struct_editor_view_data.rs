@@ -584,6 +584,7 @@ impl SymbolStructEditorViewData {
 
             let container_type = field_draft.container_edit.to_container_type()?;
             let count_resolution = field_draft.container_edit.to_count_resolution()?;
+            let display_count_resolution = field_draft.container_edit.to_display_count_resolution()?;
             let offset_resolution = field_draft.to_offset_resolution()?;
             let trimmed_field_name = field_draft.field_name.trim().to_string();
             if !trimmed_field_name.is_empty() && !field_names.insert(trimmed_field_name.clone()) {
@@ -591,8 +592,14 @@ impl SymbolStructEditorViewData {
             }
 
             let data_type_ref = DataTypeRef::new(&trimmed_data_type_id);
-            let symbolic_field_definition =
-                SymbolicFieldDefinition::new_named_with_resolutions(trimmed_field_name, data_type_ref, container_type, count_resolution, offset_resolution);
+            let symbolic_field_definition = SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
+                trimmed_field_name,
+                data_type_ref,
+                container_type,
+                count_resolution,
+                display_count_resolution,
+                offset_resolution,
+            );
 
             symbolic_field_definitions.push(symbolic_field_definition);
         }
@@ -657,6 +664,10 @@ impl SymbolStructEditorViewData {
         let mut dependencies = Vec::new();
 
         if let Some(expression) = field_definition.get_count_resolution().as_expression() {
+            dependencies.extend(expression.referenced_identifiers());
+        }
+
+        if let Some(expression) = field_definition.get_display_count_resolution().as_expression() {
             dependencies.extend(expression.referenced_identifiers());
         }
 
@@ -774,11 +785,12 @@ impl SymbolStructEditorViewData {
             return symbolic_field_definition.clone();
         }
 
-        SymbolicFieldDefinition::new_named_with_resolutions(
+        SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
             symbolic_field_definition.get_field_name().to_string(),
             replacement_data_type_ref.clone(),
             symbolic_field_definition.get_container_type(),
             symbolic_field_definition.get_count_resolution().clone(),
+            symbolic_field_definition.get_display_count_resolution().clone(),
             symbolic_field_definition.get_offset_resolution().clone(),
         )
     }
