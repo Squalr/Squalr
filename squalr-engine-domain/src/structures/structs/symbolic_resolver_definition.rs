@@ -1,4 +1,8 @@
-use crate::structures::data_types::data_type_ref::DataTypeRef;
+use crate::structures::{
+    data_types::data_type_ref::DataTypeRef,
+    data_values::pointer_scan_pointer_size::PointerScanPointerSize,
+    memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
+};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -32,7 +36,7 @@ pub enum SymbolicResolverNode {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolicResolverRelativeSymbolPath {
-    segments: Vec<String>,
+    pointer_chain: SymbolicPointerChain,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -289,9 +293,7 @@ impl SymbolicResolverNode {
 
 impl SymbolicResolverRelativeSymbolPath {
     pub fn new(segments: Vec<String>) -> Self {
-        Self {
-            segments: Self::normalize_segments(segments),
-        }
+        Self::from_links(Self::segments_to_links(segments))
     }
 
     pub fn from_dot_path(symbol_path: &str) -> Self {
@@ -305,8 +307,18 @@ impl SymbolicResolverRelativeSymbolPath {
         )
     }
 
-    pub fn get_segments(&self) -> &[String] {
-        &self.segments
+    pub fn from_links(links: Vec<SymbolicPointerChainLink>) -> Self {
+        Self {
+            pointer_chain: SymbolicPointerChain::new_allow_empty(String::new(), links, PointerScanPointerSize::Pointer64),
+        }
+    }
+
+    pub fn get_links(&self) -> &[SymbolicPointerChainLink] {
+        self.pointer_chain.get_links()
+    }
+
+    pub fn without_first_link(&self) -> Self {
+        Self::from_links(self.get_links().iter().skip(1).cloned().collect())
     }
 
     pub fn parse_segment(symbol_path_segment: &str) -> Result<SymbolicResolverRelativeSymbolPathSegment, SymbolicResolverEvaluationError> {
@@ -338,14 +350,30 @@ impl SymbolicResolverRelativeSymbolPath {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.segments.is_empty()
+        self.pointer_chain.is_empty()
     }
 
-    fn normalize_segments(segments: Vec<String>) -> Vec<String> {
+    fn segments_to_links(segments: Vec<String>) -> Vec<SymbolicPointerChainLink> {
         segments
             .into_iter()
             .map(|segment| segment.trim().to_string())
             .filter(|segment| !segment.is_empty())
+            .flat_map(|segment| {
+                let Ok(parsed_segment) = Self::parse_segment(&segment) else {
+                    return vec![SymbolicPointerChainLink::Symbol(segment)];
+                };
+                let mut links = vec![SymbolicPointerChainLink::Symbol(
+                    parsed_segment.get_field_name().to_string(),
+                )];
+
+                if parsed_segment.get_offset_in_bytes() != 0 {
+                    if let Ok(offset_in_bytes) = i64::try_from(parsed_segment.get_offset_in_bytes()) {
+                        links.push(SymbolicPointerChainLink::Offset(offset_in_bytes));
+                    }
+                }
+
+                links
+            })
             .collect()
     }
 }
@@ -389,7 +417,28 @@ impl fmt::Display for SymbolicResolverRelativeSymbolPath {
         &self,
         formatter: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        formatter.write_str(&self.segments.join("."))
+        let mut symbol_path_text = String::new();
+
+        for link in self.get_links() {
+            match link {
+                SymbolicPointerChainLink::Symbol(symbol_name) => {
+                    if !symbol_path_text.is_empty() {
+                        symbol_path_text.push('.');
+                    }
+
+                    symbol_path_text.push_str(symbol_name);
+                }
+                SymbolicPointerChainLink::Offset(offset) => {
+                    if *offset < 0 {
+                        symbol_path_text.push_str(&format!("-0x{:X}", offset.saturating_abs()));
+                    } else {
+                        symbol_path_text.push_str(&format!("+0x{:X}", offset));
+                    }
+                }
+            }
+        }
+
+        formatter.write_str(&symbol_path_text)
     }
 }
 
@@ -476,6 +525,7 @@ impl fmt::Display for SymbolicResolverEvaluationError {
 mod tests {
     use super::{SymbolicResolverBinaryOperator, SymbolicResolverDefinition, SymbolicResolverNode, SymbolicResolverRelativeSymbolPath};
     use crate::structures::data_types::data_type_ref::DataTypeRef;
+    use crate::structures::memory::symbolic_pointer_chain::SymbolicPointerChainLink;
 
     #[test]
     fn resolver_evaluates_local_fields_and_type_sizes() {
@@ -542,5 +592,20 @@ mod tests {
 
         assert_eq!(segment.get_field_name(), "value");
         assert_eq!(segment.get_offset_in_bytes(), 0);
+    }
+
+    #[test]
+    fn relative_symbol_paths_store_symbolic_pointer_chain_links() {
+        let symbol_path = SymbolicResolverRelativeSymbolPath::from_dot_path("Globals.items+4.value");
+
+        assert_eq!(
+            symbol_path.get_links(),
+            &[
+                SymbolicPointerChainLink::Symbol(String::from("Globals")),
+                SymbolicPointerChainLink::Symbol(String::from("items")),
+                SymbolicPointerChainLink::Offset(4),
+                SymbolicPointerChainLink::Symbol(String::from("value"))
+            ]
+        );
     }
 }

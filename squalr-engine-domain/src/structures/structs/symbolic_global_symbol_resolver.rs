@@ -1,6 +1,7 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::container_type::ContainerType,
+    memory::symbolic_pointer_chain::SymbolicPointerChainLink,
     structs::{
         symbolic_field_definition::SymbolicFieldDefinition,
         symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverEvaluationError, SymbolicResolverRelativeSymbolPath},
@@ -81,14 +82,18 @@ where
     ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     OffsetLocator: Fn(&SymbolLocator, u64) -> SymbolLocator,
 {
-    let Some(root_symbol_path_segment) = symbol_path.get_segments().first() else {
+    let Some(root_symbol_path_link) = symbol_path.get_links().first() else {
         return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
             "{}.{}",
             module_name, symbol_path
         )));
     };
-    let root_symbol_path_segment = SymbolicResolverRelativeSymbolPath::parse_segment(root_symbol_path_segment)
-        .map_err(|error| SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(error.to_string()))?;
+    let SymbolicPointerChainLink::Symbol(root_symbol_name) = root_symbol_path_link else {
+        return Err(SymbolicResolverEvaluationError::UnknownGlobalSymbolPath(format!(
+            "{}.{}",
+            module_name, symbol_path
+        )));
+    };
     let global_symbol_key = format!("{}.{}", module_name, symbol_path);
     {
         let mut global_symbol_stack = session.global_symbol_stack.borrow_mut();
@@ -105,9 +110,8 @@ where
     let result = resolve_global_symbol_field_value_inner(
         session,
         module_name,
-        root_symbol_path_segment.get_field_name(),
-        root_symbol_path_segment.get_offset_in_bytes(),
-        SymbolicResolverRelativeSymbolPath::new(symbol_path.get_segments().iter().skip(1).cloned().collect()),
+        root_symbol_name,
+        symbol_path.without_first_link(),
         resolve_global_symbol_roots,
         resolve_type_size_in_bytes,
         read_scalar_field,
@@ -132,7 +136,6 @@ fn resolve_global_symbol_field_value_inner<
     session: &SymbolicGlobalSymbolResolverSession,
     module_name: &str,
     root_symbol_name: &str,
-    root_symbol_offset_in_bytes: u64,
     relative_symbol_path: SymbolicResolverRelativeSymbolPath,
     resolve_global_symbol_roots: &ResolveGlobalSymbolRoots,
     resolve_type_size_in_bytes: &ResolveTypeSize,
@@ -172,7 +175,7 @@ where
             module_name, root_symbol_name
         )));
     };
-    let root_locator = offset_locator(&global_symbol_root.locator, root_symbol_offset_in_bytes);
+    let root_locator = global_symbol_root.locator;
 
     match global_symbol_root.symbol_type {
         SymbolicGlobalSymbolRootType::Struct { struct_layout_definition } => resolve_struct_symbol_path_value(
@@ -257,10 +260,41 @@ where
     ResolveStructDefinition: Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
     OffsetLocator: Fn(&SymbolLocator, u64) -> SymbolLocator,
 {
-    let Some(symbol_path_segment) = symbol_path.get_segments().first() else {
+    let Some(symbol_path_link) = symbol_path.get_links().first() else {
         return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
     };
-    let symbol_path_segment = SymbolicResolverRelativeSymbolPath::parse_segment(symbol_path_segment)?;
+    let is_terminal_link = symbol_path.get_links().len() == 1;
+
+    if let SymbolicPointerChainLink::Offset(offset_in_bytes) = symbol_path_link {
+        let Some(offset_in_bytes) = u64::try_from(*offset_in_bytes).ok() else {
+            return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
+        };
+        let offset_root_locator = offset_locator(root_locator, offset_in_bytes);
+        let remaining_symbol_path = symbol_path.without_first_link();
+
+        if remaining_symbol_path.is_empty() {
+            return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!(
+                "{} ends at an offset instead of a scalar field.",
+                symbol_path
+            )));
+        }
+
+        return resolve_struct_symbol_path_value(
+            session,
+            &offset_root_locator,
+            struct_layout_definition,
+            &remaining_symbol_path,
+            resolve_global_symbol_roots,
+            resolve_type_size_in_bytes,
+            read_scalar_field,
+            resolve_resolver_definition,
+            resolve_struct_definition,
+            offset_locator,
+        );
+    }
+    let SymbolicPointerChainLink::Symbol(field_name) = symbol_path_link else {
+        return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
+    };
     let resolved_symbolic_struct = resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields(
         struct_layout_definition,
         resolve_type_size_in_bytes,
@@ -292,7 +326,7 @@ where
         .iter()
         .zip(resolved_symbolic_struct.get_fields())
     {
-        if field_definition.get_field_name() != symbol_path_segment.get_field_name() {
+        if field_definition.get_field_name() != field_name {
             continue;
         }
 
@@ -302,10 +336,10 @@ where
                 resolved_symbolic_field,
             )));
         };
-        let field_locator = offset_locator(root_locator, field_offset.saturating_add(symbol_path_segment.get_offset_in_bytes()));
-        let remaining_symbol_path = SymbolicResolverRelativeSymbolPath::new(symbol_path.get_segments().iter().skip(1).cloned().collect());
+        let field_locator = offset_locator(root_locator, field_offset);
+        let remaining_symbol_path = symbol_path.without_first_link();
 
-        if remaining_symbol_path.is_empty() {
+        if is_terminal_link {
             if !matches!(resolved_symbolic_field.get_container_type(), ContainerType::None) {
                 return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!(
                     "{} is not a scalar field.",

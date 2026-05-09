@@ -1,6 +1,7 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
+    memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
     structs::{
         symbolic_expression::{SymbolicExpression, SymbolicExpressionEvaluationError},
         symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -575,11 +576,28 @@ where
     let mut current_struct_definition = root_struct_definition.clone();
     let mut current_base_offset = 0_u64;
 
-    for (symbol_path_segment_index, symbol_path_segment) in symbol_path.get_segments().iter().enumerate() {
-        let symbol_path_segment = SymbolicResolverRelativeSymbolPath::parse_segment(symbol_path_segment)?;
+    for (symbol_path_link_index, symbol_path_link) in symbol_path.get_links().iter().enumerate() {
+        let is_terminal_link = symbol_path_link_index + 1 == symbol_path.get_links().len();
+
+        let SymbolicPointerChainLink::Symbol(field_name) = symbol_path_link else {
+            let Some(resolved_base_offset) = apply_signed_offset(current_base_offset, symbol_path_link.as_offset().unwrap_or_default()) else {
+                return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()));
+            };
+
+            if is_terminal_link {
+                return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!(
+                    "{} ends at an offset instead of a scalar field.",
+                    symbol_path
+                )));
+            }
+
+            current_base_offset = resolved_base_offset;
+            continue;
+        };
+
         let (field_definition, field_offset) = resolve_named_field_offset_in_struct(
             symbol_path,
-            symbol_path_segment.get_field_name(),
+            field_name,
             &current_struct_definition,
             scalar_values_by_field_name,
             resolve_type_size_in_bytes,
@@ -589,12 +607,9 @@ where
             resolve_global_symbol_field,
             resolver_stack,
         )?;
-        let resolved_field_offset = current_base_offset
-            .saturating_add(field_offset)
-            .saturating_add(symbol_path_segment.get_offset_in_bytes());
-        let is_terminal_segment = symbol_path_segment_index + 1 == symbol_path.get_segments().len();
+        let resolved_field_offset = current_base_offset.saturating_add(field_offset);
 
-        if is_terminal_segment {
+        if is_terminal_link {
             if !matches!(field_definition.get_container_type(), ContainerType::None) {
                 return Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(format!(
                     "{} is not a scalar field.",
@@ -616,6 +631,13 @@ where
     }
 
     Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path.to_string()))
+}
+
+fn apply_signed_offset(
+    base_offset: u64,
+    offset_in_bytes: i64,
+) -> Option<u64> {
+    SymbolicPointerChain::apply_pointer_offset(base_offset, offset_in_bytes)
 }
 
 fn resolve_named_field_offset_in_struct<'definition, ResolveTypeSize, ReadScalarField>(
