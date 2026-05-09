@@ -355,7 +355,7 @@ where
 
         if let Some(field_size) = field_size_in_bytes {
             if let Some(field_offset) = field_offset {
-                next_sequential_offset = field_offset.saturating_add(field_size);
+                next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size));
             }
         }
 
@@ -656,7 +656,7 @@ where
         let field_size_in_bytes = resolve_field_static_size_in_bytes(field_definition, resolve_type_size_in_bytes);
 
         if let Some(field_size_in_bytes) = field_size_in_bytes {
-            next_sequential_offset = field_offset.saturating_add(field_size_in_bytes);
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
         }
     }
 
@@ -937,6 +937,82 @@ mod tests {
         assert_eq!(resolved_fields[1].get_displayed_element_count(), Some(3));
         assert_eq!(resolved_fields[1].get_size_in_bytes(), Some(8192));
         assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(8200));
+    }
+
+    #[test]
+    fn resolver_keeps_sequential_offset_after_overlapping_explicit_fields() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("UnionLike"),
+            vec![
+                SymbolicFieldDefinition::from_str("tag:u32 @ +0").expect("Expected tag field to parse."),
+                SymbolicFieldDefinition::from_str("wide:u64 @ +4").expect("Expected wide field to parse."),
+                SymbolicFieldDefinition::from_str("narrow:u32 @ +4").expect("Expected narrow field to parse."),
+                SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
+            ],
+        );
+
+        let resolved_struct = resolve_symbolic_struct_definition(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+            |_, _, _| Ok(None),
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[0].get_offset_in_bytes(), Some(0));
+        assert_eq!(resolved_fields[1].get_offset_in_bytes(), Some(4));
+        assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(4));
+        assert_eq!(resolved_fields[3].get_offset_in_bytes(), Some(12));
+        assert_eq!(resolved_fields[3].get_size_in_bytes(), Some(4));
+    }
+
+    #[test]
+    fn relative_symbol_fields_keep_sequential_offset_after_overlapping_explicit_fields() {
+        let union_definition = SymbolicStructDefinition::new(
+            String::from("UnionLike"),
+            vec![
+                SymbolicFieldDefinition::from_str("tag:u32 @ +0").expect("Expected tag field to parse."),
+                SymbolicFieldDefinition::from_str("wide:u64 @ +4").expect("Expected wide field to parse."),
+                SymbolicFieldDefinition::from_str("narrow:u32 @ +4").expect("Expected narrow field to parse."),
+                SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
+            ],
+        );
+        let wrapper_definition = SymbolicStructDefinition::new(
+            String::from("Wrapper"),
+            vec![
+                SymbolicFieldDefinition::from_str("value:UnionLike @ +0").expect("Expected value field to parse."),
+                SymbolicFieldDefinition::from_str("elements:u8[resolver(tail_count)] @ +16").expect("Expected elements field to parse."),
+            ],
+        );
+        let tail_count_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_relative_symbol_field(
+            SymbolicResolverRelativeSymbolPath::from_dot_path("value.tail"),
+        ));
+
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields(
+            &wrapper_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                "u64" => Some(8),
+                "UnionLike" => Some(16),
+                _ => None,
+            },
+            |field_definition, field_offset, _| match (field_definition.get_field_name(), field_offset) {
+                ("tail", 12) => Ok(Some(5)),
+                _ => Ok(None),
+            },
+            |resolver_id| (resolver_id == "tail_count").then_some(tail_count_resolver.clone()),
+            |data_type_ref| (data_type_ref.get_data_type_id() == "UnionLike").then_some(union_definition.clone()),
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[1].get_element_count(), Some(5));
+        assert_eq!(resolved_fields[1].get_status(), &ResolvedSymbolicFieldStatus::Ready);
     }
 
     #[test]
