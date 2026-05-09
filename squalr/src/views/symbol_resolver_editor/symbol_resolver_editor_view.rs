@@ -74,6 +74,7 @@ impl SymbolResolverEditorView {
     const TAKE_OVER_CONTENT_PADDING_TOP: f32 = 12.0;
     const TAKE_OVER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_ROW_SPACING: f32 = 8.0;
+    const TAKE_OVER_GROUPBOX_SIDE_PADDING: f32 = 8.0;
     const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
@@ -721,35 +722,18 @@ impl SymbolResolverEditorView {
             .painter()
             .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
 
-        let mut header_user_interface = panel_user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(header_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-        header_user_interface.set_clip_rect(header_rect);
-
-        let title_width = (header_rect.width() - Self::TAKE_OVER_TITLE_PADDING_X).max(0.0);
-        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
-        header_user_interface.painter().text(
-            pos2(title_rect.left() + Self::TAKE_OVER_TITLE_PADDING_X, title_rect.center().y),
-            Align2::LEFT_CENTER,
-            "Delete resolver",
-            theme.font_library.font_noto_sans.font_window_title.clone(),
-            theme.foreground,
-        );
-
         panel_user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_TOP);
         panel_user_interface.horizontal(|user_interface| {
-            user_interface.add_space(Self::TAKE_OVER_CONTENT_PADDING_X);
+            user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SIDE_PADDING);
             user_interface.allocate_ui_with_layout(
                 vec2(
-                    (user_interface.available_width() - Self::TAKE_OVER_CONTENT_PADDING_X * 2.0).max(0.0),
+                    (user_interface.available_width() - Self::TAKE_OVER_GROUPBOX_SIDE_PADDING).max(0.0),
                     user_interface.available_height(),
                 ),
                 Layout::top_down(Align::Min),
                 |user_interface| {
                     user_interface.add(
-                        GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
+                        GroupBox::new_from_theme(theme, "Delete Resolver", |user_interface| {
                             user_interface.label(RichText::new(format!("Delete `{}`?", resolver_id)).color(theme.foreground));
                             user_interface.add_space(4.0);
                             let (usage_text, usage_text_color) = if usage_count == 0 {

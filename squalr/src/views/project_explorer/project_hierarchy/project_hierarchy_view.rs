@@ -1860,67 +1860,71 @@ impl Widget for ProjectHierarchyView {
                             user_interface.available_size(),
                             Layout::centered_and_justified(Direction::TopDown),
                             |user_interface| {
-                                let panel_width = user_interface.available_width();
+                                let groupbox_side_padding = 8.0;
+                                let panel_width = (user_interface.available_width() - groupbox_side_padding * 2.0).max(0.0);
 
-                                user_interface.add(
-                                    GroupBox::new_from_theme(theme, "Delete project item(s)", |user_interface| {
-                                        ScrollArea::vertical()
-                                            .id_salt("project_hierarchy_delete_confirmation")
-                                            .max_height(160.0)
-                                            .auto_shrink([false, false])
-                                            .show(user_interface, |user_interface| {
-                                                user_interface.vertical_centered(|user_interface| {
-                                                    for project_item_path in &project_item_paths {
-                                                        let project_item_name = project_item_path
-                                                            .file_name()
-                                                            .and_then(|value| value.to_str())
-                                                            .unwrap_or_default();
-                                                        user_interface.label(
-                                                            RichText::new(project_item_name)
-                                                                .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
-                                                                .color(theme.foreground),
-                                                        );
+                                user_interface.horizontal(|user_interface| {
+                                    user_interface.add_space(groupbox_side_padding);
+                                    user_interface.add(
+                                        GroupBox::new_from_theme(theme, "Delete project item(s)", |user_interface| {
+                                            ScrollArea::vertical()
+                                                .id_salt("project_hierarchy_delete_confirmation")
+                                                .max_height(160.0)
+                                                .auto_shrink([false, false])
+                                                .show(user_interface, |user_interface| {
+                                                    user_interface.vertical_centered(|user_interface| {
+                                                        for project_item_path in &project_item_paths {
+                                                            let project_item_name = project_item_path
+                                                                .file_name()
+                                                                .and_then(|value| value.to_str())
+                                                                .unwrap_or_default();
+                                                            user_interface.label(
+                                                                RichText::new(project_item_name)
+                                                                    .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
+                                                                    .color(theme.foreground),
+                                                            );
+                                                        }
+                                                    });
+                                                });
+
+                                            user_interface.add_space(12.0);
+                                            user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                                                let button_size = vec2(120.0, 28.0);
+                                                let button_spacing = 12.0;
+                                                let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                                                let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                                                user_interface.horizontal(|user_interface| {
+                                                    user_interface.add_space(side_spacing);
+                                                    user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                                    let button_confirm_delete = user_interface.add_sized(
+                                                        button_size,
+                                                        eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
+                                                            .fill(theme.background_control_danger)
+                                                            .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                                                    );
+
+                                                    if button_confirm_delete.clicked() {
+                                                        delete_confirmation_project_item_paths = Some(project_item_paths);
+                                                    }
+
+                                                    let button_cancel = user_interface.add_sized(
+                                                        button_size,
+                                                        eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
+                                                            .fill(theme.background_control_secondary)
+                                                            .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                                    );
+
+                                                    if button_cancel.clicked() {
+                                                        should_cancel_take_over = true;
                                                     }
                                                 });
                                             });
-
-                                        user_interface.add_space(12.0);
-                                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                                            let button_size = vec2(120.0, 28.0);
-                                            let button_spacing = 12.0;
-                                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                                            user_interface.horizontal(|user_interface| {
-                                                user_interface.add_space(side_spacing);
-                                                user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                                let button_confirm_delete = user_interface.add_sized(
-                                                    button_size,
-                                                    eframe::egui::Button::new(RichText::new("Delete").color(theme.foreground))
-                                                        .fill(theme.background_control_danger)
-                                                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
-                                                );
-
-                                                if button_confirm_delete.clicked() {
-                                                    delete_confirmation_project_item_paths = Some(project_item_paths);
-                                                }
-
-                                                let button_cancel = user_interface.add_sized(
-                                                    button_size,
-                                                    eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                                        .fill(theme.background_control_secondary)
-                                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
-                                                );
-
-                                                if button_cancel.clicked() {
-                                                    should_cancel_take_over = true;
-                                                }
-                                            });
-                                        });
-                                    })
-                                    .desired_width(panel_width),
-                                );
+                                        })
+                                        .desired_width(panel_width),
+                                    );
+                                });
                             },
                         );
                     }

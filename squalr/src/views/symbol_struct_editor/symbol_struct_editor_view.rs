@@ -71,6 +71,7 @@ impl SymbolStructEditorView {
     const TAKE_OVER_HEADER_TITLE_PADDING_X: f32 = 8.0;
     const TAKE_OVER_SECTION_SPACING: f32 = 12.0;
     const TAKE_OVER_GROUPBOX_SPACING: f32 = 8.0;
+    const TAKE_OVER_GROUPBOX_SIDE_PADDING: f32 = 8.0;
     const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
@@ -289,6 +290,32 @@ impl SymbolStructEditorView {
         let theme = &self.app_context.theme;
         let button_response = user_interface.put(
             button_rect,
+            ThemeButton::new_from_theme(theme)
+                .with_tooltip_text(tooltip_text)
+                .background_color(Color32::TRANSPARENT)
+                .disabled(is_disabled),
+        );
+
+        IconDraw::draw_tinted(
+            user_interface,
+            button_response.rect,
+            icon_handle,
+            if is_disabled { theme.foreground_preview } else { theme.foreground },
+        );
+
+        button_response
+    }
+
+    fn render_flat_icon_button(
+        &self,
+        user_interface: &mut Ui,
+        icon_handle: &eframe::egui::TextureHandle,
+        tooltip_text: &str,
+        is_disabled: bool,
+    ) -> Response {
+        let theme = &self.app_context.theme;
+        let button_response = user_interface.add_sized(
+            vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
             ThemeButton::new_from_theme(theme)
                 .with_tooltip_text(tooltip_text)
                 .background_color(Color32::TRANSPARENT)
@@ -1358,23 +1385,15 @@ impl SymbolStructEditorView {
 
         self.render_take_over_panel(
             user_interface,
-            take_over_title,
-            if show_layout_name_editor { 0.0 } else { Self::ICON_BUTTON_WIDTH },
-            if show_layout_name_editor { Self::TAKE_OVER_CONTENT_PADDING_X } else { 0.0 },
-            if show_layout_name_editor { Self::TAKE_OVER_SECTION_SPACING } else { 0.0 },
-            |user_interface| {
-                if !show_layout_name_editor {
-                    let add_entry_response = self.render_icon_button(
-                        user_interface,
-                        &self.app_context.theme.icon_library.icon_handle_common_add,
-                        "Add a new field entry.",
-                        false,
-                    );
-                    if add_entry_response.clicked() {
-                        should_append_field = true;
-                    }
-                }
+            if show_layout_name_editor { take_over_title } else { "" },
+            0.0,
+            if show_layout_name_editor {
+                Self::TAKE_OVER_CONTENT_PADDING_X
+            } else {
+                Self::TAKE_OVER_GROUPBOX_SIDE_PADDING
             },
+            Self::TAKE_OVER_SECTION_SPACING,
+            |_user_interface| {},
             |user_interface| {
                 if show_layout_name_editor {
                     user_interface.add(
@@ -1404,7 +1423,20 @@ impl SymbolStructEditorView {
                     );
                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                 } else {
-                    self.render_field_rows(user_interface, &mut edited_draft, selected_field_index);
+                    let theme = &self.app_context.theme;
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "Edit Struct Layout", |user_interface| {
+                            let add_entry_response =
+                                self.render_flat_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Add a new field entry.", false);
+                            if add_entry_response.clicked() {
+                                should_append_field = true;
+                            }
+
+                            user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+                            self.render_field_rows(user_interface, &mut edited_draft, selected_field_index);
+                        })
+                        .desired_width(user_interface.available_width()),
+                    );
                     user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
                 }
 
