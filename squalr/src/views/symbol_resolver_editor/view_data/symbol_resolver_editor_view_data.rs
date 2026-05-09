@@ -1,4 +1,5 @@
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
+use epaint::Pos2;
 use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
@@ -19,10 +20,34 @@ pub struct SymbolResolverEditDraft {
     pub resolver_definition: SymbolicResolverDefinition,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct SymbolResolverContextMenuTarget {
+    resolver_id: String,
+    position: Pos2,
+}
+
+impl SymbolResolverContextMenuTarget {
+    pub fn new(
+        resolver_id: String,
+        position: Pos2,
+    ) -> Self {
+        Self { resolver_id, position }
+    }
+
+    pub fn get_resolver_id(&self) -> &str {
+        &self.resolver_id
+    }
+
+    pub fn get_position(&self) -> Pos2 {
+        self.position
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SymbolResolverEditorViewData {
     selected_resolver_id: Option<String>,
     selected_node_path: Option<Vec<usize>>,
+    resolver_context_menu_target: Option<SymbolResolverContextMenuTarget>,
     take_over_state: Option<SymbolResolverEditorTakeOverState>,
     baseline_draft: Option<SymbolResolverEditDraft>,
     draft: Option<SymbolResolverEditDraft>,
@@ -39,6 +64,10 @@ impl SymbolResolverEditorViewData {
 
     pub fn get_selected_node_path(&self) -> Option<&[usize]> {
         self.selected_node_path.as_deref()
+    }
+
+    pub fn get_resolver_context_menu_target(&self) -> Option<&SymbolResolverContextMenuTarget> {
+        self.resolver_context_menu_target.as_ref()
     }
 
     pub fn get_take_over_state(&self) -> Option<&SymbolResolverEditorTakeOverState> {
@@ -59,6 +88,7 @@ impl SymbolResolverEditorViewData {
     ) {
         self.selected_resolver_id = resolver_id;
         self.selected_node_path = None;
+        self.resolver_context_menu_target = None;
     }
 
     pub fn navigate_resolver_selection(
@@ -94,6 +124,7 @@ impl SymbolResolverEditorViewData {
     ) {
         self.selected_resolver_id = Some(resolver_id);
         self.selected_node_path = Some(node_path);
+        self.resolver_context_menu_target = None;
     }
 
     pub fn begin_create_resolver(
@@ -112,6 +143,7 @@ impl SymbolResolverEditorViewData {
 
         self.selected_resolver_id = None;
         self.selected_node_path = None;
+        self.resolver_context_menu_target = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::CreateResolver);
         self.baseline_draft = Some(baseline_draft.clone());
         self.draft = Some(baseline_draft);
@@ -124,6 +156,7 @@ impl SymbolResolverEditorViewData {
     ) {
         self.selected_resolver_id = Some(resolver_id.to_string());
         self.selected_node_path = None;
+        self.resolver_context_menu_target = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::RenameResolver {
             resolver_id: resolver_id.to_string(),
         });
@@ -140,6 +173,7 @@ impl SymbolResolverEditorViewData {
     ) {
         self.selected_resolver_id = Some(resolver_id.to_string());
         self.selected_node_path = Some(Vec::new());
+        self.resolver_context_menu_target = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::OpenResolver {
             resolver_id: resolver_id.to_string(),
         });
@@ -155,6 +189,7 @@ impl SymbolResolverEditorViewData {
     ) {
         self.selected_resolver_id = Some(resolver_id.to_string());
         self.selected_node_path = None;
+        self.resolver_context_menu_target = None;
         self.take_over_state = Some(SymbolResolverEditorTakeOverState::DeleteConfirmation {
             resolver_id: resolver_id.to_string(),
         });
@@ -165,8 +200,23 @@ impl SymbolResolverEditorViewData {
     pub fn cancel_take_over_state(&mut self) {
         self.take_over_state = None;
         self.selected_node_path = None;
+        self.resolver_context_menu_target = None;
         self.baseline_draft = None;
         self.draft = None;
+    }
+
+    pub fn show_resolver_context_menu(
+        &mut self,
+        resolver_id: String,
+        position: Pos2,
+    ) {
+        self.selected_resolver_id = Some(resolver_id.clone());
+        self.selected_node_path = None;
+        self.resolver_context_menu_target = Some(SymbolResolverContextMenuTarget::new(resolver_id, position));
+    }
+
+    pub fn hide_resolver_context_menu(&mut self) {
+        self.resolver_context_menu_target = None;
     }
 
     pub fn update_draft(
@@ -211,6 +261,16 @@ impl SymbolResolverEditorViewData {
         if self.selected_resolver_id.is_none() {
             self.selected_node_path = None;
         }
+
+        self.resolver_context_menu_target = self
+            .resolver_context_menu_target
+            .as_ref()
+            .filter(|context_menu_target| {
+                project_symbol_catalog
+                    .find_symbolic_resolver_descriptor(context_menu_target.get_resolver_id())
+                    .is_some()
+            })
+            .cloned();
 
         let should_clear_take_over_state = match self.take_over_state.as_ref() {
             Some(SymbolResolverEditorTakeOverState::CreateResolver) => false,

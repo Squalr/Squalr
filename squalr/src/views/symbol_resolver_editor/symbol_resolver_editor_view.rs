@@ -4,13 +4,14 @@ use crate::{
         draw::icon_draw::IconDraw,
         list_navigation::ListNavigationDirection,
         widgets::controls::{
-            button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
+            button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
+            state_layer::StateLayer, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
         },
     },
     views::{
         struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData},
         symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::{
-            SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData, SymbolResolverNodeKind,
+            SymbolResolverContextMenuTarget, SymbolResolverEditDraft, SymbolResolverEditorTakeOverState, SymbolResolverEditorViewData, SymbolResolverNodeKind,
         },
     },
 };
@@ -55,6 +56,7 @@ enum ResolverFrameAction {
     BeginRenameResolver(String),
     BeginOpenResolver(String),
     SelectResolver(String),
+    ShowResolverContextMenu(String, epaint::Pos2),
     RequestDeleteConfirmation(String),
     ConfirmDeleteResolver(String),
     SaveDraft,
@@ -80,6 +82,7 @@ impl SymbolResolverEditorView {
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
     const RESOLVER_ID_EDITOR_WIDTH: f32 = 260.0;
     const RESOLVER_ID_EDITOR_ID: &'static str = "symbol_resolver_editor_resolver_id";
+    const RESOLVER_CONTEXT_MENU_WIDTH: f32 = 160.0;
     const DETAILS_FIELD_LOCAL_FIELD: &'static str = "local_field";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -117,8 +120,14 @@ impl SymbolResolverEditorView {
         &self,
         updated_project_symbol_catalog: ProjectSymbolCatalog,
     ) {
-        let opened_project_lock = self
-            .app_context
+        Self::persist_project_symbol_catalog_with_context(&self.app_context, updated_project_symbol_catalog);
+    }
+
+    fn persist_project_symbol_catalog_with_context(
+        app_context: &Arc<AppContext>,
+        updated_project_symbol_catalog: ProjectSymbolCatalog,
+    ) {
+        let opened_project_lock = app_context
             .engine_unprivileged_state
             .get_project_manager()
             .get_opened_project();
@@ -144,7 +153,7 @@ impl SymbolResolverEditorView {
             return;
         }
 
-        ProjectSaveRequest {}.send(&self.app_context.engine_unprivileged_state, |project_save_response| {
+        ProjectSaveRequest {}.send(&app_context.engine_unprivileged_state, |project_save_response| {
             if !project_save_response.success {
                 log::error!("Failed to save project after applying symbol resolver changes.");
             }
@@ -153,7 +162,7 @@ impl SymbolResolverEditorView {
         let registry_set_project_symbols_request = RegistrySetProjectSymbolsRequest {
             project_symbol_catalog: updated_project_symbol_catalog,
         };
-        if !registry_set_project_symbols_request.send(&self.app_context.engine_unprivileged_state, |_response| {}) {
+        if !registry_set_project_symbols_request.send(&app_context.engine_unprivileged_state, |_response| {}) {
             log::error!("Failed to dispatch project symbol registry sync after symbol resolver changes.");
         }
     }
@@ -327,7 +336,12 @@ impl SymbolResolverEditorView {
                     let (row_response, edit_response) =
                         self.render_resolver_list_entry(user_interface, resolver_id, usage_count, selected_resolver_id == Some(resolver_id));
 
-                    if row_response.double_clicked() {
+                    if row_response.secondary_clicked() {
+                        let context_menu_position = row_response
+                            .interact_pointer_pos()
+                            .unwrap_or(row_response.rect.left_bottom());
+                        action = ResolverFrameAction::ShowResolverContextMenu(resolver_id.to_string(), context_menu_position);
+                    } else if row_response.double_clicked() {
                         action = ResolverFrameAction::BeginOpenResolver(resolver_id.to_string());
                     } else if row_response.clicked() {
                         action = ResolverFrameAction::SelectResolver(resolver_id.to_string());
@@ -346,7 +360,84 @@ impl SymbolResolverEditorView {
                 }
             });
 
+        let resolver_context_menu_target = self
+            .symbol_resolver_editor_view_data
+            .read("SymbolResolverEditor resolver context menu")
+            .and_then(|view_data| view_data.get_resolver_context_menu_target().cloned());
+        if let Some(resolver_context_menu_target) = resolver_context_menu_target
+            && let Some(context_menu_action) = self.render_resolver_context_menu(user_interface, &resolver_context_menu_target)
+        {
+            action = context_menu_action;
+        }
+
         action
+    }
+
+    fn render_resolver_context_menu(
+        &self,
+        user_interface: &mut Ui,
+        context_menu_target: &SymbolResolverContextMenuTarget,
+    ) -> Option<ResolverFrameAction> {
+        let theme = &self.app_context.theme;
+        let resolver_id = context_menu_target.get_resolver_id();
+        let mut open = true;
+        let mut pending_action = None;
+
+        ContextMenu::new(
+            self.app_context.clone(),
+            "symbol_resolver_list_context_menu",
+            context_menu_target.get_position(),
+            |user_interface, should_close| {
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Rename",
+                            "symbol_resolver_ctx_rename",
+                            &None,
+                            Self::RESOLVER_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(theme.icon_library.icon_handle_common_edit.clone()),
+                    )
+                    .clicked()
+                {
+                    pending_action = Some(ResolverFrameAction::BeginRenameResolver(resolver_id.to_string()));
+                    *should_close = true;
+                }
+
+                if user_interface
+                    .add(
+                        ToolbarMenuItemView::new(
+                            self.app_context.clone(),
+                            "Delete",
+                            "symbol_resolver_ctx_delete",
+                            &None,
+                            Self::RESOLVER_CONTEXT_MENU_WIDTH,
+                        )
+                        .icon(theme.icon_library.icon_handle_common_delete.clone())
+                        .icon_background(theme.background_control_danger, theme.background_control_danger_dark),
+                    )
+                    .clicked()
+                {
+                    pending_action = Some(ResolverFrameAction::RequestDeleteConfirmation(resolver_id.to_string()));
+                    *should_close = true;
+                }
+            },
+        )
+        .width(Self::RESOLVER_CONTEXT_MENU_WIDTH)
+        .corner_radius(8)
+        .show(user_interface, &mut open);
+
+        if !open {
+            if let Some(mut view_data) = self
+                .symbol_resolver_editor_view_data
+                .write("SymbolResolverEditor hide resolver context menu")
+            {
+                view_data.hide_resolver_context_menu();
+            }
+        }
+
+        pending_action
     }
 
     fn render_resolver_list_header(
@@ -946,6 +1037,130 @@ impl SymbolResolverEditorView {
         );
     }
 
+    fn focus_resolver_in_struct_viewer(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        resolver_id: &str,
+    ) {
+        if project_symbol_catalog
+            .find_symbolic_resolver_descriptor(resolver_id)
+            .is_none()
+        {
+            self.clear_struct_viewer_if_symbol_resolver_focused();
+            return;
+        }
+
+        let details_struct = Self::build_resolver_details_struct(resolver_id);
+        let selection_key = format!("resolver|{}", resolver_id);
+        let edit_callback = Self::build_struct_viewer_resolver_name_edit_callback(
+            self.app_context.clone(),
+            self.symbol_resolver_editor_view_data.clone(),
+            self.struct_viewer_view_data.clone(),
+            resolver_id.to_string(),
+        );
+
+        StructViewerViewData::focus_valued_struct_with_focus_target(
+            self.struct_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            details_struct,
+            edit_callback,
+            Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
+        );
+    }
+
+    fn build_resolver_details_struct(resolver_id: &str) -> ValuedStruct {
+        ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string(resolver_id)
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID.to_string(), false),
+        ])
+    }
+
+    fn build_struct_viewer_resolver_name_edit_callback(
+        app_context: Arc<AppContext>,
+        symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        resolver_id: String,
+    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
+        Arc::new(move |edited_field: ValuedStructField| {
+            let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog_from_context(&app_context) else {
+                return;
+            };
+            let Ok((updated_project_symbol_catalog, saved_resolver_id)) =
+                Self::build_catalog_after_resolver_name_details_edit(&project_symbol_catalog, &resolver_id, &edited_field)
+            else {
+                return;
+            };
+
+            Self::persist_project_symbol_catalog_with_context(&app_context, updated_project_symbol_catalog);
+
+            if let Some(mut view_data) = symbol_resolver_editor_view_data.write("SymbolResolverEditor apply resolver name details edit") {
+                view_data.select_resolver(Some(saved_resolver_id.clone()));
+            }
+
+            let details_struct = Self::build_resolver_details_struct(&saved_resolver_id);
+            let selection_key = format!("resolver|{}", saved_resolver_id);
+            let edit_callback = Self::build_struct_viewer_resolver_name_edit_callback(
+                app_context.clone(),
+                symbol_resolver_editor_view_data.clone(),
+                struct_viewer_view_data.clone(),
+                saved_resolver_id.clone(),
+            );
+
+            StructViewerViewData::focus_valued_struct_with_focus_target(
+                struct_viewer_view_data.clone(),
+                app_context.engine_unprivileged_state.clone(),
+                details_struct,
+                edit_callback,
+                Some(StructViewerFocusTarget::SymbolResolverEditor { selection_key }),
+            );
+        })
+    }
+
+    fn get_opened_project_symbol_catalog_from_context(app_context: &Arc<AppContext>) -> Option<ProjectSymbolCatalog> {
+        let opened_project = app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project();
+        let opened_project = opened_project.read().ok()?;
+
+        opened_project.as_ref().map(|opened_project| {
+            opened_project
+                .get_project_info()
+                .get_project_symbol_catalog()
+                .clone()
+        })
+    }
+
+    fn build_catalog_after_resolver_name_details_edit(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        current_resolver_id: &str,
+        edited_field: &ValuedStructField,
+    ) -> Result<(ProjectSymbolCatalog, String), String> {
+        if edited_field.get_name() != StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID {
+            return Err(String::from("Edited field is not the resolver name."));
+        }
+
+        let edited_resolver_id = StructViewerViewData::read_utf8_field_text(edited_field)
+            .trim()
+            .to_string();
+        if edited_resolver_id == current_resolver_id {
+            return Err(String::from("Resolver name is unchanged."));
+        }
+
+        let resolver_descriptor = project_symbol_catalog
+            .find_symbolic_resolver_descriptor(current_resolver_id)
+            .ok_or_else(|| String::from("Resolver no longer exists."))?;
+        let draft = SymbolResolverEditDraft {
+            original_resolver_id: Some(current_resolver_id.to_string()),
+            resolver_id: edited_resolver_id,
+            resolver_definition: resolver_descriptor.get_resolver_definition().clone(),
+        };
+        let saved_resolver_id = draft.resolver_id.trim().to_string();
+        let updated_project_symbol_catalog = SymbolResolverEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &draft)?;
+
+        Ok((updated_project_symbol_catalog, saved_resolver_id))
+    }
+
     fn build_struct_viewer_edit_callback(
         app_context: Arc<AppContext>,
         symbol_resolver_editor_view_data: Dependency<SymbolResolverEditorViewData>,
@@ -1109,6 +1324,7 @@ impl SymbolResolverEditorView {
 
     fn select_resolver(
         &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         resolver_id: &str,
     ) {
         if let Some(mut view_data) = self
@@ -1117,7 +1333,7 @@ impl SymbolResolverEditorView {
         {
             view_data.select_resolver(Some(resolver_id.to_string()));
         }
-        self.clear_struct_viewer_if_symbol_resolver_focused();
+        self.focus_resolver_in_struct_viewer(project_symbol_catalog, resolver_id);
     }
 
     fn apply_frame_action(
@@ -1156,7 +1372,16 @@ impl SymbolResolverEditorView {
                 self.focus_current_selection_in_struct_viewer();
             }
             ResolverFrameAction::SelectResolver(resolver_id) => {
-                self.select_resolver(&resolver_id);
+                self.select_resolver(project_symbol_catalog, &resolver_id);
+            }
+            ResolverFrameAction::ShowResolverContextMenu(resolver_id, position) => {
+                if let Some(mut view_data) = self
+                    .symbol_resolver_editor_view_data
+                    .write("SymbolResolverEditor show resolver context menu")
+                {
+                    view_data.show_resolver_context_menu(resolver_id.clone(), position);
+                }
+                self.focus_resolver_in_struct_viewer(project_symbol_catalog, &resolver_id);
             }
             ResolverFrameAction::RequestDeleteConfirmation(resolver_id) => {
                 if let Some(mut view_data) = self
@@ -1484,7 +1709,10 @@ impl Widget for SymbolResolverEditorView {
                 .symbol_resolver_editor_view_data
                 .write("SymbolResolverEditor keyboard navigate up")
             {
-                view_data.navigate_resolver_selection(&project_symbol_catalog, ListNavigationDirection::Up);
+                if let Some(selected_resolver_id) = view_data.navigate_resolver_selection(&project_symbol_catalog, ListNavigationDirection::Up) {
+                    drop(view_data);
+                    self.focus_resolver_in_struct_viewer(&project_symbol_catalog, &selected_resolver_id);
+                }
             }
         }
 
@@ -1497,7 +1725,10 @@ impl Widget for SymbolResolverEditorView {
                 .symbol_resolver_editor_view_data
                 .write("SymbolResolverEditor keyboard navigate down")
             {
-                view_data.navigate_resolver_selection(&project_symbol_catalog, ListNavigationDirection::Down);
+                if let Some(selected_resolver_id) = view_data.navigate_resolver_selection(&project_symbol_catalog, ListNavigationDirection::Down) {
+                    drop(view_data);
+                    self.focus_resolver_in_struct_viewer(&project_symbol_catalog, &selected_resolver_id);
+                }
             }
         }
 
@@ -1544,8 +1775,10 @@ mod tests {
         struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
         symbol_resolver_editor::view_data::symbol_resolver_editor_view_data::SymbolResolverEditDraft,
     };
+    use squalr_engine_api::registries::symbols::symbolic_resolver_descriptor::SymbolicResolverDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8, data_type_ref::DataTypeRef},
+        projects::project_symbol_catalog::ProjectSymbolCatalog,
         structs::symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverNode},
     };
 
@@ -1592,5 +1825,36 @@ mod tests {
 
         assert!(!should_refocus_details);
         assert!(matches!(draft.resolver_definition.get_root_node(), SymbolicResolverNode::Literal(7)));
+    }
+
+    #[test]
+    fn resolver_name_details_edit_renames_descriptor() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
+            Vec::new(),
+            vec![SymbolicResolverDescriptor::new(
+                String::from("health.count"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(7)),
+            )],
+            Vec::new(),
+        );
+        let edited_resolver_id_field = DataTypeStringUtf8::get_value_from_primitive_string("health.max_count")
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID.to_string(), false);
+
+        let (updated_project_symbol_catalog, saved_resolver_id) =
+            SymbolResolverEditorView::build_catalog_after_resolver_name_details_edit(&project_symbol_catalog, "health.count", &edited_resolver_id_field)
+                .expect("Expected resolver details rename to apply.");
+
+        assert_eq!(saved_resolver_id, "health.max_count");
+        assert!(
+            updated_project_symbol_catalog
+                .find_symbolic_resolver_descriptor("health.count")
+                .is_none()
+        );
+        assert!(
+            updated_project_symbol_catalog
+                .find_symbolic_resolver_descriptor("health.max_count")
+                .is_some()
+        );
     }
 }

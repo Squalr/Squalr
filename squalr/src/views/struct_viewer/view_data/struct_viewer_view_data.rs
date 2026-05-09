@@ -53,6 +53,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_OFFSETS: &'static str = "__address_target_pointer_offsets";
     pub const VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE: &'static str = "__address_target_pointer_size";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_LITERAL_VALUE: &'static str = "literal_value";
+    pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_ID: &'static str = "__symbol_resolver_id";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_NODE_KIND: &'static str = "__symbol_resolver_node_kind";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_OPERATOR: &'static str = "__symbol_resolver_operator";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE: &'static str = "__symbol_resolver_data_type";
@@ -500,6 +501,8 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::ProjectItemPointerSizeSelector)
             } else if Self::is_project_item_pointer_offsets_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Offsets"), StructViewerFieldEditorKind::ProjectItemPointerOffsetsEditor)
+            } else if Self::is_symbol_resolver_id_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Name"), StructViewerFieldEditorKind::ValueBox)
             } else if Self::is_symbol_resolver_node_kind_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Type"), StructViewerFieldEditorKind::SymbolResolverNodeKindSelector)
             } else if Self::is_symbol_resolver_operator_field(valued_struct_field) {
@@ -655,6 +658,10 @@ impl StructViewerViewData {
 
     fn is_project_item_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_PROJECT_ITEM_POINTER_SIZE
+    }
+
+    fn is_symbol_resolver_id_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_ID
     }
 
     fn is_symbol_resolver_node_kind_field(valued_struct_field: &ValuedStructField) -> bool {
