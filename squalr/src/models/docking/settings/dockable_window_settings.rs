@@ -55,7 +55,6 @@ impl DockSettingsConfig {
                                 0.5,
                                 DockBuilder::tab_node(StructViewerView::WINDOW_ID)
                                     .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
-                                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
                                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
                             ),
                     )
@@ -74,7 +73,8 @@ impl DockSettingsConfig {
                     .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(PointerScannerView::WINDOW_ID))
                     .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID)),
+                    .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID))
+                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID)),
             )
             .build();
 
@@ -95,14 +95,14 @@ impl DockSettingsConfig {
                             .push_tab(DockBuilder::window(ElementScannerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(MemoryViewerView::WINDOW_ID))
                             .push_tab(DockBuilder::window(SymbolExplorerView::WINDOW_ID))
-                            .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID)),
+                            .push_tab(DockBuilder::window(SymbolResolverEditorView::WINDOW_ID))
+                            .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID)),
                     ),
             )
             .push_child(
                 0.25,
                 DockBuilder::tab_node(StructViewerView::WINDOW_ID)
                     .push_tab(DockBuilder::window(StructViewerView::WINDOW_ID))
-                    .push_tab(DockBuilder::window(SymbolStructEditorView::WINDOW_ID))
                     .push_tab(DockBuilder::window(SettingsView::WINDOW_ID)),
             )
             .push_child(
@@ -125,7 +125,7 @@ impl DockSettingsConfig {
         Self::ensure_tab_window(&mut self.dock_root, OutputView::WINDOW_ID, CodeViewerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolExplorerView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolResolverEditorView::WINDOW_ID);
-        Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID);
+        Self::ensure_tab_window(&mut self.dock_root, ElementScannerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID);
         Self::ensure_tab_window(&mut self.dock_root, StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID);
     }
 
@@ -277,6 +277,14 @@ mod tests {
     }
 
     #[test]
+    fn default_layout_places_symbol_struct_editor_with_symbol_explorer() {
+        let dock_root = DockSettingsConfig::get_default_layout();
+
+        assert!(dock_root.are_windows_in_same_tab_group(ElementScannerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
+        assert!(dock_root.are_windows_in_same_tab_group(SymbolExplorerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
+    }
+
+    #[test]
     fn ensure_required_windows_present_removes_obsolete_symbol_table_window() {
         let mut dock_settings_config = DockSettingsConfig {
             dock_root: DockBuilder::tab_node(ElementScannerView::WINDOW_ID)
@@ -306,6 +314,6 @@ mod tests {
         let dock_root = DockSettingsConfig::get_default_layout();
 
         assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SettingsView::WINDOW_ID));
-        assert!(dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
+        assert!(!dock_root.are_windows_in_same_tab_group(StructViewerView::WINDOW_ID, SymbolStructEditorView::WINDOW_ID));
     }
 }
