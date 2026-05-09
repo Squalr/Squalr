@@ -4,7 +4,7 @@ use crate::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 use crate::structures::projects::project_symbol_module_field::ProjectSymbolModuleField;
-use crate::structures::structs::symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution};
+use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -319,18 +319,6 @@ impl ProjectSymbolCatalog {
         field_names: &HashSet<String>,
     ) -> Vec<String> {
         let mut dependencies = Vec::new();
-
-        if let Some(expression) = field_definition.get_count_resolution().as_expression() {
-            dependencies.extend(expression.referenced_identifiers());
-        }
-
-        if let Some(expression) = field_definition.get_display_count_resolution().as_expression() {
-            dependencies.extend(expression.referenced_identifiers());
-        }
-
-        if let SymbolicFieldOffsetResolution::Expression(expression) = field_definition.get_offset_resolution() {
-            dependencies.extend(expression.referenced_identifiers());
-        }
 
         dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_count_resolution().as_resolver_id()));
         dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_display_count_resolution().as_resolver_id()));

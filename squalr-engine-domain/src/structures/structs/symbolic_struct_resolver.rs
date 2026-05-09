@@ -3,7 +3,6 @@ use crate::structures::{
     data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
     memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
     structs::{
-        symbolic_expression::{SymbolicExpression, SymbolicExpressionEvaluationError},
         symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_resolver_definition::{SymbolicResolverDefinition, SymbolicResolverEvaluationError, SymbolicResolverRelativeSymbolPath},
         symbolic_struct_definition::SymbolicStructDefinition,
@@ -452,9 +451,7 @@ where
 {
     match field_definition.get_offset_resolution() {
         SymbolicFieldOffsetResolution::Sequential => Ok(Some(next_sequential_offset)),
-        SymbolicFieldOffsetResolution::Expression(offset_expression) => {
-            evaluate_u64_expression(offset_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
-        }
+        SymbolicFieldOffsetResolution::Static(offset_in_bytes) => Ok(Some(*offset_in_bytes)),
         SymbolicFieldOffsetResolution::Resolver(resolver_id) => evaluate_u64_resolver(
             root_struct_definition,
             resolver_id,
@@ -487,9 +484,6 @@ where
     ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
 {
     match field_definition.get_count_resolution() {
-        SymbolicFieldCountResolution::Expression(count_expression) => {
-            evaluate_u64_expression(count_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
-        }
         SymbolicFieldCountResolution::Resolver(resolver_id) => evaluate_u64_resolver(
             root_struct_definition,
             resolver_id,
@@ -529,9 +523,6 @@ where
 {
     match field_definition.get_display_count_resolution() {
         SymbolicFieldCountResolution::Inferred => element_count_result.clone(),
-        SymbolicFieldCountResolution::Expression(count_expression) => {
-            evaluate_u64_expression(count_expression, scalar_values_by_field_name, resolve_type_size_in_bytes).map(Some)
-        }
         SymbolicFieldCountResolution::Resolver(resolver_id) => evaluate_u64_resolver(
             root_struct_definition,
             resolver_id,
@@ -777,21 +768,6 @@ fn resolve_field_size_in_bytes(
     }
 }
 
-fn evaluate_u64_expression<ResolveTypeSize>(
-    expression: &SymbolicExpression,
-    scalar_values_by_field_name: &BTreeMap<String, i128>,
-    resolve_type_size_in_bytes: &ResolveTypeSize,
-) -> Result<u64, String>
-where
-    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
-{
-    let value = expression
-        .evaluate(&|identifier| scalar_values_by_field_name.get(identifier).copied(), resolve_type_size_in_bytes)
-        .map_err(format_expression_error)?;
-
-    u64::try_from(value).map_err(|_| format!("Expression `{}` resolved to negative or too-large value `{}`.", expression, value))
-}
-
 fn build_field_status(
     field_offset_result: &Result<Option<u64>, String>,
     element_count_result: &Result<Option<u64>, String>,
@@ -850,10 +826,6 @@ where
     }
 }
 
-fn format_expression_error(error: SymbolicExpressionEvaluationError) -> String {
-    error.to_string()
-}
-
 fn format_resolver_error(error: SymbolicResolverEvaluationError) -> String {
     error.to_string()
 }
@@ -873,6 +845,18 @@ mod tests {
     };
     use std::str::FromStr;
 
+    fn local_field_resolver(field_name: &str) -> SymbolicResolverDefinition {
+        SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(field_name.to_string()))
+    }
+
+    fn binary_resolver(
+        operator: SymbolicResolverBinaryOperator,
+        left_node: SymbolicResolverNode,
+        right_node: SymbolicResolverNode,
+    ) -> SymbolicResolverDefinition {
+        SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(operator, left_node, right_node))
+    }
+
     #[test]
     fn resolver_uses_previous_scalar_fields_for_vec_like_dynamic_layout() {
         let symbolic_struct_definition = SymbolicStructDefinition::new(
@@ -880,13 +864,28 @@ mod tests {
             vec![
                 SymbolicFieldDefinition::from_str("count:u32 @ +0").expect("Expected count field to parse."),
                 SymbolicFieldDefinition::from_str("capacity:u32 @ +4").expect("Expected capacity field to parse."),
-                SymbolicFieldDefinition::from_str("elements:Element[count] @ +8").expect("Expected elements field to parse."),
-                SymbolicFieldDefinition::from_str("unfilled:Element[capacity - count] @ +8 + count * sizeof(Element)")
+                SymbolicFieldDefinition::from_str("elements:Element[resolver(item.count)] @ +8").expect("Expected elements field to parse."),
+                SymbolicFieldDefinition::from_str("unfilled:Element[resolver(item.unfilled_count)] @ resolver(item.unfilled_offset)")
                     .expect("Expected unfilled field to parse."),
             ],
         );
+        let count_resolver = local_field_resolver("count");
+        let unfilled_count_resolver = binary_resolver(
+            SymbolicResolverBinaryOperator::Subtract,
+            SymbolicResolverNode::new_local_field(String::from("capacity")),
+            SymbolicResolverNode::new_local_field(String::from("count")),
+        );
+        let unfilled_offset_resolver = binary_resolver(
+            SymbolicResolverBinaryOperator::Add,
+            SymbolicResolverNode::new_literal(8),
+            SymbolicResolverNode::new_binary(
+                SymbolicResolverBinaryOperator::Multiply,
+                SymbolicResolverNode::new_local_field(String::from("count")),
+                SymbolicResolverNode::new_type_size(DataTypeRef::new("Element")),
+            ),
+        );
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -897,6 +896,12 @@ mod tests {
                 "count" => Ok(Some(4)),
                 "capacity" => Ok(Some(12)),
                 _ => Ok(None),
+            },
+            |resolver_id| match resolver_id {
+                "item.count" => Some(count_resolver.clone()),
+                "item.unfilled_count" => Some(unfilled_count_resolver.clone()),
+                "item.unfilled_offset" => Some(unfilled_offset_resolver.clone()),
+                _ => None,
             },
             &SymbolicStructResolverOptions::default(),
         );
@@ -918,12 +923,13 @@ mod tests {
         let symbolic_struct_definition = SymbolicStructDefinition::new(
             String::from("Items"),
             vec![
-                SymbolicFieldDefinition::from_str("elements:Element[count] @ +8").expect("Expected elements field to parse."),
+                SymbolicFieldDefinition::from_str("elements:Element[resolver(item.count)] @ +8").expect("Expected elements field to parse."),
                 SymbolicFieldDefinition::from_str("count:u32 @ +4").expect("Expected count field to parse."),
             ],
         );
+        let count_resolver = local_field_resolver("count");
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -934,6 +940,7 @@ mod tests {
                 "count" => Ok(Some(3)),
                 _ => Ok(None),
             },
+            |resolver_id| (resolver_id == "item.count").then_some(count_resolver.clone()),
             &SymbolicStructResolverOptions::default(),
         );
         let resolved_fields = resolved_struct.get_fields();
@@ -946,16 +953,21 @@ mod tests {
     }
 
     #[test]
-    fn resolver_reports_expression_diagnostics_on_affected_field() {
+    fn resolver_reports_resolver_diagnostics_on_affected_field() {
         let symbolic_struct_definition = SymbolicStructDefinition::new(
             String::from("Items"),
             vec![
                 SymbolicFieldDefinition::from_str("count:u32 @ +0").expect("Expected count field to parse."),
-                SymbolicFieldDefinition::from_str("elements:Element[count / divisor] @ +4").expect("Expected elements field to parse."),
+                SymbolicFieldDefinition::from_str("elements:Element[resolver(item.bad_count)] @ +4").expect("Expected elements field to parse."),
             ],
         );
+        let bad_count_resolver = binary_resolver(
+            SymbolicResolverBinaryOperator::Divide,
+            SymbolicResolverNode::new_local_field(String::from("count")),
+            SymbolicResolverNode::new_local_field(String::from("divisor")),
+        );
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -966,13 +978,14 @@ mod tests {
                 "count" => Ok(Some(4)),
                 _ => Ok(None),
             },
+            |resolver_id| (resolver_id == "item.bad_count").then_some(bad_count_resolver.clone()),
             &SymbolicStructResolverOptions::default(),
         );
         let resolved_fields = resolved_struct.get_fields();
 
         assert!(matches!(
             resolved_fields[1].get_status(),
-            ResolvedSymbolicFieldStatus::Unresolved { reason } if reason.contains("Unknown identifier `divisor`")
+            ResolvedSymbolicFieldStatus::Unresolved { reason } if reason.contains("Unknown local field `divisor`")
         ));
         assert_eq!(resolved_fields[1].get_offset_in_bytes(), Some(4));
         assert_eq!(resolved_fields[1].get_size_in_bytes(), None);
@@ -984,11 +997,12 @@ mod tests {
             String::from("Items"),
             vec![
                 SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
-                SymbolicFieldDefinition::from_str("elements:Element[count]").expect("Expected elements field to parse."),
+                SymbolicFieldDefinition::from_str("elements:Element[resolver(item.count)]").expect("Expected elements field to parse."),
             ],
         );
+        let count_resolver = local_field_resolver("count");
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -999,6 +1013,7 @@ mod tests {
                 "count" => Ok(Some(1000)),
                 _ => Ok(None),
             },
+            |resolver_id| (resolver_id == "item.count").then_some(count_resolver.clone()),
             &SymbolicStructResolverOptions::new(16),
         );
         let resolved_fields = resolved_struct.get_fields();
@@ -1014,12 +1029,13 @@ mod tests {
             String::from("EntityList"),
             vec![
                 SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
-                SymbolicFieldDefinition::from_str("entities:u64[1024] display count @ +8").expect("Expected entities field to parse."),
+                SymbolicFieldDefinition::from_str("entities:u64[1024] display resolver(entity.count) @ +8").expect("Expected entities field to parse."),
                 SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
             ],
         );
+        let count_resolver = local_field_resolver("count");
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -1030,6 +1046,7 @@ mod tests {
                 "count" => Ok(Some(3)),
                 _ => Ok(None),
             },
+            |resolver_id| (resolver_id == "entity.count").then_some(count_resolver.clone()),
             &SymbolicStructResolverOptions::default(),
         );
         let resolved_fields = resolved_struct.get_fields();
@@ -1046,12 +1063,14 @@ mod tests {
             String::from("EntityList"),
             vec![
                 SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
-                SymbolicFieldDefinition::from_str("entities:Entity*(u64)[1024] display count @ +8").expect("Expected entities field to parse."),
+                SymbolicFieldDefinition::from_str("entities:Entity*(u64)[1024] display resolver(entity.count) @ +8")
+                    .expect("Expected entities field to parse."),
                 SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
             ],
         );
+        let count_resolver = local_field_resolver("count");
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -1062,6 +1081,7 @@ mod tests {
                 "count" => Ok(Some(3)),
                 _ => Ok(None),
             },
+            |resolver_id| (resolver_id == "entity.count").then_some(count_resolver.clone()),
             &SymbolicStructResolverOptions::default(),
         );
         let resolved_fields = resolved_struct.get_fields();
@@ -1189,13 +1209,18 @@ mod tests {
     }
 
     #[test]
-    fn resolver_supports_sizeof_in_offset_expressions() {
+    fn resolver_supports_sizeof_in_offset_resolvers() {
         let symbolic_struct_definition = SymbolicStructDefinition::new(
             String::from("Items"),
-            vec![SymbolicFieldDefinition::from_str("tail:u32 @ sizeof(Element) * 3").expect("Expected tail field to parse.")],
+            vec![SymbolicFieldDefinition::from_str("tail:u32 @ resolver(item.tail_offset)").expect("Expected tail field to parse.")],
+        );
+        let tail_offset_resolver = binary_resolver(
+            SymbolicResolverBinaryOperator::Multiply,
+            SymbolicResolverNode::new_type_size(DataTypeRef::new("Element")),
+            SymbolicResolverNode::new_literal(3),
         );
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
@@ -1203,6 +1228,7 @@ mod tests {
                 _ => None,
             },
             |_, _, _| Ok(None),
+            |resolver_id| (resolver_id == "item.tail_offset").then_some(tail_offset_resolver.clone()),
             &SymbolicStructResolverOptions::default(),
         );
 
@@ -1210,17 +1236,26 @@ mod tests {
     }
 
     #[test]
-    fn resolver_supports_sizeof_in_count_expressions() {
+    fn resolver_supports_sizeof_in_count_resolvers() {
         let symbolic_struct_definition = SymbolicStructDefinition::new(
             String::from("Items"),
             vec![
                 SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
                 SymbolicFieldDefinition::from_str("capacity:u32").expect("Expected capacity field to parse."),
-                SymbolicFieldDefinition::from_str("unfilled:u8[(capacity - count) * sizeof(Element)]").expect("Expected unfilled field to parse."),
+                SymbolicFieldDefinition::from_str("unfilled:u8[resolver(item.unfilled_count)]").expect("Expected unfilled field to parse."),
             ],
         );
+        let unfilled_count_resolver = binary_resolver(
+            SymbolicResolverBinaryOperator::Multiply,
+            SymbolicResolverNode::new_binary(
+                SymbolicResolverBinaryOperator::Subtract,
+                SymbolicResolverNode::new_local_field(String::from("capacity")),
+                SymbolicResolverNode::new_local_field(String::from("count")),
+            ),
+            SymbolicResolverNode::new_type_size(DataTypeRef::new("Element")),
+        );
 
-        let resolved_struct = resolve_symbolic_struct_definition(
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
             &symbolic_struct_definition,
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u8" => Some(1),
@@ -1233,6 +1268,7 @@ mod tests {
                 "capacity" => Ok(Some(12)),
                 _ => Ok(None),
             },
+            |resolver_id| (resolver_id == "item.unfilled_count").then_some(unfilled_count_resolver.clone()),
             &SymbolicStructResolverOptions::default(),
         );
 

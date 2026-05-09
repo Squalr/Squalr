@@ -64,16 +64,11 @@ impl SymbolStructFieldContainerEdit {
     pub fn from_symbolic_field_definition(symbolic_field_definition: &SymbolicFieldDefinition) -> Self {
         let display_count_resolver_id = match symbolic_field_definition.get_display_count_resolution() {
             SymbolicFieldCountResolution::Resolver(resolver_id) => resolver_id.clone(),
-            SymbolicFieldCountResolution::Inferred | SymbolicFieldCountResolution::Expression(_) => String::new(),
+            SymbolicFieldCountResolution::Inferred => String::new(),
         };
 
         let mut container_edit = match symbolic_field_definition.get_count_resolution() {
             SymbolicFieldCountResolution::Inferred => Self::from_container_type(symbolic_field_definition.get_container_type()),
-            SymbolicFieldCountResolution::Expression(_) => Self {
-                kind: SymbolStructFieldContainerKind::DynamicArray,
-                dynamic_array_count_resolver_id: String::new(),
-                ..Self::from_container_type(symbolic_field_definition.get_container_type())
-            },
             SymbolicFieldCountResolution::Resolver(resolver_id) => Self {
                 kind: SymbolStructFieldContainerKind::DynamicArray,
                 dynamic_array_count_resolver_id: resolver_id.clone(),

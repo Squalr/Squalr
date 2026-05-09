@@ -21,15 +21,17 @@ use std::collections::HashSet;
 pub enum SymbolStructFieldOffsetMode {
     #[default]
     Sequential,
+    Static,
     Resolver,
 }
 
 impl SymbolStructFieldOffsetMode {
-    pub const ALL: [Self; 2] = [Self::Sequential, Self::Resolver];
+    pub const ALL: [Self; 3] = [Self::Sequential, Self::Static, Self::Resolver];
 
     pub fn label(&self) -> &'static str {
         match self {
             Self::Sequential => "Sequential",
+            Self::Static => "Static",
             Self::Resolver => "Resolver",
         }
     }
@@ -42,6 +44,7 @@ pub struct SymbolStructFieldEditDraft {
     pub container_edit: SymbolStructFieldContainerEdit,
     pub is_hidden: bool,
     pub offset_mode: SymbolStructFieldOffsetMode,
+    pub static_offset_in_bytes: String,
     pub offset_resolver_id: String,
 }
 
@@ -749,15 +752,16 @@ impl SymbolStructFieldEditDraft {
             container_edit: SymbolStructFieldContainerEdit::default(),
             is_hidden: false,
             offset_mode: SymbolStructFieldOffsetMode::Sequential,
+            static_offset_in_bytes: String::new(),
             offset_resolver_id: String::new(),
         }
     }
 
     pub fn from_symbolic_field_definition(symbolic_field_definition: &SymbolicFieldDefinition) -> Self {
-        let (offset_mode, offset_resolver_id) = match symbolic_field_definition.get_offset_resolution() {
-            SymbolicFieldOffsetResolution::Sequential => (SymbolStructFieldOffsetMode::Sequential, String::new()),
-            SymbolicFieldOffsetResolution::Expression(_) => (SymbolStructFieldOffsetMode::Resolver, String::new()),
-            SymbolicFieldOffsetResolution::Resolver(resolver_id) => (SymbolStructFieldOffsetMode::Resolver, resolver_id.clone()),
+        let (offset_mode, static_offset_in_bytes, offset_resolver_id) = match symbolic_field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Sequential => (SymbolStructFieldOffsetMode::Sequential, String::new(), String::new()),
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => (SymbolStructFieldOffsetMode::Static, offset_in_bytes.to_string(), String::new()),
+            SymbolicFieldOffsetResolution::Resolver(resolver_id) => (SymbolStructFieldOffsetMode::Resolver, String::new(), resolver_id.clone()),
         };
 
         Self {
@@ -766,6 +770,7 @@ impl SymbolStructFieldEditDraft {
             container_edit: SymbolStructFieldContainerEdit::from_symbolic_field_definition(symbolic_field_definition),
             is_hidden: symbolic_field_definition.is_hidden(),
             offset_mode,
+            static_offset_in_bytes,
             offset_resolver_id,
         }
     }
@@ -773,6 +778,16 @@ impl SymbolStructFieldEditDraft {
     pub fn to_offset_resolution(&self) -> Result<SymbolicFieldOffsetResolution, String> {
         match self.offset_mode {
             SymbolStructFieldOffsetMode::Sequential => Ok(SymbolicFieldOffsetResolution::Sequential),
+            SymbolStructFieldOffsetMode::Static => {
+                let trimmed_offset = self.static_offset_in_bytes.trim();
+                if trimmed_offset.is_empty() {
+                    return Err(String::from("Static offset is required."));
+                }
+
+                let offset_in_bytes = Self::parse_static_offset_text(trimmed_offset).ok_or_else(|| format!("Invalid static offset: {}.", trimmed_offset))?;
+
+                Ok(SymbolicFieldOffsetResolution::new_static(offset_in_bytes))
+            }
             SymbolStructFieldOffsetMode::Resolver => {
                 let trimmed_resolver_id = self.offset_resolver_id.trim();
                 if trimmed_resolver_id.is_empty() {
@@ -781,6 +796,28 @@ impl SymbolStructFieldEditDraft {
 
                 Ok(SymbolicFieldOffsetResolution::new_resolver(trimmed_resolver_id.to_string()))
             }
+        }
+    }
+
+    pub fn parse_static_offset_text(offset_text: &str) -> Option<u64> {
+        let trimmed_offset = offset_text.trim();
+        let trimmed_offset = trimmed_offset
+            .strip_prefix('+')
+            .map(str::trim)
+            .unwrap_or(trimmed_offset);
+
+        if let Some(binary_offset) = trimmed_offset
+            .strip_prefix("0b")
+            .or_else(|| trimmed_offset.strip_prefix("0B"))
+        {
+            u64::from_str_radix(binary_offset, 2).ok()
+        } else if let Some(hex_offset) = trimmed_offset
+            .strip_prefix("0x")
+            .or_else(|| trimmed_offset.strip_prefix("0X"))
+        {
+            u64::from_str_radix(hex_offset, 16).ok()
+        } else {
+            trimmed_offset.parse::<u64>().ok()
         }
     }
 }
@@ -968,14 +1005,14 @@ mod tests {
     }
 
     #[test]
-    fn draft_demotes_dynamic_count_and_offset_expressions_to_resolver_selection() {
+    fn draft_round_trips_static_offsets() {
         let struct_layout_descriptor = StructLayoutDescriptor::new(
             String::from("image.headers"),
             SymbolicStructDefinition::new(
                 String::from("image.headers"),
                 vec![
                     SymbolicFieldDefinition::from_str("count:u24").expect("Expected count field to parse."),
-                    SymbolicFieldDefinition::from_str("sections:win.Section[count] @ +4 + sizeof(win.Header)").expect("Expected dynamic field to parse."),
+                    SymbolicFieldDefinition::from_str("sections:win.Section[resolver(pe.section_count)] @ +4").expect("Expected static offset field to parse."),
                 ],
             ),
         );
@@ -984,14 +1021,23 @@ mod tests {
         let sections_draft = draft.field_drafts.get(1).expect("Expected sections draft.");
 
         assert_eq!(sections_draft.container_edit.kind, SymbolStructFieldContainerKind::DynamicArray);
-        assert!(
-            sections_draft
-                .container_edit
-                .dynamic_array_count_resolver_id
-                .is_empty()
+        assert_eq!(sections_draft.container_edit.dynamic_array_count_resolver_id, "pe.section_count");
+        assert_eq!(sections_draft.offset_mode, SymbolStructFieldOffsetMode::Static);
+        assert_eq!(sections_draft.static_offset_in_bytes, "4");
+        assert_eq!(SymbolStructFieldEditDraft::parse_static_offset_text("+0x10"), Some(16));
+        assert_eq!(SymbolStructFieldEditDraft::parse_static_offset_text("+0b10000"), Some(16));
+
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let round_tripped_descriptor =
+            SymbolStructEditorViewData::build_struct_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected static offset draft to build.");
+
+        assert_eq!(
+            round_tripped_descriptor
+                .get_struct_layout_definition()
+                .get_fields()[1]
+                .to_string(),
+            "sections:win.Section[resolver(pe.section_count)] @ +4"
         );
-        assert_eq!(sections_draft.offset_mode, SymbolStructFieldOffsetMode::Resolver);
-        assert!(sections_draft.offset_resolver_id.is_empty());
     }
 
     #[test]

@@ -640,6 +640,13 @@ impl SymbolStructEditorView {
             DataTypeStringUtf8::get_value_from_primitive_string(field_draft.offset_mode.label())
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE.to_string(), false),
         );
+        if field_draft.offset_mode == SymbolStructFieldOffsetMode::Static {
+            let offset_in_bytes = SymbolStructFieldEditDraft::parse_static_offset_text(&field_draft.static_offset_in_bytes).unwrap_or(0);
+            fields.push(
+                DataTypeU64::get_value_from_primitive(offset_in_bytes)
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_STATIC_OFFSET.to_string(), false),
+            );
+        }
         if field_draft.offset_mode == SymbolStructFieldOffsetMode::Resolver {
             fields.push(
                 DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.offset_resolver_id)
@@ -737,6 +744,11 @@ impl SymbolStructEditorView {
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE => {
                 if let Some(offset_mode) = Self::offset_mode_from_label(&edited_text) {
                     field_draft.offset_mode = offset_mode;
+                }
+            }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_STATIC_OFFSET => {
+                if let Some(offset_in_bytes) = Self::read_u64_field_value(edited_field) {
+                    field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
                 }
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER => {

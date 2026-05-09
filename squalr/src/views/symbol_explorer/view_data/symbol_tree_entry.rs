@@ -1410,7 +1410,7 @@ mod tests {
         symbol_module
             .get_fields_mut()
             .push(ProjectSymbolModuleField::new(String::from("PE Headers"), 0, String::from("pe_headers")));
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
             vec![symbol_module],
             vec![
                 StructLayoutDescriptor::new(
@@ -1419,11 +1419,14 @@ mod tests {
                         String::from("pe_headers"),
                         vec![
                             SymbolicFieldDefinition::from_str("e_lfanew:u32 @ +0x3C").expect("Expected e_lfanew field to parse."),
-                            SymbolicFieldDefinition::from_str("NumberOfSections:u16 @ e_lfanew + 6").expect("Expected section count field to parse."),
-                            SymbolicFieldDefinition::from_str("SizeOfOptionalHeader:u16 @ e_lfanew + 20")
+                            SymbolicFieldDefinition::from_str("NumberOfSections:u16 @ resolver(pe.number_of_sections_offset)")
+                                .expect("Expected section count field to parse."),
+                            SymbolicFieldDefinition::from_str("SizeOfOptionalHeader:u16 @ resolver(pe.optional_header_size_offset)")
                                 .expect("Expected optional header size field to parse."),
-                            SymbolicFieldDefinition::from_str("SectionHeaders:section_header[NumberOfSections] @ e_lfanew + 24 + SizeOfOptionalHeader")
-                                .expect("Expected section headers field to parse."),
+                            SymbolicFieldDefinition::from_str(
+                                "SectionHeaders:section_header[resolver(pe.number_of_sections)] @ resolver(pe.section_headers_offset)",
+                            )
+                            .expect("Expected section headers field to parse."),
                         ],
                     ),
                 ),
@@ -1436,6 +1439,40 @@ mod tests {
                             SymbolicFieldDefinition::new_named(String::from("VirtualSize"), DataTypeRef::new("u32"), ContainerType::None),
                         ],
                     ),
+                ),
+            ],
+            vec![
+                SymbolicResolverDescriptor::new(
+                    String::from("pe.number_of_sections"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("NumberOfSections"))),
+                ),
+                SymbolicResolverDescriptor::new(
+                    String::from("pe.number_of_sections_offset"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
+                        SymbolicResolverBinaryOperator::Add,
+                        SymbolicResolverNode::new_local_field(String::from("e_lfanew")),
+                        SymbolicResolverNode::new_literal(6),
+                    )),
+                ),
+                SymbolicResolverDescriptor::new(
+                    String::from("pe.optional_header_size_offset"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
+                        SymbolicResolverBinaryOperator::Add,
+                        SymbolicResolverNode::new_local_field(String::from("e_lfanew")),
+                        SymbolicResolverNode::new_literal(20),
+                    )),
+                ),
+                SymbolicResolverDescriptor::new(
+                    String::from("pe.section_headers_offset"),
+                    SymbolicResolverDefinition::new(SymbolicResolverNode::new_binary(
+                        SymbolicResolverBinaryOperator::Add,
+                        SymbolicResolverNode::new_binary(
+                            SymbolicResolverBinaryOperator::Add,
+                            SymbolicResolverNode::new_local_field(String::from("e_lfanew")),
+                            SymbolicResolverNode::new_literal(24),
+                        ),
+                        SymbolicResolverNode::new_local_field(String::from("SizeOfOptionalHeader")),
+                    )),
                 ),
             ],
             Vec::new(),
@@ -2017,7 +2054,8 @@ mod tests {
 
     #[test]
     fn build_symbol_tree_entries_expands_displayed_fixed_pointer_array_elements() {
-        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
             vec![
                 StructLayoutDescriptor::new(
                     String::from("entity"),
@@ -2036,12 +2074,16 @@ mod tests {
                         String::from("entity_list"),
                         vec![
                             SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
-                            SymbolicFieldDefinition::from_str("entities:entity*(u64)[1024] display count @ +8")
+                            SymbolicFieldDefinition::from_str("entities:entity*(u64)[1024] display resolver(entity_list.count) @ +8")
                                 .expect("Expected pointer array field to parse."),
                         ],
                     ),
                 ),
             ],
+            vec![SymbolicResolverDescriptor::new(
+                String::from("entity_list.count"),
+                SymbolicResolverDefinition::new(SymbolicResolverNode::new_local_field(String::from("count"))),
+            )],
             vec![ProjectSymbolClaim::new_absolute_address(
                 String::from("EntityList"),
                 0x100,

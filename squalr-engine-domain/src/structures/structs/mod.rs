@@ -1,5 +1,4 @@
 pub mod symbol_resolver;
-pub mod symbolic_expression;
 pub mod symbolic_field_definition;
 pub mod symbolic_global_symbol_resolver;
 pub mod symbolic_resolver_definition;

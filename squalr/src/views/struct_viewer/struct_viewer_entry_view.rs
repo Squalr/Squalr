@@ -63,7 +63,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         "Operation",
     ];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
-    const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 2] = ["Sequential", "Resolver"];
+    const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
 
     fn value_box_position_x(
         value_position_x: f32,

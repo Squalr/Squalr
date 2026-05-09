@@ -3,7 +3,6 @@ use crate::structures::{
     data_values::{container_type::ContainerType, data_value::DataValue, pointer_scan_pointer_size::PointerScanPointerSize},
     structs::{
         symbol_resolver::SymbolResolver,
-        symbolic_expression::SymbolicExpression,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
     },
 };
@@ -31,15 +30,10 @@ pub struct SymbolicFieldDefinition {
 pub enum SymbolicFieldCountResolution {
     #[default]
     Inferred,
-    Expression(SymbolicExpression),
     Resolver(String),
 }
 
 impl SymbolicFieldCountResolution {
-    pub fn new_expression(expression: SymbolicExpression) -> Self {
-        Self::Expression(expression)
-    }
-
     pub fn new_resolver(resolver_id: String) -> Self {
         Self::Resolver(resolver_id)
     }
@@ -48,17 +42,10 @@ impl SymbolicFieldCountResolution {
         matches!(self, Self::Inferred)
     }
 
-    pub fn as_expression(&self) -> Option<&SymbolicExpression> {
-        match self {
-            Self::Expression(expression) => Some(expression),
-            Self::Inferred | Self::Resolver(_) => None,
-        }
-    }
-
     pub fn as_resolver_id(&self) -> Option<&str> {
         match self {
             Self::Resolver(resolver_id) => Some(resolver_id),
-            Self::Inferred | Self::Expression(_) => None,
+            Self::Inferred => None,
         }
     }
 }
@@ -67,13 +54,13 @@ impl SymbolicFieldCountResolution {
 pub enum SymbolicFieldOffsetResolution {
     #[default]
     Sequential,
-    Expression(SymbolicExpression),
+    Static(u64),
     Resolver(String),
 }
 
 impl SymbolicFieldOffsetResolution {
-    pub fn new_expression(expression: SymbolicExpression) -> Self {
-        Self::Expression(expression)
+    pub fn new_static(offset_in_bytes: u64) -> Self {
+        Self::Static(offset_in_bytes)
     }
 
     pub fn new_resolver(resolver_id: String) -> Self {
@@ -87,7 +74,7 @@ impl SymbolicFieldOffsetResolution {
     pub fn as_resolver_id(&self) -> Option<&str> {
         match self {
             Self::Resolver(resolver_id) => Some(resolver_id),
-            Self::Sequential | Self::Expression(_) => None,
+            Self::Sequential | Self::Static(_) => None,
         }
     }
 }
@@ -304,8 +291,8 @@ impl FromStr for SymbolicFieldDefinition {
 
     fn from_str(string: &str) -> Result<Self, Self::Err> {
         let trimmed_string = string.trim();
-        let (field_definition_string, offset_resolution) = if let Some((field_definition_string, offset_expression_string)) = trimmed_string.split_once('@') {
-            (field_definition_string.trim(), parse_offset_resolution(offset_expression_string.trim())?)
+        let (field_definition_string, offset_resolution) = if let Some((field_definition_string, offset_resolution_string)) = trimmed_string.split_once('@') {
+            (field_definition_string.trim(), parse_offset_resolution(offset_resolution_string.trim())?)
         } else {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
@@ -408,7 +395,6 @@ impl fmt::Display for SymbolicFieldDefinition {
     ) -> fmt::Result {
         let container_text = match &self.count_resolution {
             SymbolicFieldCountResolution::Inferred => self.container_type.to_string(),
-            SymbolicFieldCountResolution::Expression(count_expression) => self.format_container_text_with_count(&count_expression.to_string()),
             SymbolicFieldCountResolution::Resolver(resolver_id) => self.format_container_text_with_count(&format!("resolver({})", resolver_id)),
         };
         let mut field_text = if self.field_name.is_empty() {
@@ -419,9 +405,6 @@ impl fmt::Display for SymbolicFieldDefinition {
 
         match &self.display_count_resolution {
             SymbolicFieldCountResolution::Inferred => {}
-            SymbolicFieldCountResolution::Expression(count_expression) => {
-                field_text = format!("{} display {}", field_text, count_expression);
-            }
             SymbolicFieldCountResolution::Resolver(resolver_id) => {
                 field_text = format!("{} display resolver({})", field_text, resolver_id);
             }
@@ -432,7 +415,7 @@ impl fmt::Display for SymbolicFieldDefinition {
         }
 
         match &self.offset_resolution {
-            SymbolicFieldOffsetResolution::Expression(offset_expression) => return write!(formatter, "{} @ {}", field_text, offset_expression),
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => return write!(formatter, "{} @ +{}", field_text, offset_in_bytes),
             SymbolicFieldOffsetResolution::Resolver(resolver_id) => return write!(formatter, "{} @ resolver({})", field_text, resolver_id),
             SymbolicFieldOffsetResolution::Sequential => {}
         }
@@ -495,7 +478,7 @@ fn parse_count_resolution(length_part: &str) -> Result<SymbolicFieldCountResolut
         return Ok(SymbolicFieldCountResolution::new_resolver(resolver_id));
     }
 
-    Ok(SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str(length_part)?))
+    Err(format!("Dynamic array count must use resolver(...), got `{}`.", length_part))
 }
 
 fn parse_offset_resolution(offset_part: &str) -> Result<SymbolicFieldOffsetResolution, String> {
@@ -503,7 +486,7 @@ fn parse_offset_resolution(offset_part: &str) -> Result<SymbolicFieldOffsetResol
         return Ok(SymbolicFieldOffsetResolution::new_resolver(resolver_id));
     }
 
-    Ok(SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str(offset_part)?))
+    parse_static_offset(offset_part).map(SymbolicFieldOffsetResolution::new_static)
 }
 
 fn parse_display_count_resolution(field_definition_string: &str) -> Result<(&str, SymbolicFieldCountResolution), String> {
@@ -512,10 +495,34 @@ fn parse_display_count_resolution(field_definition_string: &str) -> Result<(&str
     };
     let trimmed_display_count_string = display_count_string.trim();
     if trimmed_display_count_string.is_empty() {
-        return Err(String::from("Display count resolver or expression is required."));
+        return Err(String::from("Display count resolver is required."));
     }
 
     Ok((field_definition_string.trim(), parse_count_resolution(trimmed_display_count_string)?))
+}
+
+fn parse_static_offset(offset_part: &str) -> Result<u64, String> {
+    let offset_part = offset_part.trim();
+    let offset_part = offset_part
+        .strip_prefix('+')
+        .map(str::trim)
+        .unwrap_or(offset_part);
+    let offset_binary_part = offset_part
+        .strip_prefix("0b")
+        .or_else(|| offset_part.strip_prefix("0B"));
+    let offset_hex_part = offset_part
+        .strip_prefix("0x")
+        .or_else(|| offset_part.strip_prefix("0X"));
+
+    if let Some(offset_binary_part) = offset_binary_part {
+        u64::from_str_radix(offset_binary_part, 2).map_err(|_| format!("Invalid static field offset: {}.", offset_part))
+    } else if let Some(offset_hex_part) = offset_hex_part {
+        u64::from_str_radix(offset_hex_part, 16).map_err(|_| format!("Invalid static field offset: {}.", offset_part))
+    } else {
+        offset_part
+            .parse::<u64>()
+            .map_err(|_| format!("Field offset must be a static unsigned value or resolver(...), got `{}`.", offset_part))
+    }
 }
 
 fn parse_resolver_reference(resolver_reference: &str) -> Option<String> {
@@ -534,7 +541,7 @@ mod tests {
     use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
-        structs::{symbolic_expression::SymbolicExpression, symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructFieldData},
+        structs::{symbolic_struct_definition::SymbolicStructDefinition, valued_struct_field::ValuedStructFieldData},
     };
     use serde_json::json;
     use std::str::FromStr;
@@ -614,22 +621,32 @@ mod tests {
     }
 
     #[test]
-    fn parse_dynamic_array_count_expression_round_trips() {
+    fn parse_dynamic_array_count_requires_resolver() {
+        let parse_error = SymbolicFieldDefinition::from_str("elements:game.Item[count] @ +8").expect_err("Expected inline count expression to fail.");
+
+        assert!(parse_error.contains("Dynamic array count must use resolver"));
+    }
+
+    #[test]
+    fn parse_static_field_offset_round_trips() {
         let symbolic_field_definition =
-            SymbolicFieldDefinition::from_str("elements:game.Item[count] @ +8").expect("Expected dynamic array field definition to parse.");
+            SymbolicFieldDefinition::from_str("elements:game.Item[resolver(game.item_count)] @ +8").expect("Expected static offset to parse.");
 
         assert_eq!(symbolic_field_definition.get_field_name(), "elements");
         assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("game.Item"));
         assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::Array);
         assert_eq!(
             symbolic_field_definition.get_count_resolution(),
-            &SymbolicFieldCountResolution::new_expression(SymbolicExpression::from_str("count").expect("Expected count expression to parse."))
+            &SymbolicFieldCountResolution::new_resolver(String::from("game.item_count"))
         );
-        assert_eq!(
-            symbolic_field_definition.get_offset_resolution(),
-            &SymbolicFieldOffsetResolution::new_expression(SymbolicExpression::from_str("+8").expect("Expected offset expression to parse."))
-        );
-        assert_eq!(symbolic_field_definition.to_string(), "elements:game.Item[count] @ +8");
+        assert_eq!(symbolic_field_definition.get_offset_resolution(), &SymbolicFieldOffsetResolution::new_static(8));
+        assert_eq!(symbolic_field_definition.to_string(), "elements:game.Item[resolver(game.item_count)] @ +8");
+
+        let hex_offset_field = SymbolicFieldDefinition::from_str("field:u8 @ +0x10").expect("Expected hex static offset to parse.");
+        let binary_offset_field = SymbolicFieldDefinition::from_str("field:u8 @ +0b10000").expect("Expected binary static offset to parse.");
+
+        assert_eq!(hex_offset_field.get_offset_resolution(), &SymbolicFieldOffsetResolution::new_static(16));
+        assert_eq!(binary_offset_field.get_offset_resolution(), &SymbolicFieldOffsetResolution::new_static(16));
     }
 
     #[test]
@@ -676,10 +693,10 @@ mod tests {
     }
 
     #[test]
-    fn parse_dynamic_array_expression_rejects_bad_syntax() {
+    fn parse_dynamic_array_expression_rejects_inline_syntax() {
         let parse_error = SymbolicFieldDefinition::from_str("elements:game.Item[count +] @ +8").expect_err("Expected dynamic array field definition to fail.");
 
-        assert!(parse_error.contains("Expected expression value"));
+        assert!(parse_error.contains("Dynamic array count must use resolver"));
     }
 
     #[test]
@@ -736,13 +753,13 @@ mod tests {
     }
 
     #[test]
-    fn legacy_serialized_field_without_name_deserializes_as_anonymous_field() {
+    fn serialized_field_without_name_deserializes_as_anonymous_field() {
         let serialized_value = json!({
             "data_type_ref": { "data_type_id": "u32" },
             "container_type": "None"
         });
         let symbolic_field_definition: SymbolicFieldDefinition =
-            serde_json::from_value(serialized_value).expect("Expected legacy symbolic field definition to deserialize.");
+            serde_json::from_value(serialized_value).expect("Expected symbolic field definition to deserialize.");
 
         assert_eq!(symbolic_field_definition.get_field_name(), "");
         assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("u32"));

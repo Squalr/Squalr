@@ -70,6 +70,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_struct_field_display_count_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE: &'static str = "__symbol_struct_field_pointer_size";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE: &'static str = "__symbol_struct_field_offset_mode";
+    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_STATIC_OFFSET: &'static str = "__symbol_struct_field_static_offset";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER: &'static str = "__symbol_struct_field_offset_resolver";
 
     pub fn new() -> Self {
@@ -564,6 +565,7 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE => String::from("Offset"),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_STATIC_OFFSET => String::from("Static Offset"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER => String::from("Offset Resolver"),
             _ => Self::humanize_field_key(field_name),
         }
