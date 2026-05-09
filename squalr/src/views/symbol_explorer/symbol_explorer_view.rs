@@ -2468,59 +2468,63 @@ impl SymbolExplorerView {
             user_interface.available_size(),
             Layout::centered_and_justified(Direction::TopDown),
             |user_interface| {
-                let panel_width = user_interface.available_width();
+                let groupbox_side_padding = 8.0;
+                let panel_width = (user_interface.available_width() - groupbox_side_padding * 2.0).max(0.0);
 
-                user_interface.add(
-                    GroupBox::new_from_theme(theme, title, |user_interface| {
-                        user_interface.vertical_centered(|user_interface| {
-                            user_interface.label(
-                                RichText::new(display_name)
-                                    .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
-                                    .color(theme.foreground),
-                            );
-                            user_interface.add_space(6.0);
-                            user_interface.label(RichText::new(description_text).color(description_color));
-                        });
-
-                        user_interface.add_space(12.0);
-                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                            let button_size = vec2(120.0, 28.0);
-                            let button_spacing = 12.0;
-                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                            user_interface.horizontal(|user_interface| {
-                                user_interface.add_space(side_spacing);
-                                user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                let button_confirm_delete = user_interface.add_sized(
-                                    button_size,
-                                    eframe::egui::Button::new(RichText::new(confirm_button_label).color(theme.foreground))
-                                        .fill(theme.background_control_danger)
-                                        .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                user_interface.horizontal(|user_interface| {
+                    user_interface.add_space(groupbox_side_padding);
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, title, |user_interface| {
+                            user_interface.vertical_centered(|user_interface| {
+                                user_interface.label(
+                                    RichText::new(display_name)
+                                        .font(theme.font_library.font_ubuntu_mono_bold.font_header.clone())
+                                        .color(theme.foreground),
                                 );
-
-                                if button_confirm_delete.clicked() {
-                                    did_confirm_delete = true;
-                                }
-
-                                let button_cancel = self.draw_sized_action_button(
-                                    user_interface,
-                                    "Cancel",
-                                    button_size,
-                                    theme.background_control_secondary,
-                                    theme.background_control_secondary_dark,
-                                    true,
-                                );
-
-                                if button_cancel.clicked() {
-                                    SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
-                                }
+                                user_interface.add_space(6.0);
+                                user_interface.label(RichText::new(description_text).color(description_color));
                             });
-                        });
-                    })
-                    .desired_width(panel_width),
-                );
+
+                            user_interface.add_space(12.0);
+                            user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                                let button_size = vec2(120.0, 28.0);
+                                let button_spacing = 12.0;
+                                let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                                let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                                user_interface.horizontal(|user_interface| {
+                                    user_interface.add_space(side_spacing);
+                                    user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                    let button_confirm_delete = user_interface.add_sized(
+                                        button_size,
+                                        eframe::egui::Button::new(RichText::new(confirm_button_label).color(theme.foreground))
+                                            .fill(theme.background_control_danger)
+                                            .stroke(Stroke::new(1.0, theme.background_control_danger_dark)),
+                                    );
+
+                                    if button_confirm_delete.clicked() {
+                                        did_confirm_delete = true;
+                                    }
+
+                                    let button_cancel = self.draw_sized_action_button(
+                                        user_interface,
+                                        "Cancel",
+                                        button_size,
+                                        theme.background_control_secondary,
+                                        theme.background_control_secondary_dark,
+                                        true,
+                                    );
+
+                                    if button_cancel.clicked() {
+                                        SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
+                                    }
+                                });
+                            });
+                        })
+                        .desired_width(panel_width),
+                    );
+                });
             },
         );
 
