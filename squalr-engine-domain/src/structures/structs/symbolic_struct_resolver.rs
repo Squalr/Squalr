@@ -1,6 +1,6 @@
 use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
-    data_values::container_type::ContainerType,
+    data_values::{container_type::ContainerType, pointer_scan_pointer_size::PointerScanPointerSize},
     structs::{
         symbolic_expression::{SymbolicExpression, SymbolicExpressionEvaluationError},
         symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -349,7 +349,7 @@ where
                 .as_ref()
                 .ok()
                 .and_then(|element_count| *element_count)
-                .and_then(|element_count| unit_size.checked_mul(element_count))
+                .and_then(|element_count| resolve_field_size_in_bytes(field_definition, unit_size, element_count))
         });
         let field_offset = field_offset_result.as_ref().ok().copied().flatten();
 
@@ -457,8 +457,8 @@ where
         )
         .map(Some),
         SymbolicFieldCountResolution::Inferred => match field_definition.get_container_type() {
-            ContainerType::ArrayFixed(element_count) => Ok(Some(element_count)),
-            ContainerType::Array => Ok(None),
+            ContainerType::ArrayFixed(element_count) | ContainerType::PointerArrayFixed(_, element_count) => Ok(Some(element_count)),
+            ContainerType::Array | ContainerType::PointerArray(_) => Ok(None),
             ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Ok(Some(1)),
         },
     }
@@ -673,9 +673,29 @@ fn resolve_field_static_size_in_bytes(
     let unit_size_in_bytes = resolve_type_size_in_bytes(field_definition.get_data_type_ref())?;
 
     match field_definition.get_container_type() {
-        ContainerType::ArrayFixed(element_count) => unit_size_in_bytes.checked_mul(element_count),
-        ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => Some(unit_size_in_bytes),
-        ContainerType::Array => None,
+        ContainerType::ArrayFixed(element_count) | ContainerType::PointerArrayFixed(_, element_count) => {
+            resolve_field_size_in_bytes(field_definition, unit_size_in_bytes, element_count)
+        }
+        ContainerType::None | ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => {
+            resolve_field_size_in_bytes(field_definition, unit_size_in_bytes, 1)
+        }
+        ContainerType::Array | ContainerType::PointerArray(_) => None,
+    }
+}
+
+fn resolve_field_size_in_bytes(
+    field_definition: &SymbolicFieldDefinition,
+    unit_size_in_bytes: u64,
+    element_count: u64,
+) -> Option<u64> {
+    match field_definition.get_container_type() {
+        ContainerType::Pointer(pointer_size) => Some(pointer_size.get_size_in_bytes()),
+        ContainerType::Pointer32 => Some(PointerScanPointerSize::Pointer32.get_size_in_bytes()),
+        ContainerType::Pointer64 => Some(PointerScanPointerSize::Pointer64.get_size_in_bytes()),
+        ContainerType::PointerArray(pointer_size) | ContainerType::PointerArrayFixed(pointer_size, _) => {
+            pointer_size.get_size_in_bytes().checked_mul(element_count)
+        }
+        ContainerType::None | ContainerType::Array | ContainerType::ArrayFixed(_) => unit_size_in_bytes.checked_mul(element_count),
     }
 }
 
@@ -926,6 +946,38 @@ mod tests {
             |data_type_ref| match data_type_ref.get_data_type_id() {
                 "u32" => Some(4),
                 "u64" => Some(8),
+                _ => None,
+            },
+            |field_definition, _, _| match field_definition.get_field_name() {
+                "count" => Ok(Some(3)),
+                _ => Ok(None),
+            },
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[1].get_element_count(), Some(1024));
+        assert_eq!(resolved_fields[1].get_displayed_element_count(), Some(3));
+        assert_eq!(resolved_fields[1].get_size_in_bytes(), Some(8192));
+        assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(8200));
+    }
+
+    #[test]
+    fn resolver_sizes_fixed_pointer_arrays_by_pointer_storage() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("EntityList"),
+            vec![
+                SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
+                SymbolicFieldDefinition::from_str("entities:Entity*(u64)[1024] display count @ +8").expect("Expected entities field to parse."),
+                SymbolicFieldDefinition::from_str("tail:u32").expect("Expected tail field to parse."),
+            ],
+        );
+
+        let resolved_struct = resolve_symbolic_struct_definition(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                "Entity" => Some(128),
                 _ => None,
             },
             |field_definition, _, _| match field_definition.get_field_name() {

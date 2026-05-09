@@ -191,6 +191,24 @@ impl SymbolicFieldDefinition {
 
                     ValuedStructFieldData::Value(array_value)
                 }
+                ContainerType::PointerArray(pointer_size) => {
+                    let default_value = symbol_registry
+                        .get_default_value(&pointer_size.to_data_type_ref())
+                        .unwrap_or_default();
+
+                    ValuedStructFieldData::Value(default_value)
+                }
+                ContainerType::PointerArrayFixed(pointer_size, length) => {
+                    let mut array_value = symbol_registry
+                        .get_default_value(&pointer_size.to_data_type_ref())
+                        .unwrap_or_default();
+                    let repeated_element_count = usize::try_from(length).unwrap_or_default();
+                    let repeated_bytes = array_value.get_value_bytes().repeat(repeated_element_count);
+
+                    array_value.copy_from_bytes(&repeated_bytes);
+
+                    ValuedStructFieldData::Value(array_value)
+                }
                 ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => ValuedStructFieldData::Value(Default::default()),
             }
         };
@@ -293,8 +311,22 @@ impl FromStr for SymbolicFieldDefinition {
             {
                 let type_part = type_and_container_string[..open_bracket_position].trim();
                 let length_part = type_and_container_string[open_bracket_position + 1..close_bracket_position].trim();
+                let (type_part, pointer_size) = split_pointer_suffix(type_part)?;
 
-                if length_part.is_empty() {
+                if let Some(pointer_size) = pointer_size {
+                    if length_part.is_empty() {
+                        (type_part, ContainerType::PointerArray(pointer_size), SymbolicFieldCountResolution::Inferred)
+                    } else {
+                        match length_part.parse::<u64>() {
+                            Ok(array_length) => (
+                                type_part,
+                                ContainerType::PointerArrayFixed(pointer_size, array_length),
+                                SymbolicFieldCountResolution::Inferred,
+                            ),
+                            Err(_) => (type_part, ContainerType::PointerArray(pointer_size), parse_count_resolution(length_part)?),
+                        }
+                    }
+                } else if length_part.is_empty() {
                     (type_part, ContainerType::Array, SymbolicFieldCountResolution::Inferred)
                 } else {
                     match length_part.parse::<u64>() {
@@ -355,8 +387,8 @@ impl fmt::Display for SymbolicFieldDefinition {
     ) -> fmt::Result {
         let container_text = match &self.count_resolution {
             SymbolicFieldCountResolution::Inferred => self.container_type.to_string(),
-            SymbolicFieldCountResolution::Expression(count_expression) => format!("[{}]", count_expression),
-            SymbolicFieldCountResolution::Resolver(resolver_id) => format!("[resolver({})]", resolver_id),
+            SymbolicFieldCountResolution::Expression(count_expression) => self.format_container_text_with_count(&count_expression.to_string()),
+            SymbolicFieldCountResolution::Resolver(resolver_id) => self.format_container_text_with_count(&format!("resolver({})", resolver_id)),
         };
         let mut field_text = if self.field_name.is_empty() {
             format!("{}{}", self.data_type_ref, container_text)
@@ -382,6 +414,42 @@ impl fmt::Display for SymbolicFieldDefinition {
 
         write!(formatter, "{}", field_text)
     }
+}
+
+impl SymbolicFieldDefinition {
+    fn format_container_text_with_count(
+        &self,
+        count_text: &str,
+    ) -> String {
+        match self.container_type {
+            ContainerType::PointerArray(pointer_size) | ContainerType::PointerArrayFixed(pointer_size, _) => {
+                format!("*({})[{}]", pointer_size, count_text)
+            }
+            ContainerType::None
+            | ContainerType::Array
+            | ContainerType::ArrayFixed(_)
+            | ContainerType::Pointer(_)
+            | ContainerType::Pointer32
+            | ContainerType::Pointer64 => format!("[{}]", count_text),
+        }
+    }
+}
+
+fn split_pointer_suffix(type_part: &str) -> Result<(&str, Option<PointerScanPointerSize>), String> {
+    if type_part.ends_with(')') {
+        if let Some(pointer_marker_index) = type_part.rfind("*(") {
+            let base_type_part = type_part[..pointer_marker_index].trim();
+            let pointer_size = PointerScanPointerSize::from_str(&type_part[pointer_marker_index + 2..type_part.len() - 1])?;
+
+            return Ok((base_type_part, Some(pointer_size)));
+        }
+    }
+
+    if let Some(base_type_part) = type_part.strip_suffix('*') {
+        return Ok((base_type_part.trim(), Some(PointerScanPointerSize::Pointer64)));
+    }
+
+    Ok((type_part, None))
 }
 
 fn parse_count_resolution(length_part: &str) -> Result<SymbolicFieldCountResolution, String> {
@@ -468,6 +536,43 @@ mod tests {
             ContainerType::Pointer(PointerScanPointerSize::Pointer24be)
         );
         assert_eq!(symbolic_field_definition.to_string(), "ptr:u8*(u24be)");
+    }
+
+    #[test]
+    fn parse_fixed_pointer_array_round_trips() {
+        let symbolic_field_definition = SymbolicFieldDefinition::from_str("entities:Entity*(u64)[1024] display resolver(entity.count)")
+            .expect("Expected fixed pointer array field definition to parse.");
+
+        assert_eq!(symbolic_field_definition.get_field_name(), "entities");
+        assert_eq!(symbolic_field_definition.get_data_type_ref(), &DataTypeRef::new("Entity"));
+        assert_eq!(
+            symbolic_field_definition.get_container_type(),
+            ContainerType::PointerArrayFixed(PointerScanPointerSize::Pointer64, 1024)
+        );
+        assert_eq!(
+            symbolic_field_definition.get_display_count_resolution(),
+            &SymbolicFieldCountResolution::new_resolver(String::from("entity.count"))
+        );
+        assert_eq!(
+            symbolic_field_definition.to_string(),
+            "entities:Entity*(u64)[1024] display resolver(entity.count)"
+        );
+    }
+
+    #[test]
+    fn parse_dynamic_pointer_array_round_trips() {
+        let symbolic_field_definition =
+            SymbolicFieldDefinition::from_str("entities:Entity*(u32)[resolver(entity.count)]").expect("Expected pointer array field definition to parse.");
+
+        assert_eq!(
+            symbolic_field_definition.get_container_type(),
+            ContainerType::PointerArray(PointerScanPointerSize::Pointer32)
+        );
+        assert_eq!(
+            symbolic_field_definition.get_count_resolution(),
+            &SymbolicFieldCountResolution::new_resolver(String::from("entity.count"))
+        );
+        assert_eq!(symbolic_field_definition.to_string(), "entities:Entity*(u32)[resolver(entity.count)]");
     }
 
     #[test]

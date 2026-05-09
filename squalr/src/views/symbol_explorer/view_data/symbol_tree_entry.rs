@@ -561,8 +561,9 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField>(
         let field_container_type = resolved_symbolic_field
             .get_displayed_element_count()
             .and_then(|element_count| {
-                matches!(field_definition.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_))
-                    .then_some(ContainerType::ArrayFixed(element_count))
+                field_definition
+                    .get_container_type()
+                    .with_fixed_element_count(element_count)
             })
             .unwrap_or_else(|| field_definition.get_container_type());
         let can_expand = data_type_ref_can_expand(
@@ -636,6 +637,24 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
             parent_full_path,
             parent_locator,
             data_type_ref,
+            ContainerType::None,
+            array_length,
+            depth,
+            expanded_tree_node_keys,
+            resolved_pointer_targets_by_node_key,
+            resolve_primitive_size_in_bytes,
+            read_scalar_field,
+            visited_struct_layout_ids,
+        ),
+        ContainerType::PointerArrayFixed(pointer_size, array_length) => append_fixed_array_element_entries(
+            symbol_tree_entries,
+            project_symbol_catalog,
+            symbol_claim_locator_key,
+            parent_node_key,
+            parent_full_path,
+            parent_locator,
+            data_type_ref,
+            ContainerType::Pointer(pointer_size),
             array_length,
             depth,
             expanded_tree_node_keys,
@@ -714,7 +733,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField>(
                 );
             }
         }
-        ContainerType::Array => {}
+        ContainerType::Array | ContainerType::PointerArray(_) => {}
     }
 }
 
@@ -726,6 +745,7 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
     parent_full_path: &str,
     parent_locator: &ProjectSymbolLocator,
     data_type_ref: &DataTypeRef,
+    element_container_type: ContainerType,
     array_length: u64,
     depth: usize,
     expanded_tree_node_keys: &HashSet<String>,
@@ -737,16 +757,17 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
 {
-    if !data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids) {
+    if !data_type_ref_can_expand(project_symbol_catalog, data_type_ref, element_container_type, visited_struct_layout_ids) {
         return;
     }
 
-    let element_size_in_bytes = resolve_data_type_size_in_bytes(
+    let element_unit_size_in_bytes = resolve_data_type_size_in_bytes(
         project_symbol_catalog,
         data_type_ref,
         resolve_primitive_size_in_bytes,
         visited_struct_layout_ids,
     );
+    let element_size_in_bytes = element_container_type.get_total_size_in_bytes(element_unit_size_in_bytes);
 
     for array_element_index in 0..array_length {
         let element_display_name = format!("[{}]", array_element_index);
@@ -754,7 +775,7 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
         let element_node_key = format!("{}::{}", parent_node_key, element_display_name);
         let element_offset = element_size_in_bytes.saturating_mul(array_element_index);
         let element_locator = offset_locator(parent_locator, element_offset);
-        let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
+        let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, element_container_type, visited_struct_layout_ids);
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&element_node_key);
 
         symbol_tree_entries.push(SymbolTreeEntry::new(
@@ -766,7 +787,7 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
             symbol_claim_locator_key.to_string(),
             element_locator.clone(),
             data_type_ref.to_string(),
-            ContainerType::None,
+            element_container_type,
             can_expand,
             is_expanded,
         ));
@@ -780,7 +801,7 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField>(
                 &element_full_path,
                 &element_locator,
                 data_type_ref,
-                ContainerType::None,
+                element_container_type,
                 depth + 1,
                 expanded_tree_node_keys,
                 resolved_pointer_targets_by_node_key,
@@ -853,6 +874,15 @@ fn data_type_ref_can_expand(
         ContainerType::ArrayFixed(array_length) => {
             array_length > 0 && data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids)
         }
+        ContainerType::PointerArrayFixed(pointer_size, array_length) => {
+            array_length > 0
+                && data_type_ref_can_expand(
+                    project_symbol_catalog,
+                    data_type_ref,
+                    ContainerType::Pointer(pointer_size),
+                    visited_struct_layout_ids,
+                )
+        }
         ContainerType::Pointer(_) | ContainerType::Pointer32 | ContainerType::Pointer64 => true,
         ContainerType::None => {
             let data_type_id = data_type_ref.get_data_type_id();
@@ -869,7 +899,7 @@ fn data_type_ref_can_expand(
 
             can_expand
         }
-        ContainerType::Array => false,
+        ContainerType::Array | ContainerType::PointerArray(_) => false,
     }
 }
 
@@ -1825,5 +1855,84 @@ mod tests {
         assert_eq!(symbol_tree_entries[5].get_full_path(), "Player.next.*.health");
         assert_eq!(symbol_tree_entries[5].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x200));
         assert_eq!(symbol_tree_entries[6].get_full_path(), "Player.next.*.next");
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_expands_displayed_fixed_pointer_array_elements() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("entity"),
+                    SymbolicStructDefinition::new(
+                        String::from("entity"),
+                        vec![SymbolicFieldDefinition::new_named(
+                            String::from("health"),
+                            DataTypeRef::new("u32"),
+                            ContainerType::None,
+                        )],
+                    ),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("entity_list"),
+                    SymbolicStructDefinition::new(
+                        String::from("entity_list"),
+                        vec![
+                            SymbolicFieldDefinition::from_str("count:u32").expect("Expected count field to parse."),
+                            SymbolicFieldDefinition::from_str("entities:entity*(u64)[1024] display count @ +8")
+                                .expect("Expected pointer array field to parse."),
+                        ],
+                    ),
+                ),
+            ],
+            vec![ProjectSymbolClaim::new_absolute_address(
+                String::from("EntityList"),
+                0x100,
+                String::from("entity_list"),
+            )],
+        );
+        let expanded_tree_node_keys = HashSet::from([
+            String::from("module:Absolute / Unmapped"),
+            String::from("claim:absolute:100"),
+            String::from("claim:absolute:100::entities"),
+            String::from("claim:absolute:100::entities::[0]"),
+            String::from("claim:absolute:100::entities::[0]::target"),
+        ]);
+        let resolved_pointer_targets_by_node_key = HashMap::from([(
+            String::from("claim:absolute:100::entities::[0]"),
+            ResolvedPointerTarget::new(ProjectSymbolLocator::new_absolute_address(0x500), String::from("0x108 -> 0x500")),
+        )]);
+
+        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &resolved_pointer_targets_by_node_key,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u32" => Some(4),
+                _ => None,
+            },
+            |field_locator, field_definition, _| match (field_locator, field_definition.get_field_name()) {
+                (ProjectSymbolLocator::AbsoluteAddress { address }, "count") if *address == 0x100 => Ok(Some(2)),
+                _ => Ok(None),
+            },
+        );
+
+        assert!(symbol_tree_entries.iter().any(|symbol_tree_entry| {
+            symbol_tree_entry.get_full_path() == "EntityList.entities[0]"
+                && symbol_tree_entry.get_container_type() == ContainerType::Pointer(PointerScanPointerSize::Pointer64)
+        }));
+        assert!(
+            symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[1]")
+        );
+        assert!(
+            !symbol_tree_entries
+                .iter()
+                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[2]")
+        );
+        assert!(symbol_tree_entries.iter().any(|symbol_tree_entry| {
+            symbol_tree_entry.get_full_path() == "EntityList.entities[0].*.health"
+                && symbol_tree_entry.get_locator() == &ProjectSymbolLocator::new_absolute_address(0x500)
+        }));
     }
 }

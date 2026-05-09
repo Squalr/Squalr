@@ -236,6 +236,39 @@ impl SymbolStructEditorView {
                 }
             }
             SymbolStructFieldContainerKind::Pointer => ContainerType::Pointer(field_draft.container_edit.pointer_size).to_string(),
+            SymbolStructFieldContainerKind::FixedPointerArray => {
+                let fixed_array_length = field_draft.container_edit.fixed_array_length.trim();
+
+                if fixed_array_length.is_empty() {
+                    format!("*({})[?]", field_draft.container_edit.pointer_size)
+                } else if !field_draft
+                    .container_edit
+                    .display_count_resolver_id
+                    .trim()
+                    .is_empty()
+                {
+                    format!(
+                        "*({})[{}] display resolver({})",
+                        field_draft.container_edit.pointer_size,
+                        fixed_array_length,
+                        field_draft.container_edit.display_count_resolver_id.trim()
+                    )
+                } else {
+                    format!("*({})[{}]", field_draft.container_edit.pointer_size, fixed_array_length)
+                }
+            }
+            SymbolStructFieldContainerKind::DynamicPointerArray => {
+                let resolver_id = field_draft
+                    .container_edit
+                    .dynamic_array_count_resolver_id
+                    .trim();
+
+                if resolver_id.is_empty() {
+                    format!("*({})[]", field_draft.container_edit.pointer_size)
+                } else {
+                    format!("*({})[resolver({})]", field_draft.container_edit.pointer_size, resolver_id)
+                }
+            }
         };
 
         format!("{}{}", data_type_id, container_suffix)
@@ -551,44 +584,52 @@ impl SymbolStructEditorView {
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
         ];
 
-        match field_draft.container_edit.kind {
-            SymbolStructFieldContainerKind::FixedArray => {
-                let length = field_draft
-                    .container_edit
-                    .fixed_array_length
-                    .trim()
-                    .parse::<u64>()
-                    .unwrap_or(1);
-                fields.push(
-                    DataTypeU64::get_value_from_primitive(length)
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH.to_string(), false),
-                );
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
-                        StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
-                        false,
-                    ),
-                );
-            }
-            SymbolStructFieldContainerKind::DynamicArray => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.dynamic_array_count_resolver_id)
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER.to_string(), false),
-                );
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
-                        StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
-                        false,
-                    ),
-                );
-            }
-            SymbolStructFieldContainerKind::Pointer => {
-                fields.push(
-                    DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.pointer_size.to_string())
-                        .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE.to_string(), false),
-                );
-            }
-            SymbolStructFieldContainerKind::Element | SymbolStructFieldContainerKind::Array => {}
+        if matches!(
+            field_draft.container_edit.kind,
+            SymbolStructFieldContainerKind::FixedArray | SymbolStructFieldContainerKind::FixedPointerArray
+        ) {
+            let length = field_draft
+                .container_edit
+                .fixed_array_length
+                .trim()
+                .parse::<u64>()
+                .unwrap_or(1);
+            fields.push(
+                DataTypeU64::get_value_from_primitive(length)
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH.to_string(), false),
+            );
+            fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
+                    StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
+                    false,
+                ),
+            );
+        }
+
+        if matches!(
+            field_draft.container_edit.kind,
+            SymbolStructFieldContainerKind::DynamicArray | SymbolStructFieldContainerKind::DynamicPointerArray
+        ) {
+            fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.dynamic_array_count_resolver_id)
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER.to_string(), false),
+            );
+            fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.display_count_resolver_id).to_named_valued_struct_field(
+                    StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
+                    false,
+                ),
+            );
+        }
+
+        if matches!(
+            field_draft.container_edit.kind,
+            SymbolStructFieldContainerKind::Pointer | SymbolStructFieldContainerKind::FixedPointerArray | SymbolStructFieldContainerKind::DynamicPointerArray
+        ) {
+            fields.push(
+                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.container_edit.pointer_size.to_string())
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE.to_string(), false),
+            );
         }
 
         fields.push(
@@ -1701,6 +1742,21 @@ mod tests {
         field_draft.container_edit.pointer_size = PointerScanPointerSize::Pointer64;
 
         assert_eq!(SymbolStructEditorView::format_field_data_type_preview(&field_draft), "u32*(u64)");
+    }
+
+    #[test]
+    fn format_field_data_type_preview_includes_fixed_pointer_array() {
+        let mut field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("Entity"));
+
+        field_draft.container_edit.kind = SymbolStructFieldContainerKind::FixedPointerArray;
+        field_draft.container_edit.pointer_size = PointerScanPointerSize::Pointer64;
+        field_draft.container_edit.fixed_array_length = String::from("1024");
+        field_draft.container_edit.display_count_resolver_id = String::from("entity.count");
+
+        assert_eq!(
+            SymbolStructEditorView::format_field_data_type_preview(&field_draft),
+            "Entity*(u64)[1024] display resolver(entity.count)"
+        );
     }
 
     #[test]
