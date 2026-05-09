@@ -56,6 +56,7 @@ pub enum SymbolStructEditorTakeOverState {
     RenameStructLayout { layout_id: String },
     OpenStructLayout { layout_id: String },
     DeleteConfirmation { layout_id: String },
+    DeleteFieldConfirmation { layout_id: String, field_index: usize },
 }
 
 #[derive(Clone, Default)]
@@ -237,6 +238,26 @@ impl SymbolStructEditorViewData {
         }
     }
 
+    pub fn request_field_delete_confirmation(
+        symbol_struct_editor_view_data: Dependency<Self>,
+        layout_id: String,
+        field_index: usize,
+    ) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor request field delete confirmation") {
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index });
+            symbol_struct_editor_view_data.selected_field_index = Some(field_index);
+        }
+    }
+
+    pub fn return_to_open_struct_layout(
+        symbol_struct_editor_view_data: Dependency<Self>,
+        layout_id: String,
+    ) {
+        if let Some(mut symbol_struct_editor_view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor return to open struct layout") {
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::OpenStructLayout { layout_id });
+        }
+    }
+
     pub fn select_field(
         symbol_struct_editor_view_data: Dependency<Self>,
         field_index: usize,
@@ -293,7 +314,8 @@ impl SymbolStructEditorViewData {
             Some(
                 SymbolStructEditorTakeOverState::RenameStructLayout { layout_id }
                 | SymbolStructEditorTakeOverState::OpenStructLayout { layout_id }
-                | SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id },
+                | SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id }
+                | SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. },
             ) => !project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -308,6 +330,22 @@ impl SymbolStructEditorViewData {
             symbol_struct_editor_view_data.selected_field_index = None;
         }
 
+        let stale_field_delete_layout_id = match symbol_struct_editor_view_data.take_over_state.as_ref() {
+            Some(SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index })
+                if symbol_struct_editor_view_data
+                    .draft
+                    .as_ref()
+                    .is_none_or(|draft| *field_index >= draft.field_drafts.len()) =>
+            {
+                Some(layout_id.clone())
+            }
+            _ => None,
+        };
+
+        if let Some(layout_id) = stale_field_delete_layout_id {
+            symbol_struct_editor_view_data.take_over_state = Some(SymbolStructEditorTakeOverState::OpenStructLayout { layout_id });
+        }
+
         if symbol_struct_editor_view_data
             .selected_field_index
             .is_some_and(|field_index| {
@@ -319,6 +357,25 @@ impl SymbolStructEditorViewData {
         {
             symbol_struct_editor_view_data.selected_field_index = None;
         }
+    }
+
+    pub fn remove_field_from_draft(
+        draft: &mut SymbolStructLayoutEditDraft,
+        field_index: usize,
+        default_data_type_ref: DataTypeRef,
+    ) -> Option<usize> {
+        if field_index >= draft.field_drafts.len() {
+            return None;
+        }
+
+        draft.field_drafts.remove(field_index);
+        if draft.field_drafts.is_empty() {
+            draft
+                .field_drafts
+                .push(SymbolStructFieldEditDraft::new(default_data_type_ref));
+        }
+
+        Some(field_index.min(draft.field_drafts.len().saturating_sub(1)))
     }
 
     pub fn layout_matches_filter(
@@ -821,6 +878,56 @@ mod tests {
         let draft = SymbolStructEditorViewData::create_default_new_draft(&project_symbol_catalog, DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
 
         assert_eq!(draft.layout_id, "new.struct");
+        assert_eq!(
+            draft.field_drafts.first().map(|field_draft| field_draft
+                .data_type_selection
+                .visible_data_type()
+                .get_data_type_id()),
+            Some(DataTypeI32::DATA_TYPE_ID)
+        );
+    }
+
+    #[test]
+    fn remove_field_from_draft_focuses_next_available_field() {
+        let mut draft = SymbolStructLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            field_drafts: vec![
+                create_field_draft("item_id", "u32", SymbolStructFieldContainerEdit::default()),
+                create_field_draft("quantity", "u16", SymbolStructFieldContainerEdit::default()),
+                create_field_draft("flags", "u8", SymbolStructFieldContainerEdit::default()),
+            ],
+        };
+
+        let field_index_to_focus = SymbolStructEditorViewData::remove_field_from_draft(&mut draft, 1, DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
+
+        assert_eq!(field_index_to_focus, Some(1));
+        assert_eq!(
+            draft
+                .field_drafts
+                .iter()
+                .map(|field_draft| field_draft.field_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["item_id", "flags"]
+        );
+    }
+
+    #[test]
+    fn remove_field_from_draft_keeps_one_default_field() {
+        let mut draft = SymbolStructLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolStructFieldContainerEdit::default(),
+            )],
+        };
+
+        let field_index_to_focus = SymbolStructEditorViewData::remove_field_from_draft(&mut draft, 0, DataTypeRef::new(DataTypeI32::DATA_TYPE_ID));
+
+        assert_eq!(field_index_to_focus, Some(0));
+        assert_eq!(draft.field_drafts.len(), 1);
         assert_eq!(
             draft.field_drafts.first().map(|field_draft| field_draft
                 .data_type_selection

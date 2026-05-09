@@ -3,6 +3,7 @@ use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, state_layer::StateLayer,
+    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
@@ -35,7 +36,7 @@ use std::{str::FromStr, sync::Arc};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolStructFieldRowAction {
     InsertAfter,
-    RemoveField,
+    RequestRemoveFieldConfirmation,
     MoveUp,
     MoveDown,
     SelectField,
@@ -73,6 +74,7 @@ impl SymbolStructEditorView {
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
     const FIELD_ROW_LEFT_PADDING: f32 = 8.0;
     const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
+    const FIELD_CONTEXT_MENU_WIDTH: f32 = 184.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_struct_editor_view_data = app_context
@@ -993,7 +995,7 @@ impl SymbolStructEditorView {
         }
         .ui(user_interface);
 
-        let button_area_width = Self::ICON_BUTTON_WIDTH * 4.0;
+        let button_area_width = Self::ICON_BUTTON_WIDTH * 2.0;
         let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
         let mut button_min_x = button_area_left;
         let mut render_next_button = |icon_handle: &eframe::egui::TextureHandle, tooltip_text: &str, is_disabled: bool| -> Response {
@@ -1017,19 +1019,86 @@ impl SymbolStructEditorView {
             pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
         }
 
-        let remove_field_response = render_next_button(
-            &theme.icon_library.icon_handle_common_delete,
-            "Remove this field from the draft struct layout.",
-            !can_remove_field,
-        );
-        if remove_field_response.clicked() {
-            pending_field_row_action = Some(SymbolStructFieldRowAction::RemoveField);
-        }
+        row_response.context_menu(|user_interface| {
+            if user_interface
+                .add(
+                    ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        "Move up",
+                        "symbol_struct_field_ctx_move_up",
+                        &None,
+                        Self::FIELD_CONTEXT_MENU_WIDTH,
+                    )
+                    .icon(theme.icon_library.icon_handle_navigation_up_arrow_small.clone())
+                    .disabled(!can_move_up),
+                )
+                .clicked()
+            {
+                pending_field_row_action = Some(SymbolStructFieldRowAction::MoveUp);
+                user_interface.close();
+            }
 
-        let insert_field_response = render_next_button(&theme.icon_library.icon_handle_common_add, "Insert a new field after this one.", false);
-        if insert_field_response.clicked() {
-            pending_field_row_action = Some(SymbolStructFieldRowAction::InsertAfter);
-        }
+            if user_interface
+                .add(
+                    ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        "Move down",
+                        "symbol_struct_field_ctx_move_down",
+                        &None,
+                        Self::FIELD_CONTEXT_MENU_WIDTH,
+                    )
+                    .icon(
+                        theme
+                            .icon_library
+                            .icon_handle_navigation_down_arrow_small
+                            .clone(),
+                    )
+                    .disabled(!can_move_down),
+                )
+                .clicked()
+            {
+                pending_field_row_action = Some(SymbolStructFieldRowAction::MoveDown);
+                user_interface.close();
+            }
+
+            if user_interface
+                .add(
+                    ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        "Insert new below",
+                        "symbol_struct_field_ctx_insert_below",
+                        &None,
+                        Self::FIELD_CONTEXT_MENU_WIDTH,
+                    )
+                    .icon(theme.icon_library.icon_handle_common_add.clone()),
+                )
+                .clicked()
+            {
+                pending_field_row_action = Some(SymbolStructFieldRowAction::InsertAfter);
+                user_interface.close();
+            }
+
+            user_interface.separator();
+
+            if user_interface
+                .add(
+                    ToolbarMenuItemView::new(
+                        self.app_context.clone(),
+                        "Delete",
+                        "symbol_struct_field_ctx_delete",
+                        &None,
+                        Self::FIELD_CONTEXT_MENU_WIDTH,
+                    )
+                    .icon(theme.icon_library.icon_handle_common_delete.clone())
+                    .icon_background(theme.background_control_danger, theme.background_control_danger_dark)
+                    .disabled(!can_remove_field),
+                )
+                .clicked()
+            {
+                pending_field_row_action = Some(SymbolStructFieldRowAction::RequestRemoveFieldConfirmation);
+                user_interface.close();
+            }
+        });
 
         let field_name = if field_draft.field_name.trim().is_empty() {
             format!("Field {}", field_index + 1)
@@ -1082,7 +1151,7 @@ impl SymbolStructEditorView {
             );
         }
 
-        if row_response.clicked() && pending_field_row_action.is_none() {
+        if (row_response.clicked() || row_response.secondary_clicked()) && pending_field_row_action.is_none() {
             pending_field_row_action = Some(SymbolStructFieldRowAction::SelectField);
         }
 
@@ -1127,14 +1196,13 @@ impl SymbolStructEditorView {
                         .insert(insert_index, SymbolStructFieldEditDraft::new(self.default_data_type_ref()));
                     field_index_to_focus = Some(insert_index);
                 }
-                SymbolStructFieldRowAction::RemoveField => {
-                    draft.field_drafts.remove(field_index);
-                    if draft.field_drafts.is_empty() {
-                        draft
-                            .field_drafts
-                            .push(SymbolStructFieldEditDraft::new(self.default_data_type_ref()));
-                    }
-                    field_index_to_focus = Some(field_index.min(draft.field_drafts.len().saturating_sub(1)));
+                SymbolStructFieldRowAction::RequestRemoveFieldConfirmation => {
+                    SymbolStructEditorViewData::request_field_delete_confirmation(
+                        self.symbol_struct_editor_view_data.clone(),
+                        draft.layout_id.clone(),
+                        field_index,
+                    );
+                    field_index_to_focus = Some(field_index);
                 }
                 SymbolStructFieldRowAction::MoveUp => {
                     if field_index > 0 {
@@ -1187,14 +1255,27 @@ impl SymbolStructEditorView {
         let can_save = validation_result.is_ok() && has_unsaved_changes;
         let mut should_cancel_take_over = false;
         let mut should_save_draft = false;
+        let mut should_append_field = false;
 
         self.render_take_over_panel(
             user_interface,
             take_over_title,
-            0.0,
+            if show_layout_name_editor { 0.0 } else { Self::ICON_BUTTON_WIDTH },
             if show_layout_name_editor { Self::TAKE_OVER_CONTENT_PADDING_X } else { 0.0 },
             if show_layout_name_editor { Self::TAKE_OVER_SECTION_SPACING } else { 0.0 },
-            |_user_interface| {},
+            |user_interface| {
+                if !show_layout_name_editor {
+                    let add_entry_response = self.render_icon_button(
+                        user_interface,
+                        &self.app_context.theme.icon_library.icon_handle_common_add,
+                        "Add a new field entry.",
+                        false,
+                    );
+                    if add_entry_response.clicked() {
+                        should_append_field = true;
+                    }
+                }
+            },
             |user_interface| {
                 if show_layout_name_editor {
                     user_interface.add(
@@ -1243,6 +1324,15 @@ impl SymbolStructEditorView {
                 }
             },
         );
+
+        if should_append_field {
+            let field_index_to_focus = edited_draft.field_drafts.len();
+            edited_draft
+                .field_drafts
+                .push(SymbolStructFieldEditDraft::new(self.default_data_type_ref()));
+            SymbolStructEditorViewData::select_field(self.symbol_struct_editor_view_data.clone(), field_index_to_focus);
+            self.focus_field_in_struct_viewer(&edited_draft, field_index_to_focus);
+        }
 
         if should_cancel_take_over {
             SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
@@ -1333,6 +1423,88 @@ impl SymbolStructEditorView {
             self.delete_struct_layout(project_symbol_catalog, layout_id);
         }
     }
+
+    fn render_field_delete_confirmation_take_over(
+        &self,
+        user_interface: &mut Ui,
+        layout_id: &str,
+        field_index: usize,
+        draft: Option<&SymbolStructLayoutEditDraft>,
+    ) {
+        let Some(draft) = draft else {
+            SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
+            return;
+        };
+
+        let field_label = draft
+            .field_drafts
+            .get(field_index)
+            .map(|field_draft| {
+                if field_draft.field_name.trim().is_empty() {
+                    format!("Field {}", field_index + 1)
+                } else {
+                    field_draft.field_name.trim().to_string()
+                }
+            })
+            .unwrap_or_else(|| format!("Field {}", field_index + 1));
+
+        let mut should_cancel_delete = false;
+        let mut should_delete_field = false;
+        let can_handle_window_shortcuts = self
+            .app_context
+            .window_focus_manager
+            .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
+
+        if can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
+            should_delete_field = true;
+        }
+
+        self.render_take_over_panel(
+            user_interface,
+            "Delete Struct Entry",
+            0.0,
+            Self::TAKE_OVER_CONTENT_PADDING_X,
+            Self::TAKE_OVER_SECTION_SPACING,
+            |_user_interface| {},
+            |user_interface| {
+                let theme = &self.app_context.theme;
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "Confirmation", |user_interface| {
+                        user_interface.label(RichText::new(format!("Delete `{}`?", field_label)).color(theme.foreground));
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+
+                user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+                let (delete_response, cancel_response) = self.render_delete_take_over_action_buttons(user_interface);
+                if delete_response.clicked() {
+                    should_delete_field = true;
+                }
+                if cancel_response.clicked() {
+                    should_cancel_delete = true;
+                }
+            },
+        );
+
+        if should_cancel_delete {
+            SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
+            return;
+        }
+
+        if should_delete_field {
+            let mut edited_draft = draft.clone();
+            if let Some(field_index_to_focus) =
+                SymbolStructEditorViewData::remove_field_from_draft(&mut edited_draft, field_index, self.default_data_type_ref())
+            {
+                SymbolStructEditorViewData::update_draft(self.symbol_struct_editor_view_data.clone(), edited_draft.clone());
+                SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
+                SymbolStructEditorViewData::select_field(self.symbol_struct_editor_view_data.clone(), field_index_to_focus);
+                self.focus_field_in_struct_viewer(&edited_draft, field_index_to_focus);
+            } else {
+                SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
+            }
+        }
+    }
 }
 
 impl Widget for SymbolStructEditorView {
@@ -1381,8 +1553,12 @@ impl Widget for SymbolStructEditorView {
             .can_window_handle_shortcuts(user_interface.ctx(), Self::WINDOW_ID);
 
         if is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
-            SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
-            self.clear_struct_viewer_if_symbol_struct_focused();
+            if let Some(SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. }) = take_over_state.as_ref() {
+                SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.clone());
+            } else {
+                SymbolStructEditorViewData::cancel_take_over_state(self.symbol_struct_editor_view_data.clone());
+                self.clear_struct_viewer_if_symbol_struct_focused();
+            }
         }
 
         if !is_take_over_active && can_handle_window_shortcuts && user_interface.input(|input_state| input_state.key_pressed(Key::Enter)) {
@@ -1459,6 +1635,9 @@ impl Widget for SymbolStructEditorView {
                     }
                     Some(SymbolStructEditorTakeOverState::DeleteConfirmation { layout_id }) => {
                         self.render_delete_confirmation_take_over(&mut content_user_interface, &project_symbol_catalog, layout_id);
+                    }
+                    Some(SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index }) => {
+                        self.render_field_delete_confirmation_take_over(&mut content_user_interface, layout_id, *field_index, draft.as_ref());
                     }
                     None => {
                         self.render_list_panel(
