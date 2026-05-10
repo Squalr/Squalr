@@ -23,6 +23,8 @@ pub struct SymbolTreeEntryViewResponse {
 }
 
 impl<'lifetime> SymbolTreeEntryView<'lifetime> {
+    const HOVER_CARD_MAX_WIDTH: f32 = 460.0;
+
     pub fn new(
         app_context: Arc<AppContext>,
         symbol_tree_entry: &'lifetime SymbolTreeEntry,
@@ -229,11 +231,10 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
                     .corner_radius(CornerRadius::ZERO)
                     .show(popup_user_interface, |popup_user_interface| {
                         popup_user_interface.spacing_mut().item_spacing = vec2(8.0, 5.0);
-                        popup_user_interface.set_max_width(460.0);
+                        popup_user_interface.set_max_width(Self::HOVER_CARD_MAX_WIDTH);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |hover_user_interface| {
                             for (label, value) in hover_rows {
                                 hover_user_interface.horizontal(|row_user_interface| {
-                                    row_user_interface.set_min_width(380.0);
                                     row_user_interface.label(
                                         RichText::new(label)
                                             .font(theme.font_library.font_noto_sans.font_small.clone())
