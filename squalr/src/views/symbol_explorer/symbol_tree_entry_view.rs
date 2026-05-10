@@ -237,12 +237,12 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
                                 hover_user_interface.horizontal(|row_user_interface| {
                                     row_user_interface.label(
                                         RichText::new(label)
-                                            .font(theme.font_library.font_noto_sans.font_small.clone())
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
                                             .color(theme.foreground_preview),
                                     );
                                     row_user_interface.label(
                                         RichText::new(value)
-                                            .font(theme.font_library.font_noto_sans.font_small.clone())
+                                            .font(theme.font_library.font_noto_sans.font_normal.clone())
                                             .color(theme.foreground),
                                     );
                                 });
