@@ -8,8 +8,8 @@ use crate::ui::widgets::controls::{
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
-    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldContextMenuTarget, SymbolStructFieldEditDraft, SymbolStructFieldOffsetMode,
-    SymbolStructLayoutEditDraft,
+    SymbolStructEditorTakeOverState, SymbolStructEditorViewData, SymbolStructFieldContextMenuTarget, SymbolStructFieldEditDraft, SymbolStructFieldElementType,
+    SymbolStructFieldOffsetMode, SymbolStructLayoutEditDraft,
 };
 use crate::views::symbol_struct_editor::view_data::symbol_struct_field_container_edit::SymbolStructFieldContainerKind;
 use eframe::egui::{
@@ -97,8 +97,11 @@ impl SymbolStructEditorView {
     }
 
     fn get_opened_project_symbol_catalog(&self) -> Option<ProjectSymbolCatalog> {
-        let opened_project = self
-            .app_context
+        Self::get_opened_project_symbol_catalog_from_context(&self.app_context)
+    }
+
+    fn get_opened_project_symbol_catalog_from_context(app_context: &AppContext) -> Option<ProjectSymbolCatalog> {
+        let opened_project = app_context
             .engine_unprivileged_state
             .get_project_manager()
             .get_opened_project();
@@ -545,6 +548,7 @@ impl SymbolStructEditorView {
 
     fn focus_field_in_struct_viewer(
         &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &SymbolStructLayoutEditDraft,
         field_index: usize,
     ) {
@@ -553,7 +557,7 @@ impl SymbolStructEditorView {
             return;
         };
 
-        let details_struct = Self::build_field_details_struct(field_draft);
+        let details_struct = Self::build_field_details_struct(project_symbol_catalog, field_draft);
         let selection_key = format!("field|{}|{}", draft.layout_id, field_index);
         let edit_callback = Self::build_struct_viewer_field_edit_callback(
             self.symbol_struct_editor_view_data.clone(),
@@ -571,22 +575,36 @@ impl SymbolStructEditorView {
         );
     }
 
-    fn build_field_details_struct(field_draft: &SymbolStructFieldEditDraft) -> ValuedStruct {
+    fn build_field_details_struct(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        field_draft: &SymbolStructFieldEditDraft,
+    ) -> ValuedStruct {
+        let element_type = SymbolStructEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
         let mut fields = vec![
             DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string(element_type.label())
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string(field_draft.container_edit.kind.label())
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string(if field_draft.is_hidden { "true" } else { "false" })
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN.to_string(), false),
+        ];
+
+        let element_type_field_name = match element_type {
+            SymbolStructFieldElementType::BuiltInDataType => StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE,
+            SymbolStructFieldElementType::SymbolStruct => StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT,
+        };
+        fields.insert(
+            2,
             DataTypeStringUtf8::get_value_from_primitive_string(
                 field_draft
                     .data_type_selection
                     .visible_data_type()
                     .get_data_type_id(),
             )
-            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(field_draft.container_edit.kind.label())
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
-            DataTypeStringUtf8::get_value_from_primitive_string(if field_draft.is_hidden { "true" } else { "false" })
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN.to_string(), false),
-        ];
+            .to_named_valued_struct_field(element_type_field_name.to_string(), false),
+        );
 
         if matches!(
             field_draft.container_edit.kind,
@@ -675,7 +693,8 @@ impl SymbolStructEditorView {
                     return;
                 };
 
-                Self::apply_field_details_edit(field_draft, &edited_field);
+                let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
+                Self::apply_field_details_edit(&project_symbol_catalog, field_draft, &edited_field);
                 view_data.replace_draft(draft.clone());
                 draft
             };
@@ -683,7 +702,8 @@ impl SymbolStructEditorView {
             let Some(updated_field_draft) = updated_draft.field_drafts.get(field_index) else {
                 return;
             };
-            let details_struct = Self::build_field_details_struct(updated_field_draft);
+            let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
+            let details_struct = Self::build_field_details_struct(&project_symbol_catalog, updated_field_draft);
             let selection_key = format!("field|{}|{}", updated_draft.layout_id, field_index);
             let edit_callback = Self::build_struct_viewer_field_edit_callback(
                 symbol_struct_editor_view_data.clone(),
@@ -703,6 +723,7 @@ impl SymbolStructEditorView {
     }
 
     fn apply_field_details_edit(
+        project_symbol_catalog: &ProjectSymbolCatalog,
         field_draft: &mut SymbolStructFieldEditDraft,
         edited_field: &ValuedStructField,
     ) {
@@ -712,7 +733,15 @@ impl SymbolStructEditorView {
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME => {
                 field_draft.field_name = edited_text;
             }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE => {
+                Self::apply_field_element_type_edit(project_symbol_catalog, field_draft, &edited_text);
+            }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE => {
+                field_draft
+                    .data_type_selection
+                    .replace_selected_data_types(vec![DataTypeRef::new(edited_text.trim())]);
+            }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT => {
                 field_draft
                     .data_type_selection
                     .replace_selected_data_types(vec![DataTypeRef::new(edited_text.trim())]);
@@ -755,6 +784,36 @@ impl SymbolStructEditorView {
                 field_draft.offset_resolver_id = edited_text;
             }
             _ => {}
+        }
+    }
+
+    fn apply_field_element_type_edit(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        field_draft: &mut SymbolStructFieldEditDraft,
+        edited_text: &str,
+    ) {
+        let current_element_type = SymbolStructEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
+        let selected_element_type = SymbolStructFieldElementType::ALL
+            .iter()
+            .copied()
+            .find(|element_type| element_type.label() == edited_text.trim())
+            .unwrap_or(current_element_type);
+
+        if selected_element_type == current_element_type {
+            return;
+        }
+
+        let next_data_type_ref = match selected_element_type {
+            SymbolStructFieldElementType::BuiltInDataType => Some(DataTypeRef::new(DataTypeI32::DATA_TYPE_ID)),
+            SymbolStructFieldElementType::SymbolStruct => {
+                SymbolStructEditorViewData::first_struct_layout_id(project_symbol_catalog).map(|struct_layout_id| DataTypeRef::new(&struct_layout_id))
+            }
+        };
+
+        if let Some(next_data_type_ref) = next_data_type_ref {
+            field_draft
+                .data_type_selection
+                .replace_selected_data_types(vec![next_data_type_ref]);
         }
     }
 
@@ -1367,6 +1426,7 @@ impl SymbolStructEditorView {
     fn render_field_rows(
         &self,
         user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &mut SymbolStructLayoutEditDraft,
         selected_field_index: Option<usize>,
     ) {
@@ -1443,7 +1503,7 @@ impl SymbolStructEditorView {
 
             if let Some(field_index_to_focus) = field_index_to_focus {
                 SymbolStructEditorViewData::select_field(self.symbol_struct_editor_view_data.clone(), field_index_to_focus);
-                self.focus_field_in_struct_viewer(draft, field_index_to_focus);
+                self.focus_field_in_struct_viewer(project_symbol_catalog, draft, field_index_to_focus);
             }
         }
     }
@@ -1527,7 +1587,7 @@ impl SymbolStructEditorView {
                             }
 
                             user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                            self.render_field_rows(user_interface, &mut edited_draft, selected_field_index);
+                            self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
                         })
                         .desired_width(user_interface.available_width()),
                     );
@@ -1556,7 +1616,7 @@ impl SymbolStructEditorView {
                 .field_drafts
                 .push(SymbolStructFieldEditDraft::new(self.default_data_type_ref()));
             SymbolStructEditorViewData::select_field(self.symbol_struct_editor_view_data.clone(), field_index_to_focus);
-            self.focus_field_in_struct_viewer(&edited_draft, field_index_to_focus);
+            self.focus_field_in_struct_viewer(project_symbol_catalog, &edited_draft, field_index_to_focus);
         }
 
         if should_cancel_take_over {
@@ -1652,6 +1712,7 @@ impl SymbolStructEditorView {
     fn render_field_delete_confirmation_take_over(
         &self,
         user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
         layout_id: &str,
         field_index: usize,
         draft: Option<&SymbolStructLayoutEditDraft>,
@@ -1724,7 +1785,7 @@ impl SymbolStructEditorView {
                 SymbolStructEditorViewData::update_draft(self.symbol_struct_editor_view_data.clone(), edited_draft.clone());
                 SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
                 SymbolStructEditorViewData::select_field(self.symbol_struct_editor_view_data.clone(), field_index_to_focus);
-                self.focus_field_in_struct_viewer(&edited_draft, field_index_to_focus);
+                self.focus_field_in_struct_viewer(project_symbol_catalog, &edited_draft, field_index_to_focus);
             } else {
                 SymbolStructEditorViewData::return_to_open_struct_layout(self.symbol_struct_editor_view_data.clone(), layout_id.to_string());
             }
@@ -1735,7 +1796,14 @@ impl SymbolStructEditorView {
 #[cfg(test)]
 mod tests {
     use super::{SymbolStructEditorView, SymbolStructFieldContainerKind, SymbolStructFieldEditDraft};
-    use squalr_engine_api::structures::{data_types::data_type_ref::DataTypeRef, pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize};
+    use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::structures::{
+        data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
+        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+        projects::project_symbol_catalog::ProjectSymbolCatalog,
+        structs::symbolic_struct_definition::SymbolicStructDefinition,
+    };
 
     #[test]
     fn format_field_data_type_preview_includes_fixed_array_length() {
@@ -1807,6 +1875,40 @@ mod tests {
         assert_eq!(
             SymbolStructEditorView::format_field_data_type_preview(&field_draft),
             "game.item[resolver(inventory.count)]"
+        );
+    }
+
+    #[test]
+    fn build_field_details_struct_splits_builtin_data_types_from_symbol_structs() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("player.stats"),
+            SymbolicStructDefinition::new(String::from("player.stats"), Vec::new()),
+        )]);
+        let builtin_field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+        let symbol_struct_field_draft = SymbolStructFieldEditDraft::new(DataTypeRef::new("player.stats"));
+
+        let builtin_details_struct = SymbolStructEditorView::build_field_details_struct(&project_symbol_catalog, &builtin_field_draft);
+        let symbol_struct_details_struct = SymbolStructEditorView::build_field_details_struct(&project_symbol_catalog, &symbol_struct_field_draft);
+
+        assert!(
+            builtin_details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE)
+                .is_some()
+        );
+        assert!(
+            builtin_details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT)
+                .is_none()
+        );
+        assert!(
+            symbol_struct_details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE)
+                .is_none()
+        );
+        assert!(
+            symbol_struct_details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT)
+                .is_some()
         );
     }
 }
@@ -1941,7 +2043,13 @@ impl Widget for SymbolStructEditorView {
                         self.render_delete_confirmation_take_over(&mut content_user_interface, &project_symbol_catalog, layout_id);
                     }
                     Some(SymbolStructEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index }) => {
-                        self.render_field_delete_confirmation_take_over(&mut content_user_interface, layout_id, *field_index, draft.as_ref());
+                        self.render_field_delete_confirmation_take_over(
+                            &mut content_user_interface,
+                            &project_symbol_catalog,
+                            layout_id,
+                            *field_index,
+                            draft.as_ref(),
+                        );
                     }
                     None => {
                         self.render_list_panel(

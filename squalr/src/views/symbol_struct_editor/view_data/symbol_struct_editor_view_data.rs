@@ -37,6 +37,24 @@ impl SymbolStructFieldOffsetMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SymbolStructFieldElementType {
+    #[default]
+    BuiltInDataType,
+    SymbolStruct,
+}
+
+impl SymbolStructFieldElementType {
+    pub const ALL: [Self; 2] = [Self::BuiltInDataType, Self::SymbolStruct];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::BuiltInDataType => "Data Type",
+            Self::SymbolStruct => "Symbol Struct",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolStructFieldEditDraft {
     pub field_name: String,
@@ -517,6 +535,33 @@ impl SymbolStructEditorViewData {
         symbol_claim_usage_count
             .saturating_add(module_field_usage_count)
             .saturating_add(struct_field_usage_count)
+    }
+
+    pub fn resolve_field_element_type(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        field_draft: &SymbolStructFieldEditDraft,
+    ) -> SymbolStructFieldElementType {
+        let data_type_id = field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id();
+
+        if project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_id)
+        {
+            SymbolStructFieldElementType::SymbolStruct
+        } else {
+            SymbolStructFieldElementType::BuiltInDataType
+        }
+    }
+
+    pub fn first_struct_layout_id(project_symbol_catalog: &ProjectSymbolCatalog) -> Option<String> {
+        project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .first()
+            .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string())
     }
 
     pub fn create_draft_from_descriptor(struct_layout_descriptor: &StructLayoutDescriptor) -> SymbolStructLayoutEditDraft {

@@ -62,7 +62,9 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH: &'static str = "__symbol_resolver_global_symbol_path";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_LAYOUT_ID: &'static str = "__symbol_struct_layout_id";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME: &'static str = "__symbol_struct_field_name";
+    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE: &'static str = "__symbol_struct_field_element_type";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE: &'static str = "__symbol_struct_field_data_type";
+    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT: &'static str = "__symbol_struct_field_symbol_struct";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND: &'static str = "__symbol_struct_field_container_kind";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN: &'static str = "__symbol_struct_field_hidden";
     pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_struct_field_fixed_array_length";
@@ -515,8 +517,15 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Operator"), StructViewerFieldEditorKind::SymbolResolverOperatorSelector)
             } else if Self::is_symbol_resolver_data_type_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
+            } else if Self::is_symbol_struct_field_element_type_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Element Type"), StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector)
             } else if Self::is_symbol_struct_field_data_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
+                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector)
+            } else if Self::is_symbol_struct_field_symbol_struct_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(
+                    String::from("Symbol Struct"),
+                    StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector,
+                )
             } else if Self::is_symbol_struct_field_container_kind_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Container"), StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector)
             } else if Self::is_symbol_struct_field_pointer_size_field(valued_struct_field) {
@@ -557,7 +566,9 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => String::from("Path"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_LAYOUT_ID => String::from("Name"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME => String::from("Name"),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE => String::from("Element Type"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE => String::from("Data Type"),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT => String::from("Symbol Struct"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND => String::from("Container"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN => String::from("Hidden"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
@@ -690,6 +701,14 @@ impl StructViewerViewData {
 
     fn is_symbol_struct_field_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE
+    }
+
+    fn is_symbol_struct_field_element_type_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE
+    }
+
+    fn is_symbol_struct_field_symbol_struct_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT
     }
 
     fn is_symbol_struct_field_container_kind_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -1099,8 +1118,12 @@ mod tests {
     #[test]
     fn create_field_presentations_maps_symbol_struct_editor_fields_to_custom_editors() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("Data Type")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("player.stats")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("Pointer")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("u64")
@@ -1113,9 +1136,21 @@ mod tests {
 
         assert_eq!(
             field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector)
+        );
+        assert_eq!(
+            field_presentations
                 .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
+            Some(&StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector)
+        );
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector)
         );
         assert_eq!(
             field_presentations

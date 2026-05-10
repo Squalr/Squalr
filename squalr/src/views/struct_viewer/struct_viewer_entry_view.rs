@@ -18,15 +18,19 @@ use crate::{
         struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align2, Response, Sense, TextureHandle, Ui, Widget, vec2};
+use eframe::egui::{Align2, Id, Response, ScrollArea, Sense, TextEdit, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
-use squalr_engine_api::structures::{
-    data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
-    data_types::data_type_ref::DataTypeRef,
-    data_values::anonymous_value_string::AnonymousValueString,
-    pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
-    structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
-    structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverBinaryOperator},
+use squalr_engine_api::{
+    engine::engine_execution_context::EngineExecutionContext,
+    structures::{
+        data_types::built_in_types::string::utf8::data_type_string_utf8::DataTypeStringUtf8,
+        data_types::data_type_ref::DataTypeRef,
+        data_values::anonymous_value_string::AnonymousValueString,
+        pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
+        projects::project_symbol_catalog::ProjectSymbolCatalog,
+        structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
+        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverBinaryOperator},
+    },
 };
 use std::{str::FromStr, sync::Arc};
 
@@ -62,6 +66,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         "Type Size",
         "Operation",
     ];
+    const SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Struct"];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
     const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
 
@@ -229,6 +234,53 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         Self::project_item_pointer_size_data_type_ref(pointer_size_label)
             .map(|data_type_ref| DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &app_context.theme.icon_library))
     }
+
+    fn get_opened_project_symbol_catalog(app_context: &Arc<AppContext>) -> Option<ProjectSymbolCatalog> {
+        let opened_project_lock = app_context
+            .engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project();
+        let opened_project_guard = opened_project_lock.read().ok()?;
+
+        opened_project_guard.as_ref().map(|opened_project| {
+            opened_project
+                .get_project_info()
+                .get_project_symbol_catalog()
+                .clone()
+        })
+    }
+
+    fn struct_layout_matches_filter(
+        struct_layout_id: &str,
+        filter_text: &str,
+    ) -> bool {
+        let trimmed_filter_text = filter_text.trim();
+
+        trimmed_filter_text.is_empty()
+            || struct_layout_id
+                .to_ascii_lowercase()
+                .contains(&trimmed_filter_text.to_ascii_lowercase())
+    }
+
+    fn filter_symbol_struct_layouts_from_data_type_refs(
+        app_context: &Arc<AppContext>,
+        data_type_refs: &[DataTypeRef],
+    ) -> Vec<DataTypeRef> {
+        let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog(app_context) else {
+            return data_type_refs.to_vec();
+        };
+
+        data_type_refs
+            .iter()
+            .filter(|data_type_ref| {
+                !project_symbol_catalog
+                    .get_struct_layout_descriptors()
+                    .iter()
+                    .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_ref.get_data_type_id())
+            })
+            .cloned()
+            .collect()
+    }
 }
 
 impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
@@ -306,12 +358,16 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
         );
         let icon_center = icon_rect.center();
         let icon_data_type_id = match (self.field_presentation.editor_kind(), self.field_data_type_selection.as_ref()) {
-            (StructViewerFieldEditorKind::DataTypeSelector, Some(field_data_type_selection)) => {
-                field_data_type_selection.visible_data_type().get_data_type_id()
-            }
-            _ => self.valued_struct_field.get_icon_id(),
+            (StructViewerFieldEditorKind::DataTypeSelector, Some(field_data_type_selection))
+            | (StructViewerFieldEditorKind::SymbolResolverDataTypeSelector, Some(field_data_type_selection))
+            | (StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector, Some(field_data_type_selection)) => field_data_type_selection
+                .visible_data_type()
+                .get_data_type_id()
+                .to_string(),
+            (StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector, _) => StructViewerViewData::read_utf8_field_text(self.valued_struct_field),
+            _ => self.valued_struct_field.get_icon_id().to_string(),
         };
-        let icon = DataTypeToIconConverter::convert_data_type_to_icon(icon_data_type_id, &theme.icon_library);
+        let icon = DataTypeToIconConverter::convert_data_type_to_icon(icon_data_type_id.as_ref(), &theme.icon_library);
 
         IconDraw::draw_sized(user_interface, icon_center, icon_size, &icon);
 
@@ -485,7 +541,9 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     *self.struct_viewer_frame_action = StructViewerFrameAction::OpenInCodeViewer(self.valued_struct_field.get_name().to_string());
                 }
             }
-            StructViewerFieldEditorKind::DataTypeSelector | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector => {
+            StructViewerFieldEditorKind::DataTypeSelector
+            | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
+            | StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector => {
                 if let Some(field_data_type_selection) = self.field_data_type_selection {
                     let previous_data_type_ref = field_data_type_selection.visible_data_type().clone();
                     let data_type_selector_id = format!("struct_viewer_data_type_{}_{}", self.row_index, self.valued_struct_field.get_name());
@@ -500,7 +558,16 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             vec2(available_for_selectors, available_size_rect.height()),
                         ),
                         DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
-                            .available_data_types(available_data_type_refs.clone())
+                            .available_data_types(
+                                if matches!(
+                                    self.field_presentation.editor_kind(),
+                                    StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector
+                                ) {
+                                    Self::filter_symbol_struct_layouts_from_data_type_refs(&self.app_context, &available_data_type_refs)
+                                } else {
+                                    available_data_type_refs.clone()
+                                },
+                            )
                             .width(available_for_selectors)
                             .height(available_size_rect.height()),
                     );
@@ -511,7 +578,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                     if previous_data_type_ref != selected_data_type_ref {
                         if matches!(
                             self.field_presentation.editor_kind(),
-                            StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
+                            StructViewerFieldEditorKind::SymbolResolverDataTypeSelector | StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector
                         ) {
                             Self::commit_symbol_resolver_data_type_selection(
                                 self.valued_struct_field,
@@ -710,6 +777,145 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_operator_label) = selected_operator_label {
                     Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_operator_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector => {
+                let element_type_selector_id = format!(
+                    "struct_viewer_symbol_struct_field_element_type_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_element_type = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let element_type_label = Self::SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS
+                    .iter()
+                    .copied()
+                    .find(|candidate_label| *candidate_label == current_element_type)
+                    .unwrap_or("Data Type");
+                let mut selected_element_type_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let element_type_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(element_type_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        element_type_label,
+                        &element_type_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for candidate_label in Self::SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS {
+                                let element_type_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, element_type_width));
+
+                                if element_type_response.clicked() {
+                                    selected_element_type_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(element_type_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_element_type_label) = selected_element_type_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_element_type_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector => {
+                let symbol_struct_selector_id = format!(
+                    "struct_viewer_symbol_struct_field_symbol_struct_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_struct_layout_id = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let symbol_struct_width =
+                    (row_max_x - value_box_position_x - Self::trailing_action_slot_width(commit_button_width, value_column_padding)).max(0.0);
+                let project_symbol_catalog = Self::get_opened_project_symbol_catalog(&self.app_context).unwrap_or_default();
+                let symbol_struct_search_id = Id::new(("symbol_struct_field_search", symbol_struct_selector_id.as_str(), user_interface.id().value()));
+                let mut selected_struct_layout_id = None;
+                let symbol_struct_label = if current_struct_layout_id.trim().is_empty() {
+                    "Select symbol struct"
+                } else {
+                    current_struct_layout_id.as_str()
+                };
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(symbol_struct_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        symbol_struct_label,
+                        &symbol_struct_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            let mut search_text = popup_user_interface.memory(|memory| {
+                                memory
+                                    .data
+                                    .get_temp::<String>(symbol_struct_search_id)
+                                    .unwrap_or_default()
+                            });
+                            let search_response = popup_user_interface.add_sized(
+                                [symbol_struct_width, 28.0],
+                                TextEdit::singleline(&mut search_text)
+                                    .hint_text("Search structs")
+                                    .font(theme.font_library.font_noto_sans.font_normal.clone()),
+                            );
+                            popup_user_interface.memory_mut(|memory| {
+                                memory
+                                    .data
+                                    .insert_temp(symbol_struct_search_id, search_text.clone())
+                            });
+
+                            if search_response.changed() {
+                                popup_user_interface.ctx().request_repaint();
+                            }
+
+                            ScrollArea::vertical()
+                                .id_salt(("symbol_struct_field_options", symbol_struct_selector_id.as_str()))
+                                .max_height(240.0)
+                                .auto_shrink([false, true])
+                                .show(popup_user_interface, |scroll_user_interface| {
+                                    let mut has_visible_layout = false;
+                                    for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+                                        let candidate_layout_id = struct_layout_descriptor.get_struct_layout_id();
+                                        if !Self::struct_layout_matches_filter(candidate_layout_id, &search_text) {
+                                            continue;
+                                        }
+
+                                        has_visible_layout = true;
+                                        let candidate_icon =
+                                            DataTypeToIconConverter::convert_data_type_to_icon(candidate_layout_id, &self.app_context.theme.icon_library);
+                                        let layout_response = scroll_user_interface.add(ComboBoxItemView::new(
+                                            self.app_context.clone(),
+                                            candidate_layout_id,
+                                            Some(candidate_icon),
+                                            symbol_struct_width,
+                                        ));
+
+                                        if layout_response.clicked() {
+                                            selected_struct_layout_id = Some(candidate_layout_id.to_string());
+                                            *should_close = true;
+                                        }
+                                    }
+
+                                    if !has_visible_layout {
+                                        scroll_user_interface.label(eframe::egui::RichText::new("No matching structs").color(theme.foreground_preview));
+                                    }
+                                });
+                        },
+                    )
+                    .width(symbol_struct_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_struct_layout_id) = selected_struct_layout_id {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, &selected_struct_layout_id, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector => {

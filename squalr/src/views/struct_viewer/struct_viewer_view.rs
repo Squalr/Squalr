@@ -883,7 +883,9 @@ impl Widget for StructViewerView {
                                             value_splitter_x + BAR_THICKNESS,
                                         ));
                                     }
-                                    StructViewerFieldEditorKind::DataTypeSelector | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector => {
+                                    StructViewerFieldEditorKind::DataTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector => {
                                         let field_data_type_selection = struct_viewer_view_data
                                             .field_data_type_selections
                                             .get_mut(field.get_name());
@@ -907,6 +909,8 @@ impl Widget for StructViewerView {
                                     | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector
                                     | StructViewerFieldEditorKind::SymbolResolverNodeKindSelector
                                     | StructViewerFieldEditorKind::SymbolResolverOperatorSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector => {
