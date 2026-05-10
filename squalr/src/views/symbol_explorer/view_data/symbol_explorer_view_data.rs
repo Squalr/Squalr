@@ -40,10 +40,21 @@ pub enum SymbolExplorerTakeOverState {
     },
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModuleRootCreateDraft {
     pub module_name: String,
     pub size_text: String,
+    pub size_format: AnonymousValueStringFormat,
+}
+
+impl Default for ModuleRootCreateDraft {
+    fn default() -> Self {
+        Self {
+            module_name: String::new(),
+            size_text: String::from("1000"),
+            size_format: AnonymousValueStringFormat::Hexadecimal,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

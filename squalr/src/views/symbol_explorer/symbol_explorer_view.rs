@@ -27,7 +27,7 @@ use crate::views::{
     },
     symbol_struct_editor::{symbol_struct_editor_view::SymbolStructEditorView, view_data::symbol_struct_editor_view_data::SymbolStructEditorViewData},
 };
-use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, TextEdit, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget, vec2};
 use epaint::{Stroke, pos2};
 use squalr_engine_api::commands::{
     memory::{
@@ -155,6 +155,11 @@ impl SymbolExplorerView {
     const PREVIEW_VALUES_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_display_name";
+    const CREATE_MODULE_SIZE_DATA_VALUE_BOX_ID: &'static str = "symbol_explorer_create_module_size";
+    const TAKE_OVER_ACTION_BUTTON_WIDTH: f32 = 120.0;
+    const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
+    const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
+    const TAKE_OVER_GROUPBOX_SIDE_PADDING: f32 = 8.0;
     const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
     const STRUCT_VIEWER_SYMBOL_SIZE_FIELD: &'static str = "size";
     const STRUCT_VIEWER_SYMBOL_PATH_FIELD: &'static str = "path";
@@ -3549,57 +3554,42 @@ impl SymbolExplorerView {
     fn render_create_module_root_details(
         &self,
         user_interface: &mut Ui,
+        edited_draft: &mut ModuleRootCreateDraft,
     ) {
-        let original_draft = self
-            .symbol_explorer_view_data
-            .read("Symbol explorer module root create details")
-            .map(|symbol_explorer_view_data| symbol_explorer_view_data.get_module_root_create_draft().clone())
-            .unwrap_or_default();
-        let mut edited_draft = original_draft.clone();
-        let details_width = user_interface.available_width().max(1.0);
+        let theme = &self.app_context.theme;
 
-        user_interface.add(
-            GroupBox::new_from_theme(&self.app_context.theme, "New Module", |user_interface| {
-                user_interface.label(RichText::new("Module Name").color(self.app_context.theme.foreground));
-                self.render_string_data_value_box(
-                    user_interface,
-                    &mut edited_draft.module_name,
-                    "Module name",
-                    Self::CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID,
-                    user_interface.available_width(),
-                );
-                user_interface.add_space(6.0);
-
-                user_interface.label(RichText::new("Initial u8[] Size").color(self.app_context.theme.foreground));
-                user_interface.add(TextEdit::singleline(&mut edited_draft.size_text).hint_text("0x123400 or 1192960"));
-            })
-            .desired_width(details_width),
+        user_interface.label(RichText::new("Module Name").color(theme.foreground));
+        user_interface.add_space(2.0);
+        self.render_string_data_value_box(
+            user_interface,
+            &mut edited_draft.module_name,
+            "",
+            Self::CREATE_DISPLAY_NAME_DATA_VALUE_BOX_ID,
+            user_interface.available_width(),
         );
+        user_interface.add_space(8.0);
 
-        if edited_draft != original_draft {
-            SymbolExplorerViewData::set_module_root_create_draft(self.symbol_explorer_view_data.clone(), edited_draft.clone());
-        }
+        user_interface.label(RichText::new("Initial u8[] Size").color(theme.foreground));
+        user_interface.add_space(2.0);
+        self.render_offset_data_value_box(
+            user_interface,
+            &mut edited_draft.size_text,
+            &mut edited_draft.size_format,
+            "",
+            Self::CREATE_MODULE_SIZE_DATA_VALUE_BOX_ID,
+            user_interface.available_width(),
+        );
     }
 
-    fn parse_u64_draft(numeric_draft: &str) -> Option<u64> {
-        let trimmed_numeric_draft = numeric_draft.trim();
-
-        if trimmed_numeric_draft.is_empty() {
-            return None;
-        }
-
-        if let Some(hex_numeric_draft) = trimmed_numeric_draft
-            .strip_prefix("0x")
-            .or_else(|| trimmed_numeric_draft.strip_prefix("0X"))
-        {
-            u64::from_str_radix(hex_numeric_draft, 16).ok()
-        } else {
-            trimmed_numeric_draft.parse::<u64>().ok()
-        }
+    fn parse_module_root_size(
+        size_text: &str,
+        size_format: AnonymousValueStringFormat,
+    ) -> Option<u64> {
+        Self::parse_define_field_relative_offset(size_text, size_format).ok()
     }
 
     fn build_module_root_create_request_from_draft(edited_draft: &ModuleRootCreateDraft) -> Option<ProjectSymbolsCreateModuleRequest> {
-        let parsed_size = Self::parse_u64_draft(&edited_draft.size_text);
+        let parsed_size = Self::parse_module_root_size(&edited_draft.size_text, edited_draft.size_format);
 
         if edited_draft.module_name.trim().is_empty() {
             return None;
@@ -3614,63 +3604,93 @@ impl SymbolExplorerView {
     fn render_create_module_root_take_over(
         &self,
         user_interface: &mut Ui,
-        create_module_root_request: Option<ProjectSymbolsCreateModuleRequest>,
+        module_root_create_draft: &ModuleRootCreateDraft,
     ) {
         let theme = &self.app_context.theme;
+        let original_draft = module_root_create_draft.clone();
+        let mut edited_draft = original_draft.clone();
+        let mut should_cancel_take_over = false;
+        let mut should_create_module = false;
+        let mut create_module_root_request = None;
 
         user_interface.allocate_ui_with_layout(
             user_interface.available_size(),
             Layout::centered_and_justified(Direction::TopDown),
             |user_interface| {
-                let panel_width = user_interface.available_width().min(520.0).max(320.0);
+                let panel_width = (user_interface.available_width() - Self::TAKE_OVER_GROUPBOX_SIDE_PADDING * 2.0).max(0.0);
 
-                ScrollArea::vertical()
-                    .id_salt("symbol_explorer_create_module_root_take_over")
-                    .auto_shrink([false, false])
-                    .show(user_interface, |user_interface| {
-                        user_interface.allocate_ui_with_layout(
-                            vec2(panel_width, user_interface.available_height()),
-                            Layout::top_down(Align::Min),
-                            |user_interface| {
-                                self.render_create_module_root_details(user_interface);
-                                user_interface.add_space(12.0);
-                                user_interface.horizontal_centered(|user_interface| {
-                                    let button_size = [96.0, 30.0];
-                                    let button_cancel = user_interface.add_sized(
+                user_interface.horizontal(|user_interface| {
+                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SIDE_PADDING);
+                    user_interface.add(
+                        GroupBox::new_from_theme(theme, "New Module", |user_interface| {
+                            self.render_create_module_root_details(user_interface, &mut edited_draft);
+                            create_module_root_request = Self::build_module_root_create_request_from_draft(&edited_draft);
+
+                            user_interface.add_space(12.0);
+                            user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                                let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::TOOLBAR_HEIGHT);
+                                let total_button_row_width = button_size.x * 2.0 + Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+                                let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                                user_interface.horizontal(|user_interface| {
+                                    user_interface.add_space(side_spacing);
+                                    user_interface.spacing_mut().item_spacing.x = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+
+                                    let button_cancel = self.draw_sized_action_button(
+                                        user_interface,
+                                        "Cancel",
                                         button_size,
-                                        eframe::egui::Button::new(RichText::new("Cancel").color(theme.foreground))
-                                            .fill(theme.background_control_secondary)
-                                            .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                        theme.background_control_secondary,
+                                        theme.background_control_secondary_dark,
+                                        true,
                                     );
 
                                     if button_cancel.clicked() {
-                                        SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
+                                        should_cancel_take_over = true;
                                     }
 
                                     let can_create_module = create_module_root_request.is_some();
-                                    let button_create = user_interface.add_enabled(
-                                        can_create_module,
-                                        eframe::egui::Button::new(RichText::new("Create").color(if can_create_module {
-                                            theme.foreground
-                                        } else {
-                                            theme.foreground_preview
-                                        }))
-                                        .min_size(vec2(button_size[0], button_size[1]))
-                                        .fill(theme.background_control_primary)
-                                        .stroke(Stroke::new(1.0, theme.background_control_primary_dark)),
-                                    );
+                                    let create_fill = if can_create_module {
+                                        theme.background_control_primary
+                                    } else {
+                                        theme.background_control_secondary
+                                    };
+                                    let create_stroke = if can_create_module {
+                                        theme.background_control_primary_dark
+                                    } else {
+                                        theme.background_control_secondary_dark
+                                    };
+                                    let button_create =
+                                        self.draw_sized_action_button(user_interface, "Create", button_size, create_fill, create_stroke, can_create_module);
 
                                     if button_create.clicked() {
-                                        if let Some(project_symbols_create_module_request) = create_module_root_request.clone() {
-                                            self.create_module_root(project_symbols_create_module_request);
-                                        }
+                                        should_create_module = true;
                                     }
                                 });
-                            },
-                        );
-                    });
+                            });
+                            user_interface.add_space(Self::TAKE_OVER_BOTTOM_PADDING);
+                        })
+                        .desired_width(panel_width),
+                    );
+                });
             },
         );
+
+        if should_cancel_take_over {
+            SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), None);
+            return;
+        }
+
+        if should_create_module {
+            if let Some(project_symbols_create_module_request) = create_module_root_request {
+                self.create_module_root(project_symbols_create_module_request);
+                return;
+            }
+        }
+
+        if edited_draft != original_draft {
+            SymbolExplorerViewData::set_module_root_create_draft(self.symbol_explorer_view_data.clone(), edited_draft);
+        }
     }
 }
 
@@ -3983,9 +4003,13 @@ impl Widget for SymbolExplorerView {
                         .max_rect(user_interface.available_rect_before_wrap())
                         .layout(Layout::top_down(Align::Min)),
                 );
-                let toolbar_action = SymbolExplorerToolbarView::new(self.app_context.clone())
-                    .can_create_module_root(can_use_standard_toolbar_actions)
-                    .show(&mut list_user_interface);
+                let toolbar_action = if can_use_standard_toolbar_actions {
+                    SymbolExplorerToolbarView::new(self.app_context.clone())
+                        .can_create_module_root(true)
+                        .show(&mut list_user_interface)
+                } else {
+                    None
+                };
 
                 match toolbar_action {
                     Some(SymbolExplorerToolbarAction::CreateModuleRoot) => {
@@ -4076,7 +4100,7 @@ impl Widget for SymbolExplorerView {
 
                 if matches!(selected_entry.as_ref(), Some(SymbolExplorerSelection::CreateModuleRoot)) {
                     list_user_interface.add_space(8.0);
-                    self.render_create_module_root_take_over(&mut list_user_interface, create_module_root_request.clone());
+                    self.render_create_module_root_take_over(&mut list_user_interface, &current_module_root_create_draft);
 
                     return;
                 }
@@ -4116,7 +4140,7 @@ mod tests {
     use super::{ModuleFieldTypeOption, ModuleFieldTypeOptionKind, SymbolExplorerView};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
-    use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::DefineFieldDraft;
+    use crate::views::symbol_explorer::view_data::symbol_explorer_view_data::{DefineFieldDraft, ModuleRootCreateDraft};
     use crate::views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
@@ -4771,6 +4795,32 @@ mod tests {
             SymbolExplorerView::parse_define_field_relative_offset("10000", AnonymousValueStringFormat::Binary),
             Ok(16)
         );
+    }
+
+    #[test]
+    fn module_root_create_draft_defaults_size_to_hex_1000() {
+        let module_root_create_draft = ModuleRootCreateDraft::default();
+
+        assert_eq!(module_root_create_draft.size_text, "1000");
+        assert_eq!(module_root_create_draft.size_format, AnonymousValueStringFormat::Hexadecimal);
+        assert_eq!(
+            SymbolExplorerView::parse_module_root_size(&module_root_create_draft.size_text, module_root_create_draft.size_format),
+            Some(0x1000)
+        );
+    }
+
+    #[test]
+    fn build_module_root_create_request_uses_size_format() {
+        let module_root_create_draft = ModuleRootCreateDraft {
+            module_name: String::from("game.exe"),
+            size_text: String::from("1000"),
+            size_format: AnonymousValueStringFormat::Hexadecimal,
+        };
+        let create_request =
+            SymbolExplorerView::build_module_root_create_request_from_draft(&module_root_create_draft).expect("Expected module-root create request.");
+
+        assert_eq!(create_request.module_name, "game.exe");
+        assert_eq!(create_request.size, 0x1000);
     }
 
     #[test]
