@@ -1540,14 +1540,26 @@ impl SymbolStructEditorView {
         self.render_take_over_panel(
             user_interface,
             if show_layout_name_editor { take_over_title } else { "" },
-            0.0,
+            if show_layout_name_editor { 0.0 } else { Self::ICON_BUTTON_WIDTH },
             if show_layout_name_editor {
                 Self::TAKE_OVER_CONTENT_PADDING_X
             } else {
                 Self::TAKE_OVER_GROUPBOX_SIDE_PADDING
             },
             Self::TAKE_OVER_SECTION_SPACING,
-            |_user_interface| {},
+            |user_interface| {
+                if !show_layout_name_editor {
+                    let add_entry_response = self.render_flat_icon_button(
+                        user_interface,
+                        &self.app_context.theme.icon_library.icon_handle_common_add,
+                        "Add a new field entry.",
+                        false,
+                    );
+                    if add_entry_response.clicked() {
+                        should_append_field = true;
+                    }
+                }
+            },
             |user_interface| {
                 if show_layout_name_editor {
                     user_interface.add(
@@ -1580,13 +1592,6 @@ impl SymbolStructEditorView {
                     let theme = &self.app_context.theme;
                     user_interface.add(
                         GroupBox::new_from_theme(theme, "Edit Struct Layout", |user_interface| {
-                            let add_entry_response =
-                                self.render_flat_icon_button(user_interface, &theme.icon_library.icon_handle_common_add, "Add a new field entry.", false);
-                            if add_entry_response.clicked() {
-                                should_append_field = true;
-                            }
-
-                            user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                             self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
                         })
                         .desired_width(user_interface.available_width()),
