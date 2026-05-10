@@ -526,6 +526,11 @@ impl StructViewerViewData {
                     String::from("Symbol Struct"),
                     StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector,
                 )
+            } else if Self::is_symbol_struct_field_resolver_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(
+                    Self::field_display_name(valued_struct_field.get_name()),
+                    StructViewerFieldEditorKind::SymbolStructFieldResolverSelector,
+                )
             } else if Self::is_symbol_struct_field_container_kind_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Container"), StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector)
             } else if Self::is_symbol_struct_field_pointer_size_field(valued_struct_field) {
@@ -709,6 +714,15 @@ impl StructViewerViewData {
 
     fn is_symbol_struct_field_symbol_struct_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT
+    }
+
+    fn is_symbol_struct_field_resolver_field(valued_struct_field: &ValuedStructField) -> bool {
+        matches!(
+            valued_struct_field.get_name(),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER
+                | Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER
+                | Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER
+        )
     }
 
     fn is_symbol_struct_field_container_kind_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -1124,12 +1138,20 @@ mod tests {
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("player.stats")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("inventory.count")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("entity.visible_count").to_named_valued_struct_field(
+                StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
+                false,
+            ),
             DataTypeStringUtf8::get_value_from_primitive_string("Pointer")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("u64")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("Resolver")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string("entity.offset")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER.to_string(), false),
         ]);
 
         let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
@@ -1154,6 +1176,18 @@ mod tests {
         );
         assert_eq!(
             field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolStructFieldResolverSelector)
+        );
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolStructFieldResolverSelector)
+        );
+        assert_eq!(
+            field_presentations
                 .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND)
                 .map(StructViewerFieldPresentation::editor_kind),
             Some(&StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector)
@@ -1169,6 +1203,12 @@ mod tests {
                 .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE)
                 .map(StructViewerFieldPresentation::editor_kind),
             Some(&StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector)
+        );
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolStructFieldResolverSelector)
         );
     }
 

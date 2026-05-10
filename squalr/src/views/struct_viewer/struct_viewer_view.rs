@@ -911,6 +911,7 @@ impl Widget for StructViewerView {
                                     | StructViewerFieldEditorKind::SymbolResolverOperatorSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector
+                                    | StructViewerFieldEditorKind::SymbolStructFieldResolverSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector
                                     | StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector => {

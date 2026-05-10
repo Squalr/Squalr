@@ -70,10 +70,10 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     const SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Struct"];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
     const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
-    const SYMBOL_STRUCT_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
-    const SYMBOL_STRUCT_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
-    const SYMBOL_STRUCT_SELECTOR_POPUP_HORIZONTAL_PADDING: f32 = 56.0;
-    const SYMBOL_STRUCT_SELECTOR_VISIBLE_ROW_COUNT: usize = 12;
+    const SEARCHABLE_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
+    const SEARCHABLE_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
+    const SEARCHABLE_SELECTOR_POPUP_HORIZONTAL_PADDING: f32 = 56.0;
+    const SEARCHABLE_SELECTOR_VISIBLE_ROW_COUNT: usize = 12;
     const COMBO_BOX_ROW_HEIGHT: f32 = 28.0;
 
     fn value_box_position_x(
@@ -256,14 +256,14 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         })
     }
 
-    fn struct_layout_matches_filter(
-        struct_layout_id: &str,
+    fn selector_label_matches_filter(
+        label: &str,
         filter_text: &str,
     ) -> bool {
         let trimmed_filter_text = filter_text.trim();
 
         trimmed_filter_text.is_empty()
-            || struct_layout_id
+            || label
                 .to_ascii_lowercase()
                 .contains(&trimmed_filter_text.to_ascii_lowercase())
     }
@@ -288,62 +288,81 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             .collect()
     }
 
+    fn selector_text_width(
+        user_interface: &Ui,
+        app_context: &Arc<AppContext>,
+        text: &str,
+    ) -> f32 {
+        let theme = &app_context.theme;
+
+        user_interface.ctx().fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(text.to_string(), theme.font_library.font_noto_sans.font_normal.clone(), theme.foreground)
+                .size()
+                .x
+        })
+    }
+
+    fn searchable_selector_popup_width<'label>(
+        user_interface: &Ui,
+        app_context: &Arc<AppContext>,
+        labels: impl Iterator<Item = &'label str>,
+        search_placeholder: &str,
+        empty_message: &str,
+    ) -> f32 {
+        let widest_label_width = labels
+            .map(|label| Self::selector_text_width(user_interface, app_context, label))
+            .fold(0.0, f32::max);
+        let search_placeholder_width = Self::selector_text_width(user_interface, app_context, search_placeholder);
+        let empty_message_width = Self::selector_text_width(user_interface, app_context, empty_message);
+        let widest_content_width = widest_label_width
+            .max(search_placeholder_width)
+            .max(empty_message_width);
+        let content_width = widest_content_width + Self::SEARCHABLE_SELECTOR_POPUP_HORIZONTAL_PADDING;
+
+        Self::SEARCHABLE_SELECTOR_POPUP_DEFAULT_WIDTH
+            .max(content_width)
+            .min(Self::SEARCHABLE_SELECTOR_POPUP_MAX_WIDTH)
+    }
+
     fn symbol_struct_selector_popup_width(
         user_interface: &Ui,
         app_context: &Arc<AppContext>,
         project_symbol_catalog: &ProjectSymbolCatalog,
     ) -> f32 {
-        let theme = &app_context.theme;
-        let widest_layout_label_width = project_symbol_catalog
-            .get_struct_layout_descriptors()
-            .iter()
-            .map(|struct_layout_descriptor| {
-                user_interface.ctx().fonts_mut(|fonts| {
-                    fonts
-                        .layout_no_wrap(
-                            struct_layout_descriptor.get_struct_layout_id().to_string(),
-                            theme.font_library.font_noto_sans.font_normal.clone(),
-                            theme.foreground,
-                        )
-                        .size()
-                        .x
-                })
-            })
-            .fold(0.0, f32::max);
-        let search_placeholder_width = user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(
-                    "Search structs".to_string(),
-                    theme.font_library.font_noto_sans.font_normal.clone(),
-                    theme.foreground,
-                )
-                .size()
-                .x
-        });
-        let empty_message_width = user_interface.ctx().fonts_mut(|fonts| {
-            fonts
-                .layout_no_wrap(
-                    "No matching structs".to_string(),
-                    theme.font_library.font_noto_sans.font_normal.clone(),
-                    theme.foreground,
-                )
-                .size()
-                .x
-        });
-        let widest_content_width = widest_layout_label_width
-            .max(search_placeholder_width)
-            .max(empty_message_width);
-        let content_width = widest_content_width + Self::SYMBOL_STRUCT_SELECTOR_POPUP_HORIZONTAL_PADDING;
-
-        Self::SYMBOL_STRUCT_SELECTOR_POPUP_DEFAULT_WIDTH
-            .max(content_width)
-            .min(Self::SYMBOL_STRUCT_SELECTOR_POPUP_MAX_WIDTH)
+        Self::searchable_selector_popup_width(
+            user_interface,
+            app_context,
+            project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id()),
+            "Search structs",
+            "No matching structs",
+        )
     }
 
-    fn symbol_struct_selector_scroll_height(visible_layout_count: usize) -> f32 {
-        let visible_row_count = visible_layout_count
+    fn resolver_selector_popup_width(
+        user_interface: &Ui,
+        app_context: &Arc<AppContext>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+    ) -> f32 {
+        Self::searchable_selector_popup_width(
+            user_interface,
+            app_context,
+            project_symbol_catalog
+                .get_symbolic_resolver_descriptors()
+                .iter()
+                .map(|resolver_descriptor| resolver_descriptor.get_resolver_id()),
+            "Search resolvers",
+            "No matching resolvers",
+        )
+    }
+
+    fn searchable_selector_scroll_height(visible_label_count: usize) -> f32 {
+        let visible_row_count = visible_label_count
             .max(1)
-            .min(Self::SYMBOL_STRUCT_SELECTOR_VISIBLE_ROW_COUNT);
+            .min(Self::SEARCHABLE_SELECTOR_VISIBLE_ROW_COUNT);
 
         visible_row_count as f32 * Self::COMBO_BOX_ROW_HEIGHT
     }
@@ -965,14 +984,14 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                 .get_struct_layout_descriptors()
                                 .iter()
                                 .filter(|struct_layout_descriptor| {
-                                    Self::struct_layout_matches_filter(struct_layout_descriptor.get_struct_layout_id(), &search_text)
+                                    Self::selector_label_matches_filter(struct_layout_descriptor.get_struct_layout_id(), &search_text)
                                 })
                                 .collect::<Vec<_>>();
                             let has_visible_layout = !visible_struct_layout_descriptors.is_empty();
 
                             ScrollArea::vertical()
                                 .id_salt(("symbol_struct_field_options", symbol_struct_selector_id.as_str()))
-                                .max_height(Self::symbol_struct_selector_scroll_height(visible_struct_layout_descriptors.len()))
+                                .max_height(Self::searchable_selector_scroll_height(visible_struct_layout_descriptors.len()))
                                 .auto_shrink([false, true])
                                 .show(popup_user_interface, |scroll_user_interface| {
                                     for struct_layout_descriptor in visible_struct_layout_descriptors {
@@ -1006,6 +1025,99 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_struct_layout_id) = selected_struct_layout_id {
                     Self::commit_symbol_resolver_text_selection(self.valued_struct_field, &selected_struct_layout_id, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolStructFieldResolverSelector => {
+                let resolver_selector_id = format!(
+                    "struct_viewer_symbol_struct_field_resolver_{}_{}",
+                    self.row_index,
+                    self.valued_struct_field.get_name()
+                );
+                let current_resolver_id = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let resolver_width = (row_max_x - value_box_position_x - Self::trailing_action_slot_width(commit_button_width, value_column_padding)).max(0.0);
+                let project_symbol_catalog = Self::get_opened_project_symbol_catalog(&self.app_context).unwrap_or_default();
+                let resolver_popup_width = Self::resolver_selector_popup_width(user_interface, &self.app_context, &project_symbol_catalog);
+                let resolver_search_id = Id::new((
+                    "symbol_struct_field_resolver_search",
+                    resolver_selector_id.as_str(),
+                    user_interface.id().value(),
+                ));
+                let mut selected_resolver_id = None;
+                let resolver_label = if current_resolver_id.trim().is_empty() {
+                    "Select resolver"
+                } else {
+                    current_resolver_id.as_str()
+                };
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(resolver_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        resolver_label,
+                        &resolver_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            let mut search_text = popup_user_interface.memory(|memory| {
+                                memory
+                                    .data
+                                    .get_temp::<String>(resolver_search_id)
+                                    .unwrap_or_default()
+                            });
+                            let search_box_id = format!("{}_search", resolver_selector_id);
+                            let search_response = popup_user_interface.add(
+                                SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search resolvers", &search_box_id)
+                                    .width(resolver_popup_width)
+                                    .height(Self::COMBO_BOX_ROW_HEIGHT),
+                            );
+                            popup_user_interface.memory_mut(|memory| memory.data.insert_temp(resolver_search_id, search_text.clone()));
+
+                            if search_response.changed() {
+                                popup_user_interface.ctx().request_repaint();
+                            }
+
+                            let visible_resolver_descriptors = project_symbol_catalog
+                                .get_symbolic_resolver_descriptors()
+                                .iter()
+                                .filter(|resolver_descriptor| Self::selector_label_matches_filter(resolver_descriptor.get_resolver_id(), &search_text))
+                                .collect::<Vec<_>>();
+                            let has_visible_resolver = !visible_resolver_descriptors.is_empty();
+
+                            ScrollArea::vertical()
+                                .id_salt(("symbol_struct_field_resolver_options", resolver_selector_id.as_str()))
+                                .max_height(Self::searchable_selector_scroll_height(visible_resolver_descriptors.len()))
+                                .auto_shrink([false, true])
+                                .show(popup_user_interface, |scroll_user_interface| {
+                                    for resolver_descriptor in visible_resolver_descriptors {
+                                        let candidate_resolver_id = resolver_descriptor.get_resolver_id();
+                                        let resolver_response = scroll_user_interface.add(ComboBoxItemView::new(
+                                            self.app_context.clone(),
+                                            candidate_resolver_id,
+                                            None,
+                                            resolver_popup_width,
+                                        ));
+
+                                        if resolver_response.clicked() {
+                                            selected_resolver_id = Some(candidate_resolver_id.to_string());
+                                            *should_close = true;
+                                        }
+                                    }
+
+                                    if !has_visible_resolver {
+                                        self.render_combo_message_row(scroll_user_interface, resolver_popup_width, "No matching resolvers");
+                                    }
+                                });
+                        },
+                    )
+                    .width(resolver_width)
+                    .popup_width(resolver_popup_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_resolver_id) = selected_resolver_id {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, &selected_resolver_id, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector => {
