@@ -160,6 +160,7 @@ impl SymbolExplorerView {
     const TAKE_OVER_ACTION_BUTTON_SPACING: f32 = 12.0;
     const TAKE_OVER_BOTTOM_PADDING: f32 = 8.0;
     const TAKE_OVER_GROUPBOX_SIDE_PADDING: f32 = 8.0;
+    const SYMBOL_TREE_TEXT_PADDING_X: f32 = 8.0;
     const STRUCT_VIEWER_SYMBOL_NAME_FIELD: &'static str = "display_name";
     const STRUCT_VIEWER_SYMBOL_SIZE_FIELD: &'static str = "size";
     const STRUCT_VIEWER_SYMBOL_PATH_FIELD: &'static str = "path";
@@ -2919,24 +2920,27 @@ impl SymbolExplorerView {
         symbol_tree_entries: &[SymbolTreeEntry],
         selected_entry: Option<&SymbolExplorerSelection>,
     ) {
-        user_interface.label(
-            RichText::new(format!(
-                "Symbol Tree ({})",
-                symbol_tree_entries
-                    .iter()
-                    .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }))
-                    .count()
-            ))
-            .font(
-                self.app_context
-                    .theme
-                    .font_library
-                    .font_noto_sans
-                    .font_header
-                    .clone(),
-            )
-            .color(self.app_context.theme.foreground),
-        );
+        user_interface.horizontal(|user_interface| {
+            user_interface.add_space(Self::SYMBOL_TREE_TEXT_PADDING_X);
+            user_interface.label(
+                RichText::new(format!(
+                    "Symbol Tree ({})",
+                    symbol_tree_entries
+                        .iter()
+                        .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }))
+                        .count()
+                ))
+                .font(
+                    self.app_context
+                        .theme
+                        .font_library
+                        .font_noto_sans
+                        .font_header
+                        .clone(),
+                )
+                .color(self.app_context.theme.foreground),
+            );
+        });
         user_interface.add_space(6.0);
 
         for symbol_tree_entry in symbol_tree_entries {
@@ -4123,11 +4127,14 @@ impl Widget for SymbolExplorerView {
                         );
                         if project_symbol_catalog.is_empty() {
                             user_interface.add_space(12.0);
-                            user_interface.label(
-                                RichText::new("This project has no authored symbols yet.")
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone())
-                                    .color(theme.foreground_preview),
-                            );
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(Self::SYMBOL_TREE_TEXT_PADDING_X);
+                                user_interface.label(
+                                    RichText::new("This project has no authored symbols yet.")
+                                        .font(theme.font_library.font_noto_sans.font_normal.clone())
+                                        .color(theme.foreground_preview),
+                                );
+                            });
                         }
                     });
             })
