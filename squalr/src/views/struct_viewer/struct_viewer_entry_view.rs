@@ -70,6 +70,10 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     const SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Struct"];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
     const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
+    const SYMBOL_STRUCT_SELECTOR_POPUP_MIN_WIDTH: f32 = 420.0;
+    const SYMBOL_STRUCT_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
+    const SYMBOL_STRUCT_SELECTOR_VISIBLE_ROW_COUNT: usize = 12;
+    const COMBO_BOX_ROW_HEIGHT: f32 = 28.0;
 
     fn value_box_position_x(
         value_position_x: f32,
@@ -281,6 +285,63 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
             })
             .cloned()
             .collect()
+    }
+
+    fn symbol_struct_selector_popup_width(
+        user_interface: &Ui,
+        app_context: &Arc<AppContext>,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        field_width: f32,
+    ) -> f32 {
+        let theme = &app_context.theme;
+        let widest_layout_text_width = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .map(|struct_layout_descriptor| {
+                user_interface.ctx().fonts_mut(|fonts| {
+                    fonts
+                        .layout_no_wrap(
+                            struct_layout_descriptor.get_struct_layout_id().to_string(),
+                            theme.font_library.font_noto_sans.font_normal.clone(),
+                            theme.foreground,
+                        )
+                        .size()
+                        .x
+                })
+            })
+            .fold(0.0, f32::max);
+        let content_width = widest_layout_text_width + 56.0;
+
+        field_width
+            .max(Self::SYMBOL_STRUCT_SELECTOR_POPUP_MIN_WIDTH)
+            .max(content_width)
+            .min(Self::SYMBOL_STRUCT_SELECTOR_POPUP_MAX_WIDTH)
+    }
+
+    fn symbol_struct_selector_scroll_height(visible_layout_count: usize) -> f32 {
+        let visible_row_count = visible_layout_count
+            .max(1)
+            .min(Self::SYMBOL_STRUCT_SELECTOR_VISIBLE_ROW_COUNT);
+
+        visible_row_count as f32 * Self::COMBO_BOX_ROW_HEIGHT
+    }
+
+    fn render_combo_message_row(
+        &self,
+        user_interface: &mut Ui,
+        width: f32,
+        message: &str,
+    ) {
+        let theme = &self.app_context.theme;
+        let (message_rect, _) = user_interface.allocate_exact_size(vec2(width.max(1.0), Self::COMBO_BOX_ROW_HEIGHT), Sense::hover());
+
+        user_interface.painter().text(
+            pos2(message_rect.left() + 8.0, message_rect.center().y),
+            Align2::LEFT_CENTER,
+            message,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground_preview,
+        );
     }
 }
 
@@ -836,6 +897,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 let symbol_struct_width =
                     (row_max_x - value_box_position_x - Self::trailing_action_slot_width(commit_button_width, value_column_padding)).max(0.0);
                 let project_symbol_catalog = Self::get_opened_project_symbol_catalog(&self.app_context).unwrap_or_default();
+                let symbol_struct_popup_width =
+                    Self::symbol_struct_selector_popup_width(user_interface, &self.app_context, &project_symbol_catalog, symbol_struct_width);
                 let symbol_struct_search_id = Id::new(("symbol_struct_field_search", symbol_struct_selector_id.as_str(), user_interface.id().value()));
                 let mut selected_struct_layout_id = None;
                 let symbol_struct_label = if current_struct_layout_id.trim().is_empty() {
@@ -864,8 +927,8 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             let search_box_id = format!("{}_search", symbol_struct_selector_id);
                             let search_response = popup_user_interface.add(
                                 SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search structs", &search_box_id)
-                                    .width(symbol_struct_width)
-                                    .height(28.0),
+                                    .width(symbol_struct_popup_width)
+                                    .height(Self::COMBO_BOX_ROW_HEIGHT),
                             );
                             popup_user_interface.memory_mut(|memory| {
                                 memory
@@ -877,26 +940,30 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                 popup_user_interface.ctx().request_repaint();
                             }
 
+                            let visible_struct_layout_descriptors = project_symbol_catalog
+                                .get_struct_layout_descriptors()
+                                .iter()
+                                .filter(|struct_layout_descriptor| {
+                                    Self::struct_layout_matches_filter(struct_layout_descriptor.get_struct_layout_id(), &search_text)
+                                })
+                                .collect::<Vec<_>>();
+                            let has_visible_layout = !visible_struct_layout_descriptors.is_empty();
+
                             ScrollArea::vertical()
                                 .id_salt(("symbol_struct_field_options", symbol_struct_selector_id.as_str()))
-                                .max_height(240.0)
+                                .max_height(Self::symbol_struct_selector_scroll_height(visible_struct_layout_descriptors.len()))
                                 .auto_shrink([false, true])
                                 .show(popup_user_interface, |scroll_user_interface| {
-                                    let mut has_visible_layout = false;
-                                    for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+                                    for struct_layout_descriptor in visible_struct_layout_descriptors {
                                         let candidate_layout_id = struct_layout_descriptor.get_struct_layout_id();
-                                        if !Self::struct_layout_matches_filter(candidate_layout_id, &search_text) {
-                                            continue;
-                                        }
 
-                                        has_visible_layout = true;
                                         let candidate_icon =
                                             DataTypeToIconConverter::convert_data_type_to_icon(candidate_layout_id, &self.app_context.theme.icon_library);
                                         let layout_response = scroll_user_interface.add(ComboBoxItemView::new(
                                             self.app_context.clone(),
                                             candidate_layout_id,
                                             Some(candidate_icon),
-                                            symbol_struct_width,
+                                            symbol_struct_popup_width,
                                         ));
 
                                         if layout_response.clicked() {
@@ -906,12 +973,13 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                     }
 
                                     if !has_visible_layout {
-                                        scroll_user_interface.label(eframe::egui::RichText::new("No matching structs").color(theme.foreground_preview));
+                                        self.render_combo_message_row(scroll_user_interface, symbol_struct_popup_width, "No matching structs");
                                     }
                                 });
                         },
                     )
                     .width(symbol_struct_width)
+                    .popup_width(symbol_struct_popup_width)
                     .height(available_size_rect.height()),
                 );
 

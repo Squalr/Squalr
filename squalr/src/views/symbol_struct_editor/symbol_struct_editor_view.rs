@@ -1070,10 +1070,8 @@ impl SymbolStructEditorView {
     ) {
         self.render_list_toolbar(user_interface, project_symbol_catalog, is_take_over_active);
 
-        user_interface.add_space(8.0);
         self.render_filter_text_box(user_interface, filter_text);
 
-        user_interface.add_space(8.0);
         self.render_list_header(user_interface);
         ScrollArea::vertical()
             .id_salt("symbol_struct_editor_layout_list")

@@ -14,6 +14,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     disabled: bool,
     width: f32,
     height: f32,
+    popup_width: Option<f32>,
     icon_padding_left: f32,
     icon_size: f32,
     label_spacing: f32,
@@ -40,6 +41,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             disabled: false,
             width: 192.0,
             height: 28.0,
+            popup_width: None,
             icon_padding_left: 8.0,
             icon_size: 16.0,
             label_spacing: 8.0,
@@ -82,6 +84,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         height: f32,
     ) -> Self {
         self.height = height;
+        self
+    }
+
+    pub fn popup_width(
+        mut self,
+        popup_width: f32,
+    ) -> Self {
+        self.popup_width = Some(popup_width.max(1.0));
         self
     }
 
@@ -232,6 +242,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
         let popup_id_area = Id::new(("combo_popup_area", self.menu_id, user_interface.id().value()));
         let mut should_close = false;
+        let popup_width = self.popup_width.unwrap_or(self.width).max(self.width).max(1.0);
 
         let area_response = Area::new(popup_id_area)
             .order(Order::Foreground)
@@ -251,8 +262,8 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                         popup_user_interface.spacing_mut().item_spacing = Vec2::ZERO;
                         // ScrollArea expands its clip rect by `visuals.clip_rect_margin`; keep combo rows inside the popup border.
                         popup_user_interface.visuals_mut().clip_rect_margin = 0.0;
-                        popup_user_interface.set_min_width(self.width);
-                        popup_user_interface.set_max_width(self.width);
+                        popup_user_interface.set_min_width(popup_width);
+                        popup_user_interface.set_max_width(popup_width);
                         popup_user_interface.with_layout(Layout::top_down(Align::Min), |inner_user_interface| {
                             (self.add_contents)(inner_user_interface, &mut should_close);
                         });
