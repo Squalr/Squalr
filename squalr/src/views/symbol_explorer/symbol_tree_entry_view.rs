@@ -5,7 +5,7 @@ use crate::{
 };
 use eframe::egui::{Align, Align2, Area, Color32, FontId, Frame, Id, Layout, Order, Rect, Response, RichText, Sense, Ui, Widget, pos2, vec2};
 use epaint::{CornerRadius, Margin, Stroke, StrokeKind};
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 pub struct SymbolTreeEntryView<'lifetime> {
     app_context: Arc<AppContext>,
@@ -24,6 +24,7 @@ pub struct SymbolTreeEntryViewResponse {
 
 impl<'lifetime> SymbolTreeEntryView<'lifetime> {
     const HOVER_CARD_MAX_WIDTH: f32 = 460.0;
+    const HOVER_CARD_DELAY_SECONDS: f64 = 0.45;
 
     pub fn new(
         app_context: Arc<AppContext>,
@@ -210,10 +211,36 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
         row_response: &Response,
     ) {
         if !row_response.hovered() {
+            let hover_started_at_id = Id::new(("symbol_tree_entry_hover_started_at", self.symbol_tree_entry.get_node_key()));
+            let current_time = user_interface.input(|input_state| input_state.time);
+
+            user_interface.memory_mut(|memory| memory.data.insert_temp(hover_started_at_id, current_time));
             return;
         }
 
         let theme = &self.app_context.theme;
+        let hover_started_at_id = Id::new(("symbol_tree_entry_hover_started_at", self.symbol_tree_entry.get_node_key()));
+        let current_time = user_interface.input(|input_state| input_state.time);
+        let hover_started_at = user_interface.memory_mut(|memory| {
+            let hover_started_at = memory
+                .data
+                .get_temp::<f64>(hover_started_at_id)
+                .unwrap_or(current_time);
+
+            memory.data.insert_temp(hover_started_at_id, hover_started_at);
+            hover_started_at
+        });
+        let hover_elapsed = current_time - hover_started_at;
+
+        if hover_elapsed < Self::HOVER_CARD_DELAY_SECONDS {
+            let remaining_delay = Self::HOVER_CARD_DELAY_SECONDS - hover_elapsed;
+
+            user_interface
+                .ctx()
+                .request_repaint_after(Duration::from_secs_f64(remaining_delay.max(0.0)));
+            return;
+        }
+
         let hover_position = row_response
             .hover_pos()
             .map(|hover_position| hover_position + vec2(12.0, 12.0))
