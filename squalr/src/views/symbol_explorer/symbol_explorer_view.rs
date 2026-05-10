@@ -3015,26 +3015,6 @@ impl SymbolExplorerView {
         shared_struct_viewer_focus_target: Option<&StructViewerFocusTarget>,
         allow_interaction: bool,
     ) {
-        user_interface.label(
-            RichText::new(format!(
-                "Symbol Tree ({})",
-                symbol_tree_entries
-                    .iter()
-                    .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }))
-                    .count()
-            ))
-            .font(
-                self.app_context
-                    .theme
-                    .font_library
-                    .font_noto_sans
-                    .font_header
-                    .clone(),
-            )
-            .color(self.app_context.theme.foreground),
-        );
-        user_interface.add_space(6.0);
-
         for symbol_tree_entry in symbol_tree_entries {
             let is_locally_selected = matches!(
                 selected_entry,
