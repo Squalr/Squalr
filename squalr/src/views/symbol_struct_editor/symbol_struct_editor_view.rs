@@ -60,10 +60,14 @@ pub struct SymbolStructEditorView {
 
 impl SymbolStructEditorView {
     pub const WINDOW_ID: &'static str = "window_symbol_struct_editor";
+    const TOOLBAR_HEIGHT: f32 = 28.0;
     const FIELD_ROW_HEIGHT: f32 = 28.0;
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
     const FIELD_INPUT_SPACING: f32 = 8.0;
+    const FILTER_ICON_LEFT_PADDING: f32 = 8.0;
+    const FILTER_ICON_SIZE: f32 = 16.0;
+    const FILTER_ICON_GAP: f32 = 8.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
@@ -1003,6 +1007,84 @@ impl SymbolStructEditorView {
         );
     }
 
+    fn render_list_toolbar(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        is_take_over_active: bool,
+    ) {
+        let theme = &self.app_context.theme;
+        let (toolbar_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::TOOLBAR_HEIGHT), Sense::empty());
+
+        user_interface
+            .painter()
+            .rect_filled(toolbar_rect, CornerRadius::ZERO, theme.background_primary);
+
+        let mut toolbar_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(toolbar_rect)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        toolbar_user_interface.set_clip_rect(toolbar_rect);
+
+        let new_layout_response = self.render_flat_icon_button(
+            &mut toolbar_user_interface,
+            &theme.icon_library.icon_handle_common_add,
+            "Create a new reusable struct layout.",
+            is_take_over_active,
+        );
+        if new_layout_response.clicked() {
+            SymbolStructEditorViewData::begin_create_struct_layout(
+                self.symbol_struct_editor_view_data.clone(),
+                project_symbol_catalog,
+                self.default_data_type_ref(),
+            );
+        }
+    }
+
+    fn render_filter_text_box(
+        &self,
+        user_interface: &mut Ui,
+        filter_text: &str,
+    ) {
+        let theme = &self.app_context.theme;
+        let row_width = user_interface.available_width().max(1.0);
+        let (filter_row_rect, _) = user_interface.allocate_exact_size(vec2(row_width, Self::FIELD_ROW_HEIGHT), Sense::hover());
+        let icon_center_x = filter_row_rect.left() + Self::FILTER_ICON_LEFT_PADDING + Self::FILTER_ICON_SIZE * 0.5;
+        let icon_center = pos2(icon_center_x, filter_row_rect.center().y);
+
+        IconDraw::draw_sized_tinted(
+            user_interface,
+            icon_center,
+            vec2(Self::FILTER_ICON_SIZE, Self::FILTER_ICON_SIZE),
+            &theme.icon_library.icon_handle_common_search,
+            theme.foreground_preview,
+        );
+
+        let filter_box_left = filter_row_rect.left() + Self::FILTER_ICON_LEFT_PADDING + Self::FILTER_ICON_SIZE + Self::FILTER_ICON_GAP;
+        let filter_box_rect = Rect::from_min_max(pos2(filter_box_left, filter_row_rect.top()), filter_row_rect.right_bottom());
+        let filter_box_width = filter_box_rect.width().max(1.0);
+        let mut filter_box_user_interface = user_interface.new_child(
+            UiBuilder::new()
+                .max_rect(filter_box_rect)
+                .layout(Layout::top_down(Align::Min)),
+        );
+        filter_box_user_interface.set_clip_rect(filter_box_rect);
+
+        let mut edited_filter_text = filter_text.to_string();
+        self.render_string_value_box(
+            &mut filter_box_user_interface,
+            &mut edited_filter_text,
+            "Filter struct layouts...",
+            "symbol_struct_editor_filter_text",
+            filter_box_width,
+            Self::FIELD_ROW_HEIGHT,
+        );
+        if edited_filter_text != filter_text {
+            SymbolStructEditorViewData::set_filter_text(self.symbol_struct_editor_view_data.clone(), edited_filter_text);
+        }
+    }
+
     fn render_list_panel(
         &self,
         user_interface: &mut Ui,
@@ -1011,37 +1093,10 @@ impl SymbolStructEditorView {
         filter_text: &str,
         is_take_over_active: bool,
     ) {
-        let theme = &self.app_context.theme;
-
-        user_interface.horizontal(|user_interface| {
-            let new_layout_response = self.render_icon_button(
-                user_interface,
-                &theme.icon_library.icon_handle_common_add,
-                "Create a new reusable struct layout.",
-                is_take_over_active,
-            );
-            if new_layout_response.clicked() {
-                SymbolStructEditorViewData::begin_create_struct_layout(
-                    self.symbol_struct_editor_view_data.clone(),
-                    project_symbol_catalog,
-                    self.default_data_type_ref(),
-                );
-            }
-        });
+        self.render_list_toolbar(user_interface, project_symbol_catalog, is_take_over_active);
 
         user_interface.add_space(8.0);
-        let mut edited_filter_text = filter_text.to_string();
-        self.render_string_value_box(
-            user_interface,
-            &mut edited_filter_text,
-            "Filter struct layouts...",
-            "symbol_struct_editor_filter_text",
-            user_interface.available_width(),
-            Self::FIELD_ROW_HEIGHT,
-        );
-        if edited_filter_text != filter_text {
-            SymbolStructEditorViewData::set_filter_text(self.symbol_struct_editor_view_data.clone(), edited_filter_text);
-        }
+        self.render_filter_text_box(user_interface, filter_text);
 
         user_interface.add_space(8.0);
         self.render_list_header(user_interface);
