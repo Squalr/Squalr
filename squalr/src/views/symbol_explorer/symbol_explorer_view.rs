@@ -2237,10 +2237,13 @@ impl SymbolExplorerView {
     }
 
     fn format_symbol_tree_size_tooltip(size_in_bytes: u64) -> String {
-        if size_in_bytes < 1024 {
-            String::new()
+        let scaled_size_text = Self::format_symbol_tree_size_preview(size_in_bytes);
+        let raw_size_text = format!("{} B", size_in_bytes);
+
+        if scaled_size_text == raw_size_text {
+            raw_size_text
         } else {
-            format!("{} bytes", size_in_bytes)
+            format!("{} ({})", raw_size_text, scaled_size_text)
         }
     }
 
@@ -4539,9 +4542,9 @@ mod tests {
     }
 
     #[test]
-    fn format_symbol_tree_size_tooltip_keeps_raw_bytes_for_kb_and_larger() {
-        assert_eq!(SymbolExplorerView::format_symbol_tree_size_tooltip(512), "");
-        assert_eq!(SymbolExplorerView::format_symbol_tree_size_tooltip(1536), "1536 bytes");
+    fn format_symbol_tree_size_tooltip_keeps_raw_bytes_with_scaled_units() {
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_tooltip(512), "512 B");
+        assert_eq!(SymbolExplorerView::format_symbol_tree_size_tooltip(1536), "1536 B (1.5 KB)");
     }
 
     #[test]

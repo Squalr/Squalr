@@ -3,8 +3,8 @@ use crate::{
     ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
     views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind},
 };
-use eframe::egui::{Align2, Color32, FontId, Rect, Response, Sense, Ui, Widget, pos2, vec2};
-use epaint::{CornerRadius, Stroke, StrokeKind};
+use eframe::egui::{Align, Align2, Area, Color32, FontId, Frame, Id, Layout, Order, Rect, Response, RichText, Sense, Ui, Widget, pos2, vec2};
+use epaint::{CornerRadius, Margin, Stroke, StrokeKind};
 use std::sync::Arc;
 
 pub struct SymbolTreeEntryView<'lifetime> {
@@ -193,28 +193,85 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
             .as_ref()
             .is_some_and(|arrow_response| arrow_response.clicked());
         let did_click_row = row_response.clicked() && !did_click_expand_arrow;
-        let base_hover_text = match self.symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::ModuleSpace { .. } => {
-                format!("{}\n{}", self.symbol_tree_entry.get_full_path(), self.symbol_tree_entry.get_display_type_id())
-            }
-            _ => format!(
-                "{}\n{}\n{}",
-                self.symbol_tree_entry.get_full_path(),
-                self.symbol_tree_entry.get_display_type_id(),
-                self.symbol_tree_entry.get_locator()
-            ),
-        };
-        let hover_text = if self.size_tooltip_text.is_empty() {
-            base_hover_text
-        } else {
-            format!("{}\nSize: {}", base_hover_text, self.size_tooltip_text)
-        };
+        self.show_hover_card(user_interface, &row_response);
 
         SymbolTreeEntryViewResponse {
-            row_response: row_response.on_hover_text(hover_text),
+            row_response,
             did_click_row,
             did_click_expand_arrow,
         }
+    }
+
+    fn show_hover_card(
+        &self,
+        user_interface: &mut Ui,
+        row_response: &Response,
+    ) {
+        if !row_response.hovered() {
+            return;
+        }
+
+        let theme = &self.app_context.theme;
+        let hover_position = row_response
+            .hover_pos()
+            .map(|hover_position| hover_position + vec2(12.0, 12.0))
+            .unwrap_or_else(|| pos2(row_response.rect.min.x + 12.0, row_response.rect.max.y + 2.0));
+        let hover_rows = self.build_hover_rows();
+
+        Area::new(Id::new(("symbol_tree_entry_hover_card", self.symbol_tree_entry.get_node_key())))
+            .order(Order::Foreground)
+            .fixed_pos(hover_position)
+            .show(user_interface.ctx(), |popup_user_interface| {
+                Frame::popup(user_interface.style())
+                    .fill(theme.background_primary)
+                    .stroke(Stroke::new(1.0, theme.submenu_border))
+                    .inner_margin(Margin::same(8))
+                    .corner_radius(CornerRadius::ZERO)
+                    .show(popup_user_interface, |popup_user_interface| {
+                        popup_user_interface.spacing_mut().item_spacing = vec2(8.0, 5.0);
+                        popup_user_interface.set_max_width(460.0);
+                        popup_user_interface.with_layout(Layout::top_down(Align::Min), |hover_user_interface| {
+                            for (label, value) in hover_rows {
+                                hover_user_interface.horizontal(|row_user_interface| {
+                                    row_user_interface.set_min_width(380.0);
+                                    row_user_interface.label(
+                                        RichText::new(label)
+                                            .font(theme.font_library.font_noto_sans.font_small.clone())
+                                            .color(theme.foreground_preview),
+                                    );
+                                    row_user_interface.label(
+                                        RichText::new(value)
+                                            .font(theme.font_library.font_noto_sans.font_small.clone())
+                                            .color(theme.foreground),
+                                    );
+                                });
+                            }
+                        });
+                    });
+            });
+    }
+
+    fn build_hover_rows(&self) -> Vec<(&'static str, String)> {
+        let mut hover_rows = Vec::new();
+
+        hover_rows.push(("Type", self.symbol_tree_entry.get_display_type_id()));
+        hover_rows.push(("Address", format!("0x{:X}", self.symbol_tree_entry.get_locator().get_focus_address())));
+
+        if !self.size_tooltip_text.is_empty() {
+            hover_rows.push(("Size", self.size_tooltip_text.to_string()));
+        }
+
+        hover_rows.push(("Symbol Chain", self.symbol_tree_entry.get_full_path().to_string()));
+
+        if !matches!(self.symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+            hover_rows.push(("Locator", self.symbol_tree_entry.get_locator().to_string()));
+        }
+
+        if !self.preview_value.is_empty() {
+            hover_rows.push(("Value", self.preview_value.to_string()));
+        }
+
+        hover_rows
     }
 
     fn measure_text_width(
