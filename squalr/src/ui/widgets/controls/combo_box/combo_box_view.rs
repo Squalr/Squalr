@@ -242,7 +242,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let popup_pos = pos2(allocated_size_rectangle.min.x, allocated_size_rectangle.max.y + 2.0);
         let popup_id_area = Id::new(("combo_popup_area", self.menu_id, user_interface.id().value()));
         let mut should_close = false;
-        let popup_width = self.popup_width.unwrap_or(self.width).max(self.width).max(1.0);
+        let popup_width = self.popup_width.unwrap_or(self.width).max(1.0);
 
         let area_response = Area::new(popup_id_area)
             .order(Order::Foreground)

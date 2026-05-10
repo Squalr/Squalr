@@ -70,8 +70,9 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
     const SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Struct"];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
     const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
-    const SYMBOL_STRUCT_SELECTOR_POPUP_MIN_WIDTH: f32 = 420.0;
+    const SYMBOL_STRUCT_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
     const SYMBOL_STRUCT_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
+    const SYMBOL_STRUCT_SELECTOR_POPUP_HORIZONTAL_PADDING: f32 = 56.0;
     const SYMBOL_STRUCT_SELECTOR_VISIBLE_ROW_COUNT: usize = 12;
     const COMBO_BOX_ROW_HEIGHT: f32 = 28.0;
 
@@ -291,10 +292,9 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         user_interface: &Ui,
         app_context: &Arc<AppContext>,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        field_width: f32,
     ) -> f32 {
         let theme = &app_context.theme;
-        let widest_layout_text_width = project_symbol_catalog
+        let widest_layout_label_width = project_symbol_catalog
             .get_struct_layout_descriptors()
             .iter()
             .map(|struct_layout_descriptor| {
@@ -310,10 +310,32 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
                 })
             })
             .fold(0.0, f32::max);
-        let content_width = widest_layout_text_width + 56.0;
+        let search_placeholder_width = user_interface.ctx().fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(
+                    "Search structs".to_string(),
+                    theme.font_library.font_noto_sans.font_normal.clone(),
+                    theme.foreground,
+                )
+                .size()
+                .x
+        });
+        let empty_message_width = user_interface.ctx().fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(
+                    "No matching structs".to_string(),
+                    theme.font_library.font_noto_sans.font_normal.clone(),
+                    theme.foreground,
+                )
+                .size()
+                .x
+        });
+        let widest_content_width = widest_layout_label_width
+            .max(search_placeholder_width)
+            .max(empty_message_width);
+        let content_width = widest_content_width + Self::SYMBOL_STRUCT_SELECTOR_POPUP_HORIZONTAL_PADDING;
 
-        field_width
-            .max(Self::SYMBOL_STRUCT_SELECTOR_POPUP_MIN_WIDTH)
+        Self::SYMBOL_STRUCT_SELECTOR_POPUP_DEFAULT_WIDTH
             .max(content_width)
             .min(Self::SYMBOL_STRUCT_SELECTOR_POPUP_MAX_WIDTH)
     }
@@ -897,8 +919,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 let symbol_struct_width =
                     (row_max_x - value_box_position_x - Self::trailing_action_slot_width(commit_button_width, value_column_padding)).max(0.0);
                 let project_symbol_catalog = Self::get_opened_project_symbol_catalog(&self.app_context).unwrap_or_default();
-                let symbol_struct_popup_width =
-                    Self::symbol_struct_selector_popup_width(user_interface, &self.app_context, &project_symbol_catalog, symbol_struct_width);
+                let symbol_struct_popup_width = Self::symbol_struct_selector_popup_width(user_interface, &self.app_context, &project_symbol_catalog);
                 let symbol_struct_search_id = Id::new(("symbol_struct_field_search", symbol_struct_selector_id.as_str(), user_interface.id().value()));
                 let mut selected_struct_layout_id = None;
                 let symbol_struct_label = if current_struct_layout_id.trim().is_empty() {
