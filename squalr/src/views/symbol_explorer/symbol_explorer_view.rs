@@ -3,7 +3,7 @@ use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
-    context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
+    context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, search_box::SearchBoxView,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::{
@@ -2528,12 +2528,11 @@ impl SymbolExplorerView {
                         .data_mut(|data| data.get_temp::<String>(search_storage_id).unwrap_or_default());
 
                     popup_user_interface.add_space(4.0);
-                    self.render_string_data_value_box(
-                        popup_user_interface,
-                        &mut search_text,
-                        "Search types",
-                        &format!("symbol_explorer_module_field_type_search_{}", menu_id),
-                        (popup_user_interface.available_width() - 8.0).max(1.0),
+                    let search_box_id = format!("symbol_explorer_module_field_type_search_{}", menu_id);
+                    popup_user_interface.add(
+                        SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search types", &search_box_id)
+                            .width((popup_user_interface.available_width() - 8.0).max(1.0))
+                            .height(Self::TOOLBAR_HEIGHT),
                     );
                     popup_user_interface.add_space(4.0);
 

@@ -4,7 +4,7 @@ use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
     button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
-    state_layer::StateLayer, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+    search_box::SearchBoxView, state_layer::StateLayer, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_struct_editor::view_data::symbol_struct_editor_view_data::{
@@ -65,9 +65,6 @@ impl SymbolStructEditorView {
     const LIST_ROW_HEIGHT: f32 = 28.0;
     const ICON_BUTTON_WIDTH: f32 = 36.0;
     const FIELD_INPUT_SPACING: f32 = 8.0;
-    const FILTER_ICON_LEFT_PADDING: f32 = 8.0;
-    const FILTER_ICON_SIZE: f32 = 16.0;
-    const FILTER_ICON_GAP: f32 = 8.0;
     const TAKE_OVER_HEADER_HEIGHT: f32 = 32.0;
     const TAKE_OVER_PADDING_X: f32 = 0.0;
     const TAKE_OVER_PADDING_Y: f32 = 0.0;
@@ -1047,38 +1044,16 @@ impl SymbolStructEditorView {
         user_interface: &mut Ui,
         filter_text: &str,
     ) {
-        let theme = &self.app_context.theme;
-        let row_width = user_interface.available_width().max(1.0);
-        let (filter_row_rect, _) = user_interface.allocate_exact_size(vec2(row_width, Self::FIELD_ROW_HEIGHT), Sense::hover());
-        let icon_center_x = filter_row_rect.left() + Self::FILTER_ICON_LEFT_PADDING + Self::FILTER_ICON_SIZE * 0.5;
-        let icon_center = pos2(icon_center_x, filter_row_rect.center().y);
-
-        IconDraw::draw_sized_tinted(
-            user_interface,
-            icon_center,
-            vec2(Self::FILTER_ICON_SIZE, Self::FILTER_ICON_SIZE),
-            &theme.icon_library.icon_handle_common_search,
-            theme.foreground_preview,
-        );
-
-        let filter_box_left = filter_row_rect.left() + Self::FILTER_ICON_LEFT_PADDING + Self::FILTER_ICON_SIZE + Self::FILTER_ICON_GAP;
-        let filter_box_rect = Rect::from_min_max(pos2(filter_box_left, filter_row_rect.top()), filter_row_rect.right_bottom());
-        let filter_box_width = filter_box_rect.width().max(1.0);
-        let mut filter_box_user_interface = user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(filter_box_rect)
-                .layout(Layout::top_down(Align::Min)),
-        );
-        filter_box_user_interface.set_clip_rect(filter_box_rect);
-
         let mut edited_filter_text = filter_text.to_string();
-        self.render_string_value_box(
-            &mut filter_box_user_interface,
-            &mut edited_filter_text,
-            "Filter struct layouts...",
-            "symbol_struct_editor_filter_text",
-            filter_box_width,
-            Self::FIELD_ROW_HEIGHT,
+        user_interface.add(
+            SearchBoxView::new(
+                self.app_context.clone(),
+                &mut edited_filter_text,
+                "Filter struct layouts...",
+                "symbol_struct_editor_filter_text",
+            )
+            .width(user_interface.available_width())
+            .height(Self::FIELD_ROW_HEIGHT),
         );
         if edited_filter_text != filter_text {
             SymbolStructEditorViewData::set_filter_text(self.symbol_struct_editor_view_data.clone(), edited_filter_text);

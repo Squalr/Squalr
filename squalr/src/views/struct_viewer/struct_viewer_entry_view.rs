@@ -8,6 +8,7 @@ use crate::{
             combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
             data_type_selector::{data_type_selection::DataTypeSelection, data_type_selector_view::DataTypeSelectorView},
             data_value_box::data_value_box_view::DataValueBoxView,
+            search_box::SearchBoxView,
             state_layer::StateLayer,
         },
     },
@@ -18,7 +19,7 @@ use crate::{
         struct_viewer_view_data::StructViewerViewData,
     },
 };
-use eframe::egui::{Align2, Id, Response, ScrollArea, Sense, TextEdit, TextureHandle, Ui, Widget, vec2};
+use eframe::egui::{Align2, Id, Response, ScrollArea, Sense, TextureHandle, Ui, Widget, vec2};
 use epaint::{CornerRadius, Rect, Stroke, StrokeKind, pos2};
 use squalr_engine_api::{
     engine::engine_execution_context::EngineExecutionContext,
@@ -860,11 +861,11 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                     .get_temp::<String>(symbol_struct_search_id)
                                     .unwrap_or_default()
                             });
-                            let search_response = popup_user_interface.add_sized(
-                                [symbol_struct_width, 28.0],
-                                TextEdit::singleline(&mut search_text)
-                                    .hint_text("Search structs")
-                                    .font(theme.font_library.font_noto_sans.font_normal.clone()),
+                            let search_box_id = format!("{}_search", symbol_struct_selector_id);
+                            let search_response = popup_user_interface.add(
+                                SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search structs", &search_box_id)
+                                    .width(symbol_struct_width)
+                                    .height(28.0),
                             );
                             popup_user_interface.memory_mut(|memory| {
                                 memory
