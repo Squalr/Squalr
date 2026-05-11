@@ -581,6 +581,69 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn global_symbol_resolver_reports_indirect_global_cycles() {
+        let session = SymbolicGlobalSymbolResolverSession::default();
+        let first_root_definition = SymbolicStructDefinition::new(
+            String::from("GlobalsA"),
+            vec![SymbolicFieldDefinition::from_str("value:u32 @ resolver(read_b)").expect("Expected value field to parse.")],
+        );
+        let second_root_definition = SymbolicStructDefinition::new(
+            String::from("GlobalsB"),
+            vec![SymbolicFieldDefinition::from_str("value:u32 @ resolver(read_a)").expect("Expected value field to parse.")],
+        );
+        let first_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_global_symbol_field(
+            String::from("game.exe"),
+            SymbolicResolverRelativeSymbolPath::from_dot_path("GlobalsB.value"),
+        ));
+        let second_resolver = SymbolicResolverDefinition::new(SymbolicResolverNode::new_global_symbol_field(
+            String::from("game.exe"),
+            SymbolicResolverRelativeSymbolPath::from_dot_path("GlobalsA.value"),
+        ));
+
+        let value = resolve_global_symbol_field_value(
+            &session,
+            "game.exe",
+            &SymbolicResolverRelativeSymbolPath::from_dot_path("GlobalsA.value"),
+            &|module_name, root_symbol_name| {
+                if module_name != "game.exe" {
+                    return Vec::new();
+                }
+
+                match root_symbol_name {
+                    "GlobalsA" => vec![SymbolicGlobalSymbolRoot::new(
+                        0x1000_u64,
+                        SymbolicGlobalSymbolRootType::Struct {
+                            struct_layout_definition: first_root_definition.clone(),
+                        },
+                    )],
+                    "GlobalsB" => vec![SymbolicGlobalSymbolRoot::new(
+                        0x2000_u64,
+                        SymbolicGlobalSymbolRootType::Struct {
+                            struct_layout_definition: second_root_definition.clone(),
+                        },
+                    )],
+                    _ => Vec::new(),
+                }
+            },
+            &resolve_test_type_size,
+            &|_, _, _| Ok(Some(1)),
+            &|resolver_id| match resolver_id {
+                "read_b" => Some(first_resolver.clone()),
+                "read_a" => Some(second_resolver.clone()),
+                _ => None,
+            },
+            &|_| None,
+            &|base_address, offset| base_address.saturating_add(offset),
+        );
+
+        assert!(matches!(
+            value,
+            Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path))
+                if symbol_path.contains("Resolver cycle detected at `game.exe.GlobalsA.value`")
+        ));
+    }
+
     fn resolve_test_type_size(data_type_ref: &DataTypeRef) -> Option<u64> {
         match data_type_ref.get_data_type_id() {
             "u8" => Some(1),

@@ -10,8 +10,8 @@ Our current task, from `README.md`, is:
 
 ## Current Tasklist
 
-- 
+- Investigated symbol cycle handling. Global symbol field resolution already uses a resolver session stack; added an indirect global-cycle regression test.
 
 ## Important Information
 
-- 
+- Validated with `cargo test -p squalr-engine-domain symbolic_global_symbol_resolver --locked`, `cargo test -p squalr symbol_tree_entry --locked`, `cargo test -p squalr-engine project_symbol_layout_mutation --locked`, and `cargo test -p squalr-engine-api project_symbol_catalog --locked`.
