@@ -5,7 +5,7 @@ use squalr_engine_api::structures::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SymbolStructFieldContainerKind {
+pub enum SymbolLayoutFieldContainerKind {
     Element,
     Array,
     FixedArray,
@@ -15,7 +15,7 @@ pub enum SymbolStructFieldContainerKind {
     DynamicPointerArray,
 }
 
-impl SymbolStructFieldContainerKind {
+impl SymbolLayoutFieldContainerKind {
     pub const ALL: [Self; 7] = [
         Self::Element,
         Self::Array,
@@ -40,18 +40,18 @@ impl SymbolStructFieldContainerKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SymbolStructFieldContainerEdit {
-    pub kind: SymbolStructFieldContainerKind,
+pub struct SymbolLayoutFieldContainerEdit {
+    pub kind: SymbolLayoutFieldContainerKind,
     pub fixed_array_length: String,
     pub dynamic_array_count_resolver_id: String,
     pub display_count_resolver_id: String,
     pub pointer_size: PointerScanPointerSize,
 }
 
-impl Default for SymbolStructFieldContainerEdit {
+impl Default for SymbolLayoutFieldContainerEdit {
     fn default() -> Self {
         Self {
-            kind: SymbolStructFieldContainerKind::Element,
+            kind: SymbolLayoutFieldContainerKind::Element,
             fixed_array_length: String::new(),
             dynamic_array_count_resolver_id: String::new(),
             display_count_resolver_id: String::new(),
@@ -60,7 +60,7 @@ impl Default for SymbolStructFieldContainerEdit {
     }
 }
 
-impl SymbolStructFieldContainerEdit {
+impl SymbolLayoutFieldContainerEdit {
     pub fn from_symbolic_field_definition(symbolic_field_definition: &SymbolicFieldDefinition) -> Self {
         let display_count_resolver_id = match symbolic_field_definition.get_display_count_resolution() {
             SymbolicFieldCountResolution::Resolver(resolver_id) => resolver_id.clone(),
@@ -70,7 +70,7 @@ impl SymbolStructFieldContainerEdit {
         let mut container_edit = match symbolic_field_definition.get_count_resolution() {
             SymbolicFieldCountResolution::Inferred => Self::from_container_type(symbolic_field_definition.get_container_type()),
             SymbolicFieldCountResolution::Resolver(resolver_id) => Self {
-                kind: SymbolStructFieldContainerKind::DynamicArray,
+                kind: SymbolLayoutFieldContainerKind::DynamicArray,
                 dynamic_array_count_resolver_id: resolver_id.clone(),
                 ..Self::from_container_type(symbolic_field_definition.get_container_type())
             },
@@ -84,37 +84,37 @@ impl SymbolStructFieldContainerEdit {
         match container_type {
             ContainerType::None => Self::default(),
             ContainerType::Array => Self {
-                kind: SymbolStructFieldContainerKind::Array,
+                kind: SymbolLayoutFieldContainerKind::Array,
                 ..Self::default()
             },
             ContainerType::ArrayFixed(length) => Self {
-                kind: SymbolStructFieldContainerKind::FixedArray,
+                kind: SymbolLayoutFieldContainerKind::FixedArray,
                 fixed_array_length: length.to_string(),
                 ..Self::default()
             },
             ContainerType::Pointer(pointer_size) => Self {
-                kind: SymbolStructFieldContainerKind::Pointer,
+                kind: SymbolLayoutFieldContainerKind::Pointer,
                 pointer_size,
                 ..Self::default()
             },
             ContainerType::PointerArray(pointer_size) => Self {
-                kind: SymbolStructFieldContainerKind::DynamicPointerArray,
+                kind: SymbolLayoutFieldContainerKind::DynamicPointerArray,
                 pointer_size,
                 ..Self::default()
             },
             ContainerType::PointerArrayFixed(pointer_size, length) => Self {
-                kind: SymbolStructFieldContainerKind::FixedPointerArray,
+                kind: SymbolLayoutFieldContainerKind::FixedPointerArray,
                 fixed_array_length: length.to_string(),
                 pointer_size,
                 ..Self::default()
             },
             ContainerType::Pointer32 => Self {
-                kind: SymbolStructFieldContainerKind::Pointer,
+                kind: SymbolLayoutFieldContainerKind::Pointer,
                 pointer_size: PointerScanPointerSize::Pointer32,
                 ..Self::default()
             },
             ContainerType::Pointer64 => Self {
-                kind: SymbolStructFieldContainerKind::Pointer,
+                kind: SymbolLayoutFieldContainerKind::Pointer,
                 pointer_size: PointerScanPointerSize::Pointer64,
                 ..Self::default()
             },
@@ -123,11 +123,11 @@ impl SymbolStructFieldContainerEdit {
 
     pub fn to_container_type(&self) -> Result<ContainerType, String> {
         match self.kind {
-            SymbolStructFieldContainerKind::Element => Ok(ContainerType::None),
-            SymbolStructFieldContainerKind::Array => Ok(ContainerType::Array),
-            SymbolStructFieldContainerKind::DynamicArray => Ok(ContainerType::Array),
-            SymbolStructFieldContainerKind::DynamicPointerArray => Ok(ContainerType::PointerArray(self.pointer_size)),
-            SymbolStructFieldContainerKind::FixedArray => {
+            SymbolLayoutFieldContainerKind::Element => Ok(ContainerType::None),
+            SymbolLayoutFieldContainerKind::Array => Ok(ContainerType::Array),
+            SymbolLayoutFieldContainerKind::DynamicArray => Ok(ContainerType::Array),
+            SymbolLayoutFieldContainerKind::DynamicPointerArray => Ok(ContainerType::PointerArray(self.pointer_size)),
+            SymbolLayoutFieldContainerKind::FixedArray => {
                 let trimmed_length = self.fixed_array_length.trim();
                 if trimmed_length.is_empty() {
                     return Err(String::from("Fixed array length is required."));
@@ -139,7 +139,7 @@ impl SymbolStructFieldContainerEdit {
 
                 Ok(ContainerType::ArrayFixed(fixed_array_length))
             }
-            SymbolStructFieldContainerKind::FixedPointerArray => {
+            SymbolLayoutFieldContainerKind::FixedPointerArray => {
                 let trimmed_length = self.fixed_array_length.trim();
                 if trimmed_length.is_empty() {
                     return Err(String::from("Fixed pointer array length is required."));
@@ -151,13 +151,13 @@ impl SymbolStructFieldContainerEdit {
 
                 Ok(ContainerType::PointerArrayFixed(self.pointer_size, fixed_array_length))
             }
-            SymbolStructFieldContainerKind::Pointer => Ok(ContainerType::Pointer(self.pointer_size)),
+            SymbolLayoutFieldContainerKind::Pointer => Ok(ContainerType::Pointer(self.pointer_size)),
         }
     }
 
     pub fn to_count_resolution(&self) -> Result<SymbolicFieldCountResolution, String> {
         match self.kind {
-            SymbolStructFieldContainerKind::DynamicArray | SymbolStructFieldContainerKind::DynamicPointerArray => {
+            SymbolLayoutFieldContainerKind::DynamicArray | SymbolLayoutFieldContainerKind::DynamicPointerArray => {
                 let trimmed_resolver_id = self.dynamic_array_count_resolver_id.trim();
                 if trimmed_resolver_id.is_empty() {
                     return Err(String::from("Dynamic array count resolver is required."));
@@ -165,21 +165,21 @@ impl SymbolStructFieldContainerEdit {
 
                 Ok(SymbolicFieldCountResolution::new_resolver(trimmed_resolver_id.to_string()))
             }
-            SymbolStructFieldContainerKind::Element
-            | SymbolStructFieldContainerKind::Array
-            | SymbolStructFieldContainerKind::FixedArray
-            | SymbolStructFieldContainerKind::FixedPointerArray
-            | SymbolStructFieldContainerKind::Pointer => Ok(SymbolicFieldCountResolution::Inferred),
+            SymbolLayoutFieldContainerKind::Element
+            | SymbolLayoutFieldContainerKind::Array
+            | SymbolLayoutFieldContainerKind::FixedArray
+            | SymbolLayoutFieldContainerKind::FixedPointerArray
+            | SymbolLayoutFieldContainerKind::Pointer => Ok(SymbolicFieldCountResolution::Inferred),
         }
     }
 
     pub fn to_display_count_resolution(&self) -> Result<SymbolicFieldCountResolution, String> {
         match self.kind {
-            SymbolStructFieldContainerKind::Array
-            | SymbolStructFieldContainerKind::FixedArray
-            | SymbolStructFieldContainerKind::DynamicArray
-            | SymbolStructFieldContainerKind::FixedPointerArray
-            | SymbolStructFieldContainerKind::DynamicPointerArray => {
+            SymbolLayoutFieldContainerKind::Array
+            | SymbolLayoutFieldContainerKind::FixedArray
+            | SymbolLayoutFieldContainerKind::DynamicArray
+            | SymbolLayoutFieldContainerKind::FixedPointerArray
+            | SymbolLayoutFieldContainerKind::DynamicPointerArray => {
                 let trimmed_resolver_id = self.display_count_resolver_id.trim();
                 if trimmed_resolver_id.is_empty() {
                     return Ok(SymbolicFieldCountResolution::Inferred);
@@ -187,14 +187,14 @@ impl SymbolStructFieldContainerEdit {
 
                 Ok(SymbolicFieldCountResolution::new_resolver(trimmed_resolver_id.to_string()))
             }
-            SymbolStructFieldContainerKind::Element | SymbolStructFieldContainerKind::Pointer => Ok(SymbolicFieldCountResolution::Inferred),
+            SymbolLayoutFieldContainerKind::Element | SymbolLayoutFieldContainerKind::Pointer => Ok(SymbolicFieldCountResolution::Inferred),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolStructFieldContainerEdit, SymbolStructFieldContainerKind};
+    use super::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
     use squalr_engine_api::structures::{
         data_values::container_type::ContainerType, pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         structs::symbolic_field_definition::SymbolicFieldCountResolution,
@@ -202,10 +202,10 @@ mod tests {
 
     #[test]
     fn fixed_array_container_rejects_negative_length() {
-        let container_edit = SymbolStructFieldContainerEdit {
-            kind: SymbolStructFieldContainerKind::FixedArray,
+        let container_edit = SymbolLayoutFieldContainerEdit {
+            kind: SymbolLayoutFieldContainerKind::FixedArray,
             fixed_array_length: String::from("-1"),
-            ..SymbolStructFieldContainerEdit::default()
+            ..SymbolLayoutFieldContainerEdit::default()
         };
 
         assert!(container_edit.to_container_type().is_err());
@@ -213,10 +213,10 @@ mod tests {
 
     #[test]
     fn dynamic_array_container_parses_count_resolver() {
-        let container_edit = SymbolStructFieldContainerEdit {
-            kind: SymbolStructFieldContainerKind::DynamicArray,
+        let container_edit = SymbolLayoutFieldContainerEdit {
+            kind: SymbolLayoutFieldContainerKind::DynamicArray,
             dynamic_array_count_resolver_id: String::from("inventory.count"),
-            ..SymbolStructFieldContainerEdit::default()
+            ..SymbolLayoutFieldContainerEdit::default()
         };
 
         let count_resolution = container_edit
@@ -228,11 +228,11 @@ mod tests {
 
     #[test]
     fn fixed_array_container_parses_display_count_resolver() {
-        let container_edit = SymbolStructFieldContainerEdit {
-            kind: SymbolStructFieldContainerKind::FixedArray,
+        let container_edit = SymbolLayoutFieldContainerEdit {
+            kind: SymbolLayoutFieldContainerKind::FixedArray,
             fixed_array_length: String::from("1024"),
             display_count_resolver_id: String::from("entity.count"),
-            ..SymbolStructFieldContainerEdit::default()
+            ..SymbolLayoutFieldContainerEdit::default()
         };
 
         let display_count_resolution = container_edit
@@ -247,12 +247,12 @@ mod tests {
 
     #[test]
     fn fixed_pointer_array_container_parses_storage_and_display_count() {
-        let container_edit = SymbolStructFieldContainerEdit {
-            kind: SymbolStructFieldContainerKind::FixedPointerArray,
+        let container_edit = SymbolLayoutFieldContainerEdit {
+            kind: SymbolLayoutFieldContainerKind::FixedPointerArray,
             fixed_array_length: String::from("1024"),
             display_count_resolver_id: String::from("entity.count"),
             pointer_size: PointerScanPointerSize::Pointer64,
-            ..SymbolStructFieldContainerEdit::default()
+            ..SymbolLayoutFieldContainerEdit::default()
         };
 
         assert_eq!(

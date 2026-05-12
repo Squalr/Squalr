@@ -25,7 +25,7 @@ use crate::views::{
         },
         symbol_tree_scalar_value::SymbolTreeScalarValue,
     },
-    symbol_struct_editor::{symbol_struct_editor_view::SymbolStructEditorView, view_data::symbol_struct_editor_view_data::SymbolStructEditorViewData},
+    symbol_layout_editor::{symbol_layout_editor_view::SymbolLayoutEditorView, view_data::symbol_layout_editor_view_data::SymbolLayoutEditorViewData},
 };
 use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget, vec2};
 use epaint::{Stroke, pos2};
@@ -84,7 +84,7 @@ pub struct SymbolExplorerView {
     app_context: Arc<AppContext>,
     symbol_explorer_view_data: Dependency<SymbolExplorerViewData>,
     struct_viewer_view_data: Dependency<StructViewerViewData>,
-    symbol_struct_editor_view_data: Dependency<SymbolStructEditorViewData>,
+    symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     code_viewer_view_data: Dependency<CodeViewerViewData>,
 }
@@ -107,7 +107,7 @@ struct DeleteConfirmationDescription {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ModuleFieldTypeOptionKind {
     BuiltIn,
-    StructLayout,
+    SymbolLayout,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -182,9 +182,9 @@ impl SymbolExplorerView {
         let struct_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<StructViewerViewData>();
-        let symbol_struct_editor_view_data = app_context
+        let symbol_layout_editor_view_data = app_context
             .dependency_container
-            .get_dependency::<SymbolStructEditorViewData>();
+            .get_dependency::<SymbolLayoutEditorViewData>();
         let memory_viewer_view_data = app_context
             .dependency_container
             .get_dependency::<MemoryViewerViewData>();
@@ -196,7 +196,7 @@ impl SymbolExplorerView {
             app_context,
             symbol_explorer_view_data,
             struct_viewer_view_data,
-            symbol_struct_editor_view_data,
+            symbol_layout_editor_view_data,
             memory_viewer_view_data,
             code_viewer_view_data,
         }
@@ -414,7 +414,7 @@ impl SymbolExplorerView {
                 type_options.push(ModuleFieldTypeOption {
                     data_type_ref: struct_data_type_ref,
                     label: struct_layout_id.to_string(),
-                    kind: ModuleFieldTypeOptionKind::StructLayout,
+                    kind: ModuleFieldTypeOptionKind::SymbolLayout,
                 });
             }
         }
@@ -658,7 +658,7 @@ impl SymbolExplorerView {
         }
     }
 
-    fn resolve_define_field_struct_layout_id_size(
+    fn resolve_define_field_symbol_layout_id_size(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
@@ -721,7 +721,7 @@ impl SymbolExplorerView {
         )
     }
 
-    fn build_define_field_struct_layout_id(define_field_draft: &DefineFieldDraft) -> String {
+    fn build_define_field_symbol_layout_id(define_field_draft: &DefineFieldDraft) -> String {
         let data_type_ref = define_field_draft.data_type_selection.visible_data_type();
         let symbolic_field_definition = SymbolicFieldDefinition::new(data_type_ref.clone(), define_field_draft.container_type);
 
@@ -742,7 +742,7 @@ impl SymbolExplorerView {
         }
 
         let relative_offset = Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format)?;
-        let struct_layout_id = Self::build_define_field_struct_layout_id(define_field_draft);
+        let struct_layout_id = Self::build_define_field_symbol_layout_id(define_field_draft);
         let Some(field_size) = resolve_type_size(&struct_layout_id) else {
             return Err(format!("Cannot resolve byte size for `{}`.", struct_layout_id));
         };
@@ -984,7 +984,7 @@ impl SymbolExplorerView {
         ])
     }
 
-    fn build_struct_layout_edit_target(
+    fn build_symbol_layout_edit_target(
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entry: &SymbolTreeEntry,
     ) -> Option<String> {
@@ -997,17 +997,17 @@ impl SymbolExplorerView {
             .then(|| symbol_type_id.to_string())
     }
 
-    fn edit_symbol_tree_entry_struct_layout(
+    fn edit_symbol_tree_entry_symbol_layout(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         struct_layout_id: &str,
     ) {
-        SymbolStructEditorViewData::begin_open_struct_layout(self.symbol_struct_editor_view_data.clone(), project_symbol_catalog, struct_layout_id);
+        SymbolLayoutEditorViewData::begin_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), project_symbol_catalog, struct_layout_id);
 
         match self.app_context.docking_manager.write() {
             Ok(mut docking_manager) => {
-                docking_manager.set_window_visibility(SymbolStructEditorView::WINDOW_ID, true);
-                docking_manager.select_tab_by_window_id(SymbolStructEditorView::WINDOW_ID);
+                docking_manager.set_window_visibility(SymbolLayoutEditorView::WINDOW_ID, true);
+                docking_manager.select_tab_by_window_id(SymbolLayoutEditorView::WINDOW_ID);
             }
             Err(error) => {
                 log::error!(
@@ -1105,14 +1105,14 @@ impl SymbolExplorerView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         selected_symbol_tree_entry: &SymbolTreeEntry,
     ) {
-        let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
+        let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
         let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
         let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
 
         StructViewerViewData::focus_valued_struct_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            symbol_struct,
+            symbol_layout,
             struct_viewer_edit_callback,
             focus_target,
         );
@@ -1123,15 +1123,15 @@ impl SymbolExplorerView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         selected_symbol_tree_entry: &SymbolTreeEntry,
     ) {
-        let symbol_struct = self.build_symbol_struct_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
-        let selected_field_name = Self::resolve_first_editable_struct_viewer_field_name(&symbol_struct);
+        let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
+        let selected_field_name = Self::resolve_first_editable_struct_viewer_field_name(&symbol_layout);
         let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
         let focus_target = Self::build_struct_viewer_focus_target(Some(selected_symbol_tree_entry));
 
         StructViewerViewData::focus_valued_struct_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
-            symbol_struct,
+            symbol_layout,
             struct_viewer_edit_callback,
             focus_target,
         );
@@ -1141,8 +1141,8 @@ impl SymbolExplorerView {
         }
     }
 
-    fn resolve_first_editable_struct_viewer_field_name(symbol_struct: &ValuedStruct) -> Option<String> {
-        symbol_struct
+    fn resolve_first_editable_struct_viewer_field_name(symbol_layout: &ValuedStruct) -> Option<String> {
+        symbol_layout
             .get_fields()
             .iter()
             .find(|valued_struct_field| !valued_struct_field.get_is_read_only())
@@ -1240,7 +1240,7 @@ impl SymbolExplorerView {
         let edited_data_value = edited_field.get_data_value()?;
         let symbolic_struct_definition =
             Self::build_named_symbolic_struct_definition_for_value_edit(engine_execution_context, project_symbol_catalog, selected_symbol_tree_entry)?;
-        let field_offset = Self::resolve_symbol_struct_field_offset(engine_execution_context, &symbolic_struct_definition, edited_field.get_name())?;
+        let field_offset = Self::resolve_symbol_layout_field_offset(engine_execution_context, &symbolic_struct_definition, edited_field.get_name())?;
         let address = selected_symbol_tree_entry
             .get_locator()
             .get_focus_address()
@@ -1277,7 +1277,7 @@ impl SymbolExplorerView {
         )]))
     }
 
-    fn resolve_symbol_struct_field_offset(
+    fn resolve_symbol_layout_field_offset(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         symbolic_struct_definition: &SymbolicStructDefinition,
         edited_field_name: &str,
@@ -1436,7 +1436,7 @@ impl SymbolExplorerView {
         )]))
     }
 
-    fn build_symbol_struct_for_tree_entry(
+    fn build_symbol_layout_for_tree_entry(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entry: &SymbolTreeEntry,
@@ -1446,12 +1446,12 @@ impl SymbolExplorerView {
         let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
 
         if Self::symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry) {
-            return Self::build_external_value_symbol_struct(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+            return Self::build_external_value_symbol_layout(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
         }
 
         let Some(symbolic_struct_definition) = self.build_named_symbolic_struct_definition_for_symbol_tree_entry(project_symbol_catalog, symbol_tree_entry)
         else {
-            return self.build_symbol_struct_fallback(
+            return self.build_symbol_layout_fallback(
                 symbol_tree_entry,
                 "Unable to resolve a struct definition for the selected symbol.",
                 include_symbol_claim_metadata,
@@ -1466,7 +1466,7 @@ impl SymbolExplorerView {
             &symbolic_struct_definition,
         );
         let Some(memory_read_response) = memory_read_response else {
-            return self.build_symbol_struct_fallback(
+            return self.build_symbol_layout_fallback(
                 symbol_tree_entry,
                 "Timed out while reading the selected symbol from memory.",
                 include_symbol_claim_metadata,
@@ -1475,7 +1475,7 @@ impl SymbolExplorerView {
         };
 
         if !memory_read_response.success {
-            return self.build_symbol_struct_fallback(
+            return self.build_symbol_layout_fallback(
                 symbol_tree_entry,
                 "The selected symbol could not be read from memory.",
                 include_symbol_claim_metadata,
@@ -1515,7 +1515,7 @@ impl SymbolExplorerView {
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
-        let mut normalized_fields = Self::build_symbol_struct_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+        let mut normalized_fields = Self::build_symbol_layout_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
 
         normalized_fields.extend(
             valued_struct
@@ -1533,14 +1533,14 @@ impl SymbolExplorerView {
         ValuedStruct::new_anonymous(normalized_fields)
     }
 
-    fn build_symbol_struct_fallback(
+    fn build_symbol_layout_fallback(
         &self,
         symbol_tree_entry: &SymbolTreeEntry,
         status_text: &str,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
-        let mut fallback_fields = Self::build_symbol_struct_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+        let mut fallback_fields = Self::build_symbol_layout_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
 
         fallback_fields.extend([
             DataTypeStringUtf8::get_value_from_primitive_string(&symbol_tree_entry.get_locator().to_string())
@@ -1551,12 +1551,12 @@ impl SymbolExplorerView {
         ValuedStruct::new_anonymous(fallback_fields)
     }
 
-    fn build_external_value_symbol_struct(
+    fn build_external_value_symbol_layout(
         symbol_tree_entry: &SymbolTreeEntry,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
-        let mut fields = Self::build_symbol_struct_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
+        let mut fields = Self::build_symbol_layout_metadata_fields(symbol_tree_entry, include_symbol_claim_metadata, symbol_size_in_bytes);
 
         fields.push(
             DataTypeStringUtf8::get_value_from_primitive_string("")
@@ -1566,7 +1566,7 @@ impl SymbolExplorerView {
         ValuedStruct::new_anonymous(fields)
     }
 
-    fn build_symbol_struct_metadata_fields(
+    fn build_symbol_layout_metadata_fields(
         symbol_tree_entry: &SymbolTreeEntry,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
@@ -1585,12 +1585,12 @@ impl SymbolExplorerView {
                 .to_named_valued_struct_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE.to_string(), true),
         );
 
-        metadata_fields.extend(Self::build_symbol_struct_location_fields(symbol_tree_entry, symbol_size_in_bytes));
+        metadata_fields.extend(Self::build_symbol_layout_location_fields(symbol_tree_entry, symbol_size_in_bytes));
 
         metadata_fields
     }
 
-    fn build_symbol_struct_location_fields(
+    fn build_symbol_layout_location_fields(
         symbol_tree_entry: &SymbolTreeEntry,
         symbol_size_in_bytes: Option<u64>,
     ) -> Vec<ValuedStructField> {
@@ -2399,7 +2399,7 @@ impl SymbolExplorerView {
                 Ok(relative_offset) => relative_offset,
                 Err(parse_error) => return Some(parse_error),
             };
-        let struct_layout_id = Self::build_define_field_struct_layout_id(define_field_draft);
+        let struct_layout_id = Self::build_define_field_symbol_layout_id(define_field_draft);
         let Some(field_size) = resolve_type_size(&struct_layout_id) else {
             return Some(format!("Cannot resolve byte size for `{}`.", struct_layout_id));
         };
@@ -2709,7 +2709,7 @@ impl SymbolExplorerView {
                         );
 
                         if let Some(offset_warning) = Self::build_define_field_offset_warning(&edited_define_field_draft, segment_length, |struct_layout_id| {
-                            self.resolve_define_field_struct_layout_id_size(project_symbol_catalog, struct_layout_id)
+                            self.resolve_define_field_symbol_layout_id_size(project_symbol_catalog, struct_layout_id)
                         }) {
                             user_interface.add_space(4.0);
                             user_interface.label(RichText::new(offset_warning).color(theme.warning));
@@ -2745,7 +2745,7 @@ impl SymbolExplorerView {
 
                         define_field_plan_result =
                             Self::build_define_field_plan(&edited_define_field_draft, module_name, segment_offset, segment_length, |struct_layout_id| {
-                                self.resolve_define_field_struct_layout_id_size(project_symbol_catalog, struct_layout_id)
+                                self.resolve_define_field_symbol_layout_id_size(project_symbol_catalog, struct_layout_id)
                             });
 
                         if let Err(validation_error) = define_field_plan_result.as_ref() {
@@ -3196,7 +3196,7 @@ impl SymbolExplorerView {
                     });
                 let context_menu_u8_span_edit_target = Self::build_u8_span_edit_target(symbol_tree_entry);
                 let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
-                let context_menu_struct_layout_edit_target = Self::build_struct_layout_edit_target(project_symbol_catalog, symbol_tree_entry);
+                let context_menu_symbol_layout_edit_target = Self::build_symbol_layout_edit_target(project_symbol_catalog, symbol_tree_entry);
                 let context_menu_symbol_tree_action_context = Self::build_symbol_tree_action_context(symbol_tree_entry);
                 let context_menu_plugin_action_menu_items = self.build_symbol_tree_plugin_action_menu_items(&context_menu_symbol_tree_action_context);
                 let can_delete_symbol_tree_entry =
@@ -3213,7 +3213,7 @@ impl SymbolExplorerView {
                     context_menu_labels.push(String::from("Define Field..."));
                     context_menu_labels.push(String::from("Split in Half"));
                 }
-                if context_menu_struct_layout_edit_target.is_some() {
+                if context_menu_symbol_layout_edit_target.is_some() {
                     context_menu_labels.push(String::from("Edit Symbol Layout..."));
                 }
                 if can_rename_symbol_tree_entry {
@@ -3313,7 +3313,7 @@ impl SymbolExplorerView {
                         }
 
                         if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some())
-                            && (context_menu_u8_span_edit_target.is_some() || context_menu_struct_layout_edit_target.is_some() || can_rename_symbol_tree_entry)
+                            && (context_menu_u8_span_edit_target.is_some() || context_menu_symbol_layout_edit_target.is_some() || can_rename_symbol_tree_entry)
                         {
                             user_interface.separator();
                         }
@@ -3375,13 +3375,13 @@ impl SymbolExplorerView {
                             user_interface.separator();
                         }
 
-                        if let Some(struct_layout_id) = context_menu_struct_layout_edit_target.as_deref() {
+                        if let Some(struct_layout_id) = context_menu_symbol_layout_edit_target.as_deref() {
                             if user_interface
                                 .add(
                                     ToolbarMenuItemView::new(
                                         self.app_context.clone(),
                                         "Edit Symbol Layout...",
-                                        "symbol_tree_ctx_edit_struct_layout",
+                                        "symbol_tree_ctx_edit_symbol_layout",
                                         &None,
                                         context_menu_width,
                                     )
@@ -3395,12 +3395,12 @@ impl SymbolExplorerView {
                                 )
                                 .clicked()
                             {
-                                self.edit_symbol_tree_entry_struct_layout(project_symbol_catalog, struct_layout_id);
+                                self.edit_symbol_tree_entry_symbol_layout(project_symbol_catalog, struct_layout_id);
                                 *should_close = true;
                             }
                         }
 
-                        if context_menu_struct_layout_edit_target.is_some() && can_rename_symbol_tree_entry {
+                        if context_menu_symbol_layout_edit_target.is_some() && can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -3423,7 +3423,7 @@ impl SymbolExplorerView {
 
                         let has_symbol_tree_edit_menu_items = can_open_symbol_tree_entry
                             || context_menu_u8_span_edit_target.is_some()
-                            || context_menu_struct_layout_edit_target.is_some()
+                            || context_menu_symbol_layout_edit_target.is_some()
                             || can_rename_symbol_tree_entry;
 
                         if has_symbol_tree_edit_menu_items && !context_menu_plugin_action_menu_items.is_empty() {
@@ -4420,7 +4420,7 @@ mod tests {
     }
 
     #[test]
-    fn build_struct_layout_edit_target_resolves_project_struct_rows() {
+    fn build_symbol_layout_edit_target_resolves_project_symbol_layout_rows() {
         let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
             String::from("win.pe.IMAGE_FILE_HEADER"),
             SymbolicStructDefinition::new(
@@ -4435,7 +4435,7 @@ mod tests {
         let struct_field_entry = create_struct_field_tree_entry();
 
         assert_eq!(
-            SymbolExplorerView::build_struct_layout_edit_target(&project_symbol_catalog, &struct_field_entry),
+            SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &struct_field_entry),
             Some(String::from("win.pe.IMAGE_FILE_HEADER"))
         );
     }
@@ -4587,7 +4587,7 @@ mod tests {
     }
 
     #[test]
-    fn build_module_field_type_options_includes_builtins_and_struct_layouts_without_pointer_variants() {
+    fn build_module_field_type_options_includes_builtins_and_symbol_layouts_without_pointer_variants() {
         let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
             String::from("player.stats"),
             SymbolicStructDefinition::new(
@@ -4606,7 +4606,7 @@ mod tests {
                 .any(|type_option| { type_option.data_type_ref == DataTypeRef::new("i32") && type_option.kind == ModuleFieldTypeOptionKind::BuiltIn })
         );
         assert!(type_options.iter().any(|type_option| {
-            type_option.data_type_ref == DataTypeRef::new("player.stats") && type_option.kind == ModuleFieldTypeOptionKind::StructLayout
+            type_option.data_type_ref == DataTypeRef::new("player.stats") && type_option.kind == ModuleFieldTypeOptionKind::SymbolLayout
         }));
         assert!(
             !type_options
@@ -4616,7 +4616,7 @@ mod tests {
     }
 
     #[test]
-    fn filter_module_field_type_options_matches_struct_layouts() {
+    fn filter_module_field_type_options_matches_symbol_layouts() {
         let type_options = vec![
             ModuleFieldTypeOption {
                 data_type_ref: DataTypeRef::new("i32"),
@@ -4626,7 +4626,7 @@ mod tests {
             ModuleFieldTypeOption {
                 data_type_ref: DataTypeRef::new("player.stats"),
                 label: String::from("player.stats"),
-                kind: ModuleFieldTypeOptionKind::StructLayout,
+                kind: ModuleFieldTypeOptionKind::SymbolLayout,
             },
         ];
         let filtered_type_options = SymbolExplorerView::filter_module_field_type_options(&type_options, "stats");
@@ -4837,18 +4837,18 @@ mod tests {
     }
 
     #[test]
-    fn build_external_value_symbol_struct_routes_arrays_through_memory_viewer_value_field() {
+    fn build_external_value_symbol_layout_routes_arrays_through_memory_viewer_value_field() {
         let symbol_tree_entry = create_u8_segment_tree_entry();
-        let symbol_struct = SymbolExplorerView::build_external_value_symbol_struct(&symbol_tree_entry, false, Some(0x1234));
-        let fields = symbol_struct.get_fields();
+        let symbol_layout = SymbolExplorerView::build_external_value_symbol_layout(&symbol_tree_entry, false, Some(0x1234));
+        let fields = symbol_layout.get_fields();
 
         assert!(
-            symbol_struct
+            symbol_layout
                 .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
                 .is_some()
         );
         assert!(
-            symbol_struct
+            symbol_layout
                 .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
                 .is_some()
         );
@@ -4869,21 +4869,21 @@ mod tests {
     }
 
     #[test]
-    fn build_external_value_symbol_struct_is_not_limited_to_u8_arrays() {
+    fn build_external_value_symbol_layout_is_not_limited_to_u8_arrays() {
         let symbol_tree_entry = create_fixed_array_symbol_claim_tree_entry("u16", 4);
 
         assert!(SymbolExplorerView::symbol_tree_entry_should_use_external_value_viewer(&symbol_tree_entry));
 
-        let symbol_struct = SymbolExplorerView::build_external_value_symbol_struct(&symbol_tree_entry, true, Some(8));
+        let symbol_layout = SymbolExplorerView::build_external_value_symbol_layout(&symbol_tree_entry, true, Some(8));
 
         assert_eq!(
-            symbol_struct
+            symbol_layout
                 .get_field(ProjectItemTypeAddress::PROPERTY_SYMBOLIC_STRUCT_DEFINITION_REFERENCE)
                 .map(StructViewerViewData::read_utf8_field_text),
             Some(String::from("u16[4]"))
         );
         assert!(
-            symbol_struct
+            symbol_layout
                 .get_field(ProjectItemTypeAddress::PROPERTY_FREEZE_DISPLAY_VALUE)
                 .is_some()
         );

@@ -60,20 +60,20 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH: &'static str = "__symbol_resolver_relative_symbol_path";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE: &'static str = "__symbol_resolver_global_module";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH: &'static str = "__symbol_resolver_global_symbol_path";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_LAYOUT_ID: &'static str = "__symbol_struct_layout_id";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME: &'static str = "__symbol_struct_field_name";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE: &'static str = "__symbol_struct_field_element_type";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE: &'static str = "__symbol_struct_field_data_type";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT: &'static str = "__symbol_struct_field_symbol_struct";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND: &'static str = "__symbol_struct_field_container_kind";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN: &'static str = "__symbol_struct_field_hidden";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_struct_field_fixed_array_length";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER: &'static str = "__symbol_struct_field_count_resolver";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_struct_field_display_count_resolver";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE: &'static str = "__symbol_struct_field_pointer_size";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE: &'static str = "__symbol_struct_field_offset_mode";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_STATIC_OFFSET: &'static str = "__symbol_struct_field_static_offset";
-    pub const VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER: &'static str = "__symbol_struct_field_offset_resolver";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID: &'static str = "__symbol_layout_layout_id";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME: &'static str = "__symbol_layout_field_name";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE: &'static str = "__symbol_layout_field_element_type";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE: &'static str = "__symbol_layout_field_data_type";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT: &'static str = "__symbol_layout_field_symbol_layout";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND: &'static str = "__symbol_layout_field_container_kind";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_HIDDEN: &'static str = "__symbol_layout_field_hidden";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_layout_field_fixed_array_length";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER: &'static str = "__symbol_layout_field_count_resolver";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_layout_field_display_count_resolver";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE: &'static str = "__symbol_layout_field_pointer_size";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE: &'static str = "__symbol_layout_field_offset_mode";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET: &'static str = "__symbol_layout_field_static_offset";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER: &'static str = "__symbol_layout_field_offset_resolver";
 
     pub fn new() -> Self {
         Self {
@@ -517,26 +517,26 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Operator"), StructViewerFieldEditorKind::SymbolResolverOperatorSelector)
             } else if Self::is_symbol_resolver_data_type_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
-            } else if Self::is_symbol_struct_field_element_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Element Type"), StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector)
-            } else if Self::is_symbol_struct_field_data_type_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector)
-            } else if Self::is_symbol_struct_field_symbol_struct_field(valued_struct_field) {
+            } else if Self::is_symbol_layout_field_element_type_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Element Type"), StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector)
+            } else if Self::is_symbol_layout_field_data_type_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector)
+            } else if Self::is_symbol_layout_field_symbol_layout_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(
                     String::from("Symbol Layout"),
-                    StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector,
+                    StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector,
                 )
-            } else if Self::is_symbol_struct_field_resolver_field(valued_struct_field) {
+            } else if Self::is_symbol_layout_field_resolver_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(
                     Self::field_display_name(valued_struct_field.get_name()),
-                    StructViewerFieldEditorKind::SymbolStructFieldResolverSelector,
+                    StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector,
                 )
-            } else if Self::is_symbol_struct_field_container_kind_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Container"), StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector)
-            } else if Self::is_symbol_struct_field_pointer_size_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector)
-            } else if Self::is_symbol_struct_field_offset_mode_field(valued_struct_field) {
-                StructViewerFieldPresentation::new(String::from("Offset"), StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector)
+            } else if Self::is_symbol_layout_field_container_kind_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Container"), StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector)
+            } else if Self::is_symbol_layout_field_pointer_size_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Pointer Size"), StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector)
+            } else if Self::is_symbol_layout_field_offset_mode_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Offset"), StructViewerFieldEditorKind::SymbolLayoutFieldOffsetModeSelector)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_code_viewer {
                 StructViewerFieldPresentation::new(String::from("Value"), StructViewerFieldEditorKind::CodeViewerButton)
             } else if Self::is_live_value_field(valued_struct_field) && live_value_uses_external_viewer {
@@ -569,20 +569,20 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_RELATIVE_SYMBOL_PATH => String::from("Relative Path"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE => String::from("Module"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => String::from("Path"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_LAYOUT_ID => String::from("Name"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME => String::from("Name"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE => String::from("Element Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE => String::from("Data Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT => String::from("Symbol Layout"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND => String::from("Container"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN => String::from("Hidden"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER => String::from("Count Resolver"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE => String::from("Offset"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_STATIC_OFFSET => String::from("Static Offset"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER => String::from("Offset Resolver"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID => String::from("Name"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME => String::from("Name"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE => String::from("Element Type"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE => String::from("Data Type"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT => String::from("Symbol Layout"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND => String::from("Container"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_HIDDEN => String::from("Hidden"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER => String::from("Count Resolver"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE => String::from("Offset"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET => String::from("Static Offset"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER => String::from("Offset Resolver"),
             _ => Self::humanize_field_key(field_name),
         }
     }
@@ -642,13 +642,13 @@ impl StructViewerViewData {
         for valued_struct_field in valued_struct.get_fields() {
             if !Self::is_data_type_reference_field(valued_struct_field)
                 && !Self::is_symbol_resolver_data_type_field(valued_struct_field)
-                && !Self::is_symbol_struct_field_data_type_field(valued_struct_field)
+                && !Self::is_symbol_layout_field_data_type_field(valued_struct_field)
             {
                 continue;
             }
 
             let selected_data_type_ref =
-                if Self::is_symbol_resolver_data_type_field(valued_struct_field) || Self::is_symbol_struct_field_data_type_field(valued_struct_field) {
+                if Self::is_symbol_resolver_data_type_field(valued_struct_field) || Self::is_symbol_layout_field_data_type_field(valued_struct_field) {
                     let type_id = Self::read_utf8_field_text(valued_struct_field);
 
                     if type_id.trim().is_empty() {
@@ -704,37 +704,37 @@ impl StructViewerViewData {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_DATA_TYPE
     }
 
-    fn is_symbol_struct_field_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE
+    fn is_symbol_layout_field_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE
     }
 
-    fn is_symbol_struct_field_element_type_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE
+    fn is_symbol_layout_field_element_type_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE
     }
 
-    fn is_symbol_struct_field_symbol_struct_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT
+    fn is_symbol_layout_field_symbol_layout_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT
     }
 
-    fn is_symbol_struct_field_resolver_field(valued_struct_field: &ValuedStructField) -> bool {
+    fn is_symbol_layout_field_resolver_field(valued_struct_field: &ValuedStructField) -> bool {
         matches!(
             valued_struct_field.get_name(),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER
-                | Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER
-                | Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER
+                | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER
+                | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER
         )
     }
 
-    fn is_symbol_struct_field_container_kind_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND
+    fn is_symbol_layout_field_container_kind_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND
     }
 
-    fn is_symbol_struct_field_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE
+    fn is_symbol_layout_field_pointer_size_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE
     }
 
-    fn is_symbol_struct_field_offset_mode_field(valued_struct_field: &ValuedStructField) -> bool {
-        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE
+    fn is_symbol_layout_field_offset_mode_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE
     }
 
     fn is_live_value_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -1130,85 +1130,85 @@ mod tests {
     }
 
     #[test]
-    fn create_field_presentations_maps_symbol_struct_editor_fields_to_custom_editors() {
+    fn create_field_presentations_maps_symbol_layout_editor_fields_to_custom_editors() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string("Data Type")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("player.stats")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("inventory.count")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("entity.visible_count").to_named_valued_struct_field(
-                StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
+                StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER.to_string(),
                 false,
             ),
             DataTypeStringUtf8::get_value_from_primitive_string("Pointer")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("u64")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("Resolver")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("entity.offset")
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER.to_string(), false),
         ]);
 
         let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
 
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_COUNT_RESOLVER)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldResolverSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DISPLAY_COUNT_RESOLVER)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldResolverSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_CONTAINER_KIND)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_POINTER_SIZE)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_MODE)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldOffsetModeSelector)
         );
         assert_eq!(
             field_presentations
-                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_OFFSET_RESOLVER)
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER)
                 .map(StructViewerFieldPresentation::editor_kind),
-            Some(&StructViewerFieldEditorKind::SymbolStructFieldResolverSelector)
+            Some(&StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector)
         );
     }
 
@@ -1270,15 +1270,15 @@ mod tests {
     }
 
     #[test]
-    fn create_field_data_type_selections_reads_symbol_struct_editor_data_type_field() {
+    fn create_field_data_type_selections_reads_symbol_layout_editor_data_type_field() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
-                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE.to_string(), false),
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE.to_string(), false),
         ]);
 
         let field_data_type_selections = StructViewerViewData::create_field_data_type_selections(&valued_struct);
         let field_data_type_selection = field_data_type_selections
-            .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE)
+            .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE)
             .expect("Expected data-type selection for the symbol layout editor field.");
 
         assert_eq!(field_data_type_selection.visible_data_type(), &DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));

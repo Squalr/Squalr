@@ -885,7 +885,7 @@ impl Widget for StructViewerView {
                                     }
                                     StructViewerFieldEditorKind::DataTypeSelector
                                     | StructViewerFieldEditorKind::SymbolResolverDataTypeSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector => {
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldDataTypeSelector => {
                                         let field_data_type_selection = struct_viewer_view_data
                                             .field_data_type_selections
                                             .get_mut(field.get_name());
@@ -909,12 +909,12 @@ impl Widget for StructViewerView {
                                     | StructViewerFieldEditorKind::ProjectItemPointerSizeSelector
                                     | StructViewerFieldEditorKind::SymbolResolverNodeKindSelector
                                     | StructViewerFieldEditorKind::SymbolResolverOperatorSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldElementTypeSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldResolverSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldContainerKindSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldPointerSizeSelector
-                                    | StructViewerFieldEditorKind::SymbolStructFieldOffsetModeSelector => {
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldPointerSizeSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutFieldOffsetModeSelector => {
                                         inner_ui.add(StructViewerEntryView::new(
                                             self.app_context.clone(),
                                             &field,

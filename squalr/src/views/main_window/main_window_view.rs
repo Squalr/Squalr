@@ -21,8 +21,8 @@ use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
 use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
+use crate::views::symbol_layout_editor::symbol_layout_editor_view::SymbolLayoutEditorView;
 use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
-use crate::views::symbol_struct_editor::symbol_struct_editor_view::SymbolStructEditorView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
@@ -103,13 +103,13 @@ impl MainWindowView {
             Rc::new(StructViewerView::WINDOW_ID.to_string()),
         );
 
-        let app_context_for_symbol_struct_editor = app_context.clone();
-        let symbol_struct_editor_view = DockedWindowView::new(
-            app_context_for_symbol_struct_editor.clone(),
+        let app_context_for_symbol_layout_editor = app_context.clone();
+        let symbol_layout_editor_view = DockedWindowView::new(
+            app_context_for_symbol_layout_editor.clone(),
             dock_view_data.clone(),
-            SymbolStructEditorView::new(app_context_for_symbol_struct_editor.clone()),
+            SymbolLayoutEditorView::new(app_context_for_symbol_layout_editor.clone()),
             Rc::new("Symbol Layout Editor".to_string()),
-            Rc::new(SymbolStructEditorView::WINDOW_ID.to_string()),
+            Rc::new(SymbolLayoutEditorView::WINDOW_ID.to_string()),
         );
 
         let app_context_for_symbol_resolver_editor = app_context.clone();
@@ -197,7 +197,7 @@ impl MainWindowView {
             Box::new(output_view),
             Box::new(settings_view),
             Box::new(struct_viewer_view),
-            Box::new(symbol_struct_editor_view),
+            Box::new(symbol_layout_editor_view),
             Box::new(symbol_resolver_editor_view),
             Box::new(memory_viewer_view),
             Box::new(code_viewer_view),
