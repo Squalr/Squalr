@@ -30,7 +30,10 @@ use squalr_engine_api::{
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_symbol_catalog::ProjectSymbolCatalog,
         structs::valued_struct_field::{ValuedStructField, ValuedStructFieldData},
-        structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverBinaryOperator},
+        structs::{
+            symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverBinaryOperator,
+            symbolic_struct_definition::SymbolicLayoutKind,
+        },
     },
 };
 use std::{str::FromStr, sync::Arc};
@@ -926,6 +929,50 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
 
                 if let Some(selected_element_type_label) = selected_element_type_label {
                     Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_element_type_label, self.struct_viewer_frame_action);
+                }
+            }
+            StructViewerFieldEditorKind::SymbolLayoutKindSelector => {
+                let layout_kind_selector_id = format!("struct_viewer_symbol_layout_kind_{}_{}", self.row_index, self.valued_struct_field.get_name());
+                let current_layout_kind = StructViewerViewData::read_utf8_field_text(self.valued_struct_field);
+                let layout_kind_label = SymbolicLayoutKind::ALL
+                    .iter()
+                    .copied()
+                    .map(|layout_kind| layout_kind.label())
+                    .find(|candidate_label| *candidate_label == current_layout_kind)
+                    .unwrap_or(SymbolicLayoutKind::Struct.label());
+                let mut selected_layout_kind_label = None;
+                let trailing_checkbox_space = Self::trailing_action_slot_width(commit_button_width, value_column_padding);
+                let layout_kind_width = (row_max_x - value_box_position_x - trailing_checkbox_space).max(0.0);
+
+                user_interface.put(
+                    Rect::from_min_size(
+                        pos2(value_box_position_x, available_size_rect.min.y),
+                        vec2(layout_kind_width, available_size_rect.height()),
+                    ),
+                    ComboBoxView::new(
+                        self.app_context.clone(),
+                        layout_kind_label,
+                        &layout_kind_selector_id,
+                        None,
+                        |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                            for candidate_layout_kind in SymbolicLayoutKind::ALL {
+                                let candidate_label = candidate_layout_kind.label();
+                                let layout_kind_response =
+                                    popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), candidate_label, None, layout_kind_width));
+
+                                if layout_kind_response.clicked() {
+                                    selected_layout_kind_label = Some(candidate_label);
+                                    *should_close = true;
+                                }
+                            }
+                        },
+                    )
+                    .width(layout_kind_width)
+                    .height(available_size_rect.height()),
+                );
+
+                if let Some(selected_layout_kind_label) = selected_layout_kind_label {
+                    Self::commit_symbol_resolver_text_selection(self.valued_struct_field, selected_layout_kind_label, self.struct_viewer_frame_action);
                 }
             }
             StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector => {

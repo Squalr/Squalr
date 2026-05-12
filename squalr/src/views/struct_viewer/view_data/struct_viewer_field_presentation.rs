@@ -10,6 +10,7 @@ pub enum StructViewerFieldEditorKind {
     SymbolResolverNodeKindSelector,
     SymbolResolverOperatorSelector,
     SymbolResolverDataTypeSelector,
+    SymbolLayoutKindSelector,
     SymbolLayoutFieldElementTypeSelector,
     SymbolLayoutFieldDataTypeSelector,
     SymbolLayoutFieldSymbolLayoutSelector,

@@ -61,6 +61,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE: &'static str = "__symbol_resolver_global_module";
     pub const VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH: &'static str = "__symbol_resolver_global_symbol_path";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID: &'static str = "__symbol_layout_layout_id";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND: &'static str = "__symbol_layout_kind";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME: &'static str = "__symbol_layout_field_name";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE: &'static str = "__symbol_layout_field_element_type";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE: &'static str = "__symbol_layout_field_data_type";
@@ -517,6 +518,8 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Operator"), StructViewerFieldEditorKind::SymbolResolverOperatorSelector)
             } else if Self::is_symbol_resolver_data_type_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolResolverDataTypeSelector)
+            } else if Self::is_symbol_layout_kind_field(valued_struct_field) {
+                StructViewerFieldPresentation::new(String::from("Layout Kind"), StructViewerFieldEditorKind::SymbolLayoutKindSelector)
             } else if Self::is_symbol_layout_field_element_type_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(String::from("Element Type"), StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector)
             } else if Self::is_symbol_layout_field_data_type_field(valued_struct_field) {
@@ -570,6 +573,7 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_MODULE => String::from("Module"),
             Self::VIRTUAL_FIELD_SYMBOL_RESOLVER_GLOBAL_SYMBOL_PATH => String::from("Path"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID => String::from("Name"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND => String::from("Layout Kind"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME => String::from("Name"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE => String::from("Element Type"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE => String::from("Data Type"),
@@ -706,6 +710,10 @@ impl StructViewerViewData {
 
     fn is_symbol_layout_field_data_type_field(valued_struct_field: &ValuedStructField) -> bool {
         valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DATA_TYPE
+    }
+
+    fn is_symbol_layout_kind_field(valued_struct_field: &ValuedStructField) -> bool {
+        valued_struct_field.get_name() == Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND
     }
 
     fn is_symbol_layout_field_element_type_field(valued_struct_field: &ValuedStructField) -> bool {
@@ -1132,6 +1140,8 @@ mod tests {
     #[test]
     fn create_field_presentations_maps_symbol_layout_editor_fields_to_custom_editors() {
         let valued_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("Struct")
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string("Data Type")
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE.to_string(), false),
             DataTypeStringUtf8::get_value_from_primitive_string(DataTypeU32::DATA_TYPE_ID)
@@ -1156,6 +1166,12 @@ mod tests {
 
         let field_presentations = StructViewerViewData::create_field_presentations(&valued_struct);
 
+        assert_eq!(
+            field_presentations
+                .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND)
+                .map(StructViewerFieldPresentation::editor_kind),
+            Some(&StructViewerFieldEditorKind::SymbolLayoutKindSelector)
+        );
         assert_eq!(
             field_presentations
                 .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE)

@@ -31,7 +31,11 @@ use squalr_engine_api::structures::{
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
-    structs::{symbolic_struct_definition::SymbolicLayoutKind, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
+    structs::{
+        symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
+        valued_struct::ValuedStruct,
+        valued_struct_field::ValuedStructField,
+    },
 };
 use std::{str::FromStr, sync::Arc};
 
@@ -81,6 +85,7 @@ impl SymbolLayoutEditorView {
     const FIELD_ROW_ICON_GAP: f32 = 4.0;
     const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
     const FIELD_CONTEXT_MENU_WIDTH: f32 = 184.0;
+    const UNION_VARIANT_TREE_INDENT: f32 = 16.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_layout_editor_view_data = app_context
@@ -120,8 +125,14 @@ impl SymbolLayoutEditorView {
         &self,
         updated_project_symbol_catalog: ProjectSymbolCatalog,
     ) {
-        let opened_project_lock = self
-            .app_context
+        Self::persist_project_symbol_catalog_with_context(&self.app_context, updated_project_symbol_catalog);
+    }
+
+    fn persist_project_symbol_catalog_with_context(
+        app_context: &AppContext,
+        updated_project_symbol_catalog: ProjectSymbolCatalog,
+    ) {
+        let opened_project_lock = app_context
             .engine_unprivileged_state
             .get_project_manager()
             .get_opened_project();
@@ -148,7 +159,7 @@ impl SymbolLayoutEditorView {
         }
 
         let project_save_request = ProjectSaveRequest {};
-        project_save_request.send(&self.app_context.engine_unprivileged_state, |project_save_response| {
+        project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
             if !project_save_response.success {
                 log::error!("Failed to save project after applying symbol layout changes.");
             }
@@ -157,7 +168,7 @@ impl SymbolLayoutEditorView {
         let registry_set_project_symbols_request = RegistrySetProjectSymbolsRequest {
             project_symbol_catalog: updated_project_symbol_catalog,
         };
-        let did_dispatch_registry_sync = registry_set_project_symbols_request.send(&self.app_context.engine_unprivileged_state, |_response| {});
+        let did_dispatch_registry_sync = registry_set_project_symbols_request.send(&app_context.engine_unprivileged_state, |_response| {});
         if !did_dispatch_registry_sync {
             log::error!("Failed to dispatch project symbol registry sync after symbol layout changes.");
         }
@@ -192,6 +203,81 @@ impl SymbolLayoutEditorView {
             .cloned()
             .or_else(|| registered_data_types.first().cloned())
             .unwrap_or_else(|| DataTypeRef::new(DataTypeI32::DATA_TYPE_ID))
+    }
+
+    fn create_field_draft_for_layout_kind(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_kind: SymbolicLayoutKind,
+        owning_layout_id: &str,
+        field_position: usize,
+    ) -> SymbolLayoutFieldEditDraft {
+        if layout_kind.is_union() {
+            let struct_layout_id = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .find(|struct_layout_descriptor| {
+                    struct_layout_descriptor.get_struct_layout_id() != owning_layout_id
+                        && struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_layout_kind()
+                            == SymbolicLayoutKind::Struct
+                })
+                .map(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id().to_string());
+
+            let mut field_draft = SymbolLayoutFieldEditDraft::new(
+                struct_layout_id
+                    .as_deref()
+                    .map(DataTypeRef::new)
+                    .unwrap_or_else(|| self.default_data_type_ref()),
+            );
+            field_draft.field_name = format!("Variant {}", field_position + 1);
+            field_draft.container_edit.kind = SymbolLayoutFieldContainerKind::Element;
+            field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Sequential;
+
+            return field_draft;
+        }
+
+        SymbolLayoutFieldEditDraft::new(self.default_data_type_ref())
+    }
+
+    fn normalize_union_field_drafts(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &mut SymbolLayoutEditDraft,
+    ) {
+        if !draft.layout_kind.is_union() {
+            return;
+        }
+
+        for field_position in 0..draft.field_drafts.len() {
+            let replacement_data_type_ref = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .find(|struct_layout_descriptor| {
+                    struct_layout_descriptor.get_struct_layout_id() != draft.layout_id
+                        && struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_layout_kind()
+                            == SymbolicLayoutKind::Struct
+                })
+                .map(|struct_layout_descriptor| DataTypeRef::new(struct_layout_descriptor.get_struct_layout_id()));
+
+            if let Some(field_draft) = draft.field_drafts.get_mut(field_position) {
+                if let Some(replacement_data_type_ref) = replacement_data_type_ref.clone() {
+                    field_draft
+                        .data_type_selection
+                        .replace_selected_data_types(vec![replacement_data_type_ref]);
+                }
+                if field_draft.field_name.trim().is_empty() {
+                    field_draft.field_name = format!("Variant {}", field_position + 1);
+                }
+                field_draft.container_edit = Default::default();
+                field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Sequential;
+                field_draft.static_offset_in_bytes.clear();
+                field_draft.offset_resolver_id.clear();
+            }
+        }
     }
 
     fn string_data_type_ref() -> DataTypeRef {
@@ -278,55 +364,6 @@ impl SymbolLayoutEditorView {
         let visibility_suffix = if field_draft.is_hidden { " hidden" } else { "" };
 
         format!("{}{}{}", data_type_id, container_suffix, visibility_suffix)
-    }
-
-    fn render_icon_button(
-        &self,
-        user_interface: &mut Ui,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-
-        self.render_icon_button_with_style(
-            user_interface,
-            icon_handle,
-            tooltip_text,
-            theme.background_control_secondary,
-            theme.submenu_border,
-            is_disabled,
-        )
-    }
-
-    fn render_icon_button_with_style(
-        &self,
-        user_interface: &mut Ui,
-        icon_handle: &eframe::egui::TextureHandle,
-        tooltip_text: &str,
-        background_color: Color32,
-        border_color: Color32,
-        is_disabled: bool,
-    ) -> Response {
-        let theme = &self.app_context.theme;
-        let button_response = user_interface.add_sized(
-            vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT),
-            ThemeButton::new_from_theme(theme)
-                .with_tooltip_text(tooltip_text)
-                .background_color(background_color)
-                .border_color(border_color)
-                .border_width(1.0)
-                .disabled(is_disabled),
-        );
-
-        IconDraw::draw_tinted(
-            user_interface,
-            button_response.rect,
-            icon_handle,
-            if is_disabled { theme.foreground_preview } else { theme.foreground },
-        );
-
-        button_response
     }
 
     fn render_flat_icon_button_at(
@@ -508,9 +545,20 @@ impl SymbolLayoutEditorView {
         layout_kind: &mut SymbolicLayoutKind,
     ) {
         let theme = &self.app_context.theme;
+        let button_width = 96.0;
+        let button_spacing = 8.0;
+        let total_button_width =
+            button_width * SymbolicLayoutKind::ALL.len() as f32 + button_spacing * (SymbolicLayoutKind::ALL.len().saturating_sub(1)) as f32;
+        let leading_space = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
 
         user_interface.horizontal(|user_interface| {
-            for candidate_layout_kind in SymbolicLayoutKind::ALL {
+            user_interface.add_space(leading_space);
+
+            for (layout_kind_index, candidate_layout_kind) in SymbolicLayoutKind::ALL.iter().copied().enumerate() {
+                if layout_kind_index > 0 {
+                    user_interface.add_space(button_spacing);
+                }
+
                 let is_selected = *layout_kind == candidate_layout_kind;
                 let button = EguiButton::new(RichText::new(candidate_layout_kind.label()).color(theme.foreground))
                     .fill(if is_selected {
@@ -528,13 +576,20 @@ impl SymbolLayoutEditorView {
                     ));
 
                 if user_interface
-                    .add_sized(vec2(96.0, Self::FIELD_ROW_HEIGHT), button)
+                    .add_sized(vec2(button_width, Self::FIELD_ROW_HEIGHT), button)
                     .clicked()
                 {
                     *layout_kind = candidate_layout_kind;
                 }
             }
         });
+    }
+
+    fn layout_kind_from_label(label: &str) -> Option<SymbolicLayoutKind> {
+        SymbolicLayoutKind::ALL
+            .iter()
+            .copied()
+            .find(|layout_kind| layout_kind.label() == label.trim())
     }
 
     fn clear_struct_viewer_if_symbol_layout_focused(&self) {
@@ -570,16 +625,111 @@ impl SymbolLayoutEditorView {
         let details_struct = ValuedStruct::new_anonymous(vec![
             DataTypeStringUtf8::get_value_from_primitive_string(struct_layout_descriptor.get_struct_layout_id())
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID.to_string(), false),
+            DataTypeStringUtf8::get_value_from_primitive_string(
+                struct_layout_descriptor
+                    .get_struct_layout_definition()
+                    .get_layout_kind()
+                    .label(),
+            )
+            .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND.to_string(), false),
         ]);
         let selection_key = format!("layout|{}", struct_layout_descriptor.get_struct_layout_id());
+        let edit_callback = Self::build_struct_viewer_layout_edit_callback(
+            self.app_context.clone(),
+            self.struct_viewer_view_data.clone(),
+            struct_layout_descriptor.get_struct_layout_id().to_string(),
+        );
 
         StructViewerViewData::focus_valued_struct_with_focus_target(
             self.struct_viewer_view_data.clone(),
             self.app_context.engine_unprivileged_state.clone(),
             details_struct,
-            Arc::new(|_edited_field: ValuedStructField| {}),
+            edit_callback,
             Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
         );
+    }
+
+    fn build_struct_viewer_layout_edit_callback(
+        app_context: Arc<AppContext>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        layout_id: String,
+    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
+        Arc::new(move |edited_field: ValuedStructField| {
+            if edited_field.get_name() != StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND {
+                return;
+            }
+
+            let edited_text = StructViewerViewData::read_utf8_field_text(&edited_field);
+            let Some(edited_layout_kind) = Self::layout_kind_from_label(&edited_text) else {
+                return;
+            };
+            let Some(project_symbol_catalog) = Self::get_opened_project_symbol_catalog_from_context(&app_context) else {
+                return;
+            };
+
+            let mut did_update_layout = false;
+            let updated_struct_layout_descriptors = project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .map(|struct_layout_descriptor| {
+                    if struct_layout_descriptor.get_struct_layout_id() != layout_id {
+                        return struct_layout_descriptor.clone();
+                    }
+
+                    let struct_layout_definition = struct_layout_descriptor.get_struct_layout_definition();
+                    if struct_layout_definition.get_layout_kind() == edited_layout_kind {
+                        return struct_layout_descriptor.clone();
+                    }
+
+                    did_update_layout = true;
+                    squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor::new(
+                        struct_layout_descriptor.get_struct_layout_id().to_string(),
+                        SymbolicStructDefinition::new_with_layout_kind(
+                            struct_layout_definition.get_symbol_namespace().to_string(),
+                            edited_layout_kind,
+                            struct_layout_definition.get_fields().to_vec(),
+                        ),
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            if !did_update_layout {
+                return;
+            }
+
+            let mut updated_project_symbol_catalog = project_symbol_catalog;
+            updated_project_symbol_catalog.set_struct_layout_descriptors(updated_struct_layout_descriptors);
+            Self::persist_project_symbol_catalog_with_context(&app_context, updated_project_symbol_catalog.clone());
+
+            let Some(updated_struct_layout_descriptor) = updated_project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
+            else {
+                return;
+            };
+            let details_struct = ValuedStruct::new_anonymous(vec![
+                DataTypeStringUtf8::get_value_from_primitive_string(updated_struct_layout_descriptor.get_struct_layout_id())
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_LAYOUT_ID.to_string(), false),
+                DataTypeStringUtf8::get_value_from_primitive_string(
+                    updated_struct_layout_descriptor
+                        .get_struct_layout_definition()
+                        .get_layout_kind()
+                        .label(),
+                )
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_KIND.to_string(), false),
+            ]);
+            let selection_key = format!("layout|{}", updated_struct_layout_descriptor.get_struct_layout_id());
+            let edit_callback = Self::build_struct_viewer_layout_edit_callback(app_context.clone(), struct_viewer_view_data.clone(), layout_id.clone());
+
+            StructViewerViewData::focus_valued_struct_with_focus_target(
+                struct_viewer_view_data.clone(),
+                app_context.engine_unprivileged_state.clone(),
+                details_struct,
+                edit_callback,
+                Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
+            );
+        })
     }
 
     fn focus_field_in_struct_viewer(
@@ -593,7 +743,7 @@ impl SymbolLayoutEditorView {
             return;
         };
 
-        let details_struct = Self::build_field_details_struct(project_symbol_catalog, field_draft);
+        let details_struct = Self::build_field_details_struct(project_symbol_catalog, draft.layout_kind, field_draft);
         let selection_key = format!("field|{}|{}", draft.layout_id, field_index);
         let edit_callback = Self::build_struct_viewer_field_edit_callback(
             self.symbol_layout_editor_view_data.clone(),
@@ -613,9 +763,24 @@ impl SymbolLayoutEditorView {
 
     fn build_field_details_struct(
         project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_kind: SymbolicLayoutKind,
         field_draft: &SymbolLayoutFieldEditDraft,
     ) -> ValuedStruct {
         let element_type = SymbolLayoutEditorViewData::resolve_field_element_type(project_symbol_catalog, field_draft);
+        if layout_kind.is_union() {
+            return ValuedStruct::new_anonymous(vec![
+                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME.to_string(), false),
+                DataTypeStringUtf8::get_value_from_primitive_string(
+                    field_draft
+                        .data_type_selection
+                        .visible_data_type()
+                        .get_data_type_id(),
+                )
+                .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT.to_string(), false),
+            ]);
+        }
+
         let mut fields = vec![
             DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.field_name)
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_NAME.to_string(), false),
@@ -739,7 +904,7 @@ impl SymbolLayoutEditorView {
                 return;
             };
             let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
-            let details_struct = Self::build_field_details_struct(&project_symbol_catalog, updated_field_draft);
+            let details_struct = Self::build_field_details_struct(&project_symbol_catalog, updated_draft.layout_kind, updated_field_draft);
             let selection_key = format!("field|{}|{}", updated_draft.layout_id, field_index);
             let edit_callback = Self::build_struct_viewer_field_edit_callback(
                 symbol_layout_editor_view_data.clone(),
@@ -988,7 +1153,7 @@ impl SymbolLayoutEditorView {
         );
         row_user_interface.set_clip_rect(row_rect);
 
-        let rename_response = self.render_icon_button(
+        let rename_response = self.render_flat_icon_button(
             &mut row_user_interface,
             &theme.icon_library.icon_handle_common_edit,
             "Rename this symbol layout.",
@@ -999,12 +1164,16 @@ impl SymbolLayoutEditorView {
         }
 
         row_user_interface.add_space(Self::FIELD_INPUT_SPACING);
+        let entry_count_label = if layout_kind.is_union() { "variants" } else { "fields" };
         row_user_interface.label(
-            RichText::new(format!("{} | {} fields | {} uses", layout_kind.label(), field_count, usage_count)).color(if is_selected {
-                theme.foreground
-            } else {
-                theme.foreground_preview
-            }),
+            RichText::new(format!(
+                "{} | {} {} | {} uses",
+                layout_kind.label(),
+                field_count,
+                entry_count_label,
+                usage_count
+            ))
+            .color(if is_selected { theme.foreground } else { theme.foreground_preview }),
         );
 
         if row_response.double_clicked() && row_action.is_none() {
@@ -1036,7 +1205,7 @@ impl SymbolLayoutEditorView {
         user_interface.painter().text(
             pos2(header_rect.max.x - 8.0, header_rect.center().y),
             Align2::RIGHT_CENTER,
-            "Kind | Fields | Uses",
+            "Kind | Entries | Uses",
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground_preview,
         );
@@ -1192,39 +1361,41 @@ impl SymbolLayoutEditorView {
         );
         panel_user_interface.set_clip_rect(inner_rect);
 
-        let (header_rect, _) = panel_user_interface.allocate_exact_size(
-            vec2(panel_user_interface.available_width().max(1.0), Self::TAKE_OVER_HEADER_HEIGHT),
-            Sense::hover(),
-        );
-        panel_user_interface
-            .painter()
-            .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
-        let header_inner_rect = header_rect;
-        let mut header_user_interface = panel_user_interface.new_child(
-            UiBuilder::new()
-                .max_rect(header_inner_rect)
-                .layout(Layout::left_to_right(Align::Center)),
-        );
-        header_user_interface.set_clip_rect(header_inner_rect);
-
-        let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
-        let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
-        header_user_interface.painter().text(
-            pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
-            Align2::LEFT_CENTER,
-            title,
-            theme.font_library.font_noto_sans.font_window_title.clone(),
-            theme.foreground,
-        );
-
-        if header_action_width > 0.0 {
-            header_user_interface.allocate_ui_with_layout(
-                vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-                Layout::right_to_left(Align::Center),
-                |user_interface| {
-                    render_header_actions(user_interface);
-                },
+        if !title.is_empty() || header_action_width > 0.0 {
+            let (header_rect, _) = panel_user_interface.allocate_exact_size(
+                vec2(panel_user_interface.available_width().max(1.0), Self::TAKE_OVER_HEADER_HEIGHT),
+                Sense::hover(),
             );
+            panel_user_interface
+                .painter()
+                .rect_filled(header_rect, CornerRadius::ZERO, theme.background_primary);
+            let header_inner_rect = header_rect;
+            let mut header_user_interface = panel_user_interface.new_child(
+                UiBuilder::new()
+                    .max_rect(header_inner_rect)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
+            header_user_interface.set_clip_rect(header_inner_rect);
+
+            let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
+            let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
+            header_user_interface.painter().text(
+                pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
+                Align2::LEFT_CENTER,
+                title,
+                theme.font_library.font_noto_sans.font_window_title.clone(),
+                theme.foreground,
+            );
+
+            if header_action_width > 0.0 {
+                header_user_interface.allocate_ui_with_layout(
+                    vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+                    Layout::right_to_left(Align::Center),
+                    |user_interface| {
+                        render_header_actions(user_interface);
+                    },
+                );
+            }
         }
 
         if body_top_spacing > 0.0 {
@@ -1247,6 +1418,7 @@ impl SymbolLayoutEditorView {
     fn render_field_editor_section(
         &self,
         user_interface: &mut Ui,
+        layout_kind: SymbolicLayoutKind,
         field_draft: &mut SymbolLayoutFieldEditDraft,
         field_index: usize,
         is_selected: bool,
@@ -1293,14 +1465,19 @@ impl SymbolLayoutEditorView {
             self.render_flat_icon_button_at(user_interface, button_rect, icon_handle, tooltip_text, is_disabled)
         };
 
-        let move_up_response = render_next_button(&theme.icon_library.icon_handle_navigation_up_arrow_small, "Move this field up.", !can_move_up);
+        let entry_name = if layout_kind.is_union() { "variant" } else { "field" };
+        let move_up_response = render_next_button(
+            &theme.icon_library.icon_handle_navigation_up_arrow_small,
+            &format!("Move this {} up.", entry_name),
+            !can_move_up,
+        );
         if move_up_response.clicked() {
             pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveUp);
         }
 
         let move_down_response = render_next_button(
             &theme.icon_library.icon_handle_navigation_down_arrow_small,
-            "Move this field down.",
+            &format!("Move this {} down.", entry_name),
             !can_move_down,
         );
         if move_down_response.clicked() {
@@ -1319,15 +1496,40 @@ impl SymbolLayoutEditorView {
         }
 
         let field_name = if field_draft.field_name.trim().is_empty() {
-            format!("Field {}", field_index + 1)
+            if layout_kind.is_union() {
+                format!("Variant {}", field_index + 1)
+            } else {
+                format!("Field {}", field_index + 1)
+            }
         } else {
             field_draft.field_name.trim().to_string()
         };
         let data_type_ref = field_draft.data_type_selection.visible_data_type();
         let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &theme.icon_library);
         let icon_size = vec2(Self::FIELD_ROW_ICON_SIZE, Self::FIELD_ROW_ICON_SIZE);
+        let tree_indent = if layout_kind.is_union() {
+            let tree_x = row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING;
+            let tree_mid_y = row_rect.center().y;
+            let tree_stroke = Stroke::new(1.0, theme.background_control_secondary_dark);
+            user_interface.painter().line_segment(
+                [
+                    pos2(tree_x, if can_move_up { row_rect.min.y } else { tree_mid_y }),
+                    pos2(tree_x, if can_move_down { row_rect.max.y } else { tree_mid_y }),
+                ],
+                tree_stroke,
+            );
+            user_interface
+                .painter()
+                .line_segment([pos2(tree_x, tree_mid_y), pos2(tree_x + 10.0, tree_mid_y)], tree_stroke);
+            Self::UNION_VARIANT_TREE_INDENT
+        } else {
+            0.0
+        };
         let icon_rect = Rect::from_min_size(
-            pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y - icon_size.y * 0.5),
+            pos2(
+                row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING + tree_indent,
+                row_rect.center().y - icon_size.y * 0.5,
+            ),
             icon_size,
         );
         IconDraw::draw_sized_tinted(user_interface, icon_rect.center(), icon_size, &data_type_icon, Color32::WHITE);
@@ -1385,6 +1587,7 @@ impl SymbolLayoutEditorView {
     fn render_field_context_menu(
         &self,
         user_interface: &mut Ui,
+        layout_kind: SymbolicLayoutKind,
         context_menu_target: &SymbolLayoutFieldContextMenuTarget,
         field_count: usize,
     ) -> Option<SymbolLayoutFieldRowAction> {
@@ -1395,6 +1598,7 @@ impl SymbolLayoutEditorView {
         let can_move_down = field_index + 1 < field_count;
         let mut open = true;
         let mut pending_field_row_action = None;
+        let entry_name = if layout_kind.is_union() { "variant" } else { "field" };
 
         ContextMenu::new(
             self.app_context.clone(),
@@ -1405,7 +1609,7 @@ impl SymbolLayoutEditorView {
                     .add(
                         ToolbarMenuItemView::new(
                             self.app_context.clone(),
-                            "Move up",
+                            &format!("Move {} up", entry_name),
                             "symbol_layout_field_ctx_move_up",
                             &None,
                             Self::FIELD_CONTEXT_MENU_WIDTH,
@@ -1423,7 +1627,7 @@ impl SymbolLayoutEditorView {
                     .add(
                         ToolbarMenuItemView::new(
                             self.app_context.clone(),
-                            "Move down",
+                            &format!("Move {} down", entry_name),
                             "symbol_layout_field_ctx_move_down",
                             &None,
                             Self::FIELD_CONTEXT_MENU_WIDTH,
@@ -1446,7 +1650,7 @@ impl SymbolLayoutEditorView {
                     .add(
                         ToolbarMenuItemView::new(
                             self.app_context.clone(),
-                            "Insert new below",
+                            &format!("Insert new {} below", entry_name),
                             "symbol_layout_field_ctx_insert_below",
                             &None,
                             Self::FIELD_CONTEXT_MENU_WIDTH,
@@ -1509,6 +1713,7 @@ impl SymbolLayoutEditorView {
             let can_move_down = field_index + 1 < field_count;
             if let Some(field_row_action) = self.render_field_editor_section(
                 user_interface,
+                draft.layout_kind,
                 field_draft,
                 field_index,
                 selected_field_index == Some(field_index),
@@ -1530,7 +1735,7 @@ impl SymbolLayoutEditorView {
 
         if let Some(field_context_menu_target) = field_context_menu_target
             && field_context_menu_target.get_field_index() < field_count
-            && let Some(field_row_action) = self.render_field_context_menu(user_interface, &field_context_menu_target, field_count)
+            && let Some(field_row_action) = self.render_field_context_menu(user_interface, draft.layout_kind, &field_context_menu_target, field_count)
         {
             pending_field_row_action = Some((field_context_menu_target.get_field_index(), field_row_action));
         }
@@ -1540,9 +1745,8 @@ impl SymbolLayoutEditorView {
             match field_row_action {
                 SymbolLayoutFieldRowAction::InsertAfter => {
                     let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
-                    draft
-                        .field_drafts
-                        .insert(insert_index, SymbolLayoutFieldEditDraft::new(self.default_data_type_ref()));
+                    let field_draft = self.create_field_draft_for_layout_kind(project_symbol_catalog, draft.layout_kind, &draft.layout_id, insert_index);
+                    draft.field_drafts.insert(insert_index, field_draft);
                     field_index_to_focus = Some(insert_index);
                 }
                 SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
@@ -1601,6 +1805,7 @@ impl SymbolLayoutEditorView {
             .unwrap_or(0);
         let has_unsaved_changes = edited_draft != *baseline_draft;
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
+        let is_union_layout = edited_draft.layout_kind.is_union();
         let can_save = validation_result.is_ok() && has_unsaved_changes;
         let mut should_cancel_take_over = false;
         let mut should_save_draft = false;
@@ -1621,7 +1826,11 @@ impl SymbolLayoutEditorView {
                     let add_entry_response = self.render_flat_icon_button(
                         user_interface,
                         &self.app_context.theme.icon_library.icon_handle_common_add,
-                        "Add a new field entry.",
+                        if is_union_layout {
+                            "Add a new union variant."
+                        } else {
+                            "Add a new field entry."
+                        },
                         false,
                     );
                     if add_entry_response.clicked() {
@@ -1632,39 +1841,51 @@ impl SymbolLayoutEditorView {
             |user_interface| {
                 if show_layout_name_editor {
                     user_interface.add(
-                        GroupBox::new_from_theme(&self.app_context.theme, "Symbol Layout", |user_interface| {
-                            self.render_string_value_box(
-                                user_interface,
-                                &mut edited_draft.layout_id,
-                                "module.type",
-                                "symbol_layout_editor_layout_id",
-                                user_interface.available_width(),
-                                Self::FIELD_ROW_HEIGHT,
-                            );
-                            user_interface.add_space(6.0);
-                            self.render_layout_kind_selector(user_interface, &mut edited_draft.layout_kind);
-                            user_interface.add_space(6.0);
+                        GroupBox::new_from_theme(
+                            &self.app_context.theme,
+                            if is_creating_new_layout { "New Symbol Layout" } else { "Symbol Layout" },
+                            |user_interface| {
+                                self.render_string_value_box(
+                                    user_interface,
+                                    &mut edited_draft.layout_id,
+                                    "module.type",
+                                    "symbol_layout_editor_layout_id",
+                                    user_interface.available_width(),
+                                    Self::FIELD_ROW_HEIGHT,
+                                );
+                                user_interface.add_space(6.0);
+                                let previous_layout_kind = edited_draft.layout_kind;
+                                self.render_layout_kind_selector(user_interface, &mut edited_draft.layout_kind);
+                                if previous_layout_kind != edited_draft.layout_kind && edited_draft.layout_kind.is_union() {
+                                    self.normalize_union_field_drafts(project_symbol_catalog, &mut edited_draft);
+                                }
+                                user_interface.add_space(6.0);
 
-                            let status_text = if is_creating_new_layout {
-                                String::from("Creating a new reusable symbol layout.")
-                            } else if usage_count == 0 {
-                                String::from("Not used by any symbol claims yet.")
-                            } else if usage_count == 1 {
-                                String::from("Used by 1 symbol claim.")
-                            } else {
-                                format!("Used by {} symbol claims.", usage_count)
-                            };
-                            user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
-                        })
+                                if !is_creating_new_layout {
+                                    let status_text = if usage_count == 0 {
+                                        String::from("Not used by any symbol claims yet.")
+                                    } else if usage_count == 1 {
+                                        String::from("Used by 1 symbol claim.")
+                                    } else {
+                                        format!("Used by {} symbol claims.", usage_count)
+                                    };
+                                    user_interface.label(RichText::new(status_text).color(self.app_context.theme.foreground_preview));
+                                }
+                            },
+                        )
                         .desired_width(user_interface.available_width()),
                     );
                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                 } else {
                     let theme = &self.app_context.theme;
                     user_interface.add(
-                        GroupBox::new_from_theme(theme, "Edit Symbol Layout", |user_interface| {
-                            self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
-                        })
+                        GroupBox::new_from_theme(
+                            theme,
+                            if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
+                            |user_interface| {
+                                self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
+                            },
+                        )
                         .desired_width(user_interface.available_width()),
                     );
                     user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
@@ -1688,9 +1909,9 @@ impl SymbolLayoutEditorView {
 
         if should_append_field {
             let field_index_to_focus = edited_draft.field_drafts.len();
-            edited_draft
-                .field_drafts
-                .push(SymbolLayoutFieldEditDraft::new(self.default_data_type_ref()));
+            let field_draft =
+                self.create_field_draft_for_layout_kind(project_symbol_catalog, edited_draft.layout_kind, &edited_draft.layout_id, field_index_to_focus);
+            edited_draft.field_drafts.push(field_draft);
             SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), field_index_to_focus);
             self.focus_field_in_struct_viewer(project_symbol_catalog, &edited_draft, field_index_to_focus);
         }
@@ -1878,7 +2099,7 @@ mod tests {
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_symbol_catalog::ProjectSymbolCatalog,
-        structs::symbolic_struct_definition::SymbolicStructDefinition,
+        structs::symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     };
 
     #[test]
@@ -1963,8 +2184,10 @@ mod tests {
         let builtin_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
         let symbol_layout_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("player.stats"));
 
-        let builtin_details_struct = SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, &builtin_field_draft);
-        let symbol_layout_details_struct = SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, &symbol_layout_field_draft);
+        let builtin_details_struct =
+            SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Struct, &builtin_field_draft);
+        let symbol_layout_details_struct =
+            SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Struct, &symbol_layout_field_draft);
 
         assert!(
             builtin_details_struct
@@ -1985,6 +2208,33 @@ mod tests {
             symbol_layout_details_struct
                 .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT)
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn build_field_details_struct_limits_union_variants_to_symbol_layout_selector() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("player.stats"),
+            SymbolicStructDefinition::new(String::from("player.stats"), Vec::new()),
+        )]);
+        let variant_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("player.stats"));
+
+        let details_struct = SymbolLayoutEditorView::build_field_details_struct(&project_symbol_catalog, SymbolicLayoutKind::Union, &variant_field_draft);
+
+        assert!(
+            details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT)
+                .is_some()
+        );
+        assert!(
+            details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE)
+                .is_none()
+        );
+        assert!(
+            details_struct
+                .get_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE)
+                .is_none()
         );
     }
 }
@@ -2086,7 +2336,7 @@ impl Widget for SymbolLayoutEditorView {
                         self.render_symbol_layout_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
-                            "New Symbol Layout",
+                            "",
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,

@@ -910,6 +910,7 @@ impl Widget for StructViewerView {
                                     | StructViewerFieldEditorKind::SymbolResolverNodeKindSelector
                                     | StructViewerFieldEditorKind::SymbolResolverOperatorSelector
                                     | StructViewerFieldEditorKind::SymbolLayoutFieldElementTypeSelector
+                                    | StructViewerFieldEditorKind::SymbolLayoutKindSelector
                                     | StructViewerFieldEditorKind::SymbolLayoutFieldSymbolLayoutSelector
                                     | StructViewerFieldEditorKind::SymbolLayoutFieldResolverSelector
                                     | StructViewerFieldEditorKind::SymbolLayoutFieldContainerKindSelector
