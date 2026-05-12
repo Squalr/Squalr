@@ -523,7 +523,7 @@ impl StructViewerViewData {
                 StructViewerFieldPresentation::new(String::from("Data Type"), StructViewerFieldEditorKind::SymbolStructFieldDataTypeSelector)
             } else if Self::is_symbol_struct_field_symbol_struct_field(valued_struct_field) {
                 StructViewerFieldPresentation::new(
-                    String::from("Symbol Struct"),
+                    String::from("Symbol Layout"),
                     StructViewerFieldEditorKind::SymbolStructFieldSymbolStructSelector,
                 )
             } else if Self::is_symbol_struct_field_resolver_field(valued_struct_field) {
@@ -573,7 +573,7 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_NAME => String::from("Name"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_ELEMENT_TYPE => String::from("Element Type"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE => String::from("Data Type"),
-            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT => String::from("Symbol Struct"),
+            Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_SYMBOL_STRUCT => String::from("Symbol Layout"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_CONTAINER_KIND => String::from("Container"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_HIDDEN => String::from("Hidden"),
             Self::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
@@ -1279,7 +1279,7 @@ mod tests {
         let field_data_type_selections = StructViewerViewData::create_field_data_type_selections(&valued_struct);
         let field_data_type_selection = field_data_type_selections
             .get(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_STRUCT_FIELD_DATA_TYPE)
-            .expect("Expected data-type selection for the symbol struct editor field.");
+            .expect("Expected data-type selection for the symbol layout editor field.");
 
         assert_eq!(field_data_type_selection.visible_data_type(), &DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
     }

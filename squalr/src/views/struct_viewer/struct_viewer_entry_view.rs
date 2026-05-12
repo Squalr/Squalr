@@ -67,7 +67,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         "Type Size",
         "Operation",
     ];
-    const SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Struct"];
+    const SYMBOL_STRUCT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Layout"];
     const SYMBOL_STRUCT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
     const SYMBOL_STRUCT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
     const SEARCHABLE_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
@@ -942,7 +942,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                 let symbol_struct_search_id = Id::new(("symbol_struct_field_search", symbol_struct_selector_id.as_str(), user_interface.id().value()));
                 let mut selected_struct_layout_id = None;
                 let symbol_struct_label = if current_struct_layout_id.trim().is_empty() {
-                    "Select symbol struct"
+                    "Select symbol layout"
                 } else {
                     current_struct_layout_id.as_str()
                 };

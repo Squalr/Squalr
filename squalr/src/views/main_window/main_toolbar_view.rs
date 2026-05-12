@@ -136,7 +136,7 @@ impl MainToolbarView {
                     .with_separator(),
                     ToolbarMenuItemData::new(
                         SymbolStructEditorView::WINDOW_ID,
-                        "Symbol Structs",
+                        "Symbol Layouts",
                         Some(Box::new(move || {
                             if let Ok(docking_manager) = docking_manager_for_symbol_struct_editor.read() {
                                 if let Some(docked_node) = docking_manager.get_node_by_id(SymbolStructEditorView::WINDOW_ID) {

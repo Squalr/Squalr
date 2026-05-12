@@ -477,6 +477,11 @@ impl ProjectSymbolLayoutMutation {
         for symbolic_field_definition in symbolic_struct_definition.get_fields() {
             let field_offset = match symbolic_field_definition.get_offset_resolution() {
                 SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if symbolic_struct_definition.get_layout_kind().is_union() =>
+                {
+                    0
+                }
                 SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
             };
             let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(
@@ -664,6 +669,17 @@ mod tests {
 
                 (resolved_struct_layout_id == "variant.payload")
                     .then(|| SymbolicStructDefinition::from_str("as_u32:u32 @ +0;raw:u8[16] @ +0").expect("Expected variant payload layout to parse."))
+                    .or_else(|| {
+                        (resolved_struct_layout_id == "variant.payload.union").then(|| {
+                            SymbolicStructDefinition::new_union(
+                                String::from("variant.payload.union"),
+                                vec![
+                                    SymbolicFieldDefinition::from_str("as_u32:u32").expect("Expected u32 union field to parse."),
+                                    SymbolicFieldDefinition::from_str("raw:u8[16]").expect("Expected raw union field to parse."),
+                                ],
+                            )
+                        })
+                    })
             },
         )
     }
@@ -806,6 +822,11 @@ mod tests {
     }
 
     #[test]
+    fn resolve_struct_layout_id_size_defaults_union_fields_to_shared_offset() {
+        assert_eq!(resolve_test_field_size_with_structs("variant.payload.union"), Some(16));
+    }
+
+    #[test]
     fn resolve_struct_layout_id_size_uses_pointer_slot_size_for_pointer_to_struct() {
         assert_eq!(resolve_test_field_size_with_structs("player.stats*(u64)"), Some(8));
         assert_eq!(resolve_test_field_size_with_structs("player.stats*(u32)"), Some(4));
@@ -827,7 +848,7 @@ mod tests {
             String::from("player.stats"),
             resolve_test_field_size_with_structs,
         )
-        .expect("Expected struct layout carve mutation to succeed.");
+        .expect("Expected symbol layout carve mutation to succeed.");
 
         let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
         assert_eq!(fields.len(), 3);

@@ -3,7 +3,7 @@ use crate::structures::{
 };
 use std::sync::Arc;
 
-/// Resolves struct layouts and data type defaults for struct materialization operations.
+/// Resolves symbol layouts and data type defaults for struct materialization operations.
 pub trait SymbolResolver {
     fn get_default_value(
         &self,

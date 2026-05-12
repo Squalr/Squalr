@@ -724,6 +724,7 @@ impl ElementScannerResultsViewData {
         self.active_refresh_request_revision == refresh_request_revision
     }
 
+    #[cfg(test)]
     fn clear_selection(element_scanner_results_view_data: Dependency<Self>) {
         if let Some(mut element_scanner_results_view_data) = element_scanner_results_view_data.write("Clear scan result selection") {
             element_scanner_results_view_data.selection_index_start = None;

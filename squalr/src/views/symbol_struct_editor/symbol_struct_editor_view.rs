@@ -31,7 +31,7 @@ use squalr_engine_api::structures::{
     data_values::{anonymous_value_string::AnonymousValueString, anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType},
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
-    structs::{valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
+    structs::{symbolic_struct_definition::SymbolicLayoutKind, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField},
 };
 use std::{str::FromStr, sync::Arc};
 
@@ -138,7 +138,7 @@ impl SymbolStructEditorView {
                 }
             }
             Err(error) => {
-                log::error!("Failed to acquire opened project while persisting symbol struct changes: {}.", error);
+                log::error!("Failed to acquire opened project while persisting symbol layout changes: {}.", error);
                 false
             }
         };
@@ -150,7 +150,7 @@ impl SymbolStructEditorView {
         let project_save_request = ProjectSaveRequest {};
         project_save_request.send(&self.app_context.engine_unprivileged_state, |project_save_response| {
             if !project_save_response.success {
-                log::error!("Failed to save project after applying symbol struct changes.");
+                log::error!("Failed to save project after applying symbol layout changes.");
             }
         });
 
@@ -159,7 +159,7 @@ impl SymbolStructEditorView {
         };
         let did_dispatch_registry_sync = registry_set_project_symbols_request.send(&self.app_context.engine_unprivileged_state, |_response| {});
         if !did_dispatch_registry_sync {
-            log::error!("Failed to dispatch project symbol registry sync after symbol struct changes.");
+            log::error!("Failed to dispatch project symbol registry sync after symbol layout changes.");
         }
     }
 
@@ -175,7 +175,7 @@ impl SymbolStructEditorView {
                 self.clear_struct_viewer_if_symbol_struct_focused();
             }
             Err(error) => {
-                log::error!("Failed to delete struct layout: {}.", error);
+                log::error!("Failed to delete symbol layout: {}.", error);
             }
         }
     }
@@ -502,10 +502,45 @@ impl SymbolStructEditorView {
         *value = value_string.get_anonymous_value_string().to_string();
     }
 
+    fn render_layout_kind_selector(
+        &self,
+        user_interface: &mut Ui,
+        layout_kind: &mut SymbolicLayoutKind,
+    ) {
+        let theme = &self.app_context.theme;
+
+        user_interface.horizontal(|user_interface| {
+            for candidate_layout_kind in SymbolicLayoutKind::ALL {
+                let is_selected = *layout_kind == candidate_layout_kind;
+                let button = EguiButton::new(RichText::new(candidate_layout_kind.label()).color(theme.foreground))
+                    .fill(if is_selected {
+                        theme.background_control_primary
+                    } else {
+                        theme.background_control_secondary
+                    })
+                    .stroke(Stroke::new(
+                        1.0,
+                        if is_selected {
+                            theme.background_control_primary_dark
+                        } else {
+                            theme.background_control_secondary_dark
+                        },
+                    ));
+
+                if user_interface
+                    .add_sized(vec2(96.0, Self::FIELD_ROW_HEIGHT), button)
+                    .clicked()
+                {
+                    *layout_kind = candidate_layout_kind;
+                }
+            }
+        });
+    }
+
     fn clear_struct_viewer_if_symbol_struct_focused(&self) {
         let is_symbol_struct_focused = self
             .struct_viewer_view_data
-            .read("SymbolStructEditor check details focus")
+            .read("SymbolLayoutEditor check details focus")
             .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned())
             .is_some_and(|focus_target| matches!(focus_target, StructViewerFocusTarget::SymbolStructEditor { .. }));
 
@@ -684,7 +719,7 @@ impl SymbolStructEditorView {
     ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
         Arc::new(move |edited_field: ValuedStructField| {
             let updated_draft = {
-                let Some(mut view_data) = symbol_struct_editor_view_data.write("SymbolStructEditor apply field details edit") else {
+                let Some(mut view_data) = symbol_struct_editor_view_data.write("SymbolLayoutEditor apply field details edit") else {
                     return;
                 };
                 let Some(mut draft) = view_data.get_draft().cloned() else {
@@ -904,6 +939,7 @@ impl SymbolStructEditorView {
         &self,
         user_interface: &mut Ui,
         layout_id: &str,
+        layout_kind: SymbolicLayoutKind,
         field_count: usize,
         usage_count: usize,
         is_selected: bool,
@@ -955,7 +991,7 @@ impl SymbolStructEditorView {
         let rename_response = self.render_icon_button(
             &mut row_user_interface,
             &theme.icon_library.icon_handle_common_edit,
-            "Rename this struct layout.",
+            "Rename this symbol layout.",
             false,
         );
         if rename_response.clicked() {
@@ -963,11 +999,13 @@ impl SymbolStructEditorView {
         }
 
         row_user_interface.add_space(Self::FIELD_INPUT_SPACING);
-        row_user_interface.label(RichText::new(format!("{} fields | {} uses", field_count, usage_count)).color(if is_selected {
-            theme.foreground
-        } else {
-            theme.foreground_preview
-        }));
+        row_user_interface.label(
+            RichText::new(format!("{} | {} fields | {} uses", layout_kind.label(), field_count, usage_count)).color(if is_selected {
+                theme.foreground
+            } else {
+                theme.foreground_preview
+            }),
+        );
 
         if row_response.double_clicked() && row_action.is_none() {
             row_action = Some(SymbolStructLayoutRowAction::Open);
@@ -991,14 +1029,14 @@ impl SymbolStructEditorView {
         user_interface.painter().text(
             pos2(header_rect.min.x + 8.0, header_rect.center().y),
             Align2::LEFT_CENTER,
-            "Struct Layout",
+            "Symbol Layout",
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground_preview,
         );
         user_interface.painter().text(
             pos2(header_rect.max.x - 8.0, header_rect.center().y),
             Align2::RIGHT_CENTER,
-            "Fields | Uses",
+            "Kind | Fields | Uses",
             theme.font_library.font_noto_sans.font_normal.clone(),
             theme.foreground_preview,
         );
@@ -1027,7 +1065,7 @@ impl SymbolStructEditorView {
         let new_layout_response = self.render_flat_icon_button(
             &mut toolbar_user_interface,
             &theme.icon_library.icon_handle_common_add,
-            "Create a new reusable struct layout.",
+            "Create a new reusable symbol layout.",
             is_take_over_active,
         );
         if new_layout_response.clicked() {
@@ -1049,7 +1087,7 @@ impl SymbolStructEditorView {
             SearchBoxView::new(
                 self.app_context.clone(),
                 &mut edited_filter_text,
-                "Filter struct layouts...",
+                "Filter symbol layouts...",
                 "symbol_struct_editor_filter_text",
             )
             .width(user_interface.available_width())
@@ -1091,6 +1129,9 @@ impl SymbolStructEditorView {
                     let row_action = self.render_struct_layout_row(
                         user_interface,
                         struct_layout_id,
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_layout_kind(),
                         field_count,
                         usage_count,
                         selected_layout_id == Some(struct_layout_id),
@@ -1122,7 +1163,7 @@ impl SymbolStructEditorView {
                     .get_struct_layout_descriptors()
                     .is_empty()
                 {
-                    user_interface.label(RichText::new("No struct layouts yet.").color(self.app_context.theme.foreground_preview));
+                    user_interface.label(RichText::new("No symbol layouts yet.").color(self.app_context.theme.foreground_preview));
                 }
             });
     }
@@ -1480,7 +1521,7 @@ impl SymbolStructEditorView {
 
         let field_context_menu_target = self
             .symbol_struct_editor_view_data
-            .read("SymbolStructEditor field context menu")
+            .read("SymbolLayoutEditor field context menu")
             .and_then(|symbol_struct_editor_view_data| {
                 symbol_struct_editor_view_data
                     .get_field_context_menu_target()
@@ -1591,7 +1632,7 @@ impl SymbolStructEditorView {
             |user_interface| {
                 if show_layout_name_editor {
                     user_interface.add(
-                        GroupBox::new_from_theme(&self.app_context.theme, "Struct Layout", |user_interface| {
+                        GroupBox::new_from_theme(&self.app_context.theme, "Symbol Layout", |user_interface| {
                             self.render_string_value_box(
                                 user_interface,
                                 &mut edited_draft.layout_id,
@@ -1601,9 +1642,11 @@ impl SymbolStructEditorView {
                                 Self::FIELD_ROW_HEIGHT,
                             );
                             user_interface.add_space(6.0);
+                            self.render_layout_kind_selector(user_interface, &mut edited_draft.layout_kind);
+                            user_interface.add_space(6.0);
 
                             let status_text = if is_creating_new_layout {
-                                String::from("Creating a new reusable struct layout.")
+                                String::from("Creating a new reusable symbol layout.")
                             } else if usage_count == 0 {
                                 String::from("Not used by any symbol claims yet.")
                             } else if usage_count == 1 {
@@ -1619,7 +1662,7 @@ impl SymbolStructEditorView {
                 } else {
                     let theme = &self.app_context.theme;
                     user_interface.add(
-                        GroupBox::new_from_theme(theme, "Edit Struct Layout", |user_interface| {
+                        GroupBox::new_from_theme(theme, "Edit Symbol Layout", |user_interface| {
                             self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
                         })
                         .desired_width(user_interface.available_width()),
@@ -1671,7 +1714,7 @@ impl SymbolStructEditorView {
                     return;
                 }
                 Err(error) => {
-                    log::error!("Failed to apply symbol struct draft: {}.", error);
+                    log::error!("Failed to apply symbol layout draft: {}.", error);
                 }
             }
         }
@@ -1700,7 +1743,7 @@ impl SymbolStructEditorView {
 
         self.render_take_over_panel(
             user_interface,
-            "Delete Struct Layout",
+            "Delete Symbol Layout",
             0.0,
             Self::TAKE_OVER_CONTENT_PADDING_X,
             Self::TAKE_OVER_SECTION_SPACING,
@@ -1958,7 +2001,7 @@ impl Widget for SymbolStructEditorView {
                     Layout::centered_and_justified(Direction::TopDown),
                     |user_interface| {
                         user_interface
-                            .label(RichText::new("Open a project to author reusable struct layouts.").color(self.app_context.theme.foreground_preview));
+                            .label(RichText::new("Open a project to author reusable symbol layouts.").color(self.app_context.theme.foreground_preview));
                     },
                 )
                 .response;
@@ -1967,7 +2010,7 @@ impl Widget for SymbolStructEditorView {
         SymbolStructEditorViewData::synchronize(self.symbol_struct_editor_view_data.clone(), &project_symbol_catalog);
         let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft, selected_field_index) = self
             .symbol_struct_editor_view_data
-            .read("SymbolStructEditor view")
+            .read("SymbolLayoutEditor view")
             .map(|symbol_struct_editor_view_data| {
                 (
                     symbol_struct_editor_view_data
@@ -2043,7 +2086,7 @@ impl Widget for SymbolStructEditorView {
                         self.render_struct_layout_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
-                            "New Struct Layout",
+                            "New Symbol Layout",
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
@@ -2054,7 +2097,7 @@ impl Widget for SymbolStructEditorView {
                         self.render_struct_layout_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
-                            "Rename Struct Layout",
+                            "Rename Symbol Layout",
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
@@ -2065,7 +2108,7 @@ impl Widget for SymbolStructEditorView {
                         self.render_struct_layout_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
-                            "Edit Struct Layout",
+                            "Edit Symbol Layout",
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,

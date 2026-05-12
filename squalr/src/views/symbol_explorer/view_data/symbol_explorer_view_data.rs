@@ -655,7 +655,7 @@ mod tests {
         SymbolExplorerViewData::synchronize_selection(symbol_explorer_view_data.clone(), &project_symbol_catalog, false);
 
         let selected_entry = symbol_explorer_view_data
-            .read("Symbol explorer struct layout synchronize selection test")
+            .read("Symbol explorer symbol layout synchronize selection test")
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_selected_entry().cloned());
 
         assert_eq!(selected_entry, None);

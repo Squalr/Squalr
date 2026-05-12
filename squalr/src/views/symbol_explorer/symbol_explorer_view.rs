@@ -1011,7 +1011,7 @@ impl SymbolExplorerView {
             }
             Err(error) => {
                 log::error!(
-                    "Failed to acquire docking manager while opening Symbol Struct Editor from Symbol Explorer: {}",
+                    "Failed to acquire docking manager while opening Symbol Layout Editor from Symbol Explorer: {}",
                     error
                 );
             }
@@ -3214,7 +3214,7 @@ impl SymbolExplorerView {
                     context_menu_labels.push(String::from("Split in Half"));
                 }
                 if context_menu_struct_layout_edit_target.is_some() {
-                    context_menu_labels.push(String::from("Edit Struct Layout..."));
+                    context_menu_labels.push(String::from("Edit Symbol Layout..."));
                 }
                 if can_rename_symbol_tree_entry {
                     context_menu_labels.push(String::from("Rename"));
@@ -3380,7 +3380,7 @@ impl SymbolExplorerView {
                                 .add(
                                     ToolbarMenuItemView::new(
                                         self.app_context.clone(),
-                                        "Edit Struct Layout...",
+                                        "Edit Symbol Layout...",
                                         "symbol_tree_ctx_edit_struct_layout",
                                         &None,
                                         context_menu_width,

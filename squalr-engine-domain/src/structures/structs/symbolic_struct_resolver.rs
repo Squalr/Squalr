@@ -498,6 +498,7 @@ where
     ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
 {
     match field_definition.get_offset_resolution() {
+        SymbolicFieldOffsetResolution::Sequential if root_struct_definition.get_layout_kind().is_union() => Ok(Some(0)),
         SymbolicFieldOffsetResolution::Sequential => Ok(Some(next_sequential_offset)),
         SymbolicFieldOffsetResolution::Static(offset_in_bytes) => Ok(Some(*offset_in_bytes)),
         SymbolicFieldOffsetResolution::Resolver(resolver_id) => evaluate_u64_resolver(
@@ -1306,6 +1307,36 @@ mod tests {
         assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(4));
         assert_eq!(resolved_fields[3].get_offset_in_bytes(), Some(12));
         assert_eq!(resolved_fields[3].get_size_in_bytes(), Some(4));
+    }
+
+    #[test]
+    fn resolver_defaults_union_fields_to_shared_offset() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new_union(
+            String::from("VariantPayload"),
+            vec![
+                SymbolicFieldDefinition::from_str("as_u64:u64").expect("Expected u64 field to parse."),
+                SymbolicFieldDefinition::from_str("as_u32:u32").expect("Expected u32 field to parse."),
+                SymbolicFieldDefinition::from_str("raw:u8[16]").expect("Expected raw field to parse."),
+            ],
+        );
+
+        let resolved_struct = resolve_symbolic_struct_definition(
+            &symbolic_struct_definition,
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+            |_, _, _| Ok(None),
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert_eq!(resolved_fields[0].get_offset_in_bytes(), Some(0));
+        assert_eq!(resolved_fields[1].get_offset_in_bytes(), Some(0));
+        assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(0));
+        assert_eq!(resolved_fields[2].get_size_in_bytes(), Some(16));
     }
 
     #[test]

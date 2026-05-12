@@ -1066,6 +1066,9 @@ where
     for field_definition in struct_layout_definition.get_fields() {
         let field_offset = match field_definition.get_offset_resolution() {
             SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) if struct_layout_definition.get_layout_kind().is_union() => {
+                0
+            }
             SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
         };
         let field_size_in_bytes = resolve_field_size_in_bytes(
@@ -2121,6 +2124,60 @@ mod tests {
         assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[16]");
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "variant_payload");
         assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[32]");
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_sizes_union_layout_fields_at_shared_offset() {
+        let variant_payload = SymbolicStructDefinition::new_union(
+            String::from("variant_payload"),
+            vec![
+                SymbolicFieldDefinition::from_str("as_u64:u64").expect("Expected u64 union field to parse."),
+                SymbolicFieldDefinition::from_str("as_u32:u32").expect("Expected u32 union field to parse."),
+                SymbolicFieldDefinition::from_str("raw:u8[16]").expect("Expected raw union field to parse."),
+            ],
+        );
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![StructLayoutDescriptor::new(
+                String::from("variant_payload"),
+                variant_payload,
+            )],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Payload"),
+                String::from("game.exe"),
+                0x10,
+                String::from("variant_payload"),
+            )],
+        );
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([
+                String::from("module:game.exe"),
+                String::from("claim:module:game.exe:10"),
+            ]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+        );
+
+        let payload_child_locators = symbol_tree_entries
+            .iter()
+            .filter(|symbol_tree_entry| symbol_tree_entry.get_full_path().starts_with("Payload."))
+            .map(|symbol_tree_entry| symbol_tree_entry.get_locator().clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            payload_child_locators,
+            vec![
+                ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x10),
+                ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x10),
+                ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x10),
+            ]
+        );
     }
 
     #[test]

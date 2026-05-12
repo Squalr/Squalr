@@ -23,7 +23,7 @@ use squalr_engine_api::structures::projects::project_items::project_item_ref::Pr
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
 use squalr_engine_api::structures::projects::project_symbol_claim::ProjectSymbolClaim;
 use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
-use squalr_engine_api::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+use squalr_engine_api::structures::structs::symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution};
 use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
 use std::collections::{BTreeMap, HashSet};
@@ -355,11 +355,24 @@ fn estimate_symbolic_struct_size_in_bytes(
     symbolic_struct_definition: &SymbolicStructDefinition,
     visited_type_ids: &mut HashSet<String>,
 ) -> u64 {
-    symbolic_struct_definition
-        .get_fields()
-        .iter()
-        .map(|symbolic_field_definition| estimate_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_type_ids))
-        .sum()
+    let mut next_sequential_offset = 0_u64;
+
+    for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+        let field_offset = match symbolic_field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                if symbolic_struct_definition.get_layout_kind().is_union() =>
+            {
+                0
+            }
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+        };
+        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_type_ids);
+
+        next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+    }
+
+    next_sequential_offset
 }
 
 fn estimate_symbolic_field_size_in_bytes(
