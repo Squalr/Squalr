@@ -104,5 +104,20 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 project_symbols_delete_response.deleted_symbol_count
             );
         }
+        ProjectSymbolsResponse::ExecutePluginAction {
+            project_symbols_execute_plugin_action_response,
+        } => {
+            if project_symbols_execute_plugin_action_response.success {
+                log::info!("executed symbol plugin action: success=true");
+            } else {
+                log::error!(
+                    "executed symbol plugin action: success=false, error={}",
+                    project_symbols_execute_plugin_action_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
+        }
     }
 }

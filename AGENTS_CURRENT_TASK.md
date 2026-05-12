@@ -18,6 +18,7 @@ Our current task, from `README.md`, is:
 - Renamed user-facing copy around the reusable type editor to "Symbol Layout Editor" / "Symbol Layouts" and added a Struct/Union selector while keeping existing Rust compatibility names for the editor internals.
 - Follow-up rename pass moved the editor module/files/types to `symbol_layout_editor` / `SymbolLayoutEditor*`.
 - Polished the Symbol Layout Editor union workflow: new-layout create copy now uses a single "New Symbol Layout" groupbox, layout kind buttons are centered, row edit icons are flat, details view exposes a Struct/Union combo, and union edit rows render as variant selectors with tree affordances. Needs human verification in the GUI.
+- Fixed the CLI project-symbol response handler for the newer `ExecutePluginAction` response variant.
 
 ## Important Information
 
@@ -28,3 +29,4 @@ Our current task, from `README.md`, is:
 - First-class union validation ran `cargo fmt --all`, `cargo test -p squalr-engine-domain symbolic_struct_definition --locked`, `cargo test -p squalr-engine-domain symbolic_struct_resolver --locked`, `cargo test -p squalr-engine-domain valued_struct --locked`, `cargo test -p squalr symbol_tree_entry --locked`, `cargo test -p squalr symbol_layout_editor --locked`, `cargo test -p squalr-engine project_symbol_layout_mutation --locked`, `cargo test -p squalr-engine promote_symbol --locked`, and `git diff --check`.
 - Symbol Layout Editor rename validation ran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --locked`, `cargo test -p squalr symbol_explorer --locked`, `cargo test -p squalr struct_viewer --locked`, a search for stale editor identifiers in `squalr` and `docs`, and `git diff --check`.
 - Symbol Layout Editor union workflow validation ran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --locked`, `cargo test -p squalr struct_viewer --locked`, `cargo test -p squalr symbol_explorer --locked`, and `git diff --check`.
+- CLI project-symbol response validation ran `cargo fmt --all`, `cargo build -p squalr-cli --locked`, and `git diff --check`.
