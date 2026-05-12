@@ -19,9 +19,15 @@ Our current task, from `README.md`, is:
 - Follow-up rename pass moved the editor module/files/types to `symbol_layout_editor` / `SymbolLayoutEditor*`.
 - Polished the Symbol Layout Editor union workflow: new-layout create copy now uses a single "New Symbol Layout" groupbox, layout kind buttons are centered, row edit icons are flat, details view exposes a Struct/Union combo, and union edit rows render as variant selectors with tree affordances. Needs human verification in the GUI.
 - Fixed the CLI project-symbol response handler for the newer `ExecutePluginAction` response variant.
+- TODO: Replace synthesized `u8[n]` module gaps with `UNASSIGNED[n]` tree/editor spans. `UNASSIGNED` should mean "no project symbol owns these bytes" and should not be assignable from normal data type selectors.
+- TODO: Add an explicit raw byte storage type such as `db`/`bytes` for claimed-but-uninterpreted memory. Use this for intentional padding, union tail bytes, blobs, and other user-owned raw storage instead of overloading `u8`.
+- TODO: Refactor module splitting/deletion flows so removed fields become synthesized `UNASSIGNED` gaps instead of persisted `u8[n]` filler fields. Defining a field should insert into a non-overlapping unassigned range; deleting explicit `db` should reveal `UNASSIGNED` again.
 
 ## Important Information
 
+- Current `u8[n]` overload sites to audit include `SymbolTreeEntryKind::U8Segment`, `append_u8_segment_entry`, `begin_define_field_from_u8_segment`, `rename_u8_segment`, tests named around "u8 segment", and project-symbol mutation helpers such as `delete_module_ranges_to_u8_fields`, `replace_u8_array_field_span`, `find_containing_u8_array_field_position`, and `resolve_u8_array_length`.
+- Desired semantics: `UNASSIGNED[n]` is synthesized from gaps between assigned module fields/claims and module bounds; `db[n]`/`bytes[n]` is a real persisted assignment; `u8` remains an actual one-byte unsigned integer interpretation only.
+- Deleted symbol-layout fallback should stop retargeting to `u8` by default. Prefer removing ownership to expose `UNASSIGNED`, retargeting to explicit `db[n]` when a claimed raw span must remain, or requiring a replacement if size cannot be inferred.
 - Validated with `cargo test -p squalr-engine-domain symbolic_global_symbol_resolver --locked`, `cargo test -p squalr symbol_tree_entry --locked`, `cargo test -p squalr-engine project_symbol_layout_mutation --locked`, and `cargo test -p squalr-engine-api project_symbol_catalog --locked`.
 - Audit validation ran `cargo test -p squalr-engine-domain symbolic_struct_resolver --locked` and `cargo test -p squalr symbol_tree_entry --locked`.
 - Follow-up validation reran `cargo test -p squalr-engine-domain symbolic_struct_resolver --locked` and `cargo test -p squalr symbol_tree_entry --locked`.
