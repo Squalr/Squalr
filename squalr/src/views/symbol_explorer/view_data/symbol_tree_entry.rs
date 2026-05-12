@@ -8,7 +8,7 @@ use squalr_engine_api::structures::{
         project_symbol_module_field::ProjectSymbolModuleField,
     },
     structs::{
-        symbolic_field_definition::SymbolicFieldDefinition,
+        symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_global_symbol_resolver::{
             SymbolicGlobalSymbolResolverSession, SymbolicGlobalSymbolRoot, SymbolicGlobalSymbolRootType, resolve_global_symbol_field_value,
         },
@@ -1014,11 +1014,12 @@ where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
     match resolve_symbol_claim_type(project_symbol_catalog, symbol_claim.get_struct_layout_id()) {
-        ResolvedSymbolClaimType::Struct { struct_layout_definition, .. } => struct_layout_definition
-            .get_fields()
-            .iter()
-            .map(|field_definition| resolve_field_size_in_bytes(project_symbol_catalog, field_definition, resolve_primitive_size_in_bytes, &mut HashSet::new()))
-            .sum::<u64>(),
+        ResolvedSymbolClaimType::Struct { struct_layout_definition, .. } => resolve_struct_size_in_bytes(
+            project_symbol_catalog,
+            &struct_layout_definition,
+            resolve_primitive_size_in_bytes,
+            &mut HashSet::new(),
+        ),
         ResolvedSymbolClaimType::Field {
             data_type_ref, container_type, ..
         } => {
@@ -1051,6 +1052,35 @@ where
         .get_total_size_in_bytes(unit_size_in_bytes)
 }
 
+fn resolve_struct_size_in_bytes<ResolvePrimitiveSize>(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    struct_layout_definition: &SymbolicStructDefinition,
+    resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
+    visited_struct_layout_ids: &mut HashSet<String>,
+) -> u64
+where
+    ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
+{
+    let mut next_sequential_offset = 0_u64;
+
+    for field_definition in struct_layout_definition.get_fields() {
+        let field_offset = match field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+        };
+        let field_size_in_bytes = resolve_field_size_in_bytes(
+            project_symbol_catalog,
+            field_definition,
+            resolve_primitive_size_in_bytes,
+            visited_struct_layout_ids,
+        );
+
+        next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+    }
+
+    next_sequential_offset
+}
+
 fn resolve_data_type_size_in_bytes<ResolvePrimitiveSize>(
     project_symbol_catalog: &ProjectSymbolCatalog,
     data_type_ref: &DataTypeRef,
@@ -1068,18 +1098,12 @@ where
 
     let size_in_bytes = resolve_struct_layout_definition(project_symbol_catalog, data_type_id)
         .map(|struct_layout_definition| {
-            struct_layout_definition
-                .get_fields()
-                .iter()
-                .map(|field_definition| {
-                    resolve_field_size_in_bytes(
-                        project_symbol_catalog,
-                        field_definition,
-                        resolve_primitive_size_in_bytes,
-                        visited_struct_layout_ids,
-                    )
-                })
-                .sum::<u64>()
+            resolve_struct_size_in_bytes(
+                project_symbol_catalog,
+                &struct_layout_definition,
+                resolve_primitive_size_in_bytes,
+                visited_struct_layout_ids,
+            )
         })
         .or_else(|| resolve_primitive_size_in_bytes(data_type_ref))
         .unwrap_or(1);
@@ -2056,6 +2080,47 @@ mod tests {
         );
         assert_eq!(symbol_tree_entries[3].get_display_type_id(), "u8[3528]");
         assert_eq!(symbol_tree_entries[3].can_expand(), false);
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_sizes_overlapping_static_fields_by_span() {
+        let variant_payload = SymbolicStructDefinition::new(
+            String::from("variant_payload"),
+            vec![
+                SymbolicFieldDefinition::from_str("as_u64:u64 @ +0").expect("Expected u64 union field to parse."),
+                SymbolicFieldDefinition::from_str("as_u32:u32 @ +0").expect("Expected u32 union field to parse."),
+                SymbolicFieldDefinition::from_str("raw:u8[16] @ +0").expect("Expected raw union field to parse."),
+            ],
+        );
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![StructLayoutDescriptor::new(
+                String::from("variant_payload"),
+                variant_payload,
+            )],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Payload"),
+                String::from("game.exe"),
+                0x10,
+                String::from("variant_payload"),
+            )],
+        );
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                "u64" => Some(8),
+                _ => None,
+            },
+        );
+
+        assert_eq!(symbol_tree_entries.len(), 3);
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[16]");
+        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "variant_payload");
+        assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[32]");
     }
 
     #[test]

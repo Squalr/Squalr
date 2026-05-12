@@ -1,5 +1,8 @@
 use crate::structures::structs::{
-    symbol_resolver::SymbolResolver, symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_ref::SymbolicStructRef, valued_struct::ValuedStruct,
+    symbol_resolver::SymbolResolver,
+    symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
+    symbolic_struct_ref::SymbolicStructRef,
+    valued_struct::ValuedStruct,
 };
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -56,10 +59,19 @@ impl SymbolicStructDefinition {
         &self,
         symbol_registry: &impl SymbolResolver,
     ) -> u64 {
-        self.fields
-            .iter()
-            .map(|field| field.get_size_in_bytes(symbol_registry))
-            .sum()
+        let mut next_sequential_offset = 0_u64;
+
+        for field in &self.fields {
+            let field_offset = match field.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = field.get_size_in_bytes(symbol_registry);
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+        }
+
+        next_sequential_offset
     }
 }
 
@@ -74,5 +86,21 @@ impl FromStr for SymbolicStructDefinition {
             .collect();
 
         Ok(SymbolicStructDefinition::new(String::new(), fields?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SymbolicStructDefinition;
+    use crate::registries::symbols::symbol_registry::SymbolRegistry;
+    use std::str::FromStr;
+
+    #[test]
+    fn get_size_in_bytes_uses_static_field_span_for_overlapping_layouts() {
+        let symbol_registry = SymbolRegistry::new();
+        let symbolic_struct_definition = SymbolicStructDefinition::from_str("wide:u64 @ +0;narrow:u32 @ +0;tail:u16 @ +8")
+            .expect("Expected union-like symbolic struct definition to parse.");
+
+        assert_eq!(symbolic_struct_definition.get_size_in_bytes(&symbol_registry), 10);
     }
 }

@@ -7,7 +7,10 @@ use squalr_engine_api::structures::projects::{
     project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
     project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
 };
-use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
+use squalr_engine_api::structures::structs::{
+    symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
+    symbolic_struct_definition::SymbolicStructDefinition,
+};
 use std::collections::HashSet;
 use std::str::FromStr;
 
@@ -469,19 +472,25 @@ impl ProjectSymbolLayoutMutation {
         ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
         ResolveStructLayout: Fn(&str) -> Option<SymbolicStructDefinition> + Copy,
     {
-        symbolic_struct_definition
-            .get_fields()
-            .iter()
-            .try_fold(0_u64, |accumulated_size_in_bytes, symbolic_field_definition| {
-                let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(
-                    symbolic_field_definition,
-                    resolve_primitive_size_in_bytes,
-                    resolve_struct_layout_definition,
-                    visited_struct_layout_ids,
-                )?;
+        let mut next_sequential_offset = 0_u64;
 
-                accumulated_size_in_bytes.checked_add(field_size_in_bytes)
-            })
+        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(
+                symbolic_field_definition,
+                resolve_primitive_size_in_bytes,
+                resolve_struct_layout_definition,
+                visited_struct_layout_ids,
+            )?;
+            let field_end_offset = field_offset.checked_add(field_size_in_bytes)?;
+
+            next_sequential_offset = next_sequential_offset.max(field_end_offset);
+        }
+
+        Some(next_sequential_offset)
     }
 
     fn delete_or_shift_module_fields(
@@ -618,6 +627,7 @@ mod tests {
         project_symbol_catalog::ProjectSymbolCatalog, project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
     };
     use squalr_engine_api::structures::structs::{symbolic_field_definition::SymbolicFieldDefinition, symbolic_struct_definition::SymbolicStructDefinition};
+    use std::str::FromStr;
 
     fn resolve_test_field_size(struct_layout_id: &str) -> Option<u64> {
         ProjectSymbolLayoutMutation::resolve_struct_layout_id_size_in_bytes(
@@ -642,15 +652,18 @@ mod tests {
                 _ => None,
             },
             |resolved_struct_layout_id| {
-                (resolved_struct_layout_id == "player.stats").then(|| {
-                    SymbolicStructDefinition::new(
+                if resolved_struct_layout_id == "player.stats" {
+                    return Some(SymbolicStructDefinition::new(
                         String::from("player.stats"),
                         vec![
                             SymbolicFieldDefinition::new_named(String::from("health"), DataTypeRef::new("u32"), ContainerType::None),
                             SymbolicFieldDefinition::new_named(String::from("team"), DataTypeRef::new("u16"), ContainerType::None),
                         ],
-                    )
-                })
+                    ));
+                }
+
+                (resolved_struct_layout_id == "variant.payload")
+                    .then(|| SymbolicStructDefinition::from_str("as_u32:u32 @ +0;raw:u8[16] @ +0").expect("Expected variant payload layout to parse."))
             },
         )
     }
@@ -785,6 +798,11 @@ mod tests {
     #[test]
     fn resolve_struct_layout_id_size_uses_nested_struct_layout_size() {
         assert_eq!(resolve_test_field_size_with_structs("player.stats"), Some(6));
+    }
+
+    #[test]
+    fn resolve_struct_layout_id_size_uses_static_field_span_for_overlapping_layouts() {
+        assert_eq!(resolve_test_field_size_with_structs("variant.payload"), Some(16));
     }
 
     #[test]
