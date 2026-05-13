@@ -71,7 +71,15 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         "Operation",
     ];
     const SYMBOL_LAYOUT_FIELD_ELEMENT_TYPE_LABELS: [&'static str; 2] = ["Data Type", "Symbol Layout"];
-    const SYMBOL_LAYOUT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 5] = ["Element", "Array", "Fixed Array", "Dynamic Array", "Pointer"];
+    const SYMBOL_LAYOUT_FIELD_CONTAINER_KIND_LABELS: [&'static str; 7] = [
+        "Element",
+        "Array",
+        "Fixed Array",
+        "Dynamic Array",
+        "Pointer",
+        "Fixed Pointer Array",
+        "Dynamic Pointer Array",
+    ];
     const SYMBOL_LAYOUT_FIELD_OFFSET_MODE_LABELS: [&'static str; 3] = ["Sequential", "Static", "Resolver"];
     const SEARCHABLE_SELECTOR_POPUP_DEFAULT_WIDTH: f32 = 240.0;
     const SEARCHABLE_SELECTOR_POPUP_MAX_WIDTH: f32 = 640.0;
