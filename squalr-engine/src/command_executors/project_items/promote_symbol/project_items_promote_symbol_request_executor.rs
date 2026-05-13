@@ -13,6 +13,8 @@ use squalr_engine_api::commands::project_items::promote_symbol::project_items_pr
     ProjectItemsPromoteSymbolConflict, ProjectItemsPromoteSymbolResponse,
 };
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment};
 use squalr_engine_api::structures::projects::project_items::built_in_types::{
@@ -97,6 +99,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
         let mut conflicts = Vec::new();
         let mut did_mutate_symbol_catalog = false;
         let mut module_size_hints_by_name: BTreeMap<String, u64> = BTreeMap::new();
+        let mut module_layout_symbols_to_upsert = Vec::new();
 
         for requested_project_item_path in &self.project_item_paths {
             let project_item_path = resolve_project_item_path(&project_directory_path, requested_project_item_path);
@@ -132,6 +135,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
 
             if let Some(existing_exact_symbol) = find_exact_symbol_claim(&existing_symbol_claims, &promoted_symbol_candidate).cloned() {
                 project_item_replacements.push((project_item_ref, build_promoted_project_item(&project_item, &existing_exact_symbol)));
+                module_layout_symbols_to_upsert.push(existing_exact_symbol);
                 reused_symbol_count = reused_symbol_count.saturating_add(1);
                 continue;
             }
@@ -177,6 +181,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             did_mutate_symbol_catalog = true;
             promoted_symbol_count = promoted_symbol_count.saturating_add(1);
             promoted_symbol_locator_keys.push(promoted_symbol_candidate.get_symbol_locator_key().to_string());
+            module_layout_symbols_to_upsert.push(promoted_symbol_candidate.clone());
             project_item_replacements.push((project_item_ref, build_promoted_project_item(&project_item, &promoted_symbol_candidate)));
         }
 
@@ -197,14 +202,22 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
             }
         }
 
-        let updated_project_symbol_catalog = if did_mutate_symbol_catalog {
+        let should_update_symbol_catalog = did_mutate_symbol_catalog || !module_layout_symbols_to_upsert.is_empty();
+        let updated_project_symbol_catalog = if should_update_symbol_catalog {
             let project_info = opened_project.get_project_info_mut();
             let updated_project_symbol_catalog = {
                 let project_symbol_catalog = project_info.get_project_symbol_catalog_mut();
-                project_symbol_catalog.set_symbol_claims(existing_symbol_claims.clone());
+                if did_mutate_symbol_catalog {
+                    project_symbol_catalog.set_symbol_claims(existing_symbol_claims.clone());
+                }
                 for (module_name, module_size_hint) in &module_size_hints_by_name {
                     project_symbol_catalog.ensure_symbol_module(module_name, *module_size_hint);
                     project_symbol_catalog.ensure_module_root_struct_layout(module_name, *module_size_hint);
+                }
+                for promoted_module_symbol in &module_layout_symbols_to_upsert {
+                    if let Err(error) = upsert_promoted_module_symbol_layout_field(project_symbol_catalog, promoted_module_symbol) {
+                        log::warn!("Failed to mirror promoted symbol into module root layout: {}", error);
+                    }
                 }
                 project_symbol_catalog.clone()
             };
@@ -300,6 +313,300 @@ fn resolve_promoted_symbol_module_size_hint(
             .unwrap_or(minimum_module_size)
             .max(minimum_module_size),
     ))
+}
+
+fn upsert_promoted_module_symbol_layout_field(
+    project_symbol_catalog: &mut ProjectSymbolCatalog,
+    promoted_symbol: &ProjectSymbolClaim,
+) -> Result<(), String> {
+    let ProjectSymbolLocator::ModuleOffset { module_name, offset } = promoted_symbol.get_locator() else {
+        return Ok(());
+    };
+    let field_size_in_bytes = estimate_symbol_claim_size_in_bytes(project_symbol_catalog, promoted_symbol).max(1);
+    let mut visited_layout_ids = HashSet::new();
+
+    upsert_symbol_layout_field_at_offset(
+        project_symbol_catalog,
+        module_name,
+        *offset,
+        promoted_symbol.get_display_name(),
+        promoted_symbol.get_struct_layout_id(),
+        field_size_in_bytes,
+        &mut visited_layout_ids,
+    )
+}
+
+fn upsert_symbol_layout_field_at_offset(
+    project_symbol_catalog: &mut ProjectSymbolCatalog,
+    struct_layout_id: &str,
+    offset_in_bytes: u64,
+    field_name: &str,
+    field_type_id: &str,
+    field_size_in_bytes: u64,
+    visited_layout_ids: &mut HashSet<String>,
+) -> Result<(), String> {
+    if !visited_layout_ids.insert(struct_layout_id.to_string()) {
+        return Err(format!("Cannot upsert field through recursive layout `{}`.", struct_layout_id));
+    }
+
+    let Some(struct_layout_descriptor) = find_struct_layout_descriptor(project_symbol_catalog, struct_layout_id) else {
+        visited_layout_ids.remove(struct_layout_id);
+        return Err(format!("Cannot find target layout `{}`.", struct_layout_id));
+    };
+    let struct_layout_definition = struct_layout_descriptor.get_struct_layout_definition().clone();
+
+    if let Some(containing_child_struct_layout) = find_containing_child_struct_layout(
+        project_symbol_catalog,
+        &struct_layout_definition,
+        offset_in_bytes,
+        field_size_in_bytes,
+        visited_layout_ids,
+    ) {
+        let result = upsert_symbol_layout_field_at_offset(
+            project_symbol_catalog,
+            &containing_child_struct_layout.struct_layout_id,
+            containing_child_struct_layout.offset_in_child,
+            field_name,
+            field_type_id,
+            field_size_in_bytes,
+            visited_layout_ids,
+        );
+        visited_layout_ids.remove(struct_layout_id);
+
+        return result;
+    }
+
+    let updated_struct_layout_definition = upsert_field_in_symbolic_struct_definition(
+        project_symbol_catalog,
+        &struct_layout_definition,
+        offset_in_bytes,
+        field_name,
+        field_type_id,
+        field_size_in_bytes,
+    )?;
+    replace_struct_layout_definition(project_symbol_catalog, struct_layout_id, updated_struct_layout_definition)?;
+    visited_layout_ids.remove(struct_layout_id);
+
+    Ok(())
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ContainingChildStructLayout {
+    struct_layout_id: String,
+    offset_in_child: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SymbolicFieldSpan {
+    field_index: usize,
+    offset_in_bytes: u64,
+    size_in_bytes: u64,
+}
+
+fn find_containing_child_struct_layout(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    struct_layout_definition: &SymbolicStructDefinition,
+    offset_in_bytes: u64,
+    field_size_in_bytes: u64,
+    visited_layout_ids: &HashSet<String>,
+) -> Option<ContainingChildStructLayout> {
+    let requested_end_offset = offset_in_bytes.checked_add(field_size_in_bytes)?;
+    let mut containing_child_layouts = collect_symbolic_field_spans(project_symbol_catalog, struct_layout_definition)
+        .into_iter()
+        .filter_map(|field_span| {
+            let field_end_offset = field_span
+                .offset_in_bytes
+                .checked_add(field_span.size_in_bytes)?;
+
+            if offset_in_bytes < field_span.offset_in_bytes || requested_end_offset > field_end_offset {
+                return None;
+            }
+
+            let field_definition = &struct_layout_definition.get_fields()[field_span.field_index];
+            let child_struct_layout_id = field_definition.get_data_type_ref().get_data_type_id();
+            if visited_layout_ids.contains(child_struct_layout_id) || find_struct_layout_descriptor(project_symbol_catalog, child_struct_layout_id).is_none() {
+                return None;
+            }
+
+            let containing_child_struct_layout = match field_definition.get_container_type() {
+                ContainerType::None => Some(ContainingChildStructLayout {
+                    struct_layout_id: child_struct_layout_id.to_string(),
+                    offset_in_child: offset_in_bytes.saturating_sub(field_span.offset_in_bytes),
+                }),
+                ContainerType::Array | ContainerType::ArrayFixed(_) => {
+                    let child_struct_size_in_bytes = estimate_symbol_type_size_in_bytes(project_symbol_catalog, child_struct_layout_id, &mut HashSet::new());
+                    if child_struct_size_in_bytes == 0 {
+                        return None;
+                    }
+
+                    Some(ContainingChildStructLayout {
+                        struct_layout_id: child_struct_layout_id.to_string(),
+                        offset_in_child: offset_in_bytes.saturating_sub(field_span.offset_in_bytes) % child_struct_size_in_bytes,
+                    })
+                }
+                ContainerType::Pointer(_)
+                | ContainerType::PointerArray(_)
+                | ContainerType::PointerArrayFixed(_, _)
+                | ContainerType::Pointer32
+                | ContainerType::Pointer64 => None,
+            }?;
+
+            Some((containing_child_struct_layout, field_span.size_in_bytes))
+        })
+        .collect::<Vec<_>>();
+
+    containing_child_layouts.sort_by(|left_layout, right_layout| {
+        left_layout.1.cmp(&right_layout.1).then_with(|| {
+            left_layout
+                .0
+                .struct_layout_id
+                .cmp(&right_layout.0.struct_layout_id)
+        })
+    });
+    containing_child_layouts
+        .into_iter()
+        .next()
+        .map(|(containing_child_struct_layout, _field_size_in_bytes)| containing_child_struct_layout)
+}
+
+fn upsert_field_in_symbolic_struct_definition(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    struct_layout_definition: &SymbolicStructDefinition,
+    offset_in_bytes: u64,
+    field_name: &str,
+    field_type_id: &str,
+    field_size_in_bytes: u64,
+) -> Result<SymbolicStructDefinition, String> {
+    let field_end_offset = offset_in_bytes
+        .checked_add(field_size_in_bytes)
+        .ok_or_else(|| String::from("Promoted field range is too large."))?;
+    let mut fields = struct_layout_definition.get_fields().to_vec();
+    let field_spans = collect_symbolic_field_spans(project_symbol_catalog, struct_layout_definition);
+
+    for field_span in &field_spans {
+        let existing_field_end_offset = field_span
+            .offset_in_bytes
+            .checked_add(field_span.size_in_bytes)
+            .ok_or_else(|| String::from("Existing field range is too large."))?;
+        let ranges_overlap = field_span.offset_in_bytes < field_end_offset && offset_in_bytes < existing_field_end_offset;
+
+        if ranges_overlap && field_span.offset_in_bytes != offset_in_bytes {
+            let existing_field = &struct_layout_definition.get_fields()[field_span.field_index];
+
+            return Err(format!(
+                "Promoted field `{}` overlaps existing field `{}` in `{}`.",
+                field_name,
+                existing_field.get_field_name(),
+                struct_layout_definition.get_symbol_namespace()
+            ));
+        }
+    }
+
+    let promoted_field = build_promoted_symbolic_field(field_name, field_type_id, offset_in_bytes);
+    if let Some(existing_field_span) = field_spans
+        .iter()
+        .find(|field_span| field_span.offset_in_bytes == offset_in_bytes)
+    {
+        fields[existing_field_span.field_index] = promoted_field;
+    } else {
+        fields.push(promoted_field);
+    }
+
+    fields.sort_by(|left_field, right_field| {
+        resolve_static_offset(left_field)
+            .unwrap_or(u64::MAX)
+            .cmp(&resolve_static_offset(right_field).unwrap_or(u64::MAX))
+            .then_with(|| left_field.get_field_name().cmp(right_field.get_field_name()))
+    });
+
+    Ok(SymbolicStructDefinition::new_with_layout_kind(
+        struct_layout_definition.get_symbol_namespace().to_string(),
+        struct_layout_definition.get_layout_kind(),
+        fields,
+    )
+    .with_declared_size_in_bytes(struct_layout_definition.get_declared_size_in_bytes()))
+}
+
+fn build_promoted_symbolic_field(
+    field_name: &str,
+    field_type_id: &str,
+    offset_in_bytes: u64,
+) -> SymbolicFieldDefinition {
+    let symbolic_field_definition =
+        SymbolicFieldDefinition::from_str(field_type_id).unwrap_or_else(|_| SymbolicFieldDefinition::new(DataTypeRef::new(field_type_id), ContainerType::None));
+
+    SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
+        field_name.to_string(),
+        symbolic_field_definition.get_data_type_ref().clone(),
+        symbolic_field_definition.get_container_type(),
+        symbolic_field_definition.get_count_resolution().clone(),
+        symbolic_field_definition.get_display_count_resolution().clone(),
+        SymbolicFieldOffsetResolution::new_static(offset_in_bytes),
+    )
+}
+
+fn collect_symbolic_field_spans(
+    project_symbol_catalog: &ProjectSymbolCatalog,
+    struct_layout_definition: &SymbolicStructDefinition,
+) -> Vec<SymbolicFieldSpan> {
+    let mut field_spans = Vec::new();
+    let mut next_sequential_offset = 0_u64;
+
+    for (field_index, field_definition) in struct_layout_definition.get_fields().iter().enumerate() {
+        let field_offset = match field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) if struct_layout_definition.get_layout_kind().is_union() => {
+                0
+            }
+            SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+        };
+        let field_size_in_bytes = estimate_symbolic_field_size_in_bytes(project_symbol_catalog, field_definition, &mut HashSet::new());
+
+        next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+        field_spans.push(SymbolicFieldSpan {
+            field_index,
+            offset_in_bytes: field_offset,
+            size_in_bytes: field_size_in_bytes,
+        });
+    }
+
+    field_spans
+}
+
+fn resolve_static_offset(symbolic_field_definition: &SymbolicFieldDefinition) -> Option<u64> {
+    match symbolic_field_definition.get_offset_resolution() {
+        SymbolicFieldOffsetResolution::Static(offset_in_bytes) => Some(*offset_in_bytes),
+        SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => None,
+    }
+}
+
+fn replace_struct_layout_definition(
+    project_symbol_catalog: &mut ProjectSymbolCatalog,
+    struct_layout_id: &str,
+    struct_layout_definition: SymbolicStructDefinition,
+) -> Result<(), String> {
+    let mut struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
+    let Some(struct_layout_descriptor) = struct_layout_descriptors
+        .iter_mut()
+        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
+    else {
+        return Err(format!("Cannot find target layout `{}`.", struct_layout_id));
+    };
+
+    *struct_layout_descriptor = StructLayoutDescriptor::new(struct_layout_id.to_string(), struct_layout_definition);
+    project_symbol_catalog.set_struct_layout_descriptors(struct_layout_descriptors);
+
+    Ok(())
+}
+
+fn find_struct_layout_descriptor<'a>(
+    project_symbol_catalog: &'a ProjectSymbolCatalog,
+    struct_layout_id: &str,
+) -> Option<&'a StructLayoutDescriptor> {
+    project_symbol_catalog
+        .get_struct_layout_descriptors()
+        .iter()
+        .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
 }
 
 fn query_loaded_module_size(
@@ -657,7 +964,11 @@ mod tests {
     };
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
-        data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
+        data_types::{
+            built_in_types::{u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
+            data_type_ref::DataTypeRef,
+        },
+        data_values::container_type::ContainerType,
         memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
         memory::{pointer::Pointer, pointer_chain_segment::PointerChainSegment},
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -668,7 +979,11 @@ mod tests {
             project_items::project_item_ref::ProjectItemRef, project_manifest::ProjectManifest, project_symbol_catalog::ProjectSymbolCatalog,
             project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
         },
-        structs::valued_struct::ValuedStruct,
+        structs::{
+            symbolic_field_definition::{SymbolicFieldCountResolution, SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
+            symbolic_struct_definition::SymbolicStructDefinition,
+            valued_struct::ValuedStruct,
+        },
     };
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use squalr_engine_session::engine_unprivileged_state::{EngineUnprivilegedState, EngineUnprivilegedStateOptions};
@@ -944,12 +1259,16 @@ mod tests {
                 .get_declared_size_in_bytes(),
             Some(0x5000)
         );
-        assert!(
-            struct_layout_descriptors[0]
-                .get_struct_layout_definition()
-                .get_fields()
-                .is_empty(),
-            "The promoted module root layout should start as an empty struct; unowned bytes are synthesized as UNASSIGNED."
+        let module_root_fields = struct_layout_descriptors[0]
+            .get_struct_layout_definition()
+            .get_fields();
+        assert_eq!(module_root_fields.len(), 1);
+        assert_eq!(module_root_fields[0].get_field_name(), "Health");
+        assert_eq!(module_root_fields[0].get_data_type_ref().get_data_type_id(), "u8");
+        assert_eq!(module_root_fields[0].get_container_type(), ContainerType::None);
+        assert_eq!(
+            module_root_fields[0].get_offset_resolution(),
+            &SymbolicFieldOffsetResolution::new_static(0x1234)
         );
         let promoted_project_item = loaded_project
             .get_project_items()
@@ -983,6 +1302,78 @@ mod tests {
                 .map(StructLayoutDescriptor::get_struct_layout_id),
             Some("game.exe")
         );
+    }
+
+    #[test]
+    fn promote_symbol_request_inserts_layout_field_into_containing_struct() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x120, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (mut project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        project
+            .get_project_info_mut()
+            .get_project_symbol_catalog_mut()
+            .set_struct_layout_descriptors(vec![
+                StructLayoutDescriptor::new(
+                    String::from("game.exe"),
+                    SymbolicStructDefinition::new(
+                        String::from("game.exe"),
+                        vec![SymbolicFieldDefinition::new_named_with_resolutions(
+                            String::from("Headers"),
+                            DataTypeRef::new("pe.headers"),
+                            ContainerType::None,
+                            SymbolicFieldCountResolution::Inferred,
+                            SymbolicFieldOffsetResolution::new_static(0x100),
+                        )],
+                    )
+                    .with_declared_size_in_bytes(Some(0x5000)),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("pe.headers"),
+                    SymbolicStructDefinition::new(String::from("pe.headers"), Vec::new()).with_declared_size_in_bytes(Some(0x100)),
+                ),
+            ]);
+        project
+            .save_to_path(temp_directory.path(), true)
+            .expect("Expected test project to save after seeding symbol layouts.");
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default())
+            .with_memory_query_modules(vec![NormalizedModule::new("game.exe", 0x10000000, 0x5000)])
+            .with_memory_query_virtual_pages(vec![NormalizedRegion::new(0x10000000, 0x5000)]);
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(promote_symbol_response.success);
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected promoted project to load from disk.");
+        let struct_layout_descriptors = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_struct_layout_descriptors();
+        let module_layout = struct_layout_descriptors
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "game.exe")
+            .expect("Expected module root layout.");
+        let header_layout = struct_layout_descriptors
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == "pe.headers")
+            .expect("Expected nested header layout.");
+
+        assert_eq!(module_layout.get_struct_layout_definition().get_fields().len(), 1);
+        let header_fields = header_layout.get_struct_layout_definition().get_fields();
+        assert_eq!(header_fields.len(), 1);
+        assert_eq!(header_fields[0].get_field_name(), "Health");
+        assert_eq!(header_fields[0].get_offset_resolution(), &SymbolicFieldOffsetResolution::new_static(0x20));
     }
 
     #[test]
@@ -1297,11 +1688,17 @@ mod tests {
                 .map(|symbolic_struct_ref| symbolic_struct_ref.get_symbolic_struct_namespace().to_string()),
             Some(String::from("u8"))
         );
-        assert!(
-            captured_project_symbol_catalogs
-                .lock()
-                .expect("Expected captured symbol catalog lock in test.")
-                .is_empty()
+        let captured_project_symbol_catalogs = captured_project_symbol_catalogs
+            .lock()
+            .expect("Expected captured symbol catalog lock in test.");
+        assert_eq!(captured_project_symbol_catalogs.len(), 1);
+        assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+        assert_eq!(
+            captured_project_symbol_catalogs[0].get_struct_layout_descriptors()[0]
+                .get_struct_layout_definition()
+                .get_fields()[0]
+                .get_field_name(),
+            "Health"
         );
     }
 
