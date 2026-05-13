@@ -1883,14 +1883,15 @@ impl SymbolLayoutEditorView {
         offset_in_bytes: u64,
         size_in_bytes: u64,
         can_define_field: bool,
-    ) {
+    ) -> Option<SymbolLayoutUnassignedRowAction> {
         if size_in_bytes == 0 {
-            return;
+            return None;
         }
 
         let theme = &self.app_context.theme;
         let row_sense = if can_define_field { Sense::click() } else { Sense::hover() };
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), row_sense);
+        let mut pending_unassigned_row_action = None;
 
         user_interface.painter().rect(
             row_rect,
@@ -1921,29 +1922,43 @@ impl SymbolLayoutEditorView {
                 .interact_pointer_pos()
                 .unwrap_or_else(|| pos2(row_rect.left(), row_rect.center().y));
             SymbolLayoutEditorViewData::show_unassigned_context_menu(self.symbol_layout_editor_view_data.clone(), offset_in_bytes, size_in_bytes, position);
+        } else if can_define_field && row_response.clicked() {
+            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineFieldAt);
         } else if row_response.clicked() {
             SymbolLayoutEditorViewData::hide_unassigned_context_menu(self.symbol_layout_editor_view_data.clone());
             SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
         }
 
+        let button_area_width = if can_define_field { Self::ICON_BUTTON_WIDTH } else { 0.0 };
+        let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
+        if can_define_field {
+            let define_button_rect = Rect::from_min_size(pos2(button_area_left, row_rect.min.y), vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT));
+            let define_response = self.render_flat_icon_button_at(
+                user_interface,
+                define_button_rect,
+                &theme.icon_library.icon_handle_common_add,
+                "Define a field at this offset.",
+                false,
+            );
+            if define_response.clicked() {
+                pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineFieldAt);
+            }
+        }
+
         let left_text = format!("UNASSIGNED[{}]", size_in_bytes);
         let right_text = format!("0x{:X}", offset_in_bytes);
         let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
-        let right_text_x = row_rect.max.x - Self::FIELD_ROW_LEFT_PADDING;
+        let right_text_x = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
         let left_max_width = (right_text_x - label_position.x).max(0.0);
+        let left_color = if can_define_field { theme.foreground } else { theme.foreground_preview };
         let left_text = Self::truncate_text_to_width(
             user_interface,
             &left_text,
             left_max_width,
             &theme.font_library.font_noto_sans.font_normal,
-            theme.foreground_preview,
+            left_color,
         );
-        let left_width = Self::measure_text_width(
-            user_interface,
-            &left_text,
-            &theme.font_library.font_noto_sans.font_normal,
-            theme.foreground_preview,
-        );
+        let left_width = Self::measure_text_width(user_interface, &left_text, &theme.font_library.font_noto_sans.font_normal, left_color);
         let right_max_width = (right_text_x - label_position.x - left_width - Self::FIELD_ROW_PREVIEW_GAP).max(0.0);
         let right_text = Self::truncate_text_to_width(
             user_interface,
@@ -1958,7 +1973,7 @@ impl SymbolLayoutEditorView {
             Align2::LEFT_CENTER,
             left_text,
             theme.font_library.font_noto_sans.font_normal.clone(),
-            theme.foreground_preview,
+            left_color,
         );
         if !right_text.is_empty() {
             user_interface.painter().text(
@@ -1969,6 +1984,8 @@ impl SymbolLayoutEditorView {
                 theme.foreground_preview,
             );
         }
+
+        pending_unassigned_row_action
     }
 
     fn render_unassigned_context_menu(
@@ -2024,7 +2041,7 @@ impl SymbolLayoutEditorView {
         let field_count = draft.field_drafts.len();
         let layout_kind = draft.layout_kind;
         let mut pending_field_row_action = None;
-        let mut pending_unassigned_row_action = None;
+        let mut pending_unassigned_row_action: Option<(u64, u64, SymbolLayoutUnassignedRowAction)> = None;
         let field_spans = self.resolve_draft_field_spans(project_symbol_catalog, draft);
         let field_spans_by_position = field_spans
             .as_ref()
@@ -2043,12 +2060,10 @@ impl SymbolLayoutEditorView {
             };
             if let Some(field_span) = field_spans_by_position.get(&field_index) {
                 if !layout_kind.is_union() && field_span.offset_in_bytes > next_visible_offset {
-                    self.render_unassigned_layout_row(
-                        user_interface,
-                        next_visible_offset,
-                        field_span.offset_in_bytes.saturating_sub(next_visible_offset),
-                        true,
-                    );
+                    let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
+                    if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, true) {
+                        pending_unassigned_row_action = Some((next_visible_offset, unassigned_size, unassigned_row_action));
+                    }
                 }
                 next_visible_offset = next_visible_offset.max(
                     field_span
@@ -2074,12 +2089,12 @@ impl SymbolLayoutEditorView {
         if let Some((layout_size_in_bytes, _field_spans)) = field_spans.as_ref()
             && *layout_size_in_bytes > next_visible_offset
         {
-            self.render_unassigned_layout_row(
-                user_interface,
-                next_visible_offset,
-                layout_size_in_bytes.saturating_sub(next_visible_offset),
-                !layout_kind.is_union(),
-            );
+            let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
+            if let Some(unassigned_row_action) =
+                self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, !layout_kind.is_union())
+            {
+                pending_unassigned_row_action = Some((next_visible_offset, unassigned_size, unassigned_row_action));
+            }
         }
 
         let (field_context_menu_target, unassigned_context_menu_target) = self
@@ -2108,21 +2123,25 @@ impl SymbolLayoutEditorView {
             && !layout_kind.is_union()
             && let Some(unassigned_row_action) = self.render_unassigned_context_menu(user_interface, &unassigned_context_menu_target)
         {
-            pending_unassigned_row_action = Some((unassigned_context_menu_target, unassigned_row_action));
+            pending_unassigned_row_action = Some((
+                unassigned_context_menu_target.get_offset_in_bytes(),
+                unassigned_context_menu_target.get_size_in_bytes(),
+                unassigned_row_action,
+            ));
         }
 
-        if let Some((unassigned_context_menu_target, SymbolLayoutUnassignedRowAction::DefineFieldAt)) = pending_unassigned_row_action {
+        if let Some((unassigned_offset_in_bytes, _unassigned_size_in_bytes, SymbolLayoutUnassignedRowAction::DefineFieldAt)) = pending_unassigned_row_action {
             let field_spans = field_spans
                 .as_ref()
                 .map(|(_layout_size_in_bytes, field_spans)| field_spans.as_slice())
                 .unwrap_or(&[]);
-            let insert_index = Self::field_insert_index_for_offset(field_spans, draft.field_drafts.len(), unassigned_context_menu_target.get_offset_in_bytes());
+            let insert_index = Self::field_insert_index_for_offset(field_spans, draft.field_drafts.len(), unassigned_offset_in_bytes);
             let field_draft = self.create_field_draft_for_unassigned_span(
                 project_symbol_catalog,
                 draft.layout_kind,
                 &draft.layout_id,
                 insert_index,
-                unassigned_context_menu_target.get_offset_in_bytes(),
+                unassigned_offset_in_bytes,
             );
 
             draft.field_drafts.insert(insert_index, field_draft);
