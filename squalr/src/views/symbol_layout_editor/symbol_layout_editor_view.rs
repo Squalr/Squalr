@@ -9,7 +9,7 @@ use crate::ui::widgets::controls::{
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
     SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft,
-    SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
+    SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget, SymbolLayoutUnassignedSelection,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::SymbolLayoutFieldContainerKind;
 use eframe::egui::{
@@ -32,7 +32,7 @@ use squalr_engine_api::structures::{
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
-        symbolic_field_definition::SymbolicFieldOffsetResolution,
+        symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
         valued_struct::ValuedStruct,
         valued_struct_field::ValuedStructField,
@@ -51,7 +51,8 @@ enum SymbolLayoutFieldRowAction {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutUnassignedRowAction {
-    DefineFieldAt,
+    SelectSpan,
+    DefineField,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -285,6 +286,72 @@ impl SymbolLayoutEditorView {
             .max()
             .unwrap_or(0)
             .min(field_count)
+    }
+
+    fn build_symbolic_field_definition_from_draft(field_draft: &SymbolLayoutFieldEditDraft) -> Result<SymbolicFieldDefinition, String> {
+        let trimmed_data_type_id = field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id()
+            .trim()
+            .to_string();
+        if trimmed_data_type_id.is_empty() {
+            return Err(String::from("Field data type is required."));
+        }
+
+        Ok(SymbolicFieldDefinition::new_named_with_resolutions_and_display_count(
+            field_draft.field_name.trim().to_string(),
+            DataTypeRef::new(&trimmed_data_type_id),
+            field_draft.container_edit.to_container_type()?,
+            field_draft.container_edit.to_count_resolution()?,
+            field_draft.container_edit.to_display_count_resolution()?,
+            field_draft.to_offset_resolution()?,
+        )
+        .with_hidden(field_draft.is_hidden))
+    }
+
+    fn validate_define_field_draft(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        field_draft: &SymbolLayoutFieldEditDraft,
+        span_offset_in_bytes: u64,
+        span_size_in_bytes: u64,
+    ) -> Result<(u64, u64), String> {
+        if field_draft.field_name.trim().is_empty() {
+            return Err(String::from("Field name is required."));
+        }
+
+        if field_draft.offset_mode != SymbolLayoutFieldOffsetMode::Static {
+            return Err(String::from("Field offset must be static."));
+        }
+
+        let symbolic_field_definition = Self::build_symbolic_field_definition_from_draft(field_draft)?;
+        let field_offset_in_bytes = match symbolic_field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(field_offset_in_bytes) => *field_offset_in_bytes,
+            _ => return Err(String::from("Field offset must be static.")),
+        };
+        let field_size_in_bytes = SymbolLayoutEditorViewData::resolve_symbolic_field_size_in_bytes(
+            project_symbol_catalog,
+            &symbolic_field_definition,
+            &mut std::collections::HashSet::new(),
+        );
+
+        if field_size_in_bytes == 0 {
+            return Err(String::from("Field has no byte size."));
+        }
+
+        let span_end_in_bytes = span_offset_in_bytes.saturating_add(span_size_in_bytes);
+        let field_end_in_bytes = field_offset_in_bytes
+            .checked_add(field_size_in_bytes)
+            .ok_or_else(|| String::from("Field range is too large."))?;
+
+        if field_offset_in_bytes < span_offset_in_bytes || field_end_in_bytes > span_end_in_bytes {
+            return Err(format!(
+                "Field must fit within UNASSIGNED 0x{:X}..0x{:X}.",
+                span_offset_in_bytes, span_end_in_bytes
+            ));
+        }
+
+        Ok((field_offset_in_bytes, field_size_in_bytes))
     }
 
     fn normalize_union_field_drafts(
@@ -846,6 +913,55 @@ impl SymbolLayoutEditorView {
         );
     }
 
+    fn focus_unassigned_span_in_struct_viewer(
+        &self,
+        draft: &SymbolLayoutEditDraft,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) {
+        let details_struct = ValuedStruct::new_anonymous(vec![
+            DataTypeStringUtf8::get_value_from_primitive_string("UNASSIGNED").to_named_valued_struct_field(String::from("kind"), true),
+            DataTypeStringUtf8::get_value_from_primitive_string(&draft.layout_id).to_named_valued_struct_field(String::from("layout"), true),
+            DataTypeU64::get_value_from_primitive(offset_in_bytes).to_named_valued_struct_field(String::from("offset"), true),
+            DataTypeU64::get_value_from_primitive(size_in_bytes).to_named_valued_struct_field(String::from("size"), true),
+        ]);
+        let selection_key = format!("unassigned|{}|{}|{}", draft.layout_id, offset_in_bytes, size_in_bytes);
+
+        StructViewerViewData::focus_valued_struct_with_focus_target(
+            self.struct_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            details_struct,
+            Arc::new(|_edited_field| {}),
+            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
+        );
+    }
+
+    fn focus_define_field_draft_in_struct_viewer(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_kind: SymbolicLayoutKind,
+        layout_id: &str,
+        field_draft: &SymbolLayoutFieldEditDraft,
+    ) {
+        let details_struct = Self::build_field_details_struct(project_symbol_catalog, layout_kind, field_draft);
+        let selection_key = format!("define_unassigned|{}", layout_id);
+        let edit_callback = Self::build_struct_viewer_define_field_edit_callback(
+            self.symbol_layout_editor_view_data.clone(),
+            self.struct_viewer_view_data.clone(),
+            self.app_context.clone(),
+            layout_kind,
+            layout_id.to_string(),
+        );
+
+        StructViewerViewData::focus_valued_struct_with_focus_target(
+            self.struct_viewer_view_data.clone(),
+            self.app_context.engine_unprivileged_state.clone(),
+            details_struct,
+            edit_callback,
+            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
+        );
+    }
+
     fn build_field_details_struct(
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_kind: SymbolicLayoutKind,
@@ -996,6 +1112,45 @@ impl SymbolLayoutEditorView {
                 struct_viewer_view_data.clone(),
                 app_context.clone(),
                 field_index,
+            );
+
+            StructViewerViewData::focus_valued_struct_with_focus_target(
+                struct_viewer_view_data.clone(),
+                app_context.engine_unprivileged_state.clone(),
+                details_struct,
+                edit_callback,
+                Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
+            );
+        })
+    }
+
+    fn build_struct_viewer_define_field_edit_callback(
+        symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,
+        struct_viewer_view_data: Dependency<StructViewerViewData>,
+        app_context: Arc<AppContext>,
+        layout_kind: SymbolicLayoutKind,
+        layout_id: String,
+    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
+        Arc::new(move |edited_field: ValuedStructField| {
+            let Some(mut field_draft) = symbol_layout_editor_view_data
+                .read("SymbolLayoutEditor read define field draft")
+                .and_then(|view_data| view_data.get_define_field_draft().cloned())
+            else {
+                return;
+            };
+
+            let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
+            Self::apply_field_details_edit(&project_symbol_catalog, &mut field_draft, &edited_field);
+            SymbolLayoutEditorViewData::replace_define_field_draft(symbol_layout_editor_view_data.clone(), field_draft.clone());
+
+            let details_struct = Self::build_field_details_struct(&project_symbol_catalog, layout_kind, &field_draft);
+            let selection_key = format!("define_unassigned|{}", layout_id);
+            let edit_callback = Self::build_struct_viewer_define_field_edit_callback(
+                symbol_layout_editor_view_data.clone(),
+                struct_viewer_view_data.clone(),
+                app_context.clone(),
+                layout_kind,
+                layout_id.clone(),
             );
 
             StructViewerViewData::focus_valued_struct_with_focus_target(
@@ -1883,6 +2038,7 @@ impl SymbolLayoutEditorView {
         offset_in_bytes: u64,
         size_in_bytes: u64,
         can_define_field: bool,
+        is_selected: bool,
     ) -> Option<SymbolLayoutUnassignedRowAction> {
         if size_in_bytes == 0 {
             return None;
@@ -1893,10 +2049,23 @@ impl SymbolLayoutEditorView {
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), row_sense);
         let mut pending_unassigned_row_action = None;
 
+        if is_selected {
+            user_interface
+                .painter()
+                .rect_filled(row_rect, CornerRadius::same(4), theme.selected_background);
+            user_interface
+                .painter()
+                .rect_stroke(row_rect, CornerRadius::same(4), Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
+        }
+
         user_interface.painter().rect(
             row_rect,
             CornerRadius::same(4),
-            theme.background_control_secondary.gamma_multiply(0.45),
+            if is_selected {
+                Color32::TRANSPARENT
+            } else {
+                theme.background_control_secondary.gamma_multiply(0.45)
+            },
             Stroke::new(1.0, theme.background_control_secondary_dark),
             StrokeKind::Inside,
         );
@@ -1922,33 +2091,18 @@ impl SymbolLayoutEditorView {
                 .interact_pointer_pos()
                 .unwrap_or_else(|| pos2(row_rect.left(), row_rect.center().y));
             SymbolLayoutEditorViewData::show_unassigned_context_menu(self.symbol_layout_editor_view_data.clone(), offset_in_bytes, size_in_bytes, position);
+            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
         } else if can_define_field && row_response.clicked() {
-            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineFieldAt);
+            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
         } else if row_response.clicked() {
             SymbolLayoutEditorViewData::hide_unassigned_context_menu(self.symbol_layout_editor_view_data.clone());
             SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
         }
 
-        let button_area_width = if can_define_field { Self::ICON_BUTTON_WIDTH } else { 0.0 };
-        let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
-        if can_define_field {
-            let define_button_rect = Rect::from_min_size(pos2(button_area_left, row_rect.min.y), vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT));
-            let define_response = self.render_flat_icon_button_at(
-                user_interface,
-                define_button_rect,
-                &theme.icon_library.icon_handle_common_add,
-                "Define a field at this offset.",
-                false,
-            );
-            if define_response.clicked() {
-                pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineFieldAt);
-            }
-        }
-
         let left_text = format!("UNASSIGNED[{}]", size_in_bytes);
         let right_text = format!("0x{:X}", offset_in_bytes);
         let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
-        let right_text_x = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
+        let right_text_x = row_rect.max.x - Self::FIELD_ROW_LEFT_PADDING;
         let left_max_width = (right_text_x - label_position.x).max(0.0);
         let left_color = if can_define_field { theme.foreground } else { theme.foreground_preview };
         let left_text = Self::truncate_text_to_width(
@@ -2006,7 +2160,7 @@ impl SymbolLayoutEditorView {
                     .add(
                         ToolbarMenuItemView::new(
                             self.app_context.clone(),
-                            &format!("Define field at 0x{:X}", context_menu_target.get_offset_in_bytes()),
+                            "Define Field...",
                             "symbol_layout_unassigned_ctx_define_field_at",
                             &None,
                             Self::FIELD_CONTEXT_MENU_WIDTH,
@@ -2015,7 +2169,7 @@ impl SymbolLayoutEditorView {
                     )
                     .clicked()
                 {
-                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineFieldAt);
+                    pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::DefineField);
                     *should_close = true;
                 }
             },
@@ -2037,6 +2191,7 @@ impl SymbolLayoutEditorView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         draft: &mut SymbolLayoutEditDraft,
         selected_field_index: Option<usize>,
+        selected_unassigned_span: Option<&SymbolLayoutUnassignedSelection>,
     ) {
         let field_count = draft.field_drafts.len();
         let layout_kind = draft.layout_kind;
@@ -2061,7 +2216,12 @@ impl SymbolLayoutEditorView {
             if let Some(field_span) = field_spans_by_position.get(&field_index) {
                 if !layout_kind.is_union() && field_span.offset_in_bytes > next_visible_offset {
                     let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
-                    if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, true) {
+                    let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
+                        selected_unassigned_span.get_offset_in_bytes() == next_visible_offset && selected_unassigned_span.get_size_in_bytes() == unassigned_size
+                    });
+                    if let Some(unassigned_row_action) =
+                        self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, true, is_selected)
+                    {
                         pending_unassigned_row_action = Some((next_visible_offset, unassigned_size, unassigned_row_action));
                     }
                 }
@@ -2090,8 +2250,11 @@ impl SymbolLayoutEditorView {
             && *layout_size_in_bytes > next_visible_offset
         {
             let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
+            let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
+                selected_unassigned_span.get_offset_in_bytes() == next_visible_offset && selected_unassigned_span.get_size_in_bytes() == unassigned_size
+            });
             if let Some(unassigned_row_action) =
-                self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, !layout_kind.is_union())
+                self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, !layout_kind.is_union(), is_selected)
             {
                 pending_unassigned_row_action = Some((next_visible_offset, unassigned_size, unassigned_row_action));
             }
@@ -2130,24 +2293,30 @@ impl SymbolLayoutEditorView {
             ));
         }
 
-        if let Some((unassigned_offset_in_bytes, _unassigned_size_in_bytes, SymbolLayoutUnassignedRowAction::DefineFieldAt)) = pending_unassigned_row_action {
-            let field_spans = field_spans
-                .as_ref()
-                .map(|(_layout_size_in_bytes, field_spans)| field_spans.as_slice())
-                .unwrap_or(&[]);
-            let insert_index = Self::field_insert_index_for_offset(field_spans, draft.field_drafts.len(), unassigned_offset_in_bytes);
-            let field_draft = self.create_field_draft_for_unassigned_span(
-                project_symbol_catalog,
-                draft.layout_kind,
-                &draft.layout_id,
-                insert_index,
-                unassigned_offset_in_bytes,
-            );
-
-            draft.field_drafts.insert(insert_index, field_draft);
-            SymbolLayoutEditorViewData::hide_unassigned_context_menu(self.symbol_layout_editor_view_data.clone());
-            SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), insert_index);
-            self.focus_field_in_struct_viewer(project_symbol_catalog, draft, insert_index);
+        if let Some((unassigned_offset_in_bytes, unassigned_size_in_bytes, unassigned_row_action)) = pending_unassigned_row_action {
+            match unassigned_row_action {
+                SymbolLayoutUnassignedRowAction::SelectSpan => {
+                    SymbolLayoutEditorViewData::select_unassigned_span(
+                        self.symbol_layout_editor_view_data.clone(),
+                        unassigned_offset_in_bytes,
+                        unassigned_size_in_bytes,
+                    );
+                    self.focus_unassigned_span_in_struct_viewer(draft, unassigned_offset_in_bytes, unassigned_size_in_bytes);
+                }
+                SymbolLayoutUnassignedRowAction::DefineField => {
+                    SymbolLayoutEditorViewData::begin_define_field_from_unassigned_span(
+                        self.symbol_layout_editor_view_data.clone(),
+                        draft.layout_id.clone(),
+                        unassigned_offset_in_bytes,
+                        unassigned_size_in_bytes,
+                        self.default_data_type_ref(),
+                    );
+                    let mut field_draft =
+                        self.create_field_draft_for_unassigned_span(project_symbol_catalog, draft.layout_kind, &draft.layout_id, 0, unassigned_offset_in_bytes);
+                    field_draft.field_name = format!("field_{:08X}", unassigned_offset_in_bytes);
+                    self.focus_define_field_draft_in_struct_viewer(project_symbol_catalog, draft.layout_kind, &draft.layout_id, &field_draft);
+                }
+            }
         }
 
         if let Some((field_index, field_row_action)) = pending_field_row_action {
@@ -2199,6 +2368,7 @@ impl SymbolLayoutEditorView {
         baseline_draft: Option<&SymbolLayoutEditDraft>,
         draft: Option<&SymbolLayoutEditDraft>,
         selected_field_index: Option<usize>,
+        selected_unassigned_span: Option<&SymbolLayoutUnassignedSelection>,
         show_layout_name_editor: bool,
     ) {
         let Some(draft) = draft else {
@@ -2302,7 +2472,13 @@ impl SymbolLayoutEditorView {
                             &self.app_context.theme,
                             if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
                             |user_interface| {
-                                self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
+                                self.render_field_rows(
+                                    user_interface,
+                                    project_symbol_catalog,
+                                    &mut edited_draft,
+                                    selected_field_index,
+                                    selected_unassigned_span,
+                                );
                             },
                         )
                         .desired_width(user_interface.available_width()),
@@ -2319,7 +2495,13 @@ impl SymbolLayoutEditorView {
                                     should_save_draft = true;
                                 }
                                 user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
+                                self.render_field_rows(
+                                    user_interface,
+                                    project_symbol_catalog,
+                                    &mut edited_draft,
+                                    selected_field_index,
+                                    selected_unassigned_span,
+                                );
                             },
                         )
                         .desired_width(user_interface.available_width()),
@@ -2377,6 +2559,99 @@ impl SymbolLayoutEditorView {
         }
 
         SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), edited_draft);
+    }
+
+    fn render_define_field_from_unassigned_take_over(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        layout_id: &str,
+        span_offset_in_bytes: u64,
+        span_size_in_bytes: u64,
+        draft: Option<&SymbolLayoutEditDraft>,
+        define_field_draft: Option<&SymbolLayoutFieldEditDraft>,
+    ) {
+        let Some(draft) = draft else {
+            return;
+        };
+        let Some(define_field_draft) = define_field_draft else {
+            return;
+        };
+        let theme = &self.app_context.theme;
+        let validation_result = Self::validate_define_field_draft(project_symbol_catalog, define_field_draft, span_offset_in_bytes, span_size_in_bytes);
+        let mut should_cancel = false;
+        let mut should_create = false;
+
+        let define_selection_key = format!("define_unassigned|{}", layout_id);
+        let should_focus_define_details = self
+            .struct_viewer_view_data
+            .read("SymbolLayoutEditor define field details focus")
+            .is_none_or(|struct_viewer_view_data| {
+                !struct_viewer_view_data
+                    .get_focus_target()
+                    .is_some_and(|focus_target| matches!(focus_target, StructViewerFocusTarget::SymbolLayoutEditor { selection_key } if selection_key == &define_selection_key))
+            });
+        if should_focus_define_details {
+            self.focus_define_field_draft_in_struct_viewer(project_symbol_catalog, draft.layout_kind, layout_id, define_field_draft);
+        }
+
+        self.render_take_over_panel(
+            user_interface,
+            "Define Field",
+            0.0,
+            Self::TAKE_OVER_CONTENT_PADDING_X,
+            Self::TAKE_OVER_SECTION_SPACING,
+            |_user_interface| {},
+            |user_interface| {
+                user_interface.add(
+                    GroupBox::new_from_theme(theme, "UNASSIGNED", |user_interface| {
+                        user_interface.label(RichText::new(format!("{} + 0x{:X}", layout_id, span_offset_in_bytes)).color(theme.foreground_preview));
+                        user_interface.add_space(4.0);
+                        user_interface.label(RichText::new(format!("{} byte(s)", span_size_in_bytes)).color(theme.foreground_preview));
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+
+                if let Err(validation_error) = validation_result.as_ref() {
+                    user_interface.add_space(8.0);
+                    user_interface.label(RichText::new(validation_error).color(theme.warning));
+                }
+
+                user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
+                let (cancel_response, create_response) = self.render_take_over_action_buttons(user_interface, "Create", validation_result.is_ok());
+                if cancel_response.clicked() {
+                    should_cancel = true;
+                }
+                if create_response.clicked() {
+                    should_create = true;
+                }
+            },
+        );
+
+        if should_cancel {
+            SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
+            self.focus_unassigned_span_in_struct_viewer(draft, span_offset_in_bytes, span_size_in_bytes);
+            return;
+        }
+
+        if should_create && validation_result.is_ok() {
+            let mut updated_draft = draft.clone();
+            let mut new_field_draft = define_field_draft.clone();
+            new_field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+            let field_offset_in_bytes =
+                SymbolLayoutFieldEditDraft::parse_static_offset_text(&new_field_draft.static_offset_in_bytes).unwrap_or(span_offset_in_bytes);
+            let field_spans = self
+                .resolve_draft_field_spans(project_symbol_catalog, draft)
+                .map(|(_layout_size_in_bytes, field_spans)| field_spans)
+                .unwrap_or_default();
+            let insert_index = Self::field_insert_index_for_offset(&field_spans, updated_draft.field_drafts.len(), field_offset_in_bytes);
+
+            updated_draft.field_drafts.insert(insert_index, new_field_draft);
+            SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), updated_draft.clone());
+            SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
+            SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), insert_index);
+            self.focus_field_in_struct_viewer(project_symbol_catalog, &updated_draft, insert_index);
+        }
     }
 
     fn render_delete_confirmation_take_over(
@@ -2567,6 +2842,33 @@ mod tests {
     }
 
     #[test]
+    fn validate_define_field_draft_allows_offset_inside_unassigned_span() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+
+        field_draft.field_name = String::from("middle_field");
+        field_draft.offset_mode = super::SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = String::from("0x110");
+
+        assert_eq!(
+            SymbolLayoutEditorView::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40),
+            Ok((0x110, 4))
+        );
+    }
+
+    #[test]
+    fn validate_define_field_draft_rejects_field_that_crosses_unassigned_span() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+
+        field_draft.field_name = String::from("too_wide");
+        field_draft.offset_mode = super::SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = String::from("0x13E");
+
+        assert!(SymbolLayoutEditorView::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40).is_err());
+    }
+
+    #[test]
     fn format_field_data_type_preview_includes_hidden_marker() {
         let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("u8"));
 
@@ -2712,22 +3014,26 @@ impl Widget for SymbolLayoutEditorView {
         };
 
         SymbolLayoutEditorViewData::synchronize(self.symbol_layout_editor_view_data.clone(), &project_symbol_catalog);
-        let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft, selected_field_index) = self
-            .symbol_layout_editor_view_data
-            .read("SymbolLayoutEditor view")
-            .map(|symbol_layout_editor_view_data| {
-                (
-                    symbol_layout_editor_view_data
-                        .get_selected_layout_id()
-                        .map(str::to_string),
-                    symbol_layout_editor_view_data.get_filter_text().to_string(),
-                    symbol_layout_editor_view_data.get_take_over_state().cloned(),
-                    symbol_layout_editor_view_data.get_baseline_draft().cloned(),
-                    symbol_layout_editor_view_data.get_draft().cloned(),
-                    symbol_layout_editor_view_data.get_selected_field_index(),
-                )
-            })
-            .unwrap_or((None, String::new(), None, None, None, None));
+        let (selected_layout_id, filter_text, take_over_state, baseline_draft, draft, selected_field_index, selected_unassigned_span, define_field_draft) =
+            self.symbol_layout_editor_view_data
+                .read("SymbolLayoutEditor view")
+                .map(|symbol_layout_editor_view_data| {
+                    (
+                        symbol_layout_editor_view_data
+                            .get_selected_layout_id()
+                            .map(str::to_string),
+                        symbol_layout_editor_view_data.get_filter_text().to_string(),
+                        symbol_layout_editor_view_data.get_take_over_state().cloned(),
+                        symbol_layout_editor_view_data.get_baseline_draft().cloned(),
+                        symbol_layout_editor_view_data.get_draft().cloned(),
+                        symbol_layout_editor_view_data.get_selected_field_index(),
+                        symbol_layout_editor_view_data
+                            .get_selected_unassigned_span()
+                            .cloned(),
+                        symbol_layout_editor_view_data.get_define_field_draft().cloned(),
+                    )
+                })
+                .unwrap_or((None, String::new(), None, None, None, None, None, None));
         let is_take_over_active = take_over_state.is_some();
         let is_window_focused = self
             .app_context
@@ -2740,6 +3046,8 @@ impl Widget for SymbolLayoutEditorView {
 
         if is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
             if let Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. }) = take_over_state.as_ref() {
+                SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.clone());
+            } else if let Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }) = take_over_state.as_ref() {
                 SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.clone());
             } else {
                 SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
@@ -2794,6 +3102,7 @@ impl Widget for SymbolLayoutEditorView {
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
+                            selected_unassigned_span.as_ref(),
                             true,
                         );
                     }
@@ -2805,6 +3114,7 @@ impl Widget for SymbolLayoutEditorView {
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
+                            selected_unassigned_span.as_ref(),
                             true,
                         );
                     }
@@ -2816,7 +3126,19 @@ impl Widget for SymbolLayoutEditorView {
                             baseline_draft.as_ref(),
                             draft.as_ref(),
                             selected_field_index,
+                            selected_unassigned_span.as_ref(),
                             false,
+                        );
+                    }
+                    Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, offset, size }) => {
+                        self.render_define_field_from_unassigned_take_over(
+                            &mut content_user_interface,
+                            &project_symbol_catalog,
+                            layout_id,
+                            *offset,
+                            *size,
+                            draft.as_ref(),
+                            define_field_draft.as_ref(),
                         );
                     }
                     Some(SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id }) => {

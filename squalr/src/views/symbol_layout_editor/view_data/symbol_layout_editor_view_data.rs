@@ -78,10 +78,37 @@ pub struct SymbolLayoutEditDraft {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SymbolLayoutUnassignedSelection {
+    offset_in_bytes: u64,
+    size_in_bytes: u64,
+}
+
+impl SymbolLayoutUnassignedSelection {
+    pub fn new(
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> Self {
+        Self {
+            offset_in_bytes,
+            size_in_bytes,
+        }
+    }
+
+    pub fn get_offset_in_bytes(&self) -> u64 {
+        self.offset_in_bytes
+    }
+
+    pub fn get_size_in_bytes(&self) -> u64 {
+        self.size_in_bytes
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolLayoutEditorTakeOverState {
     CreateSymbolLayout,
     RenameSymbolLayout { layout_id: String },
     OpenSymbolLayout { layout_id: String },
+    DefineFieldFromUnassignedSpan { layout_id: String, offset: u64, size: u64 },
     DeleteConfirmation { layout_id: String },
     DeleteFieldConfirmation { layout_id: String, field_index: usize },
 }
@@ -150,6 +177,8 @@ pub struct SymbolLayoutEditorViewData {
     baseline_draft: Option<SymbolLayoutEditDraft>,
     draft: Option<SymbolLayoutEditDraft>,
     selected_field_index: Option<usize>,
+    selected_unassigned_span: Option<SymbolLayoutUnassignedSelection>,
+    define_field_draft: Option<SymbolLayoutFieldEditDraft>,
     field_context_menu_target: Option<SymbolLayoutFieldContextMenuTarget>,
     unassigned_context_menu_target: Option<SymbolLayoutUnassignedContextMenuTarget>,
 }
@@ -163,6 +192,8 @@ impl SymbolLayoutEditorViewData {
             baseline_draft: None,
             draft: None,
             selected_field_index: None,
+            selected_unassigned_span: None,
+            define_field_draft: None,
             field_context_menu_target: None,
             unassigned_context_menu_target: None,
         }
@@ -190,6 +221,14 @@ impl SymbolLayoutEditorViewData {
 
     pub fn get_selected_field_index(&self) -> Option<usize> {
         self.selected_field_index
+    }
+
+    pub fn get_selected_unassigned_span(&self) -> Option<&SymbolLayoutUnassignedSelection> {
+        self.selected_unassigned_span.as_ref()
+    }
+
+    pub fn get_define_field_draft(&self) -> Option<&SymbolLayoutFieldEditDraft> {
+        self.define_field_draft.as_ref()
     }
 
     pub fn get_field_context_menu_target(&self) -> Option<&SymbolLayoutFieldContextMenuTarget> {
@@ -228,6 +267,18 @@ impl SymbolLayoutEditorViewData {
         {
             self.selected_field_index = None;
         }
+        self.selected_unassigned_span = self
+            .selected_unassigned_span
+            .take()
+            .filter(|selected_unassigned_span| {
+                Self::parse_layout_size_text(&draft.size_text, draft.size_format).is_ok_and(|layout_size_in_bytes| {
+                    selected_unassigned_span.get_offset_in_bytes() < layout_size_in_bytes
+                        && selected_unassigned_span
+                            .get_offset_in_bytes()
+                            .saturating_add(selected_unassigned_span.get_size_in_bytes())
+                            <= layout_size_in_bytes
+                })
+            });
         if self
             .field_context_menu_target
             .as_ref()
@@ -296,6 +347,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.selected_layout_id = None;
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::CreateSymbolLayout);
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
@@ -315,6 +368,8 @@ impl SymbolLayoutEditorViewData {
                 layout_id: layout_id.to_string(),
             });
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
@@ -337,6 +392,8 @@ impl SymbolLayoutEditorViewData {
                 layout_id: layout_id.to_string(),
             });
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
@@ -355,6 +412,8 @@ impl SymbolLayoutEditorViewData {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor request delete confirmation") {
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id });
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
         }
@@ -368,6 +427,8 @@ impl SymbolLayoutEditorViewData {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor request field delete confirmation") {
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, field_index });
             symbol_layout_editor_view_data.selected_field_index = Some(field_index);
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
         }
@@ -379,8 +440,40 @@ impl SymbolLayoutEditorViewData {
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor return to open symbol layout") {
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id });
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+        }
+    }
+
+    pub fn begin_define_field_from_unassigned_span(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: String,
+        offset: u64,
+        size: u64,
+        default_data_type_ref: DataTypeRef,
+    ) {
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor begin define field from unassigned span") {
+            let mut field_draft = SymbolLayoutFieldEditDraft::new(default_data_type_ref);
+            field_draft.field_name = format!("field_{:08X}", offset);
+            field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+            field_draft.static_offset_in_bytes = format!("0x{:X}", offset);
+
+            symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, offset, size });
+            symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset, size));
+            symbol_layout_editor_view_data.define_field_draft = Some(field_draft);
+            symbol_layout_editor_view_data.field_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+        }
+    }
+
+    pub fn replace_define_field_draft(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        field_draft: SymbolLayoutFieldEditDraft,
+    ) {
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor replace define field draft") {
+            symbol_layout_editor_view_data.define_field_draft = Some(field_draft);
         }
     }
 
@@ -393,6 +486,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.field_context_menu_target = Some(SymbolLayoutFieldContextMenuTarget::new(field_index, position));
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
             symbol_layout_editor_view_data.selected_field_index = Some(field_index);
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
         }
     }
 
@@ -413,6 +507,7 @@ impl SymbolLayoutEditorViewData {
                 Some(SymbolLayoutUnassignedContextMenuTarget::new(offset_in_bytes, size_in_bytes, position));
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes));
         }
     }
 
@@ -428,14 +523,28 @@ impl SymbolLayoutEditorViewData {
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor select field") {
             symbol_layout_editor_view_data.selected_field_index = Some(field_index);
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+        }
+    }
+
+    pub fn select_unassigned_span(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) {
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor select unassigned span") {
+            symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes));
+            symbol_layout_editor_view_data.field_context_menu_target = None;
         }
     }
 
     pub fn clear_field_selection(symbol_layout_editor_view_data: Dependency<Self>) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor clear field selection") {
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
         }
     }
@@ -446,6 +555,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.baseline_draft = None;
             symbol_layout_editor_view_data.draft = None;
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
         }
@@ -483,6 +594,7 @@ impl SymbolLayoutEditorViewData {
             Some(
                 SymbolLayoutEditorTakeOverState::RenameSymbolLayout { layout_id }
                 | SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id }
+                | SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }
                 | SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id }
                 | SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. },
             ) => !project_symbol_catalog
@@ -497,6 +609,8 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.baseline_draft = None;
             symbol_layout_editor_view_data.draft = None;
             symbol_layout_editor_view_data.selected_field_index = None;
+            symbol_layout_editor_view_data.selected_unassigned_span = None;
+            symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
         }
