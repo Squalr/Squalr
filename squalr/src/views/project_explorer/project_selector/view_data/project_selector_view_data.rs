@@ -23,6 +23,8 @@ pub struct ProjectSelectorViewData {
     pub selected_project_file_path: Option<PathBuf>,
     pub editing_project_file_path: Option<PathBuf>,
     pub renaming_project_file_path: Option<PathBuf>,
+    pub delete_confirmation_project_directory_path: Option<PathBuf>,
+    pub delete_confirmation_project_name: Option<String>,
     pub rename_project_text: Arc<RwLock<(String, bool)>>,
 }
 
@@ -33,6 +35,8 @@ impl ProjectSelectorViewData {
             selected_project_file_path: None,
             editing_project_file_path: None,
             renaming_project_file_path: None,
+            delete_confirmation_project_directory_path: None,
+            delete_confirmation_project_name: None,
             rename_project_text: Arc::new(RwLock::new((String::new(), false))),
         }
     }
@@ -123,6 +127,8 @@ impl ProjectSelectorViewData {
 
         project_selector_view_data.renaming_project_file_path = None;
         project_selector_view_data.editing_project_file_path = None;
+        project_selector_view_data.delete_confirmation_project_directory_path = None;
+        project_selector_view_data.delete_confirmation_project_name = None;
         Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
         project_selector_view_data.selected_project_file_path = Some(project_file_path);
     }
@@ -142,6 +148,8 @@ impl ProjectSelectorViewData {
         project_selector_view_data.selected_project_file_path = Some(project_file_path.clone());
         project_selector_view_data.renaming_project_file_path = None;
         project_selector_view_data.editing_project_file_path = Some(project_file_path);
+        project_selector_view_data.delete_confirmation_project_directory_path = None;
+        project_selector_view_data.delete_confirmation_project_name = None;
     }
 
     pub fn start_renaming_project(
@@ -159,6 +167,8 @@ impl ProjectSelectorViewData {
         project_selector_view_data.selected_project_file_path = Some(project_file_path.clone());
         project_selector_view_data.editing_project_file_path = None;
         project_selector_view_data.renaming_project_file_path = Some(project_file_path);
+        project_selector_view_data.delete_confirmation_project_directory_path = None;
+        project_selector_view_data.delete_confirmation_project_name = None;
     }
 
     pub fn cancel_editing_project(project_selector_view_data: Dependency<ProjectSelectorViewData>) {
@@ -169,6 +179,33 @@ impl ProjectSelectorViewData {
 
         project_selector_view_data.editing_project_file_path = None;
         Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
+    }
+
+    pub fn request_delete_confirmation(
+        project_selector_view_data: Dependency<ProjectSelectorViewData>,
+        project_directory_path: PathBuf,
+        project_name: String,
+    ) {
+        let mut project_selector_view_data = match project_selector_view_data.write("Project selector view data request delete confirmation") {
+            Some(project_selector_view_data) => project_selector_view_data,
+            None => return,
+        };
+
+        project_selector_view_data.renaming_project_file_path = None;
+        project_selector_view_data.editing_project_file_path = None;
+        project_selector_view_data.delete_confirmation_project_directory_path = Some(project_directory_path);
+        project_selector_view_data.delete_confirmation_project_name = Some(project_name);
+        Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
+    }
+
+    pub fn cancel_delete_confirmation(project_selector_view_data: Dependency<ProjectSelectorViewData>) {
+        let mut project_selector_view_data = match project_selector_view_data.write("Project selector view data cancel delete confirmation") {
+            Some(project_selector_view_data) => project_selector_view_data,
+            None => return,
+        };
+
+        project_selector_view_data.delete_confirmation_project_directory_path = None;
+        project_selector_view_data.delete_confirmation_project_name = None;
     }
 
     pub fn cancel_renaming_project(project_selector_view_data: Dependency<ProjectSelectorViewData>) {
@@ -216,6 +253,8 @@ impl ProjectSelectorViewData {
 
             project_selector_view_data.renaming_project_file_path = None;
             project_selector_view_data.editing_project_file_path = None;
+            project_selector_view_data.delete_confirmation_project_directory_path = None;
+            project_selector_view_data.delete_confirmation_project_name = None;
             Self::clear_rename_project_text(&project_selector_view_data.rename_project_text);
         }
 
@@ -385,6 +424,7 @@ impl ProjectSelectorViewData {
             } else {
                 log::info!("Deleted project: {}", project_name);
 
+                Self::cancel_delete_confirmation(project_selector_view_data.clone());
                 Self::cancel_renaming_project(project_selector_view_data.clone());
                 Self::cancel_editing_project(project_selector_view_data.clone());
                 Self::refresh_project_list(project_selector_view_data, app_context_clone);
@@ -396,6 +436,7 @@ impl ProjectSelectorViewData {
 #[cfg(test)]
 mod tests {
     use super::ProjectSelectorViewData;
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::structures::projects::{project::Project, project_info::ProjectInfo, project_manifest::ProjectManifest};
     use std::path::{Path, PathBuf};
 
@@ -433,5 +474,42 @@ mod tests {
         let project_list = vec![test_project_info("Health")];
 
         assert!(ProjectSelectorViewData::validate_project_name(&project_list, Path::new("C:/Projects/Health/project.json"), "Health", "Bad/Name").is_err());
+    }
+
+    #[test]
+    fn request_delete_confirmation_clears_editing_state() {
+        let mut project_selector_view_data = ProjectSelectorViewData::new();
+        project_selector_view_data.editing_project_file_path = Some(PathBuf::from("C:/Projects/Health/project.json"));
+        let dependency_container = DependencyContainer::new();
+        let project_selector_view_data = dependency_container.register(project_selector_view_data);
+
+        ProjectSelectorViewData::request_delete_confirmation(project_selector_view_data.clone(), PathBuf::from("C:/Projects/Health"), String::from("Health"));
+
+        let project_selector_view_data = project_selector_view_data
+            .read("Project selector delete confirmation test")
+            .expect("Expected project selector view data.");
+        assert_eq!(
+            project_selector_view_data.delete_confirmation_project_directory_path,
+            Some(PathBuf::from("C:/Projects/Health"))
+        );
+        assert_eq!(project_selector_view_data.delete_confirmation_project_name, Some(String::from("Health")));
+        assert_eq!(project_selector_view_data.editing_project_file_path, None);
+    }
+
+    #[test]
+    fn cancel_delete_confirmation_clears_delete_state() {
+        let mut project_selector_view_data = ProjectSelectorViewData::new();
+        project_selector_view_data.delete_confirmation_project_directory_path = Some(PathBuf::from("C:/Projects/Health"));
+        project_selector_view_data.delete_confirmation_project_name = Some(String::from("Health"));
+        let dependency_container = DependencyContainer::new();
+        let project_selector_view_data = dependency_container.register(project_selector_view_data);
+
+        ProjectSelectorViewData::cancel_delete_confirmation(project_selector_view_data.clone());
+
+        let project_selector_view_data = project_selector_view_data
+            .read("Project selector cancel delete confirmation test")
+            .expect("Expected project selector view data.");
+        assert_eq!(project_selector_view_data.delete_confirmation_project_directory_path, None);
+        assert_eq!(project_selector_view_data.delete_confirmation_project_name, None);
     }
 }
