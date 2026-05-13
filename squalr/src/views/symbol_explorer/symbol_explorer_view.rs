@@ -2,9 +2,9 @@ use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, check_state::CheckState, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
-    context_menu::context_menu::ContextMenu, data_type_selector::data_type_item_view::DataTypeItemView, data_value_box::data_value_box_view::DataValueBoxView,
-    groupbox::GroupBox, search_box::SearchBoxView, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+    button::Button as ThemeButton, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
+    context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, search_box::SearchBoxView,
+    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -431,6 +431,12 @@ impl SymbolExplorerView {
             + Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
 
         combo_width.max(built_in_grid_width)
+    }
+
+    fn define_field_builtin_type_item_width(popup_width: f32) -> f32 {
+        let spacing_width = Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
+
+        ((popup_width - spacing_width) / Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT as f32).max(1.0)
     }
 
     fn module_field_type_search_storage_id(menu_id: &str) -> Id {
@@ -2427,6 +2433,7 @@ impl SymbolExplorerView {
         });
         let search_storage_id = Self::module_field_type_search_storage_id(menu_id);
         let popup_width = Self::define_field_type_popup_width(width);
+        let built_in_type_item_width = Self::define_field_builtin_type_item_width(popup_width);
 
         user_interface.add(
             ComboBoxView::new(
@@ -2474,18 +2481,16 @@ impl SymbolExplorerView {
                                     .show(scroll_user_interface, |grid_user_interface| {
                                         for (type_option_position, type_option) in built_in_type_options.iter().enumerate() {
                                             let data_type_id = type_option.data_type_ref.get_data_type_id();
-                                            let item_response = grid_user_interface.add(
-                                                DataTypeItemView::new(
-                                                    self.app_context.clone(),
-                                                    &type_option.label,
-                                                    Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                                        data_type_id,
-                                                        &self.app_context.theme.icon_library,
-                                                    )),
-                                                    Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH,
-                                                )
-                                                .with_check_state(CheckState::from_bool(data_type_id == selected_data_type_id.as_str())),
-                                            );
+                                            let row_icon = Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                                data_type_id,
+                                                &self.app_context.theme.icon_library,
+                                            ));
+                                            let item_response = grid_user_interface.add(ComboBoxItemView::new(
+                                                self.app_context.clone(),
+                                                &type_option.label,
+                                                row_icon,
+                                                built_in_type_item_width,
+                                            ));
 
                                             if item_response.clicked() {
                                                 data_type_selection.select_single_data_type(type_option.data_type_ref.clone());
@@ -4578,6 +4583,12 @@ mod tests {
     fn define_field_type_popup_width_allows_two_builtin_columns() {
         assert_eq!(SymbolExplorerView::define_field_type_popup_width(160.0), 260.0);
         assert_eq!(SymbolExplorerView::define_field_type_popup_width(320.0), 320.0);
+    }
+
+    #[test]
+    fn define_field_builtin_type_item_width_fits_inside_popup() {
+        assert_eq!(SymbolExplorerView::define_field_builtin_type_item_width(260.0), 128.0);
+        assert_eq!(SymbolExplorerView::define_field_builtin_type_item_width(320.0), 158.0);
     }
 
     #[test]
