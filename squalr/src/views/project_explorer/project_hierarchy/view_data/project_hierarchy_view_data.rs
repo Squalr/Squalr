@@ -1650,10 +1650,14 @@ impl ProjectHierarchyViewData {
 
         project_items_promote_symbol_request.send(&app_context.engine_unprivileged_state, move |project_items_promote_symbol_response| {
             if !project_items_promote_symbol_response.success {
-                log::error!(
-                    "Failed to promote one or more project items to symbols. Promoted count before failure: {}.",
-                    project_items_promote_symbol_response.promoted_symbol_count
-                );
+                if project_items_promote_symbol_response.status_message.is_empty() {
+                    log::error!(
+                        "Failed to promote one or more project items to symbols. Promoted count before failure: {}.",
+                        project_items_promote_symbol_response.promoted_symbol_count
+                    );
+                } else {
+                    log::warn!("{}", project_items_promote_symbol_response.status_message);
+                }
             }
 
             if let Some(mut project_hierarchy_view_data) = project_hierarchy_view_data_clone.write("Project hierarchy promote project items response") {
@@ -2660,6 +2664,7 @@ mod tests {
         assert!(ProjectHierarchyViewData::should_refocus_details_after_promote_response(
             &ProjectItemsPromoteSymbolResponse {
                 success: true,
+                status_message: String::new(),
                 promoted_symbol_count: 1,
                 reused_symbol_count: 0,
                 promoted_symbol_locator_keys: vec![String::from("absolute:1234")],
@@ -2670,6 +2675,7 @@ mod tests {
         assert!(ProjectHierarchyViewData::should_refocus_details_after_promote_response(
             &ProjectItemsPromoteSymbolResponse {
                 success: true,
+                status_message: String::new(),
                 promoted_symbol_count: 0,
                 reused_symbol_count: 1,
                 promoted_symbol_locator_keys: Vec::new(),
@@ -2683,6 +2689,7 @@ mod tests {
         assert!(!ProjectHierarchyViewData::should_refocus_details_after_promote_response(
             &ProjectItemsPromoteSymbolResponse {
                 success: true,
+                status_message: String::new(),
                 promoted_symbol_count: 0,
                 reused_symbol_count: 0,
                 promoted_symbol_locator_keys: Vec::new(),
@@ -2693,6 +2700,7 @@ mod tests {
         assert!(!ProjectHierarchyViewData::should_refocus_details_after_promote_response(
             &ProjectItemsPromoteSymbolResponse {
                 success: false,
+                status_message: String::from("Failed."),
                 promoted_symbol_count: 1,
                 reused_symbol_count: 0,
                 promoted_symbol_locator_keys: vec![String::from("absolute:1234")],

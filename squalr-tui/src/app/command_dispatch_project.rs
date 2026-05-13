@@ -828,7 +828,11 @@ impl AppShell {
                     );
                     self.refresh_project_symbols_list_with_feedback(squalr_engine, false);
                 } else {
-                    self.app_state.project_explorer_pane_state.status_message = "Project item symbol promotion failed.".to_string();
+                    self.app_state.project_explorer_pane_state.status_message = if project_items_promote_symbol_response.status_message.is_empty() {
+                        "Project item symbol promotion failed.".to_string()
+                    } else {
+                        project_items_promote_symbol_response.status_message
+                    };
                 }
             }
             Err(receive_error) => {

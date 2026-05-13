@@ -32,6 +32,8 @@ use std::str::FromStr;
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
+const NO_OPENED_PROCESS_STATUS_MESSAGE: &str = "Cannot promote project items to symbols without an opened process.";
+
 impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
     type ResponseType = ProjectItemsPromoteSymbolResponse;
 
@@ -42,6 +44,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
         if self.project_item_paths.is_empty() {
             return ProjectItemsPromoteSymbolResponse {
                 success: true,
+                status_message: String::new(),
                 promoted_symbol_count: 0,
                 reused_symbol_count: 0,
                 promoted_symbol_locator_keys: Vec::new(),
@@ -69,6 +72,18 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
 
             return ProjectItemsPromoteSymbolResponse::default();
         };
+        if !query_has_opened_process(engine_unprivileged_state) {
+            log::warn!("{}", NO_OPENED_PROCESS_STATUS_MESSAGE);
+
+            return ProjectItemsPromoteSymbolResponse {
+                success: false,
+                status_message: String::from(NO_OPENED_PROCESS_STATUS_MESSAGE),
+                promoted_symbol_count: 0,
+                reused_symbol_count: 0,
+                promoted_symbol_locator_keys: Vec::new(),
+                conflicts: Vec::new(),
+            };
+        }
 
         let mut existing_symbol_claims = opened_project
             .get_project_info()
@@ -168,6 +183,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
         if project_item_replacements.is_empty() && !did_mutate_symbol_catalog {
             return ProjectItemsPromoteSymbolResponse {
                 success: true,
+                status_message: String::new(),
                 promoted_symbol_count,
                 reused_symbol_count,
                 promoted_symbol_locator_keys,
@@ -215,6 +231,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
 
                 return ProjectItemsPromoteSymbolResponse {
                     success: false,
+                    status_message: String::from("Failed to sync project symbol catalog after promote-symbol operation."),
                     promoted_symbol_count,
                     reused_symbol_count,
                     promoted_symbol_locator_keys,
@@ -225,12 +242,43 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
 
         ProjectItemsPromoteSymbolResponse {
             success: true,
+            status_message: String::new(),
             promoted_symbol_count,
             reused_symbol_count,
             promoted_symbol_locator_keys,
             conflicts,
         }
     }
+}
+
+fn query_has_opened_process(engine_execution_context: &Arc<dyn EngineExecutionContext>) -> bool {
+    let memory_query_command = MemoryQueryRequest::default().to_engine_command();
+    let (memory_query_response_sender, memory_query_response_receiver) = mpsc::channel();
+
+    let dispatch_result = match engine_execution_context.get_bindings().read() {
+        Ok(engine_bindings) => engine_bindings.dispatch_privileged_command(
+            memory_query_command,
+            Box::new(move |engine_response| {
+                let conversion_result = MemoryQueryResponse::from_engine_response(engine_response);
+                let _ = memory_query_response_sender.send(conversion_result);
+            }),
+        ),
+        Err(error) => {
+            log::error!("Failed to acquire engine bindings lock for promote-symbol process query: {}", error);
+            return false;
+        }
+    };
+
+    if let Err(error) = dispatch_result {
+        log::error!("Failed to dispatch promote-symbol process query: {}", error);
+        return false;
+    }
+
+    memory_query_response_receiver
+        .recv_timeout(Duration::from_secs(1))
+        .ok()
+        .and_then(Result::ok)
+        .is_some_and(|memory_query_response| memory_query_response.success)
 }
 
 fn resolve_promoted_symbol_module_size_hint(
@@ -582,6 +630,7 @@ fn resolve_project_item_path(
 
 #[cfg(test)]
 mod tests {
+    use super::NO_OPENED_PROCESS_STATUS_MESSAGE;
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use crossbeam_channel::{Receiver, unbounded};
     use squalr_engine_api::commands::{
@@ -627,6 +676,7 @@ mod tests {
     struct MockPromoteBindings {
         captured_project_symbol_catalogs: Arc<Mutex<Vec<ProjectSymbolCatalog>>>,
         memory_read_response_factory: Arc<dyn Fn(&MemoryReadRequest) -> MemoryReadResponse + Send + Sync>,
+        memory_query_success: bool,
         memory_query_modules: Vec<NormalizedModule>,
         memory_query_virtual_pages: Vec<NormalizedRegion>,
     }
@@ -636,9 +686,16 @@ mod tests {
             Self {
                 captured_project_symbol_catalogs: Arc::new(Mutex::new(Vec::new())),
                 memory_read_response_factory: Arc::new(memory_read_response_factory),
+                memory_query_success: true,
                 memory_query_modules: Vec::new(),
                 memory_query_virtual_pages: Vec::new(),
             }
+        }
+
+        fn without_opened_process(mut self) -> Self {
+            self.memory_query_success = false;
+
+            self
         }
 
         fn with_memory_query_modules(
@@ -700,7 +757,7 @@ mod tests {
                         MemoryQueryResponse {
                             virtual_pages: self.memory_query_virtual_pages.clone(),
                             modules: self.memory_query_modules.clone(),
-                            success: true,
+                            success: self.memory_query_success,
                         }
                         .to_engine_response(),
                     );
@@ -769,6 +826,44 @@ mod tests {
             address: pointer_value,
             success: true,
         }
+    }
+
+    #[test]
+    fn promote_symbol_request_fails_with_warning_without_opened_process() {
+        let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
+        let address_project_item = ProjectItemTypeAddress::new_project_item("Health", 0x1234, "game.exe", "", DataTypeU8::get_value_from_primitive(0));
+        let (project, project_item_path) = create_project_with_item(temp_directory.path(), "health.json", address_project_item);
+        let mock_promote_bindings = MockPromoteBindings::new(|_memory_read_request| MemoryReadResponse::default()).without_opened_process();
+        let engine_unprivileged_state = create_engine_unprivileged_state(mock_promote_bindings);
+
+        *engine_unprivileged_state
+            .get_project_manager()
+            .get_opened_project()
+            .write()
+            .expect("Expected opened project write lock in test.") = Some(project);
+
+        let engine_execution_context: Arc<dyn EngineExecutionContext> = engine_unprivileged_state.clone();
+        let promote_symbol_response = ProjectItemsPromoteSymbolRequest {
+            project_item_paths: vec![project_item_path],
+            overwrite_conflicting_symbols: false,
+        }
+        .execute(&engine_execution_context);
+
+        assert!(!promote_symbol_response.success);
+        assert_eq!(promote_symbol_response.status_message, NO_OPENED_PROCESS_STATUS_MESSAGE);
+        assert_eq!(promote_symbol_response.promoted_symbol_count, 0);
+        assert_eq!(promote_symbol_response.reused_symbol_count, 0);
+        assert!(promote_symbol_response.promoted_symbol_locator_keys.is_empty());
+        assert!(promote_symbol_response.conflicts.is_empty());
+
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected project to load from disk.");
+        assert!(
+            loaded_project
+                .get_project_info()
+                .get_project_symbol_catalog()
+                .get_symbol_claims()
+                .is_empty()
+        );
     }
 
     #[test]

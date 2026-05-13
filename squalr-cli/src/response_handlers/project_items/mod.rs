@@ -26,6 +26,11 @@ pub fn handle_project_items_response(project_items_response: ProjectItemsRespons
         ProjectItemsResponse::PromoteSymbol {
             project_items_promote_symbol_response,
         } => {
+            if !project_items_promote_symbol_response.success && !project_items_promote_symbol_response.status_message.is_empty() {
+                log::warn!("{}", project_items_promote_symbol_response.status_message);
+                return;
+            }
+
             log::info!(
                 "promoted {} symbol(s), reused {} existing symbol(s), conflicts {}: {}",
                 project_items_promote_symbol_response.promoted_symbol_count,

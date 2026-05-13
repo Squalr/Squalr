@@ -2,9 +2,9 @@ use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
-    context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, search_box::SearchBoxView,
-    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+    button::Button as ThemeButton, check_state::CheckState, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
+    context_menu::context_menu::ContextMenu, data_type_selector::data_type_item_view::DataTypeItemView, data_value_box::data_value_box_view::DataValueBoxView,
+    groupbox::GroupBox, search_box::SearchBoxView, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
@@ -27,7 +27,7 @@ use crate::views::{
     },
     symbol_layout_editor::{symbol_layout_editor_view::SymbolLayoutEditorView, view_data::symbol_layout_editor_view_data::SymbolLayoutEditorViewData},
 };
-use eframe::egui::{Align, Color32, Direction, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget, vec2};
+use eframe::egui::{Align, Color32, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Ui, UiBuilder, Widget, vec2};
 use epaint::{Stroke, pos2};
 use squalr_engine_api::commands::{
     memory::{
@@ -170,6 +170,9 @@ impl SymbolExplorerView {
     const MAX_SYMBOL_PREVIEW_ELEMENT_COUNT: u64 = 4;
     const MAX_SYMBOL_PREVIEW_DISPLAY_ELEMENT_COUNT: usize = 3;
     const MAX_SYMBOL_PREVIEW_ARRAY_CHARACTER_COUNT: usize = 24;
+    const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT: usize = 2;
+    const DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH: f32 = 128.0;
+    const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING: f32 = 4.0;
     const MODULE_FIELD_BUILT_IN_TYPE_IDS: [&'static str; 18] = [
         "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
     ];
@@ -421,6 +424,13 @@ impl SymbolExplorerView {
 
     fn module_field_type_option_uses_icon(type_option_kind: ModuleFieldTypeOptionKind) -> bool {
         matches!(type_option_kind, ModuleFieldTypeOptionKind::BuiltIn)
+    }
+
+    fn define_field_type_popup_width(combo_width: f32) -> f32 {
+        let built_in_grid_width = Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH * Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT as f32
+            + Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
+
+        combo_width.max(built_in_grid_width)
     }
 
     fn module_field_type_search_storage_id(menu_id: &str) -> Id {
@@ -2401,18 +2411,22 @@ impl SymbolExplorerView {
         width: f32,
     ) {
         let type_options = Self::build_module_field_type_options(project_symbol_catalog);
-        let selected_data_type_id = data_type_selection.visible_data_type().get_data_type_id();
+        let selected_data_type_id = data_type_selection
+            .visible_data_type()
+            .get_data_type_id()
+            .to_string();
         let selected_type_option = type_options
             .iter()
-            .find(|type_option| type_option.data_type_ref.get_data_type_id() == selected_data_type_id);
+            .find(|type_option| type_option.data_type_ref.get_data_type_id() == selected_data_type_id.as_str());
         let combo_label = selected_type_option
             .map(|type_option| type_option.label.clone())
-            .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(selected_data_type_id));
+            .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(&selected_data_type_id));
         let combo_icon = selected_type_option.and_then(|type_option| {
             Self::module_field_type_option_uses_icon(type_option.kind)
                 .then(|| DataTypeToIconConverter::convert_data_type_to_icon(type_option.data_type_ref.get_data_type_id(), &self.app_context.theme.icon_library))
         });
         let search_storage_id = Self::module_field_type_search_storage_id(menu_id);
+        let popup_width = Self::define_field_type_popup_width(width);
 
         user_interface.add(
             ComboBoxView::new(
@@ -2429,7 +2443,7 @@ impl SymbolExplorerView {
                     let search_box_id = format!("symbol_explorer_module_field_type_search_{}", menu_id);
                     popup_user_interface.add(
                         SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search types", &search_box_id)
-                            .width((popup_user_interface.available_width() - 8.0).max(1.0))
+                            .width((popup_width - 8.0).max(1.0))
                             .height(Self::TOOLBAR_HEIGHT),
                     );
                     popup_user_interface.add_space(4.0);
@@ -2445,21 +2459,60 @@ impl SymbolExplorerView {
                         return;
                     }
 
+                    let (built_in_type_options, symbol_layout_type_options): (Vec<_>, Vec<_>) = filtered_type_options
+                        .into_iter()
+                        .partition(|type_option| type_option.kind == ModuleFieldTypeOptionKind::BuiltIn);
+
                     ScrollArea::vertical()
                         .max_height(240.0)
                         .auto_shrink([false, false])
                         .show(popup_user_interface, |scroll_user_interface| {
-                            for type_option in filtered_type_options {
-                                let row_icon = if Self::module_field_type_option_uses_icon(type_option.kind) {
-                                    Some(DataTypeToIconConverter::convert_data_type_to_icon(
-                                        type_option.data_type_ref.get_data_type_id(),
-                                        &self.app_context.theme.icon_library,
-                                    ))
-                                } else {
-                                    None
-                                };
+                            if !built_in_type_options.is_empty() {
+                                Grid::new(Id::new(("symbol_explorer_define_field_builtin_type_grid", menu_id)))
+                                    .spacing(vec2(Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING, 0.0))
+                                    .min_col_width(Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH)
+                                    .show(scroll_user_interface, |grid_user_interface| {
+                                        for (type_option_position, type_option) in built_in_type_options.iter().enumerate() {
+                                            let data_type_id = type_option.data_type_ref.get_data_type_id();
+                                            let item_response = grid_user_interface.add(
+                                                DataTypeItemView::new(
+                                                    self.app_context.clone(),
+                                                    &type_option.label,
+                                                    Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                                        data_type_id,
+                                                        &self.app_context.theme.icon_library,
+                                                    )),
+                                                    Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH,
+                                                )
+                                                .with_check_state(CheckState::from_bool(data_type_id == selected_data_type_id.as_str())),
+                                            );
+
+                                            if item_response.clicked() {
+                                                data_type_selection.select_single_data_type(type_option.data_type_ref.clone());
+                                                grid_user_interface
+                                                    .ctx()
+                                                    .data_mut(|data| data.insert_temp(search_storage_id, String::new()));
+                                                *should_close = true;
+                                            }
+
+                                            if (type_option_position + 1) % Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT == 0 {
+                                                grid_user_interface.end_row();
+                                            }
+                                        }
+
+                                        if built_in_type_options.len() % Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT != 0 {
+                                            grid_user_interface.end_row();
+                                        }
+                                    });
+                            }
+
+                            if !built_in_type_options.is_empty() && !symbol_layout_type_options.is_empty() {
+                                scroll_user_interface.separator();
+                            }
+
+                            for type_option in symbol_layout_type_options {
                                 let item_response =
-                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, row_icon, width));
+                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, None, popup_width));
 
                                 if item_response.clicked() {
                                     data_type_selection.select_single_data_type(type_option.data_type_ref);
@@ -2473,6 +2526,7 @@ impl SymbolExplorerView {
                 },
             )
             .width(width)
+            .popup_width(popup_width)
             .height(Self::TOOLBAR_HEIGHT),
         );
     }
@@ -4518,6 +4572,12 @@ mod tests {
                 .iter()
                 .all(|type_option| { !SymbolExplorerView::module_field_type_option_uses_icon(type_option.kind) })
         );
+    }
+
+    #[test]
+    fn define_field_type_popup_width_allows_two_builtin_columns() {
+        assert_eq!(SymbolExplorerView::define_field_type_popup_width(160.0), 260.0);
+        assert_eq!(SymbolExplorerView::define_field_type_popup_width(320.0), 320.0);
     }
 
     #[test]

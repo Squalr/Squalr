@@ -23,6 +23,8 @@ Our current task, from `README.md`, is:
 - TODO: Add an explicit raw byte storage type such as `db`/`bytes` for claimed-but-uninterpreted memory. Use this for intentional padding, union tail bytes, blobs, and other user-owned raw storage instead of overloading `u8`.
 - Refactored module create/delete flows so defining a field inserts into a non-overlapping unassigned range and deleting a module field with the non-shifting mode exposes a synthesized `UNASSIGNED` gap instead of persisting `u8[n]` filler. `ReplaceWithU8` is accepted as a serde alias for the new `ReplaceWithUnassigned` request mode.
 - Added promote-symbol regression coverage for module initialization: promoting into a newly discovered module leaves module fields empty so the unowned bytes are synthesized as `UNASSIGNED`, not persisted as `u8[]`.
+- Added a promote-symbol process availability guard. Promotion now fails before mutation with a warning/status message when the privileged memory query indicates there is no opened process.
+- Updated the Symbol Explorer Define Field type dropdown so built-in data types render in a compact two-column grid, while project symbol layouts stay in the existing single-column list below them. Needs human verification in the GUI.
 - Audit recommendation: Add `db`/`bytes` next. Raw storage is now cleanly separable as a persisted ownership concept because unowned gaps are explicit synthesized spans.
 
 ## Important Information
@@ -40,3 +42,4 @@ Our current task, from `README.md`, is:
 - CLI project-symbol response validation ran `cargo fmt --all`, `cargo build -p squalr-cli --locked`, and `git diff --check`.
 - Task-order audit validation ran `cargo test -p squalr-engine project_symbol_layout_mutation --locked`, `cargo test -p squalr symbol_tree_entry --locked`, `cargo test -p squalr-engine project_symbols_delete --locked`, and `cargo test -p squalr-engine project_symbols_create --locked`.
 - UNASSIGNED gap validation ran `cargo fmt --all`, `cargo test -p squalr-engine project_symbol_layout_mutation --locked`, `cargo test -p squalr-engine project_symbols_create --locked`, `cargo test -p squalr-engine project_symbols_delete --locked`, `cargo test -p squalr-engine promote_symbol --locked`, `cargo test -p squalr symbol_tree_entry --locked`, `cargo test -p squalr symbol_explorer --locked`, `cargo test -p squalr-engine-api project_symbols --locked`, stale overload-site search, and `git diff --check`.
+- Promote guard and Define Field dropdown validation ran `cargo fmt --all`, `cargo test -p squalr-engine promote_symbol --locked`, `cargo test -p squalr symbol_explorer --locked`, `cargo test -p squalr project_hierarchy --locked`, `cargo build -p squalr-cli --locked`, `cargo build -p squalr-tui --locked`, and `git diff --check`.

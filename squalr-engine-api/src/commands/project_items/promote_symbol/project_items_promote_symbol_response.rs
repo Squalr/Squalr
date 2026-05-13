@@ -15,6 +15,7 @@ pub struct ProjectItemsPromoteSymbolConflict {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ProjectItemsPromoteSymbolResponse {
     pub success: bool,
+    pub status_message: String,
     pub promoted_symbol_count: u64,
     pub reused_symbol_count: u64,
     pub promoted_symbol_locator_keys: Vec<String>,
