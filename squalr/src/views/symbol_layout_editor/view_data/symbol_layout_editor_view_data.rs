@@ -9,6 +9,7 @@ use squalr_engine_api::structures::{
         built_in_types::{i32::data_type_i32::DataTypeI32, u8::data_type_u8::DataTypeU8},
         data_type_ref::DataTypeRef,
     },
+    data_values::anonymous_value_string_format::AnonymousValueStringFormat,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -71,6 +72,8 @@ pub struct SymbolLayoutEditDraft {
     pub original_layout_id: Option<String>,
     pub layout_id: String,
     pub layout_kind: SymbolicLayoutKind,
+    pub size_text: String,
+    pub size_format: AnonymousValueStringFormat,
     pub field_drafts: Vec<SymbolLayoutFieldEditDraft>,
 }
 
@@ -265,7 +268,7 @@ impl SymbolLayoutEditorViewData {
                 .get_struct_layout_descriptors()
                 .iter()
                 .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
-                .map(Self::create_draft_from_descriptor);
+                .map(|struct_layout_descriptor| Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor));
             symbol_layout_editor_view_data.draft = symbol_layout_editor_view_data.baseline_draft.clone();
         }
     }
@@ -286,7 +289,7 @@ impl SymbolLayoutEditorViewData {
                 .get_struct_layout_descriptors()
                 .iter()
                 .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id)
-                .map(Self::create_draft_from_descriptor);
+                .map(|struct_layout_descriptor| Self::create_draft_from_descriptor_with_catalog(project_symbol_catalog, struct_layout_descriptor));
             symbol_layout_editor_view_data.draft = symbol_layout_editor_view_data.baseline_draft.clone();
         }
     }
@@ -566,12 +569,27 @@ impl SymbolLayoutEditorViewData {
     }
 
     pub fn create_draft_from_descriptor(struct_layout_descriptor: &StructLayoutDescriptor) -> SymbolLayoutEditDraft {
+        Self::create_draft_from_descriptor_with_catalog(&ProjectSymbolCatalog::default(), struct_layout_descriptor)
+    }
+
+    pub fn create_draft_from_descriptor_with_catalog(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        struct_layout_descriptor: &StructLayoutDescriptor,
+    ) -> SymbolLayoutEditDraft {
+        let size_in_bytes = Self::resolve_symbolic_struct_size_in_bytes(
+            project_symbol_catalog,
+            struct_layout_descriptor.get_struct_layout_definition(),
+            &mut HashSet::new(),
+        );
+
         SymbolLayoutEditDraft {
             original_layout_id: Some(struct_layout_descriptor.get_struct_layout_id().to_string()),
             layout_id: struct_layout_descriptor.get_struct_layout_id().to_string(),
             layout_kind: struct_layout_descriptor
                 .get_struct_layout_definition()
                 .get_layout_kind(),
+            size_text: size_in_bytes.to_string(),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: struct_layout_descriptor
                 .get_struct_layout_definition()
                 .get_fields()
@@ -595,11 +613,14 @@ impl SymbolLayoutEditorViewData {
             suffix_index = suffix_index.saturating_add(1);
             proposed_layout_id = format!("new.struct{}", suffix_index);
         }
+        let default_size_in_bytes = Self::resolve_primitive_data_type_size_in_bytes(default_data_type_ref.get_data_type_id()).unwrap_or(1);
 
         SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: proposed_layout_id,
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: default_size_in_bytes.to_string(),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![SymbolLayoutFieldEditDraft::new(default_data_type_ref)],
         }
     }
@@ -622,6 +643,7 @@ impl SymbolLayoutEditorViewData {
         if conflicts_with_existing_layout {
             return Err(String::from("Symbol layout id must be unique."));
         }
+        let declared_size_in_bytes = Self::parse_layout_size_text(&draft.size_text, draft.size_format)?;
 
         let mut symbolic_field_definitions = Vec::with_capacity(draft.field_drafts.len());
         let mut field_names = HashSet::new();
@@ -659,14 +681,156 @@ impl SymbolLayoutEditorViewData {
             symbolic_field_definitions.push(symbolic_field_definition);
         }
 
-        let struct_layout_descriptor = StructLayoutDescriptor::new(
-            trimmed_layout_id.to_string(),
-            SymbolicStructDefinition::new_with_layout_kind(trimmed_layout_id.to_string(), draft.layout_kind, symbolic_field_definitions),
-        );
+        let symbolic_struct_definition =
+            SymbolicStructDefinition::new_with_layout_kind(trimmed_layout_id.to_string(), draft.layout_kind, symbolic_field_definitions)
+                .with_declared_size_in_bytes(Some(declared_size_in_bytes));
+        let minimum_size_in_bytes = Self::resolve_symbolic_struct_field_span_in_bytes(project_symbol_catalog, &symbolic_struct_definition, &mut HashSet::new());
+        if declared_size_in_bytes < minimum_size_in_bytes {
+            return Err(format!(
+                "Layout size {} byte(s) would truncate fields ending at byte {}.",
+                declared_size_in_bytes, minimum_size_in_bytes
+            ));
+        }
+
+        let struct_layout_descriptor = StructLayoutDescriptor::new(trimmed_layout_id.to_string(), symbolic_struct_definition);
 
         project_symbol_catalog.validate_local_resolver_dependencies_for_struct_layout(&struct_layout_descriptor)?;
 
         Ok(struct_layout_descriptor)
+    }
+
+    pub fn parse_layout_size_text(
+        size_text: &str,
+        size_format: AnonymousValueStringFormat,
+    ) -> Result<u64, String> {
+        let trimmed_size_text = size_text.trim();
+        if trimmed_size_text.is_empty() {
+            return Err(String::from("Layout size is required."));
+        }
+
+        let normalized_size_text = trimmed_size_text
+            .strip_prefix('+')
+            .map(str::trim)
+            .unwrap_or(trimmed_size_text);
+        let parsed_size = if let Some(binary_size_text) = normalized_size_text
+            .strip_prefix("0b")
+            .or_else(|| normalized_size_text.strip_prefix("0B"))
+        {
+            u64::from_str_radix(binary_size_text, 2)
+        } else if let Some(hex_size_text) = normalized_size_text
+            .strip_prefix("0x")
+            .or_else(|| normalized_size_text.strip_prefix("0X"))
+        {
+            u64::from_str_radix(hex_size_text, 16)
+        } else {
+            match size_format {
+                AnonymousValueStringFormat::Binary => u64::from_str_radix(normalized_size_text, 2),
+                AnonymousValueStringFormat::Decimal => normalized_size_text.parse::<u64>(),
+                AnonymousValueStringFormat::Hexadecimal => u64::from_str_radix(normalized_size_text, 16),
+                _ => {
+                    return Err(format!("Invalid layout size: {}.", trimmed_size_text));
+                }
+            }
+        };
+
+        parsed_size.map_err(|_| format!("Invalid layout size: {}.", trimmed_size_text))
+    }
+
+    pub fn resolve_symbolic_struct_size_in_bytes(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbolic_struct_definition: &SymbolicStructDefinition,
+        visited_struct_layout_ids: &mut HashSet<String>,
+    ) -> u64 {
+        Self::resolve_symbolic_struct_field_span_in_bytes(project_symbol_catalog, symbolic_struct_definition, visited_struct_layout_ids).max(
+            symbolic_struct_definition
+                .get_declared_size_in_bytes()
+                .unwrap_or(0),
+        )
+    }
+
+    pub fn resolve_symbolic_struct_field_span_in_bytes(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbolic_struct_definition: &SymbolicStructDefinition,
+        visited_struct_layout_ids: &mut HashSet<String>,
+    ) -> u64 {
+        let mut next_sequential_offset = 0_u64;
+
+        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if symbolic_struct_definition.get_layout_kind().is_union() =>
+                {
+                    0
+                }
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(project_symbol_catalog, symbolic_field_definition, visited_struct_layout_ids);
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+        }
+
+        next_sequential_offset
+    }
+
+    pub fn resolve_symbolic_field_size_in_bytes(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        symbolic_field_definition: &SymbolicFieldDefinition,
+        visited_struct_layout_ids: &mut HashSet<String>,
+    ) -> u64 {
+        if let Some(pointer_size) = symbolic_field_definition
+            .get_container_type()
+            .get_pointer_size()
+        {
+            return pointer_size.get_size_in_bytes();
+        }
+
+        let data_type_id = symbolic_field_definition.get_data_type_ref().get_data_type_id();
+        let unit_size_in_bytes = Self::resolve_data_type_size_in_bytes(project_symbol_catalog, data_type_id, visited_struct_layout_ids);
+
+        symbolic_field_definition
+            .get_container_type()
+            .get_total_size_in_bytes(unit_size_in_bytes)
+    }
+
+    fn resolve_data_type_size_in_bytes(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        data_type_id: &str,
+        visited_struct_layout_ids: &mut HashSet<String>,
+    ) -> u64 {
+        if !visited_struct_layout_ids.insert(data_type_id.to_string()) {
+            return 0;
+        }
+
+        let size_in_bytes = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == data_type_id)
+            .map(|struct_layout_descriptor| {
+                Self::resolve_symbolic_struct_size_in_bytes(
+                    project_symbol_catalog,
+                    struct_layout_descriptor.get_struct_layout_definition(),
+                    visited_struct_layout_ids,
+                )
+            })
+            .or_else(|| Self::resolve_primitive_data_type_size_in_bytes(data_type_id))
+            .unwrap_or(1);
+
+        visited_struct_layout_ids.remove(data_type_id);
+
+        size_in_bytes
+    }
+
+    fn resolve_primitive_data_type_size_in_bytes(data_type_id: &str) -> Option<u64> {
+        match data_type_id {
+            "bool" | "i8" | "u8" => Some(1),
+            "i16" | "u16" | "i16be" | "u16be" => Some(2),
+            "i24" | "u24" | "i24be" | "u24be" => Some(3),
+            "f32" | "i32" | "u32" | "f32be" | "i32be" | "u32be" => Some(4),
+            "f64" | "i64" | "u64" | "f64be" | "i64be" | "u64be" => Some(8),
+            "i128" | "u128" | "i128be" | "u128be" => Some(16),
+            _ => None,
+        }
     }
 
     fn retarget_catalog_struct_layout_references(
@@ -712,6 +876,11 @@ impl SymbolLayoutEditorViewData {
                             .get_struct_layout_definition()
                             .get_layout_kind(),
                         retargeted_fields,
+                    )
+                    .with_declared_size_in_bytes(
+                        struct_layout_descriptor
+                            .get_struct_layout_definition()
+                            .get_declared_size_in_bytes(),
                     ),
                 )
             })
@@ -881,6 +1050,8 @@ impl Default for SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::new(),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![SymbolLayoutFieldEditDraft::new(DataTypeRef::new(
                 DataTypeI32::DATA_TYPE_ID,
             ))],
@@ -901,6 +1072,7 @@ mod tests {
             built_in_types::{i32::data_type_i32::DataTypeI32, u8::data_type_u8::DataTypeU8},
             data_type_ref::DataTypeRef,
         },
+        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         data_values::container_type::ContainerType,
         projects::{
             project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
@@ -968,6 +1140,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("7"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![
                 create_field_draft("item_id", "u32", SymbolLayoutFieldContainerEdit::default()),
                 create_field_draft("quantity", "u16", SymbolLayoutFieldContainerEdit::default()),
@@ -994,6 +1168,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![create_field_draft(
                 "item_id",
                 "u32",
@@ -1023,6 +1199,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![create_field_draft(
                 "item_id",
                 "u32",
@@ -1040,6 +1218,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("8"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![create_field_draft(
                 "items",
                 "u16",
@@ -1072,6 +1252,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("variant.payload"),
             layout_kind: SymbolicLayoutKind::Union,
+            size_text: String::from("16"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![
                 create_field_draft("as_u32", "u32", SymbolLayoutFieldContainerEdit::default()),
                 create_field_draft(
@@ -1099,6 +1281,58 @@ mod tests {
         let round_trip_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(&struct_layout_descriptor);
 
         assert_eq!(round_trip_draft.layout_kind, SymbolicLayoutKind::Union);
+    }
+
+    #[test]
+    fn build_symbol_layout_descriptor_persists_declared_size() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("0x20"),
+            size_format: AnonymousValueStringFormat::Hexadecimal,
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolLayoutFieldContainerEdit::default(),
+            )],
+        };
+
+        let struct_layout_descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected draft to build.");
+
+        assert_eq!(
+            struct_layout_descriptor
+                .get_struct_layout_definition()
+                .get_declared_size_in_bytes(),
+            Some(32)
+        );
+        assert_eq!(
+            SymbolLayoutEditorViewData::create_draft_from_descriptor(&struct_layout_descriptor).size_text,
+            "32"
+        );
+    }
+
+    #[test]
+    fn build_symbol_layout_descriptor_rejects_size_that_truncates_fields() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("3"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolLayoutFieldContainerEdit::default(),
+            )],
+        };
+
+        let result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft);
+
+        assert!(result.is_err_and(|error| error.contains("would truncate fields")));
     }
 
     #[test]
@@ -1207,6 +1441,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("inventory.slot"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("2"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![create_field_draft(
                 "items",
                 "u16",
@@ -1229,6 +1465,8 @@ mod tests {
             original_layout_id: None,
             layout_id: String::from("timer.state"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("8"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![
                 create_field_draft("Timer", "u32", SymbolLayoutFieldContainerEdit::default()),
                 create_field_draft("Timer", "u32", SymbolLayoutFieldContainerEdit::default()),
@@ -1247,6 +1485,8 @@ mod tests {
             original_layout_id: Some(String::from("player.stats")),
             layout_id: String::from("player.profile"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![create_field_draft(
                 "health",
                 "u32",
@@ -1394,6 +1634,8 @@ mod tests {
             original_layout_id: Some(String::from("player.stats")),
             layout_id: String::from("player.profile"),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
             field_drafts: vec![create_field_draft(
                 "health",
                 "u32",

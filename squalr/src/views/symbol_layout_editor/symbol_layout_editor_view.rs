@@ -32,6 +32,7 @@ use squalr_engine_api::structures::{
     pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
+        symbolic_field_definition::SymbolicFieldOffsetResolution,
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
         valued_struct::ValuedStruct,
         valued_struct_field::ValuedStructField,
@@ -53,6 +54,13 @@ enum SymbolLayoutRowAction {
     Select,
     Open,
     Rename,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SymbolLayoutFieldSpan {
+    field_position: usize,
+    offset_in_bytes: u64,
+    size_in_bytes: u64,
 }
 
 #[derive(Clone)]
@@ -537,6 +545,45 @@ impl SymbolLayoutEditorView {
         );
 
         *value = value_string.get_anonymous_value_string().to_string();
+    }
+
+    fn render_u64_data_value_box(
+        &self,
+        user_interface: &mut Ui,
+        value: &mut String,
+        value_format: &mut AnonymousValueStringFormat,
+        preview_text: &str,
+        id: &str,
+        width: f32,
+        height: f32,
+    ) {
+        let validation_data_type_ref = DataTypeRef::new(DataTypeU64::DATA_TYPE_ID);
+        let mut value_string = AnonymousValueString::new(value.clone(), *value_format, ContainerType::None);
+
+        user_interface.add(
+            DataValueBoxView::new(
+                self.app_context.clone(),
+                &mut value_string,
+                &validation_data_type_ref,
+                false,
+                true,
+                preview_text,
+                id,
+            )
+            .allowed_anonymous_value_string_formats(vec![
+                AnonymousValueStringFormat::Binary,
+                AnonymousValueStringFormat::Decimal,
+                AnonymousValueStringFormat::Hexadecimal,
+            ])
+            .show_format_button(true)
+            .normalize_value_format(false)
+            .use_format_text_colors(true)
+            .width(width)
+            .height(height),
+        );
+
+        *value = value_string.get_anonymous_value_string().to_string();
+        *value_format = value_string.get_anonymous_value_string_format();
     }
 
     fn render_layout_kind_selector(
@@ -1696,6 +1743,149 @@ impl SymbolLayoutEditorView {
         pending_field_row_action
     }
 
+    fn render_layout_size_editor(
+        &self,
+        user_interface: &mut Ui,
+        draft: &mut SymbolLayoutEditDraft,
+        can_commit: bool,
+    ) -> bool {
+        let theme = &self.app_context.theme;
+        let preferred_commit_button_width = 88.0_f32;
+        let spacing = 8.0;
+        let available_width = user_interface.available_width();
+        let commit_button_width = preferred_commit_button_width.min((available_width * 0.4).max(0.0));
+        let value_box_width = (available_width - commit_button_width - spacing).max(0.0);
+        let mut should_commit = false;
+
+        user_interface
+            .horizontal(|user_interface| {
+                self.render_u64_data_value_box(
+                    user_interface,
+                    &mut draft.size_text,
+                    &mut draft.size_format,
+                    "size",
+                    "symbol_layout_editor_layout_size",
+                    value_box_width,
+                    Self::FIELD_ROW_HEIGHT,
+                );
+                user_interface.add_space(spacing);
+
+                let commit_button = EguiButton::new(RichText::new("Commit").color(if can_commit { theme.foreground } else { theme.foreground_preview }))
+                    .fill(if can_commit {
+                        theme.background_control_primary
+                    } else {
+                        theme.background_control_secondary
+                    })
+                    .stroke(Stroke::new(
+                        1.0,
+                        if can_commit {
+                            theme.background_control_primary_dark
+                        } else {
+                            theme.background_control_secondary_dark
+                        },
+                    ));
+                let commit_response = user_interface
+                    .add_enabled_ui(can_commit, |user_interface| {
+                        user_interface.add_sized(vec2(commit_button_width, Self::FIELD_ROW_HEIGHT), commit_button)
+                    })
+                    .inner;
+                if commit_response.clicked() {
+                    should_commit = true;
+                }
+            })
+            .inner;
+
+        should_commit
+    }
+
+    fn resolve_draft_field_spans(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        draft: &SymbolLayoutEditDraft,
+    ) -> Option<(u64, Vec<SymbolLayoutFieldSpan>)> {
+        let struct_layout_descriptor = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(project_symbol_catalog, draft).ok()?;
+        let symbolic_struct_definition = struct_layout_descriptor.get_struct_layout_definition();
+        let layout_size_in_bytes = symbolic_struct_definition
+            .get_declared_size_in_bytes()
+            .unwrap_or_else(|| {
+                SymbolLayoutEditorViewData::resolve_symbolic_struct_size_in_bytes(
+                    project_symbol_catalog,
+                    symbolic_struct_definition,
+                    &mut std::collections::HashSet::new(),
+                )
+            });
+        let mut next_sequential_offset = 0_u64;
+        let mut field_spans = Vec::with_capacity(symbolic_struct_definition.get_fields().len());
+
+        for (field_position, symbolic_field_definition) in symbolic_struct_definition.get_fields().iter().enumerate() {
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if symbolic_struct_definition.get_layout_kind().is_union() =>
+                {
+                    0
+                }
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = SymbolLayoutEditorViewData::resolve_symbolic_field_size_in_bytes(
+                project_symbol_catalog,
+                symbolic_field_definition,
+                &mut std::collections::HashSet::new(),
+            );
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
+            field_spans.push(SymbolLayoutFieldSpan {
+                field_position,
+                offset_in_bytes: field_offset,
+                size_in_bytes: field_size_in_bytes,
+            });
+        }
+
+        Some((layout_size_in_bytes, field_spans))
+    }
+
+    fn render_unassigned_layout_row(
+        &self,
+        user_interface: &mut Ui,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) {
+        if size_in_bytes == 0 {
+            return;
+        }
+
+        let theme = &self.app_context.theme;
+        let (row_rect, _row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), Sense::hover());
+
+        user_interface.painter().rect(
+            row_rect,
+            CornerRadius::same(4),
+            theme.background_control_secondary.gamma_multiply(0.45),
+            Stroke::new(1.0, theme.background_control_secondary_dark),
+            StrokeKind::Inside,
+        );
+
+        let left_text = format!("UNASSIGNED[{}]", size_in_bytes);
+        let right_text = format!("0x{:X}", offset_in_bytes);
+        let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
+        let right_position = pos2(row_rect.max.x - Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
+
+        user_interface.painter().text(
+            label_position,
+            Align2::LEFT_CENTER,
+            left_text,
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground_preview,
+        );
+        user_interface.painter().text(
+            right_position,
+            Align2::RIGHT_CENTER,
+            right_text,
+            theme.font_library.font_noto_sans.font_small.clone(),
+            theme.foreground_preview,
+        );
+    }
+
     fn render_field_rows(
         &self,
         user_interface: &mut Ui,
@@ -1704,16 +1894,43 @@ impl SymbolLayoutEditorView {
         selected_field_index: Option<usize>,
     ) {
         let field_count = draft.field_drafts.len();
+        let layout_kind = draft.layout_kind;
         let mut pending_field_row_action = None;
+        let field_spans = self.resolve_draft_field_spans(project_symbol_catalog, draft);
+        let field_spans_by_position = field_spans
+            .as_ref()
+            .map(|(_layout_size_in_bytes, field_spans)| {
+                field_spans
+                    .iter()
+                    .map(|field_span| (field_span.field_position, *field_span))
+                    .collect::<std::collections::HashMap<usize, SymbolLayoutFieldSpan>>()
+            })
+            .unwrap_or_default();
+        let mut next_visible_offset = 0_u64;
+
         for field_index in 0..field_count {
             let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
                 continue;
             };
+            if let Some(field_span) = field_spans_by_position.get(&field_index) {
+                if !layout_kind.is_union() && field_span.offset_in_bytes > next_visible_offset {
+                    self.render_unassigned_layout_row(
+                        user_interface,
+                        next_visible_offset,
+                        field_span.offset_in_bytes.saturating_sub(next_visible_offset),
+                    );
+                }
+                next_visible_offset = next_visible_offset.max(
+                    field_span
+                        .offset_in_bytes
+                        .saturating_add(field_span.size_in_bytes),
+                );
+            }
             let can_move_up = field_index > 0;
             let can_move_down = field_index + 1 < field_count;
             if let Some(field_row_action) = self.render_field_editor_section(
                 user_interface,
-                draft.layout_kind,
+                layout_kind,
                 field_draft,
                 field_index,
                 selected_field_index == Some(field_index),
@@ -1722,6 +1939,12 @@ impl SymbolLayoutEditorView {
             ) {
                 pending_field_row_action = Some((field_index, field_row_action));
             }
+        }
+
+        if let Some((layout_size_in_bytes, _field_spans)) = field_spans
+            && layout_size_in_bytes > next_visible_offset
+        {
+            self.render_unassigned_layout_row(user_interface, next_visible_offset, layout_size_in_bytes.saturating_sub(next_visible_offset));
         }
 
         let field_context_menu_target = self
@@ -1841,6 +2064,16 @@ impl SymbolLayoutEditorView {
             |user_interface| {
                 if show_layout_name_editor {
                     user_interface.add(
+                        GroupBox::new_from_theme(&self.app_context.theme, "Size", |user_interface| {
+                            if self.render_layout_size_editor(user_interface, &mut edited_draft, can_save) {
+                                should_save_draft = true;
+                            }
+                        })
+                        .desired_width(user_interface.available_width()),
+                    );
+                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+
+                    user_interface.add(
                         GroupBox::new_from_theme(
                             &self.app_context.theme,
                             if is_creating_new_layout { "New Symbol Layout" } else { "Symbol Layout" },
@@ -1883,6 +2116,10 @@ impl SymbolLayoutEditorView {
                             theme,
                             if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
                             |user_interface| {
+                                if self.render_layout_size_editor(user_interface, &mut edited_draft, can_save) {
+                                    should_save_draft = true;
+                                }
+                                user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                                 self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
                             },
                         )

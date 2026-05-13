@@ -34,6 +34,8 @@ pub struct SymbolicStructDefinition {
     symbol_namespace: String,
     #[serde(default, skip_serializing_if = "SymbolicLayoutKind::is_default")]
     layout_kind: SymbolicLayoutKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    size_in_bytes: Option<u64>,
     fields: Vec<SymbolicFieldDefinition>,
 }
 
@@ -45,6 +47,7 @@ impl SymbolicStructDefinition {
         SymbolicStructDefinition {
             symbol_namespace,
             layout_kind: SymbolicLayoutKind::Struct,
+            size_in_bytes: None,
             fields,
         }
     }
@@ -57,6 +60,7 @@ impl SymbolicStructDefinition {
         SymbolicStructDefinition {
             symbol_namespace,
             layout_kind,
+            size_in_bytes: None,
             fields,
         }
     }
@@ -72,6 +76,7 @@ impl SymbolicStructDefinition {
         SymbolicStructDefinition {
             symbol_namespace: String::new(),
             layout_kind: SymbolicLayoutKind::Struct,
+            size_in_bytes: None,
             fields,
         }
     }
@@ -83,6 +88,7 @@ impl SymbolicStructDefinition {
         SymbolicStructDefinition {
             symbol_namespace: String::new(),
             layout_kind,
+            size_in_bytes: None,
             fields,
         }
     }
@@ -95,8 +101,27 @@ impl SymbolicStructDefinition {
         self.layout_kind
     }
 
+    pub fn get_declared_size_in_bytes(&self) -> Option<u64> {
+        self.size_in_bytes
+    }
+
     pub fn get_fields(&self) -> &[SymbolicFieldDefinition] {
         &self.fields
+    }
+
+    pub fn with_declared_size_in_bytes(
+        mut self,
+        size_in_bytes: Option<u64>,
+    ) -> Self {
+        self.size_in_bytes = size_in_bytes;
+        self
+    }
+
+    pub fn set_declared_size_in_bytes(
+        &mut self,
+        size_in_bytes: Option<u64>,
+    ) {
+        self.size_in_bytes = size_in_bytes;
     }
 
     pub fn add_field(
@@ -135,7 +160,7 @@ impl SymbolicStructDefinition {
             next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
         }
 
-        next_sequential_offset
+        next_sequential_offset.max(self.size_in_bytes.unwrap_or(0))
     }
 }
 
@@ -196,5 +221,27 @@ mod tests {
             serde_json::from_str(serialized_struct).expect("Expected legacy symbolic struct definition to deserialize.");
 
         assert_eq!(symbolic_struct_definition.get_layout_kind(), SymbolicLayoutKind::Struct);
+    }
+
+    #[test]
+    fn declared_size_extends_layout_past_field_span() {
+        let symbol_registry = SymbolRegistry::new();
+        let symbolic_struct_definition = SymbolicStructDefinition::new(
+            String::from("Sized"),
+            vec![SymbolicFieldDefinition::from_str("value:u32").expect("Expected field to parse.")],
+        )
+        .with_declared_size_in_bytes(Some(32));
+
+        assert_eq!(symbolic_struct_definition.get_size_in_bytes(&symbol_registry), 32);
+        assert_eq!(symbolic_struct_definition.get_declared_size_in_bytes(), Some(32));
+    }
+
+    #[test]
+    fn declared_size_defaults_to_none_for_serialized_compatibility() {
+        let serialized_struct = r#"{"symbol_namespace":"legacy","fields":[]}"#;
+        let symbolic_struct_definition: SymbolicStructDefinition =
+            serde_json::from_str(serialized_struct).expect("Expected legacy symbolic struct definition to deserialize.");
+
+        assert_eq!(symbolic_struct_definition.get_declared_size_in_bytes(), None);
     }
 }

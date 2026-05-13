@@ -420,7 +420,11 @@ fn estimate_symbolic_struct_size_in_bytes(
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
     }
 
-    next_sequential_offset
+    next_sequential_offset.max(
+        symbolic_struct_definition
+            .get_declared_size_in_bytes()
+            .unwrap_or(0),
+    )
 }
 
 fn estimate_symbolic_field_size_in_bytes(

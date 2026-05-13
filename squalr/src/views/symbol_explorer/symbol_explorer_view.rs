@@ -66,8 +66,11 @@ use squalr_engine_api::structures::projects::{
     project_symbol_locator::ProjectSymbolLocator,
 };
 use squalr_engine_api::structures::structs::{
-    symbolic_field_definition::SymbolicFieldDefinition, symbolic_resolver_definition::SymbolicResolverEvaluationError,
-    symbolic_struct_definition::SymbolicStructDefinition, valued_struct::ValuedStruct, valued_struct_field::ValuedStructField,
+    symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
+    symbolic_resolver_definition::SymbolicResolverEvaluationError,
+    symbolic_struct_definition::SymbolicStructDefinition,
+    valued_struct::ValuedStruct,
+    valued_struct_field::ValuedStructField,
 };
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSnapshotQuery;
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
@@ -895,7 +898,10 @@ impl SymbolExplorerView {
         project_symbol_catalog: &ProjectSymbolCatalog,
         symbol_tree_entry: &SymbolTreeEntry,
     ) -> Option<String> {
-        let symbol_type_id = symbol_tree_entry.get_symbol_type_id();
+        let symbol_type_id = match symbol_tree_entry.get_kind() {
+            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => module_name.as_str(),
+            _ => symbol_tree_entry.get_symbol_type_id(),
+        };
 
         project_symbol_catalog
             .get_struct_layout_descriptors()
@@ -1251,16 +1257,30 @@ impl SymbolExplorerView {
         symbolic_struct_definition: &SymbolicStructDefinition,
         visited_type_ids: &mut HashSet<String>,
     ) -> Option<u64> {
-        symbolic_struct_definition
-            .get_fields()
-            .iter()
-            .try_fold(0_u64, |accumulated_size, symbolic_field_definition| {
-                accumulated_size.checked_add(Self::resolve_symbolic_field_size_in_bytes(
-                    engine_execution_context,
-                    symbolic_field_definition,
-                    visited_type_ids,
-                )?)
-            })
+        let mut next_sequential_offset = 0_u64;
+
+        for symbolic_field_definition in symbolic_struct_definition.get_fields() {
+            let field_offset = match symbolic_field_definition.get_offset_resolution() {
+                SymbolicFieldOffsetResolution::Static(offset_in_bytes) => *offset_in_bytes,
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_)
+                    if symbolic_struct_definition.get_layout_kind().is_union() =>
+                {
+                    0
+                }
+                SymbolicFieldOffsetResolution::Sequential | SymbolicFieldOffsetResolution::Resolver(_) => next_sequential_offset,
+            };
+            let field_size_in_bytes = Self::resolve_symbolic_field_size_in_bytes(engine_execution_context, symbolic_field_definition, visited_type_ids)?;
+
+            next_sequential_offset = next_sequential_offset.max(field_offset.checked_add(field_size_in_bytes)?);
+        }
+
+        Some(
+            next_sequential_offset.max(
+                symbolic_struct_definition
+                    .get_declared_size_in_bytes()
+                    .unwrap_or(0),
+            ),
+        )
     }
 
     fn normalize_symbol_value_field_name(
@@ -4369,6 +4389,20 @@ mod tests {
         assert_eq!(
             SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &struct_field_entry),
             Some(String::from("win.pe.IMAGE_FILE_HEADER"))
+        );
+    }
+
+    #[test]
+    fn build_symbol_layout_edit_target_resolves_module_root_layout_rows() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("game.exe"),
+            SymbolicStructDefinition::new(String::from("game.exe"), Vec::new()).with_declared_size_in_bytes(Some(0x1000)),
+        )]);
+        let module_entry = create_module_tree_entry("game.exe");
+
+        assert_eq!(
+            SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &module_entry),
+            Some(String::from("game.exe"))
         );
     }
 

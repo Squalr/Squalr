@@ -1085,7 +1085,11 @@ where
         next_sequential_offset = next_sequential_offset.max(field_offset.saturating_add(field_size_in_bytes));
     }
 
-    next_sequential_offset
+    next_sequential_offset.max(
+        struct_layout_definition
+            .get_declared_size_in_bytes()
+            .unwrap_or(0),
+    )
 }
 
 fn resolve_data_type_size_in_bytes<ResolvePrimitiveSize>(
@@ -2128,6 +2132,39 @@ mod tests {
         assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[16]");
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "variant_payload");
         assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[32]");
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_sizes_struct_claims_by_declared_size() {
+        let declared_payload = SymbolicStructDefinition::new(
+            String::from("declared_payload"),
+            vec![SymbolicFieldDefinition::from_str("value:u32").expect("Expected u32 field to parse.")],
+        )
+        .with_declared_size_in_bytes(Some(0x20));
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
+            vec![StructLayoutDescriptor::new(
+                String::from("declared_payload"),
+                declared_payload,
+            )],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Payload"),
+                String::from("game.exe"),
+                0x10,
+                String::from("declared_payload"),
+            )],
+        );
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([String::from("module:game.exe")]),
+            &HashMap::new(),
+            |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
+        );
+
+        assert_eq!(symbol_tree_entries.len(), 3);
+        assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[48]");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[16]");
+        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "declared_payload");
     }
 
     #[test]

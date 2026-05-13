@@ -394,7 +394,13 @@ impl ProjectSymbolLayoutMutation {
             next_sequential_offset = next_sequential_offset.max(field_end_offset);
         }
 
-        Some(next_sequential_offset)
+        Some(
+            next_sequential_offset.max(
+                symbolic_struct_definition
+                    .get_declared_size_in_bytes()
+                    .unwrap_or(0),
+            ),
+        )
     }
 
     fn delete_or_shift_module_fields(
@@ -525,6 +531,20 @@ mod tests {
                     ));
                 }
 
+                if resolved_struct_layout_id == "player.declared" {
+                    return Some(
+                        SymbolicStructDefinition::new(
+                            String::from("player.declared"),
+                            vec![SymbolicFieldDefinition::new_named(
+                                String::from("health"),
+                                DataTypeRef::new("u32"),
+                                ContainerType::None,
+                            )],
+                        )
+                        .with_declared_size_in_bytes(Some(0x20)),
+                    );
+                }
+
                 (resolved_struct_layout_id == "variant.payload")
                     .then(|| SymbolicStructDefinition::from_str("as_u32:u32 @ +0;raw:u8[16] @ +0").expect("Expected variant payload layout to parse."))
                     .or_else(|| {
@@ -640,6 +660,11 @@ mod tests {
     #[test]
     fn resolve_struct_layout_id_size_uses_nested_struct_layout_size() {
         assert_eq!(resolve_test_field_size_with_structs("player.stats"), Some(6));
+    }
+
+    #[test]
+    fn resolve_struct_layout_id_size_uses_declared_struct_size() {
+        assert_eq!(resolve_test_field_size_with_structs("player.declared"), Some(0x20));
     }
 
     #[test]
