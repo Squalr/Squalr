@@ -5,6 +5,7 @@ use crate::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 use crate::structures::projects::project_symbol_module_field::ProjectSymbolModuleField;
 use crate::structures::structs::symbolic_field_definition::SymbolicFieldDefinition;
+use crate::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -168,6 +169,95 @@ impl ProjectSymbolCatalog {
 
     pub fn get_struct_layout_descriptors(&self) -> &[StructLayoutDescriptor] {
         &self.struct_layout_descriptors
+    }
+
+    pub fn ensure_module_root_struct_layout(
+        &mut self,
+        module_name: &str,
+        module_size_in_bytes: u64,
+    ) {
+        let module_name = module_name.trim();
+        if module_name.is_empty() {
+            return;
+        }
+
+        if let Some(module_struct_layout_descriptor) = self
+            .struct_layout_descriptors
+            .iter_mut()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == module_name)
+        {
+            let updated_struct_layout_definition = module_struct_layout_descriptor
+                .get_struct_layout_definition()
+                .clone()
+                .with_declared_size_in_bytes(Some(module_size_in_bytes));
+            *module_struct_layout_descriptor = StructLayoutDescriptor::new(module_name.to_string(), updated_struct_layout_definition);
+        } else {
+            self.struct_layout_descriptors.push(StructLayoutDescriptor::new(
+                module_name.to_string(),
+                SymbolicStructDefinition::new(module_name.to_string(), Vec::new()).with_declared_size_in_bytes(Some(module_size_in_bytes)),
+            ));
+        }
+
+        self.sort_struct_layout_descriptors_by_id();
+    }
+
+    pub fn rename_module_root_struct_layout(
+        &mut self,
+        old_module_name: &str,
+        new_module_name: &str,
+    ) -> Result<(), String> {
+        let old_module_name = old_module_name.trim();
+        let new_module_name = new_module_name.trim();
+        if old_module_name.is_empty() || new_module_name.is_empty() || old_module_name == new_module_name {
+            return Ok(());
+        }
+
+        let Some(old_struct_layout_position) = self
+            .struct_layout_descriptors
+            .iter()
+            .position(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == old_module_name)
+        else {
+            return Ok(());
+        };
+
+        if self
+            .struct_layout_descriptors
+            .iter()
+            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == new_module_name)
+        {
+            return Err(format!(
+                "Cannot rename module root layout '{}' to '{}': the destination layout already exists.",
+                old_module_name, new_module_name
+            ));
+        }
+
+        let old_struct_layout_descriptor = self
+            .struct_layout_descriptors
+            .remove(old_struct_layout_position);
+        let old_struct_layout_definition = old_struct_layout_descriptor.get_struct_layout_definition();
+        let renamed_struct_layout_definition = SymbolicStructDefinition::new_with_layout_kind(
+            new_module_name.to_string(),
+            old_struct_layout_definition.get_layout_kind(),
+            old_struct_layout_definition.get_fields().to_vec(),
+        )
+        .with_declared_size_in_bytes(old_struct_layout_definition.get_declared_size_in_bytes());
+
+        self.struct_layout_descriptors
+            .push(StructLayoutDescriptor::new(new_module_name.to_string(), renamed_struct_layout_definition));
+        self.sort_struct_layout_descriptors_by_id();
+
+        Ok(())
+    }
+
+    pub fn delete_module_root_struct_layouts(
+        &mut self,
+        module_names: &HashSet<String>,
+    ) -> u64 {
+        let struct_layout_count_before_delete = self.struct_layout_descriptors.len();
+        self.struct_layout_descriptors
+            .retain(|struct_layout_descriptor| !module_names.contains(struct_layout_descriptor.get_struct_layout_id()));
+
+        struct_layout_count_before_delete.saturating_sub(self.struct_layout_descriptors.len()) as u64
     }
 
     pub fn set_struct_layout_descriptors(
@@ -388,6 +478,16 @@ impl ProjectSymbolCatalog {
         visited_field_names.insert(field_name.to_string());
 
         None
+    }
+
+    fn sort_struct_layout_descriptors_by_id(&mut self) {
+        self.struct_layout_descriptors
+            .sort_by(|left_layout, right_layout| {
+                left_layout
+                    .get_struct_layout_id()
+                    .to_ascii_lowercase()
+                    .cmp(&right_layout.get_struct_layout_id().to_ascii_lowercase())
+            });
     }
 }
 

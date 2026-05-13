@@ -54,11 +54,23 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsRenameModuleRequest {
             return ProjectSymbolsRenameModuleResponse::default();
         }
 
+        if project_symbol_catalog
+            .find_symbol_module(old_module_name)
+            .is_none()
+        {
+            log::warn!("Project-symbols rename-module request could not find module '{}'.", old_module_name);
+            return ProjectSymbolsRenameModuleResponse::default();
+        }
+
+        if let Err(error) = project_symbol_catalog.rename_module_root_struct_layout(old_module_name, new_module_name) {
+            log::warn!("{}", error);
+            return ProjectSymbolsRenameModuleResponse::default();
+        }
+
         let Some(existing_symbol_module) = project_symbol_catalog.find_symbol_module_mut(old_module_name) else {
             log::warn!("Project-symbols rename-module request could not find module '{}'.", old_module_name);
             return ProjectSymbolsRenameModuleResponse::default();
         };
-
         existing_symbol_module.set_module_name(new_module_name.to_string());
 
         for symbol_claim in project_symbol_catalog.get_symbol_claims_mut() {
@@ -86,10 +98,12 @@ mod tests {
     };
     use crate::command_executors::unprivileged_request_executor::UnprivilegedCommandRequestExecutor;
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::projects::{
         project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
         project_symbol_module::ProjectSymbolModule,
     };
+    use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
@@ -98,7 +112,10 @@ mod tests {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
             vec![ProjectSymbolModule::new(String::from("game.exe"), 0x2000)],
-            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                String::from("game.exe"),
+                SymbolicStructDefinition::new(String::from("game.exe"), Vec::new()).with_declared_size_in_bytes(Some(0x2000)),
+            )],
             vec![ProjectSymbolClaim::new_module_offset(
                 String::from("Health"),
                 String::from("game.exe"),
@@ -130,11 +147,26 @@ mod tests {
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected renamed-module project to load from disk.");
         let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
         let symbol_modules = project_symbol_catalog.get_symbol_modules();
+        let struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors();
         let symbol_claims = project_symbol_catalog.get_symbol_claims();
 
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "patched.exe");
         assert_eq!(symbol_modules[0].get_size(), 0x2000);
+        assert_eq!(struct_layout_descriptors.len(), 1);
+        assert_eq!(struct_layout_descriptors[0].get_struct_layout_id(), "patched.exe");
+        assert_eq!(
+            struct_layout_descriptors[0]
+                .get_struct_layout_definition()
+                .get_symbol_namespace(),
+            "patched.exe"
+        );
+        assert_eq!(
+            struct_layout_descriptors[0]
+                .get_struct_layout_definition()
+                .get_declared_size_in_bytes(),
+            Some(0x2000)
+        );
         assert_eq!(
             symbol_claims[0].get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("patched.exe"), 0x1234)

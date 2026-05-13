@@ -69,12 +69,23 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsDeleteRequest {
         let project_symbol_catalog = opened_project
             .get_project_info_mut()
             .get_project_symbol_catalog_mut();
-        let symbol_modules = project_symbol_catalog.get_symbol_modules_mut();
-        let symbol_module_count_before_delete = symbol_modules.len();
+        let (deleted_module_names, deleted_module_count) = {
+            let symbol_modules = project_symbol_catalog.get_symbol_modules_mut();
+            let symbol_module_count_before_delete = symbol_modules.len();
+            let deleted_module_names = symbol_modules
+                .iter()
+                .filter(|symbol_module| module_name_set.contains(symbol_module.get_module_name()))
+                .map(|symbol_module| symbol_module.get_module_name().to_string())
+                .collect::<HashSet<String>>();
 
-        symbol_modules.retain(|symbol_module| !module_name_set.contains(symbol_module.get_module_name()));
+            symbol_modules.retain(|symbol_module| !module_name_set.contains(symbol_module.get_module_name()));
 
-        let deleted_module_count = symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64;
+            (
+                deleted_module_names,
+                symbol_module_count_before_delete.saturating_sub(symbol_modules.len()) as u64,
+            )
+        };
+        project_symbol_catalog.delete_module_root_struct_layouts(&deleted_module_names);
         let delete_module_field_summary = ProjectSymbolLayoutMutation::delete_module_fields_by_locator_key(project_symbol_catalog, &symbol_locator_key_set);
         let delete_module_range_summary = ProjectSymbolLayoutMutation::delete_module_ranges(project_symbol_catalog, &module_ranges, &module_name_set);
         let symbol_claims = project_symbol_catalog.get_symbol_claims_mut();
@@ -150,10 +161,12 @@ mod tests {
         ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode,
     };
     use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::projects::{
         project::Project, project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_module::ProjectSymbolModule,
         project_symbol_module_field::ProjectSymbolModuleField,
     };
+    use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
     use squalr_engine_projects::project::serialization::serializable_project_file::SerializableProjectFile;
     use std::sync::Arc;
 
@@ -255,7 +268,16 @@ mod tests {
                 ProjectSymbolModule::new(String::from("game.exe"), 0x2000),
                 ProjectSymbolModule::new(String::from("engine.dll"), 0x4000),
             ],
-            Vec::new(),
+            vec![
+                StructLayoutDescriptor::new(
+                    String::from("game.exe"),
+                    SymbolicStructDefinition::new(String::from("game.exe"), Vec::new()).with_declared_size_in_bytes(Some(0x2000)),
+                ),
+                StructLayoutDescriptor::new(
+                    String::from("engine.dll"),
+                    SymbolicStructDefinition::new(String::from("engine.dll"), Vec::new()).with_declared_size_in_bytes(Some(0x4000)),
+                ),
+            ],
             vec![
                 ProjectSymbolClaim::new_module_offset(String::from("Health"), String::from("game.exe"), 0x1234, String::from("u32")),
                 ProjectSymbolClaim::new_module_offset(String::from("State"), String::from("engine.dll"), 0x20, String::from("u8")),
@@ -288,10 +310,13 @@ mod tests {
         let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected module-deleted project to load from disk.");
         let project_symbol_catalog = loaded_project.get_project_info().get_project_symbol_catalog();
         let symbol_modules = project_symbol_catalog.get_symbol_modules();
+        let struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors();
         let symbol_claims = project_symbol_catalog.get_symbol_claims();
 
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "engine.dll");
+        assert_eq!(struct_layout_descriptors.len(), 1);
+        assert_eq!(struct_layout_descriptors[0].get_struct_layout_id(), "engine.dll");
         assert_eq!(symbol_claims.len(), 2);
         assert!(symbol_claims.iter().all(|symbol_claim| {
             !symbol_claim

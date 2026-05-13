@@ -204,6 +204,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectItemsPromoteSymbolRequest {
                 project_symbol_catalog.set_symbol_claims(existing_symbol_claims.clone());
                 for (module_name, module_size_hint) in &module_size_hints_by_name {
                     project_symbol_catalog.ensure_symbol_module(module_name, *module_size_hint);
+                    project_symbol_catalog.ensure_module_root_struct_layout(module_name, *module_size_hint);
                 }
                 project_symbol_catalog.clone()
             };
@@ -654,6 +655,7 @@ mod tests {
         engine_api_unprivileged_bindings::EngineApiUnprivilegedBindings, engine_binding_error::EngineBindingError, engine_event_envelope::EngineEventEnvelope,
         engine_execution_context::EngineExecutionContext,
     };
+    use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::built_in_types::{u8::data_type_u8::DataTypeU8, u64::data_type_u64::DataTypeU64},
         memory::{normalized_module::NormalizedModule, normalized_region::NormalizedRegion},
@@ -930,6 +932,25 @@ mod tests {
             symbol_modules[0].get_fields().is_empty(),
             "Promoting into a new module should leave unowned bytes as synthesized UNASSIGNED gaps, not persisted u8[] fields."
         );
+        let struct_layout_descriptors = loaded_project
+            .get_project_info()
+            .get_project_symbol_catalog()
+            .get_struct_layout_descriptors();
+        assert_eq!(struct_layout_descriptors.len(), 1);
+        assert_eq!(struct_layout_descriptors[0].get_struct_layout_id(), "game.exe");
+        assert_eq!(
+            struct_layout_descriptors[0]
+                .get_struct_layout_definition()
+                .get_declared_size_in_bytes(),
+            Some(0x5000)
+        );
+        assert!(
+            struct_layout_descriptors[0]
+                .get_struct_layout_definition()
+                .get_fields()
+                .is_empty(),
+            "The promoted module root layout should start as an empty struct; unowned bytes are synthesized as UNASSIGNED."
+        );
         let promoted_project_item = loaded_project
             .get_project_items()
             .get(&ProjectItemRef::new(project_item_path.clone()))
@@ -955,6 +976,13 @@ mod tests {
             .expect("Expected captured symbol catalog lock in test.");
         assert_eq!(captured_project_symbol_catalogs.len(), 1);
         assert_eq!(captured_project_symbol_catalogs[0].get_symbol_claims(), symbol_claims);
+        assert_eq!(
+            captured_project_symbol_catalogs[0]
+                .get_struct_layout_descriptors()
+                .first()
+                .map(StructLayoutDescriptor::get_struct_layout_id),
+            Some("game.exe")
+        );
     }
 
     #[test]

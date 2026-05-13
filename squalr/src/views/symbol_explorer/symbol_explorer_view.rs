@@ -63,7 +63,7 @@ use squalr_engine_api::structures::memory::{
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
     project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
-    project_symbol_locator::ProjectSymbolLocator,
+    project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
 };
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -118,13 +118,6 @@ struct ModuleFieldTypeOption {
     data_type_ref: DataTypeRef,
     label: String,
     kind: ModuleFieldTypeOptionKind,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct UnassignedSpanEditTarget {
-    module_name: String,
-    offset: u64,
-    length: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -816,17 +809,6 @@ impl SymbolExplorerView {
         }
     }
 
-    fn build_unassigned_span_edit_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<UnassignedSpanEditTarget> {
-        match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::UnassignedSegment { module_name, offset, length } => (*length > 0).then(|| UnassignedSpanEditTarget {
-                module_name: module_name.to_string(),
-                offset: *offset,
-                length: *length,
-            }),
-            _ => None,
-        }
-    }
-
     fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<AddSymbolToProjectTarget> {
         if matches!(
             symbol_tree_entry.get_kind(),
@@ -896,18 +878,54 @@ impl SymbolExplorerView {
 
     fn build_symbol_layout_edit_target(
         project_symbol_catalog: &ProjectSymbolCatalog,
+        symbol_tree_entries: &[SymbolTreeEntry],
         symbol_tree_entry: &SymbolTreeEntry,
     ) -> Option<String> {
-        let symbol_type_id = match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => module_name.as_str(),
-            _ => symbol_tree_entry.get_symbol_type_id(),
+        let layout_exists = |struct_layout_id: &str| {
+            project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
         };
 
-        project_symbol_catalog
-            .get_struct_layout_descriptors()
+        let symbol_type_id = symbol_tree_entry.get_symbol_type_id();
+        if layout_exists(symbol_type_id) {
+            return Some(symbol_type_id.to_string());
+        }
+
+        if let SymbolTreeEntryKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
+            return layout_exists(module_name).then(|| module_name.to_string());
+        }
+
+        let mut ancestor_node_key = symbol_tree_entry.get_node_key();
+        while let Some((next_ancestor_node_key, _field_node_key)) = ancestor_node_key.rsplit_once("::") {
+            if let Some(ancestor_symbol_tree_entry) = symbol_tree_entries
+                .iter()
+                .find(|ancestor_symbol_tree_entry| ancestor_symbol_tree_entry.get_node_key() == next_ancestor_node_key)
+            {
+                let ancestor_symbol_type_id = ancestor_symbol_tree_entry.get_symbol_type_id();
+                if layout_exists(ancestor_symbol_type_id) {
+                    return Some(ancestor_symbol_type_id.to_string());
+                }
+            }
+
+            ancestor_node_key = next_ancestor_node_key;
+        }
+
+        let module_name = symbol_tree_entry.get_locator().get_focus_module_name();
+        if !module_name.trim().is_empty() && layout_exists(module_name) {
+            return Some(module_name.to_string());
+        }
+
+        let root_symbol_claim_type_id = project_symbol_catalog
+            .get_symbol_claims()
             .iter()
-            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == symbol_type_id)
-            .then(|| symbol_type_id.to_string())
+            .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_tree_entry.get_symbol_claim_locator_key())
+            .map(ProjectSymbolClaim::get_struct_layout_id);
+
+        root_symbol_claim_type_id
+            .filter(|struct_layout_id| layout_exists(struct_layout_id))
+            .map(str::to_string)
     }
 
     fn edit_symbol_tree_entry_symbol_layout(
@@ -3096,14 +3114,7 @@ impl SymbolExplorerView {
                     SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
                 }
 
-                if let Some(unassigned_span_edit_target) = Self::build_unassigned_span_edit_target(symbol_tree_entry) {
-                    SymbolExplorerViewData::begin_define_field_from_unassigned_segment(
-                        self.symbol_explorer_view_data.clone(),
-                        unassigned_span_edit_target.module_name,
-                        unassigned_span_edit_target.offset,
-                        unassigned_span_edit_target.length,
-                    );
-                } else if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
                     self.focus_symbol_tree_entry_for_edit(project_symbol_catalog, symbol_tree_entry);
                 }
 
@@ -3168,9 +3179,9 @@ impl SymbolExplorerView {
                             .get_default_value(data_type_ref)
                             .map(|default_value| default_value.get_size_in_bytes())
                     });
-                let context_menu_unassigned_span_edit_target = Self::build_unassigned_span_edit_target(symbol_tree_entry);
                 let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
-                let context_menu_symbol_layout_edit_target = Self::build_symbol_layout_edit_target(project_symbol_catalog, symbol_tree_entry);
+                let context_menu_symbol_layout_edit_target =
+                    Self::build_symbol_layout_edit_target(project_symbol_catalog, symbol_tree_entries, symbol_tree_entry);
                 let context_menu_symbol_tree_action_context = Self::build_symbol_tree_action_context(symbol_tree_entry);
                 let context_menu_plugin_action_menu_items = self.build_symbol_tree_plugin_action_menu_items(&context_menu_symbol_tree_action_context);
                 let can_delete_symbol_tree_entry =
@@ -3182,9 +3193,6 @@ impl SymbolExplorerView {
                 }
                 if context_menu_add_symbol_to_project_target.is_some() {
                     context_menu_labels.push(String::from("Add to Project"));
-                }
-                if context_menu_unassigned_span_edit_target.is_some() {
-                    context_menu_labels.push(String::from("Define Field..."));
                 }
                 if context_menu_symbol_layout_edit_target.is_some() {
                     context_menu_labels.push(String::from("Edit Symbol Layout..."));
@@ -3286,44 +3294,8 @@ impl SymbolExplorerView {
                         }
 
                         if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some())
-                            && (context_menu_unassigned_span_edit_target.is_some()
-                                || context_menu_symbol_layout_edit_target.is_some()
-                                || can_rename_symbol_tree_entry)
+                            && (context_menu_symbol_layout_edit_target.is_some() || can_rename_symbol_tree_entry)
                         {
-                            user_interface.separator();
-                        }
-
-                        if let Some(unassigned_span_edit_target) = context_menu_unassigned_span_edit_target.as_ref() {
-                            if user_interface
-                                .add(
-                                    ToolbarMenuItemView::new(
-                                        self.app_context.clone(),
-                                        "Define Field...",
-                                        "symbol_tree_ctx_define_field",
-                                        &None,
-                                        context_menu_width,
-                                    )
-                                    .icon(
-                                        self.app_context
-                                            .theme
-                                            .icon_library
-                                            .icon_handle_data_type_blue_blocks_4
-                                            .clone(),
-                                    ),
-                                )
-                                .clicked()
-                            {
-                                SymbolExplorerViewData::begin_define_field_from_unassigned_segment(
-                                    self.symbol_explorer_view_data.clone(),
-                                    unassigned_span_edit_target.module_name.clone(),
-                                    unassigned_span_edit_target.offset,
-                                    unassigned_span_edit_target.length,
-                                );
-                                *should_close = true;
-                            }
-                        }
-
-                        if context_menu_unassigned_span_edit_target.is_some() && can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -3373,10 +3345,8 @@ impl SymbolExplorerView {
                             *should_close = true;
                         }
 
-                        let has_symbol_tree_edit_menu_items = can_open_symbol_tree_entry
-                            || context_menu_unassigned_span_edit_target.is_some()
-                            || context_menu_symbol_layout_edit_target.is_some()
-                            || can_rename_symbol_tree_entry;
+                        let has_symbol_tree_edit_menu_items =
+                            can_open_symbol_tree_entry || context_menu_symbol_layout_edit_target.is_some() || can_rename_symbol_tree_entry;
 
                         if has_symbol_tree_edit_menu_items && !context_menu_plugin_action_menu_items.is_empty() {
                             user_interface.separator();
@@ -4163,24 +4133,6 @@ mod tests {
         )
     }
 
-    fn create_module_u8_array_symbol_claim_tree_entry() -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
-            String::from("claim:module:game.exe:20"),
-            SymbolTreeEntryKind::SymbolClaim {
-                symbol_locator_key: String::from("module:game.exe:20"),
-            },
-            1,
-            String::from("u8_00000020"),
-            String::from("game.exe.u8_00000020"),
-            String::from("module:game.exe:20"),
-            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x20),
-            String::from("u8"),
-            ContainerType::ArrayFixed(0x80),
-            false,
-            false,
-        )
-    }
-
     fn create_unassigned_segment_tree_entry() -> SymbolTreeEntry {
         SymbolTreeEntry::new(
             String::from("unassigned:game.exe:0:1234"),
@@ -4306,27 +4258,6 @@ mod tests {
     }
 
     #[test]
-    fn build_unassigned_span_edit_target_handles_visible_unassigned_segments() {
-        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
-
-        let unassigned_segment_target =
-            SymbolExplorerView::build_unassigned_span_edit_target(&unassigned_segment_entry).expect("Expected visible unassigned target.");
-
-        assert_eq!(unassigned_segment_target.module_name, "game.exe");
-        assert_eq!(unassigned_segment_target.offset, 0);
-        assert_eq!(unassigned_segment_target.length, 0x1234);
-    }
-
-    #[test]
-    fn build_unassigned_span_edit_target_ignores_owned_module_fields() {
-        let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
-        let module_u8_array_symbol_claim_entry = create_module_u8_array_symbol_claim_tree_entry();
-
-        assert_eq!(SymbolExplorerView::build_unassigned_span_edit_target(&module_symbol_claim_entry), None);
-        assert_eq!(SymbolExplorerView::build_unassigned_span_edit_target(&module_u8_array_symbol_claim_entry), None);
-    }
-
-    #[test]
     fn build_add_symbol_to_project_request_targets_address_item() {
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
         let add_symbol_to_project_target =
@@ -4387,7 +4318,7 @@ mod tests {
         let struct_field_entry = create_struct_field_tree_entry();
 
         assert_eq!(
-            SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &struct_field_entry),
+            SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &[struct_field_entry.clone()], &struct_field_entry),
             Some(String::from("win.pe.IMAGE_FILE_HEADER"))
         );
     }
@@ -4401,8 +4332,65 @@ mod tests {
         let module_entry = create_module_tree_entry("game.exe");
 
         assert_eq!(
-            SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &module_entry),
+            SymbolExplorerView::build_symbol_layout_edit_target(&project_symbol_catalog, &[module_entry.clone()], &module_entry),
             Some(String::from("game.exe"))
+        );
+    }
+
+    #[test]
+    fn build_symbol_layout_edit_target_resolves_unassigned_segments_to_module_layout() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("game.exe"),
+            SymbolicStructDefinition::new(String::from("game.exe"), Vec::new()).with_declared_size_in_bytes(Some(0x2000)),
+        )]);
+        let module_entry = create_module_tree_entry("game.exe");
+        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
+
+        assert_eq!(
+            SymbolExplorerView::build_symbol_layout_edit_target(
+                &project_symbol_catalog,
+                &[module_entry, unassigned_segment_entry.clone()],
+                &unassigned_segment_entry
+            ),
+            Some(String::from("game.exe"))
+        );
+    }
+
+    #[test]
+    fn build_symbol_layout_edit_target_resolves_nearest_ancestor_struct_layout() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("win.pe.IMAGE_FILE_HEADER"),
+            SymbolicStructDefinition::new(
+                String::from("win.pe.IMAGE_FILE_HEADER"),
+                vec![SymbolicFieldDefinition::new_named(
+                    String::from("NumberOfSections"),
+                    DataTypeRef::new("u16"),
+                    ContainerType::None,
+                )],
+            ),
+        )]);
+        let parent_struct_field_entry = create_struct_field_tree_entry();
+        let primitive_child_entry = SymbolTreeEntry::new(
+            String::from("module_field:module:game.exe:0::NTHeaders::FileHeader::NumberOfSections"),
+            SymbolTreeEntryKind::StructField,
+            4,
+            String::from("NumberOfSections"),
+            String::from("PE Headers.NTHeaders.FileHeader.NumberOfSections"),
+            String::from("module:game.exe:0"),
+            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x86),
+            String::from("u16"),
+            ContainerType::None,
+            false,
+            false,
+        );
+
+        assert_eq!(
+            SymbolExplorerView::build_symbol_layout_edit_target(
+                &project_symbol_catalog,
+                &[parent_struct_field_entry, primitive_child_entry.clone()],
+                &primitive_child_entry
+            ),
+            Some(String::from("win.pe.IMAGE_FILE_HEADER"))
         );
     }
 

@@ -3,9 +3,7 @@ use crate::command_executors::unprivileged_request_executor::UnprivilegedCommand
 use squalr_engine_api::commands::project_symbols::create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest;
 use squalr_engine_api::commands::project_symbols::create_module::project_symbols_create_module_response::ProjectSymbolsCreateModuleResponse;
 use squalr_engine_api::engine::engine_execution_context::EngineExecutionContext;
-use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
 use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
-use squalr_engine_api::structures::structs::symbolic_struct_definition::SymbolicStructDefinition;
 use std::sync::Arc;
 
 impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateModuleRequest {
@@ -50,29 +48,7 @@ impl UnprivilegedCommandRequestExecutor for ProjectSymbolsCreateModuleRequest {
                 .get_symbol_modules_mut()
                 .push(ProjectSymbolModule::new(module_name.to_string(), self.size));
         }
-        let mut struct_layout_descriptors = project_symbol_catalog.get_struct_layout_descriptors().to_vec();
-        if let Some(module_struct_layout_descriptor) = struct_layout_descriptors
-            .iter_mut()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == module_name)
-        {
-            let updated_struct_layout_definition = module_struct_layout_descriptor
-                .get_struct_layout_definition()
-                .clone()
-                .with_declared_size_in_bytes(Some(self.size));
-            *module_struct_layout_descriptor = StructLayoutDescriptor::new(module_name.to_string(), updated_struct_layout_definition);
-        } else {
-            struct_layout_descriptors.push(StructLayoutDescriptor::new(
-                module_name.to_string(),
-                SymbolicStructDefinition::new(module_name.to_string(), Vec::new()).with_declared_size_in_bytes(Some(self.size)),
-            ));
-            struct_layout_descriptors.sort_by(|left_layout, right_layout| {
-                left_layout
-                    .get_struct_layout_id()
-                    .to_ascii_lowercase()
-                    .cmp(&right_layout.get_struct_layout_id().to_ascii_lowercase())
-            });
-        }
-        project_symbol_catalog.set_struct_layout_descriptors(struct_layout_descriptors);
+        project_symbol_catalog.ensure_module_root_struct_layout(module_name, self.size);
 
         if !save_and_sync_project_symbol_catalog(engine_unprivileged_state, opened_project, &project_directory_path) {
             return ProjectSymbolsCreateModuleResponse::default();
