@@ -22,6 +22,7 @@ Our current task, from `README.md`, is:
 - TODO: Replace synthesized `u8[n]` module gaps with `UNASSIGNED[n]` tree/editor spans. `UNASSIGNED` should mean "no project symbol owns these bytes" and should not be assignable from normal data type selectors.
 - TODO: Add an explicit raw byte storage type such as `db`/`bytes` for claimed-but-uninterpreted memory. Use this for intentional padding, union tail bytes, blobs, and other user-owned raw storage instead of overloading `u8`.
 - TODO: Refactor module splitting/deletion flows so removed fields become synthesized `UNASSIGNED` gaps instead of persisted `u8[n]` filler fields. Defining a field should insert into a non-overlapping unassigned range; deleting explicit `db` should reveal `UNASSIGNED` again.
+- Audit recommendation: Tackle synthesized `UNASSIGNED[n]` gaps first, including the delete/create flow changes that stop persisting filler `u8[n]` fields. Defer `db`/`bytes` until after unowned gaps are no longer encoded as real fields, because raw storage is a persisted ownership concept and is easier to add cleanly once the gap model is explicit.
 
 ## Important Information
 
@@ -36,3 +37,4 @@ Our current task, from `README.md`, is:
 - Symbol Layout Editor rename validation ran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --locked`, `cargo test -p squalr symbol_explorer --locked`, `cargo test -p squalr struct_viewer --locked`, a search for stale editor identifiers in `squalr` and `docs`, and `git diff --check`.
 - Symbol Layout Editor union workflow validation ran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --locked`, `cargo test -p squalr struct_viewer --locked`, `cargo test -p squalr symbol_explorer --locked`, and `git diff --check`.
 - CLI project-symbol response validation ran `cargo fmt --all`, `cargo build -p squalr-cli --locked`, and `git diff --check`.
+- Task-order audit validation ran `cargo test -p squalr-engine project_symbol_layout_mutation --locked`, `cargo test -p squalr symbol_tree_entry --locked`, `cargo test -p squalr-engine project_symbols_delete --locked`, and `cargo test -p squalr-engine project_symbols_create --locked`.
