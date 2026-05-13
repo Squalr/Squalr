@@ -367,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_project_symbols_request_replaces_module_range_with_merged_u8_field() {
+    fn delete_project_symbols_request_replaces_module_range_with_unassigned_gap() {
         let temp_directory = tempfile::tempdir().expect("Expected a temporary directory.");
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         symbol_module
@@ -397,7 +397,7 @@ mod tests {
                 module_name: String::from("game.exe"),
                 offset: 0x04,
                 length: 0x04,
-                mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8,
+                mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned,
             }],
         }
         .execute(&engine_execution_context);
@@ -405,7 +405,7 @@ mod tests {
         assert!(project_symbols_delete_response.success);
         assert_eq!(project_symbols_delete_response.deleted_module_range_count, 1);
 
-        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected replaced-field project to load from disk.");
+        let loaded_project = Project::load_from_path(temp_directory.path()).expect("Expected unassigned-gap project to load from disk.");
         let symbol_modules = loaded_project
             .get_project_info()
             .get_project_symbol_catalog()
@@ -413,8 +413,10 @@ mod tests {
         let module_fields = symbol_modules[0].get_fields();
 
         assert_eq!(symbol_modules[0].get_size(), 0x20);
-        assert_eq!(module_fields.len(), 1);
+        assert_eq!(module_fields.len(), 2);
         assert_eq!(module_fields[0].get_offset(), 0x00);
-        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[16]");
+        assert_eq!(module_fields[0].get_struct_layout_id(), "u8[4]");
+        assert_eq!(module_fields[1].get_offset(), 0x08);
+        assert_eq!(module_fields[1].get_struct_layout_id(), "u8[8]");
     }
 }

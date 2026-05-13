@@ -10,7 +10,8 @@ use structopt::StructOpt;
 pub enum ProjectSymbolsDeleteModuleRangeMode {
     #[default]
     ShiftLeft,
-    ReplaceWithU8,
+    #[serde(alias = "ReplaceWithU8")]
+    ReplaceWithUnassigned,
 }
 
 #[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]

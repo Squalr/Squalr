@@ -118,7 +118,7 @@ struct ModuleFieldTypeOption {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct U8SpanEditTarget {
+struct UnassignedSpanEditTarget {
     module_name: String,
     offset: u64,
     length: u64,
@@ -299,36 +299,6 @@ impl SymbolExplorerView {
         });
     }
 
-    fn rename_u8_segment(
-        &self,
-        module_name: &str,
-        offset: u64,
-        length: u64,
-        display_name: String,
-    ) {
-        let symbol_explorer_view_data = self.symbol_explorer_view_data.clone();
-        let module_name = module_name.to_string();
-        let project_symbols_create_request = ProjectSymbolsCreateRequest {
-            display_name,
-            struct_layout_id: Self::u8_array_type_id(length),
-            address: None,
-            module_name: Some(module_name.clone()),
-            offset: Some(offset),
-            metadata: Default::default(),
-        };
-
-        project_symbols_create_request.send(&self.app_context.engine_unprivileged_state, move |project_symbols_create_response| {
-            if project_symbols_create_response.success {
-                let created_symbol_tree_node_key = format!("module_field:{}", project_symbols_create_response.created_symbol_locator_key);
-                SymbolExplorerViewData::set_selected_entry(
-                    symbol_explorer_view_data.clone(),
-                    Some(SymbolExplorerSelection::DerivedNode(created_symbol_tree_node_key)),
-                );
-                SymbolExplorerViewData::expand_tree_node(symbol_explorer_view_data, &format!("module:{}", module_name));
-            }
-        });
-    }
-
     fn delete_symbol_claim(
         &self,
         symbol_locator_key: &str,
@@ -386,8 +356,8 @@ impl SymbolExplorerView {
                 ),
                 is_warning: true,
             },
-            ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8 => DeleteConfirmationDescription {
-                text: String::from("This removes the field definition and preserves the module bytes as u8[]."),
+            ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned => DeleteConfirmationDescription {
+                text: String::from("This removes the field definition and leaves the bytes unassigned."),
                 is_warning: false,
             },
         }
@@ -507,21 +477,6 @@ impl SymbolExplorerView {
         });
     }
 
-    fn build_u8_module_claim_create_request(
-        module_name: &str,
-        offset: u64,
-        length: u64,
-    ) -> Option<ProjectSymbolsCreateRequest> {
-        (length > 0).then(|| ProjectSymbolsCreateRequest {
-            display_name: format!("u8_{:08X}", offset),
-            struct_layout_id: Self::u8_array_type_id(length),
-            address: None,
-            module_name: Some(module_name.to_string()),
-            offset: Some(offset),
-            metadata: Default::default(),
-        })
-    }
-
     fn send_project_symbols_create_requests_sequential<ExecutionContext>(
         engine_unprivileged_state: Arc<ExecutionContext>,
         symbol_explorer_view_data: Dependency<SymbolExplorerViewData>,
@@ -571,44 +526,6 @@ impl SymbolExplorerView {
                 create_request_position.saturating_add(1),
             );
         });
-    }
-
-    fn split_u8_span_edit_target_in_half(
-        &self,
-        u8_span_edit_target: &U8SpanEditTarget,
-    ) {
-        let length = u8_span_edit_target.length;
-        if length < 2 {
-            log::warn!("Cannot split a u8[] segment smaller than 2 byte(s).");
-            return;
-        }
-
-        let first_length = length / 2;
-        let second_length = length.saturating_sub(first_length);
-        let Some(second_offset) = u8_span_edit_target.offset.checked_add(first_length) else {
-            log::warn!("Cannot split u8[] segment because the second half offset overflowed.");
-            return;
-        };
-        let Some(first_create_request) = Self::build_u8_module_claim_create_request(&u8_span_edit_target.module_name, u8_span_edit_target.offset, first_length)
-        else {
-            return;
-        };
-        let Some(second_create_request) = Self::build_u8_module_claim_create_request(&u8_span_edit_target.module_name, second_offset, second_length) else {
-            return;
-        };
-
-        Self::send_project_symbols_create_requests_sequential(
-            self.app_context.engine_unprivileged_state.clone(),
-            self.symbol_explorer_view_data.clone(),
-            vec![first_create_request, second_create_request],
-            Some(u8_span_edit_target.module_name.clone()),
-            Some(1),
-            0,
-        );
-    }
-
-    fn u8_array_type_id(length: u64) -> String {
-        format!("u8[{}]", length)
     }
 
     fn parse_define_field_relative_offset(
@@ -757,7 +674,7 @@ impl SymbolExplorerView {
 
         if relative_field_end > segment_length {
             return Err(format!(
-                "`{}` is {} byte(s), which does not fit inside this u8[] segment at offset 0x{:X}.",
+                "`{}` is {} byte(s), which does not fit inside this unassigned segment at offset 0x{:X}.",
                 struct_layout_id, field_size, relative_offset
             ));
         }
@@ -855,7 +772,7 @@ impl SymbolExplorerView {
         resolve_primitive_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Option<ModuleChildRangeTarget> {
         match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => Some(ModuleChildRangeTarget {
+            SymbolTreeEntryKind::UnassignedSegment { module_name, offset, length } => Some(ModuleChildRangeTarget {
                 module_name: module_name.to_string(),
                 offset: *offset,
                 length: *length,
@@ -873,55 +790,29 @@ impl SymbolExplorerView {
                     offset: *offset,
                     length,
                     display_name: symbol_tree_entry.get_display_name().to_string(),
-                    delete_mode: if symbol_tree_entry.get_symbol_type_id() == "u8"
-                        && matches!(symbol_tree_entry.get_container_type(), ContainerType::ArrayFixed(_))
-                    {
-                        ProjectSymbolsDeleteModuleRangeMode::ShiftLeft
-                    } else {
-                        ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8
-                    },
+                    delete_mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned,
                 })
             }
             _ => None,
         }
     }
 
-    fn build_u8_span_edit_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<U8SpanEditTarget> {
+    fn build_unassigned_span_edit_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<UnassignedSpanEditTarget> {
         match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => (*length > 0).then(|| U8SpanEditTarget {
+            SymbolTreeEntryKind::UnassignedSegment { module_name, offset, length } => (*length > 0).then(|| UnassignedSpanEditTarget {
                 module_name: module_name.to_string(),
                 offset: *offset,
                 length: *length,
             }),
-            SymbolTreeEntryKind::SymbolClaim { .. } => {
-                if symbol_tree_entry.get_depth() != 1 || symbol_tree_entry.get_symbol_type_id() != "u8" {
-                    return None;
-                }
-
-                let ContainerType::ArrayFixed(length) = symbol_tree_entry.get_container_type() else {
-                    return None;
-                };
-
-                if length == 0 {
-                    return None;
-                }
-
-                let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_tree_entry.get_locator() else {
-                    return None;
-                };
-
-                Some(U8SpanEditTarget {
-                    module_name: module_name.to_string(),
-                    offset: *offset,
-                    length,
-                })
-            }
             _ => None,
         }
     }
 
     fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<AddSymbolToProjectTarget> {
-        if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+        if matches!(
+            symbol_tree_entry.get_kind(),
+            SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnassignedSegment { .. }
+        ) {
             return None;
         }
 
@@ -1031,7 +922,7 @@ impl SymbolExplorerView {
         });
     }
 
-    fn create_define_field_from_u8_span_edit_target(
+    fn create_define_field_from_unassigned_span_edit_target(
         &self,
         module_name: &str,
         define_field_plan: DefineFieldPlan,
@@ -1634,6 +1525,10 @@ impl SymbolExplorerView {
     }
 
     fn symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+        if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::UnassignedSegment { .. }) {
+            return false;
+        }
+
         matches!(symbol_tree_entry.get_container_type(), ContainerType::Array | ContainerType::ArrayFixed(_))
     }
 
@@ -2017,7 +1912,10 @@ impl SymbolExplorerView {
     }
 
     fn symbol_tree_entry_should_query_preview(symbol_tree_entry: &SymbolTreeEntry) -> bool {
-        !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. })
+        !matches!(
+            symbol_tree_entry.get_kind(),
+            SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnassignedSegment { .. }
+        )
     }
 
     fn build_symbol_preview_virtual_snapshot_query(
@@ -2697,7 +2595,7 @@ impl SymbolExplorerView {
                         user_interface.add_space(8.0);
 
                         let max_relative_offset = segment_length.saturating_sub(1);
-                        user_interface.label(RichText::new(format!("Offset in u8[] (0 to {})", max_relative_offset)).color(theme.foreground));
+                        user_interface.label(RichText::new(format!("Offset in UNASSIGNED (0 to {})", max_relative_offset)).color(theme.foreground));
                         user_interface.add_space(2.0);
                         self.render_offset_data_value_box(
                             user_interface,
@@ -2810,7 +2708,7 @@ impl SymbolExplorerView {
         if should_create_field {
             if let Ok(define_field_plan) = define_field_plan_result {
                 SymbolExplorerViewData::cancel_take_over_state(self.symbol_explorer_view_data.clone());
-                self.create_define_field_from_u8_span_edit_target(module_name, define_field_plan);
+                self.create_define_field_from_unassigned_span_edit_target(module_name, define_field_plan);
                 return;
             }
         }
@@ -2852,7 +2750,7 @@ impl SymbolExplorerView {
             SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolTreeActionContext::new(SymbolTreeActionSelection::SymbolLocator {
                 symbol_locator_key: symbol_locator_key.to_string(),
             }),
-            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRange {
+            SymbolTreeEntryKind::UnassignedSegment { module_name, offset, length } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRange {
                 module_name: module_name.to_string(),
                 offset: *offset,
                 length: *length,
@@ -3065,9 +2963,6 @@ impl SymbolExplorerView {
                         match symbol_tree_entry.get_kind() {
                             SymbolTreeEntryKind::ModuleSpace { module_name, .. } => self.rename_module_root(module_name, trimmed_rename_text),
                             SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => self.rename_symbol_claim(symbol_locator_key, trimmed_rename_text),
-                            SymbolTreeEntryKind::U8Segment { module_name, offset, length } => {
-                                self.rename_u8_segment(module_name, *offset, *length, trimmed_rename_text)
-                            }
                             _ => {}
                         }
                     }
@@ -3122,12 +3017,12 @@ impl SymbolExplorerView {
                     SymbolExplorerViewData::set_selected_entry(self.symbol_explorer_view_data.clone(), Some(selection));
                 }
 
-                if let Some(u8_span_edit_target) = Self::build_u8_span_edit_target(symbol_tree_entry) {
-                    SymbolExplorerViewData::begin_define_field_from_u8_segment(
+                if let Some(unassigned_span_edit_target) = Self::build_unassigned_span_edit_target(symbol_tree_entry) {
+                    SymbolExplorerViewData::begin_define_field_from_unassigned_segment(
                         self.symbol_explorer_view_data.clone(),
-                        u8_span_edit_target.module_name,
-                        u8_span_edit_target.offset,
-                        u8_span_edit_target.length,
+                        unassigned_span_edit_target.module_name,
+                        unassigned_span_edit_target.offset,
+                        unassigned_span_edit_target.length,
                     );
                 } else if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
                     self.focus_symbol_tree_entry_for_edit(project_symbol_catalog, symbol_tree_entry);
@@ -3174,7 +3069,7 @@ impl SymbolExplorerView {
                 let can_open_symbol_tree_entry = !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. });
                 let can_rename_symbol_tree_entry = matches!(
                     symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. } | SymbolTreeEntryKind::U8Segment { .. }
+                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. }
                 );
                 let context_menu_symbol_claim = match symbol_tree_entry.get_kind() {
                     SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => project_symbol_catalog
@@ -3194,7 +3089,7 @@ impl SymbolExplorerView {
                             .get_default_value(data_type_ref)
                             .map(|default_value| default_value.get_size_in_bytes())
                     });
-                let context_menu_u8_span_edit_target = Self::build_u8_span_edit_target(symbol_tree_entry);
+                let context_menu_unassigned_span_edit_target = Self::build_unassigned_span_edit_target(symbol_tree_entry);
                 let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
                 let context_menu_symbol_layout_edit_target = Self::build_symbol_layout_edit_target(project_symbol_catalog, symbol_tree_entry);
                 let context_menu_symbol_tree_action_context = Self::build_symbol_tree_action_context(symbol_tree_entry);
@@ -3209,9 +3104,8 @@ impl SymbolExplorerView {
                 if context_menu_add_symbol_to_project_target.is_some() {
                     context_menu_labels.push(String::from("Add to Project"));
                 }
-                if context_menu_u8_span_edit_target.is_some() {
+                if context_menu_unassigned_span_edit_target.is_some() {
                     context_menu_labels.push(String::from("Define Field..."));
-                    context_menu_labels.push(String::from("Split in Half"));
                 }
                 if context_menu_symbol_layout_edit_target.is_some() {
                     context_menu_labels.push(String::from("Edit Symbol Layout..."));
@@ -3313,12 +3207,14 @@ impl SymbolExplorerView {
                         }
 
                         if (can_open_symbol_tree_entry || context_menu_add_symbol_to_project_target.is_some())
-                            && (context_menu_u8_span_edit_target.is_some() || context_menu_symbol_layout_edit_target.is_some() || can_rename_symbol_tree_entry)
+                            && (context_menu_unassigned_span_edit_target.is_some()
+                                || context_menu_symbol_layout_edit_target.is_some()
+                                || can_rename_symbol_tree_entry)
                         {
                             user_interface.separator();
                         }
 
-                        if let Some(u8_span_edit_target) = context_menu_u8_span_edit_target.as_ref() {
+                        if let Some(unassigned_span_edit_target) = context_menu_unassigned_span_edit_target.as_ref() {
                             if user_interface
                                 .add(
                                     ToolbarMenuItemView::new(
@@ -3338,40 +3234,17 @@ impl SymbolExplorerView {
                                 )
                                 .clicked()
                             {
-                                SymbolExplorerViewData::begin_define_field_from_u8_segment(
+                                SymbolExplorerViewData::begin_define_field_from_unassigned_segment(
                                     self.symbol_explorer_view_data.clone(),
-                                    u8_span_edit_target.module_name.clone(),
-                                    u8_span_edit_target.offset,
-                                    u8_span_edit_target.length,
+                                    unassigned_span_edit_target.module_name.clone(),
+                                    unassigned_span_edit_target.offset,
+                                    unassigned_span_edit_target.length,
                                 );
-                                *should_close = true;
-                            }
-
-                            if user_interface
-                                .add(
-                                    ToolbarMenuItemView::new(
-                                        self.app_context.clone(),
-                                        "Split in Half",
-                                        "symbol_tree_ctx_split_in_half",
-                                        &None,
-                                        context_menu_width,
-                                    )
-                                    .icon(
-                                        self.app_context
-                                            .theme
-                                            .icon_library
-                                            .icon_handle_data_type_purple_blocks_array
-                                            .clone(),
-                                    ),
-                                )
-                                .clicked()
-                            {
-                                self.split_u8_span_edit_target_in_half(u8_span_edit_target);
                                 *should_close = true;
                             }
                         }
 
-                        if context_menu_u8_span_edit_target.is_some() && can_rename_symbol_tree_entry {
+                        if context_menu_unassigned_span_edit_target.is_some() && can_rename_symbol_tree_entry {
                             user_interface.separator();
                         }
 
@@ -3422,7 +3295,7 @@ impl SymbolExplorerView {
                         }
 
                         let has_symbol_tree_edit_menu_items = can_open_symbol_tree_entry
-                            || context_menu_u8_span_edit_target.is_some()
+                            || context_menu_unassigned_span_edit_target.is_some()
                             || context_menu_symbol_layout_edit_target.is_some()
                             || can_rename_symbol_tree_entry;
 
@@ -3531,7 +3404,7 @@ impl SymbolExplorerView {
                     Some(SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string()))
                 }
             }
-            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::PointerTarget => {
+            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::UnassignedSegment { .. } | SymbolTreeEntryKind::PointerTarget => {
                 Some(SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
             }
         }
@@ -3555,7 +3428,7 @@ impl SymbolExplorerView {
         );
         user_interface.add_space(8.0);
 
-        user_interface.label(RichText::new("Initial u8[] Size").color(theme.foreground));
+        user_interface.label(RichText::new("Initial Module Size").color(theme.foreground));
         user_interface.add_space(2.0);
         self.render_offset_data_value_box(
             user_interface,
@@ -3884,7 +3757,7 @@ impl Widget for SymbolExplorerView {
                     mode,
                     ..
                 }) => self.delete_module_range(module_name, *offset, *length, *mode),
-                Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { .. }) => {}
+                Some(SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment { .. }) => {}
                 None => {}
             }
         }
@@ -3961,7 +3834,7 @@ impl Widget for SymbolExplorerView {
         let can_rename_selected_entry = selected_symbol_tree_entry.is_some_and(|symbol_tree_entry| {
             matches!(
                 symbol_tree_entry.get_kind(),
-                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. } | SymbolTreeEntryKind::U8Segment { .. }
+                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. }
             )
         });
         if !is_delete_confirmation_active
@@ -4066,7 +3939,7 @@ impl Widget for SymbolExplorerView {
 
                         return;
                     }
-                    Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment {
+                    Some(SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment {
                         module_name, offset, length, ..
                     }) => {
                         list_user_interface.add_space(8.0);
@@ -4229,20 +4102,20 @@ mod tests {
         )
     }
 
-    fn create_u8_segment_tree_entry() -> SymbolTreeEntry {
+    fn create_unassigned_segment_tree_entry() -> SymbolTreeEntry {
         SymbolTreeEntry::new(
-            String::from("u8:game.exe:0:1234"),
-            SymbolTreeEntryKind::U8Segment {
+            String::from("unassigned:game.exe:0:1234"),
+            SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x1234,
             },
             1,
-            String::from("u8_00000000"),
-            String::from("game.exe.u8_00000000"),
+            String::from("UNASSIGNED_00000000"),
+            String::from("game.exe.UNASSIGNED_00000000"),
             String::new(),
             ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0),
-            String::from("u8"),
+            String::from("UNASSIGNED"),
             ContainerType::ArrayFixed(0x1234),
             false,
             false,
@@ -4354,26 +4227,24 @@ mod tests {
     }
 
     #[test]
-    fn build_u8_span_edit_target_handles_all_visible_u8_arrays() {
-        let u8_segment_entry = create_u8_segment_tree_entry();
-        let module_u8_array_symbol_claim_entry = create_module_u8_array_symbol_claim_tree_entry();
+    fn build_unassigned_span_edit_target_handles_visible_unassigned_segments() {
+        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
 
-        let u8_segment_target = SymbolExplorerView::build_u8_span_edit_target(&u8_segment_entry).expect("Expected visible u8[] target.");
-        let u8_field_target = SymbolExplorerView::build_u8_span_edit_target(&module_u8_array_symbol_claim_entry).expect("Expected visible u8[] target.");
+        let unassigned_segment_target =
+            SymbolExplorerView::build_unassigned_span_edit_target(&unassigned_segment_entry).expect("Expected visible unassigned target.");
 
-        assert_eq!(u8_segment_target.module_name, "game.exe");
-        assert_eq!(u8_segment_target.offset, 0);
-        assert_eq!(u8_segment_target.length, 0x1234);
-        assert_eq!(u8_field_target.module_name, "game.exe");
-        assert_eq!(u8_field_target.offset, 0x20);
-        assert_eq!(u8_field_target.length, 0x80);
+        assert_eq!(unassigned_segment_target.module_name, "game.exe");
+        assert_eq!(unassigned_segment_target.offset, 0);
+        assert_eq!(unassigned_segment_target.length, 0x1234);
     }
 
     #[test]
-    fn build_u8_span_edit_target_ignores_typed_module_fields() {
+    fn build_unassigned_span_edit_target_ignores_owned_module_fields() {
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
+        let module_u8_array_symbol_claim_entry = create_module_u8_array_symbol_claim_tree_entry();
 
-        assert_eq!(SymbolExplorerView::build_u8_span_edit_target(&module_symbol_claim_entry), None);
+        assert_eq!(SymbolExplorerView::build_unassigned_span_edit_target(&module_symbol_claim_entry), None);
+        assert_eq!(SymbolExplorerView::build_unassigned_span_edit_target(&module_u8_array_symbol_claim_entry), None);
     }
 
     #[test]
@@ -4415,8 +4286,10 @@ mod tests {
     #[test]
     fn build_add_symbol_to_project_target_ignores_module_roots() {
         let module_entry = create_module_tree_entry("game.exe");
+        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
 
         assert_eq!(SymbolExplorerView::build_add_symbol_to_project_target(&module_entry), None);
+        assert_eq!(SymbolExplorerView::build_add_symbol_to_project_target(&unassigned_segment_entry), None);
     }
 
     #[test]
@@ -4489,27 +4362,31 @@ mod tests {
     }
 
     #[test]
-    fn build_selection_for_tree_entry_selects_module_roots_and_u8_segments() {
+    fn build_selection_for_tree_entry_selects_module_roots_and_unassigned_segments() {
         let module_entry = create_module_tree_entry("game.exe");
-        let u8_segment_entry = create_u8_segment_tree_entry();
+        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
 
         assert_eq!(
             SymbolExplorerView::build_selection_for_tree_entry(&module_entry),
             Some(crate::views::symbol_explorer::view_data::symbol_explorer_view_data::SymbolExplorerSelection::ModuleRoot(String::from("game.exe")))
         );
         assert_eq!(
-            SymbolExplorerView::build_selection_for_tree_entry(&u8_segment_entry),
-            Some(crate::views::symbol_explorer::view_data::symbol_explorer_view_data::SymbolExplorerSelection::DerivedNode(String::from("u8:game.exe:0:1234")))
+            SymbolExplorerView::build_selection_for_tree_entry(&unassigned_segment_entry),
+            Some(
+                crate::views::symbol_explorer::view_data::symbol_explorer_view_data::SymbolExplorerSelection::DerivedNode(String::from(
+                    "unassigned:game.exe:0:1234"
+                ))
+            )
         );
     }
 
     #[test]
-    fn symbol_tree_entry_preview_queries_include_u8_segments_but_not_modules() {
+    fn symbol_tree_entry_preview_queries_skip_unassigned_segments_and_modules() {
         let module_entry = create_module_tree_entry("game.exe");
-        let u8_segment_entry = create_u8_segment_tree_entry();
+        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
 
         assert!(!SymbolExplorerView::symbol_tree_entry_should_query_preview(&module_entry));
-        assert!(SymbolExplorerView::symbol_tree_entry_should_query_preview(&u8_segment_entry));
+        assert!(!SymbolExplorerView::symbol_tree_entry_should_query_preview(&unassigned_segment_entry));
     }
 
     #[test]
@@ -4527,7 +4404,7 @@ mod tests {
     }
 
     #[test]
-    fn build_module_child_range_target_handles_u8_segments_and_direct_module_claims() {
+    fn build_module_child_range_target_handles_unassigned_segments_and_direct_module_claims() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
@@ -4537,12 +4414,13 @@ mod tests {
                 String::from("u32"),
             )],
         );
-        let u8_segment_entry = create_u8_segment_tree_entry();
+        let unassigned_segment_entry = create_unassigned_segment_tree_entry();
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
-        let u8_segment_target = SymbolExplorerView::build_module_child_range_target(&project_symbol_catalog, &u8_segment_entry, |data_type_ref| {
-            (data_type_ref.get_data_type_id() == "u8").then_some(1)
-        })
-        .expect("Expected u8 segment to resolve as a module child range.");
+        let unassigned_segment_target =
+            SymbolExplorerView::build_module_child_range_target(&project_symbol_catalog, &unassigned_segment_entry, |data_type_ref| {
+                (data_type_ref.get_data_type_id() == "u8").then_some(1)
+            })
+            .expect("Expected unassigned segment to resolve as a module child range.");
         let symbol_claim_target = SymbolExplorerView::build_module_child_range_target(&project_symbol_catalog, &module_symbol_claim_entry, |data_type_ref| {
             match data_type_ref.get_data_type_id() {
                 "u8" => Some(1),
@@ -4552,14 +4430,14 @@ mod tests {
         })
         .expect("Expected direct module symbol claim to resolve as a module child range.");
 
-        assert_eq!(u8_segment_target.module_name, "game.exe");
-        assert_eq!(u8_segment_target.offset, 0);
-        assert_eq!(u8_segment_target.length, 0x1234);
-        assert_eq!(u8_segment_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ShiftLeft);
+        assert_eq!(unassigned_segment_target.module_name, "game.exe");
+        assert_eq!(unassigned_segment_target.offset, 0);
+        assert_eq!(unassigned_segment_target.length, 0x1234);
+        assert_eq!(unassigned_segment_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ShiftLeft);
         assert_eq!(symbol_claim_target.module_name, "game.exe");
         assert_eq!(symbol_claim_target.offset, 0x04);
         assert_eq!(symbol_claim_target.length, 4);
-        assert_eq!(symbol_claim_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8);
+        assert_eq!(symbol_claim_target.delete_mode, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned);
     }
 
     #[test]
@@ -4575,13 +4453,16 @@ mod tests {
     }
 
     #[test]
-    fn build_delete_module_range_confirmation_description_keeps_replace_with_u8_non_warning() {
-        let delete_confirmation_description =
-            SymbolExplorerView::build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8);
+    fn build_delete_module_range_confirmation_description_keeps_replace_with_unassigned_non_warning() {
+        let delete_confirmation_description = SymbolExplorerView::build_delete_module_range_confirmation_description(
+            "winmine.exe",
+            389,
+            ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned,
+        );
 
         assert_eq!(
             delete_confirmation_description.text,
-            "This removes the field definition and preserves the module bytes as u8[]."
+            "This removes the field definition and leaves the bytes unassigned."
         );
         assert!(!delete_confirmation_description.is_warning);
     }
@@ -4680,7 +4561,7 @@ mod tests {
     }
 
     #[test]
-    fn build_define_field_plan_offsets_into_u8_segment() {
+    fn build_define_field_plan_offsets_into_unassigned_segment() {
         let define_field_draft = DefineFieldDraft {
             display_name: String::from("health"),
             relative_offset_text: String::from("0x10"),
@@ -4838,7 +4719,7 @@ mod tests {
 
     #[test]
     fn build_external_value_symbol_layout_routes_arrays_through_memory_viewer_value_field() {
-        let symbol_tree_entry = create_u8_segment_tree_entry();
+        let symbol_tree_entry = create_fixed_array_symbol_claim_tree_entry("u8", 0x1234);
         let symbol_layout = SymbolExplorerView::build_external_value_symbol_layout(&symbol_tree_entry, false, Some(0x1234));
         let fields = symbol_layout.get_fields();
 

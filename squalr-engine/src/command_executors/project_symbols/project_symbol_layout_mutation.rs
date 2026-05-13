@@ -2,7 +2,6 @@ use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete
     ProjectSymbolsDeleteModuleRange, ProjectSymbolsDeleteModuleRangeMode,
 };
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
-use squalr_engine_api::structures::data_values::container_type::ContainerType;
 use squalr_engine_api::structures::projects::{
     project_symbol_catalog::ProjectSymbolCatalog, project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
     project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField,
@@ -156,7 +155,7 @@ impl ProjectSymbolLayoutMutation {
         }
     }
 
-    pub fn delete_module_ranges_to_u8_fields(
+    pub fn delete_module_ranges_to_unassigned(
         project_symbol_catalog: &mut ProjectSymbolCatalog,
         module_ranges: &[ProjectSymbolsDeleteModuleRange],
         deleted_module_names: &HashSet<String>,
@@ -168,13 +167,13 @@ impl ProjectSymbolLayoutMutation {
                 continue;
             }
 
-            let Some((replacement_length, did_replace_range)) = Self::replace_module_range_with_u8_field(project_symbol_catalog, module_range) else {
+            let Some((deleted_length, did_delete_range)) = Self::delete_module_range_to_unassigned(project_symbol_catalog, module_range) else {
                 continue;
             };
 
-            Self::delete_module_symbol_claims_in_range(project_symbol_catalog.get_symbol_claims_mut(), module_range, replacement_length);
+            Self::delete_module_symbol_claims_in_range(project_symbol_catalog.get_symbol_claims_mut(), module_range, deleted_length);
 
-            if did_replace_range {
+            if did_delete_range {
                 deleted_module_range_count = deleted_module_range_count.saturating_add(1);
             }
         }
@@ -186,7 +185,7 @@ impl ProjectSymbolLayoutMutation {
         }
     }
 
-    fn replace_module_range_with_u8_field(
+    fn delete_module_range_to_unassigned(
         project_symbol_catalog: &mut ProjectSymbolCatalog,
         module_range: &ProjectSymbolsDeleteModuleRange,
     ) -> Option<(u64, bool)> {
@@ -197,15 +196,15 @@ impl ProjectSymbolLayoutMutation {
             return None;
         }
 
-        let replacement_length = module_range
+        let deleted_length = module_range
             .length
             .min(module_size.saturating_sub(module_range.offset));
 
-        if replacement_length == 0 {
+        if deleted_length == 0 {
             return None;
         }
 
-        let deleted_range_end = module_range.offset.saturating_add(replacement_length);
+        let deleted_range_end = module_range.offset.saturating_add(deleted_length);
         let module_field_count_before_delete = symbol_module.get_fields().len();
 
         symbol_module.get_fields_mut().retain(|module_field| {
@@ -213,19 +212,11 @@ impl ProjectSymbolLayoutMutation {
 
             field_offset < module_range.offset || field_offset >= deleted_range_end
         });
-        symbol_module
-            .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(
-                format!("u8_{:08X}", module_range.offset),
-                module_range.offset,
-                Self::u8_array_type_id(replacement_length),
-            ));
         Self::sort_module_fields(symbol_module.get_fields_mut());
-        Self::merge_adjacent_u8_array_fields(symbol_module.get_fields_mut());
 
         Some((
-            replacement_length,
-            symbol_module.get_fields().len() != module_field_count_before_delete || replacement_length > 0,
+            deleted_length,
+            symbol_module.get_fields().len() != module_field_count_before_delete || deleted_length > 0,
         ))
     }
 
@@ -235,26 +226,27 @@ impl ProjectSymbolLayoutMutation {
         deleted_module_names: &HashSet<String>,
     ) -> ProjectSymbolLayoutMutationSummary {
         let mut shift_left_ranges = Vec::new();
-        let mut replace_with_u8_ranges = Vec::new();
+        let mut replace_with_unassigned_ranges = Vec::new();
 
         for module_range in module_ranges {
             match module_range.mode {
                 ProjectSymbolsDeleteModuleRangeMode::ShiftLeft => shift_left_ranges.push(module_range.clone()),
-                ProjectSymbolsDeleteModuleRangeMode::ReplaceWithU8 => replace_with_u8_ranges.push(module_range.clone()),
+                ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned => replace_with_unassigned_ranges.push(module_range.clone()),
             }
         }
 
         let shift_left_summary = Self::delete_module_ranges_and_shift(project_symbol_catalog, &shift_left_ranges, deleted_module_names);
-        let replace_with_u8_summary = Self::delete_module_ranges_to_u8_fields(project_symbol_catalog, &replace_with_u8_ranges, deleted_module_names);
+        let replace_with_unassigned_summary =
+            Self::delete_module_ranges_to_unassigned(project_symbol_catalog, &replace_with_unassigned_ranges, deleted_module_names);
 
         ProjectSymbolLayoutMutationSummary {
-            changed: shift_left_summary.get_changed() || replace_with_u8_summary.get_changed(),
+            changed: shift_left_summary.get_changed() || replace_with_unassigned_summary.get_changed(),
             deleted_module_field_count: shift_left_summary
                 .get_deleted_module_field_count()
-                .saturating_add(replace_with_u8_summary.get_deleted_module_field_count()),
+                .saturating_add(replace_with_unassigned_summary.get_deleted_module_field_count()),
             deleted_module_range_count: shift_left_summary
                 .get_deleted_module_range_count()
-                .saturating_add(replace_with_u8_summary.get_deleted_module_range_count()),
+                .saturating_add(replace_with_unassigned_summary.get_deleted_module_range_count()),
         }
     }
 
@@ -271,17 +263,6 @@ impl ProjectSymbolLayoutMutation {
         let new_field_end_offset = new_field_offset
             .checked_add(new_field_size_in_bytes)
             .ok_or_else(|| String::from("Module field range is too large."))?;
-
-        if let Some(filler_field_position) = Self::find_containing_u8_array_field_position(symbol_module.get_fields(), new_field_offset, new_field_end_offset) {
-            Self::replace_u8_array_field_span(symbol_module.get_fields_mut(), filler_field_position, new_module_field, new_field_size_in_bytes)?;
-            Self::sort_module_fields(symbol_module.get_fields_mut());
-
-            return Ok(ProjectSymbolLayoutMutationSummary {
-                changed: true,
-                deleted_module_field_count: 0,
-                deleted_module_range_count: 0,
-            });
-        }
 
         if Self::has_overlapping_module_field(symbol_module.get_fields(), new_field_offset, new_field_end_offset, resolve_field_size_in_bytes) {
             return Err(format!(
@@ -305,57 +286,6 @@ impl ProjectSymbolLayoutMutation {
             deleted_module_field_count: 0,
             deleted_module_range_count: 0,
         })
-    }
-
-    fn replace_u8_array_field_span(
-        module_fields: &mut Vec<ProjectSymbolModuleField>,
-        filler_field_position: usize,
-        new_module_field: ProjectSymbolModuleField,
-        new_field_size_in_bytes: u64,
-    ) -> Result<(), String> {
-        let Some(source_u8_field) = module_fields.get(filler_field_position).cloned() else {
-            return Err(String::from("Could not resolve source u8[] field for replacement."));
-        };
-        let Some(source_u8_length) = Self::resolve_u8_array_length(source_u8_field.get_struct_layout_id()) else {
-            return Err(String::from("Source field is no longer a fixed u8[] field."));
-        };
-
-        let source_start_offset = source_u8_field.get_offset();
-        let source_end_offset = source_start_offset
-            .checked_add(source_u8_length)
-            .ok_or_else(|| String::from("Source u8[] field range is too large."))?;
-        let new_field_offset = new_module_field.get_offset();
-        let new_field_end_offset = new_field_offset
-            .checked_add(new_field_size_in_bytes)
-            .ok_or_else(|| String::from("Replacement module field range is too large."))?;
-
-        if new_field_offset < source_start_offset || new_field_end_offset > source_end_offset {
-            return Err(String::from("Replacement module field does not fit inside the source u8[] field."));
-        }
-
-        module_fields.remove(filler_field_position);
-
-        if new_field_offset > source_start_offset {
-            let prefix_length = new_field_offset.saturating_sub(source_start_offset);
-            module_fields.push(ProjectSymbolModuleField::new(
-                format!("u8_{:08X}", source_start_offset),
-                source_start_offset,
-                Self::u8_array_type_id(prefix_length),
-            ));
-        }
-
-        module_fields.push(new_module_field);
-
-        if new_field_end_offset < source_end_offset {
-            let suffix_length = source_end_offset.saturating_sub(new_field_end_offset);
-            module_fields.push(ProjectSymbolModuleField::new(
-                format!("u8_{:08X}", new_field_end_offset),
-                new_field_end_offset,
-                Self::u8_array_type_id(suffix_length),
-            ));
-        }
-
-        Ok(())
     }
 
     fn has_overlapping_module_field<ResolveFieldSize>(
@@ -384,37 +314,6 @@ impl ProjectSymbolLayoutMutation {
 
             module_field.get_offset() < new_field_end_offset && new_field_offset < module_field_end_offset
         })
-    }
-
-    fn find_containing_u8_array_field_position(
-        module_fields: &[ProjectSymbolModuleField],
-        field_offset: u64,
-        field_end_offset: u64,
-    ) -> Option<usize> {
-        module_fields.iter().position(|module_field| {
-            let Some(u8_array_length) = Self::resolve_u8_array_length(module_field.get_struct_layout_id()) else {
-                return false;
-            };
-            let Some(u8_array_end_offset) = module_field.get_offset().checked_add(u8_array_length) else {
-                return false;
-            };
-
-            module_field.get_offset() <= field_offset && field_end_offset <= u8_array_end_offset
-        })
-    }
-
-    fn resolve_u8_array_length(struct_layout_id: &str) -> Option<u64> {
-        let symbolic_field_definition = SymbolicFieldDefinition::from_str(struct_layout_id).ok()?;
-
-        if symbolic_field_definition.get_data_type_ref().get_data_type_id() != "u8" {
-            return None;
-        }
-
-        let ContainerType::ArrayFixed(length) = symbolic_field_definition.get_container_type() else {
-            return None;
-        };
-
-        (length > 0).then_some(length)
     }
 
     fn resolve_symbolic_field_size_in_bytes<ResolvePrimitiveSize, ResolveStructLayout>(
@@ -568,43 +467,6 @@ impl ProjectSymbolLayoutMutation {
         });
     }
 
-    fn merge_adjacent_u8_array_fields(module_fields: &mut Vec<ProjectSymbolModuleField>) {
-        Self::sort_module_fields(module_fields);
-
-        let mut merged_fields = Vec::new();
-
-        for module_field in module_fields.drain(..) {
-            let Some(module_field_length) = Self::resolve_u8_array_length(module_field.get_struct_layout_id()) else {
-                merged_fields.push(module_field);
-                continue;
-            };
-
-            let Some(previous_field) = merged_fields.last_mut() else {
-                merged_fields.push(module_field);
-                continue;
-            };
-            let Some(previous_field_length) = Self::resolve_u8_array_length(previous_field.get_struct_layout_id()) else {
-                merged_fields.push(module_field);
-                continue;
-            };
-            let Some(previous_field_end_offset) = previous_field.get_offset().checked_add(previous_field_length) else {
-                merged_fields.push(module_field);
-                continue;
-            };
-
-            if previous_field_end_offset != module_field.get_offset() {
-                merged_fields.push(module_field);
-                continue;
-            }
-
-            let merged_length = previous_field_length.saturating_add(module_field_length);
-            previous_field.set_struct_layout_id(Self::u8_array_type_id(merged_length));
-            previous_field.set_display_name(format!("u8_{:08X}", previous_field.get_offset()));
-        }
-
-        *module_fields = merged_fields;
-    }
-
     fn sort_module_fields(module_fields: &mut [ProjectSymbolModuleField]) {
         module_fields.sort_by(|left_module_field, right_module_field| {
             left_module_field
@@ -616,10 +478,6 @@ impl ProjectSymbolLayoutMutation {
                         .cmp(right_module_field.get_display_name())
                 })
         });
-    }
-
-    fn u8_array_type_id(length: u64) -> String {
-        format!("u8[{}]", length)
     }
 }
 
@@ -685,11 +543,8 @@ mod tests {
     }
 
     #[test]
-    fn upsert_module_field_splits_existing_u8_array_field() {
-        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
-        symbol_module
-            .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(String::from("buffer"), 0x00, String::from("u8[32]")));
+    fn upsert_module_field_inserts_into_unassigned_gap() {
+        let symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
 
         let mutation_result = ProjectSymbolLayoutMutation::upsert_module_field(
@@ -700,95 +555,66 @@ mod tests {
             String::from("u32"),
             resolve_test_field_size,
         )
-        .expect("Expected u8[] carve mutation to succeed.");
+        .expect("Expected unassigned gap mutation to succeed.");
 
         assert!(mutation_result.get_changed());
         let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
-        assert_eq!(fields.len(), 3);
-        assert_eq!(fields[0].get_offset(), 0x00);
-        assert_eq!(fields[0].get_struct_layout_id(), "u8[8]");
-        assert_eq!(fields[1].get_display_name(), "Health");
-        assert_eq!(fields[1].get_offset(), 0x08);
-        assert_eq!(fields[1].get_struct_layout_id(), "u32");
-        assert_eq!(fields[2].get_offset(), 0x0C);
-        assert_eq!(fields[2].get_struct_layout_id(), "u8[20]");
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].get_display_name(), "Health");
+        assert_eq!(fields[0].get_offset(), 0x08);
+        assert_eq!(fields[0].get_struct_layout_id(), "u32");
     }
 
     #[test]
-    fn repeated_split_of_u8_array_field_keeps_fields_ordered() {
-        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x10);
-        symbol_module
-            .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0x00, String::from("u8[16]")));
+    fn repeated_upsert_into_unassigned_gap_keeps_fields_ordered() {
+        let symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x10);
         let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
 
         ProjectSymbolLayoutMutation::upsert_module_field(
             &mut project_symbol_catalog,
             "game.exe",
-            String::from("u8_00000000"),
+            String::from("Head"),
             0x00,
             String::from("u8[8]"),
             resolve_test_field_size,
         )
-        .expect("Expected first split mutation to succeed.");
+        .expect("Expected first gap mutation to succeed.");
         ProjectSymbolLayoutMutation::upsert_module_field(
             &mut project_symbol_catalog,
             "game.exe",
-            String::from("u8_00000008"),
+            String::from("Middle"),
             0x08,
             String::from("u8[4]"),
             resolve_test_field_size,
         )
-        .expect("Expected repeated split mutation to succeed.");
+        .expect("Expected repeated gap mutation to succeed.");
 
         let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
-        assert_eq!(fields.len(), 3);
+        assert_eq!(fields.len(), 2);
         assert_eq!(fields[0].get_offset(), 0x00);
         assert_eq!(fields[0].get_struct_layout_id(), "u8[8]");
         assert_eq!(fields[1].get_offset(), 0x08);
         assert_eq!(fields[1].get_struct_layout_id(), "u8[4]");
-        assert_eq!(fields[2].get_offset(), 0x0C);
-        assert_eq!(fields[2].get_struct_layout_id(), "u8[4]");
     }
 
     #[test]
-    fn split_tail_u8_array_field_keeps_module_fields_ordered() {
+    fn upsert_rejects_overlap_with_explicit_u8_array_field() {
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x10);
-        symbol_module
-            .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(String::from("u8_00000000"), 0x00, String::from("u8[8]")));
         symbol_module
             .get_fields_mut()
             .push(ProjectSymbolModuleField::new(String::from("u8_00000008"), 0x08, String::from("u8[8]")));
         let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
 
-        ProjectSymbolLayoutMutation::upsert_module_field(
+        let mutation_result = ProjectSymbolLayoutMutation::upsert_module_field(
             &mut project_symbol_catalog,
             "game.exe",
-            String::from("u8_00000008"),
-            0x08,
-            String::from("u8[4]"),
-            resolve_test_field_size,
-        )
-        .expect("Expected tail split first half mutation to succeed.");
-        ProjectSymbolLayoutMutation::upsert_module_field(
-            &mut project_symbol_catalog,
-            "game.exe",
-            String::from("u8_0000000C"),
+            String::from("Middle"),
             0x0C,
             String::from("u8[4]"),
             resolve_test_field_size,
-        )
-        .expect("Expected tail split second half mutation to succeed.");
+        );
 
-        let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
-        assert_eq!(fields.len(), 3);
-        assert_eq!(fields[0].get_offset(), 0x00);
-        assert_eq!(fields[0].get_struct_layout_id(), "u8[8]");
-        assert_eq!(fields[1].get_offset(), 0x08);
-        assert_eq!(fields[1].get_struct_layout_id(), "u8[4]");
-        assert_eq!(fields[2].get_offset(), 0x0C);
-        assert_eq!(fields[2].get_struct_layout_id(), "u8[4]");
+        assert!(mutation_result.is_err());
     }
 
     #[test]
@@ -833,11 +659,8 @@ mod tests {
     }
 
     #[test]
-    fn upsert_module_field_carves_struct_layout_field_by_struct_size() {
-        let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
-        symbol_module
-            .get_fields_mut()
-            .push(ProjectSymbolModuleField::new(String::from("buffer"), 0x00, String::from("u8[32]")));
+    fn upsert_module_field_in_unassigned_gap_uses_struct_layout_size() {
+        let symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         let mut project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
 
         ProjectSymbolLayoutMutation::upsert_module_field(
@@ -851,11 +674,8 @@ mod tests {
         .expect("Expected symbol layout carve mutation to succeed.");
 
         let fields = project_symbol_catalog.get_symbol_modules()[0].get_fields();
-        assert_eq!(fields.len(), 3);
-        assert_eq!(fields[0].get_struct_layout_id(), "u8[8]");
-        assert_eq!(fields[1].get_offset(), 0x08);
-        assert_eq!(fields[1].get_struct_layout_id(), "player.stats");
-        assert_eq!(fields[2].get_offset(), 0x0E);
-        assert_eq!(fields[2].get_struct_layout_id(), "u8[18]");
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].get_offset(), 0x08);
+        assert_eq!(fields[0].get_struct_layout_id(), "player.stats");
     }
 }

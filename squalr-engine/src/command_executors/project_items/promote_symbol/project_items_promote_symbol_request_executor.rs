@@ -827,6 +827,10 @@ mod tests {
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
         assert_eq!(symbol_modules[0].get_size(), 0x5000);
+        assert!(
+            symbol_modules[0].get_fields().is_empty(),
+            "Promoting into a new module should leave unowned bytes as synthesized UNASSIGNED gaps, not persisted u8[] fields."
+        );
         let promoted_project_item = loaded_project
             .get_project_items()
             .get(&ProjectItemRef::new(project_item_path.clone()))
@@ -888,6 +892,7 @@ mod tests {
         assert_eq!(symbol_modules.len(), 1);
         assert_eq!(symbol_modules[0].get_module_name(), "game.exe");
         assert_eq!(symbol_modules[0].get_size(), 0x5000);
+        assert!(symbol_modules[0].get_fields().is_empty());
     }
 
     #[test]

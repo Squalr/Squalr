@@ -25,7 +25,7 @@ use std::str::FromStr;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolTreeEntryKind {
     ModuleSpace { module_name: String, size: u64 },
-    U8Segment { module_name: String, offset: u64, length: u64 },
+    UnassignedSegment { module_name: String, offset: u64, length: u64 },
     SymbolClaim { symbol_locator_key: String },
     StructField,
     PointerTarget,
@@ -274,17 +274,17 @@ where
             continue;
         }
 
-        let mut next_u8_span_offset = 0_u64;
+        let mut next_unassigned_span_offset = 0_u64;
 
         for symbol_claim in symbol_claims {
             let claim_offset = symbol_claim.get_locator().get_focus_address();
 
-            if claim_offset > next_u8_span_offset {
-                append_u8_segment_entry(
+            if claim_offset > next_unassigned_span_offset {
+                append_unassigned_segment_entry(
                     &mut symbol_tree_entries,
                     &module_name,
-                    next_u8_span_offset,
-                    claim_offset.saturating_sub(next_u8_span_offset),
+                    next_unassigned_span_offset,
+                    claim_offset.saturating_sub(next_unassigned_span_offset),
                 );
             }
 
@@ -302,15 +302,15 @@ where
             );
 
             let claim_size_in_bytes = resolve_symbol_claim_size_in_bytes(project_symbol_catalog, &symbol_claim, resolve_primitive_size_in_bytes);
-            next_u8_span_offset = next_u8_span_offset.max(claim_offset.saturating_add(claim_size_in_bytes));
+            next_unassigned_span_offset = next_unassigned_span_offset.max(claim_offset.saturating_add(claim_size_in_bytes));
         }
 
-        if effective_module_size > next_u8_span_offset {
-            append_u8_segment_entry(
+        if effective_module_size > next_unassigned_span_offset {
+            append_unassigned_segment_entry(
                 &mut symbol_tree_entries,
                 &module_name,
-                next_u8_span_offset,
-                effective_module_size.saturating_sub(next_u8_span_offset),
+                next_unassigned_span_offset,
+                effective_module_size.saturating_sub(next_unassigned_span_offset),
             );
         }
     }
@@ -353,6 +353,10 @@ pub fn resolve_symbol_tree_entry_size_in_bytes<ResolvePrimitiveSize>(
 where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
+    if let SymbolTreeEntryKind::UnassignedSegment { length, .. } = symbol_tree_entry.get_kind() {
+        return *length;
+    }
+
     let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()) else {
         return 0;
     };
@@ -365,7 +369,7 @@ where
     )
 }
 
-fn append_u8_segment_entry(
+fn append_unassigned_segment_entry(
     symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
     module_name: &str,
     offset: u64,
@@ -375,12 +379,12 @@ fn append_u8_segment_entry(
         return;
     }
 
-    let display_name = format!("u8_{:08X}", offset);
+    let display_name = format!("UNASSIGNED_{:08X}", offset);
     let full_path = format!("{}.{}", module_name, display_name);
 
     symbol_tree_entries.push(SymbolTreeEntry::new(
-        format!("u8:{}:{:X}:{:X}", module_name, offset, length),
-        SymbolTreeEntryKind::U8Segment {
+        format!("unassigned:{}:{:X}:{:X}", module_name, offset, length),
+        SymbolTreeEntryKind::UnassignedSegment {
             module_name: module_name.to_string(),
             offset,
             length,
@@ -390,7 +394,7 @@ fn append_u8_segment_entry(
         full_path,
         String::new(),
         ProjectSymbolLocator::new_module_offset(module_name.to_string(), offset),
-        String::from("u8"),
+        String::from("UNASSIGNED"),
         ContainerType::ArrayFixed(length),
         false,
         false,
@@ -1318,7 +1322,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_shows_empty_module_root_as_u8_segment() {
+    fn build_symbol_tree_entries_shows_empty_module_root_as_unassigned_segment() {
         use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let project_symbol_catalog =
@@ -1341,13 +1345,13 @@ mod tests {
         );
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x20,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[32]");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[32]");
         assert_eq!(symbol_tree_entries[1].can_expand(), false);
     }
 
@@ -1371,7 +1375,7 @@ mod tests {
         assert_eq!(symbol_tree_entries.len(), 4);
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x04,
@@ -1385,7 +1389,7 @@ mod tests {
         );
         assert_eq!(
             symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0x08,
                 length: 0x18,
@@ -2036,7 +2040,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_splits_module_space_into_u8_segments_around_symbol_claim() {
+    fn build_symbol_tree_entries_splits_module_space_into_unassigned_segments_around_symbol_claim() {
         use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
@@ -2062,26 +2066,26 @@ mod tests {
         assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x1234,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[4660]");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[4660]");
         assert_eq!(symbol_tree_entries[1].can_expand(), false);
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
         assert_eq!(symbol_tree_entries[2].get_container_type(), ContainerType::None);
         assert_eq!(symbol_tree_entries[2].can_expand(), false);
         assert_eq!(
             symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0x1238,
                 length: 0xDC8,
             }
         );
-        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "u8[3528]");
+        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "UNASSIGNED[3528]");
         assert_eq!(symbol_tree_entries[3].can_expand(), false);
     }
 
@@ -2121,7 +2125,7 @@ mod tests {
         );
 
         assert_eq!(symbol_tree_entries.len(), 3);
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[16]");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[16]");
         assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "variant_payload");
         assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[32]");
     }
@@ -2181,7 +2185,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_synthesizes_u8_module_segments_between_claims() {
+    fn build_symbol_tree_entries_synthesizes_unassigned_module_segments_between_claims() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![
@@ -2201,24 +2205,24 @@ mod tests {
         assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
         assert_eq!(
             symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 4,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[4]");
+        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[4]");
         assert_eq!(symbol_tree_entries[1].can_expand(), false);
         assert_eq!(symbol_tree_entries[2].get_display_name(), "First");
         assert_eq!(
             symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::U8Segment {
+            &SymbolTreeEntryKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 8,
                 length: 4,
             }
         );
-        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "u8[4]");
+        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "UNASSIGNED[4]");
         assert_eq!(symbol_tree_entries[3].can_expand(), false);
         assert_eq!(symbol_tree_entries[4].get_display_name(), "Second");
     }

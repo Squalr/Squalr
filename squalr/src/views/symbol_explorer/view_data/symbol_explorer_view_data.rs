@@ -6,7 +6,6 @@ use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType};
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
-use squalr_engine_api::structures::projects::project_symbol_locator::ProjectSymbolLocator;
 use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,7 +32,7 @@ pub enum SymbolExplorerTakeOverState {
         display_name: String,
         mode: ProjectSymbolsDeleteModuleRangeMode,
     },
-    DefineFieldFromU8Segment {
+    DefineFieldFromUnassignedSegment {
         module_name: String,
         offset: u64,
         length: u64,
@@ -271,14 +270,14 @@ impl SymbolExplorerViewData {
         }
     }
 
-    pub fn begin_define_field_from_u8_segment(
+    pub fn begin_define_field_from_unassigned_segment(
         symbol_explorer_view_data: Dependency<Self>,
         module_name: String,
         offset: u64,
         length: u64,
     ) {
-        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin define field from u8 segment") {
-            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, offset, length });
+        if let Some(mut symbol_explorer_view_data) = symbol_explorer_view_data.write("Symbol explorer begin define field from unassigned segment") {
+            symbol_explorer_view_data.take_over_state = Some(SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment { module_name, offset, length });
             symbol_explorer_view_data.define_field_draft = DefineFieldDraft {
                 display_name: format!("field_{:08X}", offset),
                 ..Default::default()
@@ -423,7 +422,9 @@ impl SymbolExplorerViewData {
             Some(SymbolExplorerTakeOverState::DeleteModuleRangeConfirmation { module_name, .. }) => {
                 project_symbol_catalog.find_symbol_module(module_name).is_none()
             }
-            Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, .. }) => project_symbol_catalog.find_symbol_module(module_name).is_none(),
+            Some(SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment { module_name, .. }) => {
+                project_symbol_catalog.find_symbol_module(module_name).is_none()
+            }
             None => false,
         };
 
@@ -473,30 +474,17 @@ impl SymbolExplorerViewData {
             }
         }
 
-        if let Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment { module_name, offset, length }) = symbol_explorer_view_data.take_over_state.as_ref()
+        if let Some(SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment { module_name, offset, length }) =
+            symbol_explorer_view_data.take_over_state.as_ref()
         {
             let is_target_segment_still_available = symbol_tree_entries
                 .iter()
                 .any(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
-                    SymbolTreeEntryKind::U8Segment {
+                    SymbolTreeEntryKind::UnassignedSegment {
                         module_name: segment_module_name,
                         offset: segment_offset,
                         length: segment_length,
                     } => segment_module_name == module_name && segment_offset == offset && segment_length == length,
-                    SymbolTreeEntryKind::SymbolClaim { .. } => {
-                        let ProjectSymbolLocator::ModuleOffset {
-                            module_name: claim_module_name,
-                            offset: claim_offset,
-                        } = symbol_tree_entry.get_locator()
-                        else {
-                            return false;
-                        };
-
-                        claim_module_name == module_name
-                            && claim_offset == offset
-                            && symbol_tree_entry.get_symbol_type_id() == "u8"
-                            && symbol_tree_entry.get_container_type() == ContainerType::ArrayFixed(*length)
-                    }
                     _ => false,
                 });
 
@@ -554,7 +542,7 @@ impl SymbolExplorerViewData {
                         SymbolExplorerSelection::SymbolClaim(symbol_locator_key.to_string())
                     }
                 }
-                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::U8Segment { .. } | SymbolTreeEntryKind::PointerTarget => {
+                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::UnassignedSegment { .. } | SymbolTreeEntryKind::PointerTarget => {
                     SymbolExplorerSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                 }
             });
@@ -896,10 +884,10 @@ mod tests {
     }
 
     #[test]
-    fn begin_define_field_from_u8_segment_initializes_takeover_and_draft() {
+    fn begin_define_field_from_unassigned_segment_initializes_takeover_and_draft() {
         let symbol_explorer_view_data = create_dependency();
 
-        SymbolExplorerViewData::begin_define_field_from_u8_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
+        SymbolExplorerViewData::begin_define_field_from_unassigned_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
 
         let symbol_explorer_view_data = symbol_explorer_view_data
             .read("Symbol explorer begin define field test")
@@ -907,7 +895,7 @@ mod tests {
 
         assert_eq!(
             symbol_explorer_view_data.get_take_over_state(),
-            Some(&SymbolExplorerTakeOverState::DefineFieldFromU8Segment {
+            Some(&SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0x40,
                 length: 0x100,
@@ -926,7 +914,7 @@ mod tests {
     fn synchronize_selection_to_tree_entries_clears_missing_define_field_target() {
         let symbol_explorer_view_data = create_dependency();
 
-        SymbolExplorerViewData::begin_define_field_from_u8_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
+        SymbolExplorerViewData::begin_define_field_from_unassigned_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &[]);
 
         let take_over_state = symbol_explorer_view_data
@@ -937,7 +925,45 @@ mod tests {
     }
 
     #[test]
-    fn synchronize_selection_to_tree_entries_keeps_module_u8_field_define_field_target() {
+    fn synchronize_selection_to_tree_entries_keeps_unassigned_define_field_target() {
+        let symbol_explorer_view_data = create_dependency();
+        let symbol_tree_entries = vec![SymbolTreeEntry::new(
+            String::from("unassigned:game.exe:40:100"),
+            SymbolTreeEntryKind::UnassignedSegment {
+                module_name: String::from("game.exe"),
+                offset: 0x40,
+                length: 0x100,
+            },
+            1,
+            String::from("UNASSIGNED_00000040"),
+            String::from("game.exe.UNASSIGNED_00000040"),
+            String::new(),
+            ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x40),
+            String::from("UNASSIGNED"),
+            ContainerType::ArrayFixed(0x100),
+            false,
+            false,
+        )];
+
+        SymbolExplorerViewData::begin_define_field_from_unassigned_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
+        SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &symbol_tree_entries);
+
+        let take_over_state = symbol_explorer_view_data
+            .read("Symbol explorer unassigned define target test")
+            .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_take_over_state().cloned());
+
+        assert_eq!(
+            take_over_state,
+            Some(SymbolExplorerTakeOverState::DefineFieldFromUnassignedSegment {
+                module_name: String::from("game.exe"),
+                offset: 0x40,
+                length: 0x100,
+            })
+        );
+    }
+
+    #[test]
+    fn synchronize_selection_to_tree_entries_clears_owned_u8_field_define_field_target() {
         let symbol_explorer_view_data = create_dependency();
         let symbol_tree_entries = vec![SymbolTreeEntry::new(
             String::from("claim:module:game.exe:40"),
@@ -955,20 +981,13 @@ mod tests {
             false,
         )];
 
-        SymbolExplorerViewData::begin_define_field_from_u8_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
+        SymbolExplorerViewData::begin_define_field_from_unassigned_segment(symbol_explorer_view_data.clone(), String::from("game.exe"), 0x40, 0x100);
         SymbolExplorerViewData::synchronize_selection_to_tree_entries(symbol_explorer_view_data.clone(), &symbol_tree_entries);
 
         let take_over_state = symbol_explorer_view_data
-            .read("Symbol explorer module u8 field define target test")
+            .read("Symbol explorer owned u8 field define target test")
             .and_then(|symbol_explorer_view_data| symbol_explorer_view_data.get_take_over_state().cloned());
 
-        assert_eq!(
-            take_over_state,
-            Some(SymbolExplorerTakeOverState::DefineFieldFromU8Segment {
-                module_name: String::from("game.exe"),
-                offset: 0x40,
-                length: 0x100,
-            })
-        );
+        assert_eq!(take_over_state, None);
     }
 }
