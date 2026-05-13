@@ -235,7 +235,18 @@ impl SymbolLayoutEditorViewData {
         {
             self.field_context_menu_target = None;
         }
-        self.unassigned_context_menu_target = None;
+        if self
+            .unassigned_context_menu_target
+            .as_ref()
+            .is_some_and(|context_menu_target| {
+                !matches!(
+                    Self::parse_layout_size_text(&draft.size_text, draft.size_format),
+                    Ok(layout_size_in_bytes) if context_menu_target.get_offset_in_bytes() < layout_size_in_bytes
+                )
+            })
+        {
+            self.unassigned_context_menu_target = None;
+        }
         self.draft = Some(draft);
     }
 
@@ -540,11 +551,10 @@ impl SymbolLayoutEditorViewData {
                     .draft
                     .as_ref()
                     .is_none_or(|draft| {
-                        draft
-                            .size_text
-                            .trim()
-                            .parse::<u64>()
-                            .is_ok_and(|layout_size_in_bytes| context_menu_target.get_offset_in_bytes() >= layout_size_in_bytes)
+                        !matches!(
+                            Self::parse_layout_size_text(&draft.size_text, draft.size_format),
+                            Ok(layout_size_in_bytes) if context_menu_target.get_offset_in_bytes() < layout_size_in_bytes
+                        )
                     })
             })
         {
@@ -1304,9 +1314,31 @@ mod tests {
     }
 
     #[test]
-    fn replace_draft_clears_unassigned_context_menu_target() {
+    fn replace_draft_preserves_active_unassigned_context_menu_target() {
         let mut view_data = SymbolLayoutEditorViewData::new();
-        view_data.unassigned_context_menu_target = Some(SymbolLayoutUnassignedContextMenuTarget::new(4, 12, pos2(12.0, 34.0)));
+        let context_menu_target = SymbolLayoutUnassignedContextMenuTarget::new(4, 12, pos2(12.0, 34.0));
+        view_data.unassigned_context_menu_target = Some(context_menu_target.clone());
+
+        view_data.replace_draft(SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("inventory.slot"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("16"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_field_draft(
+                "item_id",
+                "u32",
+                SymbolLayoutFieldContainerEdit::default(),
+            )],
+        });
+
+        assert_eq!(view_data.get_unassigned_context_menu_target(), Some(&context_menu_target));
+    }
+
+    #[test]
+    fn replace_draft_clears_stale_unassigned_context_menu_target() {
+        let mut view_data = SymbolLayoutEditorViewData::new();
+        view_data.unassigned_context_menu_target = Some(SymbolLayoutUnassignedContextMenuTarget::new(16, 12, pos2(12.0, 34.0)));
 
         view_data.replace_draft(SymbolLayoutEditDraft {
             original_layout_id: None,

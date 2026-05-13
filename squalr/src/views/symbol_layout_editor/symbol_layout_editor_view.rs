@@ -2277,6 +2277,18 @@ impl SymbolLayoutEditorView {
                         .desired_width(user_interface.available_width()),
                     );
                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+
+                    user_interface.add(
+                        GroupBox::new_from_theme(
+                            &self.app_context.theme,
+                            if is_union_layout { "Edit Union Variants" } else { "Edit Symbol Layout" },
+                            |user_interface| {
+                                self.render_field_rows(user_interface, project_symbol_catalog, &mut edited_draft, selected_field_index);
+                            },
+                        )
+                        .desired_width(user_interface.available_width()),
+                    );
+                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
                 } else {
                     let theme = &self.app_context.theme;
                     user_interface.add(
