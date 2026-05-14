@@ -1,19 +1,25 @@
 use crate::app_context::AppContext;
-use crate::ui::converters::data_type_to_icon_converter::DataTypeToIconConverter;
+use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::draw::icon_draw::IconDraw;
 use crate::ui::list_navigation::ListNavigationDirection;
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox,
-    search_box::SearchBoxView, state_layer::StateLayer, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+    button::Button as ThemeButton,
+    combo_box::{combo_box_item_view::ComboBoxItemView, combo_box_view::ComboBoxView},
+    context_menu::context_menu::ContextMenu,
+    data_value_box::data_value_box_view::DataValueBoxView,
+    groupbox::GroupBox,
+    search_box::SearchBoxView,
+    state_layer::StateLayer,
+    toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
     SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft,
     SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget, SymbolLayoutUnassignedSelection,
 };
-use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::SymbolLayoutFieldContainerKind;
+use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
 use eframe::egui::{
-    Align, Align2, Button as EguiButton, Direction, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
+    Align, Align2, Button as EguiButton, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
 use epaint::{Color32, CornerRadius, Rect, StrokeKind};
 use squalr_engine_api::commands::{
@@ -63,6 +69,19 @@ enum SymbolLayoutRowAction {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SymbolLayoutFieldTypeOptionKind {
+    BuiltIn,
+    SymbolLayout,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SymbolLayoutFieldTypeOption {
+    data_type_ref: DataTypeRef,
+    label: String,
+    kind: SymbolLayoutFieldTypeOptionKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SymbolLayoutFieldSpan {
     field_position: usize,
     offset_in_bytes: u64,
@@ -100,6 +119,13 @@ impl SymbolLayoutEditorView {
     const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
     const FIELD_CONTEXT_MENU_WIDTH: f32 = 184.0;
     const UNION_VARIANT_TREE_INDENT: f32 = 16.0;
+    const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT: usize = 2;
+    const DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH: f32 = 128.0;
+    const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING: f32 = 4.0;
+    const DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH: f32 = 118.0;
+    const DEFINE_FIELD_BUILT_IN_TYPE_IDS: [&'static str; 18] = [
+        "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
+    ];
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_layout_editor_view_data = app_context
@@ -219,6 +245,87 @@ impl SymbolLayoutEditorView {
             .unwrap_or_else(|| DataTypeRef::new(DataTypeI32::DATA_TYPE_ID))
     }
 
+    fn build_field_type_options(project_symbol_catalog: &ProjectSymbolCatalog) -> Vec<SymbolLayoutFieldTypeOption> {
+        let mut type_options = Self::DEFINE_FIELD_BUILT_IN_TYPE_IDS
+            .iter()
+            .map(|data_type_id| SymbolLayoutFieldTypeOption {
+                data_type_ref: DataTypeRef::new(data_type_id),
+                label: DataTypeToStringConverter::convert_data_type_to_string(data_type_id),
+                kind: SymbolLayoutFieldTypeOptionKind::BuiltIn,
+            })
+            .collect::<Vec<_>>();
+
+        for struct_layout_descriptor in project_symbol_catalog.get_struct_layout_descriptors() {
+            let struct_layout_id = struct_layout_descriptor.get_struct_layout_id();
+            let struct_data_type_ref = DataTypeRef::new(struct_layout_id);
+
+            if !type_options
+                .iter()
+                .any(|type_option| type_option.data_type_ref == struct_data_type_ref)
+            {
+                type_options.push(SymbolLayoutFieldTypeOption {
+                    data_type_ref: struct_data_type_ref,
+                    label: struct_layout_id.to_string(),
+                    kind: SymbolLayoutFieldTypeOptionKind::SymbolLayout,
+                });
+            }
+        }
+
+        type_options
+    }
+
+    fn filter_field_type_options(
+        type_options: &[SymbolLayoutFieldTypeOption],
+        search_text: &str,
+    ) -> Vec<SymbolLayoutFieldTypeOption> {
+        let normalized_search_text = search_text.trim().to_lowercase();
+
+        if normalized_search_text.is_empty() {
+            return type_options.to_vec();
+        }
+
+        type_options
+            .iter()
+            .filter(|type_option| {
+                type_option
+                    .label
+                    .to_lowercase()
+                    .contains(&normalized_search_text)
+                    || type_option
+                        .data_type_ref
+                        .get_data_type_id()
+                        .to_lowercase()
+                        .contains(&normalized_search_text)
+            })
+            .cloned()
+            .collect()
+    }
+
+    fn define_field_type_popup_width(combo_width: f32) -> f32 {
+        let built_in_grid_width = Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH * Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT as f32
+            + Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
+
+        combo_width.max(built_in_grid_width)
+    }
+
+    fn define_field_builtin_type_item_width(popup_width: f32) -> f32 {
+        let spacing_width = Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING * (Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT.saturating_sub(1) as f32);
+
+        ((popup_width - spacing_width) / Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT as f32).max(1.0)
+    }
+
+    fn define_field_type_search_storage_id(menu_id: &str) -> Id {
+        Id::new(("symbol_layout_define_field_type_search", menu_id))
+    }
+
+    fn define_field_container_label(container_edit: &SymbolLayoutFieldContainerEdit) -> String {
+        match container_edit.kind {
+            SymbolLayoutFieldContainerKind::Element => String::from("Value"),
+            SymbolLayoutFieldContainerKind::Pointer => format!("Ptr {}", container_edit.pointer_size),
+            _ => container_edit.kind.label().to_string(),
+        }
+    }
+
     fn create_field_draft_for_layout_kind(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -268,7 +375,7 @@ impl SymbolLayoutEditorView {
         if !layout_kind.is_union() {
             field_draft.field_name = format!("field_{:X}", offset_in_bytes);
             field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
-            field_draft.static_offset_in_bytes = format!("0x{:X}", offset_in_bytes);
+            field_draft.static_offset_in_bytes = String::from("0");
         }
 
         field_draft
@@ -325,8 +432,8 @@ impl SymbolLayoutEditorView {
         }
 
         let symbolic_field_definition = Self::build_symbolic_field_definition_from_draft(field_draft)?;
-        let field_offset_in_bytes = match symbolic_field_definition.get_offset_resolution() {
-            SymbolicFieldOffsetResolution::Static(field_offset_in_bytes) => *field_offset_in_bytes,
+        let relative_offset_in_bytes = match symbolic_field_definition.get_offset_resolution() {
+            SymbolicFieldOffsetResolution::Static(relative_offset_in_bytes) => *relative_offset_in_bytes,
             _ => return Err(String::from("Field offset must be static.")),
         };
         let field_size_in_bytes = SymbolLayoutEditorViewData::resolve_symbolic_field_size_in_bytes(
@@ -339,17 +446,31 @@ impl SymbolLayoutEditorView {
             return Err(String::from("Field has no byte size."));
         }
 
-        let span_end_in_bytes = span_offset_in_bytes.saturating_add(span_size_in_bytes);
-        let field_end_in_bytes = field_offset_in_bytes
+        let relative_field_end_in_bytes = relative_offset_in_bytes
             .checked_add(field_size_in_bytes)
             .ok_or_else(|| String::from("Field range is too large."))?;
 
-        if field_offset_in_bytes < span_offset_in_bytes || field_end_in_bytes > span_end_in_bytes {
+        if relative_field_end_in_bytes > span_size_in_bytes {
+            if field_size_in_bytes > span_size_in_bytes {
+                return Err(format!(
+                    "`{}` uses {} byte(s); selected span has {}.",
+                    symbolic_field_definition.get_data_type_ref().get_data_type_id(),
+                    field_size_in_bytes,
+                    span_size_in_bytes
+                ));
+            }
+
             return Err(format!(
-                "Field must fit within UNASSIGNED 0x{:X}..0x{:X}.",
-                span_offset_in_bytes, span_end_in_bytes
+                "`{}` uses {} byte(s); choose 0 to {}.",
+                symbolic_field_definition.get_data_type_ref().get_data_type_id(),
+                field_size_in_bytes,
+                span_size_in_bytes.saturating_sub(field_size_in_bytes)
             ));
         }
+
+        let field_offset_in_bytes = span_offset_in_bytes
+            .checked_add(relative_offset_in_bytes)
+            .ok_or_else(|| String::from("Field offset is too large."))?;
 
         Ok((field_offset_in_bytes, field_size_in_bytes))
     }
@@ -691,6 +812,188 @@ impl SymbolLayoutEditorView {
         *value_format = value_string.get_anonymous_value_string_format();
     }
 
+    fn render_define_field_container_selector(
+        &self,
+        user_interface: &mut Ui,
+        container_edit: &mut SymbolLayoutFieldContainerEdit,
+        menu_id: &str,
+        width: f32,
+    ) {
+        let mut selected_container_edit = None;
+        let current_label = Self::define_field_container_label(container_edit);
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                current_label,
+                menu_id,
+                None,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    let value_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), "Value", None, width));
+
+                    if value_response.clicked() {
+                        selected_container_edit = Some(SymbolLayoutFieldContainerEdit::default());
+                        *should_close = true;
+                    }
+
+                    popup_user_interface.separator();
+
+                    for pointer_size in PointerScanPointerSize::ALL {
+                        let pointer_label = format!("Ptr {}", pointer_size);
+                        let pointer_response = popup_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &pointer_label, None, width));
+
+                        if pointer_response.clicked() {
+                            selected_container_edit = Some(SymbolLayoutFieldContainerEdit {
+                                kind: SymbolLayoutFieldContainerKind::Pointer,
+                                pointer_size,
+                                ..SymbolLayoutFieldContainerEdit::default()
+                            });
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(width)
+            .height(Self::TOOLBAR_HEIGHT),
+        );
+
+        if let Some(selected_container_edit) = selected_container_edit {
+            *container_edit = selected_container_edit;
+        }
+    }
+
+    fn render_define_field_type_combo(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        field_draft: &mut SymbolLayoutFieldEditDraft,
+        menu_id: &str,
+        width: f32,
+    ) {
+        let type_options = Self::build_field_type_options(project_symbol_catalog);
+        let selected_data_type_id = field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id()
+            .to_string();
+        let selected_type_option = type_options
+            .iter()
+            .find(|type_option| type_option.data_type_ref.get_data_type_id() == selected_data_type_id.as_str());
+        let combo_label = selected_type_option
+            .map(|type_option| type_option.label.clone())
+            .unwrap_or_else(|| DataTypeToStringConverter::convert_data_type_to_string(&selected_data_type_id));
+        let combo_icon = selected_type_option.and_then(|type_option| {
+            (type_option.kind == SymbolLayoutFieldTypeOptionKind::BuiltIn)
+                .then(|| DataTypeToIconConverter::convert_data_type_to_icon(type_option.data_type_ref.get_data_type_id(), &self.app_context.theme.icon_library))
+        });
+        let search_storage_id = Self::define_field_type_search_storage_id(menu_id);
+        let popup_width = Self::define_field_type_popup_width(width);
+        let built_in_type_item_width = Self::define_field_builtin_type_item_width(popup_width);
+
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                combo_label,
+                menu_id,
+                combo_icon,
+                |popup_user_interface: &mut Ui, should_close: &mut bool| {
+                    let mut search_text = popup_user_interface
+                        .ctx()
+                        .data_mut(|data| data.get_temp::<String>(search_storage_id).unwrap_or_default());
+
+                    popup_user_interface.add_space(4.0);
+                    let search_box_id = format!("symbol_layout_define_field_type_search_{}", menu_id);
+                    popup_user_interface.add(
+                        SearchBoxView::new(self.app_context.clone(), &mut search_text, "Search types", &search_box_id)
+                            .width((popup_width - 8.0).max(1.0))
+                            .height(Self::TOOLBAR_HEIGHT),
+                    );
+                    popup_user_interface.add_space(4.0);
+                    popup_user_interface
+                        .ctx()
+                        .data_mut(|data| data.insert_temp(search_storage_id, search_text.clone()));
+
+                    let filtered_type_options = Self::filter_field_type_options(&type_options, &search_text);
+
+                    if filtered_type_options.is_empty() {
+                        popup_user_interface.label(RichText::new("No matching types").color(self.app_context.theme.foreground_preview));
+                        return;
+                    }
+
+                    let (built_in_type_options, symbol_layout_type_options): (Vec<_>, Vec<_>) = filtered_type_options
+                        .into_iter()
+                        .partition(|type_option| type_option.kind == SymbolLayoutFieldTypeOptionKind::BuiltIn);
+
+                    ScrollArea::vertical()
+                        .max_height(240.0)
+                        .auto_shrink([false, false])
+                        .show(popup_user_interface, |scroll_user_interface| {
+                            if !built_in_type_options.is_empty() {
+                                Grid::new(Id::new(("symbol_layout_define_field_builtin_type_grid", menu_id)))
+                                    .spacing(vec2(Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING, 0.0))
+                                    .min_col_width(Self::DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH)
+                                    .show(scroll_user_interface, |grid_user_interface| {
+                                        for (type_option_position, type_option) in built_in_type_options.iter().enumerate() {
+                                            let data_type_id = type_option.data_type_ref.get_data_type_id();
+                                            let row_icon = Some(DataTypeToIconConverter::convert_data_type_to_icon(
+                                                data_type_id,
+                                                &self.app_context.theme.icon_library,
+                                            ));
+                                            let item_response = grid_user_interface.add(ComboBoxItemView::new(
+                                                self.app_context.clone(),
+                                                &type_option.label,
+                                                row_icon,
+                                                built_in_type_item_width,
+                                            ));
+
+                                            if item_response.clicked() {
+                                                field_draft
+                                                    .data_type_selection
+                                                    .select_single_data_type(type_option.data_type_ref.clone());
+                                                grid_user_interface
+                                                    .ctx()
+                                                    .data_mut(|data| data.insert_temp(search_storage_id, String::new()));
+                                                *should_close = true;
+                                            }
+
+                                            if (type_option_position + 1) % Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT == 0 {
+                                                grid_user_interface.end_row();
+                                            }
+                                        }
+
+                                        if built_in_type_options.len() % Self::DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT != 0 {
+                                            grid_user_interface.end_row();
+                                        }
+                                    });
+                            }
+
+                            if !built_in_type_options.is_empty() && !symbol_layout_type_options.is_empty() {
+                                scroll_user_interface.separator();
+                            }
+
+                            for type_option in symbol_layout_type_options {
+                                let item_response =
+                                    scroll_user_interface.add(ComboBoxItemView::new(self.app_context.clone(), &type_option.label, None, popup_width));
+
+                                if item_response.clicked() {
+                                    field_draft
+                                        .data_type_selection
+                                        .select_single_data_type(type_option.data_type_ref);
+                                    scroll_user_interface
+                                        .ctx()
+                                        .data_mut(|data| data.insert_temp(search_storage_id, String::new()));
+                                    *should_close = true;
+                                }
+                            }
+                        });
+                },
+            )
+            .width(width)
+            .popup_width(popup_width)
+            .height(Self::TOOLBAR_HEIGHT),
+        );
+    }
+
     fn render_layout_kind_selector(
         &self,
         user_interface: &mut Ui,
@@ -936,32 +1239,6 @@ impl SymbolLayoutEditorView {
         );
     }
 
-    fn focus_define_field_draft_in_struct_viewer(
-        &self,
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        layout_kind: SymbolicLayoutKind,
-        layout_id: &str,
-        field_draft: &SymbolLayoutFieldEditDraft,
-    ) {
-        let details_struct = Self::build_field_details_struct(project_symbol_catalog, layout_kind, field_draft);
-        let selection_key = format!("define_unassigned|{}", layout_id);
-        let edit_callback = Self::build_struct_viewer_define_field_edit_callback(
-            self.symbol_layout_editor_view_data.clone(),
-            self.struct_viewer_view_data.clone(),
-            self.app_context.clone(),
-            layout_kind,
-            layout_id.to_string(),
-        );
-
-        StructViewerViewData::focus_valued_struct_with_focus_target(
-            self.struct_viewer_view_data.clone(),
-            self.app_context.engine_unprivileged_state.clone(),
-            details_struct,
-            edit_callback,
-            Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-        );
-    }
-
     fn build_field_details_struct(
         project_symbol_catalog: &ProjectSymbolCatalog,
         layout_kind: SymbolicLayoutKind,
@@ -1112,45 +1389,6 @@ impl SymbolLayoutEditorView {
                 struct_viewer_view_data.clone(),
                 app_context.clone(),
                 field_index,
-            );
-
-            StructViewerViewData::focus_valued_struct_with_focus_target(
-                struct_viewer_view_data.clone(),
-                app_context.engine_unprivileged_state.clone(),
-                details_struct,
-                edit_callback,
-                Some(StructViewerFocusTarget::SymbolLayoutEditor { selection_key }),
-            );
-        })
-    }
-
-    fn build_struct_viewer_define_field_edit_callback(
-        symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,
-        struct_viewer_view_data: Dependency<StructViewerViewData>,
-        app_context: Arc<AppContext>,
-        layout_kind: SymbolicLayoutKind,
-        layout_id: String,
-    ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
-        Arc::new(move |edited_field: ValuedStructField| {
-            let Some(mut field_draft) = symbol_layout_editor_view_data
-                .read("SymbolLayoutEditor read define field draft")
-                .and_then(|view_data| view_data.get_define_field_draft().cloned())
-            else {
-                return;
-            };
-
-            let project_symbol_catalog = Self::get_opened_project_symbol_catalog_from_context(&app_context).unwrap_or_default();
-            Self::apply_field_details_edit(&project_symbol_catalog, &mut field_draft, &edited_field);
-            SymbolLayoutEditorViewData::replace_define_field_draft(symbol_layout_editor_view_data.clone(), field_draft.clone());
-
-            let details_struct = Self::build_field_details_struct(&project_symbol_catalog, layout_kind, &field_draft);
-            let selection_key = format!("define_unassigned|{}", layout_id);
-            let edit_callback = Self::build_struct_viewer_define_field_edit_callback(
-                symbol_layout_editor_view_data.clone(),
-                struct_viewer_view_data.clone(),
-                app_context.clone(),
-                layout_kind,
-                layout_id.clone(),
             );
 
             StructViewerViewData::focus_valued_struct_with_focus_target(
@@ -2038,7 +2276,7 @@ impl SymbolLayoutEditorView {
         offset_in_bytes: u64,
         size_in_bytes: u64,
         can_define_field: bool,
-        is_selected: bool,
+        _is_selected: bool,
     ) -> Option<SymbolLayoutUnassignedRowAction> {
         if size_in_bytes == 0 {
             return None;
@@ -2049,26 +2287,6 @@ impl SymbolLayoutEditorView {
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), row_sense);
         let mut pending_unassigned_row_action = None;
 
-        if is_selected {
-            user_interface
-                .painter()
-                .rect_filled(row_rect, CornerRadius::same(4), theme.selected_background);
-            user_interface
-                .painter()
-                .rect_stroke(row_rect, CornerRadius::same(4), Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
-        }
-
-        user_interface.painter().rect(
-            row_rect,
-            CornerRadius::same(4),
-            if is_selected {
-                Color32::TRANSPARENT
-            } else {
-                theme.background_control_secondary.gamma_multiply(0.45)
-            },
-            Stroke::new(1.0, theme.background_control_secondary_dark),
-            StrokeKind::Inside,
-        );
         if row_response.hovered() {
             StateLayer {
                 bounds_min: row_rect.min,
@@ -2077,7 +2295,7 @@ impl SymbolLayoutEditorView {
                 pressed: row_response.is_pointer_button_down_on(),
                 has_hover: row_response.hovered(),
                 has_focus: false,
-                corner_radius: CornerRadius::same(4),
+                corner_radius: CornerRadius::ZERO,
                 border_width: 0.0,
                 hover_color: theme.hover_tint,
                 pressed_color: theme.pressed_tint,
@@ -2304,6 +2522,9 @@ impl SymbolLayoutEditorView {
                     self.focus_unassigned_span_in_struct_viewer(draft, unassigned_offset_in_bytes, unassigned_size_in_bytes);
                 }
                 SymbolLayoutUnassignedRowAction::DefineField => {
+                    let mut field_draft =
+                        self.create_field_draft_for_unassigned_span(project_symbol_catalog, draft.layout_kind, &draft.layout_id, 0, unassigned_offset_in_bytes);
+                    field_draft.field_name = format!("field_{:08X}", unassigned_offset_in_bytes);
                     SymbolLayoutEditorViewData::begin_define_field_from_unassigned_span(
                         self.symbol_layout_editor_view_data.clone(),
                         draft.layout_id.clone(),
@@ -2311,10 +2532,7 @@ impl SymbolLayoutEditorView {
                         unassigned_size_in_bytes,
                         self.default_data_type_ref(),
                     );
-                    let mut field_draft =
-                        self.create_field_draft_for_unassigned_span(project_symbol_catalog, draft.layout_kind, &draft.layout_id, 0, unassigned_offset_in_bytes);
-                    field_draft.field_name = format!("field_{:08X}", unassigned_offset_in_bytes);
-                    self.focus_define_field_draft_in_struct_viewer(project_symbol_catalog, draft.layout_kind, &draft.layout_id, &field_draft);
+                    SymbolLayoutEditorViewData::replace_define_field_draft(self.symbol_layout_editor_view_data.clone(), field_draft);
                 }
             }
         }
@@ -2578,53 +2796,133 @@ impl SymbolLayoutEditorView {
             return;
         };
         let theme = &self.app_context.theme;
-        let validation_result = Self::validate_define_field_draft(project_symbol_catalog, define_field_draft, span_offset_in_bytes, span_size_in_bytes);
+        let mut edited_define_field_draft = define_field_draft.clone();
+        let mut validation_result =
+            Self::validate_define_field_draft(project_symbol_catalog, &edited_define_field_draft, span_offset_in_bytes, span_size_in_bytes);
         let mut should_cancel = false;
         let mut should_create = false;
 
-        let define_selection_key = format!("define_unassigned|{}", layout_id);
-        let should_focus_define_details = self
-            .struct_viewer_view_data
-            .read("SymbolLayoutEditor define field details focus")
-            .is_none_or(|struct_viewer_view_data| {
-                !struct_viewer_view_data
-                    .get_focus_target()
-                    .is_some_and(|focus_target| matches!(focus_target, StructViewerFocusTarget::SymbolLayoutEditor { selection_key } if selection_key == &define_selection_key))
-            });
-        if should_focus_define_details {
-            self.focus_define_field_draft_in_struct_viewer(project_symbol_catalog, draft.layout_kind, layout_id, define_field_draft);
-        }
-
-        self.render_take_over_panel(
-            user_interface,
-            "Define Field",
-            0.0,
-            Self::TAKE_OVER_CONTENT_PADDING_X,
-            Self::TAKE_OVER_SECTION_SPACING,
-            |_user_interface| {},
+        user_interface.allocate_ui_with_layout(
+            user_interface.available_size(),
+            Layout::centered_and_justified(Direction::TopDown),
             |user_interface| {
+                let panel_width = user_interface.available_width();
+
                 user_interface.add(
-                    GroupBox::new_from_theme(theme, "UNASSIGNED", |user_interface| {
+                    GroupBox::new_from_theme(theme, "Define Field", |user_interface| {
                         user_interface.label(RichText::new(format!("{} + 0x{:X}", layout_id, span_offset_in_bytes)).color(theme.foreground_preview));
-                        user_interface.add_space(4.0);
-                        user_interface.label(RichText::new(format!("{} byte(s)", span_size_in_bytes)).color(theme.foreground_preview));
+                        user_interface.add_space(8.0);
+
+                        user_interface.label(RichText::new("Name").color(theme.foreground));
+                        user_interface.add_space(2.0);
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut edited_define_field_draft.field_name,
+                            "field_name",
+                            "symbol_layout_define_field_name",
+                            user_interface.available_width(),
+                            Self::TOOLBAR_HEIGHT,
+                        );
+                        user_interface.add_space(8.0);
+
+                        let max_relative_offset = span_size_in_bytes.saturating_sub(1);
+                        user_interface.label(RichText::new(format!("Offset in UNASSIGNED (0 to {})", max_relative_offset)).color(theme.foreground));
+                        user_interface.add_space(2.0);
+                        self.render_string_value_box(
+                            user_interface,
+                            &mut edited_define_field_draft.static_offset_in_bytes,
+                            "0",
+                            "symbol_layout_define_field_offset",
+                            user_interface.available_width(),
+                            Self::TOOLBAR_HEIGHT,
+                        );
+
+                        validation_result =
+                            Self::validate_define_field_draft(project_symbol_catalog, &edited_define_field_draft, span_offset_in_bytes, span_size_in_bytes);
+                        if let Err(validation_error) = validation_result.as_ref()
+                            && validation_error != "Field name is required."
+                        {
+                            user_interface.add_space(4.0);
+                            user_interface.label(RichText::new(validation_error).color(theme.warning));
+                        }
+                        user_interface.add_space(8.0);
+
+                        user_interface.horizontal(|user_interface| {
+                            user_interface.spacing_mut().item_spacing.x = 4.0;
+                            let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
+                            self.render_define_field_container_selector(
+                                user_interface,
+                                &mut edited_define_field_draft.container_edit,
+                                &format!("symbol_layout_define_field_container_{}_{}", layout_id, span_offset_in_bytes),
+                                selector_width,
+                            );
+
+                            let type_selector_width = user_interface.available_width();
+                            self.render_define_field_type_combo(
+                                user_interface,
+                                project_symbol_catalog,
+                                &mut edited_define_field_draft,
+                                &format!("symbol_layout_define_field_type_{}_{}", layout_id, span_offset_in_bytes),
+                                type_selector_width,
+                            );
+                        });
+
+                        validation_result =
+                            Self::validate_define_field_draft(project_symbol_catalog, &edited_define_field_draft, span_offset_in_bytes, span_size_in_bytes);
+
+                        if let Err(validation_error) = validation_result.as_ref()
+                            && validation_error == "Field name is required."
+                        {
+                            user_interface.add_space(6.0);
+                            user_interface.label(RichText::new(validation_error).color(theme.error_red));
+                        }
+
+                        user_interface.add_space(12.0);
+                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                            let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::TOOLBAR_HEIGHT);
+                            let button_spacing = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                            user_interface.horizontal(|user_interface| {
+                                user_interface.add_space(side_spacing);
+                                user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                let cancel_response = user_interface.add_sized(
+                                    button_size,
+                                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                                        .fill(theme.background_control_secondary)
+                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                );
+                                if cancel_response.clicked() {
+                                    should_cancel = true;
+                                }
+
+                                let can_create = validation_result.is_ok();
+                                let create_fill = if can_create {
+                                    theme.background_control_primary
+                                } else {
+                                    theme.background_control_secondary
+                                };
+                                let create_stroke = if can_create {
+                                    theme.background_control_primary_dark
+                                } else {
+                                    theme.background_control_secondary_dark
+                                };
+                                let create_response = user_interface.add_sized(
+                                    button_size,
+                                    EguiButton::new(RichText::new("Create").color(if can_create { theme.foreground } else { theme.foreground_preview }))
+                                        .fill(create_fill)
+                                        .stroke(Stroke::new(1.0, create_stroke)),
+                                );
+                                if can_create && create_response.clicked() {
+                                    should_create = true;
+                                }
+                            });
+                        });
                     })
-                    .desired_width(user_interface.available_width()),
+                    .desired_width(panel_width),
                 );
-
-                if let Err(validation_error) = validation_result.as_ref() {
-                    user_interface.add_space(8.0);
-                    user_interface.label(RichText::new(validation_error).color(theme.warning));
-                }
-
-                user_interface.add_space(Self::TAKE_OVER_SECTION_SPACING);
-                let (cancel_response, create_response) = self.render_take_over_action_buttons(user_interface, "Create", validation_result.is_ok());
-                if cancel_response.clicked() {
-                    should_cancel = true;
-                }
-                if create_response.clicked() {
-                    should_create = true;
-                }
             },
         );
 
@@ -2636,10 +2934,10 @@ impl SymbolLayoutEditorView {
 
         if should_create && validation_result.is_ok() {
             let mut updated_draft = draft.clone();
-            let mut new_field_draft = define_field_draft.clone();
+            let mut new_field_draft = edited_define_field_draft.clone();
             new_field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
-            let field_offset_in_bytes =
-                SymbolLayoutFieldEditDraft::parse_static_offset_text(&new_field_draft.static_offset_in_bytes).unwrap_or(span_offset_in_bytes);
+            let (field_offset_in_bytes, _field_size_in_bytes) = validation_result.unwrap_or((span_offset_in_bytes, 0));
+            new_field_draft.static_offset_in_bytes = format!("0x{:X}", field_offset_in_bytes);
             let field_spans = self
                 .resolve_draft_field_spans(project_symbol_catalog, draft)
                 .map(|(_layout_size_in_bytes, field_spans)| field_spans)
@@ -2651,7 +2949,10 @@ impl SymbolLayoutEditorView {
             SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
             SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), insert_index);
             self.focus_field_in_struct_viewer(project_symbol_catalog, &updated_draft, insert_index);
+            return;
         }
+
+        SymbolLayoutEditorViewData::replace_define_field_draft(self.symbol_layout_editor_view_data.clone(), edited_define_field_draft);
     }
 
     fn render_delete_confirmation_take_over(
@@ -2848,7 +3149,7 @@ mod tests {
 
         field_draft.field_name = String::from("middle_field");
         field_draft.offset_mode = super::SymbolLayoutFieldOffsetMode::Static;
-        field_draft.static_offset_in_bytes = String::from("0x110");
+        field_draft.static_offset_in_bytes = String::from("0x10");
 
         assert_eq!(
             SymbolLayoutEditorView::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40),
@@ -2863,7 +3164,7 @@ mod tests {
 
         field_draft.field_name = String::from("too_wide");
         field_draft.offset_mode = super::SymbolLayoutFieldOffsetMode::Static;
-        field_draft.static_offset_in_bytes = String::from("0x13E");
+        field_draft.static_offset_in_bytes = String::from("0x3E");
 
         assert!(SymbolLayoutEditorView::validate_define_field_draft(&project_symbol_catalog, &field_draft, 0x100, 0x40).is_err());
     }

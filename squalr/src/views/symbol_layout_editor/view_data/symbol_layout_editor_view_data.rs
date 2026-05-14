@@ -457,7 +457,7 @@ impl SymbolLayoutEditorViewData {
             let mut field_draft = SymbolLayoutFieldEditDraft::new(default_data_type_ref);
             field_draft.field_name = format!("field_{:08X}", offset);
             field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
-            field_draft.static_offset_in_bytes = format!("0x{:X}", offset);
+            field_draft.static_offset_in_bytes = String::from("0");
 
             symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, offset, size });
             symbol_layout_editor_view_data.selected_field_index = None;
