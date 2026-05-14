@@ -2276,7 +2276,7 @@ impl SymbolLayoutEditorView {
         offset_in_bytes: u64,
         size_in_bytes: u64,
         can_define_field: bool,
-        _is_selected: bool,
+        is_selected: bool,
     ) -> Option<SymbolLayoutUnassignedRowAction> {
         if size_in_bytes == 0 {
             return None;
@@ -2287,23 +2287,31 @@ impl SymbolLayoutEditorView {
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), row_sense);
         let mut pending_unassigned_row_action = None;
 
-        if row_response.hovered() {
-            StateLayer {
-                bounds_min: row_rect.min,
-                bounds_max: row_rect.max,
-                enabled: true,
-                pressed: row_response.is_pointer_button_down_on(),
-                has_hover: row_response.hovered(),
-                has_focus: false,
-                corner_radius: CornerRadius::ZERO,
-                border_width: 0.0,
-                hover_color: theme.hover_tint,
-                pressed_color: theme.pressed_tint,
-                border_color: theme.background_control_secondary_dark,
-                border_color_focused: theme.background_control_secondary_dark,
-            }
-            .ui(user_interface);
+        if is_selected {
+            user_interface
+                .painter()
+                .rect_filled(row_rect, CornerRadius::ZERO, theme.selected_background);
+            user_interface
+                .painter()
+                .rect_stroke(row_rect, CornerRadius::ZERO, Stroke::new(1.0, theme.selected_border), StrokeKind::Inside);
         }
+
+        StateLayer {
+            bounds_min: row_rect.min,
+            bounds_max: row_rect.max,
+            enabled: true,
+            pressed: row_response.is_pointer_button_down_on(),
+            has_hover: row_response.hovered(),
+            has_focus: row_response.has_focus(),
+            corner_radius: CornerRadius::ZERO,
+            border_width: 0.0,
+            hover_color: theme.hover_tint,
+            pressed_color: theme.pressed_tint,
+            border_color: theme.background_control_secondary_dark,
+            border_color_focused: theme.background_control_secondary_dark,
+        }
+        .ui(user_interface);
+
         if can_define_field && row_response.secondary_clicked() {
             let position = row_response
                 .interact_pointer_pos()
