@@ -1,3 +1,4 @@
+pub mod operations;
 pub mod symbol_tree;
 pub mod symbol_tree_node;
 

@@ -32,7 +32,6 @@ use squalr_engine_api::commands::{
     },
     privileged_command_request::PrivilegedCommandRequest,
     privileged_command_response::TypedPrivilegedCommandResponse,
-    project_items::create::project_items_create_request::ProjectItemsCreateRequest,
     project_symbols::{
         create::project_symbols_create_request::ProjectSymbolsCreateRequest,
         create_module::project_symbols_create_module_request::ProjectSymbolsCreateModuleRequest,
@@ -53,15 +52,22 @@ use squalr_engine_api::structures::data_values::{
 };
 use squalr_engine_api::structures::memory::{
     pointer::Pointer,
-    pointer_chain_segment::PointerChainSegment,
     symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
 };
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
     project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
     project_symbol_catalog::ProjectSymbolCatalog,
-    project_symbol_claim::ProjectSymbolClaim,
     project_symbol_locator::ProjectSymbolLocator,
+    symbol_tree::operations::{
+        add_symbol_to_project::{AddSymbolToProjectTarget, build_add_symbol_project_item_create_request, build_add_symbol_to_project_target},
+        define_field::{
+            DefineFieldPlan, DefineFieldPlanRequest, build_define_field_plan, build_define_field_symbol_layout_id, filter_registered_pointer_sizes,
+            parse_define_field_relative_offset,
+        },
+        delete_symbol::{ModuleChildRangeTarget, build_delete_module_range_confirmation_description, build_module_child_range_target},
+        edit_symbol_layout::build_symbol_layout_edit_target,
+    },
     symbol_tree::symbol_tree::SymbolTree,
     symbol_tree::symbol_tree_node::{ResolvedPointerTarget, SymbolTreeNode, SymbolTreeNodeKind, resolve_symbol_tree_node_size_in_bytes},
 };
@@ -76,7 +82,6 @@ use squalr_engine_session::virtual_snapshots::virtual_snapshot_query::VirtualSna
 use squalr_engine_session::virtual_snapshots::virtual_snapshot_query_result::VirtualSnapshotQueryResult;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -90,21 +95,6 @@ pub struct SymbolTreeView {
     symbol_layout_editor_view_data: Dependency<SymbolLayoutEditorViewData>,
     memory_viewer_view_data: Dependency<MemoryViewerViewData>,
     code_viewer_view_data: Dependency<CodeViewerViewData>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct ModuleChildRangeTarget {
-    module_name: String,
-    offset: u64,
-    length: u64,
-    display_name: String,
-    delete_mode: ProjectSymbolsDeleteModuleRangeMode,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct DeleteConfirmationDescription {
-    text: String,
-    is_warning: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,24 +111,10 @@ struct ModuleFieldTypeOption {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct AddSymbolToProjectTarget {
-    project_item_name: String,
-    address: u64,
-    module_name: String,
-    data_type_id: String,
-    pointer_offsets: Option<Vec<PointerChainSegment>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 struct SymbolTreePluginActionMenuItem {
     plugin_id: String,
     action_id: String,
     label: String,
-}
-
-#[derive(Clone, Debug)]
-struct DefineFieldPlan {
-    project_symbols_create_request: ProjectSymbolsCreateRequest,
 }
 
 impl SymbolTreeView {
@@ -353,26 +329,6 @@ impl SymbolTreeView {
         });
     }
 
-    fn build_delete_module_range_confirmation_description(
-        module_name: &str,
-        length: u64,
-        mode: ProjectSymbolsDeleteModuleRangeMode,
-    ) -> DeleteConfirmationDescription {
-        match mode {
-            ProjectSymbolsDeleteModuleRangeMode::ShiftLeft => DeleteConfirmationDescription {
-                text: format!(
-                    "WARNING: {} will be {} byte(s) smaller. Proceeding fields will be shifted left.",
-                    module_name, length
-                ),
-                is_warning: true,
-            },
-            ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned => DeleteConfirmationDescription {
-                text: String::from("This removes the field definition and leaves the bytes unassigned."),
-                is_warning: false,
-            },
-        }
-    }
-
     fn build_module_field_type_options(project_symbol_catalog: &ProjectSymbolCatalog) -> Vec<ModuleFieldTypeOption> {
         let mut type_options = Self::MODULE_FIELD_BUILT_IN_TYPE_IDS
             .iter()
@@ -448,19 +404,6 @@ impl SymbolTreeView {
 
     fn module_field_type_search_storage_id(menu_id: &str) -> Id {
         Id::new(("symbol_tree_module_field_type_search", menu_id))
-    }
-
-    fn filter_registered_pointer_sizes(registered_data_type_refs: &[DataTypeRef]) -> Vec<PointerScanPointerSize> {
-        let registered_data_type_ids = registered_data_type_refs
-            .iter()
-            .map(|data_type_ref| data_type_ref.get_data_type_id().to_string())
-            .collect::<HashSet<_>>();
-
-        PointerScanPointerSize::ALL
-            .iter()
-            .copied()
-            .filter(|pointer_size| registered_data_type_ids.contains(pointer_size.to_data_type_ref().get_data_type_id()))
-            .collect()
     }
 
     fn delete_module_root(
@@ -548,53 +491,6 @@ impl SymbolTreeView {
         });
     }
 
-    fn parse_define_field_relative_offset(
-        relative_offset_text: &str,
-        relative_offset_format: AnonymousValueStringFormat,
-    ) -> Result<u64, String> {
-        let trimmed_relative_offset_text = relative_offset_text.trim();
-
-        if trimmed_relative_offset_text.is_empty() {
-            return Err(String::from("Offset is required."));
-        }
-
-        let normalized_binary_text = trimmed_relative_offset_text
-            .strip_prefix("0b")
-            .or_else(|| trimmed_relative_offset_text.strip_prefix("0B"));
-
-        if let Some(binary_text) = normalized_binary_text {
-            if binary_text.is_empty() {
-                return Err(String::from("Binary offset is missing digits."));
-            }
-
-            return u64::from_str_radix(binary_text, 2).map_err(|_| format!("Invalid binary offset: {}.", trimmed_relative_offset_text));
-        }
-
-        let normalized_hex_text = trimmed_relative_offset_text
-            .strip_prefix("0x")
-            .or_else(|| trimmed_relative_offset_text.strip_prefix("0X"));
-
-        if let Some(hex_text) = normalized_hex_text {
-            if hex_text.is_empty() {
-                return Err(String::from("Hex offset is missing digits."));
-            }
-
-            return u64::from_str_radix(hex_text, 16).map_err(|_| format!("Invalid hex offset: {}.", trimmed_relative_offset_text));
-        }
-
-        match relative_offset_format {
-            AnonymousValueStringFormat::Binary => {
-                u64::from_str_radix(trimmed_relative_offset_text, 2).map_err(|_| format!("Invalid binary offset: {}.", trimmed_relative_offset_text))
-            }
-            AnonymousValueStringFormat::Hexadecimal | AnonymousValueStringFormat::Address => {
-                u64::from_str_radix(trimmed_relative_offset_text, 16).map_err(|_| format!("Invalid hex offset: {}.", trimmed_relative_offset_text))
-            }
-            _ => trimmed_relative_offset_text
-                .parse::<u64>()
-                .map_err(|_| format!("Invalid decimal offset: {}.", trimmed_relative_offset_text)),
-        }
-    }
-
     fn resolve_define_field_symbol_layout_id_size(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -658,13 +554,6 @@ impl SymbolTreeView {
         )
     }
 
-    fn build_define_field_symbol_layout_id(define_field_draft: &DefineFieldDraft) -> String {
-        let data_type_ref = define_field_draft.data_type_selection.visible_data_type();
-        let symbolic_field_definition = SymbolicFieldDefinition::new(data_type_ref.clone(), define_field_draft.container_type);
-
-        symbolic_field_definition.to_string()
-    }
-
     fn build_define_field_plan(
         define_field_draft: &DefineFieldDraft,
         module_name: &str,
@@ -672,47 +561,18 @@ impl SymbolTreeView {
         segment_length: u64,
         resolve_type_size: impl Fn(&str) -> Option<u64>,
     ) -> Result<DefineFieldPlan, String> {
-        let display_name = define_field_draft.display_name.trim();
-
-        if display_name.is_empty() {
-            return Err(String::from("Field name is required."));
-        }
-
-        let relative_offset = Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format)?;
-        let struct_layout_id = Self::build_define_field_symbol_layout_id(define_field_draft);
-        let Some(field_size) = resolve_type_size(&struct_layout_id) else {
-            return Err(format!("Cannot resolve byte size for `{}`.", struct_layout_id));
+        let define_field_plan_request = DefineFieldPlanRequest {
+            display_name: define_field_draft.display_name.clone(),
+            relative_offset_text: define_field_draft.relative_offset_text.clone(),
+            relative_offset_format: define_field_draft.relative_offset_format,
+            container_type: define_field_draft.container_type,
+            data_type_ref: define_field_draft
+                .data_type_selection
+                .visible_data_type()
+                .clone(),
         };
 
-        if field_size == 0 {
-            return Err(format!("`{}` has no byte size.", struct_layout_id));
-        }
-
-        let Some(relative_field_end) = relative_offset.checked_add(field_size) else {
-            return Err(String::from("Field range is too large."));
-        };
-
-        if relative_field_end > segment_length {
-            return Err(format!(
-                "`{}` is {} byte(s), which does not fit inside this unassigned segment at offset 0x{:X}.",
-                struct_layout_id, field_size, relative_offset
-            ));
-        }
-
-        let Some(absolute_offset) = segment_offset.checked_add(relative_offset) else {
-            return Err(String::from("Module offset is too large."));
-        };
-
-        Ok(DefineFieldPlan {
-            project_symbols_create_request: ProjectSymbolsCreateRequest {
-                display_name: display_name.to_string(),
-                struct_layout_id,
-                address: None,
-                module_name: Some(module_name.to_string()),
-                offset: Some(absolute_offset),
-                metadata: Default::default(),
-            },
-        })
+        build_define_field_plan(&define_field_plan_request, module_name, segment_offset, segment_length, resolve_type_size)
     }
 
     fn inline_rename_text_storage_id(symbol_locator_key: &str) -> Id {
@@ -786,156 +646,6 @@ impl SymbolTreeView {
         symbol_tree_entry.get_node_key().starts_with("module_field:")
     }
 
-    fn build_module_child_range_target(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeNode,
-        resolve_primitive_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
-    ) -> Option<ModuleChildRangeTarget> {
-        match symbol_tree_entry.get_kind() {
-            SymbolTreeNodeKind::UnassignedSegment { module_name, offset, length } => Some(ModuleChildRangeTarget {
-                module_name: module_name.to_string(),
-                offset: *offset,
-                length: *length,
-                display_name: symbol_tree_entry.get_display_name().to_string(),
-                delete_mode: ProjectSymbolsDeleteModuleRangeMode::ShiftLeft,
-            }),
-            SymbolTreeNodeKind::SymbolClaim { .. } if symbol_tree_entry.get_depth() == 1 => {
-                let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_tree_entry.get_locator() else {
-                    return None;
-                };
-                let length = resolve_symbol_tree_node_size_in_bytes(project_symbol_catalog, symbol_tree_entry, resolve_primitive_size_in_bytes);
-
-                (length > 0).then(|| ModuleChildRangeTarget {
-                    module_name: module_name.to_string(),
-                    offset: *offset,
-                    length,
-                    display_name: symbol_tree_entry.get_display_name().to_string(),
-                    delete_mode: ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned,
-                })
-            }
-            _ => None,
-        }
-    }
-
-    fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeNode) -> Option<AddSymbolToProjectTarget> {
-        if matches!(
-            symbol_tree_entry.get_kind(),
-            SymbolTreeNodeKind::ModuleSpace { .. } | SymbolTreeNodeKind::UnassignedSegment { .. }
-        ) {
-            return None;
-        }
-
-        let project_item_name = Self::build_add_symbol_project_item_name(symbol_tree_entry);
-        let address = symbol_tree_entry.get_locator().get_focus_address();
-        let module_name = symbol_tree_entry
-            .get_locator()
-            .get_focus_module_name()
-            .to_string();
-        let pointer_offsets = Self::build_add_symbol_pointer_offsets(symbol_tree_entry, address, &module_name);
-
-        Some(AddSymbolToProjectTarget {
-            project_item_name: if project_item_name.is_empty() {
-                String::from("Symbol")
-            } else {
-                project_item_name
-            },
-            address,
-            module_name,
-            data_type_id: symbol_tree_entry.get_display_type_id(),
-            pointer_offsets,
-        })
-    }
-
-    fn build_add_symbol_project_item_name(symbol_tree_entry: &SymbolTreeNode) -> String {
-        match symbol_tree_entry.get_kind() {
-            SymbolTreeNodeKind::SymbolClaim { .. } => symbol_tree_entry.get_display_name().trim().to_string(),
-            _ => symbol_tree_entry.get_full_path().trim().to_string(),
-        }
-    }
-
-    fn build_add_symbol_project_item_create_request(add_symbol_to_project_target: &AddSymbolToProjectTarget) -> ProjectItemsCreateRequest {
-        ProjectItemsCreateRequest {
-            parent_directory_path: PathBuf::new(),
-            project_item_name: add_symbol_to_project_target.project_item_name.clone(),
-            is_directory: false,
-            address: Some(add_symbol_to_project_target.address),
-            module_name: Some(add_symbol_to_project_target.module_name.clone()),
-            data_type_id: Some(add_symbol_to_project_target.data_type_id.clone()),
-            pointer_offsets: add_symbol_to_project_target.pointer_offsets.clone(),
-        }
-    }
-
-    fn build_add_symbol_pointer_offsets(
-        symbol_tree_entry: &SymbolTreeNode,
-        address: u64,
-        module_name: &str,
-    ) -> Option<Vec<PointerChainSegment>> {
-        if !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::SymbolClaim { .. })
-            || symbol_tree_entry.get_depth() != 1
-            || module_name.trim().is_empty()
-            || !PointerChainSegment::is_valid_symbol_name(symbol_tree_entry.get_display_name())
-        {
-            return None;
-        }
-
-        Some(vec![
-            PointerChainSegment::new_symbol(symbol_tree_entry.get_display_name().to_string())
-                .unwrap_or_else(|| PointerChainSegment::new_offset(address as i64)),
-        ])
-    }
-
-    fn build_symbol_layout_edit_target(
-        project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeNode],
-        symbol_tree_entry: &SymbolTreeNode,
-    ) -> Option<String> {
-        let layout_exists = |struct_layout_id: &str| {
-            project_symbol_catalog
-                .get_struct_layout_descriptors()
-                .iter()
-                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == struct_layout_id)
-        };
-
-        let symbol_type_id = symbol_tree_entry.get_symbol_type_id();
-        if layout_exists(symbol_type_id) {
-            return Some(symbol_type_id.to_string());
-        }
-
-        if let SymbolTreeNodeKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
-            return layout_exists(module_name).then(|| module_name.to_string());
-        }
-
-        let mut ancestor_node_key = symbol_tree_entry.get_node_key();
-        while let Some((next_ancestor_node_key, _field_node_key)) = ancestor_node_key.rsplit_once("::") {
-            if let Some(ancestor_symbol_tree_entry) = symbol_tree_entries
-                .iter()
-                .find(|ancestor_symbol_tree_entry| ancestor_symbol_tree_entry.get_node_key() == next_ancestor_node_key)
-            {
-                let ancestor_symbol_type_id = ancestor_symbol_tree_entry.get_symbol_type_id();
-                if layout_exists(ancestor_symbol_type_id) {
-                    return Some(ancestor_symbol_type_id.to_string());
-                }
-            }
-
-            ancestor_node_key = next_ancestor_node_key;
-        }
-
-        let module_name = symbol_tree_entry.get_locator().get_focus_module_name();
-        if !module_name.trim().is_empty() && layout_exists(module_name) {
-            return Some(module_name.to_string());
-        }
-
-        let root_symbol_claim_type_id = project_symbol_catalog
-            .get_symbol_claims()
-            .iter()
-            .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == symbol_tree_entry.get_symbol_claim_locator_key())
-            .map(ProjectSymbolClaim::get_struct_layout_id);
-
-        root_symbol_claim_type_id
-            .filter(|struct_layout_id| layout_exists(struct_layout_id))
-            .map(str::to_string)
-    }
-
     fn edit_symbol_tree_entry_symbol_layout(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
@@ -961,7 +671,7 @@ impl SymbolTreeView {
         &self,
         add_symbol_to_project_target: &AddSymbolToProjectTarget,
     ) {
-        let project_items_create_request = Self::build_add_symbol_project_item_create_request(add_symbol_to_project_target);
+        let project_items_create_request = build_add_symbol_project_item_create_request(add_symbol_to_project_target);
 
         project_items_create_request.send(&self.app_context.engine_unprivileged_state, |project_items_create_response| {
             if !project_items_create_response.success {
@@ -2354,12 +2064,12 @@ impl SymbolTreeView {
         segment_length: u64,
         resolve_type_size: impl Fn(&str) -> Option<u64>,
     ) -> Option<String> {
-        let relative_offset =
-            match Self::parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format) {
-                Ok(relative_offset) => relative_offset,
-                Err(parse_error) => return Some(parse_error),
-            };
-        let struct_layout_id = Self::build_define_field_symbol_layout_id(define_field_draft);
+        let relative_offset = match parse_define_field_relative_offset(&define_field_draft.relative_offset_text, define_field_draft.relative_offset_format) {
+            Ok(relative_offset) => relative_offset,
+            Err(parse_error) => return Some(parse_error),
+        };
+        let struct_layout_id =
+            build_define_field_symbol_layout_id(define_field_draft.data_type_selection.visible_data_type(), define_field_draft.container_type);
         let Some(field_size) = resolve_type_size(&struct_layout_id) else {
             return Some(format!("Cannot resolve byte size for `{}`.", struct_layout_id));
         };
@@ -2721,7 +2431,7 @@ impl SymbolTreeView {
 
                         user_interface.horizontal(|user_interface| {
                             user_interface.spacing_mut().item_spacing.x = 4.0;
-                            let pointer_sizes = Self::filter_registered_pointer_sizes(
+                            let pointer_sizes = filter_registered_pointer_sizes(
                                 &self
                                     .app_context
                                     .engine_unprivileged_state
@@ -3180,16 +2890,14 @@ impl SymbolTreeView {
                     SymbolTreeNodeKind::ModuleSpace { module_name, .. } => Some(module_name.as_str()),
                     _ => None,
                 };
-                let context_menu_module_child_range_target =
-                    Self::build_module_child_range_target(project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
-                        self.app_context
-                            .engine_unprivileged_state
-                            .get_default_value(data_type_ref)
-                            .map(|default_value| default_value.get_size_in_bytes())
-                    });
-                let context_menu_add_symbol_to_project_target = Self::build_add_symbol_to_project_target(symbol_tree_entry);
-                let context_menu_symbol_layout_edit_target =
-                    Self::build_symbol_layout_edit_target(project_symbol_catalog, symbol_tree_entries, symbol_tree_entry);
+                let context_menu_module_child_range_target = build_module_child_range_target(project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
+                    self.app_context
+                        .engine_unprivileged_state
+                        .get_default_value(data_type_ref)
+                        .map(|default_value| default_value.get_size_in_bytes())
+                });
+                let context_menu_add_symbol_to_project_target = build_add_symbol_to_project_target(symbol_tree_entry);
+                let context_menu_symbol_layout_edit_target = build_symbol_layout_edit_target(project_symbol_catalog, symbol_tree_entries, symbol_tree_entry);
                 let context_menu_symbol_tree_action_context = Self::build_symbol_tree_action_context(symbol_tree_entry);
                 let context_menu_plugin_action_menu_items = self.build_symbol_tree_plugin_action_menu_items(&context_menu_symbol_tree_action_context);
                 let can_delete_symbol_tree_entry =
@@ -3521,7 +3229,7 @@ impl SymbolTreeView {
         size_text: &str,
         size_format: AnonymousValueStringFormat,
     ) -> Option<u64> {
-        Self::parse_define_field_relative_offset(size_text, size_format).ok()
+        parse_define_field_relative_offset(size_text, size_format).ok()
     }
 
     fn build_module_root_create_request_from_draft(edited_draft: &ModuleRootCreateDraft) -> Option<ProjectSymbolsCreateModuleRequest> {
@@ -3799,7 +3507,7 @@ impl Widget for SymbolTreeView {
         };
         let selected_symbol_tree_entry = Self::build_selected_symbol_tree_entry(&symbol_tree_entries, selected_entry.as_ref());
         let selected_module_child_range_target = selected_symbol_tree_entry.and_then(|symbol_tree_entry| {
-            Self::build_module_child_range_target(&project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
+            build_module_child_range_target(&project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
                 self.app_context
                     .engine_unprivileged_state
                     .get_default_value(data_type_ref)
@@ -4001,7 +3709,7 @@ impl Widget for SymbolTreeView {
                         display_name,
                         mode,
                     }) => {
-                        let delete_confirmation_description = Self::build_delete_module_range_confirmation_description(module_name, *length, *mode);
+                        let delete_confirmation_description = build_delete_module_range_confirmation_description(module_name, *length, *mode);
                         let description_text = delete_confirmation_description.text;
 
                         list_user_interface.add_space(8.0);
@@ -4084,6 +3792,12 @@ mod tests {
     use crate::views::symbol_tree::view_data::symbol_tree_view_data::{DefineFieldDraft, ModuleRootCreateDraft};
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::structures::projects::symbol_tree::operations::{
+        add_symbol_to_project::{build_add_symbol_project_item_create_request, build_add_symbol_to_project_target},
+        define_field::{filter_registered_pointer_sizes, parse_define_field_relative_offset},
+        delete_symbol::{build_delete_module_range_confirmation_description, build_module_child_range_target},
+        edit_symbol_layout::build_symbol_layout_edit_target,
+    };
     use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind};
     use squalr_engine_api::structures::{
         data_types::{
@@ -4290,9 +4004,8 @@ mod tests {
     #[test]
     fn build_add_symbol_to_project_request_targets_address_item() {
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
-        let add_symbol_to_project_target =
-            SymbolTreeView::build_add_symbol_to_project_target(&module_symbol_claim_entry).expect("Expected address add-to-project target.");
-        let project_items_create_request = SymbolTreeView::build_add_symbol_project_item_create_request(&add_symbol_to_project_target);
+        let add_symbol_to_project_target = build_add_symbol_to_project_target(&module_symbol_claim_entry).expect("Expected address add-to-project target.");
+        let project_items_create_request = build_add_symbol_project_item_create_request(&add_symbol_to_project_target);
 
         assert_eq!(project_items_create_request.project_item_name, "Health");
         assert_eq!(project_items_create_request.address, Some(4));
@@ -4314,7 +4027,7 @@ mod tests {
     fn build_add_symbol_to_project_target_accepts_struct_field_rows() {
         let struct_field_entry = create_struct_field_tree_entry();
         let add_symbol_to_project_target =
-            SymbolTreeView::build_add_symbol_to_project_target(&struct_field_entry).expect("Expected derived struct field add-to-project target.");
+            build_add_symbol_to_project_target(&struct_field_entry).expect("Expected derived struct field add-to-project target.");
 
         assert_eq!(add_symbol_to_project_target.project_item_name, "PE Headers.NTHeaders.FileHeader");
         assert_eq!(add_symbol_to_project_target.address, 0x84);
@@ -4328,8 +4041,8 @@ mod tests {
         let module_entry = create_module_tree_entry("game.exe");
         let unassigned_segment_entry = create_unassigned_segment_tree_entry();
 
-        assert_eq!(SymbolTreeView::build_add_symbol_to_project_target(&module_entry), None);
-        assert_eq!(SymbolTreeView::build_add_symbol_to_project_target(&unassigned_segment_entry), None);
+        assert_eq!(build_add_symbol_to_project_target(&module_entry), None);
+        assert_eq!(build_add_symbol_to_project_target(&unassigned_segment_entry), None);
     }
 
     #[test]
@@ -4348,7 +4061,7 @@ mod tests {
         let struct_field_entry = create_struct_field_tree_entry();
 
         assert_eq!(
-            SymbolTreeView::build_symbol_layout_edit_target(&project_symbol_catalog, &[struct_field_entry.clone()], &struct_field_entry),
+            build_symbol_layout_edit_target(&project_symbol_catalog, &[struct_field_entry.clone()], &struct_field_entry),
             Some(String::from("win.pe.IMAGE_FILE_HEADER"))
         );
     }
@@ -4362,7 +4075,7 @@ mod tests {
         let module_entry = create_module_tree_entry("game.exe");
 
         assert_eq!(
-            SymbolTreeView::build_symbol_layout_edit_target(&project_symbol_catalog, &[module_entry.clone()], &module_entry),
+            build_symbol_layout_edit_target(&project_symbol_catalog, &[module_entry.clone()], &module_entry),
             Some(String::from("game.exe"))
         );
     }
@@ -4377,7 +4090,7 @@ mod tests {
         let unassigned_segment_entry = create_unassigned_segment_tree_entry();
 
         assert_eq!(
-            SymbolTreeView::build_symbol_layout_edit_target(
+            build_symbol_layout_edit_target(
                 &project_symbol_catalog,
                 &[module_entry, unassigned_segment_entry.clone()],
                 &unassigned_segment_entry
@@ -4415,7 +4128,7 @@ mod tests {
         );
 
         assert_eq!(
-            SymbolTreeView::build_symbol_layout_edit_target(
+            build_symbol_layout_edit_target(
                 &project_symbol_catalog,
                 &[parent_struct_field_entry, primitive_child_entry.clone()],
                 &primitive_child_entry
@@ -4521,11 +4234,11 @@ mod tests {
         );
         let unassigned_segment_entry = create_unassigned_segment_tree_entry();
         let module_symbol_claim_entry = create_module_symbol_claim_tree_entry();
-        let unassigned_segment_target = SymbolTreeView::build_module_child_range_target(&project_symbol_catalog, &unassigned_segment_entry, |data_type_ref| {
+        let unassigned_segment_target = build_module_child_range_target(&project_symbol_catalog, &unassigned_segment_entry, |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u8").then_some(1)
         })
         .expect("Expected unassigned segment to resolve as a module child range.");
-        let symbol_claim_target = SymbolTreeView::build_module_child_range_target(&project_symbol_catalog, &module_symbol_claim_entry, |data_type_ref| {
+        let symbol_claim_target = build_module_child_range_target(&project_symbol_catalog, &module_symbol_claim_entry, |data_type_ref| {
             match data_type_ref.get_data_type_id() {
                 "u8" => Some(1),
                 "u32" => Some(4),
@@ -4547,7 +4260,7 @@ mod tests {
     #[test]
     fn build_delete_module_range_confirmation_description_marks_shift_left_as_warning() {
         let delete_confirmation_description =
-            SymbolTreeView::build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ShiftLeft);
+            build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ShiftLeft);
 
         assert_eq!(
             delete_confirmation_description.text,
@@ -4559,7 +4272,7 @@ mod tests {
     #[test]
     fn build_delete_module_range_confirmation_description_keeps_replace_with_unassigned_non_warning() {
         let delete_confirmation_description =
-            SymbolTreeView::build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned);
+            build_delete_module_range_confirmation_description("winmine.exe", 389, ProjectSymbolsDeleteModuleRangeMode::ReplaceWithUnassigned);
 
         assert_eq!(
             delete_confirmation_description.text,
@@ -4635,7 +4348,7 @@ mod tests {
 
     #[test]
     fn filter_registered_pointer_sizes_omits_plugin_backed_sizes_when_unregistered() {
-        let pointer_sizes = SymbolTreeView::filter_registered_pointer_sizes(&[
+        let pointer_sizes = filter_registered_pointer_sizes(&[
             DataTypeRef::new("u32"),
             DataTypeRef::new("u32be"),
             DataTypeRef::new("u64"),
@@ -4655,7 +4368,7 @@ mod tests {
 
     #[test]
     fn filter_registered_pointer_sizes_includes_plugin_backed_sizes_when_registered() {
-        let pointer_sizes = SymbolTreeView::filter_registered_pointer_sizes(&[
+        let pointer_sizes = filter_registered_pointer_sizes(&[
             DataTypeRef::new("u24"),
             DataTypeRef::new("u24be"),
             DataTypeRef::new("u32"),
@@ -4762,22 +4475,10 @@ mod tests {
 
     #[test]
     fn parse_define_field_relative_offset_accepts_hex_and_decimal() {
-        assert_eq!(
-            SymbolTreeView::parse_define_field_relative_offset("0x10", AnonymousValueStringFormat::Decimal),
-            Ok(16)
-        );
-        assert_eq!(
-            SymbolTreeView::parse_define_field_relative_offset("10", AnonymousValueStringFormat::Hexadecimal),
-            Ok(16)
-        );
-        assert_eq!(
-            SymbolTreeView::parse_define_field_relative_offset("16", AnonymousValueStringFormat::Decimal),
-            Ok(16)
-        );
-        assert_eq!(
-            SymbolTreeView::parse_define_field_relative_offset("10000", AnonymousValueStringFormat::Binary),
-            Ok(16)
-        );
+        assert_eq!(parse_define_field_relative_offset("0x10", AnonymousValueStringFormat::Decimal), Ok(16));
+        assert_eq!(parse_define_field_relative_offset("10", AnonymousValueStringFormat::Hexadecimal), Ok(16));
+        assert_eq!(parse_define_field_relative_offset("16", AnonymousValueStringFormat::Decimal), Ok(16));
+        assert_eq!(parse_define_field_relative_offset("10000", AnonymousValueStringFormat::Binary), Ok(16));
     }
 
     #[test]

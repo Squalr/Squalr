@@ -61,6 +61,7 @@ Our current task, from `README.md`, is:
 - Corrected the PE plugin command integration test to match the rooted PE layout contract: the module owns one `PE Headers` field, and DOS/NT/section entries live inside the persisted `win.pe.PE_HEADERS32` layout descriptor.
 - Renamed the GUI Symbol Tree internals away from the stale explorer naming, including module paths, view/data types, toolbar types, window IDs, focus targets, tests, and task-log references. Needs human verification in the GUI.
 - Moved the shared Symbol Tree data model out of the GUI crate into `squalr-engine-api::structures::projects::symbol_tree`. The GUI now renders `SymbolTreeNode`s from the shared `SymbolTree` projection while keeping only entry-view rendering and UI state locally. Needs human verification in the GUI.
+- Moved Symbol Tree semantic operations into `squalr-engine-api::structures::projects::symbol_tree::operations`, split by add-to-project, define-field, delete-symbol, and edit-symbol-layout concerns. The GUI now adapts local view drafts/selection into shared operation calls instead of owning those command/model decisions. Needs human verification in the GUI.
 
 ## Important Information
 
@@ -108,3 +109,4 @@ Our current task, from `README.md`, is:
 - PE plugin command correction validation ran `cargo fmt --all`, `cargo test -p squalr-engine execute_plugin_action_populates_pe_symbols --lib --locked`, `cargo test -p squalr-plugin-symbols-pe --locked`, `cargo test -p squalr-engine project_symbols --lib --locked`, and `git diff --check`.
 - Symbol Tree internal rename validation ran `cargo fmt --all`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, a stale explorer-name search across `squalr`, `docs`, and `AGENTS_CURRENT_TASK.md`, and `git diff --check`.
 - Shared Symbol Tree model extraction validation ran `cargo fmt --all`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, stale GUI-owned model import searches, and `git diff --check`.
+- Symbol Tree operations extraction validation ran `cargo fmt --all`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, operation/helper searches, and `git diff --check`.
