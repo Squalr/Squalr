@@ -36,6 +36,7 @@ pub struct DataTypeSelectorView<'lifetime> {
     available_data_types: Option<Vec<DataTypeRef>>,
     selectable_data_type_column_count: usize,
     show_preview_text: bool,
+    show_label_tooltip: bool,
     enforce_format_compatibility: bool,
     single_select: bool,
 }
@@ -72,6 +73,7 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
             available_data_types: None,
             selectable_data_type_column_count: Self::SELECTABLE_DATA_TYPE_COLUMN_COUNT,
             show_preview_text: true,
+            show_label_tooltip: false,
             enforce_format_compatibility: false,
             single_select: false,
         }
@@ -121,6 +123,11 @@ impl<'lifetime> DataTypeSelectorView<'lifetime> {
 
     pub fn hide_preview_text(mut self) -> Self {
         self.show_preview_text = false;
+        self
+    }
+
+    pub fn with_label_tooltip(mut self) -> Self {
+        self.show_label_tooltip = true;
         self
     }
 
@@ -359,6 +366,7 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
         let available_data_types = self.available_data_types;
         let selectable_data_type_column_count = self.selectable_data_type_column_count.max(1);
         let show_preview_text = self.show_preview_text;
+        let show_label_tooltip = self.show_label_tooltip;
         let enforce_format_compatibility = self.enforce_format_compatibility;
         let single_select = self.single_select;
         let popup_width = Self::selectable_popup_width(selectable_data_type_column_count);
@@ -433,10 +441,9 @@ impl<'lifetime> Widget for DataTypeSelectorView<'lifetime> {
                         });
                 });
             },
-        )
-        .disabled(disabled)
-        .width(width)
-        .height(height);
+        );
+        let combo_box = if show_label_tooltip { combo_box.with_label_tooltip() } else { combo_box };
+        let combo_box = combo_box.disabled(disabled).width(width).height(height);
 
         // Add the combo box to the layout.
         user_interface.add(combo_box)

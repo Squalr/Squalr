@@ -750,6 +750,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             vec2(available_for_selectors, available_size_rect.height()),
                         ),
                         DataTypeSelectorView::new(self.app_context.clone(), field_data_type_selection, &data_type_selector_id)
+                            .with_label_tooltip()
                             .available_data_types(
                                 if matches!(
                                     self.field_presentation.editor_kind(),
@@ -816,6 +817,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(container_width)
                     .height(available_size_rect.height()),
                 );
@@ -869,6 +871,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(pointer_size_width)
                     .height(available_size_rect.height()),
                 );
@@ -915,6 +918,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(node_kind_width)
                     .height(available_size_rect.height()),
                 );
@@ -969,6 +973,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(operator_width)
                     .height(available_size_rect.height()),
                 );
@@ -1015,6 +1020,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(element_type_width)
                     .height(available_size_rect.height()),
                 );
@@ -1059,6 +1065,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(layout_kind_width)
                     .height(available_size_rect.height()),
                 );
@@ -1157,6 +1164,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                 });
                         },
                     )
+                    .with_label_tooltip()
                     .width(symbol_layout_width)
                     .popup_width(symbol_layout_popup_width)
                     .height(available_size_rect.height()),
@@ -1250,6 +1258,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                                 });
                         },
                     )
+                    .with_label_tooltip()
                     .width(resolver_width)
                     .popup_width(resolver_popup_width)
                     .height(available_size_rect.height()),
@@ -1297,6 +1306,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(container_kind_width)
                     .height(available_size_rect.height()),
                 );
@@ -1345,6 +1355,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(pointer_size_width)
                     .height(available_size_rect.height()),
                 );
@@ -1391,6 +1402,7 @@ impl<'lifetime> Widget for StructViewerEntryView<'lifetime> {
                             }
                         },
                     )
+                    .with_label_tooltip()
                     .width(offset_mode_width)
                     .height(available_size_rect.height()),
                 );

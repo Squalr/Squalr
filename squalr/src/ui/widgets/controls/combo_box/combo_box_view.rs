@@ -22,6 +22,7 @@ pub struct ComboBoxView<'lifetime, F: FnOnce(&mut Ui, &mut bool)> {
     divider_width: f32,
     border_width: f32,
     corner_radius: u8,
+    tooltip_text: Option<Cow<'lifetime, str>>,
 }
 
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
@@ -49,6 +50,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
             divider_width: 1.0,
             border_width: 1.0,
             corner_radius: 0,
+            tooltip_text: None,
         }
     }
 
@@ -102,6 +104,22 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> ComboBoxView<'lifetime, F> {
         self.show_dropdown_arrow = show_dropdown_arrow;
         self
     }
+
+    pub fn with_tooltip_text(
+        mut self,
+        tooltip_text: impl Into<Cow<'lifetime, str>>,
+    ) -> Self {
+        self.tooltip_text = Some(tooltip_text.into());
+        self
+    }
+
+    pub fn with_label_tooltip(mut self) -> Self {
+        if !self.label.is_empty() {
+            self.tooltip_text = Some(Cow::Owned(self.label.to_string()));
+        }
+
+        self
+    }
 }
 
 impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime, F> {
@@ -116,7 +134,7 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
         let down_arrow = &theme.icon_library.icon_handle_navigation_down_arrow_small;
         let desired_size = vec2(self.width, self.height);
         let sense = if self.disabled { Sense::hover() } else { Sense::click() };
-        let (allocated_size_rectangle, response) = user_interface.allocate_exact_size(desired_size, sense);
+        let (allocated_size_rectangle, mut response) = user_interface.allocate_exact_size(desired_size, sense);
 
         // Precompute positions.
         let icon_size_vec = vec2(self.icon_size, self.icon_size);
@@ -214,6 +232,14 @@ impl<'lifetime, F: FnOnce(&mut Ui, &mut bool)> Widget for ComboBoxView<'lifetime
                 Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
                 icon_tint,
             );
+        }
+
+        if let Some(tooltip_text) = &self.tooltip_text {
+            if !tooltip_text.is_empty() {
+                let tooltip_text: &str = tooltip_text.as_ref();
+
+                response = response.on_hover_text(tooltip_text);
+            }
         }
 
         // Popup logic.
