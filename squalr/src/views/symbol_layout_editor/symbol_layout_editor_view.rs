@@ -126,6 +126,7 @@ impl SymbolLayoutEditorView {
     const DEFINE_FIELD_BUILT_IN_TYPE_IDS: [&'static str; 18] = [
         "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
     ];
+    const LAYOUT_KIND_COMBO_WIDTH: f32 = 128.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_layout_editor_view_data = app_context
@@ -994,50 +995,45 @@ impl SymbolLayoutEditorView {
         );
     }
 
-    fn render_layout_kind_selector(
+    fn render_layout_kind_combo(
         &self,
         user_interface: &mut Ui,
         layout_kind: &mut SymbolicLayoutKind,
+        menu_id: &str,
     ) {
-        let theme = &self.app_context.theme;
-        let button_width = 96.0;
-        let button_spacing = 8.0;
-        let total_button_width =
-            button_width * SymbolicLayoutKind::ALL.len() as f32 + button_spacing * (SymbolicLayoutKind::ALL.len().saturating_sub(1)) as f32;
-        let leading_space = ((user_interface.available_width() - total_button_width) * 0.5).max(0.0);
+        let mut selected_layout_kind = None;
+        let combo_width = Self::LAYOUT_KIND_COMBO_WIDTH.min(user_interface.available_width().max(1.0));
 
-        user_interface.horizontal(|user_interface| {
-            user_interface.add_space(leading_space);
+        user_interface.add(
+            ComboBoxView::new(
+                self.app_context.clone(),
+                layout_kind.label(),
+                menu_id,
+                None,
+                |popup_user_interface, should_close| {
+                    for candidate_layout_kind in SymbolicLayoutKind::ALL {
+                        let item_response = popup_user_interface.add(ComboBoxItemView::new(
+                            self.app_context.clone(),
+                            candidate_layout_kind.label(),
+                            None,
+                            combo_width,
+                        ));
 
-            for (layout_kind_index, candidate_layout_kind) in SymbolicLayoutKind::ALL.iter().copied().enumerate() {
-                if layout_kind_index > 0 {
-                    user_interface.add_space(button_spacing);
-                }
+                        if item_response.clicked() {
+                            selected_layout_kind = Some(candidate_layout_kind);
+                            *should_close = true;
+                        }
+                    }
+                },
+            )
+            .width(combo_width)
+            .popup_width(combo_width)
+            .height(Self::FIELD_ROW_HEIGHT),
+        );
 
-                let is_selected = *layout_kind == candidate_layout_kind;
-                let button = EguiButton::new(RichText::new(candidate_layout_kind.label()).color(theme.foreground))
-                    .fill(if is_selected {
-                        theme.background_control_primary
-                    } else {
-                        theme.background_control_secondary
-                    })
-                    .stroke(Stroke::new(
-                        1.0,
-                        if is_selected {
-                            theme.background_control_primary_dark
-                        } else {
-                            theme.background_control_secondary_dark
-                        },
-                    ));
-
-                if user_interface
-                    .add_sized(vec2(button_width, Self::FIELD_ROW_HEIGHT), button)
-                    .clicked()
-                {
-                    *layout_kind = candidate_layout_kind;
-                }
-            }
-        });
+        if let Some(selected_layout_kind) = selected_layout_kind {
+            *layout_kind = selected_layout_kind;
+        }
     }
 
     fn layout_kind_from_label(label: &str) -> Option<SymbolicLayoutKind> {
@@ -2661,17 +2657,24 @@ impl SymbolLayoutEditorView {
                             &self.app_context.theme,
                             if is_creating_new_layout { "New Symbol Layout" } else { "Symbol Layout" },
                             |user_interface| {
-                                self.render_string_value_box(
-                                    user_interface,
-                                    &mut edited_draft.layout_id,
-                                    "module.type",
-                                    "symbol_layout_editor_layout_id",
-                                    user_interface.available_width(),
-                                    Self::FIELD_ROW_HEIGHT,
-                                );
-                                user_interface.add_space(6.0);
                                 let previous_layout_kind = edited_draft.layout_kind;
-                                self.render_layout_kind_selector(user_interface, &mut edited_draft.layout_kind);
+
+                                user_interface.horizontal(|user_interface| {
+                                    user_interface.spacing_mut().item_spacing.x = Self::FIELD_INPUT_SPACING;
+                                    let combo_width = Self::LAYOUT_KIND_COMBO_WIDTH.min(user_interface.available_width().max(1.0));
+                                    let layout_id_width = (user_interface.available_width() - combo_width - Self::FIELD_INPUT_SPACING).max(1.0);
+
+                                    self.render_string_value_box(
+                                        user_interface,
+                                        &mut edited_draft.layout_id,
+                                        "module.type",
+                                        "symbol_layout_editor_layout_id",
+                                        layout_id_width,
+                                        Self::FIELD_ROW_HEIGHT,
+                                    );
+                                    self.render_layout_kind_combo(user_interface, &mut edited_draft.layout_kind, "symbol_layout_editor_layout_kind");
+                                });
+
                                 if previous_layout_kind != edited_draft.layout_kind && edited_draft.layout_kind.is_union() {
                                     self.normalize_union_field_drafts(project_symbol_catalog, &mut edited_draft);
                                 }
