@@ -669,19 +669,13 @@ impl SymbolLayoutEditorView {
     fn append_field_to_variant_layout(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        union_draft: &SymbolLayoutEditDraft,
+        union_draft: &mut SymbolLayoutEditDraft,
         variant_index: usize,
     ) -> bool {
         let Some(variant_field_draft) = union_draft.field_drafts.get(variant_index) else {
             return false;
         };
-        let variant_layout_id = variant_field_draft
-            .data_type_selection
-            .visible_data_type()
-            .get_data_type_id();
-        let Some(mut variant_draft) = Self::create_union_variant_layout_draft(project_symbol_catalog, union_draft, variant_layout_id) else {
-            return false;
-        };
+        let mut variant_draft = Self::create_union_variant_layout_draft(project_symbol_catalog, union_draft, variant_index, variant_field_draft);
 
         let Some((layout_size_in_bytes, field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
             return false;
@@ -698,6 +692,13 @@ impl SymbolLayoutEditorView {
         field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
         field_draft.static_offset_in_bytes = field_offset_in_bytes.to_string();
         variant_draft.field_drafts.push(field_draft);
+        if let Some(variant_field_draft) = union_draft.field_drafts.get_mut(variant_index) {
+            variant_field_draft
+                .data_type_selection
+                .select_single_data_type(DataTypeRef::new(&variant_draft.layout_id));
+            variant_field_draft.container_edit.kind = SymbolLayoutFieldContainerKind::Element;
+            variant_field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Sequential;
+        }
 
         self.persist_variant_layout_draft(project_symbol_catalog, &variant_draft)
     }
@@ -705,18 +706,92 @@ impl SymbolLayoutEditorView {
     fn create_union_variant_layout_draft(
         project_symbol_catalog: &ProjectSymbolCatalog,
         union_draft: &SymbolLayoutEditDraft,
-        variant_layout_id: &str,
-    ) -> Option<SymbolLayoutEditDraft> {
-        let variant_layout_descriptor = project_symbol_catalog
+        variant_index: usize,
+        variant_field_draft: &SymbolLayoutFieldEditDraft,
+    ) -> SymbolLayoutEditDraft {
+        let variant_layout_id = variant_field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id();
+        if let Some(variant_layout_descriptor) = project_symbol_catalog
             .get_struct_layout_descriptors()
             .iter()
-            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)?;
-        let mut variant_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(variant_layout_descriptor);
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)
+        {
+            return Self::create_union_variant_layout_draft_for_id(project_symbol_catalog, union_draft, variant_layout_descriptor.get_struct_layout_id());
+        }
 
-        variant_draft.size_text = union_draft.size_text.clone();
-        variant_draft.size_format = union_draft.size_format;
+        let variant_layout_id = Self::build_union_variant_layout_id(project_symbol_catalog, union_draft, variant_index);
+        Self::create_virtual_union_variant_layout_draft(union_draft, variant_layout_id)
+    }
 
-        Some(variant_draft)
+    fn create_union_variant_layout_draft_for_id(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        union_draft: &SymbolLayoutEditDraft,
+        variant_layout_id: &str,
+    ) -> SymbolLayoutEditDraft {
+        if let Some(variant_layout_descriptor) = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)
+        {
+            let mut variant_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(variant_layout_descriptor);
+
+            variant_draft.size_text = union_draft.size_text.clone();
+            variant_draft.size_format = union_draft.size_format;
+
+            return variant_draft;
+        }
+
+        Self::create_virtual_union_variant_layout_draft(union_draft, variant_layout_id.to_string())
+    }
+
+    fn create_virtual_union_variant_layout_draft(
+        union_draft: &SymbolLayoutEditDraft,
+        variant_layout_id: String,
+    ) -> SymbolLayoutEditDraft {
+        SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: variant_layout_id,
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: union_draft.size_text.clone(),
+            size_format: union_draft.size_format,
+            field_drafts: Vec::new(),
+        }
+    }
+
+    fn build_union_variant_layout_id(
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        union_draft: &SymbolLayoutEditDraft,
+        variant_index: usize,
+    ) -> String {
+        let trimmed_union_layout_id = union_draft.layout_id.trim();
+        let base_layout_id = if trimmed_union_layout_id.is_empty() {
+            format!("union.variant_{}", variant_index + 1)
+        } else {
+            format!("{}.variant_{}", trimmed_union_layout_id, variant_index + 1)
+        };
+        if !project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == base_layout_id)
+        {
+            return base_layout_id;
+        }
+
+        let mut suffix_index = 2_u64;
+        loop {
+            let candidate_layout_id = format!("{}_{}", base_layout_id, suffix_index);
+            if !project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == candidate_layout_id)
+            {
+                return candidate_layout_id;
+            }
+
+            suffix_index = suffix_index.saturating_add(1);
+        }
     }
 
     fn persist_variant_layout_draft(
@@ -2516,17 +2591,12 @@ impl SymbolLayoutEditorView {
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
         union_draft: &SymbolLayoutEditDraft,
+        variant_index: usize,
         variant_field_draft: &SymbolLayoutFieldEditDraft,
         selected_unassigned_span: Option<&SymbolLayoutUnassignedSelection>,
     ) -> Option<(String, SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedRowAction)> {
-        let variant_layout_id = variant_field_draft
-            .data_type_selection
-            .visible_data_type()
-            .get_data_type_id();
-        let Some(variant_draft) = Self::create_union_variant_layout_draft(project_symbol_catalog, union_draft, variant_layout_id) else {
-            self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unavailable");
-            return None;
-        };
+        let variant_draft = Self::create_union_variant_layout_draft(project_symbol_catalog, union_draft, variant_index, variant_field_draft);
+        let variant_layout_id = variant_draft.layout_id.as_str();
 
         let Some((layout_size_in_bytes, mut field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
             self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unresolved");
@@ -3124,6 +3194,7 @@ impl SymbolLayoutEditorView {
                             user_interface,
                             project_symbol_catalog,
                             &union_draft_preview,
+                            field_index,
                             &variant_field_preview_draft,
                             selected_unassigned_span,
                         ) {
@@ -3275,7 +3346,7 @@ impl SymbolLayoutEditorView {
         if let Some((target_layout_id, unassigned_row_context, unassigned_row_action)) = pending_unassigned_row_action {
             let mut target_variant_draft = target_layout_id
                 .as_deref()
-                .and_then(|target_layout_id| Self::create_union_variant_layout_draft(project_symbol_catalog, draft, target_layout_id));
+                .map(|target_layout_id| Self::create_union_variant_layout_draft_for_id(project_symbol_catalog, draft, target_layout_id));
             let mut persist_target_variant_draft = false;
             match unassigned_row_action {
                 SymbolLayoutUnassignedRowAction::SelectSpan => {
@@ -4413,6 +4484,53 @@ mod tests {
         }];
 
         assert_eq!(SymbolLayoutEditorView::resolve_first_unassigned_offset(&field_spans, 16), Some(4));
+    }
+
+    #[test]
+    fn create_union_variant_layout_draft_materializes_missing_variant_as_empty_struct() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let union_draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("actor.state")),
+            layout_id: String::from("actor.state"),
+            layout_kind: SymbolicLayoutKind::Union,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: Vec::new(),
+        };
+        let mut variant_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+
+        variant_field_draft.field_name = String::from("Variant 1");
+
+        let variant_draft = SymbolLayoutEditorView::create_union_variant_layout_draft(&project_symbol_catalog, &union_draft, 0, &variant_field_draft);
+
+        assert_eq!(variant_draft.original_layout_id, None);
+        assert_eq!(variant_draft.layout_id, "actor.state.variant_1");
+        assert_eq!(variant_draft.layout_kind, SymbolicLayoutKind::Struct);
+        assert_eq!(variant_draft.size_text, "32");
+        assert!(variant_draft.field_drafts.is_empty());
+    }
+
+    #[test]
+    fn create_union_variant_layout_draft_uses_existing_referenced_layout() {
+        let project_symbol_catalog = ProjectSymbolCatalog::new(vec![StructLayoutDescriptor::new(
+            String::from("actor.state.alive"),
+            SymbolicStructDefinition::new(String::from("actor.state.alive"), Vec::new()),
+        )]);
+        let union_draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("actor.state")),
+            layout_id: String::from("actor.state"),
+            layout_kind: SymbolicLayoutKind::Union,
+            size_text: String::from("64"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: Vec::new(),
+        };
+        let variant_field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new("actor.state.alive"));
+
+        let variant_draft = SymbolLayoutEditorView::create_union_variant_layout_draft(&project_symbol_catalog, &union_draft, 0, &variant_field_draft);
+
+        assert_eq!(variant_draft.original_layout_id.as_deref(), Some("actor.state.alive"));
+        assert_eq!(variant_draft.layout_id, "actor.state.alive");
+        assert_eq!(variant_draft.size_text, "64");
     }
 
     #[test]
