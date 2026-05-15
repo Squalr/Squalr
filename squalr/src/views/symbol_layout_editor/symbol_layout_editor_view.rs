@@ -2759,6 +2759,21 @@ impl SymbolLayoutEditorView {
             .inner
     }
 
+    fn render_centered_add_entry_button(
+        &self,
+        user_interface: &mut Ui,
+        tooltip_text: &str,
+    ) -> bool {
+        user_interface
+            .horizontal(|user_interface| {
+                let leading_button_margin = (user_interface.available_width() - Self::ICON_BUTTON_WIDTH).max(0.0) * 0.5;
+                user_interface.add_space(leading_button_margin);
+                self.render_flat_icon_button(user_interface, &self.app_context.theme.icon_library.icon_handle_common_add, tooltip_text, false)
+                    .clicked()
+            })
+            .inner
+    }
+
     fn render_union_variant_preview_row(
         &self,
         user_interface: &mut Ui,
@@ -3504,7 +3519,7 @@ impl SymbolLayoutEditorView {
                 }
 
                 if Self::render_union_variant_child_row(user_interface, |user_interface| {
-                    self.render_add_entry_button(user_interface, "Add a new field to this union variant.")
+                    self.render_centered_add_entry_button(user_interface, "Add a new field to this union variant.")
                 }) {
                     pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
                 }
@@ -4019,7 +4034,7 @@ impl SymbolLayoutEditorView {
                                 );
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    if self.render_add_entry_button(user_interface, "Add a new field entry.") {
+                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.") {
                                         should_append_field.set(true);
                                     }
                                 }
@@ -4047,7 +4062,7 @@ impl SymbolLayoutEditorView {
                                 );
                                 if !is_union_layout {
                                     user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
-                                    if self.render_add_entry_button(user_interface, "Add a new field entry.") {
+                                    if self.render_centered_add_entry_button(user_interface, "Add a new field entry.") {
                                         should_append_field.set(true);
                                     }
                                 }
