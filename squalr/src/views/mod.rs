@@ -1,4 +1,5 @@
 pub mod code_viewer;
+pub mod context_menu_labels;
 pub mod element_scanner;
 pub mod main_window;
 pub mod memory_viewer;

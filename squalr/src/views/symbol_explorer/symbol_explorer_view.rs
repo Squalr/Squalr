@@ -8,6 +8,7 @@ use crate::ui::widgets::controls::{
 };
 use crate::views::{
     code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
+    context_menu_labels::{OPEN_IN_CODE_VIEWER_LABEL, OPEN_IN_MEMORY_VIEWER_LABEL},
     memory_viewer::{memory_viewer_view::MemoryViewerView, view_data::memory_viewer_view_data::MemoryViewerViewData},
     struct_viewer::view_data::struct_viewer_focus_target::StructViewerFocusTarget,
     struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData,
@@ -173,6 +174,20 @@ impl SymbolExplorerView {
         "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
     ];
     const DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH: f32 = 118.0;
+    const SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_LABEL: &str = OPEN_IN_MEMORY_VIEWER_LABEL;
+    const SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_ID: &str = "symbol_tree_ctx_open_memory_viewer";
+    const SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_LABEL: &str = OPEN_IN_CODE_VIEWER_LABEL;
+    const SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_ID: &str = "symbol_tree_ctx_open_code_viewer";
+    const SYMBOL_TREE_CTX_ADD_TO_PROJECT_LABEL: &str = "Add to Project";
+    const SYMBOL_TREE_CTX_ADD_TO_PROJECT_ID: &str = "symbol_tree_ctx_add_to_project";
+    const SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL: &str = "Edit Symbol Layout...";
+    const SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_ID: &str = "symbol_tree_ctx_edit_symbol_layout";
+    const SYMBOL_TREE_CTX_RENAME_LABEL: &str = "Rename";
+    const SYMBOL_TREE_CTX_RENAME_ID: &str = "symbol_tree_ctx_rename";
+    const SYMBOL_TREE_CTX_NEW_MODULE_LABEL: &str = "New Module";
+    const SYMBOL_TREE_CTX_NEW_MODULE_ID: &str = "symbol_tree_ctx_new_module";
+    const SYMBOL_TREE_CTX_DELETE_LABEL: &str = "Delete";
+    const SYMBOL_TREE_CTX_DELETE_ID: &str = "symbol_tree_ctx_delete";
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
         let symbol_explorer_view_data = app_context
@@ -3188,26 +3203,26 @@ impl SymbolExplorerView {
                     context_menu_module_child_range_target.is_some() || context_menu_symbol_claim.is_some() || context_menu_module_name.is_some();
                 let mut context_menu_labels = Vec::new();
                 if can_open_symbol_tree_entry {
-                    context_menu_labels.push(String::from("Open in Memory Viewer"));
-                    context_menu_labels.push(String::from("Open in Code Viewer"));
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_LABEL.to_string());
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_LABEL.to_string());
                 }
                 if context_menu_add_symbol_to_project_target.is_some() {
-                    context_menu_labels.push(String::from("Add to Project"));
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_ADD_TO_PROJECT_LABEL.to_string());
                 }
                 if context_menu_symbol_layout_edit_target.is_some() {
-                    context_menu_labels.push(String::from("Edit Symbol Layout..."));
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL.to_string());
                 }
                 if can_rename_symbol_tree_entry {
-                    context_menu_labels.push(String::from("Rename"));
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_RENAME_LABEL.to_string());
                 }
                 context_menu_labels.extend(
                     context_menu_plugin_action_menu_items
                         .iter()
                         .map(|menu_item| menu_item.label.clone()),
                 );
-                context_menu_labels.push(String::from("New Module"));
+                context_menu_labels.push(Self::SYMBOL_TREE_CTX_NEW_MODULE_LABEL.to_string());
                 if can_delete_symbol_tree_entry {
-                    context_menu_labels.push(String::from("Delete"));
+                    context_menu_labels.push(Self::SYMBOL_TREE_CTX_DELETE_LABEL.to_string());
                 }
                 let context_menu_width = Self::calculate_symbol_tree_context_menu_width(self.app_context.as_ref(), user_interface, &context_menu_labels);
                 let mut is_context_menu_open = true;
@@ -3225,8 +3240,8 @@ impl SymbolExplorerView {
                                 .add(
                                     ToolbarMenuItemView::new(
                                         self.app_context.clone(),
-                                        "Open in Memory Viewer",
-                                        "symbol_tree_ctx_open_memory_viewer",
+                                        Self::SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_LABEL,
+                                        Self::SYMBOL_TREE_CTX_OPEN_MEMORY_VIEWER_ID,
                                         &None,
                                         context_menu_width,
                                     )
@@ -3248,8 +3263,8 @@ impl SymbolExplorerView {
                                 .add(
                                     ToolbarMenuItemView::new(
                                         self.app_context.clone(),
-                                        "Open in Code Viewer",
-                                        "symbol_tree_ctx_open_code_viewer",
+                                        Self::SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_LABEL,
+                                        Self::SYMBOL_TREE_CTX_OPEN_CODE_VIEWER_ID,
                                         &None,
                                         context_menu_width,
                                     )
@@ -3273,8 +3288,8 @@ impl SymbolExplorerView {
                                 .add(
                                     ToolbarMenuItemView::new(
                                         self.app_context.clone(),
-                                        "Add to Project",
-                                        "symbol_tree_ctx_add_to_project",
+                                        Self::SYMBOL_TREE_CTX_ADD_TO_PROJECT_LABEL,
+                                        Self::SYMBOL_TREE_CTX_ADD_TO_PROJECT_ID,
                                         &None,
                                         context_menu_width,
                                     )
@@ -3304,8 +3319,8 @@ impl SymbolExplorerView {
                                 .add(
                                     ToolbarMenuItemView::new(
                                         self.app_context.clone(),
-                                        "Edit Symbol Layout...",
-                                        "symbol_tree_ctx_edit_symbol_layout",
+                                        Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_LABEL,
+                                        Self::SYMBOL_TREE_CTX_EDIT_SYMBOL_LAYOUT_ID,
                                         &None,
                                         context_menu_width,
                                     )
@@ -3331,7 +3346,14 @@ impl SymbolExplorerView {
                         if can_rename_symbol_tree_entry
                             && user_interface
                                 .add(
-                                    ToolbarMenuItemView::new(self.app_context.clone(), "Rename", "symbol_tree_ctx_rename", &None, context_menu_width).icon(
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        Self::SYMBOL_TREE_CTX_RENAME_LABEL,
+                                        Self::SYMBOL_TREE_CTX_RENAME_ID,
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
                                         self.app_context
                                             .theme
                                             .icon_library
@@ -3388,7 +3410,14 @@ impl SymbolExplorerView {
 
                         if user_interface
                             .add(
-                                ToolbarMenuItemView::new(self.app_context.clone(), "New Module", "symbol_tree_ctx_new_module", &None, context_menu_width).icon(
+                                ToolbarMenuItemView::new(
+                                    self.app_context.clone(),
+                                    Self::SYMBOL_TREE_CTX_NEW_MODULE_LABEL,
+                                    Self::SYMBOL_TREE_CTX_NEW_MODULE_ID,
+                                    &None,
+                                    context_menu_width,
+                                )
+                                .icon(
                                     self.app_context
                                         .theme
                                         .icon_library
@@ -3407,18 +3436,24 @@ impl SymbolExplorerView {
 
                             if user_interface
                                 .add(
-                                    ToolbarMenuItemView::new(self.app_context.clone(), "Delete", "symbol_tree_ctx_delete", &None, context_menu_width)
-                                        .icon(
-                                            self.app_context
-                                                .theme
-                                                .icon_library
-                                                .icon_handle_common_delete
-                                                .clone(),
-                                        )
-                                        .icon_background(
-                                            self.app_context.theme.background_control_danger,
-                                            self.app_context.theme.background_control_danger_dark,
-                                        ),
+                                    ToolbarMenuItemView::new(
+                                        self.app_context.clone(),
+                                        Self::SYMBOL_TREE_CTX_DELETE_LABEL,
+                                        Self::SYMBOL_TREE_CTX_DELETE_ID,
+                                        &None,
+                                        context_menu_width,
+                                    )
+                                    .icon(
+                                        self.app_context
+                                            .theme
+                                            .icon_library
+                                            .icon_handle_common_delete
+                                            .clone(),
+                                    )
+                                    .icon_background(
+                                        self.app_context.theme.background_control_danger,
+                                        self.app_context.theme.background_control_danger_dark,
+                                    ),
                                 )
                                 .clicked()
                             {
