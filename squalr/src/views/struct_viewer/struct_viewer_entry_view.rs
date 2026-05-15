@@ -176,6 +176,7 @@ impl<'lifetime> StructViewerEntryView<'lifetime> {
         let updated_symbolic_field_definition = StructViewerViewData::read_symbolic_field_definition_reference_from_field_set(valued_struct_field)
             .map(|symbolic_field_definition| {
                 SymbolicFieldDefinition::new(data_type_selection.visible_data_type().clone(), symbolic_field_definition.get_container_type())
+                    .with_active_when_resolver(symbolic_field_definition.get_active_when_resolver().cloned())
             })
             .map(|symbolic_field_definition| symbolic_field_definition.to_string())
             .unwrap_or_else(|| {

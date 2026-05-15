@@ -543,6 +543,8 @@ fn build_promoted_symbolic_field(
         symbolic_field_definition.get_display_count_resolution().clone(),
         SymbolicFieldOffsetResolution::new_static(offset_in_bytes),
     )
+    .with_active_when_resolver(symbolic_field_definition.get_active_when_resolver().cloned())
+    .with_hidden(symbolic_field_definition.is_hidden())
 }
 
 fn collect_symbolic_field_spans(

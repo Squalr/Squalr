@@ -413,6 +413,13 @@ impl ProjectSymbolCatalog {
         dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_count_resolution().as_resolver_id()));
         dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_display_count_resolution().as_resolver_id()));
         dependencies.extend(self.collect_local_field_dependencies_from_resolver(field_definition.get_offset_resolution().as_resolver_id()));
+        dependencies.extend(
+            self.collect_local_field_dependencies_from_resolver(
+                field_definition
+                    .get_active_when_resolver()
+                    .map(|resolver_ref| resolver_ref.get_resolver_id()),
+            ),
+        );
         dependencies.retain(|dependency| field_names.contains(dependency));
         dependencies.sort();
         dependencies.dedup();

@@ -71,6 +71,7 @@ impl StructViewerViewData {
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH: &'static str = "__symbol_layout_field_fixed_array_length";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER: &'static str = "__symbol_layout_field_count_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER: &'static str = "__symbol_layout_field_display_count_resolver";
+    pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER: &'static str = "__symbol_layout_field_active_when_resolver";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE: &'static str = "__symbol_layout_field_pointer_size";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE: &'static str = "__symbol_layout_field_offset_mode";
     pub const VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET: &'static str = "__symbol_layout_field_static_offset";
@@ -583,6 +584,7 @@ impl StructViewerViewData {
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_FIXED_ARRAY_LENGTH => String::from("Length"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER => String::from("Count Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER => String::from("Display Count Resolver"),
+            Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER => String::from("Active When Resolver"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE => String::from("Pointer Size"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_MODE => String::from("Offset"),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_STATIC_OFFSET => String::from("Static Offset"),
@@ -729,6 +731,7 @@ impl StructViewerViewData {
             valued_struct_field.get_name(),
             Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_COUNT_RESOLVER
                 | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER
+                | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER
                 | Self::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_OFFSET_RESOLVER
         )
     }

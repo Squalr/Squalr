@@ -3,6 +3,7 @@ use crate::structures::{
     data_values::{container_type::ContainerType, data_value::DataValue, pointer_scan_pointer_size::PointerScanPointerSize},
     structs::{
         symbol_resolver::SymbolResolver,
+        symbolic_resolver_definition::SymbolicResolverRef,
         valued_struct_field::{ValuedStructField, ValuedStructFieldData},
     },
 };
@@ -22,6 +23,8 @@ pub struct SymbolicFieldDefinition {
     display_count_resolution: SymbolicFieldCountResolution,
     #[serde(default, skip_serializing_if = "SymbolicFieldOffsetResolution::is_sequential")]
     offset_resolution: SymbolicFieldOffsetResolution,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    active_when_resolver: Option<SymbolicResolverRef>,
     #[serde(default, skip_serializing_if = "is_false")]
     is_hidden: bool,
 }
@@ -91,6 +94,7 @@ impl SymbolicFieldDefinition {
             count_resolution: SymbolicFieldCountResolution::Inferred,
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
+            active_when_resolver: None,
             is_hidden: false,
         }
     }
@@ -107,6 +111,7 @@ impl SymbolicFieldDefinition {
             count_resolution: SymbolicFieldCountResolution::Inferred,
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution: SymbolicFieldOffsetResolution::Sequential,
+            active_when_resolver: None,
             is_hidden: false,
         }
     }
@@ -125,6 +130,7 @@ impl SymbolicFieldDefinition {
             count_resolution,
             display_count_resolution: SymbolicFieldCountResolution::Inferred,
             offset_resolution,
+            active_when_resolver: None,
             is_hidden: false,
         }
     }
@@ -144,8 +150,17 @@ impl SymbolicFieldDefinition {
             count_resolution,
             display_count_resolution,
             offset_resolution,
+            active_when_resolver: None,
             is_hidden: false,
         }
+    }
+
+    pub fn with_active_when_resolver(
+        mut self,
+        active_when_resolver: Option<SymbolicResolverRef>,
+    ) -> Self {
+        self.active_when_resolver = active_when_resolver;
+        self
     }
 
     pub fn with_hidden(
@@ -281,6 +296,10 @@ impl SymbolicFieldDefinition {
         &self.offset_resolution
     }
 
+    pub fn get_active_when_resolver(&self) -> Option<&SymbolicResolverRef> {
+        self.active_when_resolver.as_ref()
+    }
+
     pub fn is_hidden(&self) -> bool {
         self.is_hidden
     }
@@ -297,6 +316,7 @@ impl FromStr for SymbolicFieldDefinition {
             (trimmed_string, SymbolicFieldOffsetResolution::Sequential)
         };
         let (field_definition_string, is_hidden) = parse_hidden_flag(field_definition_string);
+        let (field_definition_string, active_when_resolver) = parse_active_when_resolver(field_definition_string)?;
         let (field_definition_string, display_count_resolution) = parse_display_count_resolution(field_definition_string)?;
         let (field_name, type_and_container_string) = if let Some((field_name, type_and_container_string)) = field_definition_string.split_once(':') {
             let trimmed_field_name = field_name.trim();
@@ -372,6 +392,7 @@ impl FromStr for SymbolicFieldDefinition {
                 count_resolution,
                 display_count_resolution,
                 offset_resolution,
+                active_when_resolver,
                 is_hidden,
             })
         } else {
@@ -383,6 +404,7 @@ impl FromStr for SymbolicFieldDefinition {
                 display_count_resolution,
                 offset_resolution,
             )
+            .with_active_when_resolver(active_when_resolver)
             .with_hidden(is_hidden))
         }
     }
@@ -408,6 +430,10 @@ impl fmt::Display for SymbolicFieldDefinition {
             SymbolicFieldCountResolution::Resolver(resolver_id) => {
                 field_text = format!("{} display resolver({})", field_text, resolver_id);
             }
+        }
+
+        if let Some(active_when_resolver) = self.active_when_resolver.as_ref() {
+            field_text = format!("{} active resolver({})", field_text, active_when_resolver.get_resolver_id());
         }
 
         if self.is_hidden {
@@ -467,6 +493,19 @@ fn parse_hidden_flag(field_definition_string: &str) -> (&str, bool) {
     };
 
     (field_definition_without_hidden.trim(), true)
+}
+
+fn parse_active_when_resolver(field_definition_string: &str) -> Result<(&str, Option<SymbolicResolverRef>), String> {
+    let trimmed_field_definition_string = field_definition_string.trim();
+    let Some((field_definition_string, resolver_reference)) = trimmed_field_definition_string.rsplit_once(" active ") else {
+        return Ok((trimmed_field_definition_string, None));
+    };
+
+    let active_when_resolver = parse_resolver_reference(resolver_reference)
+        .and_then(SymbolicResolverRef::new)
+        .ok_or_else(|| String::from("Active variant resolver must use resolver(...)."))?;
+
+    Ok((field_definition_string.trim(), Some(active_when_resolver)))
 }
 
 fn is_false(value: &bool) -> bool {
@@ -690,6 +729,20 @@ mod tests {
         assert_eq!(symbolic_field_definition.get_container_type(), ContainerType::ArrayFixed(12));
         assert!(symbolic_field_definition.is_hidden());
         assert_eq!(symbolic_field_definition.to_string(), "reserved:u8[12] hidden");
+    }
+
+    #[test]
+    fn parse_active_when_resolver_round_trips() {
+        let symbolic_field_definition =
+            SymbolicFieldDefinition::from_str("alive:actor.state.alive active resolver(actor.is_alive)").expect("Expected active resolver to parse.");
+
+        assert_eq!(
+            symbolic_field_definition
+                .get_active_when_resolver()
+                .map(|resolver_ref| resolver_ref.get_resolver_id()),
+            Some("actor.is_alive")
+        );
+        assert_eq!(symbolic_field_definition.to_string(), "alive:actor.state.alive active resolver(actor.is_alive)");
     }
 
     #[test]

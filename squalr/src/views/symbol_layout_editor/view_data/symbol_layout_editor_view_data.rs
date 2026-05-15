@@ -13,6 +13,7 @@ use squalr_engine_api::structures::{
     projects::project_symbol_catalog::ProjectSymbolCatalog,
     structs::{
         symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
+        symbolic_resolver_definition::SymbolicResolverRef,
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     },
 };
@@ -62,6 +63,7 @@ pub struct SymbolLayoutFieldEditDraft {
     pub data_type_selection: DataTypeSelection,
     pub container_edit: SymbolLayoutFieldContainerEdit,
     pub is_hidden: bool,
+    pub active_when_resolver_id: String,
     pub offset_mode: SymbolLayoutFieldOffsetMode,
     pub static_offset_in_bytes: String,
     pub offset_resolver_id: String,
@@ -1259,6 +1261,7 @@ impl SymbolLayoutEditorViewData {
                 display_count_resolution,
                 offset_resolution,
             )
+            .with_active_when_resolver(field_draft.to_active_when_resolver())
             .with_hidden(field_draft.is_hidden);
 
             symbolic_field_definitions.push(symbolic_field_definition);
@@ -1489,6 +1492,8 @@ impl SymbolLayoutEditorViewData {
             symbolic_field_definition.get_display_count_resolution().clone(),
             symbolic_field_definition.get_offset_resolution().clone(),
         )
+        .with_active_when_resolver(symbolic_field_definition.get_active_when_resolver().cloned())
+        .with_hidden(symbolic_field_definition.is_hidden())
     }
 
     pub fn apply_draft_to_catalog(
@@ -1556,6 +1561,7 @@ impl SymbolLayoutFieldEditDraft {
             data_type_selection: DataTypeSelection::new(default_data_type_ref),
             container_edit: SymbolLayoutFieldContainerEdit::default(),
             is_hidden: false,
+            active_when_resolver_id: String::new(),
             offset_mode: SymbolLayoutFieldOffsetMode::Sequential,
             static_offset_in_bytes: String::new(),
             offset_resolver_id: String::new(),
@@ -1574,6 +1580,10 @@ impl SymbolLayoutFieldEditDraft {
             data_type_selection: DataTypeSelection::new(symbolic_field_definition.get_data_type_ref().clone()),
             container_edit: SymbolLayoutFieldContainerEdit::from_symbolic_field_definition(symbolic_field_definition),
             is_hidden: symbolic_field_definition.is_hidden(),
+            active_when_resolver_id: symbolic_field_definition
+                .get_active_when_resolver()
+                .map(|resolver_ref| resolver_ref.get_resolver_id().to_string())
+                .unwrap_or_default(),
             offset_mode,
             static_offset_in_bytes,
             offset_resolver_id,
@@ -1602,6 +1612,10 @@ impl SymbolLayoutFieldEditDraft {
                 Ok(SymbolicFieldOffsetResolution::new_resolver(trimmed_resolver_id.to_string()))
             }
         }
+    }
+
+    pub fn to_active_when_resolver(&self) -> Option<SymbolicResolverRef> {
+        SymbolicResolverRef::new(self.active_when_resolver_id.clone())
     }
 
     pub fn parse_static_offset_text(offset_text: &str) -> Option<u64> {

@@ -7,6 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolicResolverRef {
+    resolver_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SymbolicResolverDefinition {
     root_node: SymbolicResolverNode,
 }
@@ -196,6 +201,20 @@ impl SymbolicResolverDefinition {
 
     pub fn referenced_local_fields(&self) -> Vec<String> {
         self.root_node.referenced_local_fields()
+    }
+}
+
+impl SymbolicResolverRef {
+    pub fn new(resolver_id: String) -> Option<Self> {
+        let resolver_id = resolver_id.trim();
+
+        (!resolver_id.is_empty()).then(|| Self {
+            resolver_id: resolver_id.to_string(),
+        })
+    }
+
+    pub fn get_resolver_id(&self) -> &str {
+        &self.resolver_id
     }
 }
 

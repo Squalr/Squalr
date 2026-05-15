@@ -43,6 +43,7 @@ pub struct ResolvedSymbolicField {
     element_count: Option<u64>,
     displayed_element_count: Option<u64>,
     size_in_bytes: Option<u64>,
+    variant_activation: ResolvedSymbolicFieldVariantActivation,
     status: ResolvedSymbolicFieldStatus,
 }
 
@@ -55,6 +56,7 @@ impl ResolvedSymbolicField {
         element_count: Option<u64>,
         displayed_element_count: Option<u64>,
         size_in_bytes: Option<u64>,
+        variant_activation: ResolvedSymbolicFieldVariantActivation,
         status: ResolvedSymbolicFieldStatus,
     ) -> Self {
         Self {
@@ -65,6 +67,7 @@ impl ResolvedSymbolicField {
             element_count,
             displayed_element_count,
             size_in_bytes,
+            variant_activation,
             status,
         }
     }
@@ -99,6 +102,34 @@ impl ResolvedSymbolicField {
 
     pub fn get_status(&self) -> &ResolvedSymbolicFieldStatus {
         &self.status
+    }
+
+    pub fn get_variant_activation(&self) -> &ResolvedSymbolicFieldVariantActivation {
+        &self.variant_activation
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ResolvedSymbolicFieldVariantActivation {
+    NotApplicable,
+    Unspecified,
+    Active,
+    Inactive,
+    Ambiguous,
+    Unresolved { reason: String },
+}
+
+impl ResolvedSymbolicFieldVariantActivation {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Active)
+    }
+
+    pub fn is_inactive(&self) -> bool {
+        matches!(self, Self::Inactive)
+    }
+
+    pub fn is_specified(&self) -> bool {
+        !matches!(self, Self::NotApplicable | Self::Unspecified)
     }
 }
 
@@ -363,8 +394,23 @@ where
     let mut resolved_fields = Vec::new();
     let mut did_update_scalar_value = false;
     let mut next_sequential_offset = 0_u64;
+    let variant_activations = resolve_union_variant_activations(
+        symbolic_struct_definition,
+        scalar_values_by_field_name,
+        resolve_type_size_in_bytes,
+        read_scalar_field,
+        resolve_resolver_definition,
+        resolve_struct_definition,
+        resolve_global_symbol_field,
+        resolve_relative_pointer_chain,
+        resolve_global_pointer_chain,
+    );
 
-    for field_definition in symbolic_struct_definition.get_fields() {
+    for (field_definition, variant_activation) in symbolic_struct_definition
+        .get_fields()
+        .iter()
+        .zip(variant_activations)
+    {
         let field_offset_result = resolve_field_offset(
             symbolic_struct_definition,
             field_definition,
@@ -469,6 +515,7 @@ where
                 .and_then(|element_count| *element_count),
             displayed_element_count,
             field_size_in_bytes,
+            variant_activation,
             field_status,
         ));
     }
@@ -477,6 +524,80 @@ where
         resolved_fields,
         did_update_scalar_value,
     }
+}
+
+fn resolve_union_variant_activations<ResolveTypeSize, ReadScalarField>(
+    root_struct_definition: &SymbolicStructDefinition,
+    scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
+    resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+) -> Vec<ResolvedSymbolicFieldVariantActivation>
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
+    if !root_struct_definition.get_layout_kind().is_union() {
+        return root_struct_definition
+            .get_fields()
+            .iter()
+            .map(|_| ResolvedSymbolicFieldVariantActivation::NotApplicable)
+            .collect();
+    }
+
+    let activation_results = root_struct_definition
+        .get_fields()
+        .iter()
+        .map(|field_definition| {
+            let Some(active_when_resolver) = field_definition.get_active_when_resolver() else {
+                return None;
+            };
+
+            Some(
+                evaluate_i128_resolver(
+                    root_struct_definition,
+                    active_when_resolver.get_resolver_id(),
+                    scalar_values_by_field_name,
+                    resolve_type_size_in_bytes,
+                    read_scalar_field,
+                    resolve_resolver_definition,
+                    resolve_struct_definition,
+                    resolve_global_symbol_field,
+                    resolve_relative_pointer_chain,
+                    resolve_global_pointer_chain,
+                    &mut Vec::new(),
+                )
+                .map(|value| value != 0),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    if activation_results.iter().all(Option::is_none) {
+        return activation_results
+            .iter()
+            .map(|_| ResolvedSymbolicFieldVariantActivation::Unspecified)
+            .collect();
+    }
+
+    let active_count = activation_results
+        .iter()
+        .filter(|activation_result| matches!(activation_result, Some(Ok(true))))
+        .count();
+
+    activation_results
+        .into_iter()
+        .map(|activation_result| match activation_result {
+            None => ResolvedSymbolicFieldVariantActivation::Inactive,
+            Some(Ok(true)) if active_count == 1 => ResolvedSymbolicFieldVariantActivation::Active,
+            Some(Ok(true)) => ResolvedSymbolicFieldVariantActivation::Ambiguous,
+            Some(Ok(false)) => ResolvedSymbolicFieldVariantActivation::Inactive,
+            Some(Err(reason)) => ResolvedSymbolicFieldVariantActivation::Unresolved { reason },
+        })
+        .collect()
 }
 
 fn resolve_field_offset<ResolveTypeSize, ReadScalarField>(
@@ -610,6 +731,40 @@ where
     ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
     ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
 {
+    let value = evaluate_i128_resolver(
+        root_struct_definition,
+        resolver_id,
+        scalar_values_by_field_name,
+        resolve_type_size_in_bytes,
+        read_scalar_field,
+        resolve_resolver_definition,
+        resolve_struct_definition,
+        resolve_global_symbol_field,
+        resolve_relative_pointer_chain,
+        resolve_global_pointer_chain,
+        resolver_stack,
+    )?;
+
+    u64::try_from(value).map_err(|_| format!("Resolver `{}` resolved to negative or too-large value `{}`.", resolver_id, value))
+}
+
+fn evaluate_i128_resolver<ResolveTypeSize, ReadScalarField>(
+    root_struct_definition: &SymbolicStructDefinition,
+    resolver_id: &str,
+    scalar_values_by_field_name: &BTreeMap<String, i128>,
+    resolve_type_size_in_bytes: &ResolveTypeSize,
+    read_scalar_field: &ReadScalarField,
+    resolve_resolver_definition: &impl Fn(&str) -> Option<SymbolicResolverDefinition>,
+    resolve_struct_definition: &impl Fn(&DataTypeRef) -> Option<SymbolicStructDefinition>,
+    resolve_global_symbol_field: &impl Fn(&str, &SymbolicResolverRelativeSymbolPath) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_relative_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolve_global_pointer_chain: &impl Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError>,
+    resolver_stack: &mut Vec<String>,
+) -> Result<i128, String>
+where
+    ResolveTypeSize: Fn(&DataTypeRef) -> Option<u64>,
+    ReadScalarField: Fn(&SymbolicFieldDefinition, u64, u64) -> Result<Option<i128>, String>,
+{
     if resolver_stack
         .iter()
         .any(|stacked_resolver_id| stacked_resolver_id == resolver_id)
@@ -673,9 +828,7 @@ where
 
         value
     };
-    let value = value?;
-
-    u64::try_from(value).map_err(|_| format!("Resolver `{}` resolved to negative or too-large value `{}`.", resolver_id, value))
+    value
 }
 
 fn resolve_relative_symbol_path_value<ResolveTypeSize, ReadScalarField>(
@@ -968,8 +1121,8 @@ fn format_resolver_error(error: SymbolicResolverEvaluationError) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        ResolvedSymbolicFieldStatus, SymbolicStructResolverOptions, resolve_symbolic_struct_definition, resolve_symbolic_struct_definition_with_resolvers,
-        resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields,
+        ResolvedSymbolicFieldStatus, ResolvedSymbolicFieldVariantActivation, SymbolicStructResolverOptions, resolve_symbolic_struct_definition,
+        resolve_symbolic_struct_definition_with_resolvers, resolve_symbolic_struct_definition_with_resolvers_and_relative_symbol_fields,
         resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains,
     };
     use crate::structures::{
@@ -1337,6 +1490,59 @@ mod tests {
         assert_eq!(resolved_fields[1].get_offset_in_bytes(), Some(0));
         assert_eq!(resolved_fields[2].get_offset_in_bytes(), Some(0));
         assert_eq!(resolved_fields[2].get_size_in_bytes(), Some(16));
+    }
+
+    #[test]
+    fn resolver_marks_single_truthy_union_variant_active() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new_union(
+            String::from("State"),
+            vec![
+                SymbolicFieldDefinition::from_str("alive:Alive active resolver(is_alive)").expect("Expected alive variant to parse."),
+                SymbolicFieldDefinition::from_str("dead:Dead active resolver(is_dead)").expect("Expected dead variant to parse."),
+            ],
+        );
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
+            &symbolic_struct_definition,
+            |_| Some(4),
+            |_, _, _| Ok(None),
+            |resolver_id| match resolver_id {
+                "is_alive" => Some(SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(1))),
+                "is_dead" => Some(SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(0))),
+                _ => None,
+            },
+            &SymbolicStructResolverOptions::default(),
+        );
+        let resolved_fields = resolved_struct.get_fields();
+
+        assert!(resolved_fields[0].get_variant_activation().is_active());
+        assert!(resolved_fields[1].get_variant_activation().is_inactive());
+    }
+
+    #[test]
+    fn resolver_marks_multiple_truthy_union_variants_ambiguous() {
+        let symbolic_struct_definition = SymbolicStructDefinition::new_union(
+            String::from("State"),
+            vec![
+                SymbolicFieldDefinition::from_str("alive:Alive active resolver(always)").expect("Expected alive variant to parse."),
+                SymbolicFieldDefinition::from_str("dead:Dead active resolver(always)").expect("Expected dead variant to parse."),
+            ],
+        );
+        let resolved_struct = resolve_symbolic_struct_definition_with_resolvers(
+            &symbolic_struct_definition,
+            |_| Some(4),
+            |_, _, _| Ok(None),
+            |resolver_id| (resolver_id == "always").then(|| SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(1))),
+            &SymbolicStructResolverOptions::default(),
+        );
+
+        assert_eq!(
+            resolved_struct.get_fields()[0].get_variant_activation(),
+            &ResolvedSymbolicFieldVariantActivation::Ambiguous
+        );
+        assert_eq!(
+            resolved_struct.get_fields()[1].get_variant_activation(),
+            &ResolvedSymbolicFieldVariantActivation::Ambiguous
+        );
     }
 
     #[test]

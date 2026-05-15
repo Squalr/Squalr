@@ -1096,6 +1096,7 @@ impl SymbolLayoutEditorView {
             field_draft.container_edit.to_display_count_resolution()?,
             field_draft.to_offset_resolution()?,
         )
+        .with_active_when_resolver(field_draft.to_active_when_resolver())
         .with_hidden(field_draft.is_hidden))
     }
 
@@ -1960,6 +1961,8 @@ impl SymbolLayoutEditorView {
                         .get_data_type_id(),
                 )
                 .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_SYMBOL_LAYOUT.to_string(), false),
+                DataTypeStringUtf8::get_value_from_primitive_string(&field_draft.active_when_resolver_id)
+                    .to_named_valued_struct_field(StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER.to_string(), false),
             ]);
         }
 
@@ -2203,6 +2206,9 @@ impl SymbolLayoutEditorView {
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_DISPLAY_COUNT_RESOLVER => {
                 field_draft.container_edit.display_count_resolver_id = edited_text;
+            }
+            StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_ACTIVE_WHEN_RESOLVER => {
+                field_draft.active_when_resolver_id = edited_text;
             }
             StructViewerViewData::VIRTUAL_FIELD_SYMBOL_LAYOUT_FIELD_POINTER_SIZE => {
                 if let Ok(pointer_size) = PointerScanPointerSize::from_str(edited_text.trim()) {

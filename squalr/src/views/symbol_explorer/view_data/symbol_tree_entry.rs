@@ -15,7 +15,8 @@ use squalr_engine_api::structures::{
         symbolic_resolver_definition::SymbolicResolverEvaluationError,
         symbolic_struct_definition::SymbolicStructDefinition,
         symbolic_struct_resolver::{
-            SymbolicStructResolverOptions, resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains,
+            ResolvedSymbolicFieldVariantActivation, SymbolicStructResolverOptions,
+            resolve_symbolic_struct_definition_with_resolvers_and_symbol_fields_and_relative_pointer_chains,
         },
     },
 };
@@ -595,6 +596,26 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRel
         resolve_global_pointer_chain,
         &SymbolicStructResolverOptions::default(),
     );
+    let has_single_active_union_variant = if struct_layout_definition.get_layout_kind().is_union() {
+        let active_variant_count = resolved_symbolic_struct
+            .get_fields()
+            .iter()
+            .filter(|resolved_field| resolved_field.get_variant_activation().is_active())
+            .count();
+        let has_unresolved_variant_activation = resolved_symbolic_struct
+            .get_fields()
+            .iter()
+            .any(|resolved_field| {
+                matches!(
+                    resolved_field.get_variant_activation(),
+                    ResolvedSymbolicFieldVariantActivation::Ambiguous | ResolvedSymbolicFieldVariantActivation::Unresolved { .. }
+                )
+            });
+
+        active_variant_count == 1 && !has_unresolved_variant_activation
+    } else {
+        false
+    };
 
     for (field_index, (field_definition, resolved_symbolic_field)) in struct_layout_definition
         .get_fields()
@@ -602,6 +623,15 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRel
         .zip(resolved_symbolic_struct.get_fields())
         .enumerate()
     {
+        if has_single_active_union_variant
+            && matches!(
+                resolved_symbolic_field.get_variant_activation(),
+                ResolvedSymbolicFieldVariantActivation::Inactive
+            )
+        {
+            continue;
+        }
+
         if field_definition.is_hidden() {
             continue;
         }
@@ -2219,6 +2249,54 @@ mod tests {
                 ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x10),
             ]
         );
+    }
+
+    #[test]
+    fn build_symbol_tree_entries_shows_only_single_active_union_variant() {
+        let variant_payload = SymbolicStructDefinition::new_union(
+            String::from("variant_payload"),
+            vec![
+                SymbolicFieldDefinition::from_str("alive:alive_payload active resolver(is_alive)").expect("Expected alive union field to parse."),
+                SymbolicFieldDefinition::from_str("dead:dead_payload active resolver(is_dead)").expect("Expected dead union field to parse."),
+            ],
+        );
+        let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
+            Vec::new(),
+            vec![StructLayoutDescriptor::new(
+                String::from("variant_payload"),
+                variant_payload,
+            )],
+            vec![
+                SymbolicResolverDescriptor::new(String::from("is_alive"), SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(0))),
+                SymbolicResolverDescriptor::new(String::from("is_dead"), SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(1))),
+            ],
+            vec![ProjectSymbolClaim::new_module_offset(
+                String::from("Payload"),
+                String::from("game.exe"),
+                0x10,
+                String::from("variant_payload"),
+            )],
+        );
+
+        let symbol_tree_entries = build_symbol_tree_entries(
+            &project_symbol_catalog,
+            &HashSet::from([
+                String::from("module:game.exe"),
+                String::from("claim:module:game.exe:10"),
+            ]),
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "alive_payload" | "dead_payload" => Some(4),
+                _ => None,
+            },
+        );
+        let payload_child_names = symbol_tree_entries
+            .iter()
+            .filter(|symbol_tree_entry| symbol_tree_entry.get_full_path().starts_with("Payload."))
+            .map(|symbol_tree_entry| symbol_tree_entry.get_display_name().to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(payload_child_names, vec![String::from("dead")]);
     }
 
     #[test]
