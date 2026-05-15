@@ -16,7 +16,7 @@ use squalr_engine_api::structures::{
         symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     },
 };
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SymbolLayoutFieldOffsetMode {
@@ -79,6 +79,7 @@ pub struct SymbolLayoutEditDraft {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolLayoutUnassignedSelection {
+    layout_id: Option<String>,
     offset_in_bytes: u64,
     size_in_bytes: u64,
 }
@@ -89,9 +90,35 @@ impl SymbolLayoutUnassignedSelection {
         size_in_bytes: u64,
     ) -> Self {
         Self {
+            layout_id: None,
             offset_in_bytes,
             size_in_bytes,
         }
+    }
+
+    pub fn new_for_layout(
+        layout_id: String,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> Self {
+        Self {
+            layout_id: Some(layout_id),
+            offset_in_bytes,
+            size_in_bytes,
+        }
+    }
+
+    pub fn get_layout_id(&self) -> Option<&str> {
+        self.layout_id.as_deref()
+    }
+
+    pub fn matches(
+        &self,
+        layout_id: Option<&str>,
+        offset_in_bytes: u64,
+        size_in_bytes: u64,
+    ) -> bool {
+        self.get_layout_id() == layout_id && self.offset_in_bytes == offset_in_bytes && self.size_in_bytes == size_in_bytes
     }
 
     pub fn get_offset_in_bytes(&self) -> u64 {
@@ -159,6 +186,7 @@ impl SymbolLayoutFieldContextMenuTarget {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SymbolLayoutUnassignedContextMenuTarget {
+    layout_id: Option<String>,
     offset_in_bytes: u64,
     size_in_bytes: u64,
     position: Pos2,
@@ -173,6 +201,7 @@ impl SymbolLayoutUnassignedContextMenuTarget {
         position: Pos2,
     ) -> Self {
         Self {
+            layout_id: None,
             offset_in_bytes,
             size_in_bytes,
             position,
@@ -189,6 +218,18 @@ impl SymbolLayoutUnassignedContextMenuTarget {
         self.merge_above_span = merge_above_span;
         self.merge_below_span = merge_below_span;
         self
+    }
+
+    pub fn with_layout_id(
+        mut self,
+        layout_id: String,
+    ) -> Self {
+        self.layout_id = Some(layout_id);
+        self
+    }
+
+    pub fn get_layout_id(&self) -> Option<&str> {
+        self.layout_id.as_deref()
     }
 
     pub fn get_offset_in_bytes(&self) -> u64 {
@@ -225,6 +266,7 @@ pub struct SymbolLayoutEditorViewData {
     field_context_menu_target: Option<SymbolLayoutFieldContextMenuTarget>,
     unassigned_context_menu_target: Option<SymbolLayoutUnassignedContextMenuTarget>,
     unassigned_split_offsets: BTreeSet<u64>,
+    unassigned_split_offsets_by_layout: BTreeMap<String, BTreeSet<u64>>,
 }
 
 impl SymbolLayoutEditorViewData {
@@ -241,6 +283,7 @@ impl SymbolLayoutEditorViewData {
             field_context_menu_target: None,
             unassigned_context_menu_target: None,
             unassigned_split_offsets: BTreeSet::new(),
+            unassigned_split_offsets_by_layout: BTreeMap::new(),
         }
     }
 
@@ -286,6 +329,51 @@ impl SymbolLayoutEditorViewData {
 
     pub fn get_unassigned_split_offsets(&self) -> &BTreeSet<u64> {
         &self.unassigned_split_offsets
+    }
+
+    pub fn get_unassigned_split_offsets_for_layout(
+        &self,
+        layout_id: Option<&str>,
+    ) -> BTreeSet<u64> {
+        match layout_id {
+            Some(layout_id) => self
+                .unassigned_split_offsets_by_layout
+                .get(layout_id)
+                .cloned()
+                .unwrap_or_default(),
+            None => self.unassigned_split_offsets.clone(),
+        }
+    }
+
+    fn get_unassigned_split_offsets_mut(
+        &mut self,
+        layout_id: Option<&str>,
+    ) -> &mut BTreeSet<u64> {
+        match layout_id {
+            Some(layout_id) => self
+                .unassigned_split_offsets_by_layout
+                .entry(layout_id.to_string())
+                .or_default(),
+            None => &mut self.unassigned_split_offsets,
+        }
+    }
+
+    fn prune_unassigned_split_offsets(
+        &mut self,
+        layout_size_in_bytes: u64,
+    ) {
+        self.unassigned_split_offsets
+            .retain(|split_offset| *split_offset > 0 && *split_offset < layout_size_in_bytes);
+        self.unassigned_split_offsets_by_layout
+            .retain(|_layout_id, split_offsets| {
+                split_offsets.retain(|split_offset| *split_offset > 0 && *split_offset < layout_size_in_bytes);
+                !split_offsets.is_empty()
+            });
+    }
+
+    fn clear_unassigned_split_offsets(&mut self) {
+        self.unassigned_split_offsets.clear();
+        self.unassigned_split_offsets_by_layout.clear();
     }
 
     pub fn set_filter_text(
@@ -348,16 +436,16 @@ impl SymbolLayoutEditorViewData {
             self.unassigned_context_menu_target = None;
         }
         if let Ok(layout_size_in_bytes) = Self::parse_layout_size_text(&draft.size_text, draft.size_format) {
-            self.unassigned_split_offsets
-                .retain(|split_offset| *split_offset > 0 && *split_offset < layout_size_in_bytes);
+            self.prune_unassigned_split_offsets(layout_size_in_bytes);
         } else {
-            self.unassigned_split_offsets.clear();
+            self.clear_unassigned_split_offsets();
         }
         self.draft = Some(draft);
     }
 
-    pub fn split_unassigned_span(
+    pub fn split_unassigned_span_for_layout(
         symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: Option<String>,
         offset_in_bytes: u64,
         size_in_bytes: u64,
     ) -> Option<SymbolLayoutUnassignedSelection> {
@@ -369,19 +457,22 @@ impl SymbolLayoutEditorViewData {
         let mut symbol_layout_editor_view_data = symbol_layout_editor_view_data.write("SymbolLayoutEditor split unassigned span")?;
 
         symbol_layout_editor_view_data
-            .unassigned_split_offsets
+            .get_unassigned_split_offsets_mut(layout_id.as_deref())
             .insert(split_offset_in_bytes);
         symbol_layout_editor_view_data.unassigned_context_menu_target = None;
         symbol_layout_editor_view_data.selected_field_index = None;
-        symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(
-            offset_in_bytes,
-            split_offset_in_bytes.saturating_sub(offset_in_bytes),
-        ));
+        symbol_layout_editor_view_data.selected_unassigned_span = Some(match layout_id {
+            Some(layout_id) => {
+                SymbolLayoutUnassignedSelection::new_for_layout(layout_id, offset_in_bytes, split_offset_in_bytes.saturating_sub(offset_in_bytes))
+            }
+            None => SymbolLayoutUnassignedSelection::new(offset_in_bytes, split_offset_in_bytes.saturating_sub(offset_in_bytes)),
+        });
         symbol_layout_editor_view_data.selected_unassigned_span.clone()
     }
 
-    pub fn remove_unassigned_split_offset(
+    pub fn remove_unassigned_split_offset_for_layout(
         symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: Option<String>,
         split_offset_in_bytes: u64,
     ) -> bool {
         let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor remove unassigned split offset") else {
@@ -389,29 +480,26 @@ impl SymbolLayoutEditorViewData {
         };
 
         symbol_layout_editor_view_data
-            .unassigned_split_offsets
+            .get_unassigned_split_offsets_mut(layout_id.as_deref())
             .remove(&split_offset_in_bytes)
     }
 
-    pub fn move_unassigned_split_offset(
+    pub fn move_unassigned_split_offset_for_layout(
         symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: Option<String>,
         old_split_offset_in_bytes: u64,
         new_split_offset_in_bytes: u64,
     ) -> bool {
         let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor move unassigned split offset") else {
             return false;
         };
+        let split_offsets = symbol_layout_editor_view_data.get_unassigned_split_offsets_mut(layout_id.as_deref());
 
-        if !symbol_layout_editor_view_data
-            .unassigned_split_offsets
-            .remove(&old_split_offset_in_bytes)
-        {
+        if !split_offsets.remove(&old_split_offset_in_bytes) {
             return false;
         }
 
-        symbol_layout_editor_view_data
-            .unassigned_split_offsets
-            .insert(new_split_offset_in_bytes);
+        split_offsets.insert(new_split_offset_in_bytes);
         true
     }
 
@@ -465,7 +553,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
-            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
+            symbol_layout_editor_view_data.clear_unassigned_split_offsets();
             let baseline_draft = Self::create_default_new_draft(project_symbol_catalog, default_data_type_ref);
             symbol_layout_editor_view_data.baseline_draft = Some(baseline_draft.clone());
             symbol_layout_editor_view_data.draft = Some(baseline_draft);
@@ -487,7 +575,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
-            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
+            symbol_layout_editor_view_data.clear_unassigned_split_offsets();
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -512,7 +600,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
-            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
+            symbol_layout_editor_view_data.clear_unassigned_split_offsets();
             symbol_layout_editor_view_data.baseline_draft = project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
@@ -648,8 +736,9 @@ impl SymbolLayoutEditorViewData {
         }
     }
 
-    pub fn show_unassigned_context_menu(
+    pub fn show_unassigned_context_menu_for_layout(
         symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: Option<String>,
         offset_in_bytes: u64,
         size_in_bytes: u64,
         position: Pos2,
@@ -657,12 +746,20 @@ impl SymbolLayoutEditorViewData {
         merge_below_span: Option<SymbolLayoutUnassignedSelection>,
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor show unassigned context menu") {
-            symbol_layout_editor_view_data.unassigned_context_menu_target = Some(
-                SymbolLayoutUnassignedContextMenuTarget::new(offset_in_bytes, size_in_bytes, position).with_merge_spans(merge_above_span, merge_below_span),
-            );
+            let context_menu_target =
+                SymbolLayoutUnassignedContextMenuTarget::new(offset_in_bytes, size_in_bytes, position).with_merge_spans(merge_above_span, merge_below_span);
+            let context_menu_target = match layout_id.as_ref() {
+                Some(layout_id) => context_menu_target.with_layout_id(layout_id.clone()),
+                None => context_menu_target,
+            };
+
+            symbol_layout_editor_view_data.unassigned_context_menu_target = Some(context_menu_target);
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.selected_field_index = None;
-            symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes));
+            symbol_layout_editor_view_data.selected_unassigned_span = Some(match layout_id {
+                Some(layout_id) => SymbolLayoutUnassignedSelection::new_for_layout(layout_id, offset_in_bytes, size_in_bytes),
+                None => SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes),
+            });
         }
     }
 
@@ -684,14 +781,18 @@ impl SymbolLayoutEditorViewData {
         }
     }
 
-    pub fn select_unassigned_span(
+    pub fn select_unassigned_span_for_layout(
         symbol_layout_editor_view_data: Dependency<Self>,
+        layout_id: Option<String>,
         offset_in_bytes: u64,
         size_in_bytes: u64,
     ) {
         if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor select unassigned span") {
             symbol_layout_editor_view_data.selected_field_index = None;
-            symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes));
+            symbol_layout_editor_view_data.selected_unassigned_span = Some(match layout_id {
+                Some(layout_id) => SymbolLayoutUnassignedSelection::new_for_layout(layout_id, offset_in_bytes, size_in_bytes),
+                None => SymbolLayoutUnassignedSelection::new(offset_in_bytes, size_in_bytes),
+            });
             symbol_layout_editor_view_data.field_context_menu_target = None;
         }
     }
@@ -714,7 +815,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
-            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
+            symbol_layout_editor_view_data.clear_unassigned_split_offsets();
         }
     }
 
@@ -776,7 +877,7 @@ impl SymbolLayoutEditorViewData {
             symbol_layout_editor_view_data.define_field_draft = None;
             symbol_layout_editor_view_data.field_context_menu_target = None;
             symbol_layout_editor_view_data.unassigned_context_menu_target = None;
-            symbol_layout_editor_view_data.unassigned_split_offsets.clear();
+            symbol_layout_editor_view_data.clear_unassigned_split_offsets();
         }
 
         let stale_field_delete_layout_id = match symbol_layout_editor_view_data.take_over_state.as_ref() {
@@ -1449,6 +1550,7 @@ mod tests {
     use super::{
         SymbolLayoutDefineFieldReturnState, SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData,
         SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
+        SymbolLayoutUnassignedSelection,
     };
     use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
     use epaint::pos2;
@@ -1713,6 +1815,58 @@ mod tests {
         });
 
         assert_eq!(view_data.get_unassigned_split_offsets(), &BTreeSet::from([4, 12]));
+    }
+
+    #[test]
+    fn split_unassigned_span_for_layout_keeps_variant_split_offsets_separate() {
+        let dependency_container = DependencyContainer::new();
+        let view_data = dependency_container.register(SymbolLayoutEditorViewData::new());
+
+        let selected_span = SymbolLayoutEditorViewData::split_unassigned_span_for_layout(view_data.clone(), Some(String::from("variant.a")), 0, 16);
+
+        let view_data_read = view_data
+            .read("Symbol layout variant split offset test")
+            .expect("Expected symbol layout view data read access in test.");
+
+        assert_eq!(
+            selected_span,
+            Some(SymbolLayoutUnassignedSelection::new_for_layout(String::from("variant.a"), 0, 8))
+        );
+        assert_eq!(view_data_read.get_unassigned_split_offsets_for_layout(None), BTreeSet::new());
+        assert_eq!(view_data_read.get_unassigned_split_offsets_for_layout(Some("variant.a")), BTreeSet::from([8]));
+        assert_eq!(view_data_read.get_unassigned_split_offsets_for_layout(Some("variant.b")), BTreeSet::new());
+    }
+
+    #[test]
+    fn show_unassigned_context_menu_for_layout_tracks_variant_selection_target() {
+        let dependency_container = DependencyContainer::new();
+        let view_data = dependency_container.register(SymbolLayoutEditorViewData::new());
+
+        SymbolLayoutEditorViewData::show_unassigned_context_menu_for_layout(
+            view_data.clone(),
+            Some(String::from("variant.a")),
+            4,
+            12,
+            pos2(10.0, 20.0),
+            None,
+            None,
+        );
+
+        let view_data_read = view_data
+            .read("Symbol layout variant selection target test")
+            .expect("Expected symbol layout view data read access in test.");
+
+        assert!(
+            view_data_read
+                .get_selected_unassigned_span()
+                .is_some_and(|selected_span| selected_span.matches(Some("variant.a"), 4, 12))
+        );
+        assert_eq!(
+            view_data_read
+                .get_unassigned_context_menu_target()
+                .and_then(SymbolLayoutUnassignedContextMenuTarget::get_layout_id),
+            Some("variant.a")
+        );
     }
 
     #[test]
