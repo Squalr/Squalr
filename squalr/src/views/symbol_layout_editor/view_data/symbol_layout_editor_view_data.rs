@@ -2079,6 +2079,35 @@ mod tests {
     }
 
     #[test]
+    fn build_symbol_layout_descriptor_allows_empty_layout() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: Some(String::from("inventory.slot.variant_1")),
+            layout_id: String::from("inventory.slot.variant_1"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("16"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: Vec::new(),
+        };
+
+        let struct_layout_descriptor =
+            SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft).expect("Expected empty draft to build.");
+
+        assert!(
+            struct_layout_descriptor
+                .get_struct_layout_definition()
+                .get_fields()
+                .is_empty()
+        );
+        assert_eq!(
+            struct_layout_descriptor
+                .get_struct_layout_definition()
+                .get_declared_size_in_bytes(),
+            Some(16)
+        );
+    }
+
+    #[test]
     fn build_symbol_layout_descriptor_rejects_size_that_truncates_fields() {
         let project_symbol_catalog = ProjectSymbolCatalog::default();
         let draft = SymbolLayoutEditDraft {

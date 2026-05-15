@@ -874,7 +874,11 @@ impl SymbolLayoutEditorView {
                 field_index_to_focus = Some(insert_index);
                 should_persist_variant_draft = true;
             }
-            SymbolLayoutFieldRowAction::InsertFieldIntoVariant | SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {}
+            SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
+                self.delete_variant_field(project_symbol_catalog, &mut variant_draft, field_index);
+                return;
+            }
+            SymbolLayoutFieldRowAction::InsertFieldIntoVariant => {}
         }
 
         if should_persist_variant_draft {
@@ -884,6 +888,46 @@ impl SymbolLayoutEditorView {
         if let Some(field_index_to_focus) = field_index_to_focus {
             SymbolLayoutEditorViewData::select_field_for_layout(self.symbol_layout_editor_view_data.clone(), Some(variant_layout_id), field_index_to_focus);
             self.focus_variant_field_in_struct_viewer(project_symbol_catalog, &variant_draft, field_index_to_focus);
+        }
+    }
+
+    fn delete_variant_field(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        variant_draft: &mut SymbolLayoutEditDraft,
+        field_index: usize,
+    ) {
+        if field_index >= variant_draft.field_drafts.len() {
+            return;
+        }
+
+        variant_draft.field_drafts.remove(field_index);
+        if !self.persist_variant_layout_draft(project_symbol_catalog, variant_draft) {
+            return;
+        }
+
+        if !variant_draft.field_drafts.is_empty() {
+            let field_index_to_focus = field_index.min(variant_draft.field_drafts.len().saturating_sub(1));
+            SymbolLayoutEditorViewData::select_field_for_layout(
+                self.symbol_layout_editor_view_data.clone(),
+                Some(variant_draft.layout_id.clone()),
+                field_index_to_focus,
+            );
+            self.focus_variant_field_in_struct_viewer(project_symbol_catalog, variant_draft, field_index_to_focus);
+            return;
+        }
+
+        if let Ok(layout_size_in_bytes) = SymbolLayoutEditorViewData::parse_layout_size_text(&variant_draft.size_text, variant_draft.size_format) {
+            SymbolLayoutEditorViewData::select_unassigned_span_for_layout(
+                self.symbol_layout_editor_view_data.clone(),
+                Some(variant_draft.layout_id.clone()),
+                0,
+                layout_size_in_bytes,
+            );
+            self.focus_unassigned_span_in_struct_viewer(variant_draft, 0, layout_size_in_bytes);
+        } else {
+            SymbolLayoutEditorViewData::clear_field_selection(self.symbol_layout_editor_view_data.clone());
+            self.clear_struct_viewer_if_symbol_layout_focused();
         }
     }
 
@@ -2835,7 +2879,7 @@ impl SymbolLayoutEditorView {
                     can_move_up,
                     can_move_down,
                     Some(variant_layout_id.as_str()),
-                    false,
+                    true,
                 )
             {
                 pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
@@ -2886,6 +2930,33 @@ impl SymbolLayoutEditorView {
             }
         }
 
+        let field_context_menu_target = self
+            .symbol_layout_editor_view_data
+            .read("SymbolLayoutEditor variant field context menu")
+            .and_then(|symbol_layout_editor_view_data| {
+                symbol_layout_editor_view_data
+                    .get_field_context_menu_target()
+                    .cloned()
+            });
+
+        if let Some(field_context_menu_target) = field_context_menu_target
+            && field_context_menu_target.get_layout_id() == Some(variant_layout_id.as_str())
+            && field_context_menu_target.get_field_index() < variant_draft.field_drafts.len()
+            && let Some(field_row_action) = self.render_field_context_menu(
+                user_interface,
+                SymbolicLayoutKind::Struct,
+                &field_context_menu_target,
+                variant_draft.field_drafts.len(),
+                true,
+            )
+        {
+            pending_variant_layout_action = Some(SymbolLayoutVariantLayoutRowAction::Field {
+                variant_layout_id: variant_layout_id.clone(),
+                field_index: field_context_menu_target.get_field_index(),
+                field_row_action,
+            });
+        }
+
         pending_variant_layout_action
     }
 
@@ -2895,19 +2966,24 @@ impl SymbolLayoutEditorView {
         layout_kind: SymbolicLayoutKind,
         context_menu_target: &SymbolLayoutFieldContextMenuTarget,
         field_count: usize,
+        can_delete_final_field: bool,
     ) -> Option<SymbolLayoutFieldRowAction> {
         let theme = &self.app_context.theme;
         let field_index = context_menu_target.get_field_index();
-        let can_remove_field = field_count > 1;
+        let can_remove_field = can_delete_final_field || field_count > 1;
         let can_move_up = field_index > 0;
         let can_move_down = field_index + 1 < field_count;
         let mut open = true;
         let mut pending_field_row_action = None;
         let entry_name = if layout_kind.is_union() { "variant" } else { "field" };
+        let context_menu_id = context_menu_target
+            .get_layout_id()
+            .map(|layout_id| format!("symbol_layout_field_context_menu_{}", layout_id))
+            .unwrap_or_else(|| String::from("symbol_layout_field_context_menu"));
 
         ContextMenu::new(
             self.app_context.clone(),
-            "symbol_layout_field_context_menu",
+            &context_menu_id,
             context_menu_target.get_position(),
             |user_interface, should_close| {
                 if user_interface
@@ -3529,7 +3605,7 @@ impl SymbolLayoutEditorView {
         if let Some(field_context_menu_target) = field_context_menu_target
             && field_context_menu_target.get_layout_id().is_none()
             && field_context_menu_target.get_field_index() < field_count
-            && let Some(field_row_action) = self.render_field_context_menu(user_interface, draft.layout_kind, &field_context_menu_target, field_count)
+            && let Some(field_row_action) = self.render_field_context_menu(user_interface, draft.layout_kind, &field_context_menu_target, field_count, false)
         {
             pending_field_row_action = Some((field_context_menu_target.get_field_index(), field_row_action));
         }
