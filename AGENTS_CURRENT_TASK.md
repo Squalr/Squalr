@@ -47,7 +47,6 @@ Our current task, from `README.md`, is:
 - Replaced union variant field preview rows with the normal struct field row editor path scoped to the variant backing layout. Newly added variant fields now select/focus through variant-scoped field state, and variant field arrows persist against the backing struct layout. Needs human verification in the GUI.
 - Enabled variant-scoped context menus for union variant fields and made nested field delete mutate the backing variant layout directly. Deleting the last field now leaves the variant as a valid all-`UNASSIGNED` layout instead of removing or recreating a placeholder field. Needs human verification in the GUI.
 - Flattened the Symbol Layout Editor union authoring UI into a tree inside the single outer editor groupbox. Variant root rows own variant move/delete/context-menu actions, while indented child field/unassigned rows own backing-layout field actions. Needs human verification in the GUI.
-- Hardened Symbol Layout Editor row context-menu opening by detecting secondary clicks from pointer position inside the row rectangle, instead of relying only on egui row `Response::secondary_clicked()` ownership. Needs human verification in the GUI.
 - Audit recommendation: Add `db`/`bytes` next. Raw storage is now cleanly separable as a persisted ownership concept because unowned gaps are explicit synthesized spans.
 
 ## Important Information
@@ -83,4 +82,3 @@ Our current task, from `README.md`, is:
 - Union variant field-row correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Union variant context-menu/delete correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
 - Union variant tree UI correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.
-- Symbol Layout Editor secondary-click correction reran `cargo fmt --all`, `cargo test -p squalr symbol_layout_editor --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, and `git diff --check`.

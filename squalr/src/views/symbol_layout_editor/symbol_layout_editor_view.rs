@@ -20,10 +20,9 @@ use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_dat
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
 use eframe::egui::{
-    Align, Align2, Button as EguiButton, Direction, Grid, Id, Key, Layout, PointerButton, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget,
-    pos2, vec2,
+    Align, Align2, Button as EguiButton, Direction, Grid, Id, Key, Layout, Response, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, Widget, pos2, vec2,
 };
-use epaint::{Color32, CornerRadius, Pos2, Rect, StrokeKind};
+use epaint::{Color32, CornerRadius, Rect, StrokeKind};
 use squalr_engine_api::commands::{
     privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
     registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
@@ -2672,10 +2671,11 @@ impl SymbolLayoutEditorView {
             pending_field_row_action = Some(SymbolLayoutFieldRowAction::MoveDown);
         }
 
-        let row_secondary_click_position = can_show_context_menu
-            .then(|| Self::row_secondary_click_position(user_interface, row_rect))
-            .flatten();
-        if let Some(context_menu_position) = row_secondary_click_position {
+        let row_was_secondary_clicked = can_show_context_menu && row_response.secondary_clicked();
+        if row_was_secondary_clicked {
+            let context_menu_position = row_response
+                .interact_pointer_pos()
+                .unwrap_or_else(|| row_rect.left_bottom());
             SymbolLayoutEditorViewData::show_field_context_menu_for_layout(
                 self.symbol_layout_editor_view_data.clone(),
                 context_layout_id.map(str::to_string),
@@ -2739,27 +2739,11 @@ impl SymbolLayoutEditorView {
             );
         }
 
-        if row_response.clicked() && row_secondary_click_position.is_none() && pending_field_row_action.is_none() {
+        if row_response.clicked() && !row_was_secondary_clicked && pending_field_row_action.is_none() {
             pending_field_row_action = Some(SymbolLayoutFieldRowAction::SelectField);
         }
 
         pending_field_row_action
-    }
-
-    fn row_secondary_click_position(
-        user_interface: &Ui,
-        row_rect: Rect,
-    ) -> Option<Pos2> {
-        user_interface.input(|input_state| {
-            if !input_state.pointer.button_clicked(PointerButton::Secondary) {
-                return None;
-            }
-
-            input_state
-                .pointer
-                .interact_pos()
-                .filter(|pointer_position| row_rect.contains(*pointer_position))
-        })
     }
 
     fn render_add_entry_button(
@@ -3258,10 +3242,10 @@ impl SymbolLayoutEditorView {
             pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MoveDown);
         }
 
-        if let Some(position) = can_show_context_menu
-            .then(|| Self::row_secondary_click_position(user_interface, row_rect))
-            .flatten()
-        {
+        if can_show_context_menu && row_response.secondary_clicked() {
+            let position = row_response
+                .interact_pointer_pos()
+                .unwrap_or_else(|| pos2(row_rect.left(), row_rect.center().y));
             SymbolLayoutEditorViewData::show_unassigned_context_menu_for_layout(
                 self.symbol_layout_editor_view_data.clone(),
                 layout_id.map(str::to_string),
