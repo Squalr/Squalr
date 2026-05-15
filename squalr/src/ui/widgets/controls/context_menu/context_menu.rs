@@ -1,5 +1,5 @@
 use crate::app_context::AppContext;
-use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, Ui};
+use eframe::egui::{Align, Area, Frame, Id, Key, Layout, Order, PointerButton, Ui};
 use epaint::{CornerRadius, Margin, Rect, Vec2};
 use std::sync::Arc;
 
@@ -123,6 +123,11 @@ impl<'a, F: FnOnce(&mut Ui, &mut bool)> ContextMenu<'a, F> {
                     return false;
                 }
                 let click_pos = input.pointer.interact_pos().unwrap_or(self.pos);
+                let is_opening_secondary_click = input.pointer.button_clicked(PointerButton::Secondary) && click_pos.distance_sq(self.pos) <= 1.0;
+                if is_opening_secondary_click {
+                    return false;
+                }
+
                 !popup_rectangle.contains(click_pos)
             });
 
