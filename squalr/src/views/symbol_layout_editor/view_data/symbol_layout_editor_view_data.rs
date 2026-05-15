@@ -104,13 +104,34 @@ impl SymbolLayoutUnassignedSelection {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SymbolLayoutEditorTakeOverState {
+pub enum SymbolLayoutDefineFieldReturnState {
     CreateSymbolLayout,
     RenameSymbolLayout { layout_id: String },
     OpenSymbolLayout { layout_id: String },
-    DefineFieldFromUnassignedSpan { layout_id: String, offset: u64, size: u64 },
-    DeleteConfirmation { layout_id: String },
-    DeleteFieldConfirmation { layout_id: String, field_index: usize },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SymbolLayoutEditorTakeOverState {
+    CreateSymbolLayout,
+    RenameSymbolLayout {
+        layout_id: String,
+    },
+    OpenSymbolLayout {
+        layout_id: String,
+    },
+    DefineFieldFromUnassignedSpan {
+        layout_id: String,
+        offset: u64,
+        size: u64,
+        return_state: SymbolLayoutDefineFieldReturnState,
+    },
+    DeleteConfirmation {
+        layout_id: String,
+    },
+    DeleteFieldConfirmation {
+        layout_id: String,
+        field_index: usize,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -446,6 +467,22 @@ impl SymbolLayoutEditorViewData {
         }
     }
 
+    pub fn return_to_define_field_source(
+        symbol_layout_editor_view_data: Dependency<Self>,
+        return_state: SymbolLayoutDefineFieldReturnState,
+    ) {
+        if let Some(mut symbol_layout_editor_view_data) = symbol_layout_editor_view_data.write("SymbolLayoutEditor return to define field source") {
+            symbol_layout_editor_view_data.take_over_state = Some(match return_state {
+                SymbolLayoutDefineFieldReturnState::CreateSymbolLayout => SymbolLayoutEditorTakeOverState::CreateSymbolLayout,
+                SymbolLayoutDefineFieldReturnState::RenameSymbolLayout { layout_id } => SymbolLayoutEditorTakeOverState::RenameSymbolLayout { layout_id },
+                SymbolLayoutDefineFieldReturnState::OpenSymbolLayout { layout_id } => SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id },
+            });
+            symbol_layout_editor_view_data.define_field_draft = None;
+            symbol_layout_editor_view_data.field_context_menu_target = None;
+            symbol_layout_editor_view_data.unassigned_context_menu_target = None;
+        }
+    }
+
     pub fn begin_define_field_from_unassigned_span(
         symbol_layout_editor_view_data: Dependency<Self>,
         layout_id: String,
@@ -459,7 +496,26 @@ impl SymbolLayoutEditorViewData {
             field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
             field_draft.static_offset_in_bytes = String::from("0");
 
-            symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, offset, size });
+            let return_state = match symbol_layout_editor_view_data.take_over_state.as_ref() {
+                Some(SymbolLayoutEditorTakeOverState::CreateSymbolLayout) => SymbolLayoutDefineFieldReturnState::CreateSymbolLayout,
+                Some(SymbolLayoutEditorTakeOverState::RenameSymbolLayout { layout_id }) => {
+                    SymbolLayoutDefineFieldReturnState::RenameSymbolLayout { layout_id: layout_id.clone() }
+                }
+                Some(SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id })
+                | Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. })
+                | Some(SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id })
+                | Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }) => {
+                    SymbolLayoutDefineFieldReturnState::OpenSymbolLayout { layout_id: layout_id.clone() }
+                }
+                None => SymbolLayoutDefineFieldReturnState::OpenSymbolLayout { layout_id: layout_id.clone() },
+            };
+
+            symbol_layout_editor_view_data.take_over_state = Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan {
+                layout_id,
+                offset,
+                size,
+                return_state,
+            });
             symbol_layout_editor_view_data.selected_field_index = None;
             symbol_layout_editor_view_data.selected_unassigned_span = Some(SymbolLayoutUnassignedSelection::new(offset, size));
             symbol_layout_editor_view_data.define_field_draft = Some(field_draft);
@@ -591,13 +647,20 @@ impl SymbolLayoutEditorViewData {
 
         let should_clear_take_over_state = match symbol_layout_editor_view_data.take_over_state.as_ref() {
             Some(SymbolLayoutEditorTakeOverState::CreateSymbolLayout) => false,
+            Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan {
+                return_state: SymbolLayoutDefineFieldReturnState::CreateSymbolLayout,
+                ..
+            }) => false,
             Some(
                 SymbolLayoutEditorTakeOverState::RenameSymbolLayout { layout_id }
                 | SymbolLayoutEditorTakeOverState::OpenSymbolLayout { layout_id }
-                | SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }
                 | SymbolLayoutEditorTakeOverState::DeleteConfirmation { layout_id }
                 | SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. },
             ) => !project_symbol_catalog
+                .get_struct_layout_descriptors()
+                .iter()
+                .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id),
+            Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }) => !project_symbol_catalog
                 .get_struct_layout_descriptors()
                 .iter()
                 .any(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == layout_id),
@@ -1277,11 +1340,12 @@ impl Default for SymbolLayoutEditDraft {
 #[cfg(test)]
 mod tests {
     use super::{
-        SymbolLayoutEditDraft, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode,
-        SymbolLayoutUnassignedContextMenuTarget,
+        SymbolLayoutDefineFieldReturnState, SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData,
+        SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
     };
     use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
     use epaint::pos2;
+    use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{
@@ -1332,6 +1396,52 @@ mod tests {
         field_draft.container_edit = container_edit;
 
         field_draft
+    }
+
+    #[test]
+    fn begin_define_field_from_new_layout_returns_to_create_takeover() {
+        let dependency_container = DependencyContainer::new();
+        let view_data = dependency_container.register(SymbolLayoutEditorViewData::new());
+
+        {
+            let mut view_data_write = view_data
+                .write("Symbol layout define return test setup")
+                .expect("Expected symbol layout view data write access in test.");
+            view_data_write.take_over_state = Some(SymbolLayoutEditorTakeOverState::CreateSymbolLayout);
+            view_data_write.draft = Some(SymbolLayoutEditDraft {
+                original_layout_id: None,
+                layout_id: String::from("new.struct"),
+                layout_kind: SymbolicLayoutKind::Struct,
+                size_text: String::from("256"),
+                size_format: AnonymousValueStringFormat::Decimal,
+                field_drafts: Vec::new(),
+            });
+        }
+
+        SymbolLayoutEditorViewData::begin_define_field_from_unassigned_span(
+            view_data.clone(),
+            String::from("new.struct"),
+            0,
+            256,
+            DataTypeRef::new(DataTypeI32::DATA_TYPE_ID),
+        );
+
+        let return_state = view_data
+            .read("Symbol layout define return test")
+            .and_then(|view_data_read| match view_data_read.get_take_over_state() {
+                Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { return_state, .. }) => Some(return_state.clone()),
+                _ => None,
+            });
+
+        assert_eq!(return_state, Some(SymbolLayoutDefineFieldReturnState::CreateSymbolLayout));
+
+        SymbolLayoutEditorViewData::return_to_define_field_source(view_data.clone(), SymbolLayoutDefineFieldReturnState::CreateSymbolLayout);
+
+        let take_over_state = view_data
+            .read("Symbol layout define return final state test")
+            .and_then(|view_data_read| view_data_read.get_take_over_state().cloned());
+
+        assert_eq!(take_over_state, Some(SymbolLayoutEditorTakeOverState::CreateSymbolLayout));
     }
 
     #[test]

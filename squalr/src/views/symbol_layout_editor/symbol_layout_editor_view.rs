@@ -14,8 +14,9 @@ use crate::ui::widgets::controls::{
 };
 use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
 use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{
-    SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget, SymbolLayoutFieldEditDraft,
-    SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget, SymbolLayoutUnassignedSelection,
+    SymbolLayoutDefineFieldReturnState, SymbolLayoutEditDraft, SymbolLayoutEditorTakeOverState, SymbolLayoutEditorViewData, SymbolLayoutFieldContextMenuTarget,
+    SymbolLayoutFieldEditDraft, SymbolLayoutFieldElementType, SymbolLayoutFieldOffsetMode, SymbolLayoutUnassignedContextMenuTarget,
+    SymbolLayoutUnassignedSelection,
 };
 use crate::views::symbol_layout_editor::view_data::symbol_layout_field_container_edit::{SymbolLayoutFieldContainerEdit, SymbolLayoutFieldContainerKind};
 use eframe::egui::{
@@ -126,6 +127,7 @@ impl SymbolLayoutEditorView {
     const DEFINE_FIELD_BUILT_IN_TYPE_IDS: [&'static str; 18] = [
         "u8", "i8", "i16", "i16be", "i32", "i32be", "i64", "i64be", "u16", "u16be", "u32", "u32be", "u64", "u64be", "f32", "f32be", "f64", "f64be",
     ];
+    const DEFINE_FIELD_GROUPBOX_SIDE_PADDING: f32 = 8.0;
     const LAYOUT_KIND_COMBO_WIDTH: f32 = 128.0;
 
     pub fn new(app_context: Arc<AppContext>) -> Self {
@@ -2797,6 +2799,7 @@ impl SymbolLayoutEditorView {
         layout_id: &str,
         span_offset_in_bytes: u64,
         span_size_in_bytes: u64,
+        return_state: &SymbolLayoutDefineFieldReturnState,
         draft: Option<&SymbolLayoutEditDraft>,
         define_field_draft: Option<&SymbolLayoutFieldEditDraft>,
     ) {
@@ -2821,114 +2824,132 @@ impl SymbolLayoutEditorView {
 
                 user_interface.add(
                     GroupBox::new_from_theme(theme, "Define Field", |user_interface| {
-                        user_interface.label(RichText::new(format!("{} + 0x{:X}", layout_id, span_offset_in_bytes)).color(theme.foreground_preview));
-                        user_interface.add_space(8.0);
-
-                        user_interface.label(RichText::new("Name").color(theme.foreground));
-                        user_interface.add_space(2.0);
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut edited_define_field_draft.field_name,
-                            "field_name",
-                            "symbol_layout_define_field_name",
-                            user_interface.available_width(),
-                            Self::TOOLBAR_HEIGHT,
-                        );
-                        user_interface.add_space(8.0);
-
-                        let max_relative_offset = span_size_in_bytes.saturating_sub(1);
-                        user_interface.label(RichText::new(format!("Offset in UNASSIGNED (0 to {})", max_relative_offset)).color(theme.foreground));
-                        user_interface.add_space(2.0);
-                        self.render_string_value_box(
-                            user_interface,
-                            &mut edited_define_field_draft.static_offset_in_bytes,
-                            "0",
-                            "symbol_layout_define_field_offset",
-                            user_interface.available_width(),
-                            Self::TOOLBAR_HEIGHT,
-                        );
-
-                        validation_result =
-                            Self::validate_define_field_draft(project_symbol_catalog, &edited_define_field_draft, span_offset_in_bytes, span_size_in_bytes);
-                        if let Err(validation_error) = validation_result.as_ref()
-                            && validation_error != "Field name is required."
-                        {
-                            user_interface.add_space(4.0);
-                            user_interface.label(RichText::new(validation_error).color(theme.warning));
-                        }
-                        user_interface.add_space(8.0);
-
                         user_interface.horizontal(|user_interface| {
-                            user_interface.spacing_mut().item_spacing.x = 4.0;
-                            let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
-                            self.render_define_field_container_selector(
-                                user_interface,
-                                &mut edited_define_field_draft.container_edit,
-                                &format!("symbol_layout_define_field_container_{}_{}", layout_id, span_offset_in_bytes),
-                                selector_width,
-                            );
+                            user_interface.add_space(Self::DEFINE_FIELD_GROUPBOX_SIDE_PADDING);
+                            let content_width = (user_interface.available_width() - Self::DEFINE_FIELD_GROUPBOX_SIDE_PADDING).max(1.0);
+                            user_interface.allocate_ui_with_layout(vec2(content_width, 0.0), Layout::top_down(Align::Min), |user_interface| {
+                                user_interface.label(RichText::new(format!("{} + 0x{:X}", layout_id, span_offset_in_bytes)).color(theme.foreground_preview));
+                                user_interface.add_space(8.0);
 
-                            let type_selector_width = user_interface.available_width();
-                            self.render_define_field_type_combo(
-                                user_interface,
-                                project_symbol_catalog,
-                                &mut edited_define_field_draft,
-                                &format!("symbol_layout_define_field_type_{}_{}", layout_id, span_offset_in_bytes),
-                                type_selector_width,
-                            );
-                        });
-
-                        validation_result =
-                            Self::validate_define_field_draft(project_symbol_catalog, &edited_define_field_draft, span_offset_in_bytes, span_size_in_bytes);
-
-                        if let Err(validation_error) = validation_result.as_ref()
-                            && validation_error == "Field name is required."
-                        {
-                            user_interface.add_space(6.0);
-                            user_interface.label(RichText::new(validation_error).color(theme.error_red));
-                        }
-
-                        user_interface.add_space(12.0);
-                        user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
-                            let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::TOOLBAR_HEIGHT);
-                            let button_spacing = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
-                            let total_button_row_width = button_size.x * 2.0 + button_spacing;
-                            let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
-
-                            user_interface.horizontal(|user_interface| {
-                                user_interface.add_space(side_spacing);
-                                user_interface.spacing_mut().item_spacing.x = button_spacing;
-
-                                let cancel_response = user_interface.add_sized(
-                                    button_size,
-                                    EguiButton::new(RichText::new("Cancel").color(theme.foreground))
-                                        .fill(theme.background_control_secondary)
-                                        .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                user_interface.label(RichText::new("Name").color(theme.foreground));
+                                user_interface.add_space(2.0);
+                                self.render_string_value_box(
+                                    user_interface,
+                                    &mut edited_define_field_draft.field_name,
+                                    "field_name",
+                                    "symbol_layout_define_field_name",
+                                    user_interface.available_width(),
+                                    Self::TOOLBAR_HEIGHT,
                                 );
-                                if cancel_response.clicked() {
-                                    should_cancel = true;
+                                user_interface.add_space(8.0);
+
+                                let max_relative_offset = span_size_in_bytes.saturating_sub(1);
+                                user_interface.label(RichText::new(format!("Offset in UNASSIGNED (0 to {})", max_relative_offset)).color(theme.foreground));
+                                user_interface.add_space(2.0);
+                                self.render_string_value_box(
+                                    user_interface,
+                                    &mut edited_define_field_draft.static_offset_in_bytes,
+                                    "0",
+                                    "symbol_layout_define_field_offset",
+                                    user_interface.available_width(),
+                                    Self::TOOLBAR_HEIGHT,
+                                );
+
+                                validation_result = Self::validate_define_field_draft(
+                                    project_symbol_catalog,
+                                    &edited_define_field_draft,
+                                    span_offset_in_bytes,
+                                    span_size_in_bytes,
+                                );
+                                if let Err(validation_error) = validation_result.as_ref()
+                                    && validation_error != "Field name is required."
+                                {
+                                    user_interface.add_space(4.0);
+                                    user_interface.label(RichText::new(validation_error).color(theme.warning));
+                                }
+                                user_interface.add_space(8.0);
+
+                                user_interface.horizontal(|user_interface| {
+                                    user_interface.spacing_mut().item_spacing.x = 4.0;
+                                    let selector_width = Self::DEFINE_FIELD_CONTAINER_SELECTOR_WIDTH.min(user_interface.available_width());
+                                    self.render_define_field_container_selector(
+                                        user_interface,
+                                        &mut edited_define_field_draft.container_edit,
+                                        &format!("symbol_layout_define_field_container_{}_{}", layout_id, span_offset_in_bytes),
+                                        selector_width,
+                                    );
+
+                                    let type_selector_width = user_interface.available_width();
+                                    self.render_define_field_type_combo(
+                                        user_interface,
+                                        project_symbol_catalog,
+                                        &mut edited_define_field_draft,
+                                        &format!("symbol_layout_define_field_type_{}_{}", layout_id, span_offset_in_bytes),
+                                        type_selector_width,
+                                    );
+                                });
+
+                                validation_result = Self::validate_define_field_draft(
+                                    project_symbol_catalog,
+                                    &edited_define_field_draft,
+                                    span_offset_in_bytes,
+                                    span_size_in_bytes,
+                                );
+
+                                if let Err(validation_error) = validation_result.as_ref()
+                                    && validation_error == "Field name is required."
+                                {
+                                    user_interface.add_space(6.0);
+                                    user_interface.label(RichText::new(validation_error).color(theme.error_red));
                                 }
 
-                                let can_create = validation_result.is_ok();
-                                let create_fill = if can_create {
-                                    theme.background_control_primary
-                                } else {
-                                    theme.background_control_secondary
-                                };
-                                let create_stroke = if can_create {
-                                    theme.background_control_primary_dark
-                                } else {
-                                    theme.background_control_secondary_dark
-                                };
-                                let create_response = user_interface.add_sized(
-                                    button_size,
-                                    EguiButton::new(RichText::new("Create").color(if can_create { theme.foreground } else { theme.foreground_preview }))
-                                        .fill(create_fill)
-                                        .stroke(Stroke::new(1.0, create_stroke)),
-                                );
-                                if can_create && create_response.clicked() {
-                                    should_create = true;
-                                }
+                                user_interface.add_space(12.0);
+                                user_interface.allocate_ui(vec2(user_interface.available_width(), 32.0), |user_interface| {
+                                    let button_size = vec2(Self::TAKE_OVER_ACTION_BUTTON_WIDTH, Self::TOOLBAR_HEIGHT);
+                                    let button_spacing = Self::TAKE_OVER_ACTION_BUTTON_SPACING;
+                                    let total_button_row_width = button_size.x * 2.0 + button_spacing;
+                                    let side_spacing = ((user_interface.available_width() - total_button_row_width) * 0.5).max(0.0);
+
+                                    user_interface.horizontal(|user_interface| {
+                                        user_interface.add_space(side_spacing);
+                                        user_interface.spacing_mut().item_spacing.x = button_spacing;
+
+                                        let cancel_response = user_interface.add_sized(
+                                            button_size,
+                                            EguiButton::new(RichText::new("Cancel").color(theme.foreground))
+                                                .fill(theme.background_control_secondary)
+                                                .stroke(Stroke::new(1.0, theme.background_control_secondary_dark)),
+                                        );
+                                        if cancel_response.clicked() {
+                                            should_cancel = true;
+                                        }
+
+                                        let can_create = validation_result.is_ok();
+                                        let create_fill = if can_create {
+                                            theme.background_control_primary
+                                        } else {
+                                            theme.background_control_secondary
+                                        };
+                                        let create_stroke = if can_create {
+                                            theme.background_control_primary_dark
+                                        } else {
+                                            theme.background_control_secondary_dark
+                                        };
+                                        let create_response = user_interface.add_sized(
+                                            button_size,
+                                            EguiButton::new(RichText::new("Create").color(if can_create {
+                                                theme.foreground
+                                            } else {
+                                                theme.foreground_preview
+                                            }))
+                                            .fill(create_fill)
+                                            .stroke(Stroke::new(1.0, create_stroke)),
+                                        );
+                                        if can_create && create_response.clicked() {
+                                            should_create = true;
+                                        }
+                                    });
+                                });
                             });
                         });
                     })
@@ -2938,7 +2959,7 @@ impl SymbolLayoutEditorView {
         );
 
         if should_cancel {
-            SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
+            SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             self.focus_unassigned_span_in_struct_viewer(draft, span_offset_in_bytes, span_size_in_bytes);
             return;
         }
@@ -2957,7 +2978,7 @@ impl SymbolLayoutEditorView {
 
             updated_draft.field_drafts.insert(insert_index, new_field_draft);
             SymbolLayoutEditorViewData::update_draft(self.symbol_layout_editor_view_data.clone(), updated_draft.clone());
-            SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.to_string());
+            SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), insert_index);
             self.focus_field_in_struct_viewer(project_symbol_catalog, &updated_draft, insert_index);
             return;
@@ -3359,8 +3380,8 @@ impl Widget for SymbolLayoutEditorView {
         if is_window_focused && user_interface.input(|input_state| input_state.key_pressed(Key::Escape)) && is_take_over_active {
             if let Some(SymbolLayoutEditorTakeOverState::DeleteFieldConfirmation { layout_id, .. }) = take_over_state.as_ref() {
                 SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.clone());
-            } else if let Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, .. }) = take_over_state.as_ref() {
-                SymbolLayoutEditorViewData::return_to_open_symbol_layout(self.symbol_layout_editor_view_data.clone(), layout_id.clone());
+            } else if let Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { return_state, .. }) = take_over_state.as_ref() {
+                SymbolLayoutEditorViewData::return_to_define_field_source(self.symbol_layout_editor_view_data.clone(), return_state.clone());
             } else {
                 SymbolLayoutEditorViewData::cancel_take_over_state(self.symbol_layout_editor_view_data.clone());
                 self.clear_struct_viewer_if_symbol_layout_focused();
@@ -3442,13 +3463,19 @@ impl Widget for SymbolLayoutEditorView {
                             false,
                         );
                     }
-                    Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan { layout_id, offset, size }) => {
+                    Some(SymbolLayoutEditorTakeOverState::DefineFieldFromUnassignedSpan {
+                        layout_id,
+                        offset,
+                        size,
+                        return_state,
+                    }) => {
                         self.render_define_field_from_unassigned_take_over(
                             &mut content_user_interface,
                             &project_symbol_catalog,
                             layout_id,
                             *offset,
                             *size,
+                            return_state,
                             draft.as_ref(),
                             define_field_draft.as_ref(),
                         );
