@@ -17,10 +17,6 @@ use crate::views::{
     symbol_tree::symbol_tree_inline_rename_view::SymbolTreeInlineRenameView,
     symbol_tree::symbol_tree_toolbar_view::{SymbolTreeToolbarAction, SymbolTreeToolbarView},
     symbol_tree::view_data::{
-        symbol_tree_entry::{
-            ResolvedPointerTarget, SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries_with_scalar_reader_and_pointer_chains,
-            resolve_symbol_tree_entry_size_in_bytes,
-        },
         symbol_tree_scalar_value::SymbolTreeScalarValue,
         symbol_tree_view_data::{
             DefineFieldDraft, ModuleRootCreateDraft, SymbolTreeContextMenuTarget, SymbolTreeSelection, SymbolTreeTakeOverState, SymbolTreeViewData,
@@ -62,8 +58,12 @@ use squalr_engine_api::structures::memory::{
 };
 use squalr_engine_api::structures::pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize;
 use squalr_engine_api::structures::projects::{
-    project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress, project_symbol_catalog::ProjectSymbolCatalog,
-    project_symbol_claim::ProjectSymbolClaim, project_symbol_locator::ProjectSymbolLocator,
+    project_items::built_in_types::project_item_type_address::ProjectItemTypeAddress,
+    project_symbol_catalog::ProjectSymbolCatalog,
+    project_symbol_claim::ProjectSymbolClaim,
+    project_symbol_locator::ProjectSymbolLocator,
+    symbol_tree::symbol_tree::SymbolTree,
+    symbol_tree::symbol_tree_node::{ResolvedPointerTarget, SymbolTreeNode, SymbolTreeNodeKind, resolve_symbol_tree_node_size_in_bytes},
 };
 use squalr_engine_api::structures::structs::{
     symbolic_field_definition::{SymbolicFieldDefinition, SymbolicFieldOffsetResolution},
@@ -739,14 +739,14 @@ impl SymbolTreeView {
     }
 
     fn build_selected_symbol_tree_entry<'entry>(
-        symbol_tree_entries: &'entry [SymbolTreeEntry],
+        symbol_tree_entries: &'entry [SymbolTreeNode],
         selected_entry: Option<&SymbolTreeSelection>,
-    ) -> Option<&'entry SymbolTreeEntry> {
+    ) -> Option<&'entry SymbolTreeNode> {
         match selected_entry {
             Some(SymbolTreeSelection::ModuleRoot(selected_module_name)) => symbol_tree_entries.iter().find(|symbol_tree_entry| {
                 matches!(
                     symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { module_name, .. } if module_name == selected_module_name
+                    SymbolTreeNodeKind::ModuleSpace { module_name, .. } if module_name == selected_module_name
                 )
             }),
             Some(SymbolTreeSelection::SymbolClaim(selected_symbol_locator_key)) => symbol_tree_entries.iter().find(|symbol_tree_entry| {
@@ -756,7 +756,7 @@ impl SymbolTreeView {
 
                 matches!(
                     symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
+                    SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
                 )
             }),
             Some(SymbolTreeSelection::DerivedNode(selected_node_key)) => symbol_tree_entries
@@ -767,10 +767,10 @@ impl SymbolTreeView {
     }
 
     fn resolve_adjacent_symbol_tree_entry<'entry>(
-        symbol_tree_entries: &'entry [SymbolTreeEntry],
+        symbol_tree_entries: &'entry [SymbolTreeNode],
         selected_entry: Option<&SymbolTreeSelection>,
         direction: ListNavigationDirection,
-    ) -> Option<&'entry SymbolTreeEntry> {
+    ) -> Option<&'entry SymbolTreeNode> {
         let selected_symbol_tree_entry = Self::build_selected_symbol_tree_entry(symbol_tree_entries, selected_entry);
         let selected_symbol_tree_index = selected_symbol_tree_entry.and_then(|selected_symbol_tree_entry| {
             symbol_tree_entries
@@ -782,28 +782,28 @@ impl SymbolTreeView {
         symbol_tree_entries.get(next_selection_index)
     }
 
-    fn is_module_field_tree_entry(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+    fn is_module_field_tree_entry(symbol_tree_entry: &SymbolTreeNode) -> bool {
         symbol_tree_entry.get_node_key().starts_with("module_field:")
     }
 
     fn build_module_child_range_target(
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         resolve_primitive_size_in_bytes: impl Fn(&DataTypeRef) -> Option<u64> + Copy,
     ) -> Option<ModuleChildRangeTarget> {
         match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::UnassignedSegment { module_name, offset, length } => Some(ModuleChildRangeTarget {
+            SymbolTreeNodeKind::UnassignedSegment { module_name, offset, length } => Some(ModuleChildRangeTarget {
                 module_name: module_name.to_string(),
                 offset: *offset,
                 length: *length,
                 display_name: symbol_tree_entry.get_display_name().to_string(),
                 delete_mode: ProjectSymbolsDeleteModuleRangeMode::ShiftLeft,
             }),
-            SymbolTreeEntryKind::SymbolClaim { .. } if symbol_tree_entry.get_depth() == 1 => {
+            SymbolTreeNodeKind::SymbolClaim { .. } if symbol_tree_entry.get_depth() == 1 => {
                 let ProjectSymbolLocator::ModuleOffset { module_name, offset } = symbol_tree_entry.get_locator() else {
                     return None;
                 };
-                let length = resolve_symbol_tree_entry_size_in_bytes(project_symbol_catalog, symbol_tree_entry, resolve_primitive_size_in_bytes);
+                let length = resolve_symbol_tree_node_size_in_bytes(project_symbol_catalog, symbol_tree_entry, resolve_primitive_size_in_bytes);
 
                 (length > 0).then(|| ModuleChildRangeTarget {
                     module_name: module_name.to_string(),
@@ -817,10 +817,10 @@ impl SymbolTreeView {
         }
     }
 
-    fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeEntry) -> Option<AddSymbolToProjectTarget> {
+    fn build_add_symbol_to_project_target(symbol_tree_entry: &SymbolTreeNode) -> Option<AddSymbolToProjectTarget> {
         if matches!(
             symbol_tree_entry.get_kind(),
-            SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnassignedSegment { .. }
+            SymbolTreeNodeKind::ModuleSpace { .. } | SymbolTreeNodeKind::UnassignedSegment { .. }
         ) {
             return None;
         }
@@ -846,9 +846,9 @@ impl SymbolTreeView {
         })
     }
 
-    fn build_add_symbol_project_item_name(symbol_tree_entry: &SymbolTreeEntry) -> String {
+    fn build_add_symbol_project_item_name(symbol_tree_entry: &SymbolTreeNode) -> String {
         match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::SymbolClaim { .. } => symbol_tree_entry.get_display_name().trim().to_string(),
+            SymbolTreeNodeKind::SymbolClaim { .. } => symbol_tree_entry.get_display_name().trim().to_string(),
             _ => symbol_tree_entry.get_full_path().trim().to_string(),
         }
     }
@@ -866,11 +866,11 @@ impl SymbolTreeView {
     }
 
     fn build_add_symbol_pointer_offsets(
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         address: u64,
         module_name: &str,
     ) -> Option<Vec<PointerChainSegment>> {
-        if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { .. })
+        if !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::SymbolClaim { .. })
             || symbol_tree_entry.get_depth() != 1
             || module_name.trim().is_empty()
             || !PointerChainSegment::is_valid_symbol_name(symbol_tree_entry.get_display_name())
@@ -886,8 +886,8 @@ impl SymbolTreeView {
 
     fn build_symbol_layout_edit_target(
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeEntry],
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entries: &[SymbolTreeNode],
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<String> {
         let layout_exists = |struct_layout_id: &str| {
             project_symbol_catalog
@@ -901,7 +901,7 @@ impl SymbolTreeView {
             return Some(symbol_type_id.to_string());
         }
 
-        if let SymbolTreeEntryKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
+        if let SymbolTreeNodeKind::ModuleSpace { module_name, .. } = symbol_tree_entry.get_kind() {
             return layout_exists(module_name).then(|| module_name.to_string());
         }
 
@@ -1011,7 +1011,7 @@ impl SymbolTreeView {
         }
     }
 
-    fn build_struct_viewer_focus_target_key(selected_symbol_tree_entry: Option<&SymbolTreeEntry>) -> Option<String> {
+    fn build_struct_viewer_focus_target_key(selected_symbol_tree_entry: Option<&SymbolTreeNode>) -> Option<String> {
         selected_symbol_tree_entry.map(|symbol_tree_entry| {
             format!(
                 "{}|{}|{}",
@@ -1022,12 +1022,12 @@ impl SymbolTreeView {
         })
     }
 
-    fn build_struct_viewer_focus_target(selected_symbol_tree_entry: Option<&SymbolTreeEntry>) -> Option<StructViewerFocusTarget> {
+    fn build_struct_viewer_focus_target(selected_symbol_tree_entry: Option<&SymbolTreeNode>) -> Option<StructViewerFocusTarget> {
         Self::build_struct_viewer_focus_target_key(selected_symbol_tree_entry).map(|selection_key| StructViewerFocusTarget::SymbolTree { selection_key })
     }
 
     fn is_symbol_tree_entry_struct_viewer_focused(
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         shared_struct_viewer_focus_target: Option<&StructViewerFocusTarget>,
     ) -> bool {
         let Some(StructViewerFocusTarget::SymbolTree { selection_key }) = shared_struct_viewer_focus_target else {
@@ -1042,7 +1042,7 @@ impl SymbolTreeView {
     fn focus_symbol_tree_entry_in_struct_viewer(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: &SymbolTreeEntry,
+        selected_symbol_tree_entry: &SymbolTreeNode,
     ) {
         let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
         let struct_viewer_edit_callback = self.build_struct_viewer_edit_callback(project_symbol_catalog, selected_symbol_tree_entry);
@@ -1060,7 +1060,7 @@ impl SymbolTreeView {
     fn focus_symbol_tree_entry_for_edit(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: &SymbolTreeEntry,
+        selected_symbol_tree_entry: &SymbolTreeNode,
     ) {
         let symbol_layout = self.build_symbol_layout_for_tree_entry(project_symbol_catalog, selected_symbol_tree_entry);
         let selected_field_name = Self::resolve_first_editable_struct_viewer_field_name(&symbol_layout);
@@ -1091,14 +1091,14 @@ impl SymbolTreeView {
     fn sync_selected_symbol_into_struct_viewer(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: Option<&SymbolTreeEntry>,
+        selected_symbol_tree_entry: Option<&SymbolTreeNode>,
     ) {
         let current_focus_target = self
             .struct_viewer_view_data
             .read("Symbol tree current struct viewer focus target")
             .and_then(|struct_viewer_view_data| struct_viewer_view_data.get_focus_target().cloned());
         let selected_symbol_tree_entry =
-            selected_symbol_tree_entry.filter(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }));
+            selected_symbol_tree_entry.filter(|symbol_tree_entry| !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }));
         let desired_focus_target = Self::build_struct_viewer_focus_target(selected_symbol_tree_entry);
 
         if current_focus_target == desired_focus_target {
@@ -1122,10 +1122,10 @@ impl SymbolTreeView {
     fn build_struct_viewer_edit_callback(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: &SymbolTreeEntry,
+        selected_symbol_tree_entry: &SymbolTreeNode,
     ) -> Arc<dyn Fn(ValuedStructField) + Send + Sync> {
         let symbol_claim_locator_key = match selected_symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => Some(symbol_locator_key.to_string()),
+            SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => Some(symbol_locator_key.to_string()),
             _ => None,
         };
         let selected_symbol_tree_entry = selected_symbol_tree_entry.clone();
@@ -1173,7 +1173,7 @@ impl SymbolTreeView {
     fn build_memory_write_request_for_symbol_value_edit(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        selected_symbol_tree_entry: &SymbolTreeEntry,
+        selected_symbol_tree_entry: &SymbolTreeNode,
         edited_field: &ValuedStructField,
     ) -> Option<MemoryWriteRequest> {
         let edited_data_value = edited_field.get_data_value()?;
@@ -1198,7 +1198,7 @@ impl SymbolTreeView {
     fn build_named_symbolic_struct_definition_for_value_edit(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<SymbolicStructDefinition> {
         let symbolic_struct_definition = Self::build_symbolic_struct_definition_for_symbol_type_for_context(
             engine_execution_context,
@@ -1327,7 +1327,7 @@ impl SymbolTreeView {
     fn build_named_symbolic_struct_definition_for_preview(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         truncate_preview_arrays: bool,
     ) -> Option<SymbolicStructDefinition> {
         let entry_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()).ok()?;
@@ -1392,9 +1392,9 @@ impl SymbolTreeView {
     fn build_symbol_layout_for_tree_entry(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> ValuedStruct {
-        let include_symbol_claim_metadata = matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { .. });
+        let include_symbol_claim_metadata = matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::SymbolClaim { .. });
         let engine_execution_context: Arc<dyn EngineExecutionContext> = self.app_context.engine_unprivileged_state.clone();
         let symbol_size_in_bytes = Self::resolve_symbol_tree_entry_size_for_struct_viewer(&engine_execution_context, symbol_tree_entry);
 
@@ -1447,7 +1447,7 @@ impl SymbolTreeView {
     fn build_named_symbolic_struct_definition_for_symbol_tree_entry(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<SymbolicStructDefinition> {
         self.build_symbolic_struct_definition_for_symbol_type(project_symbol_catalog, symbol_tree_entry.get_symbol_type_id())
             .map(|symbolic_struct_definition| {
@@ -1464,7 +1464,7 @@ impl SymbolTreeView {
 
     fn normalize_symbol_memory_struct(
         valued_struct: ValuedStruct,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
@@ -1488,7 +1488,7 @@ impl SymbolTreeView {
 
     fn build_symbol_layout_fallback(
         &self,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         status_text: &str,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
@@ -1505,7 +1505,7 @@ impl SymbolTreeView {
     }
 
     fn build_external_value_symbol_layout(
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> ValuedStruct {
@@ -1520,7 +1520,7 @@ impl SymbolTreeView {
     }
 
     fn build_symbol_layout_metadata_fields(
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         include_symbol_claim_metadata: bool,
         symbol_size_in_bytes: Option<u64>,
     ) -> Vec<ValuedStructField> {
@@ -1544,7 +1544,7 @@ impl SymbolTreeView {
     }
 
     fn build_symbol_layout_location_fields(
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         symbol_size_in_bytes: Option<u64>,
     ) -> Vec<ValuedStructField> {
         let mut location_fields = Vec::new();
@@ -1579,15 +1579,15 @@ impl SymbolTreeView {
 
     fn resolve_symbol_tree_entry_size_for_struct_viewer(
         engine_execution_context: &Arc<dyn EngineExecutionContext>,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<u64> {
         let symbolic_field_definition = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()).ok()?;
 
         Self::resolve_symbolic_field_size_in_bytes(engine_execution_context, &symbolic_field_definition, &mut HashSet::new())
     }
 
-    fn symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry: &SymbolTreeEntry) -> bool {
-        if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::UnassignedSegment { .. }) {
+    fn symbol_tree_entry_should_use_external_value_viewer(symbol_tree_entry: &SymbolTreeNode) -> bool {
+        if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::UnassignedSegment { .. }) {
             return false;
         }
 
@@ -1650,7 +1650,7 @@ impl SymbolTreeView {
     fn sync_pointer_child_virtual_snapshot(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
         additional_pointer_snapshot_queries: Vec<VirtualSnapshotQuery>,
     ) {
         let mut pointer_snapshot_queries = self.build_pointer_snapshot_queries(project_symbol_catalog, symbol_tree_entries);
@@ -1672,13 +1672,13 @@ impl SymbolTreeView {
     fn build_pointer_snapshot_queries(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
     ) -> Vec<VirtualSnapshotQuery> {
         symbol_tree_entries
             .iter()
             .filter(|symbol_tree_entry| {
                 symbol_tree_entry.is_expanded()
-                    && !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::PointerTarget)
+                    && !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::PointerTarget)
                     && symbol_tree_entry
                         .get_container_type()
                         .get_pointer_size()
@@ -1691,7 +1691,7 @@ impl SymbolTreeView {
     fn build_pointer_virtual_snapshot_query(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<VirtualSnapshotQuery> {
         let pointer_size = symbol_tree_entry.get_container_type().get_pointer_size()?;
         let symbolic_struct_definition =
@@ -1945,7 +1945,7 @@ impl SymbolTreeView {
     fn sync_symbol_preview_virtual_snapshot(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
     ) {
         let preview_snapshot_queries = self.build_symbol_preview_snapshot_queries(project_symbol_catalog, symbol_tree_entries);
 
@@ -1964,7 +1964,7 @@ impl SymbolTreeView {
     fn build_symbol_preview_snapshot_queries(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
     ) -> Vec<VirtualSnapshotQuery> {
         symbol_tree_entries
             .iter()
@@ -1973,17 +1973,17 @@ impl SymbolTreeView {
             .collect()
     }
 
-    fn symbol_tree_entry_should_query_preview(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+    fn symbol_tree_entry_should_query_preview(symbol_tree_entry: &SymbolTreeNode) -> bool {
         !matches!(
             symbol_tree_entry.get_kind(),
-            SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::UnassignedSegment { .. }
+            SymbolTreeNodeKind::ModuleSpace { .. } | SymbolTreeNodeKind::UnassignedSegment { .. }
         )
     }
 
     fn build_symbol_preview_virtual_snapshot_query(
         &self,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
     ) -> Option<VirtualSnapshotQuery> {
         let symbolic_struct_definition = self.build_named_symbolic_struct_definition_for_preview(project_symbol_catalog, symbol_tree_entry, true)?;
 
@@ -2000,7 +2000,7 @@ impl SymbolTreeView {
 
     fn collect_preview_values_by_node_key(
         &self,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
     ) -> HashMap<String, String> {
         let Some(virtual_snapshot) = self
             .app_context
@@ -2025,7 +2025,7 @@ impl SymbolTreeView {
 
     fn build_symbol_preview_value(
         &self,
-        symbol_tree_entry: &SymbolTreeEntry,
+        symbol_tree_entry: &SymbolTreeNode,
         virtual_snapshot_query_result: &VirtualSnapshotQueryResult,
     ) -> String {
         let Some(memory_read_response) = virtual_snapshot_query_result.memory_read_response.as_ref() else {
@@ -2063,7 +2063,7 @@ impl SymbolTreeView {
             .unwrap_or_default()
     }
 
-    fn symbol_preview_was_truncated(symbol_tree_entry: &SymbolTreeEntry) -> bool {
+    fn symbol_preview_was_truncated(symbol_tree_entry: &SymbolTreeNode) -> bool {
         matches!(
             symbol_tree_entry.get_container_type(),
             ContainerType::ArrayFixed(length) if length > Self::MAX_SYMBOL_PREVIEW_ELEMENT_COUNT
@@ -2847,20 +2847,20 @@ impl SymbolTreeView {
         ToolbarMenuItemView::row_width_from_text_width(longest_label_width).ceil()
     }
 
-    fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeEntry) -> SymbolTreeActionContext {
+    fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeNode) -> SymbolTreeActionContext {
         match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
+            SymbolTreeNodeKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
                 module_name: module_name.to_string(),
             }),
-            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => SymbolTreeActionContext::new(SymbolTreeActionSelection::SymbolLocator {
+            SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => SymbolTreeActionContext::new(SymbolTreeActionSelection::SymbolLocator {
                 symbol_locator_key: symbol_locator_key.to_string(),
             }),
-            SymbolTreeEntryKind::UnassignedSegment { module_name, offset, length } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRange {
+            SymbolTreeNodeKind::UnassignedSegment { module_name, offset, length } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRange {
                 module_name: module_name.to_string(),
                 offset: *offset,
                 length: *length,
             }),
-            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::PointerTarget => SymbolTreeActionContext::new(SymbolTreeActionSelection::DerivedNode {
+            SymbolTreeNodeKind::StructField | SymbolTreeNodeKind::PointerTarget => SymbolTreeActionContext::new(SymbolTreeActionSelection::DerivedNode {
                 tree_node_key: symbol_tree_entry.get_node_key().to_string(),
             }),
         }
@@ -2922,7 +2922,7 @@ impl SymbolTreeView {
     fn render_symbol_tree_list_legacy(
         &self,
         user_interface: &mut Ui,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
         selected_entry: Option<&SymbolTreeSelection>,
     ) {
         user_interface.horizontal(|user_interface| {
@@ -2932,7 +2932,7 @@ impl SymbolTreeView {
                     "Symbol Tree ({})",
                     symbol_tree_entries
                         .iter()
-                        .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }))
+                        .filter(|symbol_tree_entry| matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }))
                         .count()
                 ))
                 .font(
@@ -2953,7 +2953,7 @@ impl SymbolTreeView {
                 selected_entry,
                 Some(SymbolTreeSelection::SymbolClaim(selected_symbol_locator_key))
                     if !Self::is_module_field_tree_entry(symbol_tree_entry)
-                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
+                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
             ) || matches!(
                 selected_entry,
                 Some(SymbolTreeSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
@@ -3010,7 +3010,7 @@ impl SymbolTreeView {
         &self,
         user_interface: &mut Ui,
         project_symbol_catalog: &ProjectSymbolCatalog,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
         preview_values_by_node_key: &HashMap<String, String>,
         selected_entry: Option<&SymbolTreeSelection>,
         inline_rename_tree_node_key: Option<&str>,
@@ -3022,18 +3022,18 @@ impl SymbolTreeView {
             let is_locally_selected = matches!(
                 selected_entry,
                 Some(SymbolTreeSelection::ModuleRoot(selected_module_name))
-                    if matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { module_name, .. } if selected_module_name == module_name)
+                    if matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { module_name, .. } if selected_module_name == module_name)
             ) || matches!(
                 selected_entry,
                 Some(SymbolTreeSelection::SymbolClaim(selected_symbol_locator_key))
                     if !Self::is_module_field_tree_entry(symbol_tree_entry)
-                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
+                        && matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } if selected_symbol_locator_key == symbol_locator_key)
             ) || matches!(
                 selected_entry,
                 Some(SymbolTreeSelection::DerivedNode(selected_node_key)) if selected_node_key == symbol_tree_entry.get_node_key()
             );
             let is_selected = is_locally_selected
-                && (matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. })
+                && (matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. })
                     || Self::is_symbol_tree_entry_struct_viewer_focused(symbol_tree_entry, shared_struct_viewer_focus_target));
 
             let is_inline_rename_row = inline_rename_tree_node_key
@@ -3066,8 +3066,8 @@ impl SymbolTreeView {
 
                     if !trimmed_rename_text.is_empty() && trimmed_rename_text != symbol_tree_entry.get_display_name() {
                         match symbol_tree_entry.get_kind() {
-                            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => self.rename_module_root(module_name, trimmed_rename_text),
-                            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => self.rename_symbol_claim(symbol_locator_key, trimmed_rename_text),
+                            SymbolTreeNodeKind::ModuleSpace { module_name, .. } => self.rename_module_root(module_name, trimmed_rename_text),
+                            SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => self.rename_symbol_claim(symbol_locator_key, trimmed_rename_text),
                             _ => {}
                         }
                     }
@@ -3091,7 +3091,7 @@ impl SymbolTreeView {
                 .get(symbol_tree_entry.get_node_key())
                 .map(String::as_str)
                 .unwrap_or("");
-            let size_in_bytes = resolve_symbol_tree_entry_size_in_bytes(project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
+            let size_in_bytes = resolve_symbol_tree_node_size_in_bytes(project_symbol_catalog, symbol_tree_entry, |data_type_ref| {
                 self.app_context
                     .engine_unprivileged_state
                     .get_default_value(data_type_ref)
@@ -3122,7 +3122,7 @@ impl SymbolTreeView {
                     SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), Some(selection));
                 }
 
-                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
                     self.focus_symbol_tree_entry_for_edit(project_symbol_catalog, symbol_tree_entry);
                 }
 
@@ -3135,7 +3135,7 @@ impl SymbolTreeView {
                 };
 
                 SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), Some(selection));
-                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
                     self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
                 }
             }
@@ -3150,7 +3150,7 @@ impl SymbolTreeView {
                     .unwrap_or(symbol_tree_entry_view_response.row_response.rect.left_top());
 
                 SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), Some(selection));
-                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                if !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
                     self.focus_symbol_tree_entry_in_struct_viewer(project_symbol_catalog, symbol_tree_entry);
                 }
                 SymbolTreeViewData::show_context_menu(
@@ -3164,20 +3164,20 @@ impl SymbolTreeView {
                     .as_ref()
                     .is_some_and(|context_menu_target| context_menu_target.get_tree_node_key() == symbol_tree_entry.get_node_key())
             {
-                let can_open_symbol_tree_entry = !matches!(symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. });
+                let can_open_symbol_tree_entry = !matches!(symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. });
                 let can_rename_symbol_tree_entry = matches!(
                     symbol_tree_entry.get_kind(),
-                    SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. }
+                    SymbolTreeNodeKind::ModuleSpace { .. } | SymbolTreeNodeKind::SymbolClaim { .. }
                 );
                 let context_menu_symbol_claim = match symbol_tree_entry.get_kind() {
-                    SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => project_symbol_catalog
+                    SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => project_symbol_catalog
                         .get_symbol_claims()
                         .iter()
                         .find(|symbol_claim| symbol_claim.get_symbol_locator_key() == *symbol_locator_key),
                     _ => None,
                 };
                 let context_menu_module_name = match symbol_tree_entry.get_kind() {
-                    SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(module_name.as_str()),
+                    SymbolTreeNodeKind::ModuleSpace { module_name, .. } => Some(module_name.as_str()),
                     _ => None,
                 };
                 let context_menu_module_child_range_target =
@@ -3471,17 +3471,17 @@ impl SymbolTreeView {
         }
     }
 
-    fn build_selection_for_tree_entry(symbol_tree_entry: &SymbolTreeEntry) -> Option<SymbolTreeSelection> {
+    fn build_selection_for_tree_entry(symbol_tree_entry: &SymbolTreeNode) -> Option<SymbolTreeSelection> {
         match symbol_tree_entry.get_kind() {
-            SymbolTreeEntryKind::ModuleSpace { module_name, .. } => Some(SymbolTreeSelection::ModuleRoot(module_name.to_string())),
-            SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => {
+            SymbolTreeNodeKind::ModuleSpace { module_name, .. } => Some(SymbolTreeSelection::ModuleRoot(module_name.to_string())),
+            SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => {
                 if Self::is_module_field_tree_entry(symbol_tree_entry) {
                     Some(SymbolTreeSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
                 } else {
                     Some(SymbolTreeSelection::SymbolClaim(symbol_locator_key.to_string()))
                 }
             }
-            SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::UnassignedSegment { .. } | SymbolTreeEntryKind::PointerTarget => {
+            SymbolTreeNodeKind::StructField | SymbolTreeNodeKind::UnassignedSegment { .. } | SymbolTreeNodeKind::PointerTarget => {
                 Some(SymbolTreeSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string()))
             }
         }
@@ -3716,7 +3716,7 @@ impl Widget for SymbolTreeView {
                 pointer_chain,
             )
         };
-        let structural_symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+        let structural_symbol_tree_entries = SymbolTree::build_with_scalar_reader_and_pointer_chains(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -3724,7 +3724,8 @@ impl Widget for SymbolTreeView {
             read_scalar_field,
             resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
-        );
+        )
+        .into_nodes();
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
         self.sync_pointer_child_virtual_snapshot(
             &project_symbol_catalog,
@@ -3748,7 +3749,7 @@ impl Widget for SymbolTreeView {
                 pointer_chain,
             )
         };
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+        let symbol_tree_entries = SymbolTree::build_with_scalar_reader_and_pointer_chains(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &resolved_pointer_targets_by_node_key,
@@ -3756,7 +3757,8 @@ impl Widget for SymbolTreeView {
             read_scalar_field,
             resolve_relative_pointer_chain,
             resolve_global_pointer_chain,
-        );
+        )
+        .into_nodes();
         self.sync_symbol_scalar_virtual_snapshot(scalar_snapshot_queries.borrow().clone());
         self.sync_pointer_child_virtual_snapshot(
             &project_symbol_catalog,
@@ -3860,7 +3862,7 @@ impl Widget for SymbolTreeView {
                 if let Some(selection) = Self::build_selection_for_tree_entry(next_symbol_tree_entry) {
                     SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), Some(selection));
 
-                    if !matches!(next_symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                    if !matches!(next_symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
                         self.focus_symbol_tree_entry_in_struct_viewer(&project_symbol_catalog, next_symbol_tree_entry);
                     }
                 }
@@ -3874,7 +3876,7 @@ impl Widget for SymbolTreeView {
                 if let Some(selection) = Self::build_selection_for_tree_entry(next_symbol_tree_entry) {
                     SymbolTreeViewData::set_selected_entry(self.symbol_tree_view_data.clone(), Some(selection));
 
-                    if !matches!(next_symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+                    if !matches!(next_symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
                         self.focus_symbol_tree_entry_in_struct_viewer(&project_symbol_catalog, next_symbol_tree_entry);
                     }
                 }
@@ -3911,7 +3913,7 @@ impl Widget for SymbolTreeView {
         let can_rename_selected_entry = selected_symbol_tree_entry.is_some_and(|symbol_tree_entry| {
             matches!(
                 symbol_tree_entry.get_kind(),
-                SymbolTreeEntryKind::ModuleSpace { .. } | SymbolTreeEntryKind::SymbolClaim { .. }
+                SymbolTreeNodeKind::ModuleSpace { .. } | SymbolTreeNodeKind::SymbolClaim { .. }
             )
         });
         if !is_delete_confirmation_active
@@ -4079,10 +4081,10 @@ mod tests {
     use super::{ModuleFieldTypeOption, ModuleFieldTypeOptionKind, SymbolTreeView};
     use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
     use crate::views::struct_viewer::view_data::{struct_viewer_focus_target::StructViewerFocusTarget, struct_viewer_view_data::StructViewerViewData};
-    use crate::views::symbol_tree::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
     use crate::views::symbol_tree::view_data::symbol_tree_view_data::{DefineFieldDraft, ModuleRootCreateDraft};
     use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind};
     use squalr_engine_api::structures::{
         data_types::{
             built_in_types::{string::utf8::data_type_string_utf8::DataTypeStringUtf8, u32::data_type_u32::DataTypeU32},
@@ -4106,10 +4108,10 @@ mod tests {
     fn create_symbol_claim_tree_entry(
         display_name: &str,
         symbol_type_id: &str,
-    ) -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
+    ) -> SymbolTreeNode {
+        SymbolTreeNode::new(
             String::from("claim:absolute:1234"),
-            SymbolTreeEntryKind::SymbolClaim {
+            SymbolTreeNodeKind::SymbolClaim {
                 symbol_locator_key: String::from("absolute:1234"),
             },
             1,
@@ -4124,10 +4126,10 @@ mod tests {
         )
     }
 
-    fn create_module_tree_entry(module_name: &str) -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
+    fn create_module_tree_entry(module_name: &str) -> SymbolTreeNode {
+        SymbolTreeNode::new(
             format!("module:{}", module_name),
-            SymbolTreeEntryKind::ModuleSpace {
+            SymbolTreeNodeKind::ModuleSpace {
                 module_name: module_name.to_string(),
                 size: 0x2000,
             },
@@ -4143,10 +4145,10 @@ mod tests {
         )
     }
 
-    fn create_module_symbol_claim_tree_entry() -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
+    fn create_module_symbol_claim_tree_entry() -> SymbolTreeNode {
+        SymbolTreeNode::new(
             String::from("claim:module:game.exe:4"),
-            SymbolTreeEntryKind::SymbolClaim {
+            SymbolTreeNodeKind::SymbolClaim {
                 symbol_locator_key: String::from("module:game.exe:4"),
             },
             1,
@@ -4161,10 +4163,10 @@ mod tests {
         )
     }
 
-    fn create_unassigned_segment_tree_entry() -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
+    fn create_unassigned_segment_tree_entry() -> SymbolTreeNode {
+        SymbolTreeNode::new(
             String::from("unassigned:game.exe:0:1234"),
-            SymbolTreeEntryKind::UnassignedSegment {
+            SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x1234,
@@ -4181,10 +4183,10 @@ mod tests {
         )
     }
 
-    fn create_struct_field_tree_entry() -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
+    fn create_struct_field_tree_entry() -> SymbolTreeNode {
+        SymbolTreeNode::new(
             String::from("module_field:module:game.exe:0::NTHeaders::FileHeader"),
-            SymbolTreeEntryKind::StructField,
+            SymbolTreeNodeKind::StructField,
             3,
             String::from("FileHeader"),
             String::from("PE Headers.NTHeaders.FileHeader"),
@@ -4200,10 +4202,10 @@ mod tests {
     fn create_fixed_array_symbol_claim_tree_entry(
         data_type_id: &str,
         array_length: u64,
-    ) -> SymbolTreeEntry {
-        SymbolTreeEntry::new(
+    ) -> SymbolTreeNode {
+        SymbolTreeNode::new(
             format!("claim:module:game.exe:40:{}", data_type_id),
-            SymbolTreeEntryKind::SymbolClaim {
+            SymbolTreeNodeKind::SymbolClaim {
                 symbol_locator_key: String::from("module:game.exe:40"),
             },
             1,
@@ -4398,9 +4400,9 @@ mod tests {
             ),
         )]);
         let parent_struct_field_entry = create_struct_field_tree_entry();
-        let primitive_child_entry = SymbolTreeEntry::new(
+        let primitive_child_entry = SymbolTreeNode::new(
             String::from("module_field:module:game.exe:0::NTHeaders::FileHeader::NumberOfSections"),
-            SymbolTreeEntryKind::StructField,
+            SymbolTreeNodeKind::StructField,
             4,
             String::from("NumberOfSections"),
             String::from("PE Headers.NTHeaders.FileHeader.NumberOfSections"),

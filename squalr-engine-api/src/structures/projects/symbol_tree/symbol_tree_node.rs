@@ -1,5 +1,5 @@
-use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
-use squalr_engine_api::structures::{
+use crate::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+use crate::structures::{
     data_types::data_type_ref::DataTypeRef,
     data_values::container_type::ContainerType,
     memory::symbolic_pointer_chain::SymbolicPointerChain,
@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SymbolTreeEntryKind {
+pub enum SymbolTreeNodeKind {
     ModuleSpace { module_name: String, size: u64 },
     UnassignedSegment { module_name: String, offset: u64, length: u64 },
     SymbolClaim { symbol_locator_key: String },
@@ -62,9 +62,9 @@ impl ResolvedPointerTarget {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SymbolTreeEntry {
+pub struct SymbolTreeNode {
     node_key: String,
-    kind: SymbolTreeEntryKind,
+    kind: SymbolTreeNodeKind,
     depth: usize,
     display_name: String,
     full_path: String,
@@ -76,10 +76,10 @@ pub struct SymbolTreeEntry {
     is_expanded: bool,
 }
 
-impl SymbolTreeEntry {
+impl SymbolTreeNode {
     pub fn new(
         node_key: String,
-        kind: SymbolTreeEntryKind,
+        kind: SymbolTreeNodeKind,
         depth: usize,
         display_name: String,
         full_path: String,
@@ -109,7 +109,7 @@ impl SymbolTreeEntry {
         &self.node_key
     }
 
-    pub fn get_kind(&self) -> &SymbolTreeEntryKind {
+    pub fn get_kind(&self) -> &SymbolTreeNodeKind {
         &self.kind
     }
 
@@ -154,16 +154,16 @@ impl SymbolTreeEntry {
     }
 }
 
-pub fn build_symbol_tree_entries<ResolvePrimitiveSize>(
+pub fn build_symbol_tree_nodes<ResolvePrimitiveSize>(
     project_symbol_catalog: &ProjectSymbolCatalog,
     expanded_tree_node_keys: &HashSet<String>,
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
-) -> Vec<SymbolTreeEntry>
+) -> Vec<SymbolTreeNode>
 where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
-    build_symbol_tree_entries_with_scalar_reader(
+    build_symbol_tree_nodes_with_scalar_reader(
         project_symbol_catalog,
         expanded_tree_node_keys,
         resolved_pointer_targets_by_node_key,
@@ -172,18 +172,18 @@ where
     )
 }
 
-pub fn build_symbol_tree_entries_with_scalar_reader<ResolvePrimitiveSize, ReadScalarField>(
+pub fn build_symbol_tree_nodes_with_scalar_reader<ResolvePrimitiveSize, ReadScalarField>(
     project_symbol_catalog: &ProjectSymbolCatalog,
     expanded_tree_node_keys: &HashSet<String>,
     resolved_pointer_targets_by_node_key: &HashMap<String, ResolvedPointerTarget>,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
     read_scalar_field: ReadScalarField,
-) -> Vec<SymbolTreeEntry>
+) -> Vec<SymbolTreeNode>
 where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
 {
-    build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+    build_symbol_tree_nodes_with_scalar_reader_and_pointer_chains(
         project_symbol_catalog,
         expanded_tree_node_keys,
         resolved_pointer_targets_by_node_key,
@@ -194,7 +194,7 @@ where
     )
 }
 
-pub fn build_symbol_tree_entries_with_scalar_reader_and_pointer_chains<
+pub fn build_symbol_tree_nodes_with_scalar_reader_and_pointer_chains<
     ResolvePrimitiveSize,
     ReadScalarField,
     ResolveRelativePointerChain,
@@ -207,14 +207,14 @@ pub fn build_symbol_tree_entries_with_scalar_reader_and_pointer_chains<
     read_scalar_field: ReadScalarField,
     resolve_relative_pointer_chain: ResolveRelativePointerChain,
     resolve_global_pointer_chain: ResolveGlobalPointerChain,
-) -> Vec<SymbolTreeEntry>
+) -> Vec<SymbolTreeNode>
 where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
     ReadScalarField: Fn(&ProjectSymbolLocator, &SymbolicFieldDefinition, u64) -> Result<Option<i128>, String> + Copy,
     ResolveRelativePointerChain: Fn(&ProjectSymbolLocator, &SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
     ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
-    let mut symbol_tree_entries = Vec::new();
+    let mut symbol_tree_nodes = Vec::new();
     let mut module_symbol_claims: BTreeMap<String, Vec<ProjectSymbolClaim>> = BTreeMap::new();
     let mut module_fields_by_name: BTreeMap<String, Vec<ProjectSymbolModuleField>> = BTreeMap::new();
     let mut module_sizes_by_name: BTreeMap<String, u64> = BTreeMap::new();
@@ -269,7 +269,7 @@ where
         let module_node_key = module_node_key(&module_name);
         let can_expand = effective_module_size > 0 || !symbol_claims.is_empty();
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&module_node_key);
-        append_module_space_entry(&mut symbol_tree_entries, module_name.clone(), effective_module_size, can_expand, is_expanded);
+        append_module_space_node(&mut symbol_tree_nodes, module_name.clone(), effective_module_size, can_expand, is_expanded);
 
         if !is_expanded {
             continue;
@@ -281,16 +281,16 @@ where
             let claim_offset = symbol_claim.get_locator().get_focus_address();
 
             if claim_offset > next_unassigned_span_offset {
-                append_unassigned_segment_entry(
-                    &mut symbol_tree_entries,
+                append_unassigned_segment_node(
+                    &mut symbol_tree_nodes,
                     &module_name,
                     next_unassigned_span_offset,
                     claim_offset.saturating_sub(next_unassigned_span_offset),
                 );
             }
 
-            append_symbol_claim_entry(
-                &mut symbol_tree_entries,
+            append_symbol_claim_node(
+                &mut symbol_tree_nodes,
                 project_symbol_catalog,
                 &symbol_claim,
                 1,
@@ -307,8 +307,8 @@ where
         }
 
         if effective_module_size > next_unassigned_span_offset {
-            append_unassigned_segment_entry(
-                &mut symbol_tree_entries,
+            append_unassigned_segment_node(
+                &mut symbol_tree_nodes,
                 &module_name,
                 next_unassigned_span_offset,
                 effective_module_size.saturating_sub(next_unassigned_span_offset),
@@ -321,15 +321,15 @@ where
         let module_name = String::from("Absolute / Unmapped");
         let module_node_key = module_node_key(&module_name);
         let is_expanded = expanded_tree_node_keys.contains(&module_node_key);
-        append_module_space_entry(&mut symbol_tree_entries, module_name, 0, true, is_expanded);
+        append_module_space_node(&mut symbol_tree_nodes, module_name, 0, true, is_expanded);
 
         if !is_expanded {
-            return symbol_tree_entries;
+            return symbol_tree_nodes;
         }
 
         for symbol_claim in absolute_symbol_claims {
-            append_symbol_claim_entry(
-                &mut symbol_tree_entries,
+            append_symbol_claim_node(
+                &mut symbol_tree_nodes,
                 project_symbol_catalog,
                 symbol_claim,
                 1,
@@ -343,22 +343,22 @@ where
         }
     }
 
-    symbol_tree_entries
+    symbol_tree_nodes
 }
 
-pub fn resolve_symbol_tree_entry_size_in_bytes<ResolvePrimitiveSize>(
+pub fn resolve_symbol_tree_node_size_in_bytes<ResolvePrimitiveSize>(
     project_symbol_catalog: &ProjectSymbolCatalog,
-    symbol_tree_entry: &SymbolTreeEntry,
+    symbol_tree_node: &SymbolTreeNode,
     resolve_primitive_size_in_bytes: ResolvePrimitiveSize,
 ) -> u64
 where
     ResolvePrimitiveSize: Fn(&DataTypeRef) -> Option<u64> + Copy,
 {
-    if let SymbolTreeEntryKind::UnassignedSegment { length, .. } = symbol_tree_entry.get_kind() {
+    if let SymbolTreeNodeKind::UnassignedSegment { length, .. } = symbol_tree_node.get_kind() {
         return *length;
     }
 
-    let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbol_tree_entry.get_display_type_id()) else {
+    let Ok(symbolic_field_definition) = SymbolicFieldDefinition::from_str(&symbol_tree_node.get_display_type_id()) else {
         return 0;
     };
 
@@ -370,8 +370,8 @@ where
     )
 }
 
-fn append_unassigned_segment_entry(
-    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+fn append_unassigned_segment_node(
+    symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     module_name: &str,
     offset: u64,
     length: u64,
@@ -383,9 +383,9 @@ fn append_unassigned_segment_entry(
     let display_name = format!("UNASSIGNED_{:08X}", offset);
     let full_path = format!("{}.{}", module_name, display_name);
 
-    symbol_tree_entries.push(SymbolTreeEntry::new(
+    symbol_tree_nodes.push(SymbolTreeNode::new(
         format!("unassigned:{}:{:X}:{:X}", module_name, offset, length),
-        SymbolTreeEntryKind::UnassignedSegment {
+        SymbolTreeNodeKind::UnassignedSegment {
             module_name: module_name.to_string(),
             offset,
             length,
@@ -402,8 +402,8 @@ fn append_unassigned_segment_entry(
     ));
 }
 
-fn append_module_space_entry(
-    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+fn append_module_space_node(
+    symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     module_name: String,
     size: u64,
     can_expand: bool,
@@ -411,9 +411,9 @@ fn append_module_space_entry(
 ) {
     let node_key = module_node_key(&module_name);
 
-    symbol_tree_entries.push(SymbolTreeEntry::new(
+    symbol_tree_nodes.push(SymbolTreeNode::new(
         node_key,
-        SymbolTreeEntryKind::ModuleSpace {
+        SymbolTreeNodeKind::ModuleSpace {
             module_name: module_name.clone(),
             size,
         },
@@ -433,8 +433,8 @@ fn module_node_key(module_name: &str) -> String {
     format!("module:{}", module_name)
 }
 
-fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
-    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+fn append_symbol_claim_node<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
+    symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim: &ProjectSymbolClaim,
     depth: usize,
@@ -463,9 +463,9 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
     let can_expand = symbol_claim_type.can_expand(project_symbol_catalog);
     let is_expanded = can_expand && expanded_tree_node_keys.contains(&root_node_key);
 
-    symbol_tree_entries.push(SymbolTreeEntry::new(
+    symbol_tree_nodes.push(SymbolTreeNode::new(
         root_node_key.clone(),
-        SymbolTreeEntryKind::SymbolClaim {
+        SymbolTreeNodeKind::SymbolClaim {
             symbol_locator_key: symbol_claim.get_symbol_locator_key().to_string(),
         },
         depth,
@@ -484,8 +484,8 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
     }
 
     match symbol_claim_type {
-        ResolvedSymbolClaimType::Struct { struct_layout_definition, .. } => append_struct_field_entries(
-            symbol_tree_entries,
+        ResolvedSymbolClaimType::Struct { struct_layout_definition, .. } => append_struct_field_nodes(
+            symbol_tree_nodes,
             project_symbol_catalog,
             &symbol_claim.get_symbol_locator_key(),
             &root_node_key,
@@ -504,7 +504,7 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
         ResolvedSymbolClaimType::Field {
             data_type_ref, container_type, ..
         } => append_field_children(
-            symbol_tree_entries,
+            symbol_tree_nodes,
             project_symbol_catalog,
             &symbol_claim.get_symbol_locator_key(),
             &root_node_key,
@@ -524,8 +524,8 @@ fn append_symbol_claim_entry<ResolvePrimitiveSize, ReadScalarField, ResolveRelat
     }
 }
 
-fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
-    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+fn append_struct_field_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
+    symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim_locator_key: &str,
     parent_node_key: &str,
@@ -665,9 +665,9 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRel
         );
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&field_node_key);
 
-        symbol_tree_entries.push(SymbolTreeEntry::new(
+        symbol_tree_nodes.push(SymbolTreeNode::new(
             field_node_key.clone(),
-            SymbolTreeEntryKind::StructField,
+            SymbolTreeNodeKind::StructField,
             depth,
             field_display_name.clone(),
             field_full_path.clone(),
@@ -681,7 +681,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRel
 
         if is_expanded {
             append_field_children(
-                symbol_tree_entries,
+                symbol_tree_nodes,
                 project_symbol_catalog,
                 symbol_claim_locator_key,
                 &field_node_key,
@@ -703,7 +703,7 @@ fn append_struct_field_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRel
 }
 
 fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
-    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+    symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim_locator_key: &str,
     parent_node_key: &str,
@@ -726,8 +726,8 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
     ResolveGlobalPointerChain: Fn(&SymbolicPointerChain) -> Result<i128, SymbolicResolverEvaluationError> + Copy,
 {
     match container_type {
-        ContainerType::ArrayFixed(array_length) => append_fixed_array_element_entries(
-            symbol_tree_entries,
+        ContainerType::ArrayFixed(array_length) => append_fixed_array_element_nodes(
+            symbol_tree_nodes,
             project_symbol_catalog,
             symbol_claim_locator_key,
             parent_node_key,
@@ -745,8 +745,8 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             resolve_global_pointer_chain,
             visited_struct_layout_ids,
         ),
-        ContainerType::PointerArrayFixed(pointer_size, array_length) => append_fixed_array_element_entries(
-            symbol_tree_entries,
+        ContainerType::PointerArrayFixed(pointer_size, array_length) => append_fixed_array_element_nodes(
+            symbol_tree_nodes,
             project_symbol_catalog,
             symbol_claim_locator_key,
             parent_node_key,
@@ -772,8 +772,8 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
                     return;
                 }
 
-                append_struct_field_entries(
-                    symbol_tree_entries,
+                append_struct_field_nodes(
+                    symbol_tree_nodes,
                     project_symbol_catalog,
                     symbol_claim_locator_key,
                     parent_node_key,
@@ -803,9 +803,9 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
             let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, ContainerType::None, visited_struct_layout_ids);
             let is_expanded = can_expand && expanded_tree_node_keys.contains(&pointer_target_node_key);
 
-            symbol_tree_entries.push(SymbolTreeEntry::new(
+            symbol_tree_nodes.push(SymbolTreeNode::new(
                 pointer_target_node_key.clone(),
-                SymbolTreeEntryKind::PointerTarget,
+                SymbolTreeNodeKind::PointerTarget,
                 depth,
                 String::from("*"),
                 pointer_target_full_path.clone(),
@@ -819,7 +819,7 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
 
             if is_expanded {
                 append_field_children(
-                    symbol_tree_entries,
+                    symbol_tree_nodes,
                     project_symbol_catalog,
                     symbol_claim_locator_key,
                     &pointer_target_node_key,
@@ -842,8 +842,8 @@ fn append_field_children<ResolvePrimitiveSize, ReadScalarField, ResolveRelativeP
     }
 }
 
-fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
-    symbol_tree_entries: &mut Vec<SymbolTreeEntry>,
+fn append_fixed_array_element_nodes<ResolvePrimitiveSize, ReadScalarField, ResolveRelativePointerChain, ResolveGlobalPointerChain>(
+    symbol_tree_nodes: &mut Vec<SymbolTreeNode>,
     project_symbol_catalog: &ProjectSymbolCatalog,
     symbol_claim_locator_key: &str,
     parent_node_key: &str,
@@ -887,9 +887,9 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField, Res
         let can_expand = data_type_ref_can_expand(project_symbol_catalog, data_type_ref, element_container_type, visited_struct_layout_ids);
         let is_expanded = can_expand && expanded_tree_node_keys.contains(&element_node_key);
 
-        symbol_tree_entries.push(SymbolTreeEntry::new(
+        symbol_tree_nodes.push(SymbolTreeNode::new(
             element_node_key.clone(),
-            SymbolTreeEntryKind::StructField,
+            SymbolTreeNodeKind::StructField,
             depth,
             element_display_name,
             element_full_path.clone(),
@@ -903,7 +903,7 @@ fn append_fixed_array_element_entries<ResolvePrimitiveSize, ReadScalarField, Res
 
         if is_expanded {
             append_field_children(
-                symbol_tree_entries,
+                symbol_tree_nodes,
                 project_symbol_catalog,
                 symbol_claim_locator_key,
                 &element_node_key,
@@ -1247,9 +1247,9 @@ fn resolve_symbol_claim_type(
 
 #[cfg(test)]
 mod tests {
-    use super::{ResolvedPointerTarget, SymbolTreeEntryKind, build_symbol_tree_entries, build_symbol_tree_entries_with_scalar_reader};
-    use squalr_engine_api::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
-    use squalr_engine_api::structures::{
+    use super::{ResolvedPointerTarget, SymbolTreeNodeKind, build_symbol_tree_nodes, build_symbol_tree_nodes_with_scalar_reader};
+    use crate::registries::symbols::{struct_layout_descriptor::StructLayoutDescriptor, symbolic_resolver_descriptor::SymbolicResolverDescriptor};
+    use crate::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
@@ -1267,7 +1267,7 @@ mod tests {
     use std::str::FromStr;
 
     #[test]
-    fn build_symbol_tree_entries_derives_nested_struct_and_array_children() {
+    fn build_symbol_tree_nodes_derives_nested_struct_and_array_children() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![
                 StructLayoutDescriptor::new(
@@ -1310,88 +1310,87 @@ mod tests {
             String::from("claim:absolute:100::items"),
         ]);
 
-        let symbol_tree_entries =
-            build_symbol_tree_entries(
-                &project_symbol_catalog,
-                &expanded_tree_node_keys,
-                &HashMap::new(),
-                |data_type_ref| match data_type_ref.get_data_type_id() {
-                    "u16" => Some(2),
-                    "u32" => Some(4),
-                    _ => None,
-                },
-            );
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u16" => Some(2),
+                "u32" => Some(4),
+                _ => None,
+            },
+        );
 
-        assert_eq!(symbol_tree_entries.len(), 8);
-        assert_eq!(symbol_tree_entries[0].get_display_name(), "Absolute / Unmapped");
+        assert_eq!(symbol_tree_nodes.len(), 8);
+        assert_eq!(symbol_tree_nodes[0].get_display_name(), "Absolute / Unmapped");
         assert_eq!(
-            symbol_tree_entries[0].get_kind(),
-            &SymbolTreeEntryKind::ModuleSpace {
+            symbol_tree_nodes[0].get_kind(),
+            &SymbolTreeNodeKind::ModuleSpace {
                 module_name: String::from("Absolute / Unmapped"),
                 size: 0,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_name(), "Player");
-        assert_eq!(symbol_tree_entries[1].get_depth(), 1);
+        assert_eq!(symbol_tree_nodes[1].get_display_name(), "Player");
+        assert_eq!(symbol_tree_nodes[1].get_depth(), 1);
         assert_eq!(
-            symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::SymbolClaim {
+            symbol_tree_nodes[1].get_kind(),
+            &SymbolTreeNodeKind::SymbolClaim {
                 symbol_locator_key: String::from("absolute:100"),
             }
         );
-        assert_eq!(symbol_tree_entries[2].get_full_path(), "Player.health");
-        assert_eq!(symbol_tree_entries[2].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x100));
-        assert_eq!(symbol_tree_entries[3].get_full_path(), "Player.position");
-        assert_eq!(symbol_tree_entries[3].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x104));
-        assert_eq!(symbol_tree_entries[4].get_full_path(), "Player.position.x");
-        assert_eq!(symbol_tree_entries[4].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x104));
-        assert_eq!(symbol_tree_entries[5].get_full_path(), "Player.position.y");
-        assert_eq!(symbol_tree_entries[5].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x108));
-        assert_eq!(symbol_tree_entries[6].get_full_path(), "Player.items");
-        assert_eq!(symbol_tree_entries[6].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10C));
-        assert_eq!(symbol_tree_entries[6].get_display_type_id(), "u16[2]");
-        assert_eq!(symbol_tree_entries[6].can_expand(), false);
-        assert_eq!(symbol_tree_entries[7].get_full_path(), "Player.next");
-        assert_eq!(symbol_tree_entries[7].can_expand(), true);
+        assert_eq!(symbol_tree_nodes[2].get_full_path(), "Player.health");
+        assert_eq!(symbol_tree_nodes[2].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x100));
+        assert_eq!(symbol_tree_nodes[3].get_full_path(), "Player.position");
+        assert_eq!(symbol_tree_nodes[3].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x104));
+        assert_eq!(symbol_tree_nodes[4].get_full_path(), "Player.position.x");
+        assert_eq!(symbol_tree_nodes[4].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x104));
+        assert_eq!(symbol_tree_nodes[5].get_full_path(), "Player.position.y");
+        assert_eq!(symbol_tree_nodes[5].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x108));
+        assert_eq!(symbol_tree_nodes[6].get_full_path(), "Player.items");
+        assert_eq!(symbol_tree_nodes[6].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10C));
+        assert_eq!(symbol_tree_nodes[6].get_display_type_id(), "u16[2]");
+        assert_eq!(symbol_tree_nodes[6].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[7].get_full_path(), "Player.next");
+        assert_eq!(symbol_tree_nodes[7].can_expand(), true);
     }
 
     #[test]
-    fn build_symbol_tree_entries_shows_empty_module_root_as_unassigned_segment() {
-        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
+    fn build_symbol_tree_nodes_shows_empty_module_root_as_unassigned_segment() {
+        use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let project_symbol_catalog =
             ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![ProjectSymbolModule::new(String::from("game.exe"), 0x20)], Vec::new(), Vec::new());
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([String::from("module:game.exe")]),
             &HashMap::new(),
             |_| None,
         );
 
-        assert_eq!(symbol_tree_entries.len(), 2);
+        assert_eq!(symbol_tree_nodes.len(), 2);
         assert_eq!(
-            symbol_tree_entries[0].get_kind(),
-            &SymbolTreeEntryKind::ModuleSpace {
+            symbol_tree_nodes[0].get_kind(),
+            &SymbolTreeNodeKind::ModuleSpace {
                 module_name: String::from("game.exe"),
                 size: 0x20,
             }
         );
         assert_eq!(
-            symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[1].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x20,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[32]");
-        assert_eq!(symbol_tree_entries[1].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[1].get_display_type_id(), "UNASSIGNED[32]");
+        assert_eq!(symbol_tree_nodes[1].can_expand(), false);
     }
 
     #[test]
-    fn build_symbol_tree_entries_reads_module_fields_as_module_children() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn build_symbol_tree_nodes_reads_module_fields_as_module_children() {
+        use crate::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
 
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x20);
         symbol_module
@@ -1399,31 +1398,31 @@ mod tests {
             .push(ProjectSymbolModuleField::new(String::from("Health"), 0x04, String::from("u32")));
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([String::from("module:game.exe")]),
             &HashMap::new(),
             |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
         );
 
-        assert_eq!(symbol_tree_entries.len(), 4);
+        assert_eq!(symbol_tree_nodes.len(), 4);
         assert_eq!(
-            symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[1].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x04,
             }
         );
-        assert_eq!(symbol_tree_entries[2].get_display_name(), "Health");
-        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
+        assert_eq!(symbol_tree_nodes[2].get_display_name(), "Health");
+        assert_eq!(symbol_tree_nodes[2].get_symbol_type_id(), "u32");
         assert_eq!(
-            symbol_tree_entries[2].get_locator(),
+            symbol_tree_nodes[2].get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x04)
         );
         assert_eq!(
-            symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[3].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0x08,
                 length: 0x18,
@@ -1432,8 +1431,8 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_expands_module_field_fixed_arrays_of_structs() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn build_symbol_tree_nodes_expands_module_field_fixed_arrays_of_structs() {
+        use crate::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
 
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x220);
         symbol_module
@@ -1463,42 +1462,41 @@ mod tests {
             String::from("module_field:module:game.exe:178::[0]"),
         ]);
 
-        let symbol_tree_entries =
-            build_symbol_tree_entries(
-                &project_symbol_catalog,
-                &expanded_tree_node_keys,
-                &HashMap::new(),
-                |data_type_ref| match data_type_ref.get_data_type_id() {
-                    "u8" => Some(1),
-                    "u32" => Some(4),
-                    _ => None,
-                },
-            );
+        let symbol_tree_nodes = build_symbol_tree_nodes(
+            &project_symbol_catalog,
+            &expanded_tree_node_keys,
+            &HashMap::new(),
+            |data_type_ref| match data_type_ref.get_data_type_id() {
+                "u8" => Some(1),
+                "u32" => Some(4),
+                _ => None,
+            },
+        );
 
-        assert_eq!(symbol_tree_entries[2].get_display_name(), "Section Headers");
-        assert_eq!(symbol_tree_entries[2].get_display_type_id(), "section_header[3]");
-        assert!(symbol_tree_entries[2].can_expand());
-        assert_eq!(symbol_tree_entries[3].get_full_path(), "Section Headers[0]");
+        assert_eq!(symbol_tree_nodes[2].get_display_name(), "Section Headers");
+        assert_eq!(symbol_tree_nodes[2].get_display_type_id(), "section_header[3]");
+        assert!(symbol_tree_nodes[2].can_expand());
+        assert_eq!(symbol_tree_nodes[3].get_full_path(), "Section Headers[0]");
         assert_eq!(
-            symbol_tree_entries[3].get_locator(),
+            symbol_tree_nodes[3].get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x178)
         );
-        assert_eq!(symbol_tree_entries[4].get_full_path(), "Section Headers[0].Name");
-        assert_eq!(symbol_tree_entries[5].get_full_path(), "Section Headers[0].VirtualSize");
+        assert_eq!(symbol_tree_nodes[4].get_full_path(), "Section Headers[0].Name");
+        assert_eq!(symbol_tree_nodes[5].get_full_path(), "Section Headers[0].VirtualSize");
         assert_eq!(
-            symbol_tree_entries[5].get_locator(),
+            symbol_tree_nodes[5].get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x180)
         );
-        assert_eq!(symbol_tree_entries[6].get_full_path(), "Section Headers[1]");
+        assert_eq!(symbol_tree_nodes[6].get_full_path(), "Section Headers[1]");
         assert_eq!(
-            symbol_tree_entries[6].get_locator(),
+            symbol_tree_nodes[6].get_locator(),
             &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x184)
         );
     }
 
     #[test]
-    fn build_symbol_tree_entries_resolves_pe_shaped_dynamic_section_headers() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn build_symbol_tree_nodes_resolves_pe_shaped_dynamic_section_headers() {
+        use crate::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
         use std::str::FromStr;
 
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x220);
@@ -1579,7 +1577,7 @@ mod tests {
             String::from("module_field:module:game.exe:0::SectionHeaders::[0]"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let symbol_tree_nodes = build_symbol_tree_nodes_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -1597,9 +1595,9 @@ mod tests {
             },
         );
 
-        let section_headers_entry = symbol_tree_entries
+        let section_headers_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "PE Headers.SectionHeaders")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "PE Headers.SectionHeaders")
             .expect("Expected dynamic section headers entry.");
 
         assert_eq!(
@@ -1608,15 +1606,15 @@ mod tests {
         );
         assert_eq!(section_headers_entry.get_display_type_id(), "section_header[3]");
         assert!(section_headers_entry.can_expand());
-        assert!(symbol_tree_entries.iter().any(
-            |symbol_tree_entry| symbol_tree_entry.get_full_path() == "PE Headers.SectionHeaders[0].VirtualSize"
-                && symbol_tree_entry.get_locator() == &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x180)
+        assert!(symbol_tree_nodes.iter().any(
+            |symbol_tree_node| symbol_tree_node.get_full_path() == "PE Headers.SectionHeaders[0].VirtualSize"
+                && symbol_tree_node.get_locator() == &ProjectSymbolLocator::new_module_offset(String::from("game.exe"), 0x180)
         ));
     }
 
     #[test]
-    fn build_symbol_tree_entries_resolves_dynamic_fields_through_catalog_resolvers() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn build_symbol_tree_nodes_resolves_dynamic_fields_through_catalog_resolvers() {
+        use crate::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
 
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x100);
         symbol_module
@@ -1656,7 +1654,7 @@ mod tests {
             String::from("module_field:module:game.exe:0"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let symbol_tree_nodes = build_symbol_tree_nodes_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -1671,9 +1669,9 @@ mod tests {
             },
         );
 
-        let values_entry = symbol_tree_entries
+        let values_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Items.values")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Items.values")
             .expect("Expected dynamic values entry.");
 
         assert_eq!(values_entry.get_display_type_id(), "u16[3]");
@@ -1684,8 +1682,8 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_expands_fixed_array_by_display_count_resolver() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn build_symbol_tree_nodes_expands_fixed_array_by_display_count_resolver() {
+        use crate::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
 
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x3000);
         symbol_module
@@ -1726,7 +1724,7 @@ mod tests {
             String::from("module_field:module:game.exe:0::entities"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let symbol_tree_nodes = build_symbol_tree_nodes_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -1741,26 +1739,26 @@ mod tests {
             },
         );
 
-        let entities_entry = symbol_tree_entries
+        let entities_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "EntityList.entities")
             .expect("Expected fixed array entry.");
 
         assert_eq!(entities_entry.get_display_type_id(), "Entity[3]");
         assert!(
-            symbol_tree_entries
+            symbol_tree_nodes
                 .iter()
-                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[2]")
+                .any(|symbol_tree_node| symbol_tree_node.get_full_path() == "EntityList.entities[2]")
         );
         assert!(
-            !symbol_tree_entries
+            !symbol_tree_nodes
                 .iter()
-                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[3]")
+                .any(|symbol_tree_node| symbol_tree_node.get_full_path() == "EntityList.entities[3]")
         );
 
-        let tail_entry = symbol_tree_entries
+        let tail_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.tail")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "EntityList.tail")
             .expect("Expected tail entry.");
 
         assert_eq!(
@@ -1770,8 +1768,8 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_resolves_dynamic_fields_through_global_symbol_resolvers() {
-        use squalr_engine_api::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
+    fn build_symbol_tree_nodes_resolves_dynamic_fields_through_global_symbol_resolvers() {
+        use crate::structures::projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField};
 
         let mut symbol_module = ProjectSymbolModule::new(String::from("game.exe"), 0x300);
         symbol_module
@@ -1812,7 +1810,7 @@ mod tests {
             String::from("module_field:module:game.exe:200"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let symbol_tree_nodes = build_symbol_tree_nodes_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -1827,9 +1825,9 @@ mod tests {
             },
         );
 
-        let values_entry = symbol_tree_entries
+        let values_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Items.values")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Items.values")
             .expect("Expected dynamic values entry.");
 
         assert_eq!(values_entry.get_display_type_id(), "u16[5]");
@@ -1840,8 +1838,8 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_resolves_dynamic_fields_through_global_pointer_chain_resolvers() {
-        use squalr_engine_api::structures::{
+    fn build_symbol_tree_nodes_resolves_dynamic_fields_through_global_pointer_chain_resolvers() {
+        use crate::structures::{
             memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
             pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
             projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField},
@@ -1879,7 +1877,7 @@ mod tests {
             String::from("module_field:module:game.exe:200"),
         ]);
 
-        let symbol_tree_entries = super::build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+        let symbol_tree_nodes = super::build_symbol_tree_nodes_with_scalar_reader_and_pointer_chains(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -1895,17 +1893,17 @@ mod tests {
             },
         );
 
-        let values_entry = symbol_tree_entries
+        let values_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Items.values")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Items.values")
             .expect("Expected dynamic values entry.");
 
         assert_eq!(values_entry.get_display_type_id(), "u16[4]");
     }
 
     #[test]
-    fn build_symbol_tree_entries_resolves_dynamic_fields_through_relative_pointer_chain_resolvers() {
-        use squalr_engine_api::structures::{
+    fn build_symbol_tree_nodes_resolves_dynamic_fields_through_relative_pointer_chain_resolvers() {
+        use crate::structures::{
             memory::symbolic_pointer_chain::{SymbolicPointerChain, SymbolicPointerChainLink},
             pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
             projects::{project_symbol_module::ProjectSymbolModule, project_symbol_module_field::ProjectSymbolModuleField},
@@ -1945,7 +1943,7 @@ mod tests {
             String::from("module_field:module:game.exe:200"),
         ]);
 
-        let symbol_tree_entries = super::build_symbol_tree_entries_with_scalar_reader_and_pointer_chains(
+        let symbol_tree_nodes = super::build_symbol_tree_nodes_with_scalar_reader_and_pointer_chains(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &HashMap::new(),
@@ -1969,17 +1967,17 @@ mod tests {
             |pointer_chain| Err(SymbolicResolverEvaluationError::UnknownGlobalPointerChain(pointer_chain.to_string())),
         );
 
-        let values_entry = symbol_tree_entries
+        let values_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Items.values")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Items.values")
             .expect("Expected dynamic values entry.");
 
         assert_eq!(values_entry.get_display_type_id(), "u16[4]");
     }
 
     #[test]
-    fn build_symbol_tree_entries_does_not_expand_collapsed_module_space() {
-        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
+    fn build_symbol_tree_nodes_does_not_expand_collapsed_module_space() {
+        use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
             vec![ProjectSymbolModule::new(String::from("game.exe"), 0x40000000)],
@@ -1987,12 +1985,12 @@ mod tests {
             Vec::new(),
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |_| None);
+        let symbol_tree_nodes = build_symbol_tree_nodes(&project_symbol_catalog, &HashSet::new(), &HashMap::new(), |_| None);
 
-        assert_eq!(symbol_tree_entries.len(), 1);
+        assert_eq!(symbol_tree_nodes.len(), 1);
         assert_eq!(
-            symbol_tree_entries[0].get_kind(),
-            &SymbolTreeEntryKind::ModuleSpace {
+            symbol_tree_nodes[0].get_kind(),
+            &SymbolTreeNodeKind::ModuleSpace {
                 module_name: String::from("game.exe"),
                 size: 0x40000000,
             }
@@ -2000,7 +1998,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_keeps_large_fixed_array_as_preview_leaf() {
+    fn build_symbol_tree_nodes_keeps_large_fixed_array_as_preview_leaf() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![ProjectSymbolClaim::new_module_offset(
@@ -2015,19 +2013,19 @@ mod tests {
             String::from("claim:module:game.exe:0"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+        let symbol_tree_nodes = build_symbol_tree_nodes(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u8").then_some(1)
         });
 
-        assert_eq!(symbol_tree_entries.len(), 2);
-        assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
-        assert_eq!(symbol_tree_entries[1].get_display_name(), "Blob");
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "u8[300]");
-        assert_eq!(symbol_tree_entries[1].can_expand(), false);
+        assert_eq!(symbol_tree_nodes.len(), 2);
+        assert_eq!(symbol_tree_nodes[0].get_display_name(), "game.exe");
+        assert_eq!(symbol_tree_nodes[1].get_display_name(), "Blob");
+        assert_eq!(symbol_tree_nodes[1].get_display_type_id(), "u8[300]");
+        assert_eq!(symbol_tree_nodes[1].can_expand(), false);
     }
 
     #[test]
-    fn build_symbol_tree_entries_omits_hidden_storage_fields_but_preserves_offsets() {
+    fn build_symbol_tree_nodes_omits_hidden_storage_fields_but_preserves_offsets() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![StructLayoutDescriptor::new(
                 String::from("header"),
@@ -2046,7 +2044,7 @@ mod tests {
             )],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([
                 String::from("module:Absolute / Unmapped"),
@@ -2061,21 +2059,21 @@ mod tests {
         );
 
         assert!(
-            !symbol_tree_entries
+            !symbol_tree_nodes
                 .iter()
-                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Header.reserved")
+                .any(|symbol_tree_node| symbol_tree_node.get_full_path() == "Header.reserved")
         );
-        let value_entry = symbol_tree_entries
+        let value_entry = symbol_tree_nodes
             .iter()
-            .find(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "Header.value")
+            .find(|symbol_tree_node| symbol_tree_node.get_full_path() == "Header.value")
             .expect("Expected visible value field.");
 
         assert_eq!(value_entry.get_locator(), &ProjectSymbolLocator::new_absolute_address(0x10C));
     }
 
     #[test]
-    fn build_symbol_tree_entries_splits_module_space_into_unassigned_segments_around_symbol_claim() {
-        use squalr_engine_api::structures::projects::project_symbol_module::ProjectSymbolModule;
+    fn build_symbol_tree_nodes_splits_module_space_into_unassigned_segments_around_symbol_claim() {
+        use crate::structures::projects::project_symbol_module::ProjectSymbolModule;
 
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(
             vec![ProjectSymbolModule::new(String::from("game.exe"), 0x2000)],
@@ -2092,39 +2090,39 @@ mod tests {
             String::from("claim:module:game.exe:1234"),
         ]);
 
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+        let symbol_tree_nodes = build_symbol_tree_nodes(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u32").then_some(4)
         });
 
-        assert_eq!(symbol_tree_entries.len(), 4);
-        assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
+        assert_eq!(symbol_tree_nodes.len(), 4);
+        assert_eq!(symbol_tree_nodes[0].get_display_name(), "game.exe");
         assert_eq!(
-            symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[1].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 0x1234,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[4660]");
-        assert_eq!(symbol_tree_entries[1].can_expand(), false);
-        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "u32");
-        assert_eq!(symbol_tree_entries[2].get_container_type(), ContainerType::None);
-        assert_eq!(symbol_tree_entries[2].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[1].get_display_type_id(), "UNASSIGNED[4660]");
+        assert_eq!(symbol_tree_nodes[1].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[2].get_symbol_type_id(), "u32");
+        assert_eq!(symbol_tree_nodes[2].get_container_type(), ContainerType::None);
+        assert_eq!(symbol_tree_nodes[2].can_expand(), false);
         assert_eq!(
-            symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[3].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0x1238,
                 length: 0xDC8,
             }
         );
-        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "UNASSIGNED[3528]");
-        assert_eq!(symbol_tree_entries[3].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[3].get_display_type_id(), "UNASSIGNED[3528]");
+        assert_eq!(symbol_tree_nodes[3].can_expand(), false);
     }
 
     #[test]
-    fn build_symbol_tree_entries_sizes_overlapping_static_fields_by_span() {
+    fn build_symbol_tree_nodes_sizes_overlapping_static_fields_by_span() {
         let variant_payload = SymbolicStructDefinition::new(
             String::from("variant_payload"),
             vec![
@@ -2146,7 +2144,7 @@ mod tests {
             )],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([String::from("module:game.exe")]),
             &HashMap::new(),
@@ -2158,14 +2156,14 @@ mod tests {
             },
         );
 
-        assert_eq!(symbol_tree_entries.len(), 3);
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[16]");
-        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "variant_payload");
-        assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[32]");
+        assert_eq!(symbol_tree_nodes.len(), 3);
+        assert_eq!(symbol_tree_nodes[1].get_display_type_id(), "UNASSIGNED[16]");
+        assert_eq!(symbol_tree_nodes[2].get_symbol_type_id(), "variant_payload");
+        assert_eq!(symbol_tree_nodes[0].get_display_type_id(), "u8[32]");
     }
 
     #[test]
-    fn build_symbol_tree_entries_sizes_struct_claims_by_declared_size() {
+    fn build_symbol_tree_nodes_sizes_struct_claims_by_declared_size() {
         let declared_payload = SymbolicStructDefinition::new(
             String::from("declared_payload"),
             vec![SymbolicFieldDefinition::from_str("value:u32").expect("Expected u32 field to parse.")],
@@ -2184,21 +2182,21 @@ mod tests {
             )],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([String::from("module:game.exe")]),
             &HashMap::new(),
             |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
         );
 
-        assert_eq!(symbol_tree_entries.len(), 3);
-        assert_eq!(symbol_tree_entries[0].get_display_type_id(), "u8[48]");
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[16]");
-        assert_eq!(symbol_tree_entries[2].get_symbol_type_id(), "declared_payload");
+        assert_eq!(symbol_tree_nodes.len(), 3);
+        assert_eq!(symbol_tree_nodes[0].get_display_type_id(), "u8[48]");
+        assert_eq!(symbol_tree_nodes[1].get_display_type_id(), "UNASSIGNED[16]");
+        assert_eq!(symbol_tree_nodes[2].get_symbol_type_id(), "declared_payload");
     }
 
     #[test]
-    fn build_symbol_tree_entries_sizes_union_layout_fields_at_shared_offset() {
+    fn build_symbol_tree_nodes_sizes_union_layout_fields_at_shared_offset() {
         let variant_payload = SymbolicStructDefinition::new_union(
             String::from("variant_payload"),
             vec![
@@ -2220,7 +2218,7 @@ mod tests {
             )],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([
                 String::from("module:game.exe"),
@@ -2235,10 +2233,10 @@ mod tests {
             },
         );
 
-        let payload_child_locators = symbol_tree_entries
+        let payload_child_locators = symbol_tree_nodes
             .iter()
-            .filter(|symbol_tree_entry| symbol_tree_entry.get_full_path().starts_with("Payload."))
-            .map(|symbol_tree_entry| symbol_tree_entry.get_locator().clone())
+            .filter(|symbol_tree_node| symbol_tree_node.get_full_path().starts_with("Payload."))
+            .map(|symbol_tree_node| symbol_tree_node.get_locator().clone())
             .collect::<Vec<_>>();
 
         assert_eq!(
@@ -2252,7 +2250,7 @@ mod tests {
     }
 
     #[test]
-    fn build_symbol_tree_entries_shows_only_single_active_union_variant() {
+    fn build_symbol_tree_nodes_shows_only_single_active_union_variant() {
         let variant_payload = SymbolicStructDefinition::new_union(
             String::from("variant_payload"),
             vec![
@@ -2278,7 +2276,7 @@ mod tests {
             )],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([
                 String::from("module:game.exe"),
@@ -2290,17 +2288,17 @@ mod tests {
                 _ => None,
             },
         );
-        let payload_child_names = symbol_tree_entries
+        let payload_child_names = symbol_tree_nodes
             .iter()
-            .filter(|symbol_tree_entry| symbol_tree_entry.get_full_path().starts_with("Payload."))
-            .map(|symbol_tree_entry| symbol_tree_entry.get_display_name().to_string())
+            .filter(|symbol_tree_node| symbol_tree_node.get_full_path().starts_with("Payload."))
+            .map(|symbol_tree_node| symbol_tree_node.get_display_name().to_string())
             .collect::<Vec<_>>();
 
         assert_eq!(payload_child_names, vec![String::from("dead")]);
     }
 
     #[test]
-    fn build_symbol_tree_entries_synthesizes_unassigned_module_segments_between_claims() {
+    fn build_symbol_tree_nodes_synthesizes_unassigned_module_segments_between_claims() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             Vec::new(),
             vec![
@@ -2309,41 +2307,41 @@ mod tests {
             ],
         );
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &HashSet::from([String::from("module:game.exe")]),
             &HashMap::new(),
             |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
         );
 
-        assert_eq!(symbol_tree_entries.len(), 5);
-        assert_eq!(symbol_tree_entries[0].get_display_name(), "game.exe");
+        assert_eq!(symbol_tree_nodes.len(), 5);
+        assert_eq!(symbol_tree_nodes[0].get_display_name(), "game.exe");
         assert_eq!(
-            symbol_tree_entries[1].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[1].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0,
                 length: 4,
             }
         );
-        assert_eq!(symbol_tree_entries[1].get_display_type_id(), "UNASSIGNED[4]");
-        assert_eq!(symbol_tree_entries[1].can_expand(), false);
-        assert_eq!(symbol_tree_entries[2].get_display_name(), "First");
+        assert_eq!(symbol_tree_nodes[1].get_display_type_id(), "UNASSIGNED[4]");
+        assert_eq!(symbol_tree_nodes[1].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[2].get_display_name(), "First");
         assert_eq!(
-            symbol_tree_entries[3].get_kind(),
-            &SymbolTreeEntryKind::UnassignedSegment {
+            symbol_tree_nodes[3].get_kind(),
+            &SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 8,
                 length: 4,
             }
         );
-        assert_eq!(symbol_tree_entries[3].get_display_type_id(), "UNASSIGNED[4]");
-        assert_eq!(symbol_tree_entries[3].can_expand(), false);
-        assert_eq!(symbol_tree_entries[4].get_display_name(), "Second");
+        assert_eq!(symbol_tree_nodes[3].get_display_type_id(), "UNASSIGNED[4]");
+        assert_eq!(symbol_tree_nodes[3].can_expand(), false);
+        assert_eq!(symbol_tree_nodes[4].get_display_name(), "Second");
     }
 
     #[test]
-    fn build_symbol_tree_entries_derives_pointer_target_children_from_resolved_targets() {
+    fn build_symbol_tree_nodes_derives_pointer_target_children_from_resolved_targets() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_symbol_claims(
             vec![StructLayoutDescriptor::new(
                 String::from("player"),
@@ -2376,30 +2374,30 @@ mod tests {
             ResolvedPointerTarget::new(ProjectSymbolLocator::new_absolute_address(0x200), String::from("0x100 -> 0x200")),
         )]);
 
-        let symbol_tree_entries = build_symbol_tree_entries(
+        let symbol_tree_nodes = build_symbol_tree_nodes(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &resolved_pointer_targets_by_node_key,
             |data_type_ref| (data_type_ref.get_data_type_id() == "u32").then_some(4),
         );
 
-        assert_eq!(symbol_tree_entries.len(), 7);
-        assert_eq!(symbol_tree_entries[0].get_display_name(), "Absolute / Unmapped");
-        assert_eq!(symbol_tree_entries[3].get_full_path(), "Player.next");
+        assert_eq!(symbol_tree_nodes.len(), 7);
+        assert_eq!(symbol_tree_nodes[0].get_display_name(), "Absolute / Unmapped");
+        assert_eq!(symbol_tree_nodes[3].get_full_path(), "Player.next");
         assert_eq!(
-            symbol_tree_entries[3].get_container_type(),
+            symbol_tree_nodes[3].get_container_type(),
             ContainerType::Pointer(PointerScanPointerSize::Pointer64)
         );
-        assert_eq!(symbol_tree_entries[4].get_kind(), &SymbolTreeEntryKind::PointerTarget);
-        assert_eq!(symbol_tree_entries[4].get_full_path(), "Player.next.*");
-        assert_eq!(symbol_tree_entries[4].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x200));
-        assert_eq!(symbol_tree_entries[5].get_full_path(), "Player.next.*.health");
-        assert_eq!(symbol_tree_entries[5].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x200));
-        assert_eq!(symbol_tree_entries[6].get_full_path(), "Player.next.*.next");
+        assert_eq!(symbol_tree_nodes[4].get_kind(), &SymbolTreeNodeKind::PointerTarget);
+        assert_eq!(symbol_tree_nodes[4].get_full_path(), "Player.next.*");
+        assert_eq!(symbol_tree_nodes[4].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x200));
+        assert_eq!(symbol_tree_nodes[5].get_full_path(), "Player.next.*.health");
+        assert_eq!(symbol_tree_nodes[5].get_locator(), &ProjectSymbolLocator::new_absolute_address(0x200));
+        assert_eq!(symbol_tree_nodes[6].get_full_path(), "Player.next.*.next");
     }
 
     #[test]
-    fn build_symbol_tree_entries_expands_displayed_fixed_pointer_array_elements() {
+    fn build_symbol_tree_nodes_expands_displayed_fixed_pointer_array_elements() {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_resolvers_and_symbol_claims(
             Vec::new(),
             vec![
@@ -2448,7 +2446,7 @@ mod tests {
             ResolvedPointerTarget::new(ProjectSymbolLocator::new_absolute_address(0x500), String::from("0x108 -> 0x500")),
         )]);
 
-        let symbol_tree_entries = build_symbol_tree_entries_with_scalar_reader(
+        let symbol_tree_nodes = build_symbol_tree_nodes_with_scalar_reader(
             &project_symbol_catalog,
             &expanded_tree_node_keys,
             &resolved_pointer_targets_by_node_key,
@@ -2462,23 +2460,23 @@ mod tests {
             },
         );
 
-        assert!(symbol_tree_entries.iter().any(|symbol_tree_entry| {
-            symbol_tree_entry.get_full_path() == "EntityList.entities[0]"
-                && symbol_tree_entry.get_container_type() == ContainerType::Pointer(PointerScanPointerSize::Pointer64)
+        assert!(symbol_tree_nodes.iter().any(|symbol_tree_node| {
+            symbol_tree_node.get_full_path() == "EntityList.entities[0]"
+                && symbol_tree_node.get_container_type() == ContainerType::Pointer(PointerScanPointerSize::Pointer64)
         }));
         assert!(
-            symbol_tree_entries
+            symbol_tree_nodes
                 .iter()
-                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[1]")
+                .any(|symbol_tree_node| symbol_tree_node.get_full_path() == "EntityList.entities[1]")
         );
         assert!(
-            !symbol_tree_entries
+            !symbol_tree_nodes
                 .iter()
-                .any(|symbol_tree_entry| symbol_tree_entry.get_full_path() == "EntityList.entities[2]")
+                .any(|symbol_tree_node| symbol_tree_node.get_full_path() == "EntityList.entities[2]")
         );
-        assert!(symbol_tree_entries.iter().any(|symbol_tree_entry| {
-            symbol_tree_entry.get_full_path() == "EntityList.entities[0].*.health"
-                && symbol_tree_entry.get_locator() == &ProjectSymbolLocator::new_absolute_address(0x500)
+        assert!(symbol_tree_nodes.iter().any(|symbol_tree_node| {
+            symbol_tree_node.get_full_path() == "EntityList.entities[0].*.health"
+                && symbol_tree_node.get_locator() == &ProjectSymbolLocator::new_absolute_address(0x500)
         }));
     }
 }

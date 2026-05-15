@@ -1,11 +1,11 @@
 use crate::ui::widgets::controls::data_type_selector::data_type_selection::DataTypeSelection;
-use crate::views::symbol_tree::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind};
 use epaint::Pos2;
 use squalr_engine_api::commands::project_symbols::delete::project_symbols_delete_request::ProjectSymbolsDeleteModuleRangeMode;
 use squalr_engine_api::dependency_injection::dependency::Dependency;
 use squalr_engine_api::structures::data_types::data_type_ref::DataTypeRef;
 use squalr_engine_api::structures::data_values::{anonymous_value_string_format::AnonymousValueStringFormat, container_type::ContainerType};
 use squalr_engine_api::structures::projects::project_symbol_catalog::ProjectSymbolCatalog;
+use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind};
 use std::collections::HashSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -459,7 +459,7 @@ impl SymbolTreeViewData {
 
     pub fn synchronize_selection_to_tree_entries(
         symbol_tree_view_data: Dependency<Self>,
-        symbol_tree_entries: &[SymbolTreeEntry],
+        symbol_tree_entries: &[SymbolTreeNode],
     ) {
         let Some(mut symbol_tree_view_data) = symbol_tree_view_data.write("Symbol tree synchronize selection to tree entries") else {
             return;
@@ -479,7 +479,7 @@ impl SymbolTreeViewData {
             let is_target_segment_still_available = symbol_tree_entries
                 .iter()
                 .any(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
-                    SymbolTreeEntryKind::UnassignedSegment {
+                    SymbolTreeNodeKind::UnassignedSegment {
                         module_name: segment_module_name,
                         offset: segment_offset,
                         length: segment_length,
@@ -498,7 +498,7 @@ impl SymbolTreeViewData {
                 !Self::is_module_field_node_key(symbol_tree_entry.get_node_key())
                     && matches!(
                         symbol_tree_entry.get_kind(),
-                        SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
+                        SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
                     )
             });
 
@@ -510,7 +510,7 @@ impl SymbolTreeViewData {
                 Self::is_module_field_node_key(symbol_tree_entry.get_node_key())
                     && matches!(
                         symbol_tree_entry.get_kind(),
-                        SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
+                        SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } if symbol_locator_key == selected_symbol_locator_key
                     )
             }) {
                 symbol_tree_view_data.selected_entry = Some(SymbolTreeSelection::DerivedNode(module_field_tree_entry.get_node_key().to_string()));
@@ -533,15 +533,15 @@ impl SymbolTreeViewData {
             .iter()
             .next()
             .map(|symbol_tree_entry| match symbol_tree_entry.get_kind() {
-                SymbolTreeEntryKind::ModuleSpace { module_name, .. } => SymbolTreeSelection::ModuleRoot(module_name.to_string()),
-                SymbolTreeEntryKind::SymbolClaim { symbol_locator_key } => {
+                SymbolTreeNodeKind::ModuleSpace { module_name, .. } => SymbolTreeSelection::ModuleRoot(module_name.to_string()),
+                SymbolTreeNodeKind::SymbolClaim { symbol_locator_key } => {
                     if Self::is_module_field_node_key(symbol_tree_entry.get_node_key()) {
                         SymbolTreeSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                     } else {
                         SymbolTreeSelection::SymbolClaim(symbol_locator_key.to_string())
                     }
                 }
-                SymbolTreeEntryKind::StructField | SymbolTreeEntryKind::UnassignedSegment { .. } | SymbolTreeEntryKind::PointerTarget => {
+                SymbolTreeNodeKind::StructField | SymbolTreeNodeKind::UnassignedSegment { .. } | SymbolTreeNodeKind::PointerTarget => {
                     SymbolTreeSelection::DerivedNode(symbol_tree_entry.get_node_key().to_string())
                 }
             });
@@ -551,11 +551,11 @@ impl SymbolTreeViewData {
 #[cfg(test)]
 mod tests {
     use super::{DefineFieldDraft, SymbolTreeContextMenuTarget, SymbolTreeSelection, SymbolTreeTakeOverState, SymbolTreeViewData};
-    use crate::views::symbol_tree::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind, build_symbol_tree_entries};
     use epaint::pos2;
     use squalr_engine_api::dependency_injection::dependency::Dependency;
     use squalr_engine_api::dependency_injection::dependency_container::DependencyContainer;
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
+    use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind, build_symbol_tree_nodes};
     use squalr_engine_api::structures::{
         data_types::data_type_ref::DataTypeRef,
         data_values::container_type::ContainerType,
@@ -686,7 +686,7 @@ mod tests {
         let project_symbol_catalog = ProjectSymbolCatalog::new_with_modules_and_symbol_claims(vec![symbol_module], Vec::new(), Vec::new());
         let mut expanded_tree_node_keys = HashSet::new();
         expanded_tree_node_keys.insert(String::from("module:game.exe"));
-        let symbol_tree_entries = build_symbol_tree_entries(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
+        let symbol_tree_entries = build_symbol_tree_nodes(&project_symbol_catalog, &expanded_tree_node_keys, &HashMap::new(), |data_type_ref| {
             (data_type_ref.get_data_type_id() == "u8").then_some(1)
         });
 
@@ -926,9 +926,9 @@ mod tests {
     #[test]
     fn synchronize_selection_to_tree_entries_keeps_unassigned_define_field_target() {
         let symbol_tree_view_data = create_dependency();
-        let symbol_tree_entries = vec![SymbolTreeEntry::new(
+        let symbol_tree_entries = vec![SymbolTreeNode::new(
             String::from("unassigned:game.exe:40:100"),
-            SymbolTreeEntryKind::UnassignedSegment {
+            SymbolTreeNodeKind::UnassignedSegment {
                 module_name: String::from("game.exe"),
                 offset: 0x40,
                 length: 0x100,
@@ -964,9 +964,9 @@ mod tests {
     #[test]
     fn synchronize_selection_to_tree_entries_clears_owned_u8_field_define_field_target() {
         let symbol_tree_view_data = create_dependency();
-        let symbol_tree_entries = vec![SymbolTreeEntry::new(
+        let symbol_tree_entries = vec![SymbolTreeNode::new(
             String::from("claim:module:game.exe:40"),
-            SymbolTreeEntryKind::SymbolClaim {
+            SymbolTreeNodeKind::SymbolClaim {
                 symbol_locator_key: String::from("module:game.exe:40"),
             },
             1,

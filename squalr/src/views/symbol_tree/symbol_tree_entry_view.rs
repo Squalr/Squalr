@@ -1,15 +1,15 @@
 use crate::{
     app_context::AppContext,
     ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-    views::symbol_tree::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind},
 };
 use eframe::egui::{Align, Align2, Area, Color32, FontId, Frame, Id, Layout, Order, Rect, Response, RichText, Sense, Ui, Widget, pos2, vec2};
 use epaint::{CornerRadius, Margin, Stroke, StrokeKind};
+use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::{SymbolTreeNode, SymbolTreeNodeKind};
 use std::{sync::Arc, time::Duration};
 
 pub struct SymbolTreeEntryView<'lifetime> {
     app_context: Arc<AppContext>,
-    symbol_tree_entry: &'lifetime SymbolTreeEntry,
+    symbol_tree_entry: &'lifetime SymbolTreeNode,
     size_preview_text: &'lifetime str,
     size_tooltip_text: &'lifetime str,
     preview_value: &'lifetime str,
@@ -28,7 +28,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
 
     pub fn new(
         app_context: Arc<AppContext>,
-        symbol_tree_entry: &'lifetime SymbolTreeEntry,
+        symbol_tree_entry: &'lifetime SymbolTreeNode,
         size_preview_text: &'lifetime str,
         size_tooltip_text: &'lifetime str,
         preview_value: &'lifetime str,
@@ -291,7 +291,7 @@ impl<'lifetime> SymbolTreeEntryView<'lifetime> {
 
         hover_rows.push(("Symbol Chain", self.symbol_tree_entry.get_full_path().to_string()));
 
-        if !matches!(self.symbol_tree_entry.get_kind(), SymbolTreeEntryKind::ModuleSpace { .. }) {
+        if !matches!(self.symbol_tree_entry.get_kind(), SymbolTreeNodeKind::ModuleSpace { .. }) {
             hover_rows.push(("Locator", self.symbol_tree_entry.get_locator().to_string()));
         }
 

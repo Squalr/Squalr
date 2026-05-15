@@ -1,7 +1,6 @@
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-    views::symbol_tree::view_data::symbol_tree_entry::SymbolTreeEntry,
 };
 use eframe::egui::{
     Id, Key, Rect, Response, Sense, TextEdit, Ui, UiBuilder, Widget, pos2,
@@ -9,12 +8,13 @@ use eframe::egui::{
     vec2,
 };
 use epaint::{CornerRadius, Stroke, StrokeKind};
+use squalr_engine_api::structures::projects::symbol_tree::symbol_tree_node::SymbolTreeNode;
 use std::sync::Arc;
 
 pub struct SymbolTreeInlineRenameView<'lifetime> {
     app_context: Arc<AppContext>,
     symbol_locator_key: &'lifetime str,
-    symbol_tree_entry: &'lifetime SymbolTreeEntry,
+    symbol_tree_entry: &'lifetime SymbolTreeNode,
     rename_text: &'lifetime mut String,
     should_highlight_text: &'lifetime mut bool,
     is_selected: bool,
@@ -30,7 +30,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
     pub fn new(
         app_context: Arc<AppContext>,
         symbol_locator_key: &'lifetime str,
-        symbol_tree_entry: &'lifetime SymbolTreeEntry,
+        symbol_tree_entry: &'lifetime SymbolTreeNode,
         rename_text: &'lifetime mut String,
         should_highlight_text: &'lifetime mut bool,
         is_selected: bool,
