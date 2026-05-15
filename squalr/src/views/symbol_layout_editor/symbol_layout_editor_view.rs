@@ -60,6 +60,8 @@ enum SymbolLayoutFieldRowAction {
 enum SymbolLayoutUnassignedRowAction {
     SelectSpan,
     DefineField,
+    MoveUp,
+    MoveDown,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,6 +89,21 @@ struct SymbolLayoutFieldSpan {
     field_position: usize,
     offset_in_bytes: u64,
     size_in_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SymbolLayoutUnassignedAdjacentField {
+    field_position: usize,
+    offset_in_bytes: u64,
+    size_in_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SymbolLayoutUnassignedRowContext {
+    offset_in_bytes: u64,
+    size_in_bytes: u64,
+    move_up_field: Option<SymbolLayoutUnassignedAdjacentField>,
+    move_down_field: Option<SymbolLayoutUnassignedAdjacentField>,
 }
 
 #[derive(Clone)]
@@ -396,6 +413,46 @@ impl SymbolLayoutEditorView {
             .max()
             .unwrap_or(0)
             .min(field_count)
+    }
+
+    fn set_field_static_offset(
+        draft: &mut SymbolLayoutEditDraft,
+        field_position: usize,
+        offset_in_bytes: u64,
+    ) -> bool {
+        let Some(field_draft) = draft.field_drafts.get_mut(field_position) else {
+            return false;
+        };
+
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
+        true
+    }
+
+    fn move_unassigned_span_up(
+        draft: &mut SymbolLayoutEditDraft,
+        row_context: SymbolLayoutUnassignedRowContext,
+    ) -> Option<SymbolLayoutUnassignedSelection> {
+        let adjacent_field = row_context.move_up_field?;
+        let moved_field_offset = adjacent_field
+            .offset_in_bytes
+            .checked_add(row_context.size_in_bytes)?;
+
+        Self::set_field_static_offset(draft, adjacent_field.field_position, moved_field_offset)
+            .then(|| SymbolLayoutUnassignedSelection::new(adjacent_field.offset_in_bytes, row_context.size_in_bytes))
+    }
+
+    fn move_unassigned_span_down(
+        draft: &mut SymbolLayoutEditDraft,
+        row_context: SymbolLayoutUnassignedRowContext,
+    ) -> Option<SymbolLayoutUnassignedSelection> {
+        let adjacent_field = row_context.move_down_field?;
+        let moved_unassigned_offset = row_context
+            .offset_in_bytes
+            .checked_add(adjacent_field.size_in_bytes)?;
+
+        Self::set_field_static_offset(draft, adjacent_field.field_position, row_context.offset_in_bytes)
+            .then(|| SymbolLayoutUnassignedSelection::new(moved_unassigned_offset, row_context.size_in_bytes))
     }
 
     fn build_symbolic_field_definition_from_draft(field_draft: &SymbolLayoutFieldEditDraft) -> Result<SymbolicFieldDefinition, String> {
@@ -2271,17 +2328,22 @@ impl SymbolLayoutEditorView {
     fn render_unassigned_layout_row(
         &self,
         user_interface: &mut Ui,
-        offset_in_bytes: u64,
-        size_in_bytes: u64,
+        row_context: SymbolLayoutUnassignedRowContext,
         can_define_field: bool,
         is_selected: bool,
     ) -> Option<SymbolLayoutUnassignedRowAction> {
-        if size_in_bytes == 0 {
+        if row_context.size_in_bytes == 0 {
             return None;
         }
 
         let theme = &self.app_context.theme;
-        let row_sense = if can_define_field { Sense::click() } else { Sense::hover() };
+        let can_move_up = row_context.move_up_field.is_some();
+        let can_move_down = row_context.move_down_field.is_some();
+        let row_sense = if can_define_field || can_move_up || can_move_down {
+            Sense::click()
+        } else {
+            Sense::hover()
+        };
         let (row_rect, row_response) = user_interface.allocate_exact_size(vec2(user_interface.available_width(), Self::FIELD_ROW_HEIGHT), row_sense);
         let mut pending_unassigned_row_action = None;
 
@@ -2310,23 +2372,58 @@ impl SymbolLayoutEditorView {
         }
         .ui(user_interface);
 
+        let button_area_width = Self::ICON_BUTTON_WIDTH * 2.0;
+        let button_area_left = (row_rect.max.x - button_area_width).max(row_rect.min.x);
+        let mut button_min_x = button_area_left;
+        let mut render_next_button = |icon_handle: &eframe::egui::TextureHandle, tooltip_text: &str, is_disabled: bool| -> Response {
+            let button_rect = Rect::from_min_size(pos2(button_min_x, row_rect.min.y), vec2(Self::ICON_BUTTON_WIDTH, Self::FIELD_ROW_HEIGHT));
+            button_min_x += Self::ICON_BUTTON_WIDTH;
+
+            self.render_flat_icon_button_at(user_interface, button_rect, icon_handle, tooltip_text, is_disabled)
+        };
+
+        let move_up_response = render_next_button(
+            &theme.icon_library.icon_handle_navigation_up_arrow_small,
+            "Move this unassigned span up.",
+            !can_move_up,
+        );
+        if move_up_response.clicked() {
+            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MoveUp);
+        }
+
+        let move_down_response = render_next_button(
+            &theme.icon_library.icon_handle_navigation_down_arrow_small,
+            "Move this unassigned span down.",
+            !can_move_down,
+        );
+        if move_down_response.clicked() {
+            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::MoveDown);
+        }
+
         if can_define_field && row_response.secondary_clicked() {
             let position = row_response
                 .interact_pointer_pos()
                 .unwrap_or_else(|| pos2(row_rect.left(), row_rect.center().y));
-            SymbolLayoutEditorViewData::show_unassigned_context_menu(self.symbol_layout_editor_view_data.clone(), offset_in_bytes, size_in_bytes, position);
+            SymbolLayoutEditorViewData::show_unassigned_context_menu(
+                self.symbol_layout_editor_view_data.clone(),
+                row_context.offset_in_bytes,
+                row_context.size_in_bytes,
+                position,
+            );
+            if pending_unassigned_row_action.is_none() {
+                pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
+            }
+        } else if can_define_field && row_response.clicked() && pending_unassigned_row_action.is_none() {
             pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
-        } else if can_define_field && row_response.clicked() {
-            pending_unassigned_row_action = Some(SymbolLayoutUnassignedRowAction::SelectSpan);
-        } else if row_response.clicked() {
+        } else if row_response.clicked() && pending_unassigned_row_action.is_none() {
             SymbolLayoutEditorViewData::hide_unassigned_context_menu(self.symbol_layout_editor_view_data.clone());
             SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
         }
 
-        let left_text = format!("UNASSIGNED[{}]", size_in_bytes);
-        let right_text = format!("0x{:X}", offset_in_bytes);
+        let left_text = format!("UNASSIGNED[{}]", row_context.size_in_bytes);
+        let right_text = format!("0x{:X}", row_context.offset_in_bytes);
         let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
-        let right_text_x = row_rect.max.x - Self::FIELD_ROW_LEFT_PADDING;
+        let right_text_x = button_area_left - Self::FIELD_ROW_LEFT_PADDING;
         let left_max_width = (right_text_x - label_position.x).max(0.0);
         let left_color = if can_define_field { theme.foreground } else { theme.foreground_preview };
         let left_text = Self::truncate_text_to_width(
@@ -2420,7 +2517,7 @@ impl SymbolLayoutEditorView {
         let field_count = draft.field_drafts.len();
         let layout_kind = draft.layout_kind;
         let mut pending_field_row_action = None;
-        let mut pending_unassigned_row_action: Option<(u64, u64, SymbolLayoutUnassignedRowAction)> = None;
+        let mut pending_unassigned_row_action: Option<(SymbolLayoutUnassignedRowContext, SymbolLayoutUnassignedRowAction)> = None;
         let field_spans = self.resolve_draft_field_spans(project_symbol_catalog, draft);
         let field_spans_by_position = field_spans
             .as_ref()
@@ -2432,6 +2529,7 @@ impl SymbolLayoutEditorView {
             })
             .unwrap_or_default();
         let mut next_visible_offset = 0_u64;
+        let mut previous_visible_field = None;
 
         for field_index in 0..field_count {
             let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
@@ -2443,10 +2541,18 @@ impl SymbolLayoutEditorView {
                     let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
                         selected_unassigned_span.get_offset_in_bytes() == next_visible_offset && selected_unassigned_span.get_size_in_bytes() == unassigned_size
                     });
-                    if let Some(unassigned_row_action) =
-                        self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, true, is_selected)
-                    {
-                        pending_unassigned_row_action = Some((next_visible_offset, unassigned_size, unassigned_row_action));
+                    let unassigned_row_context = SymbolLayoutUnassignedRowContext {
+                        offset_in_bytes: next_visible_offset,
+                        size_in_bytes: unassigned_size,
+                        move_up_field: previous_visible_field,
+                        move_down_field: Some(SymbolLayoutUnassignedAdjacentField {
+                            field_position: field_span.field_position,
+                            offset_in_bytes: field_span.offset_in_bytes,
+                            size_in_bytes: field_span.size_in_bytes,
+                        }),
+                    };
+                    if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, unassigned_row_context, true, is_selected) {
+                        pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
                     }
                 }
                 next_visible_offset = next_visible_offset.max(
@@ -2454,6 +2560,11 @@ impl SymbolLayoutEditorView {
                         .offset_in_bytes
                         .saturating_add(field_span.size_in_bytes),
                 );
+                previous_visible_field = Some(SymbolLayoutUnassignedAdjacentField {
+                    field_position: field_span.field_position,
+                    offset_in_bytes: field_span.offset_in_bytes,
+                    size_in_bytes: field_span.size_in_bytes,
+                });
             }
             let can_move_up = field_index > 0;
             let can_move_down = field_index + 1 < field_count;
@@ -2477,10 +2588,15 @@ impl SymbolLayoutEditorView {
             let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
                 selected_unassigned_span.get_offset_in_bytes() == next_visible_offset && selected_unassigned_span.get_size_in_bytes() == unassigned_size
             });
-            if let Some(unassigned_row_action) =
-                self.render_unassigned_layout_row(user_interface, next_visible_offset, unassigned_size, !layout_kind.is_union(), is_selected)
+            let unassigned_row_context = SymbolLayoutUnassignedRowContext {
+                offset_in_bytes: next_visible_offset,
+                size_in_bytes: unassigned_size,
+                move_up_field: if layout_kind.is_union() { None } else { previous_visible_field },
+                move_down_field: None,
+            };
+            if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, unassigned_row_context, !layout_kind.is_union(), is_selected)
             {
-                pending_unassigned_row_action = Some((next_visible_offset, unassigned_size, unassigned_row_action));
+                pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
             }
         }
 
@@ -2510,35 +2626,70 @@ impl SymbolLayoutEditorView {
             && !layout_kind.is_union()
             && let Some(unassigned_row_action) = self.render_unassigned_context_menu(user_interface, &unassigned_context_menu_target)
         {
-            pending_unassigned_row_action = Some((
-                unassigned_context_menu_target.get_offset_in_bytes(),
-                unassigned_context_menu_target.get_size_in_bytes(),
-                unassigned_row_action,
-            ));
+            let unassigned_row_context = SymbolLayoutUnassignedRowContext {
+                offset_in_bytes: unassigned_context_menu_target.get_offset_in_bytes(),
+                size_in_bytes: unassigned_context_menu_target.get_size_in_bytes(),
+                move_up_field: None,
+                move_down_field: None,
+            };
+            pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
         }
 
-        if let Some((unassigned_offset_in_bytes, unassigned_size_in_bytes, unassigned_row_action)) = pending_unassigned_row_action {
+        if let Some((unassigned_row_context, unassigned_row_action)) = pending_unassigned_row_action {
             match unassigned_row_action {
                 SymbolLayoutUnassignedRowAction::SelectSpan => {
                     SymbolLayoutEditorViewData::select_unassigned_span(
                         self.symbol_layout_editor_view_data.clone(),
-                        unassigned_offset_in_bytes,
-                        unassigned_size_in_bytes,
+                        unassigned_row_context.offset_in_bytes,
+                        unassigned_row_context.size_in_bytes,
                     );
-                    self.focus_unassigned_span_in_struct_viewer(draft, unassigned_offset_in_bytes, unassigned_size_in_bytes);
+                    self.focus_unassigned_span_in_struct_viewer(draft, unassigned_row_context.offset_in_bytes, unassigned_row_context.size_in_bytes);
                 }
                 SymbolLayoutUnassignedRowAction::DefineField => {
-                    let mut field_draft =
-                        self.create_field_draft_for_unassigned_span(project_symbol_catalog, draft.layout_kind, &draft.layout_id, 0, unassigned_offset_in_bytes);
-                    field_draft.field_name = format!("field_{:08X}", unassigned_offset_in_bytes);
+                    let mut field_draft = self.create_field_draft_for_unassigned_span(
+                        project_symbol_catalog,
+                        draft.layout_kind,
+                        &draft.layout_id,
+                        0,
+                        unassigned_row_context.offset_in_bytes,
+                    );
+                    field_draft.field_name = format!("field_{:08X}", unassigned_row_context.offset_in_bytes);
                     SymbolLayoutEditorViewData::begin_define_field_from_unassigned_span(
                         self.symbol_layout_editor_view_data.clone(),
                         draft.layout_id.clone(),
-                        unassigned_offset_in_bytes,
-                        unassigned_size_in_bytes,
+                        unassigned_row_context.offset_in_bytes,
+                        unassigned_row_context.size_in_bytes,
                         self.default_data_type_ref(),
                     );
                     SymbolLayoutEditorViewData::replace_define_field_draft(self.symbol_layout_editor_view_data.clone(), field_draft);
+                }
+                SymbolLayoutUnassignedRowAction::MoveUp => {
+                    if let Some(updated_unassigned_selection) = Self::move_unassigned_span_up(draft, unassigned_row_context) {
+                        SymbolLayoutEditorViewData::select_unassigned_span(
+                            self.symbol_layout_editor_view_data.clone(),
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                        self.focus_unassigned_span_in_struct_viewer(
+                            draft,
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                    }
+                }
+                SymbolLayoutUnassignedRowAction::MoveDown => {
+                    if let Some(updated_unassigned_selection) = Self::move_unassigned_span_down(draft, unassigned_row_context) {
+                        SymbolLayoutEditorViewData::select_unassigned_span(
+                            self.symbol_layout_editor_view_data.clone(),
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                        self.focus_unassigned_span_in_struct_viewer(
+                            draft,
+                            updated_unassigned_selection.get_offset_in_bytes(),
+                            updated_unassigned_selection.get_size_in_bytes(),
+                        );
+                    }
                 }
             }
         }
@@ -3136,15 +3287,32 @@ impl SymbolLayoutEditorView {
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolLayoutEditorView, SymbolLayoutFieldContainerKind, SymbolLayoutFieldEditDraft, SymbolLayoutFieldSpan};
+    use super::{
+        SymbolLayoutEditorView, SymbolLayoutFieldContainerKind, SymbolLayoutFieldEditDraft, SymbolLayoutFieldSpan, SymbolLayoutUnassignedAdjacentField,
+        SymbolLayoutUnassignedRowContext,
+    };
     use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
+    use crate::views::symbol_layout_editor::view_data::symbol_layout_editor_view_data::{SymbolLayoutEditDraft, SymbolLayoutFieldOffsetMode};
     use squalr_engine_api::registries::symbols::struct_layout_descriptor::StructLayoutDescriptor;
     use squalr_engine_api::structures::{
         data_types::{built_in_types::u32::data_type_u32::DataTypeU32, data_type_ref::DataTypeRef},
+        data_values::anonymous_value_string_format::AnonymousValueStringFormat,
         pointer_scans::pointer_scan_pointer_size::PointerScanPointerSize,
         projects::project_symbol_catalog::ProjectSymbolCatalog,
         structs::symbolic_struct_definition::{SymbolicLayoutKind, SymbolicStructDefinition},
     };
+
+    fn create_static_field_draft(
+        field_name: &str,
+        offset_in_bytes: u64,
+    ) -> SymbolLayoutFieldEditDraft {
+        let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+
+        field_draft.field_name = field_name.to_string();
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
+        field_draft
+    }
 
     #[test]
     fn format_field_data_type_preview_includes_fixed_array_length() {
@@ -3172,6 +3340,70 @@ mod tests {
         ];
 
         assert_eq!(SymbolLayoutEditorView::field_insert_index_for_offset(&field_spans, 2, 8), 1);
+    }
+
+    #[test]
+    fn move_unassigned_span_up_places_previous_field_after_gap() {
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                create_static_field_draft("health", 0),
+                create_static_field_draft("mana", 16),
+            ],
+        };
+        let row_context = SymbolLayoutUnassignedRowContext {
+            offset_in_bytes: 4,
+            size_in_bytes: 12,
+            move_up_field: Some(SymbolLayoutUnassignedAdjacentField {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            }),
+            move_down_field: None,
+        };
+
+        let updated_unassigned_selection = SymbolLayoutEditorView::move_unassigned_span_up(&mut draft, row_context).expect("Expected span to move.");
+
+        assert_eq!(updated_unassigned_selection.get_offset_in_bytes(), 0);
+        assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
+        assert_eq!(draft.field_drafts[0].offset_mode, SymbolLayoutFieldOffsetMode::Static);
+        assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "12");
+    }
+
+    #[test]
+    fn move_unassigned_span_down_places_next_field_before_gap() {
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                create_static_field_draft("health", 0),
+                create_static_field_draft("mana", 16),
+            ],
+        };
+        let row_context = SymbolLayoutUnassignedRowContext {
+            offset_in_bytes: 4,
+            size_in_bytes: 12,
+            move_up_field: None,
+            move_down_field: Some(SymbolLayoutUnassignedAdjacentField {
+                field_position: 1,
+                offset_in_bytes: 16,
+                size_in_bytes: 4,
+            }),
+        };
+
+        let updated_unassigned_selection = SymbolLayoutEditorView::move_unassigned_span_down(&mut draft, row_context).expect("Expected span to move.");
+
+        assert_eq!(updated_unassigned_selection.get_offset_in_bytes(), 8);
+        assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
+        assert_eq!(draft.field_drafts[1].offset_mode, SymbolLayoutFieldOffsetMode::Static);
+        assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "4");
     }
 
     #[test]
