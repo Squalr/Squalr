@@ -24,8 +24,7 @@ use eframe::egui::{
 };
 use epaint::{Color32, CornerRadius, Rect, StrokeKind};
 use squalr_engine_api::commands::{
-    privileged_command_request::PrivilegedCommandRequest, project::save::project_save_request::ProjectSaveRequest,
-    registry::set_project_symbols::registry_set_project_symbols_request::RegistrySetProjectSymbolsRequest,
+    project_symbols::set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest,
     unprivileged_command_request::UnprivilegedCommandRequest,
 };
 use squalr_engine_api::dependency_injection::dependency::Dependency;
@@ -225,46 +224,14 @@ impl SymbolLayoutEditorView {
         app_context: &AppContext,
         updated_project_symbol_catalog: ProjectSymbolCatalog,
     ) {
-        let opened_project_lock = app_context
-            .engine_unprivileged_state
-            .get_project_manager()
-            .get_opened_project();
-        let did_update_project = match opened_project_lock.write() {
-            Ok(mut opened_project) => {
-                if let Some(opened_project) = opened_project.as_mut() {
-                    let project_info = opened_project.get_project_info_mut();
-
-                    *project_info.get_project_symbol_catalog_mut() = updated_project_symbol_catalog.clone();
-                    project_info.set_has_unsaved_changes(true);
-                    true
-                } else {
-                    false
-                }
-            }
-            Err(error) => {
-                log::error!("Failed to acquire opened project while persisting symbol layout changes: {}.", error);
-                false
-            }
-        };
-
-        if !did_update_project {
-            return;
-        }
-
-        let project_save_request = ProjectSaveRequest {};
-        project_save_request.send(&app_context.engine_unprivileged_state, |project_save_response| {
-            if !project_save_response.success {
-                log::error!("Failed to save project after applying symbol layout changes.");
+        ProjectSymbolsSetCatalogRequest::new(updated_project_symbol_catalog).send(&app_context.engine_unprivileged_state, |response| {
+            if !response.success {
+                log::error!(
+                    "Failed to persist symbol layout changes through project-symbols command: {}.",
+                    response.error.as_deref().unwrap_or("unknown error")
+                );
             }
         });
-
-        let registry_set_project_symbols_request = RegistrySetProjectSymbolsRequest {
-            project_symbol_catalog: updated_project_symbol_catalog,
-        };
-        let did_dispatch_registry_sync = registry_set_project_symbols_request.send(&app_context.engine_unprivileged_state, |_response| {});
-        if !did_dispatch_registry_sync {
-            log::error!("Failed to dispatch project symbol registry sync after symbol layout changes.");
-        }
     }
 
     fn delete_symbol_layout(

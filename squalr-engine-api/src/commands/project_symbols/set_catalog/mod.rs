@@ -1,0 +1,2 @@
+pub mod project_symbols_set_catalog_request;
+pub mod project_symbols_set_catalog_response;

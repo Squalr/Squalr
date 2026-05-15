@@ -5,7 +5,7 @@ use crate::commands::project_symbols::{
     execute_plugin_action::project_symbols_execute_plugin_action_request::ProjectSymbolsExecutePluginActionRequest,
     list::project_symbols_list_request::ProjectSymbolsListRequest, rename::project_symbols_rename_request::ProjectSymbolsRenameRequest,
     rename_module::project_symbols_rename_module_request::ProjectSymbolsRenameModuleRequest,
-    update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
+    set_catalog::project_symbols_set_catalog_request::ProjectSymbolsSetCatalogRequest, update::project_symbols_update_request::ProjectSymbolsUpdateRequest,
 };
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
@@ -46,6 +46,11 @@ pub enum ProjectSymbolsCommand {
     RenameModule {
         #[structopt(flatten)]
         project_symbols_rename_module_request: ProjectSymbolsRenameModuleRequest,
+    },
+    /// Replaces the opened project's entire symbol catalog.
+    SetCatalog {
+        #[structopt(flatten)]
+        project_symbols_set_catalog_request: ProjectSymbolsSetCatalogRequest,
     },
     /// Updates project symbol claim properties.
     Update {

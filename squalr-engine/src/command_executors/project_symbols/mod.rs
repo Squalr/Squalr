@@ -10,6 +10,7 @@ pub mod project_symbol_store_mutation;
 pub mod project_symbols_command_executor;
 pub mod rename;
 pub mod rename_module;
+pub mod set_catalog;
 #[cfg(test)]
 pub mod test_support;
 pub mod update;

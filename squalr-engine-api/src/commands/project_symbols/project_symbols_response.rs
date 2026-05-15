@@ -5,7 +5,7 @@ use crate::commands::project_symbols::{
     execute_plugin_action::project_symbols_execute_plugin_action_response::ProjectSymbolsExecutePluginActionResponse,
     list::project_symbols_list_response::ProjectSymbolsListResponse, rename::project_symbols_rename_response::ProjectSymbolsRenameResponse,
     rename_module::project_symbols_rename_module_response::ProjectSymbolsRenameModuleResponse,
-    update::project_symbols_update_response::ProjectSymbolsUpdateResponse,
+    set_catalog::project_symbols_set_catalog_response::ProjectSymbolsSetCatalogResponse, update::project_symbols_update_response::ProjectSymbolsUpdateResponse,
 };
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +31,9 @@ pub enum ProjectSymbolsResponse {
     },
     RenameModule {
         project_symbols_rename_module_response: ProjectSymbolsRenameModuleResponse,
+    },
+    SetCatalog {
+        project_symbols_set_catalog_response: ProjectSymbolsSetCatalogResponse,
     },
     Update {
         project_symbols_update_response: ProjectSymbolsUpdateResponse,

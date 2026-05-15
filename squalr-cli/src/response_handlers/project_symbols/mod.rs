@@ -85,6 +85,21 @@ pub fn handle_project_symbols_response(project_symbols_response: ProjectSymbolsR
                 project_symbols_rename_module_response.module_name
             );
         }
+        ProjectSymbolsResponse::SetCatalog {
+            project_symbols_set_catalog_response,
+        } => {
+            if project_symbols_set_catalog_response.success {
+                log::info!("set project symbol catalog: success=true");
+            } else {
+                log::error!(
+                    "set project symbol catalog: success=false, error={}",
+                    project_symbols_set_catalog_response
+                        .error
+                        .as_deref()
+                        .unwrap_or("unknown error")
+                );
+            }
+        }
         ProjectSymbolsResponse::Update {
             project_symbols_update_response,
         } => {
