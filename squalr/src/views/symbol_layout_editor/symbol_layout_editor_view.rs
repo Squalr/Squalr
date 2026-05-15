@@ -386,7 +386,9 @@ impl SymbolLayoutEditorView {
             return field_draft;
         }
 
-        SymbolLayoutFieldEditDraft::new(self.default_data_type_ref())
+        let mut field_draft = SymbolLayoutFieldEditDraft::new(self.default_data_type_ref());
+        field_draft.field_name = format!("field_{}", field_position + 1);
+        field_draft
     }
 
     fn create_field_draft_for_unassigned_span(
@@ -434,6 +436,159 @@ impl SymbolLayoutEditorView {
         field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
         field_draft.static_offset_in_bytes = offset_in_bytes.to_string();
         true
+    }
+
+    fn build_unique_field_name(
+        draft: &SymbolLayoutEditDraft,
+        base_name: &str,
+    ) -> String {
+        let trimmed_base_name = base_name.trim();
+        let base_name = if trimmed_base_name.is_empty() {
+            if draft.layout_kind.is_union() { "variant" } else { "field" }
+        } else {
+            trimmed_base_name
+        };
+        if !draft
+            .field_drafts
+            .iter()
+            .any(|field_draft| field_draft.field_name.trim() == base_name)
+        {
+            return base_name.to_string();
+        }
+
+        let mut suffix_index = 2_u64;
+        loop {
+            let candidate_name = format!("{}_{}", base_name, suffix_index);
+            if !draft
+                .field_drafts
+                .iter()
+                .any(|field_draft| field_draft.field_name.trim() == candidate_name)
+            {
+                return candidate_name;
+            }
+            suffix_index = suffix_index.saturating_add(1);
+        }
+    }
+
+    fn resolve_field_span_by_position(
+        field_spans: &[SymbolLayoutFieldSpan],
+        field_position: usize,
+    ) -> Option<SymbolLayoutFieldSpan> {
+        field_spans
+            .iter()
+            .copied()
+            .find(|field_span| field_span.field_position == field_position)
+    }
+
+    fn resolve_adjacent_field_span(
+        field_spans: &[SymbolLayoutFieldSpan],
+        current_field_span: SymbolLayoutFieldSpan,
+        direction: ListNavigationDirection,
+    ) -> Option<SymbolLayoutFieldSpan> {
+        let current_sort_key = (current_field_span.offset_in_bytes, current_field_span.field_position);
+        match direction {
+            ListNavigationDirection::Up => field_spans
+                .iter()
+                .copied()
+                .filter(|field_span| field_span.field_position != current_field_span.field_position)
+                .filter(|field_span| (field_span.offset_in_bytes, field_span.field_position) < current_sort_key)
+                .max_by_key(|field_span| (field_span.offset_in_bytes, field_span.field_position)),
+            ListNavigationDirection::Down => field_spans
+                .iter()
+                .copied()
+                .filter(|field_span| field_span.field_position != current_field_span.field_position)
+                .filter(|field_span| (field_span.offset_in_bytes, field_span.field_position) > current_sort_key)
+                .min_by_key(|field_span| (field_span.offset_in_bytes, field_span.field_position)),
+        }
+    }
+
+    fn move_static_field_up(
+        draft: &mut SymbolLayoutEditDraft,
+        field_spans: &[SymbolLayoutFieldSpan],
+        field_index: usize,
+    ) -> bool {
+        let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
+            return false;
+        };
+        let Some(previous_field_span) = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Up) else {
+            return false;
+        };
+        let previous_field_end = previous_field_span
+            .offset_in_bytes
+            .saturating_add(previous_field_span.size_in_bytes);
+
+        if previous_field_end < current_field_span.offset_in_bytes {
+            return Self::set_field_static_offset(draft, field_index, previous_field_end);
+        }
+
+        let moved_current_offset = previous_field_span.offset_in_bytes;
+        let moved_previous_offset = previous_field_span
+            .offset_in_bytes
+            .saturating_add(current_field_span.size_in_bytes);
+        Self::set_field_static_offset(draft, field_index, moved_current_offset)
+            && Self::set_field_static_offset(draft, previous_field_span.field_position, moved_previous_offset)
+    }
+
+    fn move_static_field_down(
+        draft: &mut SymbolLayoutEditDraft,
+        field_spans: &[SymbolLayoutFieldSpan],
+        layout_size_in_bytes: u64,
+        field_index: usize,
+    ) -> bool {
+        let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
+            return false;
+        };
+        let current_field_end = current_field_span
+            .offset_in_bytes
+            .saturating_add(current_field_span.size_in_bytes);
+        let Some(next_field_span) = Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Down) else {
+            if layout_size_in_bytes > current_field_end {
+                return Self::set_field_static_offset(draft, field_index, layout_size_in_bytes.saturating_sub(current_field_span.size_in_bytes));
+            }
+
+            return false;
+        };
+
+        if current_field_end < next_field_span.offset_in_bytes {
+            return Self::set_field_static_offset(
+                draft,
+                field_index,
+                next_field_span
+                    .offset_in_bytes
+                    .saturating_sub(current_field_span.size_in_bytes),
+            );
+        }
+
+        let moved_next_offset = current_field_span.offset_in_bytes;
+        let moved_current_offset = current_field_span
+            .offset_in_bytes
+            .saturating_add(next_field_span.size_in_bytes);
+        Self::set_field_static_offset(draft, next_field_span.field_position, moved_next_offset)
+            && Self::set_field_static_offset(draft, field_index, moved_current_offset)
+    }
+
+    fn can_move_static_field_up(
+        field_spans: &[SymbolLayoutFieldSpan],
+        field_index: usize,
+    ) -> bool {
+        Self::resolve_field_span_by_position(field_spans, field_index)
+            .and_then(|current_field_span| Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Up))
+            .is_some()
+    }
+
+    fn can_move_static_field_down(
+        field_spans: &[SymbolLayoutFieldSpan],
+        layout_size_in_bytes: u64,
+        field_index: usize,
+    ) -> bool {
+        let Some(current_field_span) = Self::resolve_field_span_by_position(field_spans, field_index) else {
+            return false;
+        };
+        let current_field_end = current_field_span
+            .offset_in_bytes
+            .saturating_add(current_field_span.size_in_bytes);
+
+        Self::resolve_adjacent_field_span(field_spans, current_field_span, ListNavigationDirection::Down).is_some() || layout_size_in_bytes > current_field_end
     }
 
     fn move_unassigned_span_up(
@@ -636,9 +791,6 @@ impl SymbolLayoutEditorView {
                     field_draft
                         .data_type_selection
                         .replace_selected_data_types(vec![replacement_data_type_ref]);
-                }
-                if field_draft.field_name.trim().is_empty() {
-                    field_draft.field_name = format!("Variant {}", field_position + 1);
                 }
                 field_draft.container_edit = Default::default();
                 field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Sequential;
@@ -2102,14 +2254,11 @@ impl SymbolLayoutEditorView {
             SymbolLayoutEditorViewData::hide_field_context_menu(self.symbol_layout_editor_view_data.clone());
         }
 
-        let field_name = if field_draft.field_name.trim().is_empty() {
-            if layout_kind.is_union() {
-                format!("Variant {}", field_index + 1)
-            } else {
-                format!("Field {}", field_index + 1)
-            }
+        let trimmed_field_name = field_draft.field_name.trim();
+        let field_name = if trimmed_field_name.is_empty() {
+            String::from("<unnamed>")
         } else {
-            field_draft.field_name.trim().to_string()
+            trimmed_field_name.to_string()
         };
         let data_type_ref = field_draft.data_type_selection.visible_data_type();
         let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &theme.icon_library);
@@ -2658,6 +2807,15 @@ impl SymbolLayoutEditorView {
                     .collect::<std::collections::HashMap<usize, SymbolLayoutFieldSpan>>()
             })
             .unwrap_or_default();
+        let mut field_render_indices = (0..field_count).collect::<Vec<_>>();
+        if !layout_kind.is_union() && !field_spans_by_position.is_empty() {
+            field_render_indices.sort_by_key(|field_index| {
+                field_spans_by_position
+                    .get(field_index)
+                    .map(|field_span| (field_span.offset_in_bytes, field_span.field_position))
+                    .unwrap_or((u64::MAX, *field_index))
+            });
+        }
         let unassigned_split_offsets = self
             .symbol_layout_editor_view_data
             .read("SymbolLayoutEditor unassigned split offsets")
@@ -2670,7 +2828,7 @@ impl SymbolLayoutEditorView {
         let mut next_visible_offset = 0_u64;
         let mut previous_visible_field = None;
 
-        for field_index in 0..field_count {
+        for field_index in field_render_indices {
             let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
                 continue;
             };
@@ -2711,8 +2869,18 @@ impl SymbolLayoutEditorView {
                     size_in_bytes: field_span.size_in_bytes,
                 });
             }
-            let can_move_up = field_index > 0;
-            let can_move_down = field_index + 1 < field_count;
+            let field_uses_static_offset = field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static;
+            let (can_move_up, can_move_down) = if !layout_kind.is_union()
+                && field_uses_static_offset
+                && let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref()
+            {
+                (
+                    Self::can_move_static_field_up(field_spans, field_index),
+                    Self::can_move_static_field_down(field_spans, *layout_size_in_bytes, field_index),
+                )
+            } else {
+                (field_index > 0, field_index + 1 < field_count)
+            };
             if let Some(field_row_action) = self.render_field_editor_section(
                 user_interface,
                 layout_kind,
@@ -2804,6 +2972,7 @@ impl SymbolLayoutEditorView {
                         unassigned_row_context.offset_in_bytes,
                     );
                     field_draft.field_name = format!("field_{:08X}", unassigned_row_context.offset_in_bytes);
+                    field_draft.field_name = Self::build_unique_field_name(draft, &field_draft.field_name);
                     SymbolLayoutEditorViewData::begin_define_field_from_unassigned_span(
                         self.symbol_layout_editor_view_data.clone(),
                         draft.layout_id.clone(),
@@ -2926,7 +3095,8 @@ impl SymbolLayoutEditorView {
             match field_row_action {
                 SymbolLayoutFieldRowAction::InsertAfter => {
                     let insert_index = field_index.saturating_add(1).min(draft.field_drafts.len());
-                    let field_draft = self.create_field_draft_for_layout_kind(project_symbol_catalog, draft.layout_kind, &draft.layout_id, insert_index);
+                    let mut field_draft = self.create_field_draft_for_layout_kind(project_symbol_catalog, draft.layout_kind, &draft.layout_id, insert_index);
+                    field_draft.field_name = Self::build_unique_field_name(draft, &field_draft.field_name);
                     draft.field_drafts.insert(insert_index, field_draft);
                     field_index_to_focus = Some(insert_index);
                 }
@@ -2939,13 +3109,33 @@ impl SymbolLayoutEditorView {
                     field_index_to_focus = Some(field_index);
                 }
                 SymbolLayoutFieldRowAction::MoveUp => {
-                    if field_index > 0 {
+                    let field_uses_static_offset = draft
+                        .field_drafts
+                        .get(field_index)
+                        .is_some_and(|field_draft| field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static);
+                    if !draft.layout_kind.is_union() && field_uses_static_offset {
+                        if let Some((_layout_size_in_bytes, field_spans)) = field_spans.as_ref()
+                            && Self::move_static_field_up(draft, field_spans, field_index)
+                        {
+                            field_index_to_focus = Some(field_index);
+                        }
+                    } else if field_index > 0 {
                         draft.field_drafts.swap(field_index, field_index - 1);
                         field_index_to_focus = Some(field_index - 1);
                     }
                 }
                 SymbolLayoutFieldRowAction::MoveDown => {
-                    if field_index + 1 < draft.field_drafts.len() {
+                    let field_uses_static_offset = draft
+                        .field_drafts
+                        .get(field_index)
+                        .is_some_and(|field_draft| field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static);
+                    if !draft.layout_kind.is_union() && field_uses_static_offset {
+                        if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref()
+                            && Self::move_static_field_down(draft, field_spans, *layout_size_in_bytes, field_index)
+                        {
+                            field_index_to_focus = Some(field_index);
+                        }
+                    } else if field_index + 1 < draft.field_drafts.len() {
                         draft.field_drafts.swap(field_index, field_index + 1);
                         field_index_to_focus = Some(field_index + 1);
                     }
@@ -3136,8 +3326,9 @@ impl SymbolLayoutEditorView {
 
         if should_append_field {
             let field_index_to_focus = edited_draft.field_drafts.len();
-            let field_draft =
+            let mut field_draft =
                 self.create_field_draft_for_layout_kind(project_symbol_catalog, edited_draft.layout_kind, &edited_draft.layout_id, field_index_to_focus);
+            field_draft.field_name = Self::build_unique_field_name(&edited_draft, &field_draft.field_name);
             edited_draft.field_drafts.push(field_draft);
             SymbolLayoutEditorViewData::select_field(self.symbol_layout_editor_view_data.clone(), field_index_to_focus);
             self.focus_field_in_struct_viewer(project_symbol_catalog, &edited_draft, field_index_to_focus);
@@ -3446,12 +3637,12 @@ impl SymbolLayoutEditorView {
             .get(field_index)
             .map(|field_draft| {
                 if field_draft.field_name.trim().is_empty() {
-                    format!("Field {}", field_index + 1)
+                    String::from("<unnamed>")
                 } else {
                     field_draft.field_name.trim().to_string()
                 }
             })
-            .unwrap_or_else(|| format!("Field {}", field_index + 1));
+            .unwrap_or_else(|| String::from("<unnamed>"));
 
         let mut should_cancel_delete = false;
         let mut should_delete_field = false;
@@ -3640,6 +3831,74 @@ mod tests {
         assert_eq!(updated_unassigned_selection.get_size_in_bytes(), 12);
         assert_eq!(draft.field_drafts[1].offset_mode, SymbolLayoutFieldOffsetMode::Static);
         assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "4");
+    }
+
+    #[test]
+    fn move_static_field_down_over_gap_places_field_before_next_field() {
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                create_static_field_draft("field_a", 0),
+                create_static_field_draft("field_b", 16),
+            ],
+        };
+        let field_spans = [
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 16,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert!(SymbolLayoutEditorView::move_static_field_down(&mut draft, &field_spans, 32, 0));
+
+        assert_eq!(draft.field_drafts[0].field_name, "field_a");
+        assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "12");
+        assert_eq!(draft.field_drafts[1].field_name, "field_b");
+        assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "16");
+    }
+
+    #[test]
+    fn move_static_field_down_swaps_contiguous_neighbor_offsets() {
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("8"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                create_static_field_draft("field_a", 0),
+                create_static_field_draft("field_b", 4),
+            ],
+        };
+        let field_spans = [
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 4,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert!(SymbolLayoutEditorView::move_static_field_down(&mut draft, &field_spans, 8, 0));
+
+        assert_eq!(draft.field_drafts[0].field_name, "field_a");
+        assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "4");
+        assert_eq!(draft.field_drafts[1].field_name, "field_b");
+        assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "0");
     }
 
     #[test]

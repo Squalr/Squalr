@@ -994,13 +994,16 @@ impl SymbolLayoutEditorViewData {
         }
         let default_size_in_bytes = Self::resolve_primitive_data_type_size_in_bytes(default_data_type_ref.get_data_type_id()).unwrap_or(1);
 
+        let mut field_draft = SymbolLayoutFieldEditDraft::new(default_data_type_ref);
+        field_draft.field_name = String::from("field_1");
+
         SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: proposed_layout_id,
             layout_kind: SymbolicLayoutKind::Struct,
             size_text: default_size_in_bytes.to_string(),
             size_format: AnonymousValueStringFormat::Decimal,
-            field_drafts: vec![SymbolLayoutFieldEditDraft::new(default_data_type_ref)],
+            field_drafts: vec![field_draft],
         }
     }
 
@@ -1042,7 +1045,10 @@ impl SymbolLayoutEditorViewData {
             let display_count_resolution = field_draft.container_edit.to_display_count_resolution()?;
             let offset_resolution = field_draft.to_offset_resolution()?;
             let trimmed_field_name = field_draft.field_name.trim().to_string();
-            if !trimmed_field_name.is_empty() && !field_names.insert(trimmed_field_name.clone()) {
+            if trimmed_field_name.is_empty() {
+                return Err(String::from("Each field needs a name."));
+            }
+            if !field_names.insert(trimmed_field_name.clone()) {
                 return Err(format!("Field name `{}` is already used in this layout.", trimmed_field_name));
             }
 
@@ -1559,6 +1565,13 @@ mod tests {
                 .get_data_type_id()),
             Some(DataTypeI32::DATA_TYPE_ID)
         );
+        assert_eq!(
+            draft
+                .field_drafts
+                .first()
+                .map(|field_draft| field_draft.field_name.as_str()),
+            Some("field_1")
+        );
     }
 
     #[test]
@@ -1947,6 +1960,27 @@ mod tests {
         let result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft);
 
         assert!(result.is_err_and(|error| error.contains("Dynamic array count resolver")));
+    }
+
+    #[test]
+    fn build_symbol_layout_descriptor_rejects_empty_field_names() {
+        let project_symbol_catalog = ProjectSymbolCatalog::default();
+        let draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("timer.state"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("4"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![create_field_draft(
+                "",
+                "u32",
+                SymbolLayoutFieldContainerEdit::default(),
+            )],
+        };
+
+        let result = SymbolLayoutEditorViewData::build_symbol_layout_descriptor(&project_symbol_catalog, &draft);
+
+        assert!(result.is_err_and(|error| error.contains("Each field needs a name")));
     }
 
     #[test]
