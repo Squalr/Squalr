@@ -318,7 +318,7 @@ where
                 offset_locator,
             )
         },
-        &SymbolicStructResolverOptions::default(),
+        &SymbolicStructResolverOptions::default().with_evaluate_union_variant_activations(false),
     );
 
     for (field_definition, resolved_symbolic_field) in struct_layout_definition
@@ -406,6 +406,7 @@ mod tests {
             symbolic_struct_definition::SymbolicStructDefinition,
         },
     };
+    use std::cell::Cell;
     use std::str::FromStr;
 
     #[test]
@@ -642,6 +643,59 @@ mod tests {
             Err(SymbolicResolverEvaluationError::UnknownRelativeSymbolPath(symbol_path))
                 if symbol_path.contains("Resolver cycle detected at `game.exe.GlobalsA.value`")
         ));
+    }
+
+    #[test]
+    fn global_symbol_resolver_skips_union_active_rules_for_path_lookup() {
+        let session = SymbolicGlobalSymbolResolverSession::default();
+        let payload_definition = SymbolicStructDefinition::new_union(
+            String::from("Payload"),
+            vec![
+                SymbolicFieldDefinition::from_str("as_u32:u32 active resolver(should_not_eval)").expect("Expected u32 variant field to parse."),
+                SymbolicFieldDefinition::from_str("as_u16:u16 active resolver(should_not_eval)").expect("Expected u16 variant field to parse."),
+            ],
+        );
+        let resolver_lookup_count = Cell::new(0_usize);
+
+        let value = resolve_global_symbol_field_value(
+            &session,
+            "game.exe",
+            &SymbolicResolverRelativeSymbolPath::from_dot_path("Payload.as_u32"),
+            &|module_name, root_symbol_name| {
+                if module_name == "game.exe" && root_symbol_name == "Payload" {
+                    vec![SymbolicGlobalSymbolRoot::new(
+                        0x1000_u64,
+                        SymbolicGlobalSymbolRootType::Struct {
+                            struct_layout_definition: payload_definition.clone(),
+                        },
+                    )]
+                } else {
+                    Vec::new()
+                }
+            },
+            &|data_type_ref| match data_type_ref.get_data_type_id() {
+                "u16" => Some(2),
+                "u32" => Some(4),
+                _ => None,
+            },
+            &|field_address, field_definition, _| {
+                if *field_address == 0x1000 && field_definition.get_field_name() == "as_u32" {
+                    Ok(Some(7))
+                } else {
+                    Ok(None)
+                }
+            },
+            &|resolver_id| {
+                resolver_lookup_count.set(resolver_lookup_count.get().saturating_add(1));
+                (resolver_id == "should_not_eval").then(|| SymbolicResolverDefinition::new(SymbolicResolverNode::new_literal(1)))
+            },
+            &|_| None,
+            &|base_address, offset| base_address.saturating_add(offset),
+        )
+        .expect("Expected global union scalar path to resolve.");
+
+        assert_eq!(value, 7);
+        assert_eq!(resolver_lookup_count.get(), 0);
     }
 
     fn resolve_test_type_size(data_type_ref: &DataTypeRef) -> Option<u64> {

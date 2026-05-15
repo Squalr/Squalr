@@ -149,17 +149,31 @@ pub enum ResolvedSymbolicFieldStatus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SymbolicStructResolverOptions {
     max_dynamic_array_preview_elements: u64,
+    evaluate_union_variant_activations: bool,
 }
 
 impl SymbolicStructResolverOptions {
     pub fn new(max_dynamic_array_preview_elements: u64) -> Self {
         Self {
             max_dynamic_array_preview_elements,
+            evaluate_union_variant_activations: true,
         }
     }
 
     pub fn get_max_dynamic_array_preview_elements(&self) -> u64 {
         self.max_dynamic_array_preview_elements
+    }
+
+    pub fn get_evaluate_union_variant_activations(&self) -> bool {
+        self.evaluate_union_variant_activations
+    }
+
+    pub fn with_evaluate_union_variant_activations(
+        mut self,
+        evaluate_union_variant_activations: bool,
+    ) -> Self {
+        self.evaluate_union_variant_activations = evaluate_union_variant_activations;
+        self
     }
 }
 
@@ -394,17 +408,21 @@ where
     let mut resolved_fields = Vec::new();
     let mut did_update_scalar_value = false;
     let mut next_sequential_offset = 0_u64;
-    let variant_activations = resolve_union_variant_activations(
-        symbolic_struct_definition,
-        scalar_values_by_field_name,
-        resolve_type_size_in_bytes,
-        read_scalar_field,
-        resolve_resolver_definition,
-        resolve_struct_definition,
-        resolve_global_symbol_field,
-        resolve_relative_pointer_chain,
-        resolve_global_pointer_chain,
-    );
+    let variant_activations = if options.get_evaluate_union_variant_activations() {
+        resolve_union_variant_activations(
+            symbolic_struct_definition,
+            scalar_values_by_field_name,
+            resolve_type_size_in_bytes,
+            read_scalar_field,
+            resolve_resolver_definition,
+            resolve_struct_definition,
+            resolve_global_symbol_field,
+            resolve_relative_pointer_chain,
+            resolve_global_pointer_chain,
+        )
+    } else {
+        inactive_union_variant_activations(symbolic_struct_definition)
+    };
 
     for (field_definition, variant_activation) in symbolic_struct_definition
         .get_fields()
@@ -597,6 +615,20 @@ where
             Some(Ok(false)) => ResolvedSymbolicFieldVariantActivation::Inactive,
             Some(Err(reason)) => ResolvedSymbolicFieldVariantActivation::Unresolved { reason },
         })
+        .collect()
+}
+
+fn inactive_union_variant_activations(root_struct_definition: &SymbolicStructDefinition) -> Vec<ResolvedSymbolicFieldVariantActivation> {
+    let inactive_variant_activation = if root_struct_definition.get_layout_kind().is_union() {
+        ResolvedSymbolicFieldVariantActivation::Unspecified
+    } else {
+        ResolvedSymbolicFieldVariantActivation::NotApplicable
+    };
+
+    root_struct_definition
+        .get_fields()
+        .iter()
+        .map(|_| inactive_variant_activation.clone())
         .collect()
 }
 
