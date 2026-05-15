@@ -4,7 +4,11 @@ use crate::{
         converters::data_type_to_icon_converter::DataTypeToIconConverter,
         geometry::{safe_clamp_f32, safe_clamp_ord},
         list_navigation::ListNavigationDirection,
-        widgets::controls::{context_menu::context_menu::ContextMenu, groupbox::GroupBox, toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView},
+        widgets::controls::{
+            context_menu::context_menu::{ContextMenu, ContextMenuSizing},
+            groupbox::GroupBox,
+            toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
+        },
     },
     views::code_viewer::{code_viewer_view::CodeViewerView, view_data::code_viewer_view_data::CodeViewerViewData},
     views::context_menu_labels::{OPEN_IN_CODE_VIEWER_LABEL, OPEN_IN_MEMORY_VIEWER_LABEL},
@@ -533,24 +537,6 @@ mod tests {
         );
 
         assert!(should_apply_struct_field_edit);
-    }
-
-    #[test]
-    fn project_item_menu_width_respects_minimum_width_for_short_labels() {
-        assert_eq!(
-            ProjectHierarchyView::project_item_menu_width_from_longest_label_width(0.0),
-            ProjectHierarchyView::MIN_PROJECT_ITEM_MENU_WIDTH,
-        );
-    }
-
-    #[test]
-    fn project_item_menu_width_grows_for_wider_labels() {
-        let longest_label_width = 200.0;
-
-        assert_eq!(
-            ProjectHierarchyView::project_item_menu_width_from_longest_label_width(longest_label_width),
-            236.0,
-        );
     }
 
     #[test]
@@ -1529,10 +1515,10 @@ impl Widget for ProjectHierarchyView {
                                         if has_delete_actions {
                                             project_item_menu_labels.push(Self::PROJECT_ITEM_CTX_DELETE_LABEL);
                                         }
-                                        let project_item_menu_width = Self::calculate_project_item_menu_width(
+                                        let project_item_menu_width = ContextMenuSizing::width_for_labels(
                                             self.app_context.as_ref(),
                                             user_interface,
-                                            &project_item_menu_labels,
+                                            project_item_menu_labels.iter().copied(),
                                         );
                                         ContextMenu::new(
                                             self.app_context.clone(),
@@ -2521,8 +2507,6 @@ impl ProjectHierarchyView {
     const MIN_PROJECT_READ_INTERVAL_MS: u64 = 50;
     const MAX_PROJECT_READ_INTERVAL_MS: u64 = 5_000;
     const SCAN_SETTINGS_SYNC_INTERVAL_MS: u64 = 1_000;
-    const MIN_PROJECT_ITEM_MENU_WIDTH: f32 = 160.0;
-    const PROJECT_ITEM_MENU_ITEM_HORIZONTAL_PADDING: f32 = 36.0;
     const DROP_INSERTION_BAND_HEIGHT: f32 = 7.0;
     const PROJECT_ITEM_ROW_HEIGHT: f32 = 28.0;
     const PROJECT_ITEM_PREVIEW_VIRTUAL_SNAPSHOT_ID: &str = "project_hierarchy_preview";
@@ -2548,7 +2532,8 @@ impl ProjectHierarchyView {
             Self::PROJECT_ITEM_CTX_NEW_ADDRESS_LABEL,
             Self::PROJECT_ITEM_CTX_NEW_FOLDER_LABEL,
         ];
-        let project_item_menu_width = Self::calculate_project_item_menu_width(self.app_context.as_ref(), user_interface, &create_project_item_menu_labels);
+        let project_item_menu_width =
+            ContextMenuSizing::width_for_labels(self.app_context.as_ref(), user_interface, create_project_item_menu_labels.iter().copied());
         let mut open = true;
         ContextMenu::new(
             self.app_context.clone(),
@@ -2618,38 +2603,6 @@ impl ProjectHierarchyView {
                 *should_close = true;
             }
         }
-    }
-
-    fn calculate_project_item_menu_width(
-        app_context: &AppContext,
-        user_interface: &mut Ui,
-        item_labels: &[&str],
-    ) -> f32 {
-        let mut longest_label_width: f32 = 0.0;
-
-        user_interface.ctx().fonts_mut(|fonts| {
-            for item_label in item_labels {
-                let galley = fonts.layout_no_wrap(
-                    (*item_label).to_string(),
-                    app_context
-                        .theme
-                        .font_library
-                        .font_noto_sans
-                        .font_normal
-                        .clone(),
-                    app_context.theme.foreground,
-                );
-                longest_label_width = longest_label_width.max(galley.size().x);
-            }
-        });
-
-        Self::project_item_menu_width_from_longest_label_width(longest_label_width)
-    }
-
-    fn project_item_menu_width_from_longest_label_width(longest_label_width: f32) -> f32 {
-        (longest_label_width + Self::PROJECT_ITEM_MENU_ITEM_HORIZONTAL_PADDING)
-            .ceil()
-            .max(Self::MIN_PROJECT_ITEM_MENU_WIDTH)
     }
 
     fn resolve_drop_target(

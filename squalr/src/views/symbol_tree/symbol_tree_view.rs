@@ -2,8 +2,13 @@ use crate::app_context::AppContext;
 use crate::ui::converters::{data_type_to_icon_converter::DataTypeToIconConverter, data_type_to_string_converter::DataTypeToStringConverter};
 use crate::ui::list_navigation::{ListNavigationDirection, resolve_next_index};
 use crate::ui::widgets::controls::{
-    button::Button as ThemeButton, combo_box::combo_box_item_view::ComboBoxItemView, combo_box::combo_box_view::ComboBoxView,
-    context_menu::context_menu::ContextMenu, data_value_box::data_value_box_view::DataValueBoxView, groupbox::GroupBox, search_box::SearchBoxView,
+    button::Button as ThemeButton,
+    combo_box::combo_box_item_view::ComboBoxItemView,
+    combo_box::combo_box_view::ComboBoxView,
+    context_menu::context_menu::{ContextMenu, ContextMenuSizing},
+    data_value_box::data_value_box_view::DataValueBoxView,
+    groupbox::GroupBox,
+    search_box::SearchBoxView,
     toolbar_menu::toolbar_menu_item_view::ToolbarMenuItemView,
 };
 use crate::views::{
@@ -2531,32 +2536,6 @@ impl SymbolTreeView {
         SymbolTreeViewData::set_define_field_draft(self.symbol_tree_view_data.clone(), edited_define_field_draft);
     }
 
-    fn calculate_symbol_tree_context_menu_width(
-        app_context: &AppContext,
-        user_interface: &mut Ui,
-        item_labels: &[String],
-    ) -> f32 {
-        let mut longest_label_width: f32 = 0.0;
-
-        user_interface.ctx().fonts_mut(|fonts| {
-            for item_label in item_labels {
-                let galley = fonts.layout_no_wrap(
-                    item_label.to_string(),
-                    app_context
-                        .theme
-                        .font_library
-                        .font_noto_sans
-                        .font_normal
-                        .clone(),
-                    app_context.theme.foreground,
-                );
-                longest_label_width = longest_label_width.max(galley.size().x);
-            }
-        });
-
-        ToolbarMenuItemView::row_width_from_text_width(longest_label_width).ceil()
-    }
-
     fn build_symbol_tree_action_context(symbol_tree_entry: &SymbolTreeNode) -> SymbolTreeActionContext {
         match symbol_tree_entry.get_kind() {
             SymbolTreeNodeKind::ModuleSpace { module_name, .. } => SymbolTreeActionContext::new(SymbolTreeActionSelection::ModuleRoot {
@@ -2925,7 +2904,8 @@ impl SymbolTreeView {
                 if can_delete_symbol_tree_entry {
                     context_menu_labels.push(Self::SYMBOL_TREE_CTX_DELETE_LABEL.to_string());
                 }
-                let context_menu_width = Self::calculate_symbol_tree_context_menu_width(self.app_context.as_ref(), user_interface, &context_menu_labels);
+                let context_menu_width =
+                    ContextMenuSizing::width_for_labels(self.app_context.as_ref(), user_interface, context_menu_labels.iter().map(String::as_str));
                 let mut is_context_menu_open = true;
 
                 ContextMenu::new(

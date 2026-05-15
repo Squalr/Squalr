@@ -62,6 +62,7 @@ Our current task, from `README.md`, is:
 - Renamed the GUI Symbol Tree internals away from the stale explorer naming, including module paths, view/data types, toolbar types, window IDs, focus targets, tests, and task-log references. Needs human verification in the GUI.
 - Moved the shared Symbol Tree data model out of the GUI crate into `squalr-engine-api::structures::projects::symbol_tree`. The GUI now renders `SymbolTreeNode`s from the shared `SymbolTree` projection while keeping only entry-view rendering and UI state locally. Needs human verification in the GUI.
 - Moved Symbol Tree semantic operations into `squalr-engine-api::structures::projects::symbol_tree::operations`, split by add-to-project, define-field, delete-symbol, and edit-symbol-layout concerns. The GUI now adapts local view drafts/selection into shared operation calls instead of owning those command/model decisions. Needs human verification in the GUI.
+- Moved shared context-menu width measurement into `ContextMenuSizing` so Symbol Tree and Project Hierarchy context menus use the widget-level sizing utility instead of hand-rolled view-local measurement. Needs human verification in the GUI.
 
 ## Important Information
 
@@ -110,3 +111,4 @@ Our current task, from `README.md`, is:
 - Symbol Tree internal rename validation ran `cargo fmt --all`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, a stale explorer-name search across `squalr`, `docs`, and `AGENTS_CURRENT_TASK.md`, and `git diff --check`.
 - Shared Symbol Tree model extraction validation ran `cargo fmt --all`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, stale GUI-owned model import searches, and `git diff --check`.
 - Symbol Tree operations extraction validation ran `cargo fmt --all`, `cargo test -p squalr-engine-api symbol_tree --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr struct_viewer --lib --locked`, operation/helper searches, and `git diff --check`.
+- Context menu sizing utility validation ran `cargo fmt --all`, `cargo test -p squalr context_menu --lib --locked`, `cargo test -p squalr symbol_tree --lib --locked`, `cargo test -p squalr project_hierarchy --lib --locked`, and `git diff --check`.
