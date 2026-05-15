@@ -123,7 +123,7 @@ impl<'lifetime, F: FnOnce(&mut Ui)> Widget for GroupBox<'lifetime, F> {
         let outer_rectangle = Rect::from_min_size(origin, vec2(target_width, outer_height));
 
         // Allocate the exact rect so parent layouts know our true footprint.
-        let response = user_interface.allocate_rect(outer_rectangle, Sense::empty());
+        let response = user_interface.allocate_rect(outer_rectangle, Sense::hover());
 
         // Paint everything relative to 'outer_rect'.
         if user_interface.is_rect_visible(outer_rectangle) {
