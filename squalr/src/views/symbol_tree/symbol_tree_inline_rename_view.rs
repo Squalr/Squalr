@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::{draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-    views::symbol_explorer::view_data::symbol_tree_entry::SymbolTreeEntry,
+    views::symbol_tree::view_data::symbol_tree_entry::SymbolTreeEntry,
 };
 use eframe::egui::{
     Id, Key, Rect, Response, Sense, TextEdit, Ui, UiBuilder, Widget, pos2,
@@ -110,7 +110,7 @@ impl<'lifetime> SymbolTreeInlineRenameView<'lifetime> {
             ),
             pos2(allocated_size_rectangle.max.x - right_preview_padding, allocated_size_rectangle.max.y - 3.0),
         );
-        let text_edit_id = Id::new(("symbol_explorer_inline_rename_editor", self.symbol_locator_key));
+        let text_edit_id = Id::new(("symbol_tree_inline_rename_editor", self.symbol_locator_key));
         let mut text_edit_user_interface = user_interface.new_child(UiBuilder::new().max_rect(text_rect));
         text_edit_user_interface.set_clip_rect(text_rect);
         let mut output = TextEdit::singleline(self.rename_text)

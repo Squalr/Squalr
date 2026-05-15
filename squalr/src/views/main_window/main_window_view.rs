@@ -20,9 +20,9 @@ use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
 use crate::views::struct_viewer::view_data::struct_viewer_view_data::StructViewerViewData;
-use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
 use crate::views::symbol_layout_editor::symbol_layout_editor_view::SymbolLayoutEditorView;
 use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
+use crate::views::symbol_tree::symbol_tree_view::SymbolTreeView;
 use eframe::egui::{Align, Context, Id, Layout, ResizeDirection, Response, Sense, Ui, ViewportCommand, Widget, vec2};
 use epaint::CornerRadius;
 use epaint::{Rect, pos2};
@@ -148,13 +148,13 @@ impl MainWindowView {
             Rc::new("window_project_explorer".to_string()),
         );
 
-        let app_context_for_symbol_explorer = app_context.clone();
-        let symbol_explorer_view = DockedWindowView::new(
-            app_context_for_symbol_explorer.clone(),
+        let app_context_for_symbol_tree = app_context.clone();
+        let symbol_tree_view = DockedWindowView::new(
+            app_context_for_symbol_tree.clone(),
             dock_view_data.clone(),
-            SymbolExplorerView::new(app_context_for_symbol_explorer.clone()),
+            SymbolTreeView::new(app_context_for_symbol_tree.clone()),
             Rc::new("Symbol Tree".to_string()),
-            Rc::new(SymbolExplorerView::WINDOW_ID.to_string()),
+            Rc::new(SymbolTreeView::WINDOW_ID.to_string()),
         );
 
         let app_context_for_process_selector = app_context.clone();
@@ -202,7 +202,7 @@ impl MainWindowView {
             Box::new(memory_viewer_view),
             Box::new(code_viewer_view),
             Box::new(project_explorer_view),
-            Box::new(symbol_explorer_view),
+            Box::new(symbol_tree_view),
             Box::new(process_selector_view),
             Box::new(element_scanner_view),
             Box::new(pointer_scanner_view),

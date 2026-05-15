@@ -13,9 +13,9 @@ use crate::views::process_selector::process_selector_view::ProcessSelectorView;
 use crate::views::project_explorer::project_explorer_view::ProjectExplorerView;
 use crate::views::settings::settings_view::SettingsView;
 use crate::views::struct_viewer::struct_viewer_view::StructViewerView;
-use crate::views::symbol_explorer::symbol_explorer_view::SymbolExplorerView;
 use crate::views::symbol_layout_editor::symbol_layout_editor_view::SymbolLayoutEditorView;
 use crate::views::symbol_resolver_editor::symbol_resolver_editor_view::SymbolResolverEditorView;
+use crate::views::symbol_tree::symbol_tree_view::SymbolTreeView;
 use crate::{app_context::AppContext, models::docking::settings::dockable_window_settings::DockSettingsConfig};
 use eframe::egui::viewport::ViewportCommand;
 use eframe::egui::{Response, Ui, Widget};
@@ -46,7 +46,7 @@ impl MainToolbarView {
         let app_context_for_project_export = app_context.clone();
         let docking_manager_for_process_selector = app_context.docking_manager.clone();
         let docking_manager_for_project_explorer = app_context.docking_manager.clone();
-        let docking_manager_for_symbol_explorer = app_context.docking_manager.clone();
+        let docking_manager_for_symbol_tree = app_context.docking_manager.clone();
         let docking_manager_for_struct_viewer = app_context.docking_manager.clone();
         let docking_manager_for_symbol_layout_editor = app_context.docking_manager.clone();
         let docking_manager_for_symbol_resolver_editor = app_context.docking_manager.clone();
@@ -121,11 +121,11 @@ impl MainToolbarView {
                         })),
                     ),
                     ToolbarMenuItemData::new(
-                        SymbolExplorerView::WINDOW_ID,
+                        SymbolTreeView::WINDOW_ID,
                         "Symbol Tree",
                         Some(Box::new(move || {
-                            if let Ok(docking_manager) = docking_manager_for_symbol_explorer.read() {
-                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolExplorerView::WINDOW_ID) {
+                            if let Ok(docking_manager) = docking_manager_for_symbol_tree.read() {
+                                if let Some(docked_node) = docking_manager.get_node_by_id(SymbolTreeView::WINDOW_ID) {
                                     return Some(docked_node.is_visible());
                                 }
                             }
@@ -326,7 +326,7 @@ impl Widget for MainToolbarView {
             },
             ProcessSelectorView::WINDOW_ID
             | ProjectExplorerView::WINDOW_ID
-            | SymbolExplorerView::WINDOW_ID
+            | SymbolTreeView::WINDOW_ID
             | StructViewerView::WINDOW_ID
             | SymbolLayoutEditorView::WINDOW_ID
             | SymbolResolverEditorView::WINDOW_ID

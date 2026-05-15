@@ -1,7 +1,7 @@
 use crate::{
     app_context::AppContext,
     ui::{converters::data_type_to_icon_converter::DataTypeToIconConverter, draw::icon_draw::IconDraw, widgets::controls::state_layer::StateLayer},
-    views::symbol_explorer::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind},
+    views::symbol_tree::view_data::symbol_tree_entry::{SymbolTreeEntry, SymbolTreeEntryKind},
 };
 use eframe::egui::{Align, Align2, Area, Color32, FontId, Frame, Id, Layout, Order, Rect, Response, RichText, Sense, Ui, Widget, pos2, vec2};
 use epaint::{CornerRadius, Margin, Stroke, StrokeKind};

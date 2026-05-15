@@ -7,17 +7,17 @@ use epaint::{CornerRadius, vec2};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SymbolExplorerToolbarAction {
+pub enum SymbolTreeToolbarAction {
     CreateModuleRoot,
 }
 
 #[derive(Clone)]
-pub struct SymbolExplorerToolbarView {
+pub struct SymbolTreeToolbarView {
     app_context: Arc<AppContext>,
     can_create_module_root: bool,
 }
 
-impl SymbolExplorerToolbarView {
+impl SymbolTreeToolbarView {
     const TOOLBAR_HEIGHT: f32 = 28.0;
     const TOOLBAR_BUTTON_SIZE: f32 = 36.0;
 
@@ -40,7 +40,7 @@ impl SymbolExplorerToolbarView {
     pub fn show(
         self,
         user_interface: &mut Ui,
-    ) -> Option<SymbolExplorerToolbarAction> {
+    ) -> Option<SymbolTreeToolbarAction> {
         let theme = &self.app_context.theme;
         let (toolbar_rect, _toolbar_response) =
             user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::TOOLBAR_HEIGHT), Sense::empty());
@@ -66,7 +66,7 @@ impl SymbolExplorerToolbarView {
             )
             .clicked()
             {
-                clicked_action = Some(SymbolExplorerToolbarAction::CreateModuleRoot);
+                clicked_action = Some(SymbolTreeToolbarAction::CreateModuleRoot);
             }
         });
 
