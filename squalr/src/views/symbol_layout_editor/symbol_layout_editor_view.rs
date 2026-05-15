@@ -50,6 +50,7 @@ use std::{cell::Cell, collections::BTreeSet, str::FromStr, sync::Arc};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutFieldRowAction {
     InsertAfter,
+    InsertFieldIntoVariant,
     RequestRemoveFieldConfirmation,
     MoveUp,
     MoveDown,
@@ -143,7 +144,6 @@ impl SymbolLayoutEditorView {
     const FIELD_ROW_ICON_GAP: f32 = 4.0;
     const FIELD_ROW_PREVIEW_GAP: f32 = 12.0;
     const FIELD_CONTEXT_MENU_WIDTH: f32 = 184.0;
-    const UNION_VARIANT_TREE_INDENT: f32 = 16.0;
     const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_COUNT: usize = 2;
     const DEFINE_FIELD_BUILT_IN_TYPE_ITEM_WIDTH: f32 = 128.0;
     const DEFINE_FIELD_BUILT_IN_TYPE_COLUMN_SPACING: f32 = 4.0;
@@ -642,6 +642,81 @@ impl SymbolLayoutEditorView {
 
         Self::resolve_unassigned_row_after_field(current_field_span, next_field_span, layout_size_in_bytes, split_offsets).is_some()
             || next_field_span.is_some()
+    }
+
+    fn resolve_first_unassigned_offset(
+        field_spans: &[SymbolLayoutFieldSpan],
+        layout_size_in_bytes: u64,
+    ) -> Option<u64> {
+        let mut sorted_field_spans = field_spans.to_vec();
+        sorted_field_spans.sort_by_key(|field_span| (field_span.offset_in_bytes, field_span.field_position));
+
+        let mut next_visible_offset = 0_u64;
+        for field_span in sorted_field_spans {
+            if field_span.offset_in_bytes > next_visible_offset {
+                return Some(next_visible_offset);
+            }
+            next_visible_offset = next_visible_offset.max(
+                field_span
+                    .offset_in_bytes
+                    .saturating_add(field_span.size_in_bytes),
+            );
+        }
+
+        (next_visible_offset < layout_size_in_bytes).then_some(next_visible_offset)
+    }
+
+    fn append_field_to_variant_layout(
+        &self,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        union_draft: &SymbolLayoutEditDraft,
+        variant_index: usize,
+    ) -> bool {
+        let Some(variant_field_draft) = union_draft.field_drafts.get(variant_index) else {
+            return false;
+        };
+        let variant_layout_id = variant_field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id();
+        let Some(variant_layout_descriptor) = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)
+        else {
+            return false;
+        };
+
+        let mut variant_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(variant_layout_descriptor);
+        variant_draft.size_text = union_draft.size_text.clone();
+        variant_draft.size_format = union_draft.size_format;
+
+        let Some((layout_size_in_bytes, field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
+            return false;
+        };
+        let Some(field_offset_in_bytes) = Self::resolve_first_unassigned_offset(&field_spans, layout_size_in_bytes) else {
+            return false;
+        };
+
+        let field_position = variant_draft.field_drafts.len();
+        let mut field_draft =
+            self.create_field_draft_for_layout_kind(project_symbol_catalog, SymbolicLayoutKind::Struct, &variant_draft.layout_id, field_position);
+        field_draft.field_name = format!("field_{:08X}", field_offset_in_bytes);
+        field_draft.field_name = Self::build_unique_field_name(&variant_draft, &field_draft.field_name);
+        field_draft.offset_mode = SymbolLayoutFieldOffsetMode::Static;
+        field_draft.static_offset_in_bytes = field_offset_in_bytes.to_string();
+        variant_draft.field_drafts.push(field_draft);
+
+        match SymbolLayoutEditorViewData::apply_draft_to_catalog(project_symbol_catalog, &variant_draft) {
+            Ok(updated_project_symbol_catalog) => {
+                self.persist_project_symbol_catalog(updated_project_symbol_catalog);
+                true
+            }
+            Err(error) => {
+                log::error!("Failed to add field to union variant layout `{}`: {}.", variant_layout_id, error);
+                false
+            }
+        }
     }
 
     fn move_unassigned_span_up(
@@ -2316,29 +2391,8 @@ impl SymbolLayoutEditorView {
         let data_type_ref = field_draft.data_type_selection.visible_data_type();
         let data_type_icon = DataTypeToIconConverter::convert_data_type_to_icon(data_type_ref.get_data_type_id(), &theme.icon_library);
         let icon_size = vec2(Self::FIELD_ROW_ICON_SIZE, Self::FIELD_ROW_ICON_SIZE);
-        let tree_indent = if layout_kind.is_union() {
-            let tree_x = row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING;
-            let tree_mid_y = row_rect.center().y;
-            let tree_stroke = Stroke::new(1.0, theme.background_control_secondary_dark);
-            user_interface.painter().line_segment(
-                [
-                    pos2(tree_x, if can_move_up { row_rect.min.y } else { tree_mid_y }),
-                    pos2(tree_x, if can_move_down { row_rect.max.y } else { tree_mid_y }),
-                ],
-                tree_stroke,
-            );
-            user_interface
-                .painter()
-                .line_segment([pos2(tree_x, tree_mid_y), pos2(tree_x + 10.0, tree_mid_y)], tree_stroke);
-            Self::UNION_VARIANT_TREE_INDENT
-        } else {
-            0.0
-        };
         let icon_rect = Rect::from_min_size(
-            pos2(
-                row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING + tree_indent,
-                row_rect.center().y - icon_size.y * 0.5,
-            ),
+            pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y - icon_size.y * 0.5),
             icon_size,
         );
         IconDraw::draw_sized_tinted(user_interface, icon_rect.center(), icon_size, &data_type_icon, Color32::WHITE);
@@ -2399,6 +2453,112 @@ impl SymbolLayoutEditorView {
                     .clicked()
             })
             .inner
+    }
+
+    fn render_union_variant_preview_row(
+        &self,
+        user_interface: &mut Ui,
+        label_text: &str,
+        preview_text: &str,
+    ) {
+        let theme = &self.app_context.theme;
+        let (row_rect, _) = user_interface.allocate_exact_size(vec2(user_interface.available_width().max(1.0), Self::LIST_ROW_HEIGHT), Sense::hover());
+        let label_position = pos2(row_rect.min.x + Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
+        let preview_position = pos2(row_rect.max.x - Self::FIELD_ROW_LEFT_PADDING, row_rect.center().y);
+
+        user_interface.painter().text(
+            label_position,
+            Align2::LEFT_CENTER,
+            Self::truncate_text_to_width(
+                user_interface,
+                label_text,
+                (row_rect.width() * 0.6).max(0.0),
+                &theme.font_library.font_noto_sans.font_normal,
+                theme.foreground,
+            ),
+            theme.font_library.font_noto_sans.font_normal.clone(),
+            theme.foreground,
+        );
+        user_interface.painter().text(
+            preview_position,
+            Align2::RIGHT_CENTER,
+            Self::truncate_text_to_width(
+                user_interface,
+                preview_text,
+                (row_rect.width() * 0.35).max(0.0),
+                &theme.font_library.font_noto_sans.font_small,
+                theme.foreground_preview,
+            ),
+            theme.font_library.font_noto_sans.font_small.clone(),
+            theme.foreground_preview,
+        );
+    }
+
+    fn render_union_variant_layout_preview(
+        &self,
+        user_interface: &mut Ui,
+        project_symbol_catalog: &ProjectSymbolCatalog,
+        union_size_text: &str,
+        union_size_format: AnonymousValueStringFormat,
+        variant_field_draft: &SymbolLayoutFieldEditDraft,
+    ) {
+        let variant_layout_id = variant_field_draft
+            .data_type_selection
+            .visible_data_type()
+            .get_data_type_id();
+        let Some(variant_layout_descriptor) = project_symbol_catalog
+            .get_struct_layout_descriptors()
+            .iter()
+            .find(|struct_layout_descriptor| struct_layout_descriptor.get_struct_layout_id() == variant_layout_id)
+        else {
+            self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unavailable");
+            return;
+        };
+
+        let mut variant_draft = SymbolLayoutEditorViewData::create_draft_from_descriptor(variant_layout_descriptor);
+        variant_draft.size_text = union_size_text.to_string();
+        variant_draft.size_format = union_size_format;
+
+        let Some((layout_size_in_bytes, mut field_spans)) = self.resolve_draft_field_spans(project_symbol_catalog, &variant_draft) else {
+            self.render_union_variant_preview_row(user_interface, "UNASSIGNED", "variant layout unresolved");
+            return;
+        };
+        field_spans.sort_by_key(|field_span| (field_span.offset_in_bytes, field_span.field_position));
+
+        let mut next_visible_offset = 0_u64;
+        for field_span in field_spans {
+            if field_span.offset_in_bytes > next_visible_offset {
+                let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
+                self.render_union_variant_preview_row(
+                    user_interface,
+                    &format!("UNASSIGNED[{}]", unassigned_size),
+                    &format!("+0x{:X}", next_visible_offset),
+                );
+            }
+
+            if let Some(field_draft) = variant_draft.field_drafts.get(field_span.field_position) {
+                self.render_union_variant_preview_row(
+                    user_interface,
+                    field_draft.field_name.trim(),
+                    &Self::format_field_data_type_preview(field_draft),
+                );
+            }
+
+            next_visible_offset = next_visible_offset.max(
+                field_span
+                    .offset_in_bytes
+                    .saturating_add(field_span.size_in_bytes),
+            );
+        }
+
+        if layout_size_in_bytes > next_visible_offset {
+            let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
+            self.render_union_variant_preview_row(
+                user_interface,
+                &format!("UNASSIGNED[{}]", unassigned_size),
+                &format!("+0x{:X}", next_visible_offset),
+            );
+        }
     }
 
     fn render_field_context_menu(
@@ -2857,6 +3017,8 @@ impl SymbolLayoutEditorView {
 
         if layout_kind.is_union() {
             for field_index in 0..field_count {
+                let union_size_text = draft.size_text.clone();
+                let union_size_format = draft.size_format;
                 let variant_title = draft
                     .field_drafts
                     .get(field_index)
@@ -2885,6 +3047,19 @@ impl SymbolLayoutEditorView {
                             field_index + 1 < field_count,
                         ) {
                             pending_field_row_action = Some((field_index, field_row_action));
+                        }
+                        let variant_field_preview_draft = field_draft.clone();
+                        user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+                        self.render_union_variant_layout_preview(
+                            user_interface,
+                            project_symbol_catalog,
+                            &union_size_text,
+                            union_size_format,
+                            &variant_field_preview_draft,
+                        );
+                        user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+                        if self.render_add_entry_button(user_interface, "Add a new field to this union variant.") {
+                            pending_field_row_action = Some((field_index, SymbolLayoutFieldRowAction::InsertFieldIntoVariant));
                         }
                     })
                     .desired_width(user_interface.available_width()),
@@ -3162,6 +3337,11 @@ impl SymbolLayoutEditorView {
                     field_draft.field_name = Self::build_unique_field_name(draft, &field_draft.field_name);
                     draft.field_drafts.insert(insert_index, field_draft);
                     field_index_to_focus = Some(insert_index);
+                }
+                SymbolLayoutFieldRowAction::InsertFieldIntoVariant => {
+                    if self.append_field_to_variant_layout(project_symbol_catalog, draft, field_index) {
+                        field_index_to_focus = Some(field_index);
+                    }
                 }
                 SymbolLayoutFieldRowAction::RequestRemoveFieldConfirmation => {
                     SymbolLayoutEditorViewData::request_field_delete_confirmation(
@@ -4073,6 +4253,35 @@ mod tests {
         assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "4");
         assert_eq!(draft.field_drafts[1].field_name, "field_b");
         assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "0");
+    }
+
+    #[test]
+    fn resolve_first_unassigned_offset_finds_gap_between_fields() {
+        let field_spans = [
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 12,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert_eq!(SymbolLayoutEditorView::resolve_first_unassigned_offset(&field_spans, 24), Some(4));
+    }
+
+    #[test]
+    fn resolve_first_unassigned_offset_finds_tail_gap() {
+        let field_spans = [SymbolLayoutFieldSpan {
+            field_position: 0,
+            offset_in_bytes: 0,
+            size_in_bytes: 4,
+        }];
+
+        assert_eq!(SymbolLayoutEditorView::resolve_first_unassigned_offset(&field_spans, 16), Some(4));
     }
 
     #[test]
