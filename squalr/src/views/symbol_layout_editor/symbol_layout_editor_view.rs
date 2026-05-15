@@ -557,7 +557,7 @@ impl SymbolLayoutEditorView {
         Some(SymbolLayoutUnassignedSelection::new(gap_start, row_end.saturating_sub(gap_start)))
     }
 
-    fn move_static_field_up(
+    fn move_struct_field_up(
         draft: &mut SymbolLayoutEditDraft,
         field_spans: &[SymbolLayoutFieldSpan],
         split_offsets: &BTreeSet<u64>,
@@ -583,7 +583,7 @@ impl SymbolLayoutEditorView {
             && Self::set_field_static_offset(draft, previous_field_span.field_position, moved_previous_offset)
     }
 
-    fn move_static_field_down(
+    fn move_struct_field_down(
         draft: &mut SymbolLayoutEditDraft,
         field_spans: &[SymbolLayoutFieldSpan],
         layout_size_in_bytes: u64,
@@ -616,7 +616,7 @@ impl SymbolLayoutEditorView {
             && Self::set_field_static_offset(draft, field_index, moved_current_offset)
     }
 
-    fn can_move_static_field_up(
+    fn can_move_struct_field_up(
         field_spans: &[SymbolLayoutFieldSpan],
         split_offsets: &BTreeSet<u64>,
         field_index: usize,
@@ -629,7 +629,7 @@ impl SymbolLayoutEditorView {
         Self::resolve_unassigned_row_before_field(current_field_span, previous_field_span, split_offsets).is_some() || previous_field_span.is_some()
     }
 
-    fn can_move_static_field_down(
+    fn can_move_struct_field_down(
         field_spans: &[SymbolLayoutFieldSpan],
         layout_size_in_bytes: u64,
         split_offsets: &BTreeSet<u64>,
@@ -2922,17 +2922,15 @@ impl SymbolLayoutEditorView {
                     size_in_bytes: field_span.size_in_bytes,
                 });
             }
-            let field_uses_static_offset = field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static;
-            let (can_move_up, can_move_down) = if !layout_kind.is_union()
-                && field_uses_static_offset
-                && let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref()
-            {
+            let (can_move_up, can_move_down) = if layout_kind.is_union() {
+                (field_index > 0, field_index + 1 < field_count)
+            } else if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref() {
                 (
-                    Self::can_move_static_field_up(field_spans, &unassigned_split_offsets, field_index),
-                    Self::can_move_static_field_down(field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index),
+                    Self::can_move_struct_field_up(field_spans, &unassigned_split_offsets, field_index),
+                    Self::can_move_struct_field_down(field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index),
                 )
             } else {
-                (field_index > 0, field_index + 1 < field_count)
+                (false, false)
             };
             if let Some(field_row_action) = self.render_field_editor_section(
                 user_interface,
@@ -3162,13 +3160,9 @@ impl SymbolLayoutEditorView {
                     field_index_to_focus = Some(field_index);
                 }
                 SymbolLayoutFieldRowAction::MoveUp => {
-                    let field_uses_static_offset = draft
-                        .field_drafts
-                        .get(field_index)
-                        .is_some_and(|field_draft| field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static);
-                    if !draft.layout_kind.is_union() && field_uses_static_offset {
+                    if !draft.layout_kind.is_union() {
                         if let Some((_layout_size_in_bytes, field_spans)) = field_spans.as_ref()
-                            && Self::move_static_field_up(draft, field_spans, &unassigned_split_offsets, field_index)
+                            && Self::move_struct_field_up(draft, field_spans, &unassigned_split_offsets, field_index)
                         {
                             field_index_to_focus = Some(field_index);
                         }
@@ -3178,13 +3172,9 @@ impl SymbolLayoutEditorView {
                     }
                 }
                 SymbolLayoutFieldRowAction::MoveDown => {
-                    let field_uses_static_offset = draft
-                        .field_drafts
-                        .get(field_index)
-                        .is_some_and(|field_draft| field_draft.offset_mode == SymbolLayoutFieldOffsetMode::Static);
-                    if !draft.layout_kind.is_union() && field_uses_static_offset {
+                    if !draft.layout_kind.is_union() {
                         if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref()
-                            && Self::move_static_field_down(draft, field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index)
+                            && Self::move_struct_field_down(draft, field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index)
                         {
                             field_index_to_focus = Some(field_index);
                         }
@@ -3887,7 +3877,7 @@ mod tests {
     }
 
     #[test]
-    fn move_static_field_down_over_gap_places_field_before_next_field() {
+    fn move_struct_field_down_over_gap_places_field_before_next_field() {
         let mut draft = SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("player"),
@@ -3912,7 +3902,7 @@ mod tests {
             },
         ];
 
-        assert!(SymbolLayoutEditorView::move_static_field_down(
+        assert!(SymbolLayoutEditorView::move_struct_field_down(
             &mut draft,
             &field_spans,
             32,
@@ -3927,7 +3917,7 @@ mod tests {
     }
 
     #[test]
-    fn move_static_field_down_crosses_only_next_split_unassigned_row() {
+    fn move_struct_field_down_crosses_only_next_split_unassigned_row() {
         let mut draft = SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("player"),
@@ -3953,16 +3943,62 @@ mod tests {
         ];
         let split_offsets = BTreeSet::from([8]);
 
-        assert!(SymbolLayoutEditorView::move_static_field_down(&mut draft, &field_spans, 32, &split_offsets, 0));
+        assert!(SymbolLayoutEditorView::move_struct_field_down(&mut draft, &field_spans, 32, &split_offsets, 0));
 
         assert_eq!(draft.field_drafts[0].field_name, "field_a");
         assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "4");
+        assert_eq!(draft.field_drafts[0].offset_mode, SymbolLayoutFieldOffsetMode::Static);
         assert_eq!(draft.field_drafts[1].field_name, "field_b");
         assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "16");
     }
 
     #[test]
-    fn move_static_field_up_crosses_only_previous_split_unassigned_row() {
+    fn move_struct_field_down_converts_sequential_field_to_static_offset() {
+        let mut draft = SymbolLayoutEditDraft {
+            original_layout_id: None,
+            layout_id: String::from("player"),
+            layout_kind: SymbolicLayoutKind::Struct,
+            size_text: String::from("32"),
+            size_format: AnonymousValueStringFormat::Decimal,
+            field_drafts: vec![
+                {
+                    let mut field_draft = SymbolLayoutFieldEditDraft::new(DataTypeRef::new(DataTypeU32::DATA_TYPE_ID));
+                    field_draft.field_name = String::from("field_a");
+                    field_draft
+                },
+                create_static_field_draft("field_b", 16),
+            ],
+        };
+        let field_spans = [
+            SymbolLayoutFieldSpan {
+                field_position: 0,
+                offset_in_bytes: 0,
+                size_in_bytes: 4,
+            },
+            SymbolLayoutFieldSpan {
+                field_position: 1,
+                offset_in_bytes: 16,
+                size_in_bytes: 4,
+            },
+        ];
+
+        assert!(SymbolLayoutEditorView::move_struct_field_down(
+            &mut draft,
+            &field_spans,
+            32,
+            &BTreeSet::new(),
+            0
+        ));
+
+        assert_eq!(draft.field_drafts[0].field_name, "field_a");
+        assert_eq!(draft.field_drafts[0].offset_mode, SymbolLayoutFieldOffsetMode::Static);
+        assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "12");
+        assert_eq!(draft.field_drafts[1].field_name, "field_b");
+        assert_eq!(draft.field_drafts[1].static_offset_in_bytes, "16");
+    }
+
+    #[test]
+    fn move_struct_field_up_crosses_only_previous_split_unassigned_row() {
         let mut draft = SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("player"),
@@ -3988,7 +4024,7 @@ mod tests {
         ];
         let split_offsets = BTreeSet::from([4]);
 
-        assert!(SymbolLayoutEditorView::move_static_field_up(&mut draft, &field_spans, &split_offsets, 0));
+        assert!(SymbolLayoutEditorView::move_struct_field_up(&mut draft, &field_spans, &split_offsets, 0));
 
         assert_eq!(draft.field_drafts[0].field_name, "field_a");
         assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "4");
@@ -3997,7 +4033,7 @@ mod tests {
     }
 
     #[test]
-    fn move_static_field_down_swaps_contiguous_neighbor_offsets() {
+    fn move_struct_field_down_swaps_contiguous_neighbor_offsets() {
         let mut draft = SymbolLayoutEditDraft {
             original_layout_id: None,
             layout_id: String::from("player"),
@@ -4022,7 +4058,7 @@ mod tests {
             },
         ];
 
-        assert!(SymbolLayoutEditorView::move_static_field_down(&mut draft, &field_spans, 8, &BTreeSet::new(), 0));
+        assert!(SymbolLayoutEditorView::move_struct_field_down(&mut draft, &field_spans, 8, &BTreeSet::new(), 0));
 
         assert_eq!(draft.field_drafts[0].field_name, "field_a");
         assert_eq!(draft.field_drafts[0].static_offset_in_bytes, "4");
