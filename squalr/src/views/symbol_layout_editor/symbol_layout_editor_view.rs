@@ -45,7 +45,7 @@ use squalr_engine_api::structures::{
         valued_struct_field::ValuedStructField,
     },
 };
-use std::{collections::BTreeSet, str::FromStr, sync::Arc};
+use std::{cell::Cell, collections::BTreeSet, str::FromStr, sync::Arc};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymbolLayoutFieldRowAction {
@@ -2189,7 +2189,17 @@ impl SymbolLayoutEditorView {
             );
             header_user_interface.set_clip_rect(header_inner_rect);
 
-            let title_width = (header_inner_rect.width() - header_action_width - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
+            if header_action_width > 0.0 {
+                header_user_interface.allocate_ui_with_layout(
+                    vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
+                    Layout::left_to_right(Align::Center),
+                    |user_interface| {
+                        render_header_actions(user_interface);
+                    },
+                );
+            }
+
+            let title_width = (header_user_interface.available_width() - Self::TAKE_OVER_HEADER_TITLE_PADDING_X).max(0.0);
             let (title_rect, _) = header_user_interface.allocate_exact_size(vec2(title_width, Self::TAKE_OVER_HEADER_HEIGHT), Sense::hover());
             header_user_interface.painter().text(
                 pos2(title_rect.left() + Self::TAKE_OVER_HEADER_TITLE_PADDING_X, title_rect.center().y),
@@ -2198,16 +2208,6 @@ impl SymbolLayoutEditorView {
                 theme.font_library.font_noto_sans.font_window_title.clone(),
                 theme.foreground,
             );
-
-            if header_action_width > 0.0 {
-                header_user_interface.allocate_ui_with_layout(
-                    vec2(header_action_width, Self::TAKE_OVER_HEADER_HEIGHT),
-                    Layout::right_to_left(Align::Center),
-                    |user_interface| {
-                        render_header_actions(user_interface);
-                    },
-                );
-            }
         }
 
         if body_top_spacing > 0.0 {
@@ -2386,6 +2386,19 @@ impl SymbolLayoutEditorView {
         }
 
         pending_field_row_action
+    }
+
+    fn render_add_entry_button(
+        &self,
+        user_interface: &mut Ui,
+        tooltip_text: &str,
+    ) -> bool {
+        user_interface
+            .horizontal(|user_interface| {
+                self.render_flat_icon_button(user_interface, &self.app_context.theme.icon_library.icon_handle_common_add, tooltip_text, false)
+                    .clicked()
+            })
+            .inner
     }
 
     fn render_field_context_menu(
@@ -2842,75 +2855,115 @@ impl SymbolLayoutEditorView {
         let mut next_visible_offset = 0_u64;
         let mut previous_visible_field = None;
 
-        for field_index in field_render_indices {
-            let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
-                continue;
-            };
-            if let Some(field_span) = field_spans_by_position.get(&field_index) {
-                if !layout_kind.is_union() && field_span.offset_in_bytes > next_visible_offset {
-                    let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
-                    let move_down_field = Some(SymbolLayoutUnassignedAdjacentField {
+        if layout_kind.is_union() {
+            for field_index in 0..field_count {
+                let variant_title = draft
+                    .field_drafts
+                    .get(field_index)
+                    .map(|field_draft| {
+                        let trimmed_field_name = field_draft.field_name.trim();
+                        if trimmed_field_name.is_empty() {
+                            format!("Variant {}", field_index + 1)
+                        } else {
+                            trimmed_field_name.to_string()
+                        }
+                    })
+                    .unwrap_or_else(|| format!("Variant {}", field_index + 1));
+
+                user_interface.add(
+                    GroupBox::new_from_theme(&self.app_context.theme, &variant_title, |user_interface| {
+                        let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                            return;
+                        };
+                        if let Some(field_row_action) = self.render_field_editor_section(
+                            user_interface,
+                            layout_kind,
+                            field_draft,
+                            field_index,
+                            selected_field_index == Some(field_index),
+                            field_index > 0,
+                            field_index + 1 < field_count,
+                        ) {
+                            pending_field_row_action = Some((field_index, field_row_action));
+                        }
+                    })
+                    .desired_width(user_interface.available_width()),
+                );
+
+                if field_index + 1 < field_count {
+                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+                }
+            }
+        } else {
+            for field_index in field_render_indices {
+                let Some(field_draft) = draft.field_drafts.get_mut(field_index) else {
+                    continue;
+                };
+                if let Some(field_span) = field_spans_by_position.get(&field_index) {
+                    if field_span.offset_in_bytes > next_visible_offset {
+                        let unassigned_size = field_span.offset_in_bytes.saturating_sub(next_visible_offset);
+                        let move_down_field = Some(SymbolLayoutUnassignedAdjacentField {
+                            field_position: field_span.field_position,
+                            offset_in_bytes: field_span.offset_in_bytes,
+                            size_in_bytes: field_span.size_in_bytes,
+                        });
+                        for unassigned_row_context in Self::build_unassigned_row_contexts(
+                            next_visible_offset,
+                            unassigned_size,
+                            &unassigned_split_offsets,
+                            previous_visible_field,
+                            move_down_field,
+                        ) {
+                            let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
+                                selected_unassigned_span.get_offset_in_bytes() == unassigned_row_context.offset_in_bytes
+                                    && selected_unassigned_span.get_size_in_bytes() == unassigned_row_context.size_in_bytes
+                            });
+                            if let Some(unassigned_row_action) =
+                                self.render_unassigned_layout_row(user_interface, unassigned_row_context.clone(), true, is_selected)
+                            {
+                                pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
+                            }
+                        }
+                    }
+                    next_visible_offset = next_visible_offset.max(
+                        field_span
+                            .offset_in_bytes
+                            .saturating_add(field_span.size_in_bytes),
+                    );
+                    previous_visible_field = Some(SymbolLayoutUnassignedAdjacentField {
                         field_position: field_span.field_position,
                         offset_in_bytes: field_span.offset_in_bytes,
                         size_in_bytes: field_span.size_in_bytes,
                     });
-                    for unassigned_row_context in Self::build_unassigned_row_contexts(
-                        next_visible_offset,
-                        unassigned_size,
-                        &unassigned_split_offsets,
-                        previous_visible_field,
-                        move_down_field,
-                    ) {
-                        let is_selected = selected_unassigned_span.is_some_and(|selected_unassigned_span| {
-                            selected_unassigned_span.get_offset_in_bytes() == unassigned_row_context.offset_in_bytes
-                                && selected_unassigned_span.get_size_in_bytes() == unassigned_row_context.size_in_bytes
-                        });
-                        if let Some(unassigned_row_action) =
-                            self.render_unassigned_layout_row(user_interface, unassigned_row_context.clone(), true, is_selected)
-                        {
-                            pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
-                        }
-                    }
                 }
-                next_visible_offset = next_visible_offset.max(
-                    field_span
-                        .offset_in_bytes
-                        .saturating_add(field_span.size_in_bytes),
-                );
-                previous_visible_field = Some(SymbolLayoutUnassignedAdjacentField {
-                    field_position: field_span.field_position,
-                    offset_in_bytes: field_span.offset_in_bytes,
-                    size_in_bytes: field_span.size_in_bytes,
-                });
-            }
-            let (can_move_up, can_move_down) = if layout_kind.is_union() {
-                (field_index > 0, field_index + 1 < field_count)
-            } else if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref() {
-                (
-                    Self::can_move_struct_field_up(field_spans, &unassigned_split_offsets, field_index),
-                    Self::can_move_struct_field_down(field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index),
-                )
-            } else {
-                (false, false)
-            };
-            if let Some(field_row_action) = self.render_field_editor_section(
-                user_interface,
-                layout_kind,
-                field_draft,
-                field_index,
-                selected_field_index == Some(field_index),
-                can_move_up,
-                can_move_down,
-            ) {
-                pending_field_row_action = Some((field_index, field_row_action));
+                let (can_move_up, can_move_down) = if let Some((layout_size_in_bytes, field_spans)) = field_spans.as_ref() {
+                    (
+                        Self::can_move_struct_field_up(field_spans, &unassigned_split_offsets, field_index),
+                        Self::can_move_struct_field_down(field_spans, *layout_size_in_bytes, &unassigned_split_offsets, field_index),
+                    )
+                } else {
+                    (false, false)
+                };
+                if let Some(field_row_action) = self.render_field_editor_section(
+                    user_interface,
+                    layout_kind,
+                    field_draft,
+                    field_index,
+                    selected_field_index == Some(field_index),
+                    can_move_up,
+                    can_move_down,
+                ) {
+                    pending_field_row_action = Some((field_index, field_row_action));
+                }
             }
         }
 
-        if let Some((layout_size_in_bytes, _field_spans)) = field_spans.as_ref()
+        if !layout_kind.is_union()
+            && let Some((layout_size_in_bytes, _field_spans)) = field_spans.as_ref()
             && *layout_size_in_bytes > next_visible_offset
         {
             let unassigned_size = layout_size_in_bytes.saturating_sub(next_visible_offset);
-            let move_up_field = if layout_kind.is_union() { None } else { previous_visible_field };
+            let move_up_field = previous_visible_field;
             for unassigned_row_context in
                 Self::build_unassigned_row_contexts(next_visible_offset, unassigned_size, &unassigned_split_offsets, move_up_field, None)
             {
@@ -2918,9 +2971,7 @@ impl SymbolLayoutEditorView {
                     selected_unassigned_span.get_offset_in_bytes() == unassigned_row_context.offset_in_bytes
                         && selected_unassigned_span.get_size_in_bytes() == unassigned_row_context.size_in_bytes
                 });
-                if let Some(unassigned_row_action) =
-                    self.render_unassigned_layout_row(user_interface, unassigned_row_context.clone(), !layout_kind.is_union(), is_selected)
-                {
+                if let Some(unassigned_row_action) = self.render_unassigned_layout_row(user_interface, unassigned_row_context.clone(), true, is_selected) {
                     pending_unassigned_row_action = Some((unassigned_row_context, unassigned_row_action));
                 }
             }
@@ -3183,14 +3234,15 @@ impl SymbolLayoutEditorView {
         let is_creating_new_layout = edited_draft.original_layout_id.is_none();
         let is_union_layout = edited_draft.layout_kind.is_union();
         let can_save = validation_result.is_ok() && has_unsaved_changes;
+        let header_action_width = if is_union_layout { Self::ICON_BUTTON_WIDTH } else { 0.0 };
         let mut should_cancel_take_over = false;
         let mut should_save_draft = false;
-        let mut should_append_field = false;
+        let should_append_field = Cell::new(false);
 
         self.render_take_over_panel(
             user_interface,
             if show_layout_name_editor { take_over_title } else { "" },
-            if show_layout_name_editor { 0.0 } else { Self::ICON_BUTTON_WIDTH },
+            header_action_width,
             if show_layout_name_editor {
                 Self::TAKE_OVER_CONTENT_PADDING_X
             } else {
@@ -3198,20 +3250,8 @@ impl SymbolLayoutEditorView {
             },
             Self::TAKE_OVER_SECTION_SPACING,
             |user_interface| {
-                if !show_layout_name_editor {
-                    let add_entry_response = self.render_flat_icon_button(
-                        user_interface,
-                        &self.app_context.theme.icon_library.icon_handle_common_add,
-                        if is_union_layout {
-                            "Add a new union variant."
-                        } else {
-                            "Add a new field entry."
-                        },
-                        false,
-                    );
-                    if add_entry_response.clicked() {
-                        should_append_field = true;
-                    }
+                if is_union_layout && self.render_add_entry_button(user_interface, "Add a new union variant.") {
+                    should_append_field.set(true);
                 }
             },
             |user_interface| {
@@ -3280,6 +3320,12 @@ impl SymbolLayoutEditorView {
                                     selected_field_index,
                                     selected_unassigned_span,
                                 );
+                                if !is_union_layout {
+                                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+                                    if self.render_add_entry_button(user_interface, "Add a new field entry.") {
+                                        should_append_field.set(true);
+                                    }
+                                }
                             },
                         )
                         .desired_width(user_interface.available_width()),
@@ -3301,6 +3347,12 @@ impl SymbolLayoutEditorView {
                                     selected_field_index,
                                     selected_unassigned_span,
                                 );
+                                if !is_union_layout {
+                                    user_interface.add_space(Self::TAKE_OVER_GROUPBOX_SPACING);
+                                    if self.render_add_entry_button(user_interface, "Add a new field entry.") {
+                                        should_append_field.set(true);
+                                    }
+                                }
                             },
                         )
                         .desired_width(user_interface.available_width()),
@@ -3324,7 +3376,7 @@ impl SymbolLayoutEditorView {
             },
         );
 
-        if should_append_field {
+        if should_append_field.get() {
             let field_index_to_focus = edited_draft.field_drafts.len();
             let mut field_draft =
                 self.create_field_draft_for_layout_kind(project_symbol_catalog, edited_draft.layout_kind, &edited_draft.layout_id, field_index_to_focus);
